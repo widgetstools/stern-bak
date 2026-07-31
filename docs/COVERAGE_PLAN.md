@@ -17,10 +17,10 @@ tests written to satisfy a threshold.
 
 | | |
 |---|---|
-| Files at or above 70% | **461 / 810** (56.9%) |
-| Overall line coverage | ~54% |
-| Packages fully clear | 12 of 21 |
-| Remaining files | **349** — 200 React (`.tsx`), 149 pure logic |
+| Files at or above 70% | **484 / 810** (59.8%) |
+| Overall line coverage | ~57% |
+| Packages fully clear | 15 of 21 |
+| Remaining files | **326** — 186 React (`.tsx`), 140 pure logic |
 
 Run this to get the live number; never quote this file's number without checking:
 
@@ -117,7 +117,7 @@ finishes packages outright.
 |---|---|---:|---|---|
 | ✅ 0 | Infrastructure + 9 packages | — | — | Gate, Sonar LCOV, all 21 packages have a suite |
 | ✅ 1 | `host-openfin` (1) · `host-config` (5) · `shared-types` (6) · `host-data` (6) | 18 | logic | 4 packages clear |
-| 2 | `widget-sdk` (6) · `host-data-react` (8) · `workspace-setup-react` (9) | 23 | 14 React | 3 packages clear |
+| ✅ 2 | `widget-sdk` (6) · `host-data-react` (8) · `workspace-setup-react` (9) | 23 | 14 React | 3 packages clear |
 | 3 | `config-browser` (13) | 13 | 11 React | 1 package clear |
 | 4 | `openfin-platform` (23) | 23 | logic | 1 package clear |
 | 5 | `engine` — part 1 | 21 | logic | — |
@@ -126,7 +126,7 @@ finishes packages outright.
 | 8–10 | `ui` (54) — shadcn components, ~18 per session | 54 | all React | `ui` clear |
 | 11–16 | `grid` (164) — customizer modules, ~27 per session | 164 | 101 React | `grid` clear |
 
-**~16 sessions remaining.** `grid` and `ui` are 60% of the total and are
+**~14 sessions remaining.** `grid` and `ui` are 60% of the total and are
 deliberately last: they are the most repetitive, so the conventions will be well
 established by the time they are reached.
 
@@ -173,6 +173,7 @@ Append a row per session. Numbers come from `npm run check:coverage`.
 |---|---|---:|---:|---|
 | 0 | 2026-07-31 | 412 → 443 | +31 | types, host, host-browser, design-system, widget, widget-browser, icons-svg, shared-types*, widget-sdk* |
 | 1 | 2026-07-31 | 443 → 461 | +18 | host-openfin, host-config, shared-types, host-data |
+| 2 | 2026-07-31 | 461 → 484 | +23 | widget-sdk, host-data-react, workspace-setup-react |
 
 \* harness added, package not yet fully clear.
 
@@ -193,3 +194,46 @@ Two things worth knowing before the next Dexie-backed session:
 - **`ConfigManager` always opens the same database name.** Tests that care about
   starting state must `indexedDB.deleteDatabase('marketsui-config')` in
   `beforeEach`, after the previous instance is disposed.
+
+**Session 2 notes.** All 23 target files cleared; every package landed well
+above the bar (`widget-sdk` 100%, `host-data-react` ≥88% per file,
+`workspace-setup-react` ≥89%). 470 tests added, no assertion weakened. Four
+findings are recorded as `WORKLOG.md` item 8 — three real defects in
+`workspace-setup-react` (the `IconPicker` duplicate-id bug that breaks its own
+search, `testComponent`'s stale-closure `userId`, and `useRegistryEditor`
+importing the OpenFin-only barrel) plus one cosmetic id-preview fallback. All
+are pinned as-is with a comment, so fixing one flips a test.
+
+What the next React-heavy session should know:
+
+- **`@wellsfargo-starui/openfin-platform`'s main barrel cannot be imported in
+  jsdom** — `@openfin/workspace-platform` reads `fin.uuid` at module eval and
+  throws. `/config`, `/dock-editor` and `/plugin` are the side-effect-free
+  subpaths and import fine. When a hook under test pulls the main barrel, mock
+  the whole barrel and re-export the real `/config` helpers from inside the
+  factory so pure logic (`deriveTemplateConfigId`, `migrateRegistryToV2`) stays
+  genuine.
+- **`globals: false` means RTL never registers auto-cleanup.** `widget-sdk` and
+  `workspace-setup-react` both set it, so every file that renders needs an
+  explicit `afterEach(cleanup)`. Symptom is a passing test failing only when the
+  file runs alongside its neighbours.
+- **jsdom sizes everything at zero**, which makes `@tanstack/react-virtual`
+  render no rows at all. Stub `HTMLElement.prototype.offsetWidth`/`offsetHeight`
+  — that is what `observeElementRect` measures. Radix `ScrollArea` needs a
+  `ResizeObserver` stub; vaul (`Drawer`) needs `setPointerCapture` /
+  `releasePointerCapture` / `hasPointerCapture`, or its pointer events reject
+  asynchronously and surface as unhandled errors.
+- **React 19's `use()` does not resume under jsdom + act.** A suspended
+  `use(promise)` never re-renders when the promise resolves, so eager-mode
+  providers can only be asserted on the suspend. To exercise the resolved path,
+  pass a thenable React can read synchronously
+  (`Object.assign(Promise.resolve(), { status: 'fulfilled', value: undefined })`).
+- **A component whose async effects settle after first paint needs a real
+  barrier.** `WorkspaceSetup` renders as soon as `readHostEnv` resolves, one
+  tick before the registry and dock rows land; querying a pane in between is
+  flaky roughly one run in three. Wait on the loads *and* flush before asserting.
+- **Per-keystroke `userEvent.type` is too slow on a large list.** The 245-button
+  `IconPicker` grid blew the 5s default timeout under a parallel
+  `test:coverage` run. Prefer `click` + `paste` where the filter is a pure
+  function of the final value; `workspace-setup-react`'s config now also sets
+  `testTimeout: 15_000`.

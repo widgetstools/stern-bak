@@ -93,15 +93,15 @@ individually-listed workspace members can collapse to a `packages/data/*` glob.
 
 ---
 
-## 4. 349 files still below 70% line coverage
+## 4. 326 files still below 70% line coverage
 
 **Repo:** stern-bak · **Branch:** `test/coverage-70` · **Blocked on:** nothing, just volume
 
 The coverage infrastructure is in place and enforcing; the tests are not written
 yet. `npm run test:coverage && npm run check:coverage` reports the live number.
 
-**Progress:** 461 / 810 files at or above 70% (56.9%), from 412 / 806 at the
-start. All 21 packages now have a real suite — five had none at all — and 12 of
+**Progress:** 484 / 810 files at or above 70% (59.8%), from 412 / 806 at the
+start. All 21 packages now have a real suite — five had none at all — and 15 of
 the 21 clear the gate outright.
 
 **Where the remaining gap is concentrated:**
@@ -114,12 +114,9 @@ the 21 clear the gate outright.
 | `widgets-react` | 30 |
 | `openfin-platform` | 23 |
 | `config-browser` | 13 |
-| `workspace-setup-react` | 9 |
-| `host-data-react` | 8 |
-| `widget-sdk` | 6 |
 
 **→ Session-by-session breakdown, conventions and progress log:
-[`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~15 sessions remaining. Read its
+[`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~14 sessions remaining. Read its
 `## Conventions` before writing tests.
 
 **Notes for whoever picks this up:**
@@ -212,6 +209,55 @@ while `getUserPermissions(user)` drops any id with no row. So a permission whose
 definition was deleted still passes the check but is absent from the list. Both
 behaviours are pinned in `configManager.authTables.test.ts`; which one is
 correct is a product question.
+
+## 8. Three defects in `workspace-setup-react`, all pinned not fixed
+
+**Repo:** stern-bak · **Blocked on:** nothing; each is a small change with a
+caller audit attached
+
+Surfaced writing the coverage-70 Session 2 tests. Each is asserted as-is in the
+suite with a comment, so a fix flips a test rather than landing silently.
+
+**a. `IconPicker` lists every market icon twice, and search is broken.**
+`buildIconList()` concatenates `ICON_META` (tagged `source: 'market'`) with
+`ICON_OPTIONS` (tagged `source: 'lucide'` wholesale) — but 80 of
+`ICON_OPTIONS`' 140 entries carry `mkt:*` ids, so 72 ids appear in both passes.
+Three consequences, all pinned in `IconPicker.test.tsx`:
+
+- `key={icon.id}` is non-unique, React logs *"Encountered two children with the
+  same key"*, and the filtered grid cannot reconcile — searching `FileText`
+  leaves ~72 non-matching icons on screen. This is the user-visible one.
+- The mis-tagged duplicate takes the lucide branch on click and emits
+  `https://api.iconify.design/mkt/bond.svg`, which does not exist. Persist that
+  into a dock config and the button renders blank.
+- The explicit `if (meta.category === "system") continue` skip is defeated:
+  `mkt:wrench` and friends come back through the `ICON_OPTIONS` pass.
+
+**Done looks like** deriving `source` from the id prefix rather than from which
+list an entry came out of, and de-duplicating by id before render.
+
+**b. `useRegistryEditor.testComponent` never sends a `userId`.** The callback is
+`useCallback(..., [])` but reads `hostEnv.userId` from state that is populated
+asynchronously, so it closes over the initial `{ appId: '', configServiceUrl: '' }`
+forever. `customData.userId` is always `undefined` — the component-host saver
+needs it to populate `userId` / `createdBy` / `updatedBy` on a freshly-built
+`AppConfigRow`. **Done looks like** adding `hostEnv` to the dependency list (or
+reading it through a ref) and checking what the saver currently does with an
+absent `userId`.
+
+**c. `useRegistryEditor` imports the main `@wellsfargo-starui/openfin-platform`
+barrel.** Its sibling `useDockEditor` deliberately imports
+`@wellsfargo-starui/openfin-platform/config` with a comment explaining that the
+main barrel's `@openfin/workspace-platform` side effects throw
+`Cannot read properties of undefined (reading 'uuid')` outside OpenFin — and the
+editor renders in a plain browser window at dev time. Every symbol
+`useRegistryEditor` uses is exported from `/config`, so this is a one-line
+import change; the tests currently mock the whole barrel to work around it.
+
+**Also noticed, cosmetic:** `InspectorPane`'s Config ID preview falls back to
+`"—"` only when the derivation is falsy, but `deriveTemplateConfigId('', '')`
+returns `"-"`. A brand-new draft therefore previews its id as a lone hyphen and
+the em-dash branch is unreachable.
 
 ## Pre-existing, tracked elsewhere
 

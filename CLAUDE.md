@@ -188,10 +188,13 @@ use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 ## Testing
 
-- Vitest 4 + jsdom 29 for unit tests. Baseline (2026-06-13): **1821 passing,
-  1 skipped across 228 test files** (`npm test` — turbo across `packages/`).
-  Slightly lower now that `@wellsfargo-starui/app` is deleted. Largest contributors: `grid` (546), `host-data` (355),
-  `engine` (241), `design-system` (193), `widgets-react` (171).
+- Vitest 4 + jsdom 29 for unit tests. Baseline (2026-07-31): **3076 passing,
+  1 skipped across 315 test files** (`npm test` — turbo across `packages/`).
+  Largest contributors: `grid` (697), `host-data` (355), `engine` (241),
+  `widgets-react` (218), `design-system` (193), `workspace-setup-react` (187).
+  The per-file 70% coverage gate is a separate run — see
+  [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`
+  section is binding for new tests.
 - **Playwright lives in the apps repo now**, along with the apps its specs
   drive. Nothing in this repo runs e2e.
 
