@@ -5,7 +5,7 @@ import {
   parseBulkUpdateValue,
 } from './applyBulkUpdate.js';
 import { collectBulkUpdateTargets } from './collectBulkUpdateTargets.js';
-import { isBulkUpdateCellType } from './isBulkUpdateCellType.js';
+import { bulkUpdateValueKind, isBulkUpdateCellType } from './isBulkUpdateCellType.js';
 import { resolveColumnDistinctValues } from './resolveColumnDistinctValues.js';
 import { deserializeBulkUpdateState, INITIAL_BULK_UPDATE } from './state.js';
 
@@ -13,14 +13,42 @@ describe('bulk-update state', () => {
   it('deserializes defaults', () => {
     expect(deserializeBulkUpdateState(null)).toEqual(INITIAL_BULK_UPDATE);
   });
+
+  it('merges partial settings and rejects invalid numbers', () => {
+    const state = deserializeBulkUpdateState({
+      settings: {
+        enabled: false,
+        confirmThreshold: -5,
+        maxDropdownValues: 0,
+        showDistinctValues: false,
+      },
+    });
+    expect(state.settings.enabled).toBe(false);
+    expect(state.settings.confirmThreshold).toBe(INITIAL_BULK_UPDATE.settings.confirmThreshold);
+    expect(state.settings.maxDropdownValues).toBe(INITIAL_BULK_UPDATE.settings.maxDropdownValues);
+    expect(state.settings.showDistinctValues).toBe(false);
+  });
 });
 
 describe('isBulkUpdateCellType', () => {
   it('allows text number and date types', () => {
+    expect(isBulkUpdateCellType(undefined)).toBe(true);
     expect(isBulkUpdateCellType('text')).toBe(true);
     expect(isBulkUpdateCellType('number')).toBe(true);
     expect(isBulkUpdateCellType('date')).toBe(true);
+    expect(isBulkUpdateCellType('dateString')).toBe(true);
+    expect(isBulkUpdateCellType('dateTime')).toBe(true);
     expect(isBulkUpdateCellType('boolean')).toBe(false);
+  });
+});
+
+describe('bulkUpdateValueKind', () => {
+  it('maps cell data types to editor value kinds', () => {
+    expect(bulkUpdateValueKind('number')).toBe('number');
+    expect(bulkUpdateValueKind('date')).toBe('date');
+    expect(bulkUpdateValueKind('dateTimeString')).toBe('date');
+    expect(bulkUpdateValueKind('text')).toBe('text');
+    expect(bulkUpdateValueKind(undefined)).toBe('text');
   });
 });
 
