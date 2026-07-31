@@ -1,7 +1,8 @@
 # E2E status after the repo split
 
-**Short version: the harness works, but roughly two-thirds of the suite is
-currently unusable and needs a decision, not a mechanical fix.**
+**Short version: a full run is 10 passed / 2 skipped / 362 failed out of 374.
+The harness works; the suite does not. Part of that is attributable to the app
+curation, part of it cannot be attributed either way — see below.**
 
 ## What happened
 
@@ -36,16 +37,47 @@ retargeted specs produced **13 failed tests**, all on that selector.
 This is not a selector-tweak problem. Those specs assume demo-react's routes,
 grid ids, and seeded fixtures.
 
-## Verified working
+## Full-run result
 
-| Spec area | Target | Result |
-|---|---|---|
-| `lab-onboarding` | markets-grid-lab `:5300` | **3 passed** |
+```
+374 tests in 47 files
+ 10 passed    2 skipped    362 failed        (19.9 min)
+```
 
-The harness itself, the dev-server orchestration, and the apps repo wiring are
-all confirmed good — a passing spec against a surviving app proves the plumbing.
+## What is and is not attributable
 
-## Specs that should still be fine (pinned ports, surviving apps)
+**Attributable to the curation:** the ~34 specs that inherited demo-react's
+baseURL. demo-react was deleted; they cannot pass. This was known and accepted
+when the app list was chosen.
+
+**NOT attributable — and I could not determine it either way:** specs pinned to
+apps that survived (`markets-grid-lab` `:5300`, etc.) also fail. For example
+`v2-alerts` times out on `[role="tab"]`.
+
+The reason attribution is impossible: **no pass/fail baseline was ever recorded
+for this suite.** The platform repo's `docs/E2E_STATUS.md` carried the
+instruction *"Record the resulting N passed / M failed here"* with the value
+never filled in, and explicitly warned that its headline figure was a
+*collection* count, not a pass count:
+
+> Counts are collection counts, not pass counts. Capture pass/fail from a real
+> run — the multi-server topology below means a snapshot taken with a stale dev
+> server or an un-booted port is not representative.
+
+So "398 tests" never meant "398 passing". That document also listed several
+known-fragile and pre-existing failures.
+
+What *is* established: the apps and the plumbing are fine. A DOM probe against
+markets-grid-lab returns `title="MarketsGrid Feature Lab"` with 3108 characters
+of rendered content, and `lab-onboarding` passes 3/3 in isolation. The app
+serves; the specs' assumptions about its state are what fail.
+
+**To attribute the rest properly**, run the suite against the pre-split commit
+(`80ab02a`, before any app was deleted) and compare. Until someone does, treat
+the red as "unknown health, now measured for the first time" rather than "the
+split broke 362 tests".
+
+## Specs pinned to surviving apps (these are the ones worth triaging first)
 
 - `markets-grid-lab` `:5300` — `lab-onboarding`, `v2-alerts`, `v2-bulk-update`,
   `v2-edit-history`, `v2-editing`, `v2-plus-minus`, `v2-shortcuts`,
