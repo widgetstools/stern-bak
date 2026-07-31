@@ -143,9 +143,30 @@ Per-app specifics that cannot be inferred (port, `vite-plugin-svgr` for
 star-demo, `assetsInclude` for markets-grid-lab) live in the `APPS` table at the
 top of that script — add an entry there to add an app.
 
-Each tarball app declares **all 21** member packages, not just its direct
-imports: the packed tarballs depend on each other by concrete version, none are
-published, so any transitive one left out sends npm to the registry for a 404.
+### Dependencies vs overrides
+
+Each tarball app's `dependencies` lists **only the packages it actually
+imports** — 2 for `design-system`, 15 for `star-demo` — because that is what a
+real consumer's manifest looks like. The generator derives the list by scanning
+the app's own source.
+
+`overrides` then names the **whole packed set**, pointing every
+`@wellsfargo-starui/*` at `vendor/*.tgz`. That block is purely a *"no registry
+available"* shim: the packed tarballs depend on each other by concrete version
+and none are published, so without it npm goes to the registry for every
+transitive one and 404s. Against a real Artifactory the registry answers and the
+block would not exist.
+
+Two npm behaviours pin this shape, both established by experiment rather than
+docs:
+
+- Overriding a package whose direct dependency uses a **different** spec
+  (`"^0.1.0"` vs `"file:…"`) fails with `EOVERRIDE`. The identical `file:` spec
+  in both places is accepted.
+- Listing only the *transitive remainder* in `overrides` is **not** enough: once
+  overrides are present, a direct `file:` dep stops satisfying a transitive
+  semver range for that same package and npm 404s on it. So `overrides` must
+  name every package, direct ones included.
 
 ## Why `pack:npm`, not `propagate`
 

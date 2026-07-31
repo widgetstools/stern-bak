@@ -66,6 +66,37 @@ function vendoredPackages() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const SCANNED_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.html', '.json']);
+const SPECIFIER_RE = /@wellsfargo-starui\/([a-z0-9][a-z0-9-]*)/g;
+
+/**
+ * Packages the app actually imports.
+ *
+ * Scanned against the SOURCE app, so the generated configs (which always name
+ * host-data in optimizeDeps and design-system in the Tailwind preset) cannot
+ * inflate the answer. Matches any subpath — `.../design-system/css`,
+ * `.../host-data/assets/…?url`, `.../widgets-react/hosted` — back to its member.
+ */
+function directPackages(srcDir, known) {
+  const found = new Set();
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (SKIP_COPY.has(entry.name)) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      const dot = entry.name.lastIndexOf('.');
+      if (dot < 0 || !SCANNED_EXT.has(entry.name.slice(dot))) continue;
+      const text = readFileSync(path, 'utf8');
+      for (const [, short] of text.matchAll(SPECIFIER_RE)) {
+        const name = `@wellsfargo-starui/${short}`;
+        if (known.has(name)) found.add(name);
+      }
+    }
+  };
+  walk(srcDir);
+  return found;
+}
+
 function viteConfig(app, cfg) {
   const imports = [
     "import { defineConfig } from 'vite';",
@@ -182,14 +213,44 @@ function makeApp(app) {
     `Tarball-track twin of source/${app}. Consumes @wellsfargo-starui/* as installed `
     + `npm packages (vendor/*.tgz) with a plain Vite config — the path an external team takes.`;
 
-  // Every packed member, not just the direct imports: the tarballs depend on
-  // each other by concrete version and none are published, so any transitive
-  // one left out sends npm to the registry for a 404.
+  /*
+   * `dependencies` lists ONLY what the app imports, like a real consumer's
+   * manifest. `overrides` then covers the WHOLE packed set.
+   *
+   * Why overrides exist: the packed tarballs depend on each other by concrete
+   * version and none are published, so every transitive one sends npm to the
+   * registry for a 404. In a real Artifactory setup the registry answers and
+   * this block would not exist — it is purely the "no registry available" shim.
+   *
+   * Two npm behaviours pin this shape down, both established by experiment:
+   *
+   *   - Overriding a package whose direct dependency uses a DIFFERENT spec
+   *     (e.g. dep "^0.1.0" vs override "file:…") fails with EOVERRIDE. Using
+   *     the identical file: spec in both places is accepted.
+   *   - Listing only the transitive remainder is NOT enough: with overrides
+   *     present, a direct file: dep stops satisfying a transitive semver range
+   *     for the same package, and npm 404s on it. So overrides must name every
+   *     package, direct ones included.
+   */
+  const vendored = vendoredPackages();
+  const known = new Set(vendored.map((v) => v.name));
+  const direct = directPackages(srcDir, known);
+
+  // The generated Tailwind config imports the design-system preset, so the app
+  // depends on it whether or not its own source mentions it.
+  if (existsSync(join(srcDir, 'tailwind.config.js'))) direct.add('@wellsfargo-starui/design-system');
+
   const deps = Object.fromEntries(
     Object.entries(pkg.dependencies ?? {}).filter(([k]) => !k.startsWith('@wellsfargo-starui/')),
   );
-  for (const { name, spec } of vendoredPackages()) deps[name] = spec;
+  const overrides = {};
+  for (const { name, spec } of vendored) {
+    overrides[name] = spec;
+    if (direct.has(name)) deps[name] = spec;
+  }
   pkg.dependencies = Object.fromEntries(Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)));
+  pkg.overrides = Object.fromEntries(Object.entries(overrides).sort(([a], [b]) => a.localeCompare(b)));
+  cfg._counts = { direct: direct.size, overrides: vendored.length };
 
   // Isolated install — no hoisted root node_modules to borrow React types from.
   const dev = { ...(pkg.devDependencies ?? {}) };
@@ -214,7 +275,11 @@ function makeApp(app) {
   const tsconfigs = ['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json']
     .filter((f) => rewriteTsconfig(destDir, f));
 
-  log(`${app} -> tarball/${app} (port ${cfg.port}, ${tsconfigs.length} tsconfig(s)${hadModules ? ', kept node_modules' : ''})`);
+  const { direct: nDirect, overrides: nOver } = cfg._counts;
+  log(
+    `${app} -> tarball/${app} (port ${cfg.port}, ${nDirect} direct dep(s) of ${nOver} packed, `
+      + `${tsconfigs.length} tsconfig(s)${hadModules ? ', kept node_modules' : ''})`,
+  );
 }
 
 const args = process.argv.slice(2);
