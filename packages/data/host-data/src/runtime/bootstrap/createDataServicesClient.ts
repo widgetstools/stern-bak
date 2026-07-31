@@ -45,6 +45,7 @@
 
 import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/host-config';
 import { bootstrapDataServices, type DataServices } from './bootstrap.js';
+import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
 
 export interface CreateDataServicesClientOpts {
   /**
@@ -64,11 +65,25 @@ export interface CreateDataServicesClientOpts {
 
   /**
    * ConfigService REST URL. Forwarded to the worker through the
-   * bootstrap payload (NOT the scriptURL query string — that was
+   * bootstrap handshake (NOT the scriptURL query string — that was
    * removed; nothing read `self.location.search`). Empty/missing →
    * local Dexie only.
    */
   configServiceRestUrl?: string;
+
+  /**
+   * Deployment app id for the worker's ConfigManager (scoped rows).
+   * Defaults to `appName`.
+   */
+  appId?: string;
+
+  /**
+   * Seed bundle URL — the worker runs `seedIfEmpty` at hub boot so the
+   * first connecting window doesn't block on a duplicate main-thread seed.
+   */
+  seedConfigUrl?: string;
+
+  seedConfigReload?: 'empty-only' | 'when-changed';
 
   /**
    * Optional override — supply a ConfigManager for the main-thread
@@ -89,7 +104,7 @@ export function createDataServicesClient(
   // bundler's static analysis (so the worker was emitted as an unbundled
   // static asset and failed on its bare import specifiers) AND was dead
   // code: nothing reads `self.location.search` anywhere. The worker gets
-  // its bootstrap via `writeWorkerBootstrapPayload` instead.
+  // its bootstrap from the `worker-bootstrap` handshake sent below.
   //
   // It must also point at the PREBUILT asset rather than the `../worker/
   // defaultEntry.js` source entry: the source graph reaches a lazy
@@ -104,6 +119,18 @@ export function createDataServicesClient(
   worker.addEventListener('error', (ev) => {
     // eslint-disable-next-line no-console
     console.error('[@wellsfargo-starui/host-data] SharedWorker error event', ev);
+  });
+
+  // This path previously sent NOTHING — the comment above claimed the worker
+  // got its bootstrap from `writeWorkerBootstrapPayload`, but nothing here
+  // ever called it, so the worker never saw appId/userId/REST URL even once
+  // the storage transport is set aside.
+  sendWorkerBootstrap(worker.port, {
+    appId: opts.appId ?? opts.appName,
+    userId: opts.userId,
+    seedConfigUrl: opts.seedConfigUrl,
+    seedConfigReload: opts.seedConfigReload,
+    configServiceRestUrl: opts.configServiceRestUrl,
   });
 
   const configManager =

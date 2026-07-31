@@ -198,6 +198,56 @@ input path **drops keystrokes** in popped-out windows and transformed
 containers), the `editContext:false` time-bomb for that same bug, and a
 decoration-based placeholder.
 
+## 9. Worker bootstrap handshake — the payload the worker never received
+
+Open item 1 from the first pass, now fixed.
+
+`writeWorkerBootstrapPayload` persisted `appId` / `userId` /
+`configServiceRestUrl` / `seedConfigUrl` to **localStorage**, and
+`defaultEntry` read it back **inside the SharedWorker** — where no Storage
+API exists. `readCrossWindowItem` returned `null` every time, so all four
+were always `undefined` and the worker's ConfigManager silently ran
+local/anonymous. Invisible in the demos (local Dexie regardless); it would
+have silently ignored any consumer's REST config service.
+
+A second, independent defect sat next to it: **`createDataServicesClient`
+never wrote the payload at all.** It builds its own `SharedWorker` rather
+than calling `createDataServicesWorker`, and its comment claimed the
+bootstrap went out "via `writeWorkerBootstrapPayload`" while no such call
+existed on that path. It also never accepted `appId` / `seedConfigUrl`.
+
+The port is the only channel into a SharedWorker, so the payload now rides
+it as a `worker-bootstrap` message, sent by both spawn paths.
+
+**Why this needed port-adoption plumbing.** `createConfigManager` takes
+`appId` / `identity` / REST URL *at construction* — there is no setter — so
+the worker cannot build its ConfigManager until the handshake lands, and
+cannot receive the handshake unless it is already accepting ports. The
+ordering that falls out:
+
+1. `defaultEntry` registers `onconnect` at module evaluation, accepts each
+   port, and buffers everything that is not the handshake. A real client
+   fires `appdata-attach` immediately on connect — dropping that hangs
+   `appData.ready()` forever.
+2. First valid handshake → construct ConfigManager → `await init()`.
+   Windows connecting during init keep being captured.
+3. Hand every captured port to `installSharedWorkerHub` via the new
+   `adoptPorts` option, which attaches each and replays its backlog in
+   arrival order.
+
+Step 3 must happen in **one synchronous turn**: `installSharedWorkerHub`
+reassigns `onconnect` before its first `await`, so nothing can connect
+between handover and the hub taking over.
+
+`worker-bootstrap` is deliberately **not** part of the `Request` union —
+the hub never sees it, and `isRequest` stays false for it. A blank `userId`
+is an explicit "boot anonymous" answer that settles immediately rather than
+waiting out the 5 s timeout; the timeout itself only trips for a client
+predating the handshake, and warns before degrading to local/anonymous.
+
+The superseded localStorage transport (`workerBootstrapPayload.ts`, plus
+`appNameFromWorkerName`, which nothing else used) is deleted.
+
 ---
 
 ## Verification standard used
@@ -229,32 +279,15 @@ What the browser checks actually established:
 
 ## Open items
 
-1. **Worker bootstrap payload is never read** — *confirmed bug, not fixed.*
-   `writeWorkerBootstrapPayload` persists `appId` / `userId` /
-   `configServiceRestUrl` / `seedConfigUrl` to **localStorage**, but
-   `defaultEntry.ts` reads it back **inside the SharedWorker**, where neither
-   `localStorage` nor `sessionStorage` exists — `readCrossWindowItem` returns
-   `null`, so all four are **always `undefined`** and the worker's
-   ConfigManager silently runs local/anonymous. Invisible in the demos (local
-   Dexie anyway); would silently break any consumer pointing at a REST config
-   service.
-   **Fix shape:** a `postMessage` handshake on first port connect. There is no
-   existing client→worker handshake to extend, so it needs a new protocol
-   message plus port-adoption plumbing in `installSharedWorkerHub` (which
-   already queues ports in `entry.ts`). Note `defaultEntry` awaits
-   `configManager.init()` *before* `installSharedWorkerHub`, so it has the same
-   dropped-first-port race the hub's own comment warns about. Wants a runtime
-   check against star-demo with a live config service — not verifiable
-   headlessly.
-2. **Duplicate worker chunk in demo output** — in-repo demos still pass an
+1. **Duplicate worker chunk in demo output** — in-repo demos still pass an
    explicit `?url`, so their build emits both that asset and the new fallback
    chunk (~249 KB duplicate). Demo output only, never consumer output. Fix by
    dropping the `?url` import from the demos, but star-demo runs under OpenFin
    so that wants runtime testing.
-3. **Test coverage / Sonar LCOV** — deferred by explicit instruction
+2. **Test coverage / Sonar LCOV** — deferred by explicit instruction
    ("lets worry about coverage later lets finish with packaging"). None of it
    exists yet: no `sonar-project.properties`, no `run-test-coverage.mjs`, no
    `check-package-coverage.mjs`; 0/15 vitest configs have coverage blocks and
    7 packages lack real test scripts.
-4. **ESLint `unicorn/filename-case`** per-bucket enforcement remains a
+3. **ESLint `unicorn/filename-case`** per-bucket enforcement remains a
    follow-up (per `CLAUDE.md`); conventions are review-enforced today.

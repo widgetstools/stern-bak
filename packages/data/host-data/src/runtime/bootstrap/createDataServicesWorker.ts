@@ -43,15 +43,14 @@
  * `@wellsfargo-starui/host-data/assets/data-services-worker.mjs` is served
  * directly.
  *
- * Bootstrap fields (appId, seed URL, …) are written to localStorage — not
- * query params — because Vite's dev `@fs/` handler breaks when extra search
- * params are appended to the worker script URL.
+ * Bootstrap fields (appId, userId, seed URL, REST URL) are sent as a
+ * `worker-bootstrap` message on the worker's port — not as query params,
+ * because Vite's dev `@fs/` handler breaks when extra search params are
+ * appended to the worker script URL, and not via localStorage, which a
+ * SharedWorker cannot read at all.
  */
 
-import {
-  writeWorkerBootstrapPayload,
-  type WorkerBootstrapPayload,
-} from '../../bootstrap/workerBootstrapPayload.js';
+import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
 
 export interface CreateDataServicesWorkerOpts {
   /** Idempotency key — also used as SharedWorker `name` suffix. */
@@ -89,21 +88,6 @@ function resolveWorkerScriptUrl(scriptUrl: string): string {
   }
 }
 
-function persistWorkerBootstrap(opts: CreateDataServicesWorkerOpts): void {
-  const appId = opts.appId ?? opts.appName;
-  const userId = opts.userId;
-  if (!userId) return;
-
-  const payload: WorkerBootstrapPayload = {
-    appId,
-    userId,
-    seedConfigUrl: opts.seedConfigUrl,
-    seedConfigReload: opts.seedConfigReload,
-    configServiceRestUrl: opts.configServiceRestUrl,
-  };
-  writeWorkerBootstrapPayload(opts.appName, payload);
-}
-
 export function createDataServicesWorker(
   workerScriptUrl: string | undefined,
   opts: CreateDataServicesWorkerOpts,
@@ -116,7 +100,6 @@ export function createDataServicesWorker(
     );
   }
 
-  persistWorkerBootstrap(opts);
   const name = `mkt-data-services:${opts.appName}`;
 
   // Explicit URL wins (CDN / OpenFin manifest / <script> hosting).
@@ -133,6 +116,16 @@ export function createDataServicesWorker(
   worker.addEventListener('error', (ev) => {
     // eslint-disable-next-line no-console
     console.error('[@wellsfargo-starui/host-data] SharedWorker error event', ev);
+  });
+
+  // Must go out before anything else uses this port: the worker entry blocks
+  // its ConfigManager construction on this message.
+  sendWorkerBootstrap(worker.port, {
+    appId: opts.appId ?? opts.appName,
+    userId: opts.userId,
+    seedConfigUrl: opts.seedConfigUrl,
+    seedConfigReload: opts.seedConfigReload,
+    configServiceRestUrl: opts.configServiceRestUrl,
   });
 
   return worker;

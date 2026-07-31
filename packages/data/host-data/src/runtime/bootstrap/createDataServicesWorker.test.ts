@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createDataServicesWorker } from './createDataServicesWorker.js';
 
 class MockSharedWorker {
-  port = {};
+  port = { postMessage: vi.fn() };
   addEventListener = vi.fn();
 
   constructor(
@@ -44,5 +44,42 @@ describe('createDataServicesWorker', () => {
     });
 
     expect(worker.url).toBe('https://cdn.example/worker.mjs');
+  });
+
+  // A SharedWorker cannot read localStorage — the port is the only channel
+  // that reaches it, so the deployment fields MUST go out as a message.
+  it('sends the bootstrap handshake on the worker port', () => {
+    const worker = createDataServicesWorker('/assets/data-services-worker.mjs', {
+      appName: 'demo-app',
+      appId: 'demo-app',
+      userId: 'dev1',
+      seedConfigUrl: '/seed.json',
+      seedConfigReload: 'when-changed',
+      configServiceRestUrl: 'http://localhost:3000/api',
+    }) as unknown as MockSharedWorker;
+
+    expect(worker.port.postMessage).toHaveBeenCalledWith({
+      kind: 'worker-bootstrap',
+      payload: {
+        appId: 'demo-app',
+        userId: 'dev1',
+        seedConfigUrl: '/seed.json',
+        seedConfigReload: 'when-changed',
+        configServiceRestUrl: 'http://localhost:3000/api',
+      },
+    });
+  });
+
+  it('defaults the bootstrap appId to appName', () => {
+    const worker = createDataServicesWorker('/assets/data-services-worker.mjs', {
+      appName: 'fallback-app',
+      userId: 'dev1',
+    }) as unknown as MockSharedWorker;
+
+    expect(worker.port.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ appId: 'fallback-app' }),
+      }),
+    );
   });
 });

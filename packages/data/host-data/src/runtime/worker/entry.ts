@@ -39,6 +39,23 @@ interface DedicatedWorkerLike {
   postMessage(message: unknown): void;
 }
 
+/**
+ * A port the caller accepted *before* the hub existed, handed over for the
+ * hub to take ownership of.
+ *
+ * `defaultEntry` must accept ports before `installSharedWorkerHub` is even
+ * callable: it cannot build the hub's ConfigManager until a client sends the
+ * bootstrap payload, and the only way to receive that is to already be
+ * listening. Anything else that arrived on the port meanwhile (a client
+ * fires `appdata-attach` immediately after connecting) is buffered by the
+ * caller and replayed here, in arrival order, so no request is lost.
+ */
+export interface AdoptedPort {
+  port: MessagePort;
+  /** Non-bootstrap messages received before adoption, in arrival order. */
+  buffered: readonly unknown[];
+}
+
 export interface InstallOpts extends SharedWorkerDataServicesHubOpts {
   /** Inject the global for tests. Defaults to `globalThis`. */
   selfRef?: unknown;
@@ -48,6 +65,14 @@ export interface InstallOpts extends SharedWorkerDataServicesHubOpts {
    * `'worker'`.
    */
   hydrateUserId?: string;
+  /**
+   * Ports already accepted by the caller, with anything they received
+   * before handover. The caller MUST have removed its own listeners
+   * first, and MUST call this in the same synchronous turn as building
+   * the list — `onconnect` is reassigned below without an intervening
+   * await, so no connection can slip between the two.
+   */
+  adoptPorts?: readonly AdoptedPort[];
 }
 
 export interface InstalledWorker {
@@ -65,11 +90,13 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   const pendingPorts: MessagePort[] = [];
   let attachPort: ((port: MessagePort) => void) | null = null;
 
-  const attach = (port: MessagePort) => {
-    const onMessage = (ev: MessageEvent) => {
-      if (isRequest(ev.data)) hub.handleRequest(portLike, ev.data);
-      else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(portLike, ev.data);
-    };
+  const dispatch = (target: PortLike, data: unknown) => {
+    if (isRequest(data)) hub.handleRequest(target, data);
+    else if (isAppDataRequest(data)) hub.handleAppDataRequest(target, data);
+  };
+
+  const attach = (port: MessagePort): PortLike => {
+    const onMessage = (ev: MessageEvent) => dispatch(portLike, ev.data);
     const onError = () => hub.onPortClosed(portLike);
     const portLike: PortLike = {
       postMessage: (m) => port.postMessage(m),
@@ -85,6 +112,7 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
     port.addEventListener('message', onMessage);
     port.addEventListener('messageerror', onError);
     port.start();
+    return portLike;
   };
 
   // Register onconnect BEFORE async hydration. Browsers fire `connect`
@@ -109,6 +137,15 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   }
 
   attachPort = attach;
+
+  // Adopt first, and replay each port's backlog immediately after attaching
+  // it, so a client's pre-handover messages are still processed ahead of
+  // anything it sends afterwards.
+  for (const adopted of opts.adoptPorts ?? []) {
+    const portLike = attach(adopted.port);
+    for (const data of adopted.buffered) dispatch(portLike, data);
+  }
+
   for (const port of pendingPorts) attach(port);
   pendingPorts.length = 0;
 

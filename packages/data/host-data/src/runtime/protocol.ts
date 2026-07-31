@@ -346,6 +346,29 @@ export type AppDataRequest =
   | AppDataUpsertRequest
   | AppDataRemoveRequest;
 
+/** Deployment fields the SharedWorker's ConfigManager is constructed from. */
+export interface WorkerBootstrapPayload {
+  appId: string;
+  userId: string;
+  seedConfigUrl?: string;
+  seedConfigReload?: 'empty-only' | 'when-changed';
+  configServiceRestUrl?: string;
+}
+
+/**
+ * First message a client posts on its port — carries the deployment fields
+ * the worker's ConfigManager is constructed from.
+ *
+ * Deliberately NOT part of {@link Request}: it is consumed by the worker
+ * *entry* before the hub exists (the hub cannot be built until its
+ * ConfigManager is, and that needs this payload). The hub therefore never
+ * sees it, and `isRequest` must stay false for it.
+ */
+export interface WorkerBootstrapRequest {
+  kind: 'worker-bootstrap';
+  payload: WorkerBootstrapPayload;
+}
+
 export type Request =
   | AttachRequest
   | DetachRequest
@@ -584,6 +607,25 @@ export type AppDataEvent =
   | AppDataAckEvent;
 
 // ─── Type guards ───────────────────────────────────────────────────
+
+/**
+ * Validates the entry-level bootstrap handshake. Strict on `appId`/`userId`
+ * because a blank identity would silently boot the worker anonymous — the
+ * exact failure this handshake replaced.
+ */
+export function isWorkerBootstrapRequest(value: unknown): value is WorkerBootstrapRequest {
+  if (!value || typeof value !== 'object') return false;
+  if ((value as { kind?: string }).kind !== 'worker-bootstrap') return false;
+  const payload = (value as { payload?: unknown }).payload;
+  if (!payload || typeof payload !== 'object') return false;
+  const { appId, userId } = payload as Partial<WorkerBootstrapPayload>;
+  return (
+    typeof appId === 'string'
+    && appId.trim().length > 0
+    && typeof userId === 'string'
+    && userId.trim().length > 0
+  );
+}
 
 export function isRequest(value: unknown): value is Request {
   if (!value || typeof value !== 'object') return false;

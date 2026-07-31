@@ -1,77 +1,134 @@
 /**
  * Default SharedWorker entry for `@wellsfargo-starui/host-data`.
  *
- * Bootstrap fields (`appId`, `userId`, seed URL, REST URL) are read from
- * localStorage (written by `createDataServicesWorker` before spawn) — not
- * from the script URL — so Vite dev `@fs/` worker URLs stay clean.
+ * Bootstrap fields (`appId`, `userId`, seed URL, REST URL) arrive as a
+ * `worker-bootstrap` message on the first client port.
+ *
+ * They used to be written to localStorage by the main thread and read back
+ * here — which could never work: a SharedWorker global has neither
+ * `localStorage` nor `sessionStorage`, so the read always returned `null`
+ * and all four fields were always `undefined`. The worker's ConfigManager
+ * then silently ran local/anonymous, ignoring `configServiceRestUrl`
+ * entirely. The port is the only channel that actually reaches in here.
+ *
+ * Ordering matters. The ConfigManager cannot be constructed until the
+ * payload arrives (`createConfigManager` takes `appId`/`identity`/REST URL
+ * at construction), and the payload cannot arrive until we are listening —
+ * so this entry accepts ports itself, buffers what they send, and hands
+ * them to `installSharedWorkerHub` via `adoptPorts` once the hub is
+ * buildable. Nothing a client sent in the meantime is dropped.
  *
  * Apps that need bespoke worker setup should keep their own worker file and
  * call `installSharedWorkerHub({...})` directly.
  */
 
-import { installSharedWorkerHub } from './index.js';
+import { installSharedWorkerHub, type AdoptedPort } from './index.js';
 import { createConfigManager } from '@wellsfargo-starui/host-config';
 import {
-  appNameFromWorkerName,
-  readWorkerBootstrapPayload,
-} from '../../bootstrap/workerBootstrapPayload.js';
+  isWorkerBootstrapRequest,
+  type WorkerBootstrapPayload,
+} from '../protocol.js';
 
-function readWorkerBootstrapParams(): {
-  configServiceRestUrl: string | undefined;
-  appId: string | undefined;
-  userId: string | undefined;
-  seedConfigUrl: string | undefined;
-  seedConfigReload: 'empty-only' | 'when-changed' | undefined;
-} {
-  const workerName = typeof self.name === 'string' ? self.name : '';
-  const appName = appNameFromWorkerName(workerName);
-  if (!appName) {
-    return {
-      configServiceRestUrl: undefined,
-      appId: undefined,
-      userId: undefined,
-      seedConfigUrl: undefined,
-      seedConfigReload: undefined,
-    };
-  }
+/**
+ * How long to wait for a client's bootstrap handshake before booting
+ * local/anonymous. Clients post it immediately on connect, so this only
+ * trips for a client predating the handshake — in which case degrading to
+ * the old local-only behaviour beats hanging the worker forever.
+ */
+const BOOTSTRAP_TIMEOUT_MS = 5_000;
 
-  const payload = readWorkerBootstrapPayload(appName);
-  if (!payload) {
-    return {
-      configServiceRestUrl: undefined,
-      appId: undefined,
-      userId: undefined,
-      seedConfigUrl: undefined,
-      seedConfigReload: undefined,
-    };
-  }
+interface CapturedPort {
+  port: MessagePort;
+  buffered: unknown[];
+  listener: (ev: MessageEvent) => void;
+}
 
-  return {
-    configServiceRestUrl: payload.configServiceRestUrl,
-    appId: payload.appId,
-    userId: payload.userId,
-    seedConfigUrl: payload.seedConfigUrl,
-    seedConfigReload: payload.seedConfigReload,
+const captured: CapturedPort[] = [];
+let resolveBootstrap: ((payload: WorkerBootstrapPayload | null) => void) | null = null;
+let settled = false;
+
+const firstBootstrap = new Promise<WorkerBootstrapPayload | null>((resolve) => {
+  resolveBootstrap = resolve;
+});
+
+function settle(payload: WorkerBootstrapPayload | null): void {
+  if (settled) return;
+  settled = true;
+  resolveBootstrap?.(payload);
+}
+
+/**
+ * Accept a port before the hub exists. Registered synchronously at module
+ * evaluation: browsers fire `connect` as soon as the main thread constructs
+ * the SharedWorker, and a port dropped here is a client that hangs forever.
+ */
+function capture(port: MessagePort): void {
+  const entry: CapturedPort = {
+    port,
+    buffered: [],
+    listener: (ev: MessageEvent) => {
+      if ((ev.data as { kind?: string } | null)?.kind === 'worker-bootstrap') {
+        // A malformed/identity-less handshake still settles — it is an
+        // explicit "boot anonymous" answer, not a reason to wait out the
+        // timeout.
+        settle(isWorkerBootstrapRequest(ev.data) ? ev.data.payload : null);
+        return;
+      }
+      entry.buffered.push(ev.data);
+    },
   };
+  captured.push(entry);
+  port.addEventListener('message', entry.listener);
+  port.start();
+}
+
+const globalRef = globalThis as unknown as {
+  onconnect: ((ev: { ports: readonly MessagePort[] }) => void) | null;
+};
+globalRef.onconnect = (ev) => {
+  const port = ev.ports[0];
+  if (port) capture(port);
+};
+
+/** Detach our listeners and hand every captured port to the hub. */
+function takeCapturedPorts(): AdoptedPort[] {
+  const adopted = captured.map(({ port, buffered, listener }) => {
+    port.removeEventListener('message', listener);
+    return { port, buffered };
+  });
+  captured.length = 0;
+  return adopted;
+}
+
+function withTimeout(): Promise<WorkerBootstrapPayload | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[@wellsfargo-starui/host-data worker] no worker-bootstrap message within '
+          + `${BOOTSTRAP_TIMEOUT_MS}ms — booting local/anonymous. The client is `
+          + 'likely older than the bootstrap handshake.',
+      );
+      resolve(null);
+    }, BOOTSTRAP_TIMEOUT_MS);
+    void firstBootstrap.then((payload) => {
+      clearTimeout(timer);
+      resolve(payload);
+    });
+  });
 }
 
 async function boot(): Promise<void> {
-  const {
-    configServiceRestUrl,
-    appId,
-    userId,
-    seedConfigUrl,
-    seedConfigReload,
-  } = readWorkerBootstrapParams();
+  const payload = await withTimeout();
 
   const configManager = createConfigManager({
-    configServiceRestUrl,
-    appId,
-    identity: userId
-      ? { userId, displayName: userId }
+    configServiceRestUrl: payload?.configServiceRestUrl,
+    appId: payload?.appId,
+    identity: payload?.userId
+      ? { userId: payload.userId, displayName: payload.userId }
       : undefined,
-    seedConfigUrl,
-    seedConfigReload,
+    seedConfigUrl: payload?.seedConfigUrl,
+    seedConfigReload: payload?.seedConfigReload,
   });
   // Full init (including seedIfEmpty) is intentional and must stay. The
   // worker is the deterministic seeder + the stale-warm safety net: a
@@ -83,7 +140,13 @@ async function boot(): Promise<void> {
   // converting this to attach mode would silently break recovery after a
   // wiped IndexedDB. See docs/CONFIG_SERVICE_BASELINE.md §4.5.
   await configManager.init();
-  await installSharedWorkerHub({ configManager });
+
+  // Must stay in one synchronous turn: `installSharedWorkerHub` reassigns
+  // `onconnect` before its first await, so no port can connect between
+  // handover and the hub taking over.
+  const adoptPorts = takeCapturedPorts();
+  await installSharedWorkerHub({ configManager, adoptPorts });
+
   // eslint-disable-next-line no-console
   console.info(
     `[@wellsfargo-starui/host-data worker] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
