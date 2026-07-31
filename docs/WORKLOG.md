@@ -287,6 +287,17 @@ therefore fine. **Done looks like** an `aria-label="JSON payload"` (or an
 `id`/`htmlFor` pair against the existing heading), after which the test helper
 can go back to a plain role+name query.
 
+## 11. `CollapsibleToolbar`'s pin control has no accessible name
+
+**Repo:** stern-bak · **Blocked on:** nothing; one attribute
+
+The pin/unpin `<Button>` inside `CollapsibleToolbar` is icon-only (`Pin` /
+`PinOff` from lucide). It exposes a `title` tooltip but no `aria-label`, so it
+is unreachable by `getByRole('button', { name })` — the session 8 coverage test
+falls back to querying the sole button after hover expand. **Done looks like**
+`aria-label="Pin toolbar open"` / `"Unpin toolbar"` (or equivalent), after which
+the test can name the control explicitly.
+
 ## 10. Bucket contents are wrong; 21 published packages should become 7
 
 **Repo:** stern-bak · **Unblocked:** coverage **session 3** has landed (item 4)
