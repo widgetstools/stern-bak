@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.083Z",
+  "profile": {
+    "name": "04 · Calculated heavy",
+    "gridId": "lab-overview-v7",
+    "state": {
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "losers",
+              "name": "Losers",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "dailyPnL",
+                  "unrealizedPnL"
+                ]
+              },
+              "expression": "value < 0",
+              "style": {
+                "dark": {
+                  "color": "#ee8e8e",
+                  "fontWeight": "600"
+                },
+                "light": {
+                  "color": "#a02a2a",
+                  "fontWeight": "600"
+                }
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "mode": "oneShot",
+                "color": "rose",
+                "durationMs": 600
+              },
+              "indicator": {
+                "icon": "arrow-down",
+                "position": "top-left",
+                "target": "cells",
+                "color": "#ee8e8e"
+              }
+            },
+            {
+              "id": "winners",
+              "name": "Winners",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "dailyPnL",
+                  "unrealizedPnL"
+                ]
+              },
+              "expression": "value > 0",
+              "style": {
+                "dark": {
+                  "color": "#7fdf9b",
+                  "fontWeight": "600"
+                },
+                "light": {
+                  "color": "#1f7a34",
+                  "fontWeight": "600"
+                }
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "mode": "oneShot",
+                "color": "emerald",
+                "durationMs": 600
+              },
+              "indicator": {
+                "icon": "arrow-up",
+                "position": "top-left",
+                "target": "cells",
+                "color": "#7fdf9b"
+              }
+            }
+          ]
+        }
+      },
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "calc_pnlTotal",
+              "headerName": "P&L Total",
+              "expression": "[dailyPnL] + [mtdPnL] + [ytdPnL]",
+              "cellDataType": "currency",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "currency",
+                "options": {
+                  "signed": true
+                }
+              },
+              "position": 100,
+              "initialWidth": 130
+            },
+            {
+              "colId": "calc_carryRisk",
+              "headerName": "Carry/Risk",
+              "expression": "IF([modifiedDuration] > 0, [yieldToMaturity] / [modifiedDuration], null)",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "position": 101,
+              "initialWidth": 110
+            },
+            {
+              "colId": "calc_dollarDur",
+              "headerName": "Dollar Dur",
+              "expression": "[marketValue] * [modifiedDuration] / 100",
+              "cellDataType": "currency",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "currency",
+                "options": {
+                  "maximumFractionDigits": 0
+                }
+              },
+              "position": 102,
+              "initialWidth": 130
+            },
+            {
+              "colId": "calc_bidAskBps",
+              "headerName": "B/A bps (calc)",
+              "expression": "([askPrice] - [bidPrice]) * 100",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "position": 103,
+              "initialWidth": 120
+            }
+          ]
+        }
+      }
+    }
+  }
+}

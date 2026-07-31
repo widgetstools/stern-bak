@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-16T20:00:00.000Z",
+  "profile": {
+    "name": "Trader Console",
+    "gridId": "bond-blotter-v1",
+    "state": {
+      "general-settings": {
+        "v": 2,
+        "data": {
+          "rowHeight": 30,
+          "headerHeight": 30,
+          "animateRows": true,
+          "cellSelection": true,
+          "cellFlashDuration": 350,
+          "cellFadeDuration": 700,
+          "enableCellChangeFlash": true,
+          "defaultResizable": true,
+          "defaultSortable": true,
+          "defaultFilterable": true,
+          "floatingFilter": true,
+          "tooltipShowDelay": 1500,
+          "tooltipShowMode": "standard",
+          "suppressDragLeaveHidesColumns": true,
+          "rowBuffer": 10
+        }
+      },
+      "column-templates": {
+        "v": 1,
+        "data": { "templates": {}, "typeDefaults": {} }
+      },
+      "column-customization": {
+        "v": 5,
+        "data": {
+          "assignments": {
+            "bidPrice": {
+              "colId": "bidPrice",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "fontFamily": "mono" }
+              }
+            },
+            "midPrice": {
+              "colId": "midPrice",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "bold": true, "fontFamily": "mono" }
+              }
+            },
+            "offerPrice": {
+              "colId": "offerPrice",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "fontFamily": "mono" }
+              }
+            },
+            "bidYield": {
+              "colId": "bidYield",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000\"%\"" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "ytm": {
+              "colId": "ytm",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000\"%\"" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "bold": true }
+              }
+            },
+            "offerYield": {
+              "colId": "offerYield",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000\"%\"" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "changeBps": {
+              "colId": "changeBps",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+0.0\" bps\";[Red]0.0\" bps\";[Blue]0.0\" bps\""
+              },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "size": {
+              "colId": "size",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "#,##0" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "notional": {
+              "colId": "notional",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "\"$\"#,##0" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "bold": true }
+              }
+            },
+            "pnlDay": {
+              "colId": "pnlDay",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+\"$\"#,##0;[Red]-\"$\"#,##0;[Blue]\"$\"0"
+              },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "side": {
+              "colId": "side",
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "center" },
+                "typography": { "bold": true }
+              }
+            },
+            "rating": {
+              "colId": "rating",
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "center" },
+                "typography": { "fontFamily": "mono" }
+              }
+            }
+          }
+        }
+      },
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "bidAskBps",
+              "headerName": "Bid-Ask (bps)",
+              "expression": "([offerPrice] - [bidPrice]) / [midPrice] * 10000",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.0\" bps\"" },
+              "cellDataType": "number",
+              "position": 14,
+              "initialWidth": 110
+            },
+            {
+              "colId": "yieldSpread",
+              "headerName": "Yld Spread",
+              "expression": "[bidYield] - [offerYield]",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000\"%\"" },
+              "cellDataType": "number",
+              "position": 18,
+              "initialWidth": 100
+            }
+          ]
+        }
+      },
+      "column-groups": { "v": 1, "data": { "groups": [], "openGroupIds": {} } },
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "rule-side-bid",
+              "name": "BID indicator",
+              "enabled": true,
+              "priority": 10,
+              "scope": { "type": "cell", "columns": ["side"] },
+              "expression": "[side] == 'BID'",
+              "style": {
+                "light": { "backgroundColor": "rgba(5, 150, 105, 0.14)", "color": "#047857", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(45, 212, 191, 0.18)", "color": "#5eead4", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-side-offer",
+              "name": "OFFER indicator",
+              "enabled": true,
+              "priority": 11,
+              "scope": { "type": "cell", "columns": ["side"] },
+              "expression": "[side] == 'OFFER'",
+              "style": {
+                "light": { "backgroundColor": "rgba(220, 38, 38, 0.12)", "color": "#b91c1c", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(248, 113, 113, 0.18)", "color": "#fca5a5", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-side-twoway",
+              "name": "TWO-WAY indicator",
+              "enabled": true,
+              "priority": 12,
+              "scope": { "type": "cell", "columns": ["side"] },
+              "expression": "[side] == 'TWO-WAY'",
+              "style": {
+                "light": { "backgroundColor": "rgba(56, 189, 248, 0.14)", "color": "#0369a1", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(56, 189, 248, 0.18)", "color": "#7dd3fc", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-change-up",
+              "name": "Yield up (sold off)",
+              "enabled": true,
+              "priority": 20,
+              "scope": { "type": "cell", "columns": ["changeBps"] },
+              "expression": "[changeBps] > 5",
+              "style": {
+                "light": { "color": "#b91c1c", "fontWeight": "600" },
+                "dark":  { "color": "#fca5a5", "fontWeight": "600" }
+              },
+              "flash": { "enabled": true, "target": "cells", "flashDuration": 300, "fadeDuration": 700 }
+            },
+            {
+              "id": "rule-change-down",
+              "name": "Yield down (rallied)",
+              "enabled": true,
+              "priority": 21,
+              "scope": { "type": "cell", "columns": ["changeBps"] },
+              "expression": "[changeBps] < -5",
+              "style": {
+                "light": { "color": "#047857", "fontWeight": "600" },
+                "dark":  { "color": "#5eead4", "fontWeight": "600" }
+              },
+              "flash": { "enabled": true, "target": "cells", "flashDuration": 300, "fadeDuration": 700 }
+            },
+            {
+              "id": "rule-pnl-positive",
+              "name": "P&L positive",
+              "enabled": true,
+              "priority": 30,
+              "scope": { "type": "cell", "columns": ["pnlDay"] },
+              "expression": "[pnlDay] > 0",
+              "style": {
+                "light": { "color": "#047857" },
+                "dark":  { "color": "#34d399" }
+              }
+            },
+            {
+              "id": "rule-pnl-negative",
+              "name": "P&L negative",
+              "enabled": true,
+              "priority": 31,
+              "scope": { "type": "cell", "columns": ["pnlDay"] },
+              "expression": "[pnlDay] < 0",
+              "style": {
+                "light": { "color": "#b91c1c" },
+                "dark":  { "color": "#fca5a5" }
+              }
+            },
+            {
+              "id": "rule-rating-hy",
+              "name": "High-yield rating tint",
+              "enabled": true,
+              "priority": 40,
+              "scope": { "type": "cell", "columns": ["rating"] },
+              "expression": "[rating] == 'BB+' || [rating] == 'BB' || [rating] == 'BB-' || [rating] == 'B+' || [rating] == 'B'",
+              "style": {
+                "light": { "backgroundColor": "rgba(245, 158, 11, 0.16)", "color": "#92400e", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(245, 158, 11, 0.20)", "color": "#fcd34d", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-bidask-wide",
+              "name": "Wide bid-ask (>30 bps)",
+              "enabled": true,
+              "priority": 50,
+              "scope": { "type": "cell", "columns": ["bidAskBps"] },
+              "expression": "[bidAskBps] > 30",
+              "style": {
+                "light": { "backgroundColor": "rgba(245, 158, 11, 0.16)", "color": "#92400e" },
+                "dark":  { "backgroundColor": "rgba(245, 158, 11, 0.20)", "color": "#fcd34d" }
+              }
+            },
+            {
+              "id": "rule-price-flash",
+              "name": "Mid price tick flash",
+              "enabled": true,
+              "priority": 60,
+              "scope": { "type": "cell", "columns": ["midPrice"] },
+              "expression": "[midPrice] > 0",
+              "style": { "light": {}, "dark": {} },
+              "flash": { "enabled": true, "target": "cells", "flashDuration": 300, "fadeDuration": 700 }
+            }
+          ]
+        }
+      },
+      "grid-state": {
+        "v": 3,
+        "data": {
+          "schemaVersion": 3,
+          "savedAt": "2026-05-16T20:00:00.000Z",
+          "gridState": {
+            "version": "35.1.0",
+            "sideBar": {
+              "visible": true,
+              "position": "right",
+              "openToolPanel": null,
+              "toolPanels": {
+                "columns": { "expandedGroupIds": [] },
+                "filters": { "expandedGroupIds": [], "expandedColIds": [] }
+              }
+            },
+            "columnPinning": {
+              "leftColIds": ["ticker", "description", "side"],
+              "rightColIds": []
+            },
+            "columnOrder": {
+              "orderedColIds": [
+                "ticker", "description", "side",
+                "bidPrice", "midPrice", "offerPrice", "bidAskBps",
+                "bidYield", "ytm", "offerYield", "yieldSpread",
+                "changeBps", "size", "notional", "pnlDay",
+                "rating", "currency", "issuer", "sector",
+                "maturity", "coupon", "lastTradedAt",
+                "cusip", "isin",
+                "oas", "zSpread", "duration", "convexity", "dv01",
+                "pnlMtd", "pnlYtd", "liquidity", "desk", "book", "trader"
+              ]
+            },
+            "filter": { "selectableFilters": {} },
+            "rowGroupExpansion": { "expandedRowGroupIds": [], "collapsedRowGroupIds": [] }
+          },
+          "viewportAnchor": { "firstRowIndex": 0, "leftColId": "ticker", "horizontalPixel": 0 }
+        }
+      },
+      "toolbar-visibility": { "v": 1, "data": { "visible": {} } },
+      "saved-filters": { "v": 1, "data": { "filters": [] } }
+    }
+  }
+}

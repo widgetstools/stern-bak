@@ -1,0 +1,18 @@
+{
+  "//": "Local base for the tarball/ track. Deliberately does NOT extend @wellsfargo-starui/platform/tsconfig.consumer.json — that config maps @wellsfargo-starui/* onto the platform repo's packages/ tree, which would defeat the point of this track. Tarball apps must resolve through their own node_modules, exactly as an external Artifactory consumer does. Kept in sync with the platform repo's tsconfig.base.json.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  }
+}

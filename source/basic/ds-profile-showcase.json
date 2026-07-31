@@ -1,0 +1,785 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-17T01:14:39.460Z",
+  "profile": {
+    "name": "Showcase",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "general-settings": {
+        "v": 2,
+        "data": {
+          "rowHeight": 36,
+          "headerHeight": 32,
+          "pagination": false,
+          "paginationPageSize": 100,
+          "paginationAutoPageSize": false,
+          "suppressPaginationPanel": false,
+          "checkboxSelection": false,
+          "cellSelection": true,
+          "rowDragging": false,
+          "animateRows": true,
+          "cellFlashDuration": 500,
+          "cellFadeDuration": 1000,
+          "quickFilterText": "",
+          "groupDefaultExpanded": 0,
+          "rowGroupPanelShow": "never",
+          "pivotMode": false,
+          "pivotPanelShow": "never",
+          "groupHideOpenParents": false,
+          "suppressAggFuncInHeader": false,
+          "showOpenedGroup": false,
+          "groupHideColumnsUntilExpanded": false,
+          "groupHideParentOfSingleChild": false,
+          "groupAllowUnbalanced": false,
+          "groupMaintainOrder": false,
+          "suppressGroupRowsSticky": false,
+          "rowGroupPanelSuppressSort": false,
+          "groupLockGroupColumns": 0,
+          "suppressGroupChangesColumnVisibility": false,
+          "ssrmExpandAllAffectsAllRows": false,
+          "refreshAfterGroupEdit": false,
+          "enableAdvancedFilter": false,
+          "includeHiddenColumnsInQuickFilter": false,
+          "multiSortMode": "shift",
+          "accentedSort": false,
+          "copyHeadersToClipboard": false,
+          "clipboardDelimiter": "\t",
+          "singleClickEdit": false,
+          "stopEditingWhenCellsLoseFocus": false,
+          "enterNavigation": "default",
+          "undoRedoCellEditing": false,
+          "undoRedoCellEditingLimit": 10,
+          "tooltipShowDelay": 2000,
+          "tooltipShowMode": "standard",
+          "suppressRowHoverHighlight": false,
+          "columnHoverHighlight": false,
+          "defaultResizable": true,
+          "defaultMinWidth": 80,
+          "suppressSizeToFit": false,
+          "suppressAutoSize": false,
+          "defaultSortable": true,
+          "defaultFilterable": true,
+          "unSortIcon": false,
+          "floatingFilter": false,
+          "defaultEditable": false,
+          "suppressPaste": false,
+          "suppressNavigable": false,
+          "wrapHeaderText": false,
+          "autoHeaderHeight": false,
+          "suppressHeaderMenuButton": false,
+          "suppressMovable": false,
+          "lockPosition": false,
+          "lockVisible": false,
+          "lockPinned": false,
+          "wrapText": false,
+          "autoHeight": false,
+          "enableCellChangeFlash": false,
+          "enableRowGroup": false,
+          "enablePivot": false,
+          "enableValue": false,
+          "enableCellTextSelection": false,
+          "suppressDragLeaveHidesColumns": true,
+          "suppressColumnMoveAnimation": false,
+          "rowBuffer": 10,
+          "suppressScrollOnNewData": false,
+          "suppressColumnVirtualisation": false,
+          "suppressRowVirtualisation": false,
+          "suppressMaxRenderedRowRestriction": false,
+          "suppressAnimationFrame": false,
+          "debounceVerticalScrollbar": false
+        }
+      },
+      "column-templates": {
+        "v": 1,
+        "data": {
+          "templates": {},
+          "typeDefaults": {}
+        }
+      },
+      "column-customization": {
+        "v": 5,
+        "data": {
+          "assignments": {
+            "price": {
+              "colId": "price",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]▲ #,##0.00;[Red]▼ #,##0.00;[Blue]— 0.00"
+              },
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "right"
+                },
+                "typography": {
+                  "bold": true
+                }
+              }
+            },
+            "yield": {
+              "colId": "yield",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Red]#,##0.000\"%\";[Green]#,##0.000\"%\";[Blue]0.000\"%\""
+              },
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "right"
+                }
+              }
+            },
+            "spread": {
+              "colId": "spread",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+#,##0\" bps\";[Red]#,##0\" bps\";[Blue]0\" bps\""
+              },
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "right"
+                }
+              }
+            },
+            "notional": {
+              "colId": "notional",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"$\"#,##0"
+              },
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "right"
+                },
+                "typography": {
+                  "bold": true
+                }
+              }
+            },
+            "quantity": {
+              "colId": "quantity",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "#,##0"
+              },
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "right"
+                }
+              }
+            },
+            "filled": {
+              "colId": "filled",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "#,##0"
+              },
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "right"
+                }
+              }
+            },
+            "side": {
+              "colId": "side",
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "center"
+                },
+                "typography": {
+                  "bold": true
+                }
+              }
+            },
+            "status": {
+              "colId": "status",
+              "cellStyleOverrides": {
+                "alignment": {
+                  "horizontal": "center"
+                },
+                "typography": {
+                  "bold": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "notionalPctOfTotal",
+              "headerName": "% of Book",
+              "expression": "[notional] / SUM([notional]) * 100",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]0.00\"%\";[Red]0.00\"%\";[Blue]0.00\"%\""
+              },
+              "cellDataType": "percent",
+              "position": 20,
+              "initialWidth": 110
+            },
+            {
+              "colId": "qtyVsAvg",
+              "headerName": "Qty ÷ Avg",
+              "expression": "[quantity] / AVG([quantity])",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "0.000\"×\""
+              },
+              "cellDataType": "number",
+              "position": 21,
+              "initialWidth": 100
+            },
+            {
+              "colId": "pxVsMax",
+              "headerName": "Px ÷ Max",
+              "expression": "[price] / MAX([price]) * 100",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]0.00\"%\";[Red]0.00\"%\";[Blue]0.00\"%\""
+              },
+              "cellDataType": "percent",
+              "position": 22,
+              "initialWidth": 100
+            },
+            {
+              "colId": "spreadVsMin",
+              "headerName": "Spread − Min",
+              "expression": "[spread] - MIN([spread])",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+#,##0\" bps\";[Red]#,##0\" bps\";[Blue]0\" bps\""
+              },
+              "cellDataType": "number",
+              "position": 23,
+              "initialWidth": 120
+            },
+            {
+              "colId": "fillPct",
+              "headerName": "% Filled",
+              "expression": "[filled] / [quantity] * 100",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]0.00\"%\";[Red]0.00\"%\";[Blue]0.00\"%\""
+              },
+              "cellDataType": "percent",
+              "position": 24,
+              "initialWidth": 100
+            }
+          ]
+        }
+      },
+      "column-groups": {
+        "v": 1,
+        "data": {
+          "groups": [],
+          "openGroupIds": {}
+        }
+      },
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "rule-row-filled",
+              "name": "✓ FILLED — row tint",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "row"
+              },
+              "expression": "[status] == 'FILLED'",
+              "style": {
+                "light": {
+                  "backgroundColor": "rgba(20, 184, 166, 0.06)"
+                },
+                "dark": {
+                  "backgroundColor": "rgba(45, 212, 191, 0.08)"
+                }
+              }
+            },
+            {
+              "id": "rule-row-cancelled",
+              "name": "✗ CANCELLED — row tint",
+              "enabled": true,
+              "priority": 15,
+              "scope": {
+                "type": "row"
+              },
+              "expression": "[status] == 'CANCELLED'",
+              "style": {
+                "light": {
+                  "backgroundColor": "rgba(100, 116, 139, 0.08)",
+                  "color": "#94a3b8"
+                },
+                "dark": {
+                  "backgroundColor": "rgba(71, 85, 105, 0.20)",
+                  "color": "#64748b"
+                }
+              }
+            },
+            {
+              "id": "rule-side-buy",
+              "name": "BUY badge",
+              "enabled": true,
+              "priority": 20,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "side"
+                ]
+              },
+              "expression": "[side] == 'BUY'",
+              "style": {
+                "light": {
+                  "backgroundColor": "#059669",
+                  "color": "#ffffff",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "backgroundColor": "#0d9488",
+                  "color": "#ffffff",
+                  "fontWeight": "700"
+                }
+              },
+              "indicator": {
+                "icon": "trending-up",
+                "target": "cells",
+                "position": "top-left",
+                "color": "#ffffff"
+              }
+            },
+            {
+              "id": "rule-side-sell",
+              "name": "SELL badge",
+              "enabled": true,
+              "priority": 21,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "side"
+                ]
+              },
+              "expression": "[side] == 'SELL'",
+              "style": {
+                "light": {
+                  "backgroundColor": "#dc2626",
+                  "color": "#ffffff",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "backgroundColor": "#b91c1c",
+                  "color": "#ffffff",
+                  "fontWeight": "700"
+                }
+              },
+              "indicator": {
+                "icon": "trending-down",
+                "target": "cells",
+                "position": "top-left",
+                "color": "#ffffff"
+              }
+            },
+            {
+              "id": "rule-status-filled",
+              "name": "Status FILLED",
+              "enabled": true,
+              "priority": 25,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "status"
+                ]
+              },
+              "expression": "[status] == 'FILLED'",
+              "style": {
+                "light": {
+                  "color": "#047857",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "color": "#34d399",
+                  "fontWeight": "700"
+                }
+              },
+              "indicator": {
+                "icon": "check",
+                "target": "cells",
+                "position": "top-right"
+              }
+            },
+            {
+              "id": "rule-status-partial",
+              "name": "Status PARTIAL",
+              "enabled": true,
+              "priority": 26,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "status"
+                ]
+              },
+              "expression": "[status] == 'PARTIAL'",
+              "style": {
+                "light": {
+                  "color": "#b45309",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "color": "#fbbf24",
+                  "fontWeight": "700"
+                }
+              },
+              "indicator": {
+                "icon": "clock",
+                "target": "cells",
+                "position": "top-right"
+              }
+            },
+            {
+              "id": "rule-status-open",
+              "name": "Status OPEN",
+              "enabled": true,
+              "priority": 27,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "status"
+                ]
+              },
+              "expression": "[status] == 'OPEN'",
+              "style": {
+                "light": {
+                  "color": "#1d4ed8",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "color": "#60a5fa",
+                  "fontWeight": "700"
+                }
+              }
+            },
+            {
+              "id": "rule-price-flash",
+              "name": "⚡ Price tick — flash",
+              "enabled": true,
+              "priority": 30,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "price"
+                ]
+              },
+              "expression": "[price] > 0",
+              "style": {
+                "light": {},
+                "dark": {}
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "flashDuration": 300,
+                "fadeDuration": 700
+              }
+            },
+            {
+              "id": "rule-notional-big",
+              "name": "💰 Whale trade (>3M)",
+              "enabled": true,
+              "priority": 40,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "notional"
+                ]
+              },
+              "expression": "[notional] > 3000000",
+              "style": {
+                "light": {
+                  "backgroundColor": "#fef3c7",
+                  "color": "#92400e",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "backgroundColor": "rgba(245, 158, 11, 0.22)",
+                  "color": "#fcd34d",
+                  "fontWeight": "700"
+                }
+              },
+              "indicator": {
+                "icon": "star",
+                "target": "cells+headers",
+                "position": "top-right",
+                "color": "#f59e0b"
+              }
+            },
+            {
+              "id": "rule-spread-wide",
+              "name": "🚨 Wide spread (>80 bps)",
+              "enabled": true,
+              "priority": 45,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "spread"
+                ]
+              },
+              "expression": "[spread] > 80",
+              "style": {
+                "light": {
+                  "backgroundColor": "#fecaca",
+                  "color": "#991b1b",
+                  "fontWeight": "700"
+                },
+                "dark": {
+                  "backgroundColor": "rgba(220, 38, 38, 0.25)",
+                  "color": "#fca5a5",
+                  "fontWeight": "700"
+                }
+              },
+              "indicator": {
+                "icon": "alert-triangle",
+                "target": "cells",
+                "position": "top-right",
+                "color": "#ef4444"
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "flashDuration": 400,
+                "fadeDuration": 900
+              }
+            },
+            {
+              "id": "rule-spread-tight",
+              "name": "Tight spread (<0 bps)",
+              "enabled": true,
+              "priority": 46,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "spread"
+                ]
+              },
+              "expression": "[spread] < 0",
+              "style": {
+                "light": {
+                  "backgroundColor": "#d1fae5",
+                  "color": "#065f46"
+                },
+                "dark": {
+                  "backgroundColor": "rgba(16, 185, 129, 0.20)",
+                  "color": "#6ee7b7"
+                }
+              }
+            },
+            {
+              "id": "rule-yield-hy",
+              "name": "High yield (>5%)",
+              "enabled": true,
+              "priority": 50,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "yield"
+                ]
+              },
+              "expression": "[yield] > 5",
+              "style": {
+                "light": {
+                  "backgroundColor": "#fef9c3"
+                },
+                "dark": {
+                  "backgroundColor": "rgba(250, 204, 21, 0.18)"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "grid-state": {
+        "v": 3,
+        "data": {
+          "schemaVersion": 3,
+          "savedAt": "2026-04-24T17:01:39.451Z",
+          "gridState": {
+            "version": "35.1.0",
+            "sideBar": {
+              "visible": true,
+              "position": "right",
+              "openToolPanel": null,
+              "toolPanels": {
+                "columns": {
+                  "expandedGroupIds": []
+                },
+                "filters": {
+                  "expandedGroupIds": [],
+                  "expandedColIds": []
+                }
+              }
+            },
+            "columnPinning": {
+              "leftColIds": [
+                "id"
+              ],
+              "rightColIds": []
+            },
+            "columnSizing": {
+              "columnSizingModel": [
+                {
+                  "colId": "id",
+                  "width": 88.5
+                },
+                {
+                  "colId": "time",
+                  "width": 80
+                },
+                {
+                  "colId": "security",
+                  "width": 132
+                },
+                {
+                  "colId": "side",
+                  "width": 80
+                },
+                {
+                  "colId": "quantity",
+                  "width": 80
+                },
+                {
+                  "colId": "price",
+                  "width": 80
+                },
+                {
+                  "colId": "yield",
+                  "width": 80
+                },
+                {
+                  "colId": "spread",
+                  "width": 80
+                },
+                {
+                  "colId": "filled",
+                  "width": 80
+                },
+                {
+                  "colId": "status",
+                  "width": 80
+                },
+                {
+                  "colId": "venue",
+                  "width": 88
+                },
+                {
+                  "colId": "counterparty",
+                  "width": 102
+                },
+                {
+                  "colId": "account",
+                  "width": 80
+                },
+                {
+                  "colId": "desk",
+                  "width": 80
+                },
+                {
+                  "colId": "trader",
+                  "width": 80
+                },
+                {
+                  "colId": "notional",
+                  "width": 88
+                },
+                {
+                  "colId": "currency",
+                  "width": 80
+                },
+                {
+                  "colId": "settlementDate",
+                  "width": 80
+                },
+                {
+                  "colId": "notionalPctOfTotal",
+                  "width": 110
+                },
+                {
+                  "colId": "qtyVsAvg",
+                  "width": 100
+                },
+                {
+                  "colId": "pxVsMax",
+                  "width": 100
+                },
+                {
+                  "colId": "spreadVsMin",
+                  "width": 120
+                },
+                {
+                  "colId": "fillPct",
+                  "width": 100
+                }
+              ]
+            },
+            "columnOrder": {
+              "orderedColIds": [
+                "id",
+                "time",
+                "security",
+                "side",
+                "quantity",
+                "price",
+                "yield",
+                "spread",
+                "filled",
+                "status",
+                "venue",
+                "counterparty",
+                "account",
+                "desk",
+                "trader",
+                "notional",
+                "currency",
+                "settlementDate",
+                "notionalPctOfTotal",
+                "qtyVsAvg",
+                "pxVsMax",
+                "spreadVsMin",
+                "fillPct"
+              ]
+            },
+            "filter": {
+              "selectableFilters": {}
+            },
+            "rowGroupExpansion": {
+              "expandedRowGroupIds": [],
+              "collapsedRowGroupIds": []
+            },
+            "pagination": {
+              "page": 0,
+              "pageSize": 100
+            }
+          },
+          "viewportAnchor": {
+            "firstRowIndex": 0,
+            "leftColId": "id",
+            "horizontalPixel": 0
+          }
+        }
+      },
+      "toolbar-visibility": {
+        "v": 1,
+        "data": {
+          "visible": {}
+        }
+      },
+      "saved-filters": {
+        "v": 1,
+        "data": {
+          "filters": []
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.087Z",
+  "profile": {
+    "name": "04 · Header row",
+    "gridId": "lab-formatter-toolbar-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "cusip": {
+              "colId": "cusip",
+              "headerStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "bold": true
+                  },
+                  "colors": {
+                    "background": "#1a2433",
+                    "text": "#9aa6b2"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "bold": true
+                  },
+                  "colors": {
+                    "background": "#e8edf2",
+                    "text": "#3d4753"
+                  }
+                }
+              },
+              "cellStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "bold": true
+                  },
+                  "alignment": {
+                    "horizontal": "left"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "bold": true
+                  },
+                  "alignment": {
+                    "horizontal": "left"
+                  }
+                }
+              }
+            },
+            "compositeRating": {
+              "colId": "compositeRating",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#0e3046",
+                    "text": "#7cc7f9"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#dbeefd",
+                    "text": "#0f4d75"
+                  }
+                }
+              },
+              "headerStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "bold": true,
+                    "underline": true
+                  },
+                  "colors": {
+                    "text": "#7cc7f9"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "bold": true,
+                    "underline": true
+                  },
+                  "colors": {
+                    "text": "#0f4d75"
+                  }
+                }
+              }
+            },
+            "book": {
+              "colId": "book",
+              "headerStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#23123a",
+                    "text": "#b88bf0"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#ebdcf8",
+                    "text": "#4e1b86"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

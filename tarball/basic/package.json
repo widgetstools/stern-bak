@@ -1,0 +1,49 @@
+{
+  "name": "@wellsfargo-starui/tutorial-basic-tarball",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/config-browser": "file:../../../stern-bak/dist-npm/wellsfargo-starui-config-browser-0.1.0.tgz",
+    "@wellsfargo-starui/design-system": "file:../../../stern-bak/dist-npm/wellsfargo-starui-design-system-0.1.0.tgz",
+    "@wellsfargo-starui/engine": "file:../../../stern-bak/dist-npm/wellsfargo-starui-engine-0.1.0.tgz",
+    "@wellsfargo-starui/grid": "file:../../../stern-bak/dist-npm/wellsfargo-starui-grid-0.1.0.tgz",
+    "@wellsfargo-starui/host": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-0.1.0.tgz",
+    "@wellsfargo-starui/host-browser": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-browser-0.1.0.tgz",
+    "@wellsfargo-starui/host-config": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-config-0.1.0.tgz",
+    "@wellsfargo-starui/host-data": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-data-0.1.0.tgz",
+    "@wellsfargo-starui/host-data-react": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-data-react-0.1.0.tgz",
+    "@wellsfargo-starui/host-openfin": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-openfin-0.1.0.tgz",
+    "@wellsfargo-starui/host-wrapper-react": "file:../../../stern-bak/dist-npm/wellsfargo-starui-host-wrapper-react-0.1.0.tgz",
+    "@wellsfargo-starui/icons-svg": "file:../../../stern-bak/dist-npm/wellsfargo-starui-icons-svg-1.0.0.tgz",
+    "@wellsfargo-starui/openfin-platform": "file:../../../stern-bak/dist-npm/wellsfargo-starui-openfin-platform-0.1.0.tgz",
+    "@wellsfargo-starui/shared-types": "file:../../../stern-bak/dist-npm/wellsfargo-starui-shared-types-1.0.0.tgz",
+    "@wellsfargo-starui/types": "file:../../../stern-bak/dist-npm/wellsfargo-starui-types-0.1.0.tgz",
+    "@wellsfargo-starui/ui": "file:../../../stern-bak/dist-npm/wellsfargo-starui-ui-1.0.0.tgz",
+    "@wellsfargo-starui/widget": "file:../../../stern-bak/dist-npm/wellsfargo-starui-widget-0.1.0.tgz",
+    "@wellsfargo-starui/widget-browser": "file:../../../stern-bak/dist-npm/wellsfargo-starui-widget-browser-0.1.0.tgz",
+    "@wellsfargo-starui/widget-sdk": "file:../../../stern-bak/dist-npm/wellsfargo-starui-widget-sdk-1.0.0.tgz",
+    "@wellsfargo-starui/widgets-react": "file:../../../stern-bak/dist-npm/wellsfargo-starui-widgets-react-1.0.0.tgz",
+    "@wellsfargo-starui/workspace-setup-react": "file:../../../stern-bak/dist-npm/wellsfargo-starui-workspace-setup-react-1.0.0.tgz",
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "ag-grid-react": "35.1.0",
+    "lucide-react": "^0.554.0",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "~4.5.2",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.9",
+    "tailwindcss": "3.4.1",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "~5.9.3",
+    "vite": "~7.3.2"
+  },
+  "description": "Same app as source/basic, consuming @wellsfargo-starui/* as packed bucket tarballs instead of platform source \u2014 the path an external Artifactory consumer takes."
+}

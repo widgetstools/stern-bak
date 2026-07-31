@@ -1,0 +1,39 @@
+{
+  "name": "@wellsfargo-starui/apps",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Consumer/reference apps for @wellsfargo-starui. Two tracks: source/ resolves @wellsfargo-starui/* out of the platform checkout, tarball/ installs the packed bucket tarballs the way an external team would. Never deployed.",
+  "//platform-link": "file:../stern-bak points at the platform repo checkout sitting beside this one. Rename the path if your checkout is named differently. It is what makes @wellsfargo-starui/platform/scripts/* and tsconfig.consumer.json importable.",
+  "workspaces": [
+    "source/*",
+    "tarball/*"
+  ],
+  "scripts": {
+    "build": "npm run build:source && npm run build:tarball",
+    "build:source": "node scripts/app-track.mjs build source",
+    "build:tarball": "node scripts/app-track.mjs build tarball",
+    "typecheck": "npm run typecheck:source && npm run typecheck:tarball",
+    "typecheck:source": "node scripts/app-track.mjs typecheck source",
+    "typecheck:tarball": "node scripts/app-track.mjs typecheck tarball",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/platform": "file:../stern-bak"
+  },
+  "//types-note": "React types live at the repo root so every app — and the package .d.ts they pull in — sees exactly one copy. Two @types/react in one graph produce spurious JSX type conflicts.",
+  "devDependencies": {
+    "@playwright/test": "1.59.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "overrides": {
+    "@openfin/core": "43.101.2",
+    "esbuild": "0.28.0",
+    "hono": "^4.12.20"
+  }
+}

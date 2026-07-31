@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-23T00:00:00.000Z",
+  "profile": {
+    "name": "🎨 03 · Percent Bar (Fill rate)",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "column-customization": {
+        "v": 10,
+        "data": {
+          "assignments": {
+            "filled": {
+              "colId": "filled",
+              "cellRendererId": "percent-bar",
+              "cellRendererConfig": {
+                "kind": "percent-bar",
+                "config": {
+                  "max": { "fromField": "quantity" },
+                  "barColor": { "dark": "#22c55e", "light": "#16a34a" },
+                  "trackColor": { "dark": "#1f2937", "light": "#e5e7eb" },
+                  "showPercent": true
+                }
+              }
+            },
+            "quantity": {
+              "colId": "quantity",
+              "cellRendererId": "percent-bar",
+              "cellRendererConfig": {
+                "kind": "percent-bar",
+                "config": {
+                  "max": 100000,
+                  "barColor": { "dark": "#3b82f6", "light": "#2563eb" },
+                  "trackColor": { "dark": "#1f2937", "light": "#e5e7eb" },
+                  "showValue": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

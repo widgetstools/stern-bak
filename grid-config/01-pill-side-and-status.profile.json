@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-23T00:00:00.000Z",
+  "profile": {
+    "name": "🎨 01 · Pills (Side + Status)",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "column-customization": {
+        "v": 10,
+        "data": {
+          "assignments": {
+            "side": {
+              "colId": "side",
+              "cellRendererId": "pill",
+              "cellRendererConfig": {
+                "kind": "pill",
+                "config": {
+                  "shape": "pill",
+                  "rules": [
+                    {
+                      "value": "BUY",
+                      "bg": { "dark": "#16a34a", "light": "#bbf7d0" },
+                      "fg": { "dark": "#ffffff", "light": "#14532d" }
+                    },
+                    {
+                      "value": "SELL",
+                      "bg": { "dark": "#dc2626", "light": "#fecaca" },
+                      "fg": { "dark": "#ffffff", "light": "#7f1d1d" }
+                    }
+                  ],
+                  "fallback": {
+                    "bg": { "dark": "#374151", "light": "#e5e7eb" },
+                    "fg": { "dark": "#d1d5db", "light": "#374151" }
+                  }
+                }
+              }
+            },
+            "status": {
+              "colId": "status",
+              "cellRendererId": "pill",
+              "cellRendererConfig": {
+                "kind": "pill",
+                "config": {
+                  "shape": "square",
+                  "rules": [
+                    {
+                      "value": "FILLED",
+                      "bg": { "dark": "#15803d", "light": "#dcfce7" },
+                      "fg": { "dark": "#ffffff", "light": "#14532d" }
+                    },
+                    {
+                      "value": "PARTIAL",
+                      "bg": { "dark": "#b45309", "light": "#fef3c7" },
+                      "fg": { "dark": "#ffffff", "light": "#78350f" }
+                    },
+                    {
+                      "value": "OPEN",
+                      "bg": { "dark": "#1d4ed8", "light": "#dbeafe" },
+                      "fg": { "dark": "#ffffff", "light": "#1e3a8a" }
+                    },
+                    {
+                      "value": "CANCELLED",
+                      "bg": { "dark": "#991b1b", "light": "#fee2e2" },
+                      "fg": { "dark": "#ffffff", "light": "#7f1d1d" }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

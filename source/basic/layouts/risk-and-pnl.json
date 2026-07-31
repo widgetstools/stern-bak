@@ -1,0 +1,330 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-16T20:00:00.000Z",
+  "profile": {
+    "name": "Risk & P&L",
+    "gridId": "bond-blotter-v1",
+    "state": {
+      "general-settings": {
+        "v": 2,
+        "data": {
+          "rowHeight": 32,
+          "headerHeight": 32,
+          "animateRows": true,
+          "cellSelection": true,
+          "cellFlashDuration": 400,
+          "cellFadeDuration": 800,
+          "defaultResizable": true,
+          "defaultSortable": true,
+          "defaultFilterable": true,
+          "floatingFilter": false,
+          "tooltipShowDelay": 1500,
+          "tooltipShowMode": "standard",
+          "suppressDragLeaveHidesColumns": true,
+          "rowBuffer": 10
+        }
+      },
+      "column-templates": { "v": 1, "data": { "templates": {}, "typeDefaults": {} } },
+      "column-customization": {
+        "v": 5,
+        "data": {
+          "assignments": {
+            "duration": {
+              "colId": "duration",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.00\" yr\"" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "convexity": {
+              "colId": "convexity",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.00" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "dv01": {
+              "colId": "dv01",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.0000" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "fontFamily": "mono", "bold": true }
+              }
+            },
+            "oas": {
+              "colId": "oas",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.0\" bps\"" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "zSpread": {
+              "colId": "zSpread",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.0\" bps\"" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "notional": {
+              "colId": "notional",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "\"$\"#,##0" },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "bold": true }
+              }
+            },
+            "size": {
+              "colId": "size",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "#,##0" },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "pnlDay": {
+              "colId": "pnlDay",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+\"$\"#,##0;[Red]-\"$\"#,##0;[Blue]\"$\"0"
+              },
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "right" },
+                "typography": { "bold": true }
+              }
+            },
+            "pnlMtd": {
+              "colId": "pnlMtd",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+\"$\"#,##0;[Red]-\"$\"#,##0;[Blue]\"$\"0"
+              },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "pnlYtd": {
+              "colId": "pnlYtd",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+\"$\"#,##0;[Red]-\"$\"#,##0;[Blue]\"$\"0"
+              },
+              "cellStyleOverrides": { "alignment": { "horizontal": "right" } }
+            },
+            "rating": {
+              "colId": "rating",
+              "cellStyleOverrides": {
+                "alignment": { "horizontal": "center" },
+                "typography": { "fontFamily": "mono", "bold": true }
+              }
+            },
+            "sector": {
+              "colId": "sector",
+              "cellStyleOverrides": { "alignment": { "horizontal": "left" } }
+            }
+          }
+        }
+      },
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "dv01Per1M",
+              "headerName": "DV01 / 1M",
+              "expression": "[dv01] * [notional] / 1000000",
+              "valueFormatterTemplate": { "kind": "excelFormat", "format": "0.000" },
+              "cellDataType": "number",
+              "position": 12,
+              "initialWidth": 110
+            },
+            {
+              "colId": "pnlBps",
+              "headerName": "P&L (bps of notional)",
+              "expression": "[pnlDay] / [notional] * 10000",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+0.00\" bps\";[Red]0.00\" bps\";[Blue]0\" bps\""
+              },
+              "cellDataType": "number",
+              "position": 13,
+              "initialWidth": 140
+            },
+            {
+              "colId": "spreadOverGenericIG",
+              "headerName": "OAS pickup",
+              "expression": "[oas] - 50",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+0.0\" bps\";[Red]0.0\" bps\";[Blue]0\" bps\""
+              },
+              "cellDataType": "number",
+              "position": 14,
+              "initialWidth": 110
+            }
+          ]
+        }
+      },
+      "column-groups": { "v": 1, "data": { "groups": [], "openGroupIds": {} } },
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "rule-rating-aaa",
+              "name": "AAA — govt grade tint",
+              "enabled": true,
+              "priority": 5,
+              "scope": { "type": "row" },
+              "expression": "[rating] == 'AAA'",
+              "style": {
+                "light": { "backgroundColor": "rgba(59, 130, 246, 0.06)" },
+                "dark":  { "backgroundColor": "rgba(96, 165, 250, 0.08)" }
+              }
+            },
+            {
+              "id": "rule-rating-hy-row",
+              "name": "HY rating — row tint",
+              "enabled": true,
+              "priority": 8,
+              "scope": { "type": "row" },
+              "expression": "[rating] == 'BB+' || [rating] == 'BB' || [rating] == 'BB-' || [rating] == 'B+' || [rating] == 'B'",
+              "style": {
+                "light": { "backgroundColor": "rgba(245, 158, 11, 0.07)" },
+                "dark":  { "backgroundColor": "rgba(245, 158, 11, 0.10)" }
+              }
+            },
+            {
+              "id": "rule-duration-long",
+              "name": "Long duration (>15y)",
+              "enabled": true,
+              "priority": 20,
+              "scope": { "type": "cell", "columns": ["duration"] },
+              "expression": "[duration] > 15",
+              "style": {
+                "light": { "backgroundColor": "rgba(220, 38, 38, 0.10)", "color": "#b91c1c", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(248, 113, 113, 0.18)", "color": "#fca5a5", "fontWeight": "700" }
+              },
+              "indicator": { "icon": "alert-triangle", "target": "cells", "position": "top-left", "color": "#ef4444" }
+            },
+            {
+              "id": "rule-duration-short",
+              "name": "Short duration (<3y)",
+              "enabled": true,
+              "priority": 21,
+              "scope": { "type": "cell", "columns": ["duration"] },
+              "expression": "[duration] < 3",
+              "style": {
+                "light": { "color": "#0369a1" },
+                "dark":  { "color": "#7dd3fc" }
+              }
+            },
+            {
+              "id": "rule-dv01-high",
+              "name": "DV01 high (>0.12)",
+              "enabled": true,
+              "priority": 25,
+              "scope": { "type": "cell", "columns": ["dv01"] },
+              "expression": "[dv01] > 0.12",
+              "style": {
+                "light": { "backgroundColor": "rgba(245, 158, 11, 0.16)", "color": "#92400e", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(245, 158, 11, 0.22)", "color": "#fcd34d", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-pnl-strong",
+              "name": "P&L strong day (>$25k)",
+              "enabled": true,
+              "priority": 30,
+              "scope": { "type": "cell", "columns": ["pnlDay"] },
+              "expression": "[pnlDay] > 25000",
+              "style": {
+                "light": { "backgroundColor": "rgba(16, 185, 129, 0.14)", "color": "#065f46", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(16, 185, 129, 0.20)", "color": "#6ee7b7", "fontWeight": "700" }
+              },
+              "indicator": { "icon": "star", "target": "cells", "position": "top-left", "color": "#10b981" }
+            },
+            {
+              "id": "rule-pnl-loss-big",
+              "name": "P&L large loss (<-$25k)",
+              "enabled": true,
+              "priority": 31,
+              "scope": { "type": "cell", "columns": ["pnlDay"] },
+              "expression": "[pnlDay] < -25000",
+              "style": {
+                "light": { "backgroundColor": "rgba(220, 38, 38, 0.14)", "color": "#7f1d1d", "fontWeight": "700" },
+                "dark":  { "backgroundColor": "rgba(220, 38, 38, 0.22)", "color": "#fca5a5", "fontWeight": "700" }
+              },
+              "indicator": { "icon": "alert-triangle", "target": "cells", "position": "top-left", "color": "#ef4444" }
+            },
+            {
+              "id": "rule-pnl-bps-strong",
+              "name": "P&L >10 bps of notional",
+              "enabled": true,
+              "priority": 35,
+              "scope": { "type": "cell", "columns": ["pnlBps"] },
+              "expression": "[pnlBps] > 10",
+              "style": {
+                "light": { "color": "#047857", "fontWeight": "700" },
+                "dark":  { "color": "#34d399", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-pnl-bps-loss",
+              "name": "P&L <-10 bps of notional",
+              "enabled": true,
+              "priority": 36,
+              "scope": { "type": "cell", "columns": ["pnlBps"] },
+              "expression": "[pnlBps] < -10",
+              "style": {
+                "light": { "color": "#b91c1c", "fontWeight": "700" },
+                "dark":  { "color": "#fca5a5", "fontWeight": "700" }
+              }
+            },
+            {
+              "id": "rule-sector-treasury",
+              "name": "Treasury sector tint",
+              "enabled": true,
+              "priority": 40,
+              "scope": { "type": "cell", "columns": ["sector"] },
+              "expression": "[sector] == 'Treasury' || [sector] == 'Sovereign'",
+              "style": {
+                "light": { "color": "#0369a1", "fontWeight": "600" },
+                "dark":  { "color": "#7dd3fc", "fontWeight": "600" }
+              }
+            }
+          ]
+        }
+      },
+      "grid-state": {
+        "v": 3,
+        "data": {
+          "schemaVersion": 3,
+          "savedAt": "2026-05-16T20:00:00.000Z",
+          "gridState": {
+            "version": "35.1.0",
+            "sideBar": {
+              "visible": true,
+              "position": "right",
+              "openToolPanel": null,
+              "toolPanels": {
+                "columns": { "expandedGroupIds": [] },
+                "filters": { "expandedGroupIds": [], "expandedColIds": [] }
+              }
+            },
+            "columnPinning": {
+              "leftColIds": ["ticker", "description", "rating"],
+              "rightColIds": []
+            },
+            "columnOrder": {
+              "orderedColIds": [
+                "ticker", "description", "rating", "sector",
+                "duration", "convexity", "dv01", "dv01Per1M",
+                "oas", "zSpread", "spreadOverGenericIG",
+                "notional", "size",
+                "pnlDay", "pnlBps", "pnlMtd", "pnlYtd",
+                "desk", "book", "trader",
+                "side", "bidPrice", "midPrice", "offerPrice",
+                "bidYield", "ytm", "offerYield",
+                "currency", "issuer", "maturity", "coupon",
+                "cusip", "isin", "liquidity", "lastTradedAt", "changeBps"
+              ]
+            },
+            "filter": { "selectableFilters": {} },
+            "rowGroupExpansion": { "expandedRowGroupIds": [], "collapsedRowGroupIds": [] }
+          },
+          "viewportAnchor": { "firstRowIndex": 0, "leftColId": "ticker", "horizontalPixel": 0 }
+        }
+      },
+      "toolbar-visibility": { "v": 1, "data": { "visible": {} } },
+      "saved-filters": { "v": 1, "data": { "filters": [] } }
+    }
+  }
+}

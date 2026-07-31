@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.087Z",
+  "profile": {
+    "name": "04 · Flags",
+    "gridId": "lab-renderers-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "issuerCountryCode": {
+              "colId": "issuerCountryCode",
+              "headerName": "Country",
+              "cellRendererId": "country-flag",
+              "cellRendererConfig": {
+                "kind": "country-flag",
+                "config": {
+                  "codeField": "issuerCountryCode"
+                }
+              }
+            },
+            "currency": {
+              "colId": "currency",
+              "headerName": "Ccy",
+              "cellRendererId": "country-flag",
+              "cellRendererConfig": {
+                "kind": "country-flag",
+                "config": {
+                  "codeField": "currency"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

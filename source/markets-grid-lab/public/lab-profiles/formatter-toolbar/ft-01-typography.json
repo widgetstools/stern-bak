@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.087Z",
+  "profile": {
+    "name": "01 · Typography",
+    "gridId": "lab-formatter-toolbar-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "ticker": {
+              "colId": "ticker",
+              "cellStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "bold": true,
+                    "fontSize": 13
+                  },
+                  "colors": {
+                    "text": "#7fdf9b"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "bold": true,
+                    "fontSize": 13
+                  },
+                  "colors": {
+                    "text": "#1f7a34"
+                  }
+                }
+              }
+            },
+            "instrumentDescription": {
+              "colId": "instrumentDescription",
+              "cellStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "italic": true
+                  },
+                  "colors": {
+                    "text": "#9aa6b2"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "italic": true
+                  },
+                  "colors": {
+                    "text": "#5a6068"
+                  }
+                }
+              }
+            },
+            "trader": {
+              "colId": "trader",
+              "cellStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "underline": true
+                  },
+                  "alignment": {
+                    "horizontal": "center"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "underline": true
+                  },
+                  "alignment": {
+                    "horizontal": "center"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
