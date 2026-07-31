@@ -20,7 +20,7 @@
   "scripts": {
     "install:apps": "node scripts/install-apps.mjs",
     "install:all": "npm run bootstrap",
-    "build:packages": "node scripts/ensure-workspace-links.mjs && npx turbo build --filter=!./apps/** --concurrency=50%",
+    "build:packages": "node scripts/ensure-workspace-links.mjs && npx turbo build --filter=!./apps/** --concurrency=50% && node scripts/gen-consumer-tsconfig.mjs",
     "build:apps": "npm --prefix apps run build",
     "build:consumer": "npm run build:packages && node scripts/propagate.mjs --no-build && npm run install:apps",
     "build:all": "npm run build:consumer && npm run build:apps",

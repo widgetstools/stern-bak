@@ -55,7 +55,7 @@ export function reactResolveConfig(appDir) {
   };
 }
 
-function findMemberFolder(bucket, memberName) {
+export function findMemberFolder(bucket, memberName) {
   const bucketDir = join(REPO_ROOT, 'packages', bucket);
   if (!existsSync(bucketDir)) return memberName.split('/').pop();
   for (const dir of readdirSync(bucketDir)) {
@@ -157,7 +157,7 @@ function installedMemberRoot(appDir, bucketName, bucketShort, memberName, folder
   return join(bucketDir, folder);
 }
 
-function readManifest() {
+export function readManifest() {
   const candidates = [
     join(REPO_ROOT, 'libs', 'manifest.json'),
     join(REPO_ROOT, 'dist', 'packages', 'manifest.json'),
