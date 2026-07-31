@@ -114,11 +114,17 @@ start. All 21 packages now have a real suite — five had none at all.
 | `openfin-platform` | 23 |
 | everything else | ~65 |
 
+**→ Session-by-session breakdown, conventions and progress log:
+[`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~16 sessions remaining. Read its
+`## Conventions` before writing tests.
+
 **Notes for whoever picks this up:**
 
 - The gate is `thresholds: { lines: 70, perFile: true }` in
   `scripts/vitestCoverage.mjs`. It only bites under `npm run test:coverage` —
   plain `npm test` runs without `--coverage`, so the suite stays fast and green.
+- React components must be tested with React Testing Library, enforced by
+  `npm run check:rtl` (wired into `lint:all`).
 - Barrels are safe: a file with zero executable lines scores 100%, so pure
   re-export `index.ts` files do not need tests.
 - `docs/package-coverage-and-sonar-lcov.md` suggests 60% per package; this gate
