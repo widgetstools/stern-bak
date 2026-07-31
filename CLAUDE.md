@@ -39,34 +39,35 @@ version in the same change.
 
 ## Package layout
 
-All workspace packages live under **`packages/`** in ten
+All workspace packages live under **`packages/`** in seven
 architecture buckets (see
 [`docs/PACKAGE_ORGANIZATION.md`](./docs/PACKAGE_ORGANIZATION.md)):
 
 | # | Bucket | Path | Packages |
 |---|--------|------|----------|
 | 1 | UI Design System | `design-system/` | `design-system`, `icons-svg` |
-| 2 | Angular UI Controls | `angular-ui/` | *(scaffold — PrimeNG/tokens)* |
-| 3 | React UI Controls | `react-ui/` | `ui` |
-| 4 | Angular Grid | `angular-grid/` | `grid` → `@wellsfargo-starui/grid-angular` |
-| 5 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid` |
-| 6 | Data Utilities | `data/` | `host-config`, `host-data`, `host-data-react`, `host-data-angular` |
-| 7 | OpenFin Utils | `openfin/` | `host-openfin`, `openfin-platform` |
-| 8 | Angular Core | `angular-core/` | `app`, `widgets`, `config-browser` |
-| 9 | React Core | `react-core/` | `widgets-react`, `widget-sdk`, `host-wrapper-react`, `config-browser`, `workspace-setup-react` |
-| 10 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser` |
+| 2 | React UI Controls | `react-ui/` | `ui` |
+| 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid` |
+| 4 | Data Utilities | `data/` | `host-config`, `host-data`, `host-data-react`, `host-data-angular` |
+| 5 | OpenFin Utils | `openfin/` | `host-openfin`, `openfin-platform` |
+| 6 | React Core | `react-core/` | `widgets-react`, `widget-sdk`, `host-wrapper-react`, `config-browser`, `workspace-setup-react` |
+| 7 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser` |
 
-> **Angular is excluded from the build pipeline.** The build/typecheck/test flow
-> targets **React + shared only**. The Angular buckets (`angular-ui`,
-> `angular-grid`, `angular-core`) and the `host-data-angular` member are
-> deliberately left out of the root `workspaces` (so they aren't installed,
-> linked, or built), out of `scripts/pack-npm.mjs`, and out of
-> `scripts/gen-consumer-tsconfig.mjs` (`ANGULAR_BUCKETS` / `ANGULAR_MEMBERS`). The source dirs still exist; re-add the
-> workspace globs to bring Angular back. `build:packages` builds 21 packages.
+> **The Angular buckets are deleted, not excluded.** `angular-ui`,
+> `angular-grid` and `angular-core` (`app-angular`, `widgets-angular`,
+> `config-browser-angular`, `grid-angular`) are gone — recover from git history
+> if ever needed.
 >
-> `@wellsfargo-starui/app` (`react-core/app`) and `tools/mcp-scaffold` were
-> **deleted**, not excluded. `StarGridApp` is vendored into the apps repo's
-> star-demo, which was its only consumer.
+> **One Angular package remains:** `data/host-data-angular`. It is still
+> excluded from the pipeline — left out of the root `workspaces` (so it isn't
+> installed, linked, or built) and skipped by `scripts/pack-npm.mjs` and
+> `scripts/gen-consumer-tsconfig.mjs` (`SKIP_MEMBERS` / `ANGULAR_MEMBERS`). Its
+> `tsconfig.json` used to extend the shared `angular-core/tsconfig.angular.json`;
+> those options are now inlined. `build:packages` builds 21 packages.
+>
+> `@wellsfargo-starui/app` (`react-core/app`) and `tools/mcp-scaffold` were also
+> deleted. `StarGridApp` is vendored into the apps repo's star-demo, which was
+> its only consumer.
 
 **Apps** live in the sibling apps repo and consume this one through a
 `file:` link — see [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
@@ -102,9 +103,9 @@ names in line with the symbols they export.
 **Allowed in shared/ and react/ buckets**: `camelCase` and `PascalCase` only.
 No kebab. No snake.
 
-**Required in angular/ bucket and `apps/*-angular*` apps**: kebab-case
-matching Angular Style Guide. Don't switch — Angular tooling and
-muscle memory both depend on it.
+**Required in `data/host-data-angular`** (the only Angular package left):
+kebab-case matching the Angular Style Guide. Don't switch — Angular tooling
+depends on it.
 
 **Carve-outs (kebab-case allowed despite the above)**:
 - `packages/react-ui/ui/src/components/**` — shadcn-ui CLI generates kebab
@@ -260,10 +261,8 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 
 ## Dep version edits
 
-Pin to the **stable line** for each major (React 19.2.x, Angular 21.1.x,
-@openfin/core 43.101.x), not the latest patch. The Angular demo's
-[`apps/demo-angular/package.json`](./apps/demo-angular/package.json)
-documents the per-package "stable-vs-latest" rationale inline in its
-`//dependencies-registry-notes` block — mirror that pattern when
-introducing version pins elsewhere. Don't drift: the whole reason for
-this monorepo was to stop drift.
+Pin to the **stable line** for each major (React 19.2.x, @openfin/core
+43.101.x), not the latest patch. Document a per-package "stable-vs-latest"
+rationale inline in a `//dependencies-registry-notes` block when introducing
+version pins. Don't drift: the whole reason for this monorepo was to stop
+drift.

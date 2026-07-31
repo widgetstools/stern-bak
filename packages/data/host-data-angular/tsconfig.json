@@ -1,5 +1,14 @@
 {
-  "extends": "../../angular-core/tsconfig.angular.json",
+  "//": "Previously `extends: ../../angular-core/tsconfig.angular.json`. That bucket was deleted, so its three compilerOptions are inlined here. This is the last Angular package in the repo and is excluded from the build pipeline (ANGULAR_MEMBERS in scripts/pack-npm.mjs and scripts/gen-consumer-tsconfig.mjs).",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
+  },
+  "angularCompilerOptions": {
+    "strictTemplates": true
+  },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.spec.ts"]
 }

@@ -68,9 +68,6 @@ module or a different package provides it.
 5. [Shared / Core](#5-shared--core) — `packages/shared/`
 6. [Data Utilities](#6-data-utilities) — `packages/data/`
 7. [OpenFin Utils](#7-openfin-utils) — `packages/openfin/`
-8. [Angular UI Controls](#8-angular-ui-controls) — `packages/angular-ui/` *(scaffold)*
-9. [Angular Grid](#9-angular-grid) — `packages/angular-grid/` *(scaffold)*
-10. [Angular Core](#10-angular-core) — `packages/angular-core/` *(scaffold)*
 
 ---
 
@@ -557,13 +554,13 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   non-OpenFin apps pay zero runtime cost. `AlertsBadge` mounts in
   `PrimaryToolbar` (shadcn `Popover` + `ScrollArea`; history list scrolls
   with theme-aware dividers/scrollbar via `ds-sheet-v2`); `useAlertsToastBridge` + `useAlertsOpenFinBridge`
-  auto-wire when the badge is present. Demo: `apps/demos/markets-grid-lab`
+  auto-wire when the badge is present. Demo: `the apps repo `source/markets-grid-lab``
   (`npm run dev:markets-grid-lab`) — Overview, Conditional Styling, Calculated Columns,
   Formatting, Column Groups, Quick Filters (saved filter pills + `FiltersToolbar`),
   Live Updates, Alerts, **Visual Excel** (styled `.xlsx` export), **Editing** (Smart Edit + Bulk Update + Plus/Minus + Shortcuts +
   History), Bulk Update, Plus / Minus, Shortcuts, Cell Renderers, and Formatter Toolbar tabs. Each feature tab ships multiple toolbar profiles (catalogs in
-  `apps/demos/markets-grid-lab/src/profiles/catalogs/`, importable JSON under
-  `apps/demos/markets-grid-lab/public/lab-profiles/`). **Demo console** right rail
+  `the apps repo `source/markets-grid-lab`/src/profiles/catalogs/`, importable JSON under
+  `the apps repo `source/markets-grid-lab`/public/lab-profiles/`). **Demo console** right rail
   (`LabScenarioRail`, `LabDemoProvider`, `useLabRows`) injects scenario patches
   (bid spike, P&L loss, mid ticks, OAS heat, etc.) and shared stream controls
   (pause/play, tick interval) across all grid tabs;   mock ticks use
@@ -1709,122 +1706,21 @@ of importing `@openfin/*` directly (architecture boundary).
 
 ---
 
-## 8. Angular UI Controls
-
-**Path:** `packages/angular-ui/`
-**Status:** **Scaffold only** — README placeholder, no source. PrimeNG-themed primitives + `@wellsfargo-starui/tokens-primeng` integration deferred. Use React UI controls (`@wellsfargo-starui/ui`) for any React surface; no cross-bucket import allowed.
-
----
-
-## 9. Angular Grid
-
-### 9.1 `@wellsfargo-starui/grid-angular`
-
-**Path:** `packages/angular-grid/grid`
-**Status:** **Scaffold.** Angular twin of `@wellsfargo-starui/grid`. Single marker export `GRID_ANGULAR_SCAFFOLD = true`. Peer-deps already pinned to `ag-grid-angular`, `ag-grid-community`, `ag-grid-enterprise` 35.1.0. Implementation deferred.
-
----
-
-## 10. Angular Core
-
-### 10.1 `@wellsfargo-starui/app-angular`
-
-**Path:** `packages/angular-core/app`
-**Status:** **Scaffold.** Angular twin of `@wellsfargo-starui/app`. Marker export `APP_ANGULAR_SCAFFOLD = true`. Depends on `@wellsfargo-starui/engine`, `@wellsfargo-starui/grid-angular`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/host-config`, `@wellsfargo-starui/types`.
-
-### 10.2 `@wellsfargo-starui/widgets-angular`
-
-**Path:** `packages/angular-core/widgets`
-**Status:** **Scaffold.** Angular twin of `@wellsfargo-starui/widgets-react`. Marker export `WIDGETS_ANGULAR_SCAFFOLD = true`. Depends on `@wellsfargo-starui/grid-angular`, `@wellsfargo-starui/host-config`, `@wellsfargo-starui/host-data-angular`, `@wellsfargo-starui/openfin-platform`, `@wellsfargo-starui/types`.
-
-### 10.3 `@wellsfargo-starui/config-browser-angular`
-
-**Path:** `packages/angular-core/config-browser`
-**Status:** **Scaffold.** Angular twin of `@wellsfargo-starui/config-browser`. Marker export `CONFIG_BROWSER_ANGULAR_SCAFFOLD = true`. Depends on `@wellsfargo-starui/engine`, `@wellsfargo-starui/host-config`, `@wellsfargo-starui/openfin-platform`.
-
----
-
 ## Repo tooling
 
-### `@wellsfargo-starui/mcp-scaffold`
+### Apps and e2e — moved out
 
-**Path:** `tools/mcp-scaffold`
-**Deliverable:** `libs/starui-mcp-scaffold-*.tgz` (via `npm run pack:mcp`)
-**Purpose:** StarUI Platform MCP stdio server — scaffold apps, wire STOMP, author grid layouts (config-first), diagnose data plane, OpenFin routes, design compliance.
+The consumer/demo apps and the Playwright suite live in a sibling repository
+(`@wellsfargo-starui/apps`); this repo ships libraries only. Both consumption
+tracks — source and tarball — are described in
+[`APPS_REPO.md`](./APPS_REPO.md).
 
-**MCP tools (44):**
-
-- **Templates:** `starui_list_templates`, `starui_recommend_template`, `starui_scaffold_app`, `starui_upgrade_scaffold`
-- **Grid:** `starui_list_grid_features`, `starui_explain_grid_feature`, `starui_suggest_grid_features`, `starui_add_grid_module`, `starui_generate_column_defs`, `starui_layout_recipe`
-- **Layouts (config-first):** `starui_config_or_code`, `starui_generate_layout`, `starui_validate_layout`, `starui_import_layout_pack`, `starui_explain_layout_module`
-- **Providers / STOMP:** `starui_list_provider_types`, `starui_generate_stomp_config`, `starui_validate_provider_config`, `starui_add_provider_to_project`, `starui_setup_stomp_dev`, `starui_test_stomp_connection`, `starui_diagnose_data_plane` (empty grid), `starui_explain_provider_toolbar`, `starui_provider_config_from_csv`
-- **Tarballs:** `starui_check_tarball_versions`, `starui_refresh_libs`, `starui_explain_import_alias`, `starui_bucket_dependency_graph`
-- **OpenFin:** `starui_explain_component_registration`, `starui_add_blotter_route`, `starui_generate_view_manifest`, `starui_openfin_launch_checklist`
-- **UI / design:** `starui_list_ui_components`, `starui_add_ui_component`, `starui_audit_app_design`, `starui_add_shell_layout`, `starui_theme_playground_snippet`, `starui_shadcn_component_picker`, `starui_validate_design_compliance`
-- **Validation:** `starui_validate_scaffold`, `starui_smoke_test_app`, `starui_validate_stomp_e2e`, `starui_snapshot_grid_config`, `starui_print_install_config`
-
-**MCP resources (9):** `starui://design-rules`, `starui://guides/stomp-marketsgrid`, `starui://guides/layout-persistence`, `starui://guides/customizer-modules`, `starui://guides/wire-stomp`, `starui://troubleshooting/empty-grid`, `starui://troubleshooting/wire-stomp`, `starui://recipes/provider-stomp-positions`, `starui://recipes/openfin-blotter-route`
-
-**Run:** `npx -y @wellsfargo-starui/mcp-scaffold` or `npx -y ./libs/starui-mcp-scaffold-*.tgz`
-
----
-
-
-### Apps — platform bootstrap pilot
-
-**19 demos** under `apps/demos/` (nested `apps/package.json` workspace). Apps build **from source** — Vite + `tsc` resolve every `@wellsfargo-starui/*` import out of `packages/` (apps declare no `@wellsfargo-starui/*` deps and require no `libs/*.tgz`); `npm run propagate` packs tarballs for external Artifactory consumers only (see `apps/demos/README.md`).
-
-| App | Role |
-|-----|------|
-| `demo-react` (`@wellsfargo-starui/demo-react`) | Primary React dev app + Playwright e2e target (`npm run dev`) |
-| `demo-angular` (`@wellsfargo-starui/demo-angular`) | Angular consumer demo |
-| `demo-configservice-react` | Config-service REST/Dexie lab |
-| `star-demo` (`@wellsfargo-starui/star-demo`) | Lean OpenFin workspace pilot — `HostedMarketsGrid` route, Workspace Setup, data providers, config browser (port 5175; `npm run dev:star-demo`); Import/Export Config removed from dock Tools; provider window prefetches tool-window route chunks on mount (before `initWorkspace` completes); `/blotters/marketsgrid` starts the `BlottersMarketsGrid` chunk and AG Grid vendor imports in parallel with platform bootstrap; `DataHubProvider` runs with `hubInspector={false}`; default STOMP provider (`dp-121e4569-…`) seeds with `throttleMs: 100`, conflation, `projectFields`, and `wireFormat: columnar`; grid profiles default `animateRows: false` |
-| `markets-ui-react-reference` | Full OpenFin reference shell; `ensurePlatformReady` + `DataHubProvider` |
-| `demo-stomp-markets-grid` | Minimal STOMP + MarketsGrid (web + OpenFin); `defaultLiveProviderId` |
-| `stomp-marketsgrid-minimal` | Lean STOMP → MarketsGrid dev track |
-| `markets-grid-lab` | Developer-onboarding feature lab: Home landing + grouped sidebar nav + per-feature Inspector drawer; scenario rail + importable profiles |
-| `design-system` (`@wellsfargo-starui/design-system-demo`) | FI trading terminal + live component/token reference, fully styled by `@wellsfargo-starui/design-system` + `@wellsfargo-starui/ui` (port 5310) |
-| `platform-hooks-demo` | AppData bootstrap hooks + grid event callback bindings (port 5214) |
-| `stomp`, `mockdata-provider`, `dataprovider-editor` | MCP tutorial apps; hub bootstrap + `useDataProvider` |
-| `basic` (`@wellsfargo-starui/tutorial-basic`) | Minimal grid tutorial |
-| `e2e-browser-blotter` | Browser blotter e2e (`standalone` / `provider` / `config` / `full` hub modes) |
-| `e2e-openfin-workspace` | OpenFin workspace e2e; `HostedMarketsGrid` + hub mock provider |
-| `e2e-openfin-vitest` | OpenFin Vitest harness |
-| `marketsgrid-container-e2e` | `MarketsGridContainer` interaction harness |
-| `stomp-view-server` | Node STOMP wire mock for local dev (pairs with STOMP demos) |
-
-**`markets-grid-lab` onboarding rework (developer-facing showcase):**
-- **Home landing tab** (`HomeTab`): hero, 30-second mount snippet, config-driven mental-model cards, recommended path, and a category feature map linking to every tab.
-- **Grouped sidebar nav** (`LabSidebarNav`) with a feature filter, replacing the horizontal tab strip; nav items keep `data-testid="lab-tab-<id>"`.
-- **Inspector drawer** (`InspectorDrawer`) under every feature grid: What/Why, Try-this steps, derived Config blocks, and a Props/API table.
-- **Feature-guide registry** (`guides/featureGuides.ts`, `FeatureGuide`) and config-block derivation (`buildConfigBlocks`) sourced from each tab's `LabFeatureConfig` and seed rules.
-
-**`design-system` demo app (consuming the design system in a client app):**
-- **FI trading terminal** — six dock-managed tabs (Market, Orders, Analytics, Risk, Research, Design System), each with a `@widgetstools/react-dock-manager` layout whose panels are persisted to `localStorage` (Save/Reset via TopBar); styled exclusively by `@wellsfargo-starui/design-system` tokens + `@wellsfargo-starui/ui` primitives. No native `<input>`/`<select>` anywhere.
-- **Live-ticking mock data** — pure `applyTick` reducer + `useTickingStore`; deterministic seeds (`makeRng`); no backend. `DemoStateProvider` exposes `store`, `selectedId`/`setSelectedId`, `clickedPrice`/`setClickedPrice` to all panels.
-- **Market tab** — four dock panels: `BlotterWidget` (AG Grid bond blotter, `data-testid="bond-blotter"`; row-click sets `selectedId`), `PriceChartWidget` (recharts area chart for the selected instrument, `data-testid="price-chart"`), `OrderBookWidget` (dealer-depth book with 5-level bid/ask ladder, bar-fill depth visualisation, spread/yield/Z-spread summary row; `data-testid="order-book"`), `RecentPrints` (trade tape; `data-testid="recent-prints"`).
-- **AG Grid theming** via `staruiGridTheme` / `agGridBlotterDarkTheme`; inherits `data-ag-theme-mode` from `<html data-theme>` so light/dark switch is zero-JS.
-- **Floating Trade Ticket** (`data-testid="float-ticket"` on wrapper, `"trade-ticket"` on inner form) — `FloatingWindow` + `TradeTicket` toggled by `+ New Order` (`data-testid="topbar-new-order"`); side toggle (Buy/Sell), order-type tabs (Limit/Market/Stop-Limit), notional quick-fractions, bid/ask click-to-fill, TIF toggle, order summary, CTA button; fires shadcn toast on submit.
-- **Floating RFQ Workbench** (`data-testid="float-rfq"` on wrapper, `"rfq-workbench"` on inner panel) — toggled by `RFQ` (`data-testid="topbar-rfq"`); `rfqReducer` state machine with dealer-quote ladder, expiry countdown, best-quote highlight, and manual/auto fill flow.
-- **Analytics tab** — six recharts panels in a 3×2 dock grid, each in its own group: `OasDurationScatter` (`panel-oasDuration`), `DurationBuckets` (`panel-durationBuckets`), `SectorDonut` (`panel-sectorDonut`), `HistoricalOas` CDX IG/HY line (`panel-historicalOas`), `OasDistribution` (`panel-oasDistribution`), `PnlAttribution` (`panel-pnlAttribution`). All use `ChartContainer` + design-system `--ds-chart-*` ramp.
-- **Risk tab** — KPI strip (`panel-riskKpi`) + `BookRisk` heatmap (`panel-bookRisk`) + `Dv01ByBook` bars (`panel-dv01ByBook`) + `RateScenarios` scenario table (`panel-rateScenarios`) + `VarTrend` line (`panel-varTrend`) + `RiskLimits` gauge/bar strip (`panel-riskLimits`).
-- **Research tab** — `ResearchList` note list (`panel-researchList`) + `NoteDetail` rich detail panel (`panel-noteDetail`); `ResearchProvider` context.
-- **Save / Reset layout** — TopBar `Save` (`data-testid="topbar-save"`) persists active tab's dock state; `Reset` (`data-testid="topbar-reset"`) clears persistence and remounts from `TAB_LAYOUTS` default; both fire toast confirmations.
-- **Design System reference tab** — Overview (consumption snippets), Palette (live `--ds-*` swatches), Typography, Foundations, and a data-driven gallery of **all 46 public `@wellsfargo-starui/ui` components** (live preview + import + code; 6 non-visual utilities allowlisted), gated by a `registry.test.ts` completeness check against `packages/react-ui/ui/src/components`.
-
-**Build / verify tooling:**
-- `docs/BUILD.md` + `apps/README.md` — build matrix: `build:packages` → `build:apps` (source); `propagate` packs `libs/*.tgz` for external Artifactory consumers
-- `scripts/build-app-track.mjs` — runs every app's `build` / `typecheck` from source
-- `scripts/staruiConsumerVite.mjs` — shared Vite partial for consumer apps: `manualChunks` splits `ag-grid-community`, `ag-grid-enterprise`, and `ag-grid-react` into cacheable vendor chunks; `optimizeDeps.include` prebundles those packages for faster dev cold starts
-- `npm run verify:consumer` — CI parity: `build:packages` + `propagate` (pack tarballs) + `install:apps` + `build:apps` (source)
-
-**MCP scaffold templates** (`stomp`, `mockdata-provider`, `dataprovider-editor`, `openfin-platform`, `basic`) emit `platformBootstrap.ts` + `public/app-config.json` (web) or manifest `customSettings.appId` (OpenFin)
+`@wellsfargo-starui/mcp-scaffold` (`tools/mcp-scaffold`) was **deleted**;
+recover from git history if it is ever revived.
 
 ### Consumer documentation
 
 - `docs/MARKETSGRID_USAGE_GUIDE.md` — scenario matrix for MarketsGrid (`MarketsGrid` / `MarketsGridContainer` / `HostedMarketsGrid`), hub bootstrap, OpenFin vs browser, persistence, customizer UI (§22), troubleshooting
-- `docs/guides/platform-hooks-demo.md` — AppData bootstrap hooks + grid event callback bindings (`apps/demos/platform-hooks-demo`, port 5214)
 - `docs/EXPRESSION_DSL.md` — authoritative reference for the `@wellsfargo-starui/engine` expression DSL (grammar, operator semantics, the full 44-function catalog, coercion/null rules, conditional sugar) plus an explicit JavaScript→DSL conversion guide written for an AI agent to translate JS expressions into DSL correctly
 - `docs/OPENFIN_GRID_LINKING.md` — OpenFin grid-to-grid color linking: how to enable (`HostedMarketsGrid` `contextLink`), prerequisites, manifest notes (interop needs none; optional `fdc3InteropApi` fallback), the file map, wire format, group→leaf expansion, receiver column matching, notifications, and diagnostics
 

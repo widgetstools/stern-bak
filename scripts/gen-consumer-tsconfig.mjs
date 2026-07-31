@@ -35,10 +35,10 @@ import { findMemberFolder, readManifest } from './staruiConsumerAliases.mjs';
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 const OUT_PATH = join(REPO_ROOT, 'tsconfig.consumer.json');
 
-// Angular is excluded from the build pipeline (see CLAUDE.md), so its source is
-// never built and no React consumer imports it. Mapping it would point tsc at
-// unbuilt Angular source. Mirrors ANGULAR_BUCKETS/ANGULAR_MEMBERS in propagate.mjs.
-const ANGULAR_BUCKETS = new Set(['angular-ui', 'angular-grid', 'angular-core']);
+// Angular is excluded from the build pipeline (see CLAUDE.md): its source is
+// never built, and mapping it would point tsc at unbuilt Angular source. The
+// angular-* buckets have been deleted, so host-data-angular is all that is left.
+// Mirrors SKIP_MEMBERS in scripts/pack-npm.mjs.
 const ANGULAR_MEMBERS = new Set(['@wellsfargo-starui/host-data-angular']);
 
 /**
@@ -96,7 +96,6 @@ function buildPaths() {
 
   for (const [bucketName, entry] of Object.entries(manifest)) {
     if (!entry?.members?.length || !entry.bucket) continue;
-    if (ANGULAR_BUCKETS.has(entry.bucket)) continue;
 
     for (const member of entry.members) {
       if (ANGULAR_MEMBERS.has(member)) continue;

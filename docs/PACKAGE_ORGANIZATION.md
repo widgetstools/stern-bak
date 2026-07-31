@@ -37,15 +37,12 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 | # | Bucket | Path | npm packages |
 |---|--------|------|--------------|
 | 1 | **UI Design System** | `packages/design-system/` | `@wellsfargo-starui/design-system`, `@wellsfargo-starui/icons-svg` |
-| 2 | **Angular UI Controls** | `packages/angular-ui/` | *(scaffold — `@wellsfargo-starui/tokens-primeng`, PrimeNG wrappers)* |
-| 3 | **React UI Controls** | `packages/react-ui/` | `@wellsfargo-starui/ui` |
-| 4 | **Angular Grid** | `packages/angular-grid/` | `@wellsfargo-starui/grid-angular` |
-| 5 | **React Grid** | `packages/react-grid/` | `@wellsfargo-starui/grid` |
-| 6 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-react`, `@wellsfargo-starui/host-data-angular`, `@wellsfargo-starui/host-config` |
-| 7 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/host-openfin`, `@wellsfargo-starui/openfin-platform` |
-| 8 | **Angular Core** | `packages/angular-core/` | `@wellsfargo-starui/app-angular`, `@wellsfargo-starui/widgets-angular`, `@wellsfargo-starui/config-browser-angular` |
-| 9 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/app`, `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/host-wrapper-react`, `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/workspace-setup-react` |
-| 10 | **Core / Shared** | `packages/shared/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser` |
+| 2 | **React UI Controls** | `packages/react-ui/` | `@wellsfargo-starui/ui` |
+| 3 | **React Grid** | `packages/react-grid/` | `@wellsfargo-starui/grid` |
+| 4 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-react`, `@wellsfargo-starui/host-data-angular`, `@wellsfargo-starui/host-config` |
+| 5 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/host-openfin`, `@wellsfargo-starui/openfin-platform` |
+| 6 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/app`, `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/host-wrapper-react`, `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/workspace-setup-react` |
+| 7 | **Core / Shared** | `packages/shared/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser` |
 
 ## Import rules (unchanged semantics)
 

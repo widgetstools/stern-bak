@@ -46,15 +46,12 @@ Only filesystem paths carry the bucket prefix.
 | # | Bucket | Path | Key packages |
 |---|--------|------|--------------|
 | 1 | Design system | `design-system/` | `@wellsfargo-starui/design-system`, `@wellsfargo-starui/icons-svg` |
-| 2 | Angular UI | `angular-ui/` | *(scaffold — PrimeNG / tokens)* |
-| 3 | React UI | `react-ui/` | `@wellsfargo-starui/ui` |
-| 4 | Angular grid | `angular-grid/` | `@wellsfargo-starui/grid-angular` |
-| 5 | React grid | `react-grid/` | `@wellsfargo-starui/grid` — MarketsGrid + customizer |
-| 6 | Data | `data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-react`, `@wellsfargo-starui/host-config` |
-| 7 | OpenFin | `openfin/` | `@wellsfargo-starui/host-openfin`, `@wellsfargo-starui/openfin-platform` |
-| 8 | Angular core | `angular-core/` | `@wellsfargo-starui/app-angular`, `@wellsfargo-starui/widgets-angular` |
-| 9 | React core | `react-core/` | `@wellsfargo-starui/app`, `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/widget-sdk` |
-| 10 | Shared | `shared/` | `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types` |
+| 2 | React UI | `react-ui/` | `@wellsfargo-starui/ui` |
+| 3 | React grid | `react-grid/` | `@wellsfargo-starui/grid` — MarketsGrid + customizer |
+| 4 | Data | `data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-react`, `@wellsfargo-starui/host-config` |
+| 5 | OpenFin | `openfin/` | `@wellsfargo-starui/host-openfin`, `@wellsfargo-starui/openfin-platform` |
+| 6 | React core | `react-core/` | `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/workspace-setup-react`, `@wellsfargo-starui/host-wrapper-react` |
+| 7 | Shared | `shared/` | `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types` |
 
 **Import rules (summary):** foundation packages never import framework adapters;
 only `host-openfin` / `openfin-platform` may import `@openfin/core`; apps import
@@ -746,53 +743,9 @@ npm run check:deps            # package cycle check
 
 ### Run E2E tests
 
-Browser E2E uses Playwright in `e2e/`. Dev servers are started automatically
-(see `playwright.config.ts`).
-
-```bash
-# Full suite (demo-react :5190, demo-configservice :5191, reference :5174)
-npm run e2e
-
-# Interactive / debug UI
-npm run e2e:ui
-npm run e2e:headed
-
-# Single spec or file
-npx playwright test e2e/reference-cell-flash.spec.ts
-npx playwright test e2e/v2-general-settings.spec.ts
-
-# Reference-app integration specs (5174 server uses STARUI_DEV_SOURCE=1)
-npx playwright test e2e/hosted-markets-grid.spec.ts
-npx playwright test e2e/reference-cell-flash.spec.ts
-
-# Filter by title
-npx playwright test -g "cell flash"
-```
-
-OpenFin CDP smoke tests (separate workspace):
-
-```bash
-npm run test:e2e:openfin
-npm run test:e2e:openfin:cdp
-```
-
-**E2E web servers**
-
-| Port | App | Specs |
-|---|---|---|
-| 5190 | `demo-react` | Most `v2-*.spec.ts`, design-system specs |
-| 5191 | `demo-configservice-react` | Config-service integration |
-| 5174 | `markets-ui-react-reference` | `hosted-markets-grid`, `reference-cell-flash`, … |
-
-If Playwright fails to pick up recent package changes for the reference app,
-clear Vite cache and rerun:
-
-```bash
-rm -rf node_modules/.vite apps/markets-ui-react-reference/node_modules/.vite
-STARUI_DEV_SOURCE=1 npx playwright test e2e/reference-cell-flash.spec.ts
-```
-
----
+The Playwright suite moved to the apps repo along with the apps its specs
+drive — see [`docs/APPS_REPO.md`](./docs/APPS_REPO.md). Nothing in this repo
+runs e2e; `npm test` here is Vitest over `packages/` only.
 
 ### Quick reference
 

@@ -46,13 +46,10 @@ Ten architecture buckets under `packages/` — see
 
 ```
 packages/design-system/   — (1) tokens, icons
-packages/angular-ui/      — (2) PrimeNG controls (scaffold)
 packages/react-ui/        — (3) shadcn primitives
-packages/angular-grid/    — (4) @wellsfargo-starui/grid-angular
 packages/react-grid/      — (5) @wellsfargo-starui/grid
 packages/data/            — (6) host-data, host-config
 packages/openfin/         — (7) host-openfin, openfin-platform
-packages/angular-core/    — (8) app, widgets, config-browser
 packages/react-core/      — (9) app, widgets-react, tools
 packages/shared/          — (10) engine, host, types, widget contract
 ```
