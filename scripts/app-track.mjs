@@ -64,11 +64,12 @@ if (apps.length === 0) {
 
 process.stdout.write(`[app-track] ${track} ${task} — ${apps.length} app(s)\n`);
 
-// The alias module reads this to decide between packages/ source and the
-// installed bucket tarballs.
+// No env switch is needed: the two tracks differ by CONFIG, not by a flag.
+// source/ apps import the platform's Vite helper; tarball/ apps use a plain
+// Vite config and resolve from their own node_modules. (An earlier
+// STARUI_USE_TARBALLS flag selected a bucket-tarball resolution mode in the
+// alias layer; bucket tarballs no longer exist.)
 const env = { ...process.env };
-if (track === 'tarball') env.STARUI_USE_TARBALLS = '1';
-else delete env.STARUI_USE_TARBALLS;
 
 let failed = 0;
 for (const { dir, name } of apps) {
