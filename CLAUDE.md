@@ -56,13 +56,12 @@ architecture buckets (see
 | 9 | React Core | `react-core/` | `widgets-react`, `widget-sdk`, `host-wrapper-react`, `config-browser`, `workspace-setup-react` |
 | 10 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser` |
 
-> **Angular is excluded from the build pipeline.** The build/typecheck/test/
-> propagate flow targets **React + shared only**. The Angular buckets
-> (`angular-ui`, `angular-grid`, `angular-core`) and the `host-data-angular`
-> member are deliberately left out of the root `workspaces` (so they aren't
-> installed, linked, or built), out of `scripts/propagate.mjs`
-> (`ANGULAR_BUCKETS` / `ANGULAR_MEMBERS`), and out of
-> `scripts/gen-consumer-tsconfig.mjs`. The source dirs still exist; re-add the
+> **Angular is excluded from the build pipeline.** The build/typecheck/test flow
+> targets **React + shared only**. The Angular buckets (`angular-ui`,
+> `angular-grid`, `angular-core`) and the `host-data-angular` member are
+> deliberately left out of the root `workspaces` (so they aren't installed,
+> linked, or built), out of `scripts/pack-npm.mjs`, and out of
+> `scripts/gen-consumer-tsconfig.mjs` (`ANGULAR_BUCKETS` / `ANGULAR_MEMBERS`). The source dirs still exist; re-add the
 > workspace globs to bring Angular back. `build:packages` builds 21 packages.
 >
 > `@wellsfargo-starui/app` (`react-core/app`) and `tools/mcp-scaffold` were
@@ -128,9 +127,10 @@ PR. Until then: convention enforcement happens in code review.
 **Turborepo 2.** Scripts at root:
 
 ```bash
-npm run build       # build:consumer — packages + propagate tarballs
-npm run typecheck   # typecheck:consumer — packages build, propagate, app tsc
+npm run build       # build:packages — turbo build + tsconfig.consumer.json
+npm run typecheck   # build:packages then turbo typecheck
 npm test            # turbo test — Vitest
+npm run pack:npm    # individual member tarballs -> dist-npm/ (external consumers)
 ```
 
 Every library package uses `"build": "rimraf dist && tsc"` (or
@@ -152,11 +152,6 @@ on the next run. Don't remove it.
   `dist/` and fall back to `src/` only when `dist/` is absent. After
   `build:packages`, apps consume dist — *not* live TS. Delete a package's
   `dist/` to get live-source behaviour for that package.
-- `npm run propagate` packs `libs/*.tgz` + `manifest.json` for **bucket**
-  consumers. Those bucket tarballs rename everything to
-  `@wellsfargo-starui/<bucket>` with `./<member>` subpaths and only resolve
-  through the Vite alias layer — they are **not** installable externally. Use
-  `npm run pack:npm` for that.
 - **Build-generated assets self-heal.** Source mode aliases TS/TSX live, but the
   design-system CSS (`dist/css/theme.css`) and host-data SharedWorker
   (`dist/assets/data-services-worker.mjs`) are emitted by `build:packages`. The
@@ -169,31 +164,20 @@ on the next run. Don't remove it.
   so deep-typechecking `@wellsfargo-starui/grid` source doesn't collide with a second
   transitively-installed `@types/react`.
 
-## Propagating package changes (external tarball consumers)
+## Shipping packages to external consumers
 
-`npm run propagate` (delegates to `scripts/propagate.mjs`) builds
-and packs **one tarball per architecture bucket** flat under `libs/`
-(e.g. `wellsfargo-starui-react-grid.tgz` — a stable name with no version or
-content hash, so `file:` pins never churn). **`libs/` is gitignored** — fresh
-clones use `npm run bootstrap` / `npm run install:all`. Each bundle contains all
-workspace packages in that bucket.
+`npm run pack:npm` packs every publishable package as an **individual** npm
+tarball under `dist-npm/` (gitignored), each under its real name
+(`@wellsfargo-starui/grid`, not a bucket alias). That is the standard npm model:
+consumers install and import with no aliases and no build config.
 
-> These bucket tarballs are **not installable externally**: they rename every
-> member to `@wellsfargo-starui/<bucket>` with `./<member>` subpaths, and the
-> shipped `dist` files import each other by real member name — so they only
-> resolve through the Vite alias layer. For external teams (and the apps repo's
-> tarball track) use **`npm run pack:npm`**, which packs each package under its
-> real name into `dist-npm/`.
-
-Flags:
-
-- `--dry-run` — show the plan, write nothing.
-- `--gc` — delete orphaned tarballs in `libs/`.
-- `--no-install` / `--no-build` — skip install or per-package build steps.
-- Pass a bucket name (`react-core`) or member package (`grid`) to pack one bucket.
-
-Manifest: `libs/manifest.json` maps `@wellsfargo-starui/<bucket>` → tarball +
-`members` array.
+There is no longer a bucket-tarball step. `scripts/propagate.mjs`, `libs/`,
+`dist/` and `scripts/bootstrap.mjs` were deleted: bucket tarballs renamed every
+member to `@wellsfargo-starui/<bucket>` with `./<member>` subpaths while the
+shipped `dist` files still imported each other by real name, so they only ever
+resolved through this repo's Vite alias layer — never installable externally.
+Their last consumer was the in-repo apps, which now live in their own repo and
+use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 ## Testing
 

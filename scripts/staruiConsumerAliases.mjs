@@ -12,8 +12,6 @@ const require = createRequire(import.meta.url);
 const {
   findReactRoot,
   findStaruiPackageRoot,
-  findBucketNodeModules,
-  collectStaruiInstallRoots,
   staruiTailwindContent: staruiTailwindContentImpl,
 } = require('./staruiTailwindContent.cjs');
 
@@ -94,82 +92,17 @@ function readMemberExports(bucket, folder) {
 }
 
 /**
- * Read member export map from an installed bucket tarball (Artifactory / libs/).
- * Returns null when the bucket is not installed as a bundled tarball.
+ * Bucket → members map, discovered by scanning `packages/`.
+ *
+ * This used to prefer a `libs/manifest.json` written by `propagate`. Bucket
+ * tarballs are gone (they were never installable outside this repo — see
+ * docs/APPS_REPO.md), so scanning the source tree is the only source of truth
+ * and cannot go stale.
  */
-function readInstalledMemberExports(bucketPkgPath, bucketName, member) {
-  if (!existsSync(bucketPkgPath)) return null;
-  const bucketPkg = JSON.parse(readFileSync(bucketPkgPath, 'utf8'));
-  if (!isBucketBundlePackage(bucketPkg, bucketName)) return null;
-
-  const short = member.split('/').pop();
-  const hoist = member === bucketName;
-  const entries = {};
-  const raw = bucketPkg.exports ?? {};
-
-  for (const [exportKey, targetVal] of Object.entries(raw)) {
-    const target = resolveExportTarget(targetVal);
-    if (!target || typeof target !== 'string') continue;
-
-    if (hoist) {
-      if (exportKey === '.') entries['.'] = target;
-      else if (exportKey.startsWith('./')) entries[exportKey.slice(1)] = target;
-      continue;
-    }
-
-    const prefix = `./${short}`;
-    if (exportKey === prefix) entries['.'] = target;
-    else if (exportKey.startsWith(`${prefix}/`)) {
-      entries[exportKey.slice(prefix.length)] = target;
-    }
-  }
-
-  return Object.keys(entries).length > 0 ? entries : null;
-}
-
-function isBucketBundlePackage(pkgJson, bucketName) {
-  return (
-    pkgJson.name === bucketName &&
-    typeof pkgJson.description === 'string' &&
-    pkgJson.description.includes('bundled tarball')
-  );
-}
-
-/** Installed path root for a member — bucket tarball vs workspace symlink. */
-function installedMemberRoot(appDir, bucketName, bucketShort, memberName, folder) {
-  const bucketDir = findBucketNodeModules(appDir, bucketShort);
-  const nmRoot = join(bucketDir, '../..');
-  const bucketPkgPath = join(bucketDir, 'package.json');
-  if (existsSync(bucketPkgPath)) {
-    const bucketPkg = JSON.parse(readFileSync(bucketPkgPath, 'utf8'));
-    if (isBucketBundlePackage(bucketPkg, bucketName)) return join(bucketDir, folder);
-    if (bucketPkg.name === memberName) return bucketDir;
-  }
-
-  const memberShort = memberName.split('/').pop();
-  const memberLink = join(nmRoot, '@wellsfargo-starui', memberShort);
-  const memberPkgPath = join(memberLink, 'package.json');
-  if (existsSync(memberPkgPath)) {
-    const memberPkg = JSON.parse(readFileSync(memberPkgPath, 'utf8'));
-    if (memberPkg.name === memberName) return memberLink;
-  }
-
-  return join(bucketDir, folder);
-}
-
 export function readManifest() {
-  const candidates = [
-    join(REPO_ROOT, 'libs', 'manifest.json'),
-    join(REPO_ROOT, 'dist', 'packages', 'manifest.json'),
-  ];
-  for (const manifestPath of candidates) {
-    if (!existsSync(manifestPath)) continue;
-    return JSON.parse(readFileSync(manifestPath, 'utf8'));
-  }
   return discoverManifestFromPackages();
 }
 
-/** Fallback when libs/manifest.json is missing (before first propagate). */
 function discoverManifestFromPackages() {
   const packagesRoot = join(REPO_ROOT, 'packages');
   if (!existsSync(packagesRoot)) return null;
@@ -193,10 +126,18 @@ function discoverManifestFromPackages() {
 }
 
 /**
- * In source mode, prefer live TS/TSX under src/ when dist/ has not been built.
+ * Resolve one export target to an absolute path.
+ *
+ * Prefers the package's built `dist/` when it exists and falls back to live
+ * `src/`. Note what that means in practice: after `build:packages`, nearly
+ * every alias points at dist — "source mode" is really "built output, with a
+ * source fallback". Delete a package's `dist/` to get live TS for it.
+ *
  * @param {string} exportKey package.json exports key (e.g. '.', './css')
+ * @param {{ignoreDist?: boolean}} opts `ignoreDist` forces the src/ branch —
+ *   used by the source-alias audit to prove every export has a source form.
  */
-function resolveMemberPath(resolveRoot, relTarget, useDevSource, exportKey = '.', opts = {}) {
+function resolveMemberPath(resolveRoot, relTarget, exportKey = '.', opts = {}) {
   const ignoreDist = opts.ignoreDist === true;
   if (typeof relTarget !== 'string' || relTarget.includes('*')) {
     return join(resolveRoot, String(relTarget).replace(/^\.\//, ''));
@@ -204,8 +145,7 @@ function resolveMemberPath(resolveRoot, relTarget, useDevSource, exportKey = '.'
 
   const rel = relTarget.replace(/^\.\//, '');
   const primary = join(resolveRoot, rel);
-  const primaryUsable = existsSync(primary) && !(ignoreDist && rel.startsWith('dist/'));
-  if (!useDevSource || primaryUsable) return primary;
+  if (existsSync(primary) && !(ignoreDist && rel.startsWith('dist/'))) return primary;
 
   const srcBase = rel.replace(/^dist\//, 'src/');
   const srcCandidates = [
@@ -247,8 +187,8 @@ export function isBuildGeneratedExport(relTarget) {
 export function staruiViteAliases(appDir) {
   const manifest = readManifest();
   if (!manifest) return [];
+  void appDir; // resolution is anchored to THIS repo, not the app's location
 
-  const useDevSource = process.env.STARUI_USE_TARBALLS !== '1';
   const aliases = [];
   const seen = new Set();
 
@@ -259,39 +199,17 @@ export function staruiViteAliases(appDir) {
     aliases.push({ find, replacement });
   }
 
-  for (const [bucketName, entry] of Object.entries(manifest)) {
+  for (const entry of Object.values(manifest)) {
     if (!entry?.members?.length || !entry.bucket) continue;
-    const bucketShort = bucketName.split('/').pop();
-    const bucketDir = findBucketNodeModules(appDir, bucketShort);
-    const bucketPkgPath = join(bucketDir, 'package.json');
 
     for (const member of entry.members) {
       const folder = findMemberFolder(entry.bucket, member);
-      const short = member.split('/').pop();
-
-      let exportEntries = null;
-      let resolveRoot = bucketDir;
-
-      if (!useDevSource) {
-        exportEntries = readInstalledMemberExports(bucketPkgPath, bucketName, member);
-      }
-      if (!exportEntries) {
-        exportEntries = readMemberExports(entry.bucket, folder);
-        // Under STARUI_DEV_SOURCE=1, resolve targets to the *live* package
-        // source directly. The default `installedMemberRoot` points at the
-        // bucket's snapshot under `node_modules/@wellsfargo-starui/<bucket>/<folder>/`,
-        // which is a copy that goes stale the moment a developer adds a
-        // file to `packages/` between `npm ci` runs. Bypassing it means
-        // newly-added grid modules (alerts, etc.) load straight from source
-        // without needing to re-install.
-        resolveRoot = useDevSource
-          ? join(REPO_ROOT, 'packages', entry.bucket, folder)
-          : installedMemberRoot(appDir, bucketName, bucketShort, member, folder);
-      }
+      const resolveRoot = join(REPO_ROOT, 'packages', entry.bucket, folder);
+      const exportEntries = readMemberExports(entry.bucket, folder);
 
       for (const [exportKey, relTarget] of Object.entries(exportEntries)) {
         if (typeof relTarget === 'string' && relTarget.includes('*')) continue;
-        const absTarget = resolveMemberPath(resolveRoot, relTarget, useDevSource, exportKey);
+        const absTarget = resolveMemberPath(resolveRoot, relTarget, exportKey);
         const suffix =
           exportKey === '.'
             ? ''
@@ -304,15 +222,8 @@ export function staruiViteAliases(appDir) {
         if (exportKey === '.') {
           const memberExact = member.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           add(new RegExp(`^${memberExact}$`), absTarget);
-          if (member !== bucketName) {
-            const bucketExact = `${bucketName}/${short}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            add(new RegExp(`^${bucketExact}$`), absTarget);
-          }
         } else {
           add(`${member}${suffix}`, absTarget);
-          if (member !== bucketName) {
-            add(`${bucketName}/${short}${suffix}`, absTarget);
-          }
         }
       }
     }
@@ -348,7 +259,7 @@ export function auditSourceModePaths(appDir, opts = {}) {
         if (typeof relTarget !== 'string' || relTarget.includes('*')) continue;
 
         const label = exportKey === '.' ? member : `${member}${exportKey.slice(1)}`;
-        const resolved = resolveMemberPath(resolveRoot, relTarget, true, exportKey, { ignoreDist });
+        const resolved = resolveMemberPath(resolveRoot, relTarget, exportKey, { ignoreDist });
 
         if (existsSync(resolved)) {
           ok.push(label);
@@ -383,18 +294,14 @@ const HOST_DATA_WORKER_ASSET_RE =
 /** Resolve `@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url` for Vite. */
 export function resolveHostDataWorkerAssetUrl(source, appDir) {
   if (!HOST_DATA_WORKER_ASSET_RE.test(source)) return null;
+  void appDir;
 
-  const candidates = [
-    join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs'),
-  ];
-  for (const root of collectStaruiInstallRoots(appDir)) {
-    candidates.push(
-      join(root, 'node_modules/@wellsfargo-starui/host-data/dist/assets/data-services-worker.mjs'),
-      join(root, 'node_modules/@wellsfargo-starui/data/host-data/dist/assets/data-services-worker.mjs'),
-    );
-  }
-  const workerPath = candidates.find((p) => existsSync(p));
-  return workerPath ? `${workerPath}?url` : null;
+  // Only one candidate now. This used to also search installed bucket tarballs
+  // under the app's node_modules; buckets are gone, and a consumer installing
+  // real member packages resolves the asset through normal node resolution
+  // without needing this plugin at all.
+  const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs');
+  return existsSync(workerPath) ? `${workerPath}?url` : null;
 }
 
 /**
@@ -470,7 +377,7 @@ export function stompJsEsmAlias(appDir) {
   // lives at the repo root. Search the app's react root, every @wellsfargo-starui install
   // root, then REPO_ROOT, and alias to the first esm6 entry that exists.
   const esm6 = 'node_modules/@stomp/stompjs/esm6/index.js';
-  const roots = [reactRootDir, ...collectStaruiInstallRoots(appDir), REPO_ROOT];
+  const roots = [reactRootDir, REPO_ROOT];
   const seen = new Set();
   let replacement = join(reactRootDir, esm6);
   for (const root of roots) {
@@ -495,7 +402,7 @@ export function staruiServerFsAllow(appDir) {
     reactRootDir,
     join(reactRootDir, 'node_modules'),
   ]);
-  for (const root of collectStaruiInstallRoots(appDir)) {
+  for (const root of [reactRootDir]) {
     allow.add(root);
     allow.add(join(root, 'node_modules'));
   }
@@ -511,14 +418,10 @@ export function staruiOptimizeDeps() {
       // library. Apps must construct SharedWorkers at the call site.
       '@wellsfargo-starui/host-data',
       '@wellsfargo-starui/host-data/runtime',
-      '@wellsfargo-starui/data/host-data',
-      '@wellsfargo-starui/data/host-data/runtime',
       // Single React context instance — prebundling widgets-react pulls
       // a second copy of host-data-react and breaks <DataServicesProvider>.
       '@wellsfargo-starui/host-data-react',
       '@wellsfargo-starui/host-data-react/runtime',
-      '@wellsfargo-starui/data/host-data-react',
-      '@wellsfargo-starui/data/host-data-react/runtime',
     ],
   };
 }

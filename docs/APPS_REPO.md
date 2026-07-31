@@ -67,9 +67,12 @@ The tarball track must build with **no** aliases and with this repo's
 `packages/` directory inaccessible. That is the check that keeps external
 consumption honest.
 
-Use `pack:npm`, not `propagate`: propagate's bucket tarballs rename members to
-`@wellsfargo-starui/<bucket>` with `./<member>` subpaths and resolve only through
-the alias layer.
+`pack:npm` is the only packing step. A second one (`propagate`) used to emit one
+tarball per architecture **bucket** into `libs/`, renaming members to
+`@wellsfargo-starui/<bucket>` with `./<member>` subpaths; those resolved only
+through the Vite alias layer and were never installable externally. With the
+in-repo apps gone they had no consumer left, so `propagate.mjs`, `libs/`,
+`dist/` and `bootstrap.mjs` were deleted.
 
 ## What "source mode" actually resolves to
 
