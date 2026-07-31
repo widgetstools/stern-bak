@@ -47,8 +47,6 @@ jobs:
         run: npm run lint
       - name: Package dependency cycles
         run: npm run check:deps
-      - name: No native <select> in apps
-        run: npm run check:no-native-select
       - name: Design-system dependency hygiene
         run: npm run check:design-system-deps
       # Informational only — the design-system token migration still has a
@@ -96,53 +94,4 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-  consumer:
-    name: Consumer apps (source build + typecheck)
-    needs: packages
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - run: npm install
-      - name: Build packages
-        run: npm run build:packages
-      - name: Pack bucket tarballs (Artifactory parity)
-        run: node scripts/propagate.mjs
-      - name: Install nested apps workspace
-        run: npm run install:apps
-      - name: Build consumer apps (source mode)
-        run: npm run build:apps
-      - name: Typecheck consumer apps (source mode)
-        run: npm run typecheck:apps
-      - name: Upload demo-react bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: demo-react-dist
-          path: apps/demos/demo-react/dist
-          retention-days: 7
-          if-no-files-found: warn
 
-  cross-platform:
-    name: Consumer verify (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: npm install
-        run: npm install
-
-      - name: Consumer build + typecheck
-        run: npm run verify:consumer

@@ -4,8 +4,10 @@
  *
  *   1. npm install          — packages/* at repo root (generates a local lock)
  *   2. build:packages + propagate — writes libs/*.tgz (local only, for the
- *      external/Artifactory tarball consumers; apps do NOT depend on them)
- *   3. npm install --prefix apps — consumer apps, resolved from packages/ source
+ *      external/Artifactory tarball consumers)
+ *
+ * The consumer apps live in their own repository now; installing them is that
+ * repo's `npm install`. See docs/APPS_REPO.md.
  *
  * Lockfiles are intentionally NOT committed (see .gitignore): they pin a
  * registry host a corporate-Artifactory client cannot reach. Every install
@@ -81,10 +83,6 @@ function main() {
     log('packing libs/ from packages/ (not committed to git)');
     run('npm run build:packages');
     run('node scripts/propagate.mjs --skip-drift-check');
-  }
-
-  if (!noCi) {
-    run('npm run install:apps');
   }
 
   log('done');

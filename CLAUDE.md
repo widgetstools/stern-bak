@@ -1,8 +1,14 @@
 # CLAUDE.md — agent instructions for `starui` (MarketsUI platform monorepo)
 
-This is the consolidated MarketsUI platform monorepo. Libraries, apps,
-docs, tooling, and e2e tests all live at the **repo root** (`packages/`,
-`apps/`, `docs/`, `scripts/`, `tools/`, `e2e/`).
+This is the MarketsUI platform library monorepo — `packages/`, `docs/`,
+`scripts/`, `tools/`.
+
+**The consumer/demo apps and the Playwright e2e suite are NOT here.** They live
+in a sibling repository (`@wellsfargo-starui/apps`, checked out beside this one)
+because the enterprise CI/CD pipeline demands unit-test coverage for every module
+it finds, and demo apps should not carry tests to satisfy a coverage gate. Those
+apps still consume this repo's **source** — see
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 **Read before editing:**
 
@@ -17,8 +23,7 @@ docs, tooling, and e2e tests all live at the **repo root** (`packages/`,
 resolves cleanly. If a future install needs the flag, treat that as a
 real ERESOLVE bug to investigate, not a permanent workaround.
 
-**Lockfiles are not committed** (`package-lock.json` / `apps/package-lock.json`
-are gitignored). They pin `registry.npmjs.org`, which a client site behind a
+**Lockfiles are not committed** (`package-lock.json` is gitignored). They pin `registry.npmjs.org`, which a client site behind a
 corporate Artifactory can't reach — so each environment regenerates its own
 lock on `npm install` against whatever registry its `.npmrc` points at (see
 [`.npmrc.example`](./.npmrc.example)). Use `npm install` everywhere, **never
@@ -48,22 +53,24 @@ architecture buckets (see
 | 6 | Data Utilities | `data/` | `host-config`, `host-data`, `host-data-react`, `host-data-angular` |
 | 7 | OpenFin Utils | `openfin/` | `host-openfin`, `openfin-platform` |
 | 8 | Angular Core | `angular-core/` | `app`, `widgets`, `config-browser` |
-| 9 | React Core | `react-core/` | `app`, `widgets-react`, `widget-sdk`, `host-wrapper-react`, `config-browser`, `workspace-setup-react` |
+| 9 | React Core | `react-core/` | `widgets-react`, `widget-sdk`, `host-wrapper-react`, `config-browser`, `workspace-setup-react` |
 | 10 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser` |
 
 > **Angular is excluded from the build pipeline.** The build/typecheck/test/
-> propagate flow and the apps workspace target **React + shared only**. The
-> Angular buckets (`angular-ui`, `angular-grid`, `angular-core`), the
-> `host-data-angular` member, and `apps/demos/demo-angular` are deliberately
-> left out of the root **and** apps `workspaces` (so they aren't installed,
-> linked, or built), out of `scripts/propagate.mjs` (`ANGULAR_BUCKETS` /
-> `ANGULAR_MEMBERS`), and skipped by `scripts/build-app-track.mjs`
-> (`isAngularApp`). The source dirs still exist; re-add the workspace globs to
-> bring Angular back. `build:packages` builds 23 packages; `build:apps` builds
-> 16 apps.
+> propagate flow targets **React + shared only**. The Angular buckets
+> (`angular-ui`, `angular-grid`, `angular-core`) and the `host-data-angular`
+> member are deliberately left out of the root `workspaces` (so they aren't
+> installed, linked, or built), out of `scripts/propagate.mjs`
+> (`ANGULAR_BUCKETS` / `ANGULAR_MEMBERS`), and out of
+> `scripts/gen-consumer-tsconfig.mjs`. The source dirs still exist; re-add the
+> workspace globs to bring Angular back. `build:packages` builds 21 packages.
+>
+> `@wellsfargo-starui/app` (`react-core/app`) and `tools/mcp-scaffold` were
+> **deleted**, not excluded. `StarGridApp` is vendored into the apps repo's
+> star-demo, which was its only consumer.
 
-**Apps** live under `apps/` and consume libraries via npm
-workspace `"*"` deps.
+**Apps** live in the sibling apps repo and consume this one through a
+`file:` link — see [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 The root `package.json` workspaces glob enumerates each bucket explicitly
 (npm 10 doesn't do `packages/**`). When adding a new package:
@@ -121,10 +128,9 @@ PR. Until then: convention enforcement happens in code review.
 **Turborepo 2.** Scripts at root:
 
 ```bash
-npm run build       # build:consumer — packages, propagate tarballs, apps
+npm run build       # build:consumer — packages + propagate tarballs
 npm run typecheck   # typecheck:consumer — packages build, propagate, app tsc
 npm test            # turbo test — Vitest
-npm run e2e         # Playwright — e2e
 ```
 
 Every library package uses `"build": "rimraf dist && tsc"` (or
@@ -135,20 +141,22 @@ on the next run. Don't remove it.
 ## Install layout
 
 - **Root** `npm install` / `npm run install:all` — `packages/*` only (workspace `"*"`).
-- **Apps** nested under `apps/package.json` — each reference/demo app lives
-  **once** under `apps/demos/<app>/`; the apps `workspaces` lists the React/node
-  demos explicitly (`demo-angular` excluded). `npm run install:apps`
-  (= `npm install --prefix apps`) installs each app's own third-party deps; it does
-  **not** require `libs/*.tgz`.
-- **Apps build from source only.** `dev`/`build` resolve every `@wellsfargo-starui/*` import
-  straight out of `packages/` source — Vite via the aliases in
-  `scripts/staruiConsumerAliases.mjs`, `tsc` via the repo-root workspace symlinks
-  (`<root>/node_modules/@wellsfargo-starui/<member>` → `packages/...`, reachable because
-  `apps/` sits inside the repo root). Apps declare **no** `@wellsfargo-starui/*` deps; their
-  third-party transitive deps resolve from the hoisted repo-root `node_modules`.
-  Build/typecheck every app with `npm run build:apps` / `npm run typecheck:apps`.
-  `npm run propagate` still packs `libs/*.tgz` + `manifest.json` — but only for
-  **external (Artifactory) tarball consumers**, never for the apps.
+- **Apps are a separate repo.** They consume this one two ways, both covered in
+  [`docs/APPS_REPO.md`](./docs/APPS_REPO.md):
+  - **source track** — Vite through `scripts/staruiConsumerAliases.mjs`, `tsc`
+    through the generated `tsconfig.consumer.json`. Both resolve to absolute
+    paths derived from **this repo's** location, so they work from anywhere.
+  - **tarball track** — installs `npm run pack:npm` output (each package under
+    its real name), the path an external Artifactory consumer takes.
+- **What "source mode" actually resolves to.** The aliases prefer built
+  `dist/` and fall back to `src/` only when `dist/` is absent. After
+  `build:packages`, apps consume dist — *not* live TS. Delete a package's
+  `dist/` to get live-source behaviour for that package.
+- `npm run propagate` packs `libs/*.tgz` + `manifest.json` for **bucket**
+  consumers. Those bucket tarballs rename everything to
+  `@wellsfargo-starui/<bucket>` with `./<member>` subpaths and only resolve
+  through the Vite alias layer — they are **not** installable externally. Use
+  `npm run pack:npm` for that.
 - **Build-generated assets self-heal.** Source mode aliases TS/TSX live, but the
   design-system CSS (`dist/css/theme.css`) and host-data SharedWorker
   (`dist/assets/data-services-worker.mjs`) are emitted by `build:packages`. The
@@ -165,13 +173,19 @@ on the next run. Don't remove it.
 
 `npm run propagate` (delegates to `scripts/propagate.mjs`) builds
 and packs **one tarball per architecture bucket** flat under `libs/`
-(e.g. `starui-react-grid.tgz` — a stable name with no version or content
-hash, so app `file:` pins never churn). **`libs/` is gitignored** — fresh clones use
-`npm run bootstrap` / `npm run install:all`. After package changes run propagate
-and `npm run install:apps`. Lockfiles are not committed, so there's nothing to
-commit but the app `package.json` `file:` pins (which stay stable across
-re-packs) and `libs/manifest.json`. Each bundle contains all workspace packages
-in that bucket. Flags:
+(e.g. `wellsfargo-starui-react-grid.tgz` — a stable name with no version or
+content hash, so `file:` pins never churn). **`libs/` is gitignored** — fresh
+clones use `npm run bootstrap` / `npm run install:all`. Each bundle contains all
+workspace packages in that bucket.
+
+> These bucket tarballs are **not installable externally**: they rename every
+> member to `@wellsfargo-starui/<bucket>` with `./<member>` subpaths, and the
+> shipped `dist` files import each other by real member name — so they only
+> resolve through the Vite alias layer. For external teams (and the apps repo's
+> tarball track) use **`npm run pack:npm`**, which packs each package under its
+> real name into `dist-npm/`.
+
+Flags:
 
 - `--dry-run` — show the plan, write nothing.
 - `--gc` — delete orphaned tarballs in `libs/`.
@@ -179,19 +193,16 @@ in that bucket. Flags:
 - Pass a bucket name (`react-core`) or member package (`grid`) to pack one bucket.
 
 Manifest: `libs/manifest.json` maps `@wellsfargo-starui/<bucket>` → tarball +
-`members` array (legacy member names resolve for MCP scaffolding).
+`members` array.
 
 ## Testing
 
 - Vitest 4 + jsdom 29 for unit tests. Baseline (2026-06-13): **1821 passing,
-  1 skipped across 228 test files** (`npm test` — turbo across `packages/`,
-  excluding apps). Largest contributors: `grid` (546), `host-data` (355),
+  1 skipped across 228 test files** (`npm test` — turbo across `packages/`).
+  Slightly lower now that `@wellsfargo-starui/app` is deleted. Largest contributors: `grid` (546), `host-data` (355),
   `engine` (241), `design-system` (193), `widgets-react` (171).
-- Playwright 1.59 — main suite (`playwright.config.ts`, primary target
-  `apps/demos/demo-react`) collects **398 tests across 51 specs**; the
-  container subsuite (`playwright.container.config.ts`) adds **16 across 5**.
-  Topology, spec inventory, known-fragile specs, and how to capture a fresh
-  pass/fail baseline live in [`docs/E2E_STATUS.md`](./docs/E2E_STATUS.md).
+- **Playwright lives in the apps repo now**, along with the apps its specs
+  drive. Nothing in this repo runs e2e.
 
 ## UI stack rules (non-negotiable)
 
@@ -251,7 +262,7 @@ After every feature add / update / fix / removal:
    correspond to the capability you changed; keep granularity at one bullet
    per importable thing. Don't ask the user first; just do it.
 2. Run `npx turbo typecheck build test` and ensure green.
-3. If interaction changes, add/update e2e spec under `e2e/`.
+3. If interaction changes, add/update the e2e spec in the apps repo.
 4. Commit messages: conventional prefixes (`feat(pkg):`, `fix(pkg):`,
    `chore:`, `docs:`, `test:`, `ci:`, `refactor(pkg):`).
 
