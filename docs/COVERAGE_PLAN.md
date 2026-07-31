@@ -56,8 +56,21 @@ it('disables save until a name is entered', async () => {
 only find a button by testid usually means the button has no accessible name,
 which is a real defect worth fixing instead.
 
-Do **not**: shallow-render, assert on props objects, reach into hook internals,
-or add snapshot tests of markup. Those pass while the component is broken.
+**Banned, and enforced by `check:rtl` — each fails the build:**
+
+| Approach | Why |
+|---|---|
+| `enzyme` | shallow rendering never runs children |
+| `react-test-renderer` | asserts on a tree, not on what a user sees |
+| `react-dom/test-utils` | use RTL, which wraps it correctly |
+| `ReactDOM.render(` | bypasses RTL's `act()` and cleanup |
+| `createRoot(` | render via RTL instead |
+| `.attachShadow(` | a shadow root hides the tree from RTL's queries |
+| `.toMatchSnapshot()` | asserts "unchanged", not "correct" |
+
+Also avoid, though not mechanically detectable: asserting on props objects, and
+reaching into hook internals. Both pass while the component is broken for a
+real user.
 
 A `.test.tsx` that renders nothing and only exercises a pure helper is fine and
 exempt — the check keys on JSX presence, not the file extension.

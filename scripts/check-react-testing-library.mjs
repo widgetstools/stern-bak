@@ -40,6 +40,25 @@ const RTL_IMPORT = /from\s+['"]@testing-library\/react['"]/;
 const RENDERS_JSX = /<([A-Za-z][\w.]*)[\s/>]|<>/;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.turbo']);
 
+/**
+ * Ways of rendering a component that are NOT React Testing Library.
+ *
+ * Each of these lets a test pass while the component is broken for a real user:
+ * shallow rendering never runs children, a hand-rolled root bypasses RTL's act()
+ * and cleanup, shadow roots hide the tree from RTL's queries, and a markup
+ * snapshot asserts that the output has not changed rather than that it is
+ * correct.
+ */
+const BANNED = [
+  [/from\s+['"]enzyme['"]/, 'enzyme — shallow rendering never runs children'],
+  [/from\s+['"]react-test-renderer['"]/, 'react-test-renderer — asserts on a tree, not on what a user sees'],
+  [/from\s+['"]react-dom\/test-utils['"]/, 'react-dom/test-utils — use RTL, which wraps it correctly'],
+  [/\bReactDOM\.render\s*\(/, 'ReactDOM.render — bypasses RTL act() and cleanup'],
+  [/\bcreateRoot\s*\(/, 'createRoot — render via RTL instead'],
+  [/\.attachShadow\s*\(/, 'attachShadow — a shadow root hides the tree from RTL queries'],
+  [/\.toMatchSnapshot\s*\(\)/, 'markup snapshot — asserts "unchanged", not "correct"'],
+];
+
 /** Every `*.test.tsx` beneath `dir`. */
 function findReactTests(dir, out = []) {
   if (!existsSync(dir)) return out;
@@ -54,6 +73,7 @@ function findReactTests(dir, out = []) {
 
 const missingImport = [];
 const missingDep = [];
+const bannedUse = [];
 
 for (const bucket of readdirSync(PACKAGES_ROOT, { withFileTypes: true })) {
   if (!bucket.isDirectory()) continue;
@@ -73,6 +93,10 @@ for (const bucket of readdirSync(PACKAGES_ROOT, { withFileTypes: true })) {
       if (RENDERS_JSX.test(src) && !RTL_IMPORT.test(src)) {
         missingImport.push(relative(REPO_ROOT, test));
       }
+      // Banned rendering approaches apply to every test file, JSX or not.
+      for (const [pattern, why] of BANNED) {
+        if (pattern.test(src)) bannedUse.push({ file: relative(REPO_ROOT, test), why });
+      }
     }
 
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
@@ -91,12 +115,17 @@ if (missingImport.length > 0) {
   w("    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();\n");
 }
 
+if (bannedUse.length > 0) {
+  w(`\n✗ ${bannedUse.length} test(s) render React by means other than RTL:\n`);
+  for (const { file, why } of bannedUse) w(`    ${file}\n      ${why}\n`);
+}
+
 if (missingDep.length > 0) {
   w(`\n✗ ${missingDep.length} package(s) ship React tests without declaring @testing-library/react:\n`);
   for (const n of missingDep) w(`    ${n}\n`);
   w('  Relying on the hoisted root copy breaks when the package is built alone.\n');
 }
 
-const failed = missingImport.length + missingDep.length;
+const failed = missingImport.length + missingDep.length + bannedUse.length;
 if (failed === 0) w('\nPASS — every React test uses React Testing Library\n');
 if (failed > 0 && !reportOnly) process.exit(1);
