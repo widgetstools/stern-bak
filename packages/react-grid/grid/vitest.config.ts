@@ -30,7 +30,9 @@ export default defineConfig({
     ],
   },
   test: {
-    coverage: coverage(),
+    coverage: coverage({
+      exclude: ['src/widget/test/**'],
+    }),
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts', './src/test/providers.tsx'],

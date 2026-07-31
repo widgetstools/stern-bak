@@ -42,4 +42,31 @@ describe('gridOptionValuesEqual — sanity on the existing shallow special-cases
       ),
     ).toBe(true);
   });
+
+  it('autoGroupColumnDef uses shallow record compare', () => {
+    expect(
+      gridOptionValuesEqual('autoGroupColumnDef', { minWidth: 80 }, { minWidth: 80 }),
+    ).toBe(true);
+    expect(
+      gridOptionValuesEqual('autoGroupColumnDef', { minWidth: 80 }, { minWidth: 90 }),
+    ).toBe(false);
+  });
+
+  it('sideBar and statusBar compare shallowly', () => {
+    const side = { toolPanels: ['columns'] as string[] };
+    expect(gridOptionValuesEqual('sideBar', side, side)).toBe(true);
+    expect(gridOptionValuesEqual('statusBar', { a: 1 }, { a: 2 })).toBe(false);
+  });
+
+  it('deep-compares arrays up to shallow depth', () => {
+    expect(gridOptionValuesEqual('columnDefs', [{ field: 'a' }], [{ field: 'a' }])).toBe(true);
+    expect(gridOptionValuesEqual('columnDefs', [{ field: 'a' }], [{ field: 'b' }])).toBe(false);
+  });
+
+  it('falls back to JSON compare for plain objects and handles stringify failures', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(gridOptionValuesEqual('foo', { a: 1 }, { a: 1 })).toBe(true);
+    expect(gridOptionValuesEqual('foo', circular, { a: 1 })).toBe(false);
+  });
 });

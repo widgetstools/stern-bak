@@ -19,7 +19,7 @@
  */
 import * as React from 'react';
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
 import { GridPlatform } from '@wellsfargo-starui/engine';
 import {
@@ -317,5 +317,88 @@ describe('useFilterModel — AG-Grid wiring', () => {
     // Live filter equals an EXISTING (inactive) pill — must not enable
     // the + button. This is the regression isNewFilter guards against.
     expect(result.current.hasNewFilter).toBe(false);
+  });
+
+  it('sanitizes malformed set-filter values when pushing active model', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    seedFilters(platform, [{
+      id: 'bad',
+      label: 'Bad',
+      active: true,
+      filterModel: {
+        side: { filterType: 'set', values: { 0: 'BUY', 1: 'SELL' } as unknown as string[] },
+      },
+    }]);
+
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+
+    const side = (result.current.filters[0]?.filterModel as Record<string, { values?: unknown[] }>).side;
+    expect(Array.isArray(side?.values)).toBe(true);
+    expect(side?.values).toEqual(['BUY', 'SELL']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('drops invalid saved filter records during normalization', () => {
+    platform.store.setModuleState<SavedFiltersState>('saved-filters', () => ({
+      filters: [
+        { id: '', label: 'No id', active: false, filterModel: {} },
+        { id: 'ok', label: 'OK', active: true, filterModel: { x: { filterType: 'text', filter: 'a' } } },
+      ] as unknown as SavedFilter[],
+    }));
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    expect(result.current.filters.map((f) => f.id)).toEqual(['ok']);
+  });
+
+  it('skips setFilterModel push when active model matches live model', () => {
+    const model = { side: { filterType: 'text', type: 'equals', filter: 'BUY' } };
+    seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: model }]);
+
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    fake.setLiveModel(model);
+
+    renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+
+    // Initial push may have fired once; subsequent identical push is skipped.
+    const callsAfterMount = fake.setFilterModelCalls.length;
+    act(() => fake.fireEvent('filterChanged'));
+    expect(fake.setFilterModelCalls.length).toBe(callsAfterMount);
+  });
+
+  it('survives setFilterModel throw without breaking hook', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: { bad: { filterType: 'set', values: ['x'] } } }]);
+
+    const fake = makeFakeApi();
+    const throwingApi = {
+      ...fake.api,
+      setFilterModel: () => { throw new Error('boom'); },
+    } as GridApi;
+    platform.onGridReady(throwingApi);
+
+    expect(() => {
+      renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    }).not.toThrow();
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it('registers profile:loaded listener that re-pushes filters', () => {
+    seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: { x: { filterType: 'text', filter: '1' } } }]);
+    const fake = makeFakeApi();
+    const setFilterModel = vi.fn();
+    const api = { ...fake.api, setFilterModel } as GridApi;
+    platform.onGridReady(api);
+
+    renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    setFilterModel.mockClear();
+
+    act(() => { platform.events.emit('profile:loaded', { gridId: 'test-grid', profileId: 'p1' }); });
+    expect(setFilterModel).toHaveBeenCalled();
   });
 });
