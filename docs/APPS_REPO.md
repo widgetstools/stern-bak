@@ -13,13 +13,24 @@ them out removes them from this repo's CI surface entirely.
 
 ```
 workspace/
-  stern-bak/        # this repo — @wellsfargo-starui/platform
+  <platform>/       # this repo — @wellsfargo-starui/platform (any directory name)
   starui-apps/      # apps repo — @wellsfargo-starui/apps
 ```
 
-The apps repo declares `"@wellsfargo-starui/platform": "file:../stern-bak"`.
-That link is what makes `@wellsfargo-starui/platform/scripts/*` and
-`tsconfig.consumer.json` importable from an app.
+**This repo's directory name is not hardcoded in the apps repo.** Its
+`scripts/resolvePlatform.mjs` locates the checkout at install time —
+`$STARUI_PLATFORM`, else a sibling named `stern-bak`, else any sibling whose
+`package.json` is named `@wellsfargo-starui/platform` — so renaming or moving
+this checkout needs no edit over there.
+
+The apps repo materialises the link two ways:
+
+- **source track** — a `postinstall` creates
+  `node_modules/@wellsfargo-starui/platform` pointing here, which is what makes
+  `@wellsfargo-starui/platform/scripts/*` and the `tsconfig.consumer.json`
+  `extends` resolve.
+- **tarball track** — it **copies** `dist-npm/*.tgz` into its own `vendor/`,
+  stripping the version, so its pins reference nothing in this repo at all.
 
 ## Why moving them out worked
 

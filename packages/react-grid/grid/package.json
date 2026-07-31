@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/grid",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsGrid + grid customizer \u2014 merged product surface (phase 3)",
+  "description": "MarketsGrid + grid customizer — merged product surface (phase 3)",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
