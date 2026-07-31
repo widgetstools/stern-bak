@@ -32,7 +32,7 @@ npm run check:coverage                             # the gate — lists every fi
 concurrency four consecutive runs on an unchanged tree reported 504, 515, 520 and
 391 files clear, and a package that is fully covered can report as failing —
 `openfin-platform` did, which is why session 4 below has nothing left to do.
-Serialised, the number is reproducible. See `WORKLOG.md` item 9.
+The runner now pins `--concurrency=1`, so the number is reproducible by default.
 
 ---
 
@@ -127,7 +127,7 @@ finishes packages outright.
 | ~~4~~ | ~~`openfin-platform` (23)~~ — **already clear; measure before starting** | 0 | — | — |
 | 5 | `engine` — part 1 | 21 | logic | — |
 | 6 | `engine` — part 2 | 21 | logic | `engine` clear |
-| 7 | `widgets-react` (30) | 30 | 20 React | 1 package clear |
+| ✅ 7 | `widgets-react` (30) | 30 | 20 React | 1 package clear |
 | 8–10 | `ui` (54) — shadcn components, ~18 per session | 54 | all React | `ui` clear |
 | 11–16 | `grid` (164) — customizer modules, ~27 per session | 164 | 101 React | `grid` clear |
 
@@ -152,7 +152,7 @@ package with a suite.
 **4 — `openfin-platform` needs no work.** Run on its own it is 38 files, 272
 tests, 86.78% lines and **zero** files under the bar. The "23 files" this plan
 was sized with came from a default-concurrency `test:coverage` run, where the
-package under-reports (see `WORKLOG.md` item 9). Confirm with
+package under-reports. Confirm with
 `cd packages/openfin/openfin-platform && npm run test -- --coverage` before
 spending a session on it.
 
@@ -184,6 +184,7 @@ Append a row per session. Numbers come from `npm run check:coverage`, after a
 | 1 | 2026-07-31 | 443 → 461 | +18 | host-openfin, host-config, shared-types, host-data |
 | 2 | 2026-07-31 | 461 → 484 | +23 | widget-sdk, host-data-react, workspace-setup-react |
 | 3 | 2026-07-31 | 484 → 520 | +36** | config-browser (openfin-platform was already clear) |
+| 7 | 2026-07-31 | 520 → 550 | +30 | widgets-react |
 
 \* harness added, package not yet fully clear.
 
@@ -191,7 +192,7 @@ Append a row per session. Numbers come from `npm run check:coverage`, after a
 is `openfin-platform`, which this session did not touch: it was already above the
 bar and only *reported* as failing under a parallel `test:coverage` run. The
 before-number (484) came from such a run; 520 is the reproducible serialised
-number. See `WORKLOG.md` item 9.
+number.
 
 **Session 3 notes.** All 13 target files cleared — `config-browser` went from
 5.7% to **99.0% lines / 92.1% branches**, 243 tests across 14 files, no assertion

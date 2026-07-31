@@ -49,8 +49,27 @@ const vitestArgs = [
 // --continue is essential: the per-file threshold makes a package exit
 // non-zero, and without it turbo halts on the first one, so most packages never
 // run and the merged LCOV silently covers only a fraction of the repo.
-const turboCmd = `npx turbo test --continue ${passthrough.join(' ')} -- ${vitestArgs}`
+//
+// --concurrency=1 is equally essential, and less obvious. At turbo's default
+// (10 tasks here) every task starts its own vitest worker pool, the machine is
+// oversubscribed, and packages start dropping tests or failing to write a
+// coverage-summary.json at all. Four consecutive runs on an UNCHANGED tree once
+// reported 504, 515, 520 and 391 files above the bar; openfin-platform reported
+// 23, then 16, then 5, then no summary at all, while scoring 86.8% and fully
+// clear when run on its own. Coverage is a measurement, so reproducibility beats
+// speed — a number nobody can reproduce is worse than a slow one.
+//
+// Pass an explicit --concurrency to override (and accept that the result is not
+// comparable to a serial run).
+const hasConcurrency = passthrough.some((a) => a.startsWith('--concurrency'));
+const concurrency = hasConcurrency ? '' : '--concurrency=1';
+
+const turboCmd = `npx turbo test --continue ${concurrency} ${passthrough.join(' ')} -- ${vitestArgs}`
   .replace(/\s+/g, ' ');
+
+if (hasConcurrency) {
+  log('WARNING: explicit --concurrency given; the result may not be reproducible');
+}
 log(`> ${turboCmd}`);
 
 let testsFailed = false;

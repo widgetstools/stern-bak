@@ -93,16 +93,18 @@ individually-listed workspace members can collapse to a `packages/data/*` glob.
 
 ---
 
-## 4. 290 files still below 70% line coverage
+## 4. 260 files still below 70% line coverage
 
 **Repo:** stern-bak · **Branch:** `test/coverage-70` · **Blocked on:** nothing, just volume
 
 The coverage infrastructure is in place and enforcing; the tests are not written
-yet. `npm run test:coverage -- --force --concurrency=1 && npm run check:coverage`
-reports the live number — **the `--concurrency=1` is not optional**, see item 9.
+yet. `npm run test:coverage && npm run check:coverage` reports the live number.
+The runner now pins `--concurrency=1` itself, and the gate prints `INVALID`
+rather than a percentage if any package failed to produce a summary — so the
+number is reproducible without remembering a flag.
 
-**Progress:** 520 / 810 files at or above 70% (64.2%), from 412 / 806 at the
-start. All 21 packages now have a real suite — five had none at all — and 17 of
+**Progress:** 550 / 810 files at or above 70% (67.9%), from 412 / 806 at the
+start. All 21 packages now have a real suite — five had none at all — and 18 of
 the 21 clear the gate outright.
 
 **Where the remaining gap is concentrated:**
@@ -115,8 +117,9 @@ the 21 clear the gate outright.
 | `widgets-react` | 30 |
 
 `config-browser` (was 13) cleared in session 3. `openfin-platform` (was listed
-as 23) turns out to have been clear already — that 23 was an artifact of the
-unreproducible measurement in item 9, not real uncovered code.
+as 23) turns out to have been clear already — that 23 was an artifact of a
+default-concurrency measurement, not real uncovered code. That measurement bug
+is now fixed: `test:coverage` pins `--concurrency=1`.
 
 **→ Session-by-session breakdown, conventions and progress log:
 [`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~14 sessions remaining. Read its
@@ -268,46 +271,7 @@ import change; the tests currently mock the whole barrel to work around it.
 returns `"-"`. A brand-new draft therefore previews its id as a lone hyphen and
 the em-dash branch is unreachable.
 
-## 9. `npm run test:coverage` reports different coverage on every run
-
-**Repo:** stern-bak · **Blocked on:** nothing; the workaround is one flag
-
-Surfaced writing the coverage-70 Session 3 tests, while trying to record an
-honest before/after count. Four consecutive `npm run test:coverage && npm run
-check:coverage` runs on an unchanged tree reported **504, 515, 520 and 391**
-files at or above the bar. The set of packages listed as failing changed too:
-`openfin-platform` appeared with 23, then 16, then 5, then not at all.
-
-The cause is load, not flaky assertions. `run-test-coverage.mjs` runs
-`npx turbo test --continue` at turbo's default concurrency (10 tasks on this
-machine), each task starting its own vitest worker pool. Run on its own,
-`openfin-platform` is **already fully clear** — 38 files, 272 tests, 86.78%
-lines, zero files under the bar, exit 0. Under the parallel run the same package
-reports as few as 227 tests and fails the gate. The 391/651 run is the same
-effect one step further on: several packages never wrote a `coverage-summary.json`
-at all, and `check-package-coverage.mjs` silently scored the repo out of 651
-files instead of 810 rather than reporting the missing packages.
-
-Two separate defects:
-
-- **The measurement is not reproducible.** `--concurrency=1` fixes it —
-  `npm run test:coverage -- --force --concurrency=1` returned **520/810** twice
-  running. Any number quoted from a default-concurrency run is unreliable.
-- **A missing package is scored as if it did not exist.** A total that quietly
-  drops from 810 to 651 reads as a *coverage* change when it is a *collection*
-  failure. `check-package-coverage.mjs` already knows the package list — it
-  should fail loudly on a package with no summary, the way it already does for a
-  package with no test script.
-
-**Consequence for the plan:** `docs/COVERAGE_PLAN.md`'s session 4
-(`openfin-platform`, 23 files) was sized off a default-concurrency run and has
-nothing left to do. Measure before starting it.
-
-**Done looks like** `run-test-coverage.mjs` pinning concurrency (or bounding
-each vitest pool) so the number is reproducible, and
-`check-package-coverage.mjs` erroring on an absent per-package summary.
-
-## 10. `config-browser`'s JSON editor has no accessible name
+## 9. `config-browser`'s JSON editor has no accessible name
 
 **Repo:** stern-bak · **Blocked on:** nothing; one attribute
 
@@ -323,7 +287,7 @@ therefore fine. **Done looks like** an `aria-label="JSON payload"` (or an
 `id`/`htmlFor` pair against the existing heading), after which the test helper
 can go back to a plain role+name query.
 
-## 11. Bucket contents are wrong; 21 published packages should become 7
+## 10. Bucket contents are wrong; 21 published packages should become 7
 
 **Repo:** stern-bak · **Unblocked:** coverage **session 3** has landed (item 4)
 

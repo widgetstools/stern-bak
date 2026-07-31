@@ -103,9 +103,13 @@ if (noHarness.length > 0) {
 }
 
 if (noSummary.length > 0) {
-  w(`\n! ${noSummary.length} package(s) have a test script but no coverage summary:\n`);
+  w(`\n✗ ${noSummary.length} package(s) have a test script but produced NO coverage summary:\n`);
   for (const p of noSummary) w(`    ${p.name}\n`);
-  w('  Run `npm run test:coverage` first.\n');
+  w('\n  These packages are missing from the total below, so the count is a\n');
+  w('  COLLECTION failure, not a coverage result — a denominator that quietly\n');
+  w('  drops from 810 to 651 reads like progress when nothing moved.\n');
+  w('  Re-run `npm run test:coverage` (it pins --concurrency=1; running turbo\n');
+  w('  test directly at default concurrency drops summaries under load).\n');
 }
 
 if (belowByPackage.size > 0) {
@@ -121,9 +125,20 @@ if (belowByPackage.size > 0) {
 
 const covered = totalFiles - totalBelow;
 w(`\n${'─'.repeat(64)}\n`);
-w(`Files at or above ${THRESHOLD}%: ${covered}/${totalFiles}`);
-if (totalFiles > 0) w(`  (${((covered / totalFiles) * 100).toFixed(1)}%)`);
-w(`\nPackages without a suite: ${noHarness.length}\n`);
+
+if (noSummary.length > 0) {
+  // Refuse to print a headline number at all. Quoting a percentage computed
+  // over an incomplete package set is how a collection failure gets recorded
+  // as a coverage change.
+  w(`INVALID — ${noSummary.length} of ${packages.length} package(s) produced no summary.\n`);
+  w(`Scored only ${totalFiles} files across ${packages.length - noSummary.length - noHarness.length} package(s); `);
+  w('do not quote this number.\n');
+} else {
+  w(`Files at or above ${THRESHOLD}%: ${covered}/${totalFiles}`);
+  if (totalFiles > 0) w(`  (${((covered / totalFiles) * 100).toFixed(1)}%)`);
+  w(`\nMeasured across all ${packages.length - noHarness.length} package(s) with a suite.\n`);
+}
+w(`Packages without a suite: ${noHarness.length}\n`);
 
 const failed = noHarness.length > 0 || totalBelow > 0 || noSummary.length > 0;
 if (failed && !reportOnly) {
