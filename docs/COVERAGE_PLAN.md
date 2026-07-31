@@ -17,10 +17,10 @@ tests written to satisfy a threshold.
 
 | | |
 |---|---|
-| Files at or above 70% | **443 / 810** (54.7%) |
-| Overall line coverage | ~50% |
-| Packages fully clear | 9 of 21 |
-| Remaining files | **367** — 200 React (`.tsx`), 167 pure logic |
+| Files at or above 70% | **461 / 810** (56.9%) |
+| Overall line coverage | ~54% |
+| Packages fully clear | 12 of 21 |
+| Remaining files | **349** — 200 React (`.tsx`), 149 pure logic |
 
 Run this to get the live number; never quote this file's number without checking:
 
@@ -116,7 +116,7 @@ finishes packages outright.
 | # | Scope | Files | Kind | Exit criteria |
 |---|---|---:|---|---|
 | ✅ 0 | Infrastructure + 9 packages | — | — | Gate, Sonar LCOV, all 21 packages have a suite |
-| 1 | `host-openfin` (1) · `host-config` (5) · `shared-types` (6) · `host-data` (6) | 18 | logic | 4 packages clear |
+| ✅ 1 | `host-openfin` (1) · `host-config` (5) · `shared-types` (6) · `host-data` (6) | 18 | logic | 4 packages clear |
 | 2 | `widget-sdk` (6) · `host-data-react` (8) · `workspace-setup-react` (9) | 23 | 14 React | 3 packages clear |
 | 3 | `config-browser` (13) | 13 | 11 React | 1 package clear |
 | 4 | `openfin-platform` (23) | 23 | logic | 1 package clear |
@@ -172,5 +172,24 @@ Append a row per session. Numbers come from `npm run check:coverage`.
 | Session | Date | Files ≥70% | Δ | Packages cleared |
 |---|---|---:|---:|---|
 | 0 | 2026-07-31 | 412 → 443 | +31 | types, host, host-browser, design-system, widget, widget-browser, icons-svg, shared-types*, widget-sdk* |
+| 1 | 2026-07-31 | 443 → 461 | +18 | host-openfin, host-config, shared-types, host-data |
 
 \* harness added, package not yet fully clear.
+
+**Session 1 notes.** All 18 target files cleared; no test was weakened to get
+there. Two assertions failed against real behaviour and were rewritten to pin
+what the code does after reading it — the mock trades ticker mints *and then*
+mutates in the same tick (so an empty book emits >1 row, not 1), and
+`ConfigManager`'s v2 migration only fills an absent field rather than
+overwriting a half-migrated row. Neither is a defect. Three aliasing /
+consistency hazards surfaced and are recorded as `WORKLOG.md` item 7.
+
+Two things worth knowing before the next Dexie-backed session:
+
+- **Vitest fake timers deadlock `fake-indexeddb`.** Any `await` on a Dexie call
+  after `vi.useFakeTimers()` hangs until the 5s test timeout. `host-config`'s
+  drain-loop tests instead spy on `setInterval`, capture the scheduled callback
+  and invoke it directly — same coverage, no deadlock.
+- **`ConfigManager` always opens the same database name.** Tests that care about
+  starting state must `indexedDB.deleteDatabase('marketsui-config')` in
+  `beforeEach`, after the previous instance is disposed.

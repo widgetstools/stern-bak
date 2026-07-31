@@ -20,12 +20,198 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import Dexie from 'dexie';
-import { ConfigDatabase } from './db';
+import { ConfigDatabase, DEFAULT_DB_NAME } from './db';
 
 // Make each db name unique per test invocation.
 let dbCounter = 0;
 const uniqueDbName = (label: string) =>
   `marketsui-config-test-${label}-${Date.now()}-${++dbCounter}`;
+
+/** The v1 schema, verbatim — the shape that predates the field rename. */
+function openV1(dbName: string): Dexie {
+  const db = new Dexie(dbName);
+  db.version(1).stores({
+    appConfig: 'configId, appId, [componentType+componentSubType], isTemplate',
+    appRegistry: 'appId',
+    userProfile: 'userId, appId',
+    roles: 'roleId',
+    permissions: 'permissionId, category',
+    pendingSync: '++id, tableName, recordId',
+  });
+  return db;
+}
+
+describe('ConfigDatabase v2 upgrade — renames fields and backfills `userId`', () => {
+  let dbName: string;
+
+  beforeEach(() => {
+    dbName = uniqueDbName('v2rename');
+  });
+
+  it('renames config→payload, createdAt→creationTime, updatedAt→updatedTime', async () => {
+    const oldDb = openV1(dbName);
+    await oldDb.open();
+    await oldDb.table('appConfig').put({
+      configId: 'v1-row',
+      appId: 'TestApp',
+      displayText: 'Row written at v1',
+      componentType: 'GRID',
+      componentSubType: 'CREDIT',
+      isTemplate: false,
+      config: { foo: 'bar' },
+      createdBy: 'alice',
+      updatedBy: 'alice',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-02T00:00:00Z',
+    });
+    oldDb.close();
+
+    const upgraded = new ConfigDatabase(dbName);
+    await upgraded.open();
+    const row = (await upgraded.appConfig.get('v1-row')) as unknown as Record<string, unknown>;
+    upgraded.close();
+
+    expect(row.payload).toEqual({ foo: 'bar' });
+    expect(row.creationTime).toBe('2026-01-01T00:00:00Z');
+    expect(row.updatedTime).toBe('2026-01-02T00:00:00Z');
+    // The old names are gone — readers must not find both spellings.
+    expect('config' in row).toBe(false);
+    expect('createdAt' in row).toBe(false);
+    expect('updatedAt' in row).toBe(false);
+  });
+
+  it('backfills `userId` from `createdBy` so v1 rows stay queryable by owner', async () => {
+    // `userId` became an index at v2; a row without it would be invisible
+    // to every `where('userId')` query the manager runs.
+    const oldDb = openV1(dbName);
+    await oldDb.open();
+    await oldDb.table('appConfig').put({
+      configId: 'owned-row',
+      appId: 'TestApp',
+      displayText: 'x',
+      componentType: 'GRID',
+      isTemplate: false,
+      config: {},
+      createdBy: 'alice',
+    });
+    oldDb.close();
+
+    const upgraded = new ConfigDatabase(dbName);
+    await upgraded.open();
+    const byOwner = await upgraded.appConfig.where('userId').equals('alice').toArray();
+    upgraded.close();
+
+    expect(byOwner.map((r) => r.configId)).toEqual(['owned-row']);
+  });
+
+  it('falls back to "system" when the v1 row has no createdBy either', async () => {
+    const oldDb = openV1(dbName);
+    await oldDb.open();
+    await oldDb.table('appConfig').put({
+      configId: 'ownerless-row',
+      appId: 'TestApp',
+      displayText: 'x',
+      componentType: 'GRID',
+      isTemplate: false,
+      config: {},
+    });
+    oldDb.close();
+
+    const upgraded = new ConfigDatabase(dbName);
+    await upgraded.open();
+    const row = await upgraded.appConfig.get('ownerless-row');
+    upgraded.close();
+
+    expect(row?.userId).toBe('system');
+  });
+
+  it('leaves an already-renamed row alone rather than clobbering it', async () => {
+    // Half-migrated rows exist in the wild (an import written at v2 into
+    // a v1 database). The rename only fires when the NEW name is absent.
+    const oldDb = openV1(dbName);
+    await oldDb.open();
+    await oldDb.table('appConfig').put({
+      configId: 'half-migrated',
+      appId: 'TestApp',
+      displayText: 'x',
+      componentType: 'GRID',
+      isTemplate: false,
+      config: { old: true },
+      payload: { new: true },
+      createdAt: 'old-time',
+      creationTime: 'new-time',
+      updatedAt: 'old-time',
+      updatedTime: 'new-time',
+      userId: 'bob',
+      createdBy: 'alice',
+    });
+    oldDb.close();
+
+    const upgraded = new ConfigDatabase(dbName);
+    await upgraded.open();
+    const row = (await upgraded.appConfig.get('half-migrated')) as unknown as Record<string, unknown>;
+    upgraded.close();
+
+    expect(row.payload).toEqual({ new: true });
+    expect(row.creationTime).toBe('new-time');
+    expect(row.updatedTime).toBe('new-time');
+    expect(row.userId).toBe('bob');
+    // The stale duplicates are left in place — the migration only adds.
+    expect(row.config).toEqual({ old: true });
+  });
+
+  it('carries a v1 row through every later migration in one open', async () => {
+    // v1 → v4 in a single reopen: the rename, the isPublic backfill and
+    // the isRegisteredComponent drop must all land together.
+    const oldDb = openV1(dbName);
+    await oldDb.open();
+    await oldDb.table('appConfig').put({
+      configId: 'ancient-row',
+      appId: 'TestApp',
+      displayText: 'x',
+      componentType: 'GRID',
+      isTemplate: false,
+      config: { foo: 1 },
+      createdBy: 'alice',
+      createdAt: 't0',
+      updatedAt: 't1',
+      isRegisteredComponent: true,
+    });
+    oldDb.close();
+
+    const upgraded = new ConfigDatabase(dbName);
+    await upgraded.open();
+    const row = (await upgraded.appConfig.get('ancient-row')) as unknown as Record<string, unknown>;
+    upgraded.close();
+
+    expect(row.payload).toEqual({ foo: 1 });
+    expect(row.userId).toBe('alice');
+    expect(row.isPublic).toBe(true);
+    expect('isRegisteredComponent' in row).toBe(false);
+  });
+});
+
+describe('ConfigDatabase construction', () => {
+  it('defaults to the shared database name', async () => {
+    const db = new ConfigDatabase();
+    expect(db.name).toBe(DEFAULT_DB_NAME);
+    db.close();
+  });
+
+  it('exposes all six tables after open', async () => {
+    const db = new ConfigDatabase(uniqueDbName('tables'));
+    await db.open();
+    expect(db.tables.map((t) => t.name).sort()).toEqual([
+      'appConfig',
+      'appRegistry',
+      'pendingSync',
+      'permissions',
+      'roles',
+      'userProfile',
+    ]);
+    db.close();
+  });
+});
 
 describe('ConfigDatabase v3 upgrade — backfills `isPublic`', () => {
   let dbName: string;

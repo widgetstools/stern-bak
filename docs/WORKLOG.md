@@ -93,29 +93,33 @@ individually-listed workspace members can collapse to a `packages/data/*` glob.
 
 ---
 
-## 4. 379 files still below 70% line coverage
+## 4. 349 files still below 70% line coverage
 
 **Repo:** stern-bak · **Branch:** `test/coverage-70` · **Blocked on:** nothing, just volume
 
 The coverage infrastructure is in place and enforcing; the tests are not written
 yet. `npm run test:coverage && npm run check:coverage` reports the live number.
 
-**Progress:** 431 / 810 files at or above 70% (53.2%), from 412 / 806 at the
-start. All 21 packages now have a real suite — five had none at all.
+**Progress:** 461 / 810 files at or above 70% (56.9%), from 412 / 806 at the
+start. All 21 packages now have a real suite — five had none at all — and 12 of
+the 21 clear the gate outright.
 
 **Where the remaining gap is concentrated:**
 
 | Package | Files < 70% |
 |---|---:|
-| `grid` | ~164 |
-| `ui` | ~55 |
+| `grid` | 164 |
+| `ui` | 54 |
 | `engine` | 42 |
 | `widgets-react` | 30 |
 | `openfin-platform` | 23 |
-| everything else | ~65 |
+| `config-browser` | 13 |
+| `workspace-setup-react` | 9 |
+| `host-data-react` | 8 |
+| `widget-sdk` | 6 |
 
 **→ Session-by-session breakdown, conventions and progress log:
-[`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~16 sessions remaining. Read its
+[`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~15 sessions remaining. Read its
 `## Conventions` before writing tests.
 
 **Notes for whoever picks this up:**
@@ -174,6 +178,40 @@ existing profiles resolve, which is a migration question, not a one-line edit.
 **Done looks like** either honouring `params.get('userId') ?? overrides.userId ??
 LOGGED_IN_USER_ID` and accepting the profile-scope move, or removing `userId`
 from `IdentityOverrides` so the type stops promising something it does not do.
+
+## 7. Two config factories hand out shared mutable defaults
+
+**Repo:** stern-bak · **Blocked on:** nothing, but each fix needs a caller audit
+
+Surfaced writing the coverage-70 Session 1 tests. Both are the same shape: a
+factory that exists to give callers a *safe* object hands back a reference into
+module-level state.
+
+- `packages/shared/shared-types/src/dockConfig.ts` — `createMenuItem()` does
+  `windowOptions: partial?.windowOptions || DEFAULT_WINDOW_OPTIONS`. Every menu
+  item created without explicit options aliases the **same** object, so a dock
+  editor writing `item.windowOptions.width = 900` resizes every other item that
+  took the default. Same for `viewOptions` / `DEFAULT_VIEW_OPTIONS`.
+- `packages/shared/shared-types/src/dataProvider.ts` —
+  `getDefaultProviderConfig()` returns `{ ...DEFAULT_PROVIDER_CONFIGS[type] }`,
+  a *shallow* copy. The stomp default's `heartbeat` object and the appdata
+  default's `variables` record are still shared, so a provider editor binding a
+  form field to `cfg.heartbeat.outgoing` mutates the table for every subsequent
+  caller.
+
+Both are pinned as-is in `dockConfig.test.ts` / `dataProvider.test.ts` with a
+comment marking them hazards, rather than fixed — a deep clone changes object
+identity, and nothing has established whether any caller relies on the current
+aliasing (e.g. comparing `item.windowOptions === DEFAULT_WINDOW_OPTIONS` to
+detect "unset"). **Done looks like** deep-cloning the defaults in both factories
+after grepping the dock editor and the data-provider editor for identity checks.
+
+**Also noticed, lower stakes:** `ConfigManager.userHasPermission(user, p)`
+answers from `role.permissionIds` alone and never reads the permissions table,
+while `getUserPermissions(user)` drops any id with no row. So a permission whose
+definition was deleted still passes the check but is absent from the list. Both
+behaviours are pinned in `configManager.authTables.test.ts`; which one is
+correct is a product question.
 
 ## Pre-existing, tracked elsewhere
 
