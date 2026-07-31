@@ -28,6 +28,11 @@ function urlsSameDocument(a: string, b: string): boolean {
  */
 let cachedProviderUrl: Promise<string | undefined> | undefined;
 
+/** Test-only: drop the manifest origin cache between vitest cases. */
+export function __resetOpenChildToolWindowCacheForTests(): void {
+  cachedProviderUrl = undefined;
+}
+
 function resolveProviderUrl(): Promise<string | undefined> {
   if (!cachedProviderUrl) {
     cachedProviderUrl = (async (): Promise<string | undefined> => {

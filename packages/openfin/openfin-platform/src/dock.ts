@@ -1197,6 +1197,13 @@ function resetDockState(): void {
   actionDispatcher = undefined;
 }
 
+/** Test-only: wipe module state between vitest cases. */
+export function __resetDockStateForTests(): void {
+  resetDockState();
+  dockVersion = "dock2";
+  excludedToolActionIds = new Set();
+}
+
 // ─── Internal helpers ────────────────────────────────────────────────
 
 /**

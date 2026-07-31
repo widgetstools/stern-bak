@@ -184,6 +184,13 @@ let isInitialized = false;
 /** The shared ConfigManager instance, created during platform init. */
 let configManager: ConfigManager | undefined;
 
+/** Test-only: wipe module state between vitest cases. */
+export function __resetWorkspaceForTests(): void {
+  isInitialized = false;
+  configManager = undefined;
+  themeToggleInFlight = false;
+}
+
 
 /**
  * Initialize the OpenFin workspace platform and all workspace components

@@ -28,6 +28,11 @@ type SingletonOwner = OpenFin.View | OpenFin.Window;
 
 const singletons = new Map<string, Promise<SingletonOwner>>();
 
+/** Test-only: wipe singleton focus-or-open cache between vitest cases. */
+export function __resetLaunchSingletonsForTests(): void {
+  singletons.clear();
+}
+
 function attachSingletonCleanup(configId: string, owner: SingletonOwner): void {
   const o = owner as any;
   if (typeof o.on !== 'function') return;

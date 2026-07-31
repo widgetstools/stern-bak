@@ -67,6 +67,13 @@ export function setConfigManager(manager: ConfigManager): void {
   configManagerInstance = manager;
 }
 
+/** Test-only: wipe singleton + scope between vitest cases. */
+export function __resetDbForTests(): void {
+  configManagerInstance = undefined;
+  initPromise = undefined;
+  currentPlatformScope = { ...LEGACY_DEFAULT_SCOPE };
+}
+
 /** Synchronous peek — set by `setConfigManager` or `initWorkspace`. */
 export function peekConfigManager(): ConfigManager | undefined {
   return configManagerInstance;

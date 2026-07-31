@@ -43,6 +43,11 @@ async function safe<T>(fn: () => Promise<T>): Promise<Reply<T>> {
 
 let installed = false;
 
+/** Test-only: allow re-installing the channel between vitest cases. */
+export function __resetTestBridgeForTests(): void {
+  installed = false;
+}
+
 export async function installTestBridge(): Promise<void> {
   if (installed) return;
   if (typeof fin === 'undefined') return;
