@@ -13,7 +13,7 @@ import { join, relative } from 'node:path';
 const APPS_ROOT = join(import.meta.dirname, '..', 'apps');
 const STALE_LOCKFILES = [
   join(APPS_ROOT, 'package-lock.json'),
-  // Written when npm install runs with `marketsui-platform: file:..` hoisted into the
+  // Written when npm install runs with `@wellsfargo-starui/platform: file:..` hoisted into the
   // apps workspace — embeds the repo-root workspace graph and makes file:libs/*.tgz
   // deps resolve against registry.npmjs.org instead of local tarballs (ETARGET).
   join(APPS_ROOT, 'node_modules', '.package-lock.json'),

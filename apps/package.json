@@ -1,5 +1,5 @@
 {
-  "name": "starui-apps",
+  "name": "@wellsfargo-starui/apps",
   "version": "0.0.0",
   "private": true,
   "description": "Nested workspace for StarUI consumer/reference demo apps (React + node only). Vite resolves @wellsfargo-starui/* from packages/ source; tarballs are not required to build or run the apps. demo-angular is intentionally excluded — the build pipeline targets React + shared.",
@@ -37,6 +37,6 @@
     "hono": "^4.12.20"
   },
   "dependencies": {
-    "marketsui-platform": "file:.."
+    "@wellsfargo-starui/platform": "file:.."
   }
 }

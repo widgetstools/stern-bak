@@ -8,12 +8,12 @@
  *
  * Layout
  * ------
- *   libs/starui-react-core.tgz                — apps install from here (stable name)
+ *   libs/wellsfargo-starui-react-core.tgz     — apps install from here (stable name)
  *   dist/packages/starui-react-core-0.1.0.tgz — human-readable, version-stamped mirror
  *   libs/manifest.json                        — bucket → { bucket, members, filename, … }
  *
  * The libs/ tarball uses a stable, content-independent name (one per bucket).
- * Apps pin `file:libs/starui-<bucket>.tgz` once; the path never changes when
+ * Apps pin `file:libs/wellsfargo-starui-<bucket>.tgz` once; the path never changes when
  * the bucket's content changes, so app package.json files don't churn. Only
  * the lockfile integrity refreshes (handled by the post-pack `npm install`).
  *
@@ -337,11 +337,12 @@ function writeDistMirror(srcPath, distFilename, prevDistFilename) {
 
 /**
  * Stable, content-independent libs filename for a bucket — e.g.
- * `starui-react-grid.tgz`. One tarball per bucket; the name never carries the
- * version or a content hash, so app `file:` pins stay put across re-packs.
+ * `wellsfargo-starui-react-grid.tgz`. One tarball per bucket; the name never
+ * carries the version or a content hash, so app `file:` pins stay put across
+ * re-packs.
  */
 function stableLibsFilename(bucket) {
-  return `starui-${bucket.bucket}.tgz`;
+  return `wellsfargo-starui-${bucket.bucket}.tgz`;
 }
 
 function packBucketToManifest(bucket, prevEntry) {
@@ -374,12 +375,14 @@ function packBucketToManifest(bucket, prevEntry) {
 
   writeDistMirror(libsPath, distFilename, prevEntry?.distFilename);
 
-  // Sweep away any legacy version+hash tarballs for this bucket left over from
-  // the old naming scheme, so libs/ holds exactly one tarball per bucket.
+  // Sweep away legacy tarballs for this bucket — both the old version+hash
+  // names and the pre-rename `starui-<bucket>.tgz` stable name — so libs/ holds
+  // exactly one tarball per bucket.
   const legacyPrefix = `starui-${bucket.bucket}-`;
+  const legacyStable = `starui-${bucket.bucket}.tgz`;
   for (const entry of readdirSync(LIBS_DIR)) {
     if (entry === libsFilename || !entry.endsWith('.tgz')) continue;
-    if (entry.startsWith(legacyPrefix)) {
+    if (entry.startsWith(legacyPrefix) || entry === legacyStable) {
       unlinkSync(join(LIBS_DIR, entry));
       log(`  removed legacy tarball: ${entry}`);
     }

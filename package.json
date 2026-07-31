@@ -1,5 +1,5 @@
 {
-  "name": "marketsui-platform",
+  "name": "@wellsfargo-starui/platform",
   "version": "0.1.0",
   "private": true,
   "description": "MarketsUI platform \u2014 modular Markets UI monorepo.",

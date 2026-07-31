@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-apps.mjs — smoke-test every marketsui-platform app dev server.
+ * verify-apps.mjs — smoke-test every @wellsfargo-starui/platform app dev server.
  *
  *   npm run verify:apps
  *   npm run verify:apps -- --skip-angular   # skip slow ng serve
