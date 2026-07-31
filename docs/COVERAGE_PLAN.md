@@ -17,17 +17,22 @@ tests written to satisfy a threshold.
 
 | | |
 |---|---|
-| Files at or above 70% | **484 / 810** (59.8%) |
-| Overall line coverage | ~57% |
-| Packages fully clear | 15 of 21 |
-| Remaining files | **326** — 186 React (`.tsx`), 140 pure logic |
+| Files at or above 70% | **520 / 810** (64.2%) |
+| Packages fully clear | 17 of 21 |
+| Remaining files | **290** — all in `grid`, `ui`, `engine`, `widgets-react` |
 
 Run this to get the live number; never quote this file's number without checking:
 
 ```bash
-npm run test:coverage      # runs all suites, merges coverage/lcov.info for Sonar
-npm run check:coverage     # the gate — lists every file below 70%
+npm run test:coverage -- --force --concurrency=1   # merges coverage/lcov.info for Sonar
+npm run check:coverage                             # the gate — lists every file below 70%
 ```
+
+**`--concurrency=1` is load-bearing, not tidiness.** At turbo's default
+concurrency four consecutive runs on an unchanged tree reported 504, 515, 520 and
+391 files clear, and a package that is fully covered can report as failing —
+`openfin-platform` did, which is why session 4 below has nothing left to do.
+Serialised, the number is reproducible. See `WORKLOG.md` item 9.
 
 ---
 
@@ -118,15 +123,15 @@ finishes packages outright.
 | ✅ 0 | Infrastructure + 9 packages | — | — | Gate, Sonar LCOV, all 21 packages have a suite |
 | ✅ 1 | `host-openfin` (1) · `host-config` (5) · `shared-types` (6) · `host-data` (6) | 18 | logic | 4 packages clear |
 | ✅ 2 | `widget-sdk` (6) · `host-data-react` (8) · `workspace-setup-react` (9) | 23 | 14 React | 3 packages clear |
-| 3 | `config-browser` (13) | 13 | 11 React | 1 package clear |
-| 4 | `openfin-platform` (23) | 23 | logic | 1 package clear |
+| ✅ 3 | `config-browser` (13) | 13 | 11 React | 1 package clear |
+| ~~4~~ | ~~`openfin-platform` (23)~~ — **already clear; measure before starting** | 0 | — | — |
 | 5 | `engine` — part 1 | 21 | logic | — |
 | 6 | `engine` — part 2 | 21 | logic | `engine` clear |
 | 7 | `widgets-react` (30) | 30 | 20 React | 1 package clear |
 | 8–10 | `ui` (54) — shadcn components, ~18 per session | 54 | all React | `ui` clear |
 | 11–16 | `grid` (164) — customizer modules, ~27 per session | 164 | 101 React | `grid` clear |
 
-**~14 sessions remaining.** `grid` and `ui` are 60% of the total and are
+**~12 sessions remaining.** `grid` and `ui` are 75% of the total and are
 deliberately last: they are the most repetitive, so the conventions will be well
 established by the time they are reached.
 
@@ -144,9 +149,12 @@ the mocking pattern from (mock `@wellsfargo-starui/openfin-platform/config`,
 was added. 11 of its 13 files are `.tsx` and it sits at 5.7%, the lowest of any
 package with a suite.
 
-**4 — `openfin-platform`** is all logic but heavily `fin`-dependent. Copy the
-`windowOptionsSubscription` tests' approach: `vi.stubGlobal('fin', …)` with a
-fake window, and a `__reset…ForTests` hook where one exists.
+**4 — `openfin-platform` needs no work.** Run on its own it is 38 files, 272
+tests, 86.78% lines and **zero** files under the bar. The "23 files" this plan
+was sized with came from a default-concurrency `test:coverage` run, where the
+package under-reports (see `WORKLOG.md` item 9). Confirm with
+`cd packages/openfin/openfin-platform && npm run test -- --coverage` before
+spending a session on it.
 
 **5–6 — `engine`** is the platform core (storage adapters, profile bundles, row
 change bus). Pure logic, no DOM. Highest value per test in the repo.
@@ -167,15 +175,70 @@ panel is only a thin form over it.
 
 ## Progress log
 
-Append a row per session. Numbers come from `npm run check:coverage`.
+Append a row per session. Numbers come from `npm run check:coverage`, after a
+**serialised** `npm run test:coverage -- --force --concurrency=1`.
 
 | Session | Date | Files ≥70% | Δ | Packages cleared |
 |---|---|---:|---:|---|
 | 0 | 2026-07-31 | 412 → 443 | +31 | types, host, host-browser, design-system, widget, widget-browser, icons-svg, shared-types*, widget-sdk* |
 | 1 | 2026-07-31 | 443 → 461 | +18 | host-openfin, host-config, shared-types, host-data |
 | 2 | 2026-07-31 | 461 → 484 | +23 | widget-sdk, host-data-react, workspace-setup-react |
+| 3 | 2026-07-31 | 484 → 520 | +36** | config-browser (openfin-platform was already clear) |
 
 \* harness added, package not yet fully clear.
+
+\*\* Session 3 wrote tests for 13 files, all in `config-browser`. The other +23
+is `openfin-platform`, which this session did not touch: it was already above the
+bar and only *reported* as failing under a parallel `test:coverage` run. The
+before-number (484) came from such a run; 520 is the reproducible serialised
+number. See `WORKLOG.md` item 9.
+
+**Session 3 notes.** All 13 target files cleared — `config-browser` went from
+5.7% to **99.0% lines / 92.1% branches**, 243 tests across 14 files, no assertion
+weakened. The package had `environment: 'node'` and no RTL usage at all; the
+config is now `jsdom` + `include: src/**/*.test.{ts,tsx}` + `testTimeout: 15_000`,
+and `tsconfig.build.json` also excludes `src/test-utils/**`.
+
+Two findings, both recorded in `WORKLOG.md`:
+
+- **Item 9 — `test:coverage` is not reproducible at default concurrency.** Found
+  while trying to record this session's before/after honestly. Four runs on an
+  unchanged tree gave 504 / 515 / 520 / 391. One of those runs scored the repo
+  out of **651** files instead of 810 because several packages never wrote a
+  summary and `check-package-coverage.mjs` counted them as absent rather than
+  failing. This is why session 4 has nothing to do.
+- **Item 10 — `RowDrawer`'s JSON textarea has no accessible name.** It is the
+  package's primary control and cannot be found by role+name; the panel test
+  filters on `tagName` with a pointer to the item.
+
+What the next React session should know:
+
+- **AG Grid renders fine in jsdom** — cells, styles and row clicks are all
+  assertable — but only after stubbing `HTMLElement.prototype.offsetWidth` /
+  `offsetHeight`. At jsdom's zero sizes it virtualises away every column but the
+  first, and cell assertions then pass against an empty grid.
+- **AG Grid 35 overrides boolean cells with a read-only checkbox**, ignoring the
+  column's `valueFormatter`. `DataGrid`'s `"true"`/`"false"` branch never reaches
+  the DOM; the test pins the checkbox, which is what a user actually sees.
+- **`cellStyle` is observable as the cell's inline `style`**, so the ghost /
+  mono / primary-key branches can be asserted for real instead of by reading the
+  column definition back out of the grid.
+- **`aria-hidden` on a closed drawer keeps its buttons out of role queries.**
+  `RowDrawer` renders permanently (for the slide-out animation) with
+  `aria-hidden={!open}`, and RTL honours that — so `getByRole('button', { name:
+  'Cancel' })` finds the *dialog's* Cancel, not the drawer's. Convenient, but it
+  also means the drawer's textarea **exists before any row is opened**: wait on
+  its content, never on its presence, or the assertion races the click.
+- **`setSelected` flips `selected` a render before `rows` catches up.** Waiting
+  on `selected.key` alone leaves the previous table's rows in place. Waiting on
+  a row *count* is not enough either — two tables can hold the same number of
+  rows, which is exactly how one test passed locally and failed under load. Wait
+  until every row carries the new table's primary key.
+- **Mock the platform boundary, keep the domain logic real.** Only
+  `@wellsfargo-starui/openfin-platform/config` is mocked here (an in-memory
+  `ConfigManager` + Dexie stand-in in `src/test-utils/`); `host-config`'s
+  `buildDeployExport` and `normalizeImportedAppConfigRow` run for real, so the
+  import-reowning and deploy-validation assertions are against shipped code.
 
 **Session 1 notes.** All 18 target files cleared; no test was weakened to get
 there. Two assertions failed against real behaviour and were rewritten to pin

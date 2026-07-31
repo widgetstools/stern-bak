@@ -93,15 +93,16 @@ individually-listed workspace members can collapse to a `packages/data/*` glob.
 
 ---
 
-## 4. 326 files still below 70% line coverage
+## 4. 290 files still below 70% line coverage
 
 **Repo:** stern-bak · **Branch:** `test/coverage-70` · **Blocked on:** nothing, just volume
 
 The coverage infrastructure is in place and enforcing; the tests are not written
-yet. `npm run test:coverage && npm run check:coverage` reports the live number.
+yet. `npm run test:coverage -- --force --concurrency=1 && npm run check:coverage`
+reports the live number — **the `--concurrency=1` is not optional**, see item 9.
 
-**Progress:** 484 / 810 files at or above 70% (59.8%), from 412 / 806 at the
-start. All 21 packages now have a real suite — five had none at all — and 15 of
+**Progress:** 520 / 810 files at or above 70% (64.2%), from 412 / 806 at the
+start. All 21 packages now have a real suite — five had none at all — and 17 of
 the 21 clear the gate outright.
 
 **Where the remaining gap is concentrated:**
@@ -112,8 +113,10 @@ the 21 clear the gate outright.
 | `ui` | 54 |
 | `engine` | 42 |
 | `widgets-react` | 30 |
-| `openfin-platform` | 23 |
-| `config-browser` | 13 |
+
+`config-browser` (was 13) cleared in session 3. `openfin-platform` (was listed
+as 23) turns out to have been clear already — that 23 was an artifact of the
+unreproducible measurement in item 9, not real uncovered code.
 
 **→ Session-by-session breakdown, conventions and progress log:
 [`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~14 sessions remaining. Read its
@@ -132,6 +135,12 @@ the 21 clear the gate outright.
   is deliberately stricter at 70% per file. Reconciling the two numbers is a
   decision nobody has made.
 - Work smallest-gap-first — each package cleared is one that can never regress.
+- **Item 11 lands after session 3, not after session 16.** The bucket restructure
+  interrupts here deliberately, so sessions 4–16 (313 files, all of `grid` and
+  `ui`) are written once against the final layout. **Sessions 4–16 are blocked on
+  it**: it moves every package folder and reworks this gate's two-level
+  `packages/<bucket>/<pkg>/coverage/` scan. Nothing written before it is wasted —
+  the bar is per-file, so tests move unchanged.
 
 ## 5. 25 icons cannot be recoloured or themed
 
@@ -258,6 +267,136 @@ import change; the tests currently mock the whole barrel to work around it.
 `"—"` only when the derivation is falsy, but `deriveTemplateConfigId('', '')`
 returns `"-"`. A brand-new draft therefore previews its id as a lone hyphen and
 the em-dash branch is unreachable.
+
+## 9. `npm run test:coverage` reports different coverage on every run
+
+**Repo:** stern-bak · **Blocked on:** nothing; the workaround is one flag
+
+Surfaced writing the coverage-70 Session 3 tests, while trying to record an
+honest before/after count. Four consecutive `npm run test:coverage && npm run
+check:coverage` runs on an unchanged tree reported **504, 515, 520 and 391**
+files at or above the bar. The set of packages listed as failing changed too:
+`openfin-platform` appeared with 23, then 16, then 5, then not at all.
+
+The cause is load, not flaky assertions. `run-test-coverage.mjs` runs
+`npx turbo test --continue` at turbo's default concurrency (10 tasks on this
+machine), each task starting its own vitest worker pool. Run on its own,
+`openfin-platform` is **already fully clear** — 38 files, 272 tests, 86.78%
+lines, zero files under the bar, exit 0. Under the parallel run the same package
+reports as few as 227 tests and fails the gate. The 391/651 run is the same
+effect one step further on: several packages never wrote a `coverage-summary.json`
+at all, and `check-package-coverage.mjs` silently scored the repo out of 651
+files instead of 810 rather than reporting the missing packages.
+
+Two separate defects:
+
+- **The measurement is not reproducible.** `--concurrency=1` fixes it —
+  `npm run test:coverage -- --force --concurrency=1` returned **520/810** twice
+  running. Any number quoted from a default-concurrency run is unreliable.
+- **A missing package is scored as if it did not exist.** A total that quietly
+  drops from 810 to 651 reads as a *coverage* change when it is a *collection*
+  failure. `check-package-coverage.mjs` already knows the package list — it
+  should fail loudly on a package with no summary, the way it already does for a
+  package with no test script.
+
+**Consequence for the plan:** `docs/COVERAGE_PLAN.md`'s session 4
+(`openfin-platform`, 23 files) was sized off a default-concurrency run and has
+nothing left to do. Measure before starting it.
+
+**Done looks like** `run-test-coverage.mjs` pinning concurrency (or bounding
+each vitest pool) so the number is reproducible, and
+`check-package-coverage.mjs` erroring on an absent per-package summary.
+
+## 10. `config-browser`'s JSON editor has no accessible name
+
+**Repo:** stern-bak · **Blocked on:** nothing; one attribute
+
+`RowDrawer`'s payload `<textarea>` is labelled only by a sibling `<div>` reading
+"JSON payload", which is not an accessible name. It is the primary control of
+the row editor — the only way to change a config row — and it is unreachable by
+`getByRole('textbox', { name })`, indistinguishable from the toolbar's
+quick-filter box. `ConfigBrowser.test.tsx` works around it by filtering matches
+on `tagName`, with a comment pointing here.
+
+Same class as the drawer's Close button, which does have a `title` and is
+therefore fine. **Done looks like** an `aria-label="JSON payload"` (or an
+`id`/`htmlFor` pair against the existing heading), after which the test helper
+can go back to a plain role+name query.
+
+## 11. Bucket contents are wrong; 21 published packages should become 7
+
+**Repo:** stern-bak · **Unblocked:** coverage **session 3** has landed (item 4)
+
+`pack:npm` publishes **21** tarballs. That is 21 artifacts to onboard through
+Artifactory, 21 names for consumers to choose between, and 21 versions moving
+independently. The obvious fix — one `package.json` per existing folder — does
+**not** work, and the reason is that the buckets were drawn by *architecture role*
+rather than by *dependency profile*:
+
+- It creates an npm cycle, `data → shared → data`.
+- It unions each folder's peers. `shared` would force `ag-grid-community` on the
+  zero-dependency `shared-types`; `data` would force `react` on the vanilla
+  `host-data` SharedWorker layer; `react-core` would force **`ag-grid-enterprise`**,
+  a licensed product, on anyone using `widget-sdk` to author a widget. That undoes
+  [`PACKAGING_CHANGELOG.md`](./PACKAGING_CHANGELOG.md) §6 and the verified promise
+  in [`EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) §1.
+
+The 21-package graph itself is a clean DAG, 9 layers deep — nothing is wrong with
+the packages. The misfiling is **`host-config`**: it sits at layer 3 with 8
+consumers across 4 buckets, filed under "Data Utilities". That single placement is
+what closes the loop.
+
+**The agreed arrangement** — verified mechanically as a 6-layer DAG. Record it here
+so nothing drifts while item 4 runs: **do not add a new package to a bucket that
+contradicts this table.**
+
+| Layer | Published package | Members |
+|---|---|---|
+| 0 | `types` | `shared-types`, `types` |
+| 1 | `core` | `engine`, `host`, `host-browser`, **`host-config`**, `widget`, `widget-browser` |
+| 1 | `design-system` | `design-system`, `icons-svg` |
+| 2 | `data` | `host-data` |
+| 3 | `openfin` | `host-openfin`, `openfin-platform` |
+| 4 | `react` | `ui`, **`host-data-react`**, `widget-sdk`, `host-wrapper-react`, `workspace-setup-react` |
+| 5 | `grid` | `grid`, **`config-browser`**, **`widgets-react`** |
+
+Three moves do the work: `host-config` → `core` kills the cycle, `host-data-react`
+→ `react` keeps `data` React-free (so `host-data-angular` and non-React consumers
+are unaffected), and `config-browser` + `widgets-react` → `grid` confines
+`ag-grid-enterprise` to one bucket.
+
+**When it runs.** Immediately after coverage **session 3** (`config-browser`), so
+sessions 4–16 — **313 of the remaining files**, including all of `grid` and `ui` —
+are written once against the final layout rather than codemodded afterwards. The
+coverage tooling is therefore reworked once, not re-baselined at the end.
+
+**This blocks sessions 4–16** until green: collapsing 21 vitest configs → 7 breaks
+the two-level `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs`
+and `check-package-coverage.mjs`, and the latter's "package has no real test
+script" check must be re-expressed **per member** or a suite-less member hides
+inside a bucket its siblings carry. The per-file bar is unchanged, so the reported
+coverage number must move by **zero** across the rework — assert that.
+
+**Known risk.** 70% of the 839 cross-bucket rewrites sit in packages still below
+the bar, concentrated in `grid` (370) and `widgets-react` (141). Mitigated by `tsc`
+verifying specifier rewrites completely — a wrong one is a compile error — and by
+landing the folder moves as a separate, provably inert commit first. No coverage
+work already done is wasted either way: the bar is per-file, so files and tests
+move unchanged.
+
+**Done looks like:** folders moved (names unchanged, tree green) → buckets
+collapsed to one `package.json` each → `check-package-cycles.mjs` taught to treat
+`packages/<bucket>/<member>/` as graph nodes and to follow *relative* imports, so
+intra-bucket cycles stay caught → `pack:npm` emits 7 tarballs → a scratch app
+outside the workspace installs them with no aliases and asserts
+`ag-grid-enterprise` absent for a `react`-only consumer and `react` absent for a
+`data`-only consumer.
+
+**Constraint that falls out:** `packages/<bucket>/<member>/src/` is load-bearing
+once buckets collapse — it is the only surface the boundary checker can stand on.
+Do not flatten members into a single `src/` per bucket.
+
+---
 
 ## Pre-existing, tracked elsewhere
 
