@@ -1,5 +1,8 @@
 # E2E status after the repo split
 
+> Tracked as item 1 in the cross-repo worklog:
+> [`stern-bak/docs/WORKLOG.md`](https://github.com/widgetstools/stern-bak/blob/main/docs/WORKLOG.md).
+
 **Short version: a full run is 10 passed / 2 skipped / 362 failed out of 374.
 The harness works; the suite does not. Part of that is attributable to the app
 curation, part of it cannot be attributed either way — see below.**

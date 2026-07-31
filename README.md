@@ -8,6 +8,11 @@ because the enterprise CI/CD pipeline demands unit-test coverage for every modul
 it finds, and demo apps that exist purely to exercise the libraries should not be
 carrying tests to satisfy a coverage gate.
 
+**Known-open items for both repos** are indexed in
+[`stern-bak/docs/WORKLOG.md`](https://github.com/widgetstools/stern-bak/blob/main/docs/WORKLOG.md)
+— check it before starting work. The e2e suite in particular has a documented
+gap (see [`E2E_STATUS.md`](./E2E_STATUS.md)).
+
 ## Layout — two consumption tracks
 
 ```
