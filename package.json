@@ -3,12 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "description": "Consumer/reference apps for @wellsfargo-starui. Two tracks: source/ resolves @wellsfargo-starui/* out of the platform checkout, tarball/ installs the packed bucket tarballs the way an external team would. Never deployed.",
-  "//platform-link": "file:../stern-bak points at the platform repo checkout sitting beside this one. Rename the path if your checkout is named differently. It is what makes @wellsfargo-starui/platform/scripts/* and tsconfig.consumer.json importable.",
+  "//platform-link": "The platform checkout is located at install time by scripts/resolvePlatform.mjs (STARUI_PLATFORM env, else a sibling directory, else a scan) — no directory name is hardcoded here. preinstall vendors its packed tarballs for the tarball track; postinstall symlinks node_modules/@wellsfargo-starui/platform for the source track.",
+  "//workspaces-note": "tarball/* is deliberately NOT a workspace. Its file: deps point at tarball/.vendor/*.tgz, which scripts/setup.mjs creates — and npm resolves the workspace tree BEFORE running any root lifecycle script, so a workspace member can never depend on files an install-time hook produces. Installing it separately is also higher fidelity: an external consumer has its own isolated node_modules, not this repo's hoisted one. Use `npm run setup:tarball`.",
   "workspaces": [
-    "source/*",
-    "tarball/*"
+    "source/*"
   ],
   "scripts": {
+    "postinstall": "node scripts/linkPlatform.mjs",
+    "setup:tarball": "node scripts/setup.mjs && npm install --prefix tarball/basic --no-audit --no-fund",
     "build": "npm run build:source && npm run build:tarball",
     "build:source": "node scripts/app-track.mjs build source",
     "build:tarball": "node scripts/app-track.mjs build tarball",
@@ -18,9 +20,6 @@
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:ui": "playwright test --ui"
-  },
-  "dependencies": {
-    "@wellsfargo-starui/platform": "file:../stern-bak"
   },
   "//types-note": "React types live at the repo root so every app — and the package .d.ts they pull in — sees exactly one copy. Two @types/react in one graph produce spurious JSX type conflicts.",
   "devDependencies": {

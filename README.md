@@ -28,28 +28,69 @@ property is verified by hiding `packages/` and rebuilding.
 
 ## Setup
 
-This repo expects the platform checkout **beside it**:
+This repo needs the platform checkout. **Its directory name is not hardcoded
+anywhere** — `scripts/resolvePlatform.mjs` finds it at install time:
+
+1. `$STARUI_PLATFORM`, if set
+2. a sibling directory named `stern-bak` (the default layout)
+3. failing that, **any** sibling whose `package.json` is named
+   `@wellsfargo-starui/platform`
+
+So renaming or relocating the platform checkout needs no edit here. A candidate
+only counts if that `name` field matches, so an unrelated directory is never
+picked up by accident.
 
 ```
 workspace/
-  stern-bak/        # platform repo (@wellsfargo-starui/platform)
+  <platform>/       # any name — @wellsfargo-starui/platform
   starui-apps/      # this repo
 ```
 
-The link is the `"@wellsfargo-starui/platform": "file:../stern-bak"` dependency
-in `package.json` — rename that path if your platform checkout is named
-differently.
-
 ```bash
 # 1. platform repo — build packages (emits dist/ + tsconfig.consumer.json)
-cd ../stern-bak && npm install && npm run build:packages
+cd ../<platform> && npm install && npm run build:packages
 
-# 2. tarball track only — pack the member packages
+# 2. tarball track only — pack the member packages into dist-npm/
 npm run pack:npm
 
-# 3. this repo
+# 3. this repo — source track
 cd ../starui-apps && npm install
+
+# 4. this repo — tarball track (vendors the tarballs, then installs)
+npm run setup:tarball
 ```
+
+Platform checkout somewhere unusual:
+
+```bash
+STARUI_PLATFORM=/path/to/platform npm install          # macOS / Linux
+set STARUI_PLATFORM=C:\path\to\platform && npm install # Windows
+```
+
+### How each track links back
+
+- **source** — `postinstall` runs `scripts/linkPlatform.mjs`, which creates
+  `node_modules/@wellsfargo-starui/platform` (a junction on Windows, a relative
+  symlink elsewhere). npm prunes it on each install as extraneous; postinstall
+  puts it back. That symlink is what makes
+  `@wellsfargo-starui/platform/scripts/...` and the `tsconfig.consumer.json`
+  `extends` resolve.
+- **tarball** — `scripts/setup.mjs` **copies** the platform's `dist-npm/*.tgz`
+  into `vendor/`, stripping the version:
+
+  ```
+  <platform>/dist-npm/wellsfargo-starui-grid-0.1.0.tgz
+    -> vendor/wellsfargo-starui-grid.tgz
+  ```
+
+  The pins therefore reference this repo, and survive both a renamed checkout
+  and a package version bump. `vendor/` is gitignored.
+
+  `tarball/*` is deliberately **not** an npm workspace: npm resolves the
+  workspace tree before running any lifecycle script, so a workspace member can
+  never depend on files an install hook produces. Installing it separately is
+  also higher fidelity — an external consumer has its own isolated
+  `node_modules`, not this repo's hoisted one.
 
 ## Commands
 
@@ -78,7 +119,11 @@ cd source/star-demo && npm run dev   # one app
 `tarball/` currently carries `basic`. Adding another app is mechanical: copy it
 from `source/`, point `tsconfig` at the local `tsconfig.base.json`, replace the
 Vite/Tailwind configs with plain ones, and declare the `@wellsfargo-starui/*`
-member packages as `file:` deps on `../../../stern-bak/dist-npm/*.tgz`.
+member packages as `file:../../vendor/<name>.tgz` deps.
+
+Declare **all 21** members, not just the ones the app imports directly: the
+packed tarballs depend on each other by concrete version, none are published, so
+any transitive one you omit sends npm to the registry for a 404.
 
 ## Why `pack:npm`, not `propagate`
 

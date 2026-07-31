@@ -14,3 +14,8 @@ package-lock.json
 test-results/
 playwright-report/
 blob-report/
+
+# Vendored member tarballs — copied out of the platform checkout by
+# scripts/setup.mjs with the version stripped, so the tarball track's pins
+# reference this repo and never churn on a version bump.
+/vendor/
