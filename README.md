@@ -116,14 +116,36 @@ cd source/star-demo && npm run dev   # one app
 | `dataprovider-editor` | 5193 | Tutorial — data-provider editor |
 | `stomp-view-server` | 8081 | STOMP fixture server (not a UI app) |
 
-`tarball/` currently carries `basic`. Adding another app is mechanical: copy it
-from `source/`, point `tsconfig` at the local `tsconfig.base.json`, replace the
-Vite/Tailwind configs with plain ones, and declare the `@wellsfargo-starui/*`
-member packages as `file:../../vendor/<name>.tgz` deps.
+Every UI app has a tarball twin. `stomp-view-server` does not, and should not:
+it imports zero `@wellsfargo-starui` packages, so a tarball copy would prove
+nothing.
 
-Declare **all 21** members, not just the ones the app imports directly: the
-packed tarballs depend on each other by concrete version, none are published, so
-any transitive one you omit sends npm to the registry for a 404.
+| Track | Apps | Ports |
+|---|---|---|
+| `source/` | 7 | 5175, 5193, 5194, 5213, 5300, 5310, 8081 |
+| `tarball/` | 6 | source port **+ 1000** (6175, 6193, …) so both tracks can run at once |
+
+**`tarball/` is generated — do not hand-edit it.**
+
+```bash
+npm run make:tarball-apps    # regenerate all six from source/
+npm run setup:tarball        # vendor the tarballs, then install each app
+```
+
+`scripts/makeTarballApp.mjs` copies each app's `src/` **verbatim** and rewrites
+only its four config surfaces (`package.json`, `vite.config.ts`,
+`tailwind.config.js`, `tsconfig*.json`). That is the whole point: both tracks
+run identical application code, so a failure in `tarball/` is a genuine
+external-consumption defect in the packages rather than a porting artefact. If a
+tarball app ever needs a `src/` edit to build, fix the package.
+
+Per-app specifics that cannot be inferred (port, `vite-plugin-svgr` for
+star-demo, `assetsInclude` for markets-grid-lab) live in the `APPS` table at the
+top of that script — add an entry there to add an app.
+
+Each tarball app declares **all 21** member packages, not just its direct
+imports: the packed tarballs depend on each other by concrete version, none are
+published, so any transitive one left out sends npm to the registry for a 404.
 
 ## Why `pack:npm`, not `propagate`
 

@@ -19,3 +19,9 @@ blob-report/
 # scripts/setup.mjs with the version stripped, so the tarball track's pins
 # reference this repo and never churn on a version bump.
 /vendor/
+
+# The tarball track is GENERATED from source/ by scripts/makeTarballApp.mjs
+# (`npm run make:tarball-apps`). Committing it would duplicate every app's
+# source tree in git and let the twin drift silently out of sync with its
+# source/ original. Regenerate instead — it is reproducible from source/ + vendor/.
+/tarball/
