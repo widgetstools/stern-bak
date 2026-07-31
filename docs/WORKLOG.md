@@ -142,6 +142,33 @@ The list is pinned in `allIcons.test.ts` as `KNOWN_HARDCODED_COLOUR`, with a tes
 that fails if the set grows. **Done looks like** regenerating those SVGs with
 `currentColor` and deleting their entries from that list.
 
+## 6. `resolveBrowserIdentity` ignores the userId it is given
+
+**Repo:** stern-bak · **Blocked on:** deciding whether the fix is safe
+
+`packages/shared/host-browser/src/identity.ts` hardcodes:
+
+```ts
+userId: LOGGED_IN_USER_ID,   // 'dev1'
+```
+
+It ignores **both** the `userId` URL param and `IdentityOverrides.userId`, even
+though the interface advertises that field and reads every other one from the
+same sources. So `new BrowserRuntime({ identity: { userId: 'k151344' } })`
+silently yields `'dev1'`.
+
+`userId` scopes profile persistence (`buildGridHostContext` passes it to the
+storage factory), so in a browser-hosted app **every user shares one profile
+scope**. `LOGGED_IN_USER_ID` is itself marked `@deprecated` in favour of
+`PlatformBootstrapConfig.userId`, which suggests this is a leftover.
+
+Pinned in `BrowserRuntime.test.ts` rather than fixed — changing it moves where
+existing profiles resolve, which is a migration question, not a one-line edit.
+
+**Done looks like** either honouring `params.get('userId') ?? overrides.userId ??
+LOGGED_IN_USER_ID` and accepting the profile-scope move, or removing `userId`
+from `IdentityOverrides` so the type stops promising something it does not do.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
