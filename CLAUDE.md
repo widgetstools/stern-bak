@@ -13,6 +13,8 @@ apps still consume this repo's **source** — see
 **Read before editing:**
 
 - [`README.md`](./README.md) — quick orientation, scripts, getting started
+- [`docs/WORKLOG.md`](./docs/WORKLOG.md) — **known-open items across both repos**; check
+  before starting work so you don't rediscover a documented gap
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — layer model + import rules
 - [`docs/current-features.md`](./docs/current-features.md) — granular inventory of every implemented feature in `packages/`, grouped by bucket. Kept in lockstep with code (update on every feature add/change/remove).
 
