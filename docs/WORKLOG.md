@@ -93,6 +93,55 @@ individually-listed workspace members can collapse to a `packages/data/*` glob.
 
 ---
 
+## 4. 379 files still below 70% line coverage
+
+**Repo:** stern-bak · **Branch:** `test/coverage-70` · **Blocked on:** nothing, just volume
+
+The coverage infrastructure is in place and enforcing; the tests are not written
+yet. `npm run test:coverage && npm run check:coverage` reports the live number.
+
+**Progress:** 431 / 810 files at or above 70% (53.2%), from 412 / 806 at the
+start. All 21 packages now have a real suite — five had none at all.
+
+**Where the remaining gap is concentrated:**
+
+| Package | Files < 70% |
+|---|---:|
+| `grid` | ~164 |
+| `ui` | ~55 |
+| `engine` | 42 |
+| `widgets-react` | 30 |
+| `openfin-platform` | 23 |
+| everything else | ~65 |
+
+**Notes for whoever picks this up:**
+
+- The gate is `thresholds: { lines: 70, perFile: true }` in
+  `scripts/vitestCoverage.mjs`. It only bites under `npm run test:coverage` —
+  plain `npm test` runs without `--coverage`, so the suite stays fast and green.
+- Barrels are safe: a file with zero executable lines scores 100%, so pure
+  re-export `index.ts` files do not need tests.
+- `docs/package-coverage-and-sonar-lcov.md` suggests 60% per package; this gate
+  is deliberately stricter at 70% per file. Reconciling the two numbers is a
+  decision nobody has made.
+- Work smallest-gap-first — each package cleared is one that can never regress.
+
+## 5. 25 icons cannot be recoloured or themed
+
+**Repo:** stern-bak · **Blocked on:** nothing, needs regenerating the SVGs
+
+25 of 113 entries in `packages/design-system/icons-svg/allIcons.ts` hardcode hex
+colours (`stroke="#a78bfa"`) instead of `currentColor`, despite that module's own
+doc comment claiming otherwise. Consequences:
+
+- `marketIconToDataUrl(key, color)` silently ignores `color` for them
+- they cannot follow the light/dark theme, which `CLAUDE.md` requires
+  ("no hardcoded hex anywhere")
+
+The list is pinned in `allIcons.test.ts` as `KNOWN_HARDCODED_COLOUR`, with a test
+that fails if the set grows. **Done looks like** regenerating those SVGs with
+`currentColor` and deleting their entries from that list.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

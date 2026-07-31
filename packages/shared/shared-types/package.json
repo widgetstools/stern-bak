@@ -32,7 +32,9 @@
     "build": "rimraf dist tsconfig.tsbuildinfo && tsc",
     "watch": "tsc --watch",
     "clean": "rimraf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "star",
@@ -42,8 +44,9 @@
   "author": "Star Development Team",
   "license": "MIT",
   "devDependencies": {
+    "rimraf": "^6.0.1",
     "typescript": "~5.9.3",
-    "rimraf": "^6.0.1"
+    "vitest": "^4.1.4"
   },
   "sideEffects": [
     "*.css"

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 import react from '@vitejs/plugin-react';
+import { coverage } from '../../../scripts/vitestCoverage.mjs';
 
 export default defineConfig({
   plugins: [react()],
@@ -29,6 +30,7 @@ export default defineConfig({
     ],
   },
   test: {
+    coverage: coverage(),
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts', './src/test/providers.tsx'],

@@ -23,7 +23,9 @@
     "build": "rimraf dist tsconfig.tsbuildinfo && tsc && node ./scripts/copy-assets.mjs",
     "watch": "tsc --watch",
     "clean": "rimraf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "peerDependencies": {
     "@wellsfargo-starui/design-system": "*",
@@ -76,11 +78,18 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@wellsfargo-starui/design-system": "*",
+    "jsdom": "^29.0.2",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5",
     "rimraf": "^6.0.1",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
   },
   "keywords": [
     "marketsui",

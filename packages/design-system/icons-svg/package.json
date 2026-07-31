@@ -8,7 +8,9 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "rimraf dist && tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs"
+    "build": "rimraf dist && tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "exports": {
     ".": {
@@ -35,7 +37,8 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "rimraf": "^6.0.1",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
   },
   "dependencies": {
     "@lucide/angular": "^1.17.0",

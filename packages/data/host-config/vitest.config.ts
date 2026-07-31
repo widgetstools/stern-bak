@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { coverage } from '../../../scripts/vitestCoverage.mjs';
 
 /**
  * Vitest config for `@wellsfargo-starui/host-config`.
@@ -9,6 +10,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
+    coverage: coverage(),
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.test.ts'],

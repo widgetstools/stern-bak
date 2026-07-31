@@ -11,7 +11,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": ["junit.xml", "coverage/**"]
     },
     "e2e": {
       "cache": false,
