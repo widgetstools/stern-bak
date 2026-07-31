@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-23T00:00:00.000Z",
+  "profile": {
+    "name": "🎨 06 · Icon + Text (Desk / Venue / Trader)",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "column-customization": {
+        "v": 10,
+        "data": {
+          "assignments": {
+            "desk": {
+              "colId": "desk",
+              "cellRendererId": "icon-text",
+              "cellRendererConfig": {
+                "kind": "icon-text",
+                "config": {
+                  "iconId": "bank",
+                  "iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21h18\"/><path d=\"M3 10h18\"/><path d=\"M5 6l7-3 7 3\"/><line x1=\"6\" y1=\"10\" x2=\"6\" y2=\"21\"/><line x1=\"10\" y1=\"10\" x2=\"10\" y2=\"21\"/><line x1=\"14\" y1=\"10\" x2=\"14\" y2=\"21\"/><line x1=\"18\" y1=\"10\" x2=\"18\" y2=\"21\"/></svg>",
+                  "iconColor": { "dark": "#a78bfa", "light": "#6d28d9" },
+                  "position": "left"
+                }
+              }
+            },
+            "venue": {
+              "colId": "venue",
+              "cellRendererId": "icon-text",
+              "cellRendererConfig": {
+                "kind": "icon-text",
+                "config": {
+                  "iconId": "globe",
+                  "iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"/><path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/></svg>",
+                  "iconColor": { "dark": "#60a5fa", "light": "#1d4ed8" },
+                  "position": "left"
+                }
+              }
+            },
+            "trader": {
+              "colId": "trader",
+              "cellRendererId": "icon-text",
+              "cellRendererConfig": {
+                "kind": "icon-text",
+                "config": {
+                  "iconId": "trader",
+                  "iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"7\" r=\"4\"/><path d=\"M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2\"/></svg>",
+                  "iconColor": { "dark": "#fbbf24", "light": "#b45309" },
+                  "position": "right"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

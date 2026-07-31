@@ -1,0 +1,47 @@
+/* ─────────────────────────────────────────────────────────────
+   Base layer — Tailwind primitives + minimal reset.
+   Apps import this once via @wellsfargo-starui/design-system/css; no need
+   to also include @tailwind base in their own globals.css.
+   ───────────────────────────────────────────────────────────── */
+
+/* Font @import is emitted first in dist/css/theme.css by scripts/build-css.ts */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html, body {
+    @apply bg-background text-foreground;
+    font-family:      var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering:   optimizeLegibility;
+  }
+  /* Body inherits the 13px baseline; html stays at the browser default
+     (16px) so Tailwind's rem-based `text-xs/sm/lg` scale resolves
+     correctly. Setting font-size on html would shrink every Tailwind
+     class by ~19% — buttons, badges, inputs all read undersized. */
+  body {
+    font-size: var(--text-md);
+  }
+/*
+  *:focus-visible {
+    outline: 2px solid var(--ds-state-focus-ring);
+    outline-offset: 2px;
+  }*/
+
+  ::selection {
+    background-color: oklch(var(--primary) / 0.16);
+  }
+
+  /* Tabular numerics for cell-monospace and any numeric column.
+     Apply via class on data tables, KPI numbers, price ticks. */
+  .ds-mono {
+    font-family:           var(--font-mono);
+    font-variant-numeric:  tabular-nums;
+  }
+}

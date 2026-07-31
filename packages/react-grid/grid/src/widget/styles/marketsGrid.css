@@ -1,0 +1,6 @@
+/**
+ * marketsGrid.css — barrel import for layout + chrome styles.
+ * Split into core (tokens + toolbar buttons) and chrome (layout rows).
+ */
+@import './marketsGrid-core.css';
+@import './marketsGrid-chrome.css';

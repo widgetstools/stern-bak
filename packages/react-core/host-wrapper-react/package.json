@@ -1,0 +1,61 @@
+{
+  "name": "@wellsfargo-starui/host-wrapper-react",
+  "version": "0.1.0",
+  "private": true,
+  "description": "React HostWrapper component + HostContext + useHost hook.",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./test-bridge": {
+      "types": "./dist/test-bridge/index.d.ts",
+      "import": "./dist/test-bridge/index.js",
+      "require": "./dist/test-bridge/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc",
+    "watch": "tsc --watch",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/openfin-platform": "*",
+    "@wellsfargo-starui/types": "*"
+  },
+  "peerDependencies": {
+    "@wellsfargo-starui/host-config": "*",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@openfin/workspace-platform": "23.0.20",
+    "@wellsfargo-starui/host-config": "*",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.0.2",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "license": "MIT",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist"
+  ]
+}

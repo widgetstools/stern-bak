@@ -1,0 +1,32 @@
+@import '@widgetstools/react-dock-manager/styles.css';
+@import '@wellsfargo-starui/design-system/css';
+
+/* App-scoped type scale — denser than the design-system default to match a
+   professional FI trading terminal (fi-trading-terminal parity). Overrides the
+   --ds-font-size-* tokens for THIS app only; the shared package is untouched. */
+:root {
+  --ds-font-size-2xs: 9px;
+  --ds-font-size-xs: 10px;
+  --ds-font-size-sm: 11px;
+  --ds-font-size-body: 12px;
+  --ds-font-size-md: 13px;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  * { @apply border-border; }
+  html, body, #root { height: 100%; width: 100%; margin: 0; padding: 0; }
+  html { overflow: hidden; }
+  body {
+    overflow: hidden;
+    background: var(--ds-surface-ground);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-sans), -apple-system, sans-serif;
+    font-size: var(--ds-font-size-body);
+    -webkit-font-smoothing: antialiased;
+  }
+}

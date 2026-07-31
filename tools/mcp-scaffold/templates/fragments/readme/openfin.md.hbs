@@ -1,0 +1,31 @@
+# {{appName}}
+
+OpenFin workspace platform reference — route-hosted HostedMarketsGrid registered as a workspace component.
+
+## Run (browser)
+
+```bash
+npm ci
+npm run dev
+```
+
+## Run (OpenFin)
+
+```bash
+npm run dev          # terminal 1
+npm run client       # terminal 2 — launches platform manifest
+npm run dev:stomp    # optional — live STOMP data on :8081
+```
+
+## How MarketsGrid is hosted & registered
+
+1. **Route** `/blotters/marketsgrid` lazy-loads `BlottersMarketsGrid.tsx`
+2. **StarGridApp** shell (view routes in `main.tsx`) supplies runtime identity + ConfigManager persistence
+3. **HostedMarketsGrid** `componentName` + `defaultInstanceId` + `withStorage` → profile key `(appId, userId, instanceId)`
+4. **seed-config.json** `appRegistry` registers the platform app; dock favorites come from manifest apps
+
+See inline comments in `src/views/BlottersMarketsGrid.tsx` and `src/platform/Provider.tsx`.
+
+## Design system
+
+All surfaces use `@wellsfargo-starui/design-system` tokens. AG Grid theme follows `[data-theme]` via `theme="auto"`.

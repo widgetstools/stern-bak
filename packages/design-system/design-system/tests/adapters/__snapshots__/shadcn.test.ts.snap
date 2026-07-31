@@ -1,0 +1,238 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateCompatCSS (via generateUnifiedCSS) > matches snapshot 1`] = `
+"@layer base {
+  :root,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    /* ── Typography / geometry (ds bridge) ── */
+    --ds-font-sans:  var(--font-sans);
+    --ds-font-mono:  var(--font-mono);
+    --ds-font-serif: Georgia, 'Times New Roman', serif;
+    --ds-font-size-2xs: var(--text-2xs);
+    --ds-font-size-xs:  var(--text-xs);
+    --ds-font-size-sm:  var(--text-sm);
+    --ds-font-size-md:   var(--text-md);
+    --ds-font-size-body: var(--text-md);
+    --ds-font-size-lg:  var(--text-lg);
+    --ds-font-size-xl:  var(--text-xl);
+    --ds-font-size-2xl: var(--text-2xl);
+    --ds-font-size-3xl: var(--text-3xl);
+    --ds-font-variant-tabular: tabular-nums;
+    --ds-radius-sm:   var(--radius-sm);
+    --ds-radius-md:   var(--radius-md);
+    --ds-radius-lg:   var(--radius-lg);
+    --ds-radius-xl:   var(--radius-xl);
+    --ds-radius-full: var(--radius-full);
+    /* NOTE: do NOT alias --radius back to var(--radius-md) here. The
+       tokens define --radius: 2px and --radius-sm/md/lg/xl: var(--radius),
+       so pointing --radius at --radius-md forms a custom-property CYCLE.
+       CSS makes cyclic properties invalid at computed-value time, which
+       silently emptied --radius, --radius-sm/md/lg/xl and every
+       --ds-radius-* alias — so every rounded-sm/md/lg/xl utility in the
+       whole design system fell back to 0px. --radius is already correct
+       from starui-tokens.css; nothing to alias. */
+
+    /* ── Semantic surfaces & text ── */
+    --ds-surface-ground:     oklch(var(--background));
+    --ds-surface-sunken:     oklch(var(--muted));
+    --ds-surface-primary:    oklch(var(--card));
+    --ds-surface-secondary:  oklch(var(--secondary));
+    --ds-surface-tertiary:   oklch(var(--muted));
+    --ds-surface-quaternary: oklch(var(--accent));
+
+    --ds-text-primary:   oklch(var(--foreground));
+    --ds-text-secondary: oklch(var(--secondary-foreground));
+    --ds-text-muted:     oklch(var(--muted-foreground));
+    --ds-text-faint:     oklch(var(--muted-foreground) / 0.75);
+    --ds-text-disabled:  oklch(var(--muted-foreground) / 0.55);
+
+    --ds-border-primary:   oklch(var(--border));
+    --ds-border-secondary: oklch(var(--border-strong));
+    --ds-border-tertiary:  oklch(var(--grid-border));
+    /* Aliases for token names that drifted in component code — defined
+       here so every referencing surface resolves (audit found these
+       consumed but never defined). */
+    --ds-border-default:   oklch(var(--border));
+    --ds-text-tertiary:    oklch(var(--muted-foreground));
+    --ds-accent-primary:   oklch(var(--primary));
+    --fx-font-sans:        var(--font-sans);
+
+    --ds-primary:            oklch(var(--primary));
+    --ds-primary-hover:      color-mix(in oklch, oklch(var(--primary)) 88%, oklch(var(--foreground)) 12%);
+    --ds-primary-display:    oklch(var(--primary));
+    --ds-primary-highlight:  color-mix(in oklch, oklch(var(--primary)) 88%, oklch(var(--foreground)) 12%);
+    --ds-primary-pressed:    color-mix(in oklch, oklch(var(--primary)) 82%, oklch(var(--foreground)) 18%);
+    --ds-primary-foreground: oklch(var(--primary-foreground));
+    --ds-primary-soft:       oklch(var(--primary) / 0.12);
+    --ds-primary-ring:       oklch(var(--ring) / 0.45);
+
+    --ds-accent-positive:       oklch(var(--positive));
+    --ds-accent-positive-hover: oklch(var(--buy));
+    --ds-accent-negative:       oklch(var(--negative));
+    --ds-accent-negative-hover: oklch(var(--sell));
+    --ds-accent-warning:        oklch(var(--warning));
+    --ds-accent-info:           oklch(var(--info));
+    --ds-accent-info-hover:     color-mix(in oklch, oklch(var(--info)) 88%, oklch(var(--foreground)) 12%);
+    --ds-accent-highlight:      oklch(var(--info));
+    --ds-accent-purple:         oklch(var(--chart-4));
+
+    --ds-action-buy-bg:    oklch(var(--buy));
+    --ds-action-buy-fg:    oklch(var(--buy-foreground));
+    --ds-action-sell-bg:   oklch(var(--sell));
+    --ds-action-sell-fg:   oklch(var(--sell-foreground));
+
+    --ds-overlay-positive-soft:  oklch(var(--buy) / 0.12);
+    --ds-overlay-positive-ring:  oklch(var(--buy) / 0.40);
+    --ds-overlay-negative-soft:  oklch(var(--sell) / 0.12);
+    --ds-overlay-negative-ring:  oklch(var(--sell) / 0.40);
+    --ds-overlay-warning-soft:   oklch(var(--warning) / 0.13);
+    --ds-overlay-warning-ring:   oklch(var(--warning) / 0.40);
+    --ds-overlay-info-soft:      oklch(var(--info) / 0.12);
+    --ds-overlay-info-ring:      oklch(var(--info) / 0.40);
+    --ds-overlay-neutral-soft:   oklch(var(--muted-foreground) / 0.10);
+    --ds-overlay-neutral-ring:   oklch(var(--muted-foreground) / 0.25);
+
+    --ds-state-focus-ring:    oklch(var(--ring));
+    --ds-state-focus-ring-bg: oklch(var(--primary) / 0.12);
+    --ds-state-disabled-bg:   oklch(var(--muted));
+    --ds-state-disabled-fg:   oklch(var(--muted-foreground) / 0.55);
+    --ds-state-hover-overlay: oklch(var(--foreground) / 0.05);
+    --ds-state-selection:     oklch(var(--primary) / 0.16);
+
+    --ds-scrollbar:           oklch(var(--scrollbar));
+    --ds-elevation-card:      var(--shadow-card);
+    --ds-elevation-overlay:   var(--shadow-overlay);
+    --ds-elevation-glow:      0 0 0 3px oklch(var(--ring) / 0.45);
+
+    --ds-trade-flat:           oklch(var(--muted-foreground));
+    --ds-trade-positive-strip: oklch(var(--positive) / 0.10);
+    --ds-trade-negative-strip: oklch(var(--negative) / 0.10);
+    --ds-trade-bid-fill:       oklch(var(--buy) / 0.15);
+    --ds-trade-ask-fill:       oklch(var(--sell) / 0.15);
+
+    --ds-chart-1: oklch(var(--chart-1));
+    --ds-chart-2: oklch(var(--chart-2));
+    --ds-chart-3: oklch(var(--chart-3));
+    --ds-chart-4: oklch(var(--chart-4));
+    --ds-chart-5: oklch(var(--chart-5));
+
+    --ds-tx-instant: 80ms cubic-bezier(0.4,0,0.6,1);
+    --ds-tx-fast:    var(--t-fast);
+    --ds-tx-normal:  var(--t-normal);
+    --ds-tx-slow:    var(--t-slow);
+    --ds-tx-tick:    900ms cubic-bezier(0.25,0.1,0.25,1);
+
+    /* Control density — aligned with starui-tokens.css */
+    --ds-control-xs-height:       24px;
+    --ds-control-xs-padding-x:    8px;
+    --ds-control-xs-gap:          4px;
+    --ds-control-xs-font-size:    var(--text-xs);
+    --ds-control-xs-icon-size:    12px;
+    --ds-control-xs-radius:       var(--radius-sm);
+    --ds-control-sm-height:       var(--control-h-sm);
+    --ds-control-sm-padding-x:    var(--control-px);
+    --ds-control-sm-gap:          6px;
+    --ds-control-sm-font-size:    var(--text-sm);
+    --ds-control-sm-icon-size:    14px;
+    --ds-control-sm-radius:       var(--radius-sm);
+    --ds-control-md-height:       var(--control-h);
+    --ds-control-md-padding-x:    12px;
+    --ds-control-md-gap:          6px;
+    --ds-control-md-font-size:    var(--text-md);
+    --ds-control-md-icon-size:    14px;
+    --ds-control-md-radius:       var(--radius-sm);
+    --ds-control-lg-height:       var(--control-h-lg);
+    --ds-control-lg-padding-x:    12px;
+    --ds-control-lg-gap:          8px;
+    --ds-control-lg-font-size:    var(--text-md);
+    --ds-control-lg-icon-size:    16px;
+    --ds-control-lg-radius:       var(--radius-sm);
+
+    /* ── Surface scale (tailwindcss-primeui / Tailwind preset) ── */
+    --surface-50:  var(--card);
+    --surface-100: var(--background);
+    --surface-200: var(--secondary);
+    --surface-300: var(--muted);
+    --surface-400: var(--border);
+    --surface-500: var(--border-strong);
+    --surface-600: var(--muted-foreground);
+    --surface-700: var(--secondary-foreground);
+    --surface-800: var(--foreground);
+    --surface-900: var(--foreground);
+    --surface-950: var(--foreground);
+
+    /* ── Legacy bn-* / fi order-book aliases ── */
+    --bn-bg:        oklch(var(--background));
+    --bn-bg-sunken: oklch(var(--muted));
+    --bn-bg1:       oklch(var(--card));
+    --bn-bg2:       oklch(var(--secondary));
+    --bn-bg3:       oklch(var(--muted));
+    --bn-bg4:       oklch(var(--accent));
+    --bn-t0:        oklch(var(--foreground));
+    --bn-t1:        oklch(var(--secondary-foreground));
+    --bn-t2:        oklch(var(--muted-foreground));
+    --bn-t3:        oklch(var(--muted-foreground) / 0.75);
+    --bn-t4:        oklch(var(--muted-foreground) / 0.55);
+    --bn-border:    oklch(var(--border));
+    --bn-border2:   oklch(var(--border-strong));
+    --bn-border3:   oklch(var(--grid-border));
+    --bn-green:     oklch(var(--positive));
+    --bn-green2:    oklch(var(--buy));
+    --bn-red:       oklch(var(--negative));
+    --bn-red2:      oklch(var(--sell));
+    --bn-amber:     oklch(var(--warning));
+    --bn-blue:      oklch(var(--primary));
+    --bn-blue2:     color-mix(in oklch, oklch(var(--primary)) 88%, oklch(var(--foreground)) 12%);
+    --bn-info:      oklch(var(--info));
+    --bn-cyan:      oklch(var(--info));
+    --bn-purple:    oklch(var(--chart-4));
+    --bn-buy-bg:    oklch(var(--buy));
+    --bn-sell-bg:   oklch(var(--sell));
+    --bn-cta-text:  oklch(var(--buy-foreground));
+    --ob-bid-fill:  oklch(var(--buy) / 0.15);
+    --ob-ask-fill:  oklch(var(--sell) / 0.15);
+    --tt-bid-strip: oklch(var(--positive) / 0.10);
+    --tt-ask-strip: oklch(var(--negative) / 0.10);
+
+    /* ── PrimeNG / tailwindcss-primeui bridge ── */
+    --p-primary-color:          oklch(var(--primary));
+    --p-primary-contrast-color: oklch(var(--primary-foreground));
+    --p-surface-0:              oklch(var(--card));
+    --p-surface-50:             oklch(var(--background));
+    --p-surface-100:            oklch(var(--secondary));
+    --p-surface-200:            oklch(var(--muted));
+    --p-text-color:             oklch(var(--foreground));
+    --p-text-muted-color:       oklch(var(--muted-foreground));
+    --p-content-background:     oklch(var(--card));
+    --p-content-border-color:   oklch(var(--border));
+    --p-content-color:          oklch(var(--foreground));
+  }
+
+  [data-theme="dark"][data-cvd="on"] {
+    --ds-accent-positive:       oklch(0.72 0.14 250);
+    --ds-accent-positive-hover: oklch(0.78 0.14 250);
+    --ds-accent-negative:       oklch(0.75 0.18 25);
+    --ds-accent-negative-hover: oklch(0.80 0.18 25);
+    --ds-action-buy-bg:         oklch(0.72 0.14 250);
+    --ds-action-sell-bg:        oklch(0.75 0.18 25);
+    --positive:                 0.72 0.14 250;
+    --negative:                 0.75 0.18 25;
+    --buy:                      0.72 0.14 250;
+    --sell:                     0.75 0.18 25;
+  }
+
+  [data-theme="light"][data-cvd="on"] {
+    --ds-accent-positive:       oklch(0.45 0.18 250);
+    --ds-accent-positive-hover: oklch(0.40 0.18 250);
+    --ds-accent-negative:       oklch(0.50 0.22 25);
+    --ds-accent-negative-hover: oklch(0.45 0.22 25);
+    --ds-action-buy-bg:         oklch(0.45 0.18 250);
+    --ds-action-sell-bg:        oklch(0.50 0.22 25);
+    --positive:                 0.45 0.18 250;
+    --negative:                 0.50 0.22 25;
+    --buy:                      0.45 0.18 250;
+    --sell:                     0.50 0.22 25;
+  }
+}"
+`;

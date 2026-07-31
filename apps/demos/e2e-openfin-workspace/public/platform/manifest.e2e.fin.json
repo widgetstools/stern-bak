@@ -1,0 +1,46 @@
+{
+  "licenseKey": "openfin-demo-license-key",
+  "runtime": {
+    "arguments": "--enable-mesh --security-realm=starui-e2e-openfin-e2e --remote-debugging-port=9191",
+    "version": "43.142.101.2"
+  },
+  "$comment-devtools": "E2E variant — remote-debugging-port=9191 (distinct from dev manifest 9190) so the Step 8 Playwright+CDP harness can run while a dev session is also live. autoShow=false so the provider window doesn't pop a UI during automated runs.",
+  "devtools_port": 9191,
+  "platform": {
+    "uuid": "starui-e2e-openfin-e2e",
+    "icon": "http://localhost:5181/favicon.ico",
+    "autoShow": false,
+    "providerUrl": "http://localhost:5181/?view=provider",
+    "preventQuitOnLastWindowClosed": true
+  },
+  "shortcut": {
+    "company": "starui",
+    "description": "starui e2e — OpenFin workspace target (e2e variant)",
+    "icon": "http://localhost:5181/favicon.ico",
+    "name": "starui e2e openfin (e2e)",
+    "target": []
+  },
+  "supportInformation": {
+    "company": "starui",
+    "product": "starui e2e openfin-workspace (e2e variant)",
+    "email": "noreply@example.com",
+    "forwardErrorReports": false
+  },
+  "customSettings": {
+    "appId": "e2e-openfin-workspace",
+    "userId": "dev1",
+    "apps": [
+      {
+        "appId": "blotter",
+        "title": "Blotter",
+        "description": "MarketsGrid blotter view (e2e target)",
+        "manifestType": "view",
+        "manifest": "http://localhost:5181/views/blotter.fin.json",
+        "icons": [{ "src": "http://localhost:5181/favicon.ico" }],
+        "intents": [],
+        "publisher": "starui",
+        "tags": ["e2e", "blotter"]
+      }
+    ]
+  }
+}

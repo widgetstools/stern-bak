@@ -1,0 +1,167 @@
+/*
+ * Expression editor (CodeMirror 6) chrome.
+ *
+ * Replaces the former `monaco-overflow.css`. Two jobs:
+ *   1. Syntax-colour custom properties, defined once per theme. The
+ *      HighlightStyle in `cmSyntax.ts` references these via var(), so a
+ *      light/dark flip is a pure CSS event — no MutationObserver, no
+ *      `setTheme()` call, no re-render.
+ *   2. Editor surface styling from design-system tokens.
+ *
+ * Colour values are carried over verbatim from the Monaco themes
+ * (`gcExpressionDark` / `gcExpressionLight`) so the editor looks unchanged.
+ */
+
+:root,
+[data-theme='dark'] {
+  --ds-expr-column: #7dd3fc;      /* sky-300 */
+  --ds-expr-deprecated: #eab308;  /* amber-500 */
+  --ds-expr-function: #c084fc;    /* purple-400 */
+  --ds-expr-keyword: #f0b90b;
+  --ds-expr-operator: #eaecef;
+  --ds-expr-number: #a5d6a7;
+  --ds-expr-string: #f5a97f;
+  --ds-expr-identifier: var(--ds-text-primary);
+  --ds-expr-punctuation: var(--ds-text-secondary);
+}
+
+[data-theme='light'] {
+  --ds-expr-column: #0369a1;
+  --ds-expr-deprecated: #b45309;
+  --ds-expr-function: #7c3aed;
+  --ds-expr-keyword: #ca8a04;
+  --ds-expr-operator: var(--ds-text-primary);
+  --ds-expr-number: #15803d;
+  --ds-expr-string: #b45309;
+  --ds-expr-identifier: var(--ds-text-primary);
+  --ds-expr-punctuation: var(--ds-text-secondary);
+}
+
+/* ── Editor surface ─────────────────────────────────────────────── */
+
+.ds-expression-editor .cm-editor {
+  height: 100%;
+  background: transparent;
+  color: var(--ds-text-primary);
+}
+
+.ds-expression-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.ds-expression-editor .cm-scroller {
+  font-family: 'JetBrains Mono', Menlo, monospace;
+  line-height: 1.5;
+}
+
+.ds-expression-editor .cm-content {
+  padding: 4px 0;
+  caret-color: var(--ds-expr-keyword);
+}
+
+.ds-expression-editor .cm-line {
+  padding: 0 4px;
+}
+
+.ds-expression-editor .cm-cursor,
+.ds-expression-editor .cm-dropCursor {
+  border-left-color: var(--ds-expr-keyword);
+  border-left-width: 2px;
+}
+
+.ds-expression-editor .cm-selectionBackground,
+.ds-expression-editor .cm-content ::selection {
+  background: color-mix(in srgb, var(--ds-primary) 28%, transparent) !important;
+}
+
+.ds-expression-editor .cm-gutters {
+  background: transparent;
+  border-right: 1px solid var(--ds-border-primary);
+  color: var(--ds-text-faint);
+}
+
+.ds-expression-editor .cm-activeLine,
+.ds-expression-editor .cm-activeLineGutter {
+  background: transparent;
+}
+
+.ds-expression-editor .cm-placeholder {
+  color: var(--ds-text-faint);
+  font-style: italic;
+}
+
+/* ── Autocomplete popup ─────────────────────────────────────────── */
+/* Not scoped under .ds-expression-editor: CodeMirror portals the tooltip
+   to the document body (or the nearest positioned tooltip host). */
+
+.cm-tooltip.cm-tooltip-autocomplete {
+  background: var(--ds-surface-primary);
+  border: 1px solid var(--ds-border-secondary);
+  border-radius: var(--ds-radius-sm, 2px);
+  box-shadow: var(--ds-elevation-overlay, 0 8px 24px rgb(0 0 0 / 0.35));
+  font-family: 'JetBrains Mono', Menlo, monospace;
+  font-size: 11px;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  max-height: 260px;
+  font-family: inherit;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  padding: 3px 8px;
+  color: var(--ds-text-primary);
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: color-mix(in srgb, var(--ds-primary) 22%, transparent);
+  color: var(--ds-text-primary);
+}
+
+.cm-completionLabel {
+  color: var(--ds-text-primary);
+}
+
+.cm-completionDetail {
+  color: var(--ds-text-secondary);
+  font-style: normal;
+  margin-left: 8px;
+  font-size: 10px;
+}
+
+.cm-completionIcon {
+  opacity: 0.7;
+  padding-right: 6px;
+}
+
+.cm-tooltip.cm-completionInfo {
+  background: var(--ds-surface-primary);
+  border: 1px solid var(--ds-border-secondary);
+  color: var(--ds-text-secondary);
+  padding: 6px 8px;
+  max-width: 320px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* ── Lint (diagnostics) ─────────────────────────────────────────── */
+
+.cm-tooltip.cm-tooltip-lint {
+  background: var(--ds-surface-primary);
+  border: 1px solid var(--ds-border-secondary);
+  color: var(--ds-text-primary);
+  font-size: 11px;
+}
+
+.ds-expression-editor .cm-lintRange-error {
+  /* Underline only — the default background wash is too loud on one line. */
+  background: none;
+  text-decoration: underline wavy var(--ds-accent-negative);
+  text-underline-offset: 3px;
+}
+
+.ds-expression-editor .cm-lintRange-info {
+  background: none;
+  text-decoration: underline dotted var(--ds-expr-deprecated);
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,91 @@
+/* ─────────────────────────────────────────────────────────────
+   Global theme-aware baseline.
+   Every scrollable surface gets a dark/light-compatible scrollbar
+   even without the .ds-scrollbar class — so no container can fall
+   back to the browser's non-theme-aware default. Specificity is
+   intentionally minimal (`:where()` keeps every selector at the
+   universal `*` level), so any component that styles its own
+   scrollbar still wins; this only fills the gaps. Colours track
+   --ds-text-primary via color-mix, so flipping `data-theme` flips
+   every scrollbar with no overrides.
+
+   AG GRID IS EXEMPT — grids keep NATIVE scrollbars. The moment ANY
+   `::-webkit-scrollbar` rule matches a scroller, Chromium abandons
+   the native COMPOSITED scrollbar and paints a custom one on the
+   renderer MAIN THREAD — the same thread applying streaming grid
+   transactions, so thumb drags compete with data updates (real
+   scroll jank on 20k-row blotters, not just styling). There is no
+   way to opt back in by overriding properties — the rule must NOT
+   MATCH — hence the `:not(.ag-root-wrapper …)` guards on every
+   selector below. `.ag-popup` covers grid menus/filters portaled
+   outside the wrapper (custom popupParent).
+   ───────────────────────────────────────────────────────────── */
+
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *)) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, oklch(var(--foreground)) 22%, transparent) transparent;
+}
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *))::-webkit-scrollbar {
+  width:  10px;
+  height: 10px;
+}
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *))::-webkit-scrollbar-track {
+  background: transparent;
+}
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *))::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, oklch(var(--foreground)) 18%, transparent);
+  border-radius: 0;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 120ms ease;
+}
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *))::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, oklch(var(--foreground)) 32%, transparent);
+}
+/* Hide the up/down (and left/right) stepper arrows. */
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *))::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+*:where(:not(.ag-root-wrapper):not(.ag-root-wrapper *):not(.ag-popup):not(.ag-popup *))::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   The one and only scrollbar utility.
+   Apply class="ds-scrollbar" to any scrollable container.
+   Theme-aware via color-mix on --ds-text-primary; works in
+   dark + light + cvd without override blocks.
+   ───────────────────────────────────────────────────────────── */
+
+.ds-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, oklch(var(--foreground)) 22%, transparent) transparent;
+}
+.ds-scrollbar::-webkit-scrollbar {
+  width:  10px;
+  height: 10px;
+}
+.ds-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ds-scrollbar::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, oklch(var(--foreground)) 18%, transparent);
+  border-radius: 0;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 120ms ease;
+}
+.ds-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, oklch(var(--foreground)) 32%, transparent);
+}
+/* Hide the up/down (and left/right) stepper arrows. */
+.ds-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.ds-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -1,0 +1,54 @@
+{
+  "name": "@wellsfargo-starui/shared-types",
+  "version": "1.0.0",
+  "description": "Shared types and constants for Star Widget Framework",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./configuration": {
+      "types": "./dist/configuration.d.ts",
+      "import": "./dist/configuration.js",
+      "require": "./dist/configuration.js"
+    },
+    "./dataProvider": {
+      "types": "./dist/dataProvider.d.ts",
+      "import": "./dist/dataProvider.js",
+      "require": "./dist/dataProvider.js"
+    },
+    "./fieldSelector": {
+      "types": "./dist/fieldSelector.d.ts",
+      "import": "./dist/fieldSelector.js",
+      "require": "./dist/fieldSelector.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc",
+    "watch": "tsc --watch",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "star",
+    "types",
+    "shared"
+  ],
+  "author": "Star Development Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "rimraf": "^6.0.1"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist"
+  ]
+}

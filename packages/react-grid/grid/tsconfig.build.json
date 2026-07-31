@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Cross-package imports resolve via node_modules to each dep's built
+    // dist .d.ts (the typecheck-time src paths would drag foreign src/ files
+    // into the program and break rootDir). Self-references were rewritten to
+    // relative imports, so no self-paths are needed either.
+    "paths": {}
+  },
+  "include": ["src"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/test/**", "vitest.config.ts"]
+}

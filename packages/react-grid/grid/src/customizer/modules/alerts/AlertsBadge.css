@@ -1,0 +1,44 @@
+/**
+ * Alerts bell popover — scroll viewport + Radix ScrollArea thumb theming.
+ * PopoverContent carries `.ds-sheet-v2` so `--ds-*` tokens resolve in the
+ * portaled surface; dividers use `.ds-alerts-popover-divider`.
+ */
+
+.ds-alerts-popover-divider {
+  background: var(--ds-border-secondary);
+}
+
+.ds-alerts-popover-scroll {
+  flex-shrink: 0;
+}
+
+/* Radix ScrollArea custom scrollbar — theme-aware thumb (not browser default). */
+.ds-alerts-popover-scroll [data-radix-scroll-area-scrollbar] {
+  display: flex;
+  touch-action: none;
+  user-select: none;
+}
+
+.ds-alerts-popover-scroll [data-radix-scroll-area-scrollbar][data-orientation='vertical'] {
+  width: 8px;
+  padding: 1px;
+  border-left: 1px solid transparent;
+}
+
+.ds-alerts-popover-scroll [data-radix-scroll-area-scrollbar] > div {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--ds-border-secondary);
+}
+
+.ds-alerts-popover-scroll [data-radix-scroll-area-scrollbar]:hover > div {
+  background: var(--ds-text-faint);
+}
+
+[data-theme='light'] .ds-alerts-popover-scroll [data-radix-scroll-area-scrollbar] > div {
+  background: var(--ds-border-secondary);
+}
+
+[data-theme='light'] .ds-alerts-popover-scroll [data-radix-scroll-area-scrollbar]:hover > div {
+  background: var(--ds-text-muted);
+}

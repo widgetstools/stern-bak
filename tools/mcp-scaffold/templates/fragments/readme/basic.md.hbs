@@ -1,0 +1,37 @@
+# {{appName}}
+
+StarUI external-consumer app scaffolded by `@wellsfargo-starui/mcp-scaffold`.
+
+## Prerequisites
+
+- Node.js 20+
+- npm 10
+
+## Install & run
+
+```bash
+npm ci
+npm run dev
+```
+
+Dev server: http://localhost:{{port}}
+
+## Design system & AG Grid theme
+
+- `@import '@wellsfargo-starui/design-system/css'` and `@import '@wellsfargo-starui/grid/styles.css'` in `src/globals.css`
+- Boot: `applyTheme(getTheme())` in `src/main.tsx` sets `[data-theme]` on `<html>`
+- MarketsGrid resolves AG Grid theme via `useGridTheme()` → `@wellsfargo-starui/design-system/adapters/ag-grid` (`agGridDarkTheme` / `agGridLightTheme`)
+- App chrome uses **shadcn primitives from `@wellsfargo-starui/ui` only** — no native form elements
+
+## StarUI packages
+
+Installed from bundled tarballs in `libs/` (see `libs/manifest.json`).
+
+## Template: basic
+
+Static `MarketsGrid` with bond inventory and localStorage profile persistence.
+
+## Next steps
+
+- Add UI recipes: `starui_add_ui_component` (help-sheet, app-menubar, status-strip)
+- Toggle MarketsGrid features via `starui_list_grid_features`

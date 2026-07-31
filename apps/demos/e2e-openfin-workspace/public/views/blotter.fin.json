@@ -1,0 +1,10 @@
+{
+  "url": "http://localhost:5181/?view=blotter",
+  "fdc3InteropApi": "2.0",
+  "interop": {
+    "currentContextGroup": "green"
+  },
+  "customData": {
+    "instanceId": "openfin-workspace-blotter-v1"
+  }
+}

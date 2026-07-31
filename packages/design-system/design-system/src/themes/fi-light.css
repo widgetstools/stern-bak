@@ -1,0 +1,107 @@
+/*
+ * FI Design System — Light Theme
+ * Canonical values: tokens/staruiHex.ts
+ */
+
+[data-theme="light"] {
+  --background: 215 14% 97%;
+  --foreground: 215 28% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 28% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 28% 12%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 215 12% 91%;
+  --secondary-foreground: 215 28% 18%;
+  --muted: 215 12% 91%;
+  --muted-foreground: 215 10% 38%;
+  --accent: 221 83% 53%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 350 78% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 215 10% 82%;
+  --input: 215 10% 82%;
+  --ring: 221 83% 53%;
+  --radius: 2px;
+
+  --bn-bg:        #f1f3f6;
+  --bn-bg-sunken: #ffffff;
+  --bn-bg1:       #ffffff;
+  --bn-bg2:       #e9ecf0;
+  --bn-bg3:       #dde1e7;
+  --bn-bg4:       #c8cdd5;
+
+  --bn-t0:      #18222f;
+  --bn-t1:      #2f3a4a;
+  --bn-t2:      #525d6c;
+  --bn-t3:      #7a8392;
+  --bn-t4:      #abb1bb;
+
+  --bn-border:  #d4d8de;
+  --bn-border2: #b6bbc4;
+  --bn-border3: #8e94a0;
+
+  --bn-green:   #0f766e;
+  --bn-green2:  #0a5d56;
+  --bn-red:     #be1f43;
+  --bn-red2:    #9e1838;
+  --bn-amber:   #b27607;
+  --bn-blue:    #2563eb;
+  --bn-blue2:   #1d4ed8;
+  --bn-info:    #0e7490;
+  --bn-cyan:    #06b6d4;
+  --bn-purple:  #7631c4;
+
+  --bn-buy-bg:   #0f766e;
+  --bn-sell-bg:  #be1f43;
+  --bn-cta-text: #ffffff;
+  --bn-logo-bg:  #ffffff;
+
+  --bn-focus-ring:    #2563eb;
+  --bn-focus-ring-bg: rgba(37,99,235,0.10);
+  --bn-disabled-bg:   #e9ecf0;
+  --bn-disabled-fg:   #abb1bb;
+  --bn-hover-overlay: rgba(0,0,0,0.045);
+  --bn-selection:     rgba(37,99,235,0.12);
+
+  --bn-positive-soft: rgba(15,118,110,0.10);
+  --bn-negative-soft: rgba(190,31,67,0.10);
+  --bn-warning-soft:  rgba(178,118,7,0.11);
+  --bn-info-soft:     rgba(14,116,144,0.10);
+
+  --fi-t-instant:   80ms cubic-bezier(0.4,0,0.6,1);
+  --fi-t-fast:      140ms cubic-bezier(0.4,0,0.2,1);
+  --fi-t-normal:    220ms cubic-bezier(0.4,0,0.2,1);
+  --fi-t-slow:      420ms cubic-bezier(0.4,0,0.2,1);
+  --fi-t-tick:      900ms cubic-bezier(0.25,0.1,0.25,1);
+
+  --ob-bid-fill:   rgba(15,118,110,0.13);
+  --ob-ask-fill:   rgba(190,31,67,0.11);
+  --tt-bid-strip:  rgba(15,118,110,0.04);
+  --tt-ask-strip:  rgba(190,31,67,0.04);
+
+  --scrollbar-thumb: #b6bbc4;
+
+  --fi-bg0: var(--bn-bg);
+  --fi-bg1: var(--bn-bg1);
+  --fi-bg2: var(--bn-bg2);
+  --fi-bg3: var(--bn-bg3);
+  --fi-border: var(--bn-border);
+  --fi-border2: var(--bn-border2);
+  --fi-border3: var(--bn-border3);
+  --fi-t0: var(--bn-t0);
+  --fi-t1: var(--bn-t1);
+  --fi-t2: var(--bn-t2);
+  --fi-t3: var(--bn-t3);
+  --fi-green: var(--bn-green);
+  --fi-red: var(--bn-red);
+  --fi-blue: var(--bn-blue);
+  --fi-info: var(--bn-info);
+  --fi-amber: var(--bn-amber);
+  --fi-yellow: var(--bn-amber);
+  --bn-yellow: var(--bn-amber);
+  --fi-cyan: var(--bn-cyan);
+  --fi-purple: var(--bn-purple);
+  --divider: 1px solid var(--bn-border);
+}

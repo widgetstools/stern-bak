@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Shaded area between diverging lines -->
+  <path d="M4 12L12 5L20 12L12 19Z" fill="currentColor" opacity="0.08"/>
+  <!-- Upper diverging line -->
+  <path d="M4 12L12 5L20 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Lower diverging line -->
+  <path d="M4 12L12 19L20 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  <!-- Center dashed vertical line -->
+  <line x1="12" y1="3" x2="12" y2="6" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+  <line x1="12" y1="8" x2="12" y2="11" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+  <line x1="12" y1="13" x2="12" y2="16" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+  <line x1="12" y1="18" x2="12" y2="21" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+</svg>

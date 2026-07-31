@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-23T00:00:00.000Z",
+  "profile": {
+    "name": "🎨 10 · Sparkline (Needs array data)",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "column-customization": {
+        "v": 10,
+        "data": {
+          "assignments": {
+            "spread": {
+              "colId": "spread",
+              "cellRendererId": "sparkline",
+              "cellRendererConfig": {
+                "kind": "sparkline",
+                "config": {
+                  "variant": "line",
+                  "lineColor": { "dark": "#22d3ee", "light": "#0e7490" },
+                  "fillColor": { "dark": "#1e3a8a", "light": "#dbeafe" },
+                  "height": 22
+                }
+              }
+            },
+            "yield": {
+              "colId": "yield",
+              "cellRendererId": "sparkline",
+              "cellRendererConfig": {
+                "kind": "sparkline",
+                "config": {
+                  "variant": "area",
+                  "lineColor": { "dark": "#f472b6", "light": "#be185d" },
+                  "fillColor": { "dark": "#831843", "light": "#fce7f3" },
+                  "height": 22
+                }
+              }
+            },
+            "filled": {
+              "colId": "filled",
+              "cellRendererId": "sparkline",
+              "cellRendererConfig": {
+                "kind": "sparkline",
+                "config": {
+                  "variant": "bar",
+                  "lineColor": { "dark": "#a3e635", "light": "#65a30d" },
+                  "height": 22
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "name": "@wellsfargo-starui/host-data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SharedWorker-backed data services for StarGrid DataPort",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./runtime/sharedWorker": {
+      "types": "./dist/runtime/worker/index.d.ts",
+      "import": "./dist/runtime/worker/index.js"
+    },
+    "./runtime/client": {
+      "types": "./dist/runtime/client/index.d.ts",
+      "import": "./dist/runtime/client/index.js"
+    },
+    "./runtime/worker/defaultEntry": {
+      "types": "./dist/runtime/worker/defaultEntry.d.ts",
+      "import": "./dist/runtime/worker/defaultEntry.js"
+    },
+    "./assets/data-services-worker.mjs": "./dist/assets/data-services-worker.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc --project tsconfig.json && node scripts/buildWorker.mjs && node ./scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/types": "*"
+  },
+  "devDependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "@types/node": "^22.19.17",
+    "esbuild": "^0.28.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

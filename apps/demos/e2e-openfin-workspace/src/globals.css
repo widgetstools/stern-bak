@@ -1,0 +1,6 @@
+@import '@wellsfargo-starui/design-system/css';
+@import '@wellsfargo-starui/grid/styles.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

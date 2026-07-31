@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.088Z",
+  "profile": {
+    "name": "01 · Text column",
+    "gridId": "lab-bulk-update",
+    "state": {
+      "general-settings": {
+        "v": 1,
+        "data": {
+          "cellSelection": true
+        }
+      },
+      "bulk-update": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "confirmThreshold": 50,
+            "showDistinctValues": true,
+            "maxDropdownValues": 20,
+            "enforceSingleColumn": true,
+            "recordHistory": true
+          }
+        }
+      },
+      "data-change-history": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "maxEntries": 50,
+            "suspended": false,
+            "unifyUndo": true,
+            "recordSources": {
+              "smartEdit": true,
+              "bulkUpdate": true,
+              "plusMinus": true,
+              "shortcuts": true,
+              "cellEditor": true,
+              "stream": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

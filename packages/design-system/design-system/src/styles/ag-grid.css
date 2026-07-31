@@ -1,0 +1,41 @@
+/* ─────────────────────────────────────────────────────────────
+   AG Grid — StarUI chrome overrides (OKLCH tokens)
+   Theme params own colours; these rules fix header/filter layout
+   and typography when the theme API leaves gaps.
+   ───────────────────────────────────────────────────────────── */
+
+@layer base {
+  .ag-header-cell-text,
+  .ag-header-group-text,
+  .ag-header-cell-label {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ag-header-cell-label {
+    align-items: center;
+  }
+
+  .ag-header-cell-text,
+  .ag-header-group-text {
+    line-height: 1.2;
+  }
+
+  /* Floating filter row — match card surface, not washed-out light chrome */
+  .ag-floating-filter-body .ag-input-field-input,
+  .ag-floating-filter-body .ag-text-field-input,
+  .ag-floating-filter-input {
+    background-color: oklch(var(--card));
+    color: oklch(var(--foreground));
+    border-color: oklch(var(--border));
+    border-radius: var(--radius-sm, 2px);
+    min-height: calc(var(--control-h-sm, 26px) - 4px);
+  }
+
+  .ag-floating-filter-body .ag-input-field-input:focus,
+  .ag-floating-filter-body .ag-text-field-input:focus {
+    border-color: oklch(var(--primary));
+    outline: none;
+    box-shadow: 0 0 0 1px oklch(var(--primary) / 0.35);
+  }
+}

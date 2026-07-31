@@ -1,0 +1,30 @@
+{
+  "name": "@wellsfargo-starui/e2e-openfin-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openfin/core": "43.101.2",
+    "@openfin/notifications": "2.13.1",
+    "@openfin/workspace": "23.0.20",
+    "@openfin/workspace-platform": "23.0.20",
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "ag-grid-react": "35.1.0",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "~4.5.2",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.9",
+    "tailwindcss": "3.4.1",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "~5.9.3",
+    "vite": "~7.3.2"
+  }
+}

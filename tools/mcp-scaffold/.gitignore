@@ -1,0 +1,4 @@
+dist/
+bundled-libs/
+node_modules/
+*.tgz

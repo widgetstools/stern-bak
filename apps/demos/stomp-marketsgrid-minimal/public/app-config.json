@@ -1,0 +1,12 @@
+{
+  "appId": "stomp-marketsgrid-minimal",
+  "userId": "dev1",
+  "useRest": false,
+  "appDataBootstrap": {
+    "onHubReady": ["session-context"],
+    "runPolicy": "if-missing",
+    "targets": {
+      "session-context": ["SessionContext"]
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.087Z",
+  "profile": {
+    "name": "00 · Filter pills",
+    "gridId": "lab-quick-filters-v1",
+    "state": {
+      "saved-filters": {
+        "v": 1,
+        "data": {
+          "filters": [
+            {
+              "id": "qf-rates",
+              "label": "Rates",
+              "active": true,
+              "filterModel": {
+                "assetClass": {
+                  "filterType": "set",
+                  "values": [
+                    "Rates"
+                  ]
+                }
+              }
+            },
+            {
+              "id": "qf-corp-ig",
+              "label": "Corp IG",
+              "active": false,
+              "filterModel": {
+                "assetClass": {
+                  "filterType": "set",
+                  "values": [
+                    "CorpIG"
+                  ]
+                }
+              }
+            },
+            {
+              "id": "qf-hy",
+              "label": "High yield",
+              "active": false,
+              "filterModel": {
+                "assetClass": {
+                  "filterType": "set",
+                  "values": [
+                    "CorpHY"
+                  ]
+                }
+              }
+            },
+            {
+              "id": "qf-financials",
+              "label": "Financials",
+              "active": false,
+              "filterModel": {
+                "issuerSector": {
+                  "filterType": "set",
+                  "values": [
+                    "Financials"
+                  ]
+                }
+              }
+            },
+            {
+              "id": "qf-losers",
+              "label": "P&L losers",
+              "active": false,
+              "filterModel": {
+                "dailyPnL": {
+                  "filterType": "number",
+                  "type": "lessThan",
+                  "filter": 0
+                }
+              }
+            },
+            {
+              "id": "qf-wide-oas",
+              "label": "OAS > 300",
+              "active": false,
+              "filterModel": {
+                "oas": {
+                  "filterType": "number",
+                  "type": "greaterThan",
+                  "filter": 300
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

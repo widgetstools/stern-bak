@@ -1,0 +1,41 @@
+{
+  "name": "{{packageName}}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit"{{#if includesStompServer}},
+    "dev:stomp": "npm run dev --prefix stomp-view-server"{{/if}}{{#if includesOpenFin}},
+    "client": "node launch.mjs http://localhost:{{port}}/platform/manifest.fin.json"{{/if}}
+  },
+  "dependencies": {
+{{#each tarballDeps}}    "{{@key}}": "{{this}}",
+{{/each}}{{#if includesOpenFin}}    "@openfin/core": "43.101.4",
+    "@openfin/workspace": "23.0.20",
+    "@openfin/workspace-platform": "23.0.20",
+    "@openfin/notifications": "2.13.1",
+    "@finos/fdc3": "2.0.3",
+    "@tanstack/react-query": "^5.80.7",
+{{/if}}    "@stomp/stompjs": "^7.1.1",
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "ag-grid-react": "35.1.0",
+    "lucide-react": "^0.554.0",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5"{{#if includesOpenFin}},
+    "react-router-dom": "^6.30.3"{{/if}}
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "~4.5.2"{{#if includesOpenFin}},
+    "@openfin/node-adapter": "43.101.4"{{/if}},
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.9",
+    "tailwindcss": "3.4.1",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "~5.9.3",
+    "vite": "~7.3.2"
+  }
+}

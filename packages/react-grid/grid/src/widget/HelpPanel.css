@@ -1,0 +1,217 @@
+/* ───────────────────────────────────────────────────────────────────
+ * HelpPanel — layout chrome for the settings-sheet help tab.
+ *
+ * Structural layout (shell grid, nav rail, content column) plus the
+ * nav/jump button skins live here. shadcn `ChromeButton` hosts the
+ * controls; `!justify-*` Tailwind utilities passed at the call site
+ * tame its centered default so these CSS skins own the look.
+ * Everything resolves through design-system tokens → dark/light safe.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.ds-help-shell {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--ds-font-sans);
+  background: var(--ds-surface-ground);
+}
+
+/* ── Section rail ───────────────────────────────────────────────── */
+
+.ds-help-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--ds-border-primary);
+  padding: 16px 12px;
+  overflow-y: auto;
+  background: var(--ds-surface-secondary);
+}
+
+.ds-help-nav-eyebrow {
+  padding: 0 10px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--ds-text-faint);
+}
+
+/* Selectors are parent-qualified (`.ds-help-nav .ds-help-nav-btn`) so they
+ * outrank the single-class Tailwind utilities `ChromeButton` ships
+ * (`p-0 m-0 leading-none`) — otherwise those zero out the padding/line
+ * height and the rows collapse onto each other. */
+.ds-help-nav .ds-help-nav-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 8px 10px 8px 16px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.ds-help-nav .ds-help-nav-btn:hover {
+  background: color-mix(in srgb, var(--ds-text-primary) 7%, transparent);
+  color: var(--ds-text-primary);
+}
+
+.ds-help-nav .ds-help-nav-btn[data-active='true'] {
+  background: var(--ds-overlay-positive-soft);
+  color: var(--ds-accent-positive);
+  font-weight: 600;
+}
+
+/* Active-state accent bar — replaces the old translating chevron. */
+.ds-help-nav .ds-help-nav-btn[data-active='true']::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--ds-accent-positive);
+  transform: translateY(-50%);
+}
+
+.ds-help-nav-footer {
+  margin-top: auto;
+  padding: 14px 10px 2px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ds-text-faint);
+}
+
+.ds-help-nav-footer code {
+  font-family: var(--ds-font-mono);
+  color: var(--ds-text-muted);
+}
+
+/* ── Content column ─────────────────────────────────────────────── */
+
+.ds-help-content {
+  overflow-y: auto;
+  color: var(--ds-text-primary);
+}
+
+/* Comfortable reading measure — long help prose shouldn't stretch the
+ * full width of a maximized settings sheet. */
+.ds-help-content-inner {
+  max-width: 760px;
+  padding: 28px 32px 40px;
+}
+
+.ds-help-p {
+  margin: 8px 0;
+  color: var(--ds-text-secondary);
+}
+
+/* ── Overview jump list ─────────────────────────────────────────── */
+
+/* Parent-qualified for the same reason as the nav buttons — beat the
+ * ChromeButton Tailwind reset so the padding actually applies. */
+.ds-help-content .ds-help-jump-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  background: var(--ds-surface-secondary);
+  color: var(--ds-text-primary);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.ds-help-content .ds-help-jump-btn:hover {
+  border-color: var(--ds-accent-positive);
+  background: var(--ds-overlay-positive-soft);
+}
+
+.ds-help-jump-arrow {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--ds-text-faint);
+  transition: color 120ms ease, transform 120ms ease;
+}
+
+.ds-help-jump-btn:hover .ds-help-jump-arrow {
+  color: var(--ds-accent-positive);
+  transform: translateX(2px);
+}
+
+/* ── Emoji gallery ──────────────────────────────────────────────── */
+
+.ds-help-emoji-grid {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 16px;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+}
+
+.ds-help-emoji-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 6px 6px;
+  background: var(--ds-surface-ground);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  cursor: pointer;
+  transition: all 120ms;
+}
+
+.ds-help-emoji-tile:hover {
+  border-color: var(--ds-border-secondary);
+  background: var(--ds-surface-secondary);
+}
+
+.ds-help-emoji-tile[data-copied='true'] {
+  background: var(--ds-overlay-positive-soft);
+  border-color: var(--ds-accent-positive);
+}
+
+.ds-help-emoji-glyph {
+  font-size: 22px;
+  line-height: 1;
+  font-family:
+    Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, EmojiOne Color, sans-serif;
+}
+
+.ds-help-emoji-label {
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--ds-text-muted);
+  text-align: center;
+  font-family: var(--ds-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.ds-help-emoji-tile[data-copied='true'] .ds-help-emoji-label {
+  color: var(--ds-accent-positive);
+}

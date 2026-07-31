@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Semi-circular gauge segments -->
+  <!-- Low segment (left) -->
+  <path d="M4 16 A8 8 0 0 1 8.34 8.34" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.3"/>
+  <!-- Medium segment (center) -->
+  <path d="M8.34 8.34 A8 8 0 0 1 15.66 8.34" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  <!-- High segment (right) -->
+  <path d="M15.66 8.34 A8 8 0 0 1 20 16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  <!-- Needle pointing to high zone -->
+  <line x1="12" y1="16" x2="17.5" y2="9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Center pivot circle -->
+  <circle cx="12" cy="16" r="1.5" fill="currentColor"/>
+</svg>

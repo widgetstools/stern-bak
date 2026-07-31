@@ -1,0 +1,95 @@
+name: E2E (OpenFin)
+
+# Runs the @wellsfargo-starui/e2e-openfin harness against apps/demos/e2e-openfin-workspace.
+# The harness uses @openfin/node-adapter to spawn the OpenFin runtime
+# and Playwright (chromium.connectOverCDP) to drive the views.
+#
+# Gating: triggered only when the openfin-workspace app, the e2e-openfin
+# harness, or the openfin packages change. Reduces CI cost on PRs that
+# don't touch the OpenFin surface (browser e2e in e2e.yml still gates
+# every PR).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/demos/e2e-openfin-workspace/**'
+      - 'apps/demos/markets-ui-react-reference/**'
+      - 'e2e-openfin/**'
+      - 'packages/openfin/**'
+      - 'tools/scripts/launch-openfin.mjs'
+      - 'scripts/staruiConsumer*.mjs'
+      - '.github/workflows/e2e-openfin.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/demos/e2e-openfin-workspace/**'
+      - 'apps/demos/markets-ui-react-reference/**'
+      - 'e2e-openfin/**'
+      - 'packages/openfin/**'
+      - 'tools/scripts/launch-openfin.mjs'
+      - 'scripts/staruiConsumer*.mjs'
+      - '.github/workflows/e2e-openfin.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-openfin-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  e2e-openfin:
+    name: Playwright + CDP — openfin-workspace
+    # Ubuntu runners don't have a display; xvfb provides one for the
+    # OpenFin runtime's Electron windows. macOS would also work but is
+    # slower + more expensive.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install xvfb and OpenFin runtime deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libgbm-dev libasound2t64 libdrm2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2 libgtk-3-0
+
+      - name: Bootstrap (packages + propagate + apps)
+        run: npm run install:all
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run OpenFin e2e (under xvfb)
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+            npm run e2e:openfin
+        env:
+          # Match e2e-openfin/playwright.config.ts defaults
+          OPENFIN_MANIFEST_URL: http://localhost:5181/platform/manifest.e2e.fin.json
+          OPENFIN_CDP_PORT: '9191'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-openfin-report
+          path: e2e-openfin/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Playwright traces + test-results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-openfin-traces
+          path: |
+            e2e-openfin/test-results/
+            e2e-openfin/playwright-report/trace/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,90 @@
+{
+  "name": "@wellsfargo-starui/grid",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarketsGrid + grid customizer \u2014 merged product surface (phase 3)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./customizer": {
+      "types": "./dist/customizer/index.d.ts",
+      "import": "./dist/customizer/index.js"
+    },
+    "./styles.css": "./dist/widget/styles/marketsGrid.css",
+    "./styles/core.css": "./dist/widget/styles/marketsGrid-core.css",
+    "./styles/chrome.css": "./dist/widget/styles/marketsGrid-chrome.css",
+    "./runtime/openfin": {
+      "types": "./dist/runtime/openFin.d.ts",
+      "import": "./dist/runtime/openFin.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "rimraf dist && tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs"
+  },
+  "peerDependencies": {
+    "@wellsfargo-starui/design-system": "*",
+    "ag-grid-community": "^35.1.0",
+    "ag-grid-enterprise": "^35.1.0",
+    "ag-grid-react": "^35.1.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.7",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@lezer/highlight": "^1.2.3",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@wellsfargo-starui/design-system": "*",
+    "@wellsfargo-starui/engine": "*",
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/host-openfin": "*",
+    "@wellsfargo-starui/icons-svg": "*",
+    "@wellsfargo-starui/shared-types": "*",
+    "@wellsfargo-starui/types": "*",
+    "@wellsfargo-starui/ui": "*",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^0.554.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "~4.5.2",
+    "@wellsfargo-starui/design-system": "*",
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "ag-grid-react": "35.1.0",
+    "jsdom": "^29.0.2",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

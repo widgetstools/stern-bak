@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": false,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  // angular/ is deliberately excluded — Angular is outside the build pipeline
+  // (see CLAUDE.md); the "./angular" export keeps pointing at raw source.
+  "include": ["index.ts", "allIcons.ts", "react/**/*"],
+  "exclude": ["dist", "node_modules", "angular"]
+}

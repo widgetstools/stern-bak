@@ -1,0 +1,20 @@
+{
+  "id": "openfin-platform",
+  "fragments": [
+    { "from": "core/package.json.hbs", "to": "package.json" },
+    { "from": "core/vite.config.ts.hbs", "to": "vite.config.ts" },
+    { "from": "core/tsconfig.json", "to": "tsconfig.json" },
+    { "from": "core/postcss.config.js", "to": "postcss.config.js" },
+    { "from": "design-system/index.html.hbs", "to": "index.html" },
+    { "from": "design-system/tailwind.config.js", "to": "tailwind.config.js" },
+    { "from": "readme/openfin.md.hbs", "to": "README.md" }
+  ],
+  "copyDirs": [
+    { "from": "openfin/public", "to": "public" },
+    { "from": "openfin/src", "to": "src" }
+  ],
+  "copyFiles": [
+    { "from": "openfin/launch.mjs", "to": "launch.mjs" },
+    { "from": "openfin/tailwind.config.js", "to": "tailwind.config.js" }
+  ]
+}

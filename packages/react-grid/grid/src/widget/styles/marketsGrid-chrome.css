@@ -1,0 +1,965 @@
+/* ─── Primary toolbar row (filters + right action cluster) ──────────
+   Unifies the filters toolbar, formatter-toolbar toggle, profile
+   selector, save button, and settings icon into a single 44px strip.
+   Must be OUTSIDE @layer so Tailwind's reset can't overwrite the
+   flexbox layout. */
+
+.ds-primary-row {
+  --ds-toolbar-chip-height: 30px;
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 48px;
+  background: var(--ds-surface-primary);
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+
+.ds-primary-row--with-density {
+  position: relative;
+}
+
+/* Center-top grid spacing pill — chip always visible; menu on hover/focus/click. */
+.ds-density-pill-host {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  pointer-events: none;
+}
+
+.ds-density-pill {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ds-density-pill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border-primary);
+  background: var(--ds-surface-primary);
+  color: var(--ds-text-muted);
+  font-family: var(--ds-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+[data-theme="light"] .ds-density-pill-chip {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.ds-density-pill-chip:hover,
+.ds-density-pill:focus-within .ds-density-pill-chip,
+.ds-density-pill[data-open='true'] .ds-density-pill-chip {
+  color: var(--ds-text-primary);
+  border-color: color-mix(in srgb, var(--ds-primary) 35%, var(--ds-border-primary));
+  background: color-mix(in srgb, var(--ds-surface-primary) 88%, var(--ds-surface-secondary));
+}
+
+.ds-density-pill-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border-primary);
+  background: var(--ds-surface-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 60ms ease, transform 60ms ease;
+}
+
+.ds-density-pill:hover .ds-density-pill-menu,
+.ds-density-pill:focus-within .ds-density-pill-menu,
+.ds-density-pill[data-open='true'] .ds-density-pill-menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.ds-density-pill-option {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ds-text-muted);
+  font-family: var(--ds-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.ds-density-pill-option:hover {
+  color: var(--ds-text-primary);
+  background: var(--ds-surface-tertiary);
+}
+
+.ds-density-pill-option[data-active='true'] {
+  color: var(--ds-primary);
+  background: color-mix(in srgb, var(--ds-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ds-primary) 40%, transparent);
+}
+
+[data-theme="light"] .ds-primary-row {
+  background: var(--ds-surface-primary);
+  border-bottom-color: color-mix(in srgb, var(--ds-border-primary) 82%, var(--ds-primary) 18%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.88) inset, 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.ds-primary-filters {
+  flex: 1 1 0px;
+  min-width: 0;
+  overflow-x: clip;
+  display: flex;
+  align-items: center;
+}
+
+.ds-primary-filters-empty {
+  flex: 1 1 0px;
+  height: 100%;
+}
+
+.ds-primary-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+/* Profile picker + save + date — no dividers; save sits flush beside layout chip. */
+.ds-primary-profile-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* Collapsible profile section. By default only the Save button shows; the
+   profile selector slides in when the user hovers the cluster (the Save
+   button is the always-visible hover anchor), keyboard-focuses into it, or
+   has the layouts dropdown open. */
+.ds-primary-profile-cluster .ds-profile-selector {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-width 180ms ease, opacity 150ms ease;
+}
+.ds-primary-profile-cluster:hover .ds-profile-selector,
+.ds-primary-profile-cluster:focus-within .ds-profile-selector,
+.ds-primary-profile-cluster:has(.ds-ps-trigger[data-open="true"]) .ds-profile-selector {
+  max-width: 240px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ds-primary-date-picker {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--ds-toolbar-chip-height, 30px) !important;
+  min-height: var(--ds-toolbar-chip-height, 30px) !important;
+  max-height: var(--ds-toolbar-chip-height, 30px) !important;
+  min-width: 0;
+  padding: 0 8px;
+  font-family: var(--ds-font-mono, ui-monospace, monospace);
+  /* Beat shadcn `text-sm` / `text-xs` / `h-[28px]` on outline `Button`. */
+  font-size: 11px !important;
+  font-weight: 600;
+  line-height: 1 !important;
+  color: var(--ds-text-primary);
+  background: transparent;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.ds-primary-date-picker:hover {
+  color: var(--ds-primary);
+  background: var(--ds-primary-soft);
+  border-color: var(--ds-primary-ring);
+}
+
+.ds-primary-date-picker-label {
+  white-space: nowrap;
+}
+
+[data-theme="light"] .ds-primary-date-picker {
+  background: color-mix(in srgb, var(--ds-surface-primary) 94%, var(--ds-surface-secondary));
+}
+
+/* Shared icon button for Brush / Save / Settings / alerts / ⋯ menu. */
+.ds-primary-action {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ds-toolbar-chip-height, 30px) !important;
+  height: var(--ds-toolbar-chip-height, 30px) !important;
+  min-width: var(--ds-toolbar-chip-height, 30px) !important;
+  min-height: var(--ds-toolbar-chip-height, 30px) !important;
+  max-width: var(--ds-toolbar-chip-height, 30px) !important;
+  max-height: var(--ds-toolbar-chip-height, 30px) !important;
+  padding: 0 !important;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  opacity: 0.78;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+.ds-primary-action:hover {
+  color: var(--ds-primary);
+  opacity: 1;
+  background: var(--ds-primary-soft);
+  border-color: var(--ds-primary-ring);
+}
+.ds-primary-action[aria-pressed='true'],
+.ds-primary-action[data-active='true'] {
+  /* Active/selected uses the single vivid accent (--primary): bright
+     cyan-blue on dark, azure on light paper. */
+  color: oklch(var(--primary));
+  background: oklch(var(--primary) / 0.16);
+  border-color: oklch(var(--primary) / 0.45);
+  box-shadow: inset 0 0 0 1px oklch(var(--primary) / 0.22);
+}
+.ds-primary-action[data-state='dirty'] {
+  color: var(--ds-accent-warning);
+}
+.ds-primary-action[data-state='saved'] {
+  color: var(--ds-accent-positive);
+}
+
+.ds-caption-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+}
+
+.ds-primary-save {
+  position: relative;
+}
+
+.ds-primary-divider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--ds-border-secondary);
+  opacity: 0.75;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* ─── Quick search (expand-on-hover) ───────────────────────────────── */
+
+.ds-quick-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* Collapsed at rest — zero width, invisible, no chrome. Expands on hover,
+   when the field (or anything inside) is focused, when pinned open via the
+   icon, or while a search term is active. `!important` beats the shadcn
+   `Input` base classes (h-9 / w-full / border / px-3), mirroring how
+   `.ds-primary-date-picker` overrides the shadcn `Button`. */
+.ds-quick-search-field {
+  box-sizing: border-box;
+  width: 0;
+  min-width: 0 !important;
+  max-width: 0;
+  height: var(--ds-toolbar-chip-height, 30px) !important;
+  margin-left: 0;
+  padding: 0 !important;
+  background: transparent;
+  border: 1px solid transparent !important;
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-mono, ui-monospace, monospace);
+  font-size: 11px !important;
+  opacity: 0;
+  overflow: hidden;
+  box-shadow: none !important;
+  transition: width 160ms ease, max-width 160ms ease, margin 160ms ease,
+    padding 160ms ease, opacity 120ms ease, border-color 120ms ease,
+    background 120ms ease;
+}
+
+.ds-quick-search:hover .ds-quick-search-field,
+.ds-quick-search:focus-within .ds-quick-search-field,
+.ds-quick-search[data-open='true'] .ds-quick-search-field,
+.ds-quick-search[data-has-text='true'] .ds-quick-search-field {
+  width: 172px;
+  max-width: 172px;
+  margin-left: 2px;
+  padding: 0 8px !important;
+  opacity: 1;
+  background: var(--ds-surface-secondary, transparent);
+  border-color: var(--ds-border-primary) !important;
+}
+
+.ds-quick-search-field:focus,
+.ds-quick-search-field:focus-visible {
+  outline: none !important;
+  border-color: var(--ds-primary-ring) !important;
+}
+
+.ds-quick-search-field::placeholder {
+  color: var(--ds-text-muted);
+}
+
+/* Light up the magnifier while a search is applied. */
+.ds-quick-search[data-has-text='true'] .ds-quick-search-toggle {
+  color: var(--ds-primary);
+  opacity: 1;
+}
+
+/* Clear button is slightly tighter than the standard chip. */
+.ds-quick-search-clear {
+  width: 22px !important;
+  min-width: 22px !important;
+  max-width: 22px !important;
+  margin-left: 2px;
+}
+
+/* Date picker + overflow menu sit flush at the trailing edge. */
+.ds-primary-actions-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* ─── Filters toolbar itself ───────────────────────────────────────── */
+
+.ds-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 48px;
+  padding: 0 10px 0 6px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.ds-filters-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ds-toolbar-chip-height, 30px);
+  height: var(--ds-toolbar-chip-height, 30px);
+  min-width: var(--ds-toolbar-chip-height, 30px);
+  min-height: var(--ds-toolbar-chip-height, 30px);
+  padding: 0;
+  background: var(--ds-surface-secondary);
+  border: none;
+  color: var(--ds-text-primary);
+  opacity: 0.85;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 2px;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+.ds-filters-collapse:hover {
+  color: var(--ds-primary);
+  opacity: 1;
+  background: var(--ds-primary-soft);
+  border-color: var(--ds-primary-ring);
+}
+
+/* Summary chip (collapsed state) — geometry + typography match profile/date chips. */
+.ds-filters-summary {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px !important;
+  height: var(--ds-toolbar-chip-height, 30px) !important;
+  min-height: var(--ds-toolbar-chip-height, 30px) !important;
+  max-height: var(--ds-toolbar-chip-height, 30px) !important;
+  /* Beat shadcn chrome `Button` (`px-0`, `py-0`, `gap-0`). */
+  padding: 0 14px !important;
+  margin: 0 2px;
+  background: var(--ds-surface-secondary);
+  border: none;
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  /* Beat shadcn chrome `Button` (`text-sm`, `h-auto`). */
+  font-size: 11px !important;
+  font-weight: 600;
+  line-height: 1.2 !important;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: none;
+  white-space: nowrap;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+[data-theme="light"] .ds-filters-summary {
+  background: var(--ds-surface-primary);
+  border-color: var(--ds-border-primary);
+}
+.ds-filters-summary:hover {
+  background: color-mix(in srgb, var(--ds-surface-secondary) 90%, var(--ds-primary) 10%);
+  border-color: color-mix(in srgb, var(--ds-primary) 35%, var(--ds-border-secondary));
+  color: var(--ds-text-primary);
+}
+[data-theme="light"] .ds-filters-summary:hover {
+  background: color-mix(in srgb, var(--ds-surface-primary) 92%, var(--ds-primary) 8%);
+  border-color: color-mix(in srgb, var(--ds-primary) 30%, var(--ds-border-primary));
+}
+.ds-filters-summary-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ds-primary);
+  margin-right: 1px;
+}
+.ds-filters-summary-label {
+  font-weight: 500;
+  color: var(--ds-text-muted);
+  margin-right: 2px;
+}
+.ds-filters-summary-active {
+  font-weight: 600;
+  color: var(--ds-primary);
+  margin-left: 2px;
+}
+.ds-filters-summary-empty {
+  font-weight: 500;
+  color: var(--ds-text-muted);
+  font-style: italic;
+}
+
+/* Clear-all / Add-new sticky actions */
+.ds-filters-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ds-accent-negative) !important;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 2px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.ds-filters-clear-btn:hover:not(:disabled) {
+  background: var(--ds-overlay-negative-soft);
+  color: var(--ds-accent-negative-hover) !important;
+}
+.ds-filters-clear-btn:disabled,
+.ds-filters-clear-btn[data-enabled='false'] {
+  color: var(--ds-text-disabled) !important;
+  opacity: 0.65 !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ds-filters-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 2px;
+  transition: color 120ms ease, background 120ms ease;
+}
+/* Enabled when the live grid filter is new — teal accent (overrides shadcn `text-inherit`). */
+.ds-filters-add-btn[data-enabled='true'] {
+  color: var(--ds-accent-positive) !important;
+  opacity: 1;
+}
+.ds-filters-add-btn[data-enabled='true']:hover {
+  background: var(--ds-overlay-positive-soft);
+  color: var(--ds-accent-positive-hover) !important;
+}
+.ds-filters-add-btn:disabled,
+.ds-filters-add-btn[data-enabled='false'] {
+  color: var(--ds-text-disabled) !important;
+  opacity: 0.65 !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ds-filter-scroll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 0px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ds-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-filter-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-family: var(--ds-font-sans);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+  cursor: default;
+}
+
+.ds-filter-active {
+  background: var(--filter-active-bg);
+  color: var(--filter-active-text);
+  border-color: var(--filter-active-border);
+  box-shadow: var(--filter-active-glow);
+}
+.ds-filter-active:hover {
+  background: var(--ds-primary-hover);
+  border-color: var(--ds-primary-pressed);
+  color: var(--ds-primary-foreground);
+}
+
+[data-theme="light"] .ds-filter-active:hover {
+  background: var(--ds-primary-hover);
+  border-color: var(--ds-primary-pressed);
+}
+
+.ds-filter-inactive {
+  background: var(--filter-inactive-bg);
+  color: var(--filter-inactive-text);
+  border: 1px solid var(--filter-inactive-border);
+  box-shadow: none;
+  font-weight: 500;
+}
+.ds-filter-inactive:hover {
+  color: var(--ds-text-secondary);
+  background: color-mix(in srgb, var(--ds-primary) 9%, var(--filter-inactive-bg));
+  border-color: color-mix(in srgb, var(--ds-primary) 32%, var(--ds-border-secondary));
+}
+
+[data-theme="light"] .ds-filter-inactive:hover {
+  background: color-mix(in srgb, var(--ds-primary) 8%, var(--filter-inactive-bg));
+  border-color: color-mix(in srgb, var(--ds-primary) 26%, var(--ds-border-secondary));
+}
+
+.ds-filter-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+
+.ds-filter-pill-count {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 0 5px;
+  height: 16px;
+  min-width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+}
+.ds-filter-active .ds-filter-pill-count {
+  background: color-mix(in srgb, var(--ds-primary-foreground) 18%, transparent);
+  border-color: color-mix(in srgb, var(--ds-primary-foreground) 32%, transparent);
+  color: var(--ds-primary-foreground);
+}
+.ds-filter-inactive .ds-filter-pill-count {
+  background: color-mix(in srgb, var(--ds-primary) 8%, var(--ds-surface-tertiary));
+  border-color: color-mix(in srgb, var(--ds-primary) 22%, transparent);
+  color: var(--ds-text-secondary);
+}
+
+.ds-filter-pill-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: 0;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 150ms ease, margin-left 150ms ease, opacity 120ms ease;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.ds-filter-pill:hover .ds-filter-pill-actions,
+.ds-filter-pill:focus-within .ds-filter-pill-actions {
+  max-width: 60px;
+  margin-left: 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ds-filter-pill-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 2px;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+.ds-filter-pill-action:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--ds-text-primary) 12%, transparent);
+}
+.ds-filter-pill-action-remove:hover {
+  color: var(--ds-accent-negative);
+  background: var(--ds-overlay-negative-soft);
+}
+.ds-filter-active .ds-filter-pill-action:hover {
+  background: color-mix(in srgb, var(--ds-primary-foreground) 14%, transparent);
+}
+.ds-filter-active .ds-filter-pill-menu:hover,
+.ds-filter-active .ds-filter-pill-menu[data-state="open"] {
+  background: color-mix(in srgb, var(--ds-primary-foreground) 14%, transparent);
+}
+
+/* Always-visible "show saved filter" menu trigger. Sits between the
+   label-button and the hover-only rename/remove actions. */
+.ds-filter-pill-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  width: 0;
+  margin-left: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 2px;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: width 150ms ease, margin-left 150ms ease, opacity 120ms ease, background 100ms ease;
+}
+.ds-filter-pill:hover .ds-filter-pill-menu,
+.ds-filter-pill:focus-within .ds-filter-pill-menu,
+.ds-filter-pill-menu[data-state="open"] {
+  width: 16px;
+  margin-left: 4px;
+  opacity: 0.6;
+  pointer-events: auto;
+}
+.ds-filter-pill-menu:hover,
+.ds-filter-pill-menu[data-state="open"] {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+[data-theme="light"] .ds-filter-pill-menu:hover,
+[data-theme="light"] .ds-filter-pill-menu[aria-expanded="true"] {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+
+.ds-filters-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+  border-radius: 0;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 100ms ease;
+}
+.ds-filters-caret:hover {
+  color: var(--ds-text-primary);
+  background: none;
+}
+.ds-filters-caret:focus-visible {
+  outline: none;
+  box-shadow: none !important;
+}
+
+.ds-filters-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Sticky add/clear sit after the overflow scroll row — keep them above any
+   clipped pill chrome and make icon strokes transparent to hit-testing so
+   Playwright / pointer clicks reach the `<button>` (shadcn chrome variant). */
+.ds-filters-actions .ds-filters-clear-btn,
+.ds-filters-actions .ds-filters-add-btn {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.ds-filters-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+.ds-filters-icon-btn:hover {
+  color: var(--ds-text-primary);
+  background: var(--ds-surface-tertiary);
+  border-color: var(--ds-text-primary);
+}
+.ds-filters-icon-btn-confirm {
+  border-color: var(--ds-accent-positive);
+}
+
+.ds-filter-rename-input {
+  height: 24px;
+  width: 110px;
+  min-width: 70px;
+  max-width: 160px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--ds-font-sans);
+  border-radius: 999px;
+  border: 1px solid var(--ds-primary);
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  outline: none;
+  flex-shrink: 0;
+}
+
+/* ─── Stacked toolbar slide-in animation ───────────────────────────── */
+
+@keyframes ds-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Stale data banner (disconnected provider) ───────────────────── */
+
+.ds-stale-data-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 12px;
+  font-family: var(--ds-font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: var(--ds-accent-warning);
+  background: color-mix(in srgb, var(--ds-accent-warning) 12%, var(--ds-surface-primary));
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent-warning) 35%, transparent);
+  animation: ds-stale-data-flash 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.ds-stale-data-banner svg {
+  flex-shrink: 0;
+  opacity: 0.95;
+}
+
+@keyframes ds-stale-data-flash {
+  0%,
+  100% {
+    opacity: 1;
+    background: color-mix(in srgb, var(--ds-accent-warning) 12%, var(--ds-surface-primary));
+  }
+  50% {
+    opacity: 0.82;
+    background: color-mix(in srgb, var(--ds-accent-warning) 22%, var(--ds-surface-primary));
+  }
+}
+
+/* ─── Historical view banner (as-of snapshot) ─────────────────────── */
+
+.ds-historical-view-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 12px;
+  font-family: var(--ds-font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: var(--ds-accent-info, var(--ds-text-secondary));
+  background: color-mix(in srgb, var(--ds-accent-info, var(--ds-text-secondary)) 10%, var(--ds-surface-primary));
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-accent-info, var(--ds-text-secondary)) 28%, transparent);
+  flex-shrink: 0;
+}
+
+.ds-historical-view-banner svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+/* ─── Toolbar visibility pills ─────────────────────────────────────── */
+
+.ds-toolbar-pills-dock {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  background: var(--ds-surface-primary);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 999px;
+  z-index: 12;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
+
+.ds-toolbar-primary:hover .ds-toolbar-pills-dock,
+.ds-toolbar-pills-dock:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+
+
+
+
+
+/* Stacked-toolbar close button (always visible) */
+.ds-stacked-close:hover {
+  background: color-mix(in srgb, var(--ds-accent-negative) 12%, transparent) !important;
+  color: var(--ds-accent-negative) !important;
+}
+
+/* AG Grid header controls — keep affordance slots reserved, but reveal
+   the icons only when the user interacts with the owning header cell. */
+[data-grid-id] .ag-header-cell-menu-button,
+[data-grid-id] .ag-header-cell-filter-button,
+[data-grid-id] .ag-floating-filter-button {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+[data-grid-id] .ag-header-cell:hover .ag-header-cell-menu-button,
+[data-grid-id] .ag-header-cell:hover .ag-header-cell-filter-button,
+[data-grid-id] .ag-floating-filter:hover .ag-floating-filter-button,
+[data-grid-id] .ag-header-cell:focus-within .ag-header-cell-menu-button,
+[data-grid-id] .ag-header-cell:focus-within .ag-header-cell-filter-button,
+[data-grid-id] .ag-floating-filter:focus-within .ag-floating-filter-button,
+[data-grid-id] .ag-header-cell-menu-button[aria-expanded='true'],
+[data-grid-id] .ag-header-cell-filter-button[aria-expanded='true'],
+[data-grid-id] .ag-floating-filter-button[aria-expanded='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Formatter toolbar global header-case toggle. This is display-only:
+   `headerName` values remain unchanged, so turning the toggle off restores
+   the authored camelCase / Title Case captions. */
+[data-grid-id][data-header-case='upper'] .ag-header-cell-text,
+[data-grid-id][data-header-case='upper'] .ag-header-group-text {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

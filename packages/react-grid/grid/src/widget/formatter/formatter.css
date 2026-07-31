@@ -1,0 +1,847 @@
+/**
+ * Formatter design system — single stylesheet driving both the in-grid
+ * `<FormattingToolbar />` strip and the popped `<FormattingPropertiesPanel />`
+ * inspector. Replaces the legacy `FormattingToolbar.css`.
+ *
+ * Aesthetic: trading-desk editorial. Bloomberg/Reuters terminal precision
+ * finished with refined-broadsheet typography.
+ *
+ *   Display caps (module eyebrow): JetBrains Mono 10px / 0.18em / 500
+ *   Body labels:                   var(--ds-font-sans) 10–11px / 0.04em / 500
+ *   Numerics + readouts:           var(--ds-font-mono) / tabular-nums
+ *   Accent (active state):         phosphor-teal (--ds-accent-positive) — ring only
+ *   Live preview tint:             warm amber (--ds-accent-warning)
+ *
+ * Naming: `.fx-*` — short, self-namespaced, doesn't collide with the
+ * legacy `.ds-tb-*` selectors during the transition.
+ */
+
+/* ─── Local formatter knobs ───────────────────────────────────────
+ *
+ * Every `--fx-*` token that mapped cleanly to a design-system token
+ * (`--ds-*`) has been inlined at the consumer call site. The handful
+ * that remain here are genuinely formatter-local — either computed
+ * derivations or local-dimension knobs the design-system doesn't
+ * standardise.
+ */
+
+.fx-shell {
+  /* Sunken surface — mode-dependent: dark sinks below cells (= ground),
+     light sinks below cards (= secondary). Polarity flips per theme. */
+  --fx-bg-sunken:    var(--ds-surface-ground);
+  /* Idle icon colour — slightly lighter than `--ds-text-muted` so dense
+     rows stay scannable; computed via color-mix on the primary ink. */
+  --fx-icon-rest:    color-mix(in srgb, var(--ds-text-primary) 64%, transparent);
+
+  /* Formatter-local sizing — `--fx-radius` tracks the design-system
+     baseline so the toolbar primitives (column label, segmented
+     toggle, popout, destruct) match the 2px corner of the Pill family
+     and every other component in the app. */
+  --fx-radius:       var(--ds-radius-md, 2px);
+  --fx-radius-lg:    var(--ds-radius-md, 2px);
+  --fx-px-tight:     6px;
+  --fx-px-comfy:     10px;
+  --fx-px-loose:     16px;
+  --fx-pill-h:       28px;
+  --fx-pill-h-lg:    30px;
+
+  /* Internal typography knobs (10/11/13px slots used across modules). */
+  --fx-icon:         13px;
+  --fx-eyebrow-fs:   10px;
+  --fx-label-fs:     10px;
+  --fx-readout-fs:   11px;
+
+  /* Toolbar label/meta ink — one step above faint/muted for scannability. */
+  --fx-toolbar-label: var(--ds-text-secondary);
+  --fx-toolbar-meta:  color-mix(in srgb, var(--ds-text-secondary) 82%, var(--ds-text-primary));
+
+  font-family: var(--ds-font-sans);
+  color: var(--ds-text-primary);
+  background: var(--ds-surface-ground);
+}
+
+[data-theme='light'] .fx-shell {
+  /* Sunken polarity flip + tighter idle-icon tone for light mode.
+     Everything else inherits via the --ds-* cascade. */
+  --fx-bg-sunken: var(--ds-surface-secondary);
+  --fx-icon-rest: color-mix(in srgb, var(--ds-text-primary) 56%, transparent);
+}
+
+/* ─── Shell ─────────────────────────────────────────────────────── */
+
+.fx-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Toolbar variant — two labeled-group rows that reflow with width.
+   Row 1: scope + typography + colour.
+   Row 2: number format + editor/filter + templates + clear.
+   Each row WRAPS: when a row's groups can't all fit, whole labeled
+   groups drop to a new line (never split mid-group) instead of growing
+   a horizontal scrollbar. The toolbar grows taller, never sideways. */
+.fx-shell--horizontal {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 48px 8px 12px;
+  min-height: 56px;
+  background: var(--ds-surface-sunken);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Two-row scaffold — replaces accidental flex-wrap wrapping. */
+.fx-toolbar-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fx-toolbar-row {
+  display: flex;
+  align-items: center;
+  /* Reflow whole groups onto new lines instead of scrolling. `row-gap`
+   * gives wrapped lines breathing room that matches the inter-row gap
+   * of the two-row scaffold, so a wrapped group reads as a natural
+   * continuation rather than a cramped overflow. */
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 6px;
+  min-height: var(--fx-pill-h);
+  min-width: 0;
+}
+
+/* Labeled cluster — label + controls inline; no outer box chrome. */
+.fx-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--fx-pill-h);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  flex-shrink: 0;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.fx-toolbar-group__label {
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fx-toolbar-label);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  padding-right: 2px;
+  flex-shrink: 0;
+}
+
+.fx-toolbar-group__body {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+/* Scope strip fills the group so undo/redo can pin to the trailing edge. */
+.fx-toolbar-group[data-testid='fmt-group-scope'] .fx-toolbar-group__body {
+  flex: 1;
+  min-width: 0;
+}
+.fx-toolbar-group[data-testid='fmt-group-scope'] .fx-ctx {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Destruct cluster — label tint only (no enclosing box). */
+.fx-toolbar-group--destruct {
+  border: none;
+  background: transparent;
+}
+.fx-toolbar-group--destruct .fx-toolbar-group__label {
+  color: color-mix(in srgb, var(--ds-accent-negative) 72%, var(--fx-toolbar-label));
+}
+
+/* Inside a group, modules stay unstyled — pills provide per-control chrome. */
+.fx-toolbar-group .fx-module {
+  min-height: 0;
+}
+.fx-toolbar-group .fx-module__body {
+  gap: 6px;
+}
+
+/* Undo/redo pinned to the trailing edge of the scope strip. */
+.fx-ctx__history {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ─── Vertical popout — panel header, section cards, footer ─────── */
+
+.fx-panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ds-border-primary);
+  background: var(--ds-surface-ground);
+}
+
+/* The header reuses a PanelGroup but renders flat — the panel window's own
+   chrome is the only frame, so no nested sunken card here. */
+.fx-panel-header .fx-panel-group {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.fx-panel-header .fx-panel-group__label {
+  padding: 0 0 10px;
+  border-bottom: none;
+}
+.fx-panel-header .fx-panel-group__body {
+  padding: 0;
+}
+
+.fx-panel-header .fx-ctx {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  position: static;
+  top: auto;
+  flex-wrap: wrap;
+  row-gap: 8px;
+  column-gap: 10px;
+  border-bottom: none;
+  background: transparent;
+}
+
+.fx-panel-header .fx-col {
+  flex: 1 1 160px;
+  min-width: 120px;
+  max-width: none;
+}
+
+.fx-panel-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+/* Flat sections — a single hairline divides them, no nested cards, so each
+   section is only as tall as its controls. One 16px gutter throughout keeps
+   every label and control aligned to the same edge. */
+.fx-panel-group {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  padding: 11px 16px;
+}
+.fx-panel-sections > .fx-panel-group + .fx-panel-group {
+  border-top: 1px solid color-mix(in srgb, var(--ds-border-primary) 55%, transparent);
+}
+
+.fx-panel-group__label {
+  display: block;
+  margin: 0 0 9px;
+  padding: 0;
+  font-family: var(--ds-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ds-text-faint);
+  line-height: 1;
+  border-bottom: none;
+  user-select: none;
+}
+
+.fx-panel-group__body {
+  padding: 0;
+}
+
+.fx-panel-group--destruct {
+  border-color: color-mix(in srgb, var(--ds-accent-negative) 28%, var(--ds-border-primary));
+  background: color-mix(in srgb, var(--ds-accent-negative) 4%, var(--fx-bg-sunken));
+}
+.fx-panel-group--destruct .fx-panel-group__label {
+  color: color-mix(in srgb, var(--ds-accent-negative) 72%, var(--fx-toolbar-label));
+}
+
+/* Flatten the inner module box inside a panel card — the PanelGroup is the
+   single enclosure; the module just lays out its controls (eyebrow hidden
+   globally below, so each section has one header: the PanelGroup label). */
+.fx-panel-group .fx-module {
+  display: block;
+  padding: 0;
+  border-bottom: none;
+}
+.fx-panel-group .fx-module__body {
+  gap: 8px;
+}
+
+.fx-footer .fx-panel-group {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+}
+.fx-footer .fx-panel-group__label {
+  padding: 0 0 8px;
+  border-bottom: none;
+}
+.fx-footer .fx-panel-group__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+/* Panel variant — full vertical layout.
+ *
+ * `width: 100%` + `overflow: hidden` make the panel responsive to its
+ * container (the popout window's body). Without these, a header item
+ * that doesn't fit at the current width would expand the panel past
+ * 100% of the body, producing horizontal scrollbars on the popout
+ * itself. Internal scrolling lives on `.fx-body` (vertical only) and
+ * any narrow-viewport overflow in the header is clipped there.
+ *
+ * `min-width: 0` / `min-height: 0` let nested flex items honor the
+ * shrink rules — the column-label chip and module trail need to be
+ * compressible, not forced to their content width.
+ */
+.fx-shell--vertical {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--ds-surface-ground);
+}
+
+/* ─── Module ────────────────────────────────────────────────────── */
+
+.fx-module {
+  display: flex;
+  align-items: center;
+  gap: var(--fx-px-tight);
+}
+
+.fx-shell--horizontal .fx-module {
+  min-height: var(--fx-pill-h);
+}
+
+/* Horizontal mode — pills stay as individual outlined chips inside the
+ * module, with comfortable breathing room between them. The module
+ * itself stays unstyled (no container chrome) so adjacent modules
+ * separate visually via the `.fx-divider` element only. */
+.fx-shell--horizontal .fx-module__body {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Vertical-mode module — the PanelGroup now owns the section padding +
+   hairline divider, so the module is just a flush controls container. */
+.fx-shell--vertical .fx-module {
+  display: block;
+  padding: 0;
+  border-bottom: none;
+}
+
+/* Module eyebrow — `01 · CONTEXT` style, monospace tracked-out. */
+.fx-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--fx-eyebrow-fs);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fx-toolbar-label);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+.fx-eyebrow__num {
+  color: var(--ds-primary);
+  font-weight: 600;
+}
+.fx-eyebrow__sep {
+  opacity: 0.6;
+}
+
+/* The section eyebrows (`02 · TYPE`, `03 · PAINT`, …) duplicate the labels
+ * already provided by the ToolbarGroup (horizontal) and PanelGroup
+ * (vertical), so they're hidden in both orientations — the surrounding
+ * group label is the single section header. Kept in the DOM for
+ * `data-module-index` hooks. */
+.fx-eyebrow {
+  display: none;
+}
+
+/* ─── Format readout — scope summary + live sample ───────────────── */
+.fx-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 200px;
+}
+/* In the vertical panel the readout drops onto its own full-width line
+   under the scope toggles, so it never collides with the section divider. */
+.fx-shell--vertical .fx-readout {
+  flex-basis: 100%;
+  max-width: none;
+  margin-top: 2px;
+}
+
+.fx-module__body {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: var(--fx-px-tight);
+}
+
+.fx-shell--vertical .fx-module__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Hairline between sub-groups inside a module. */
+.fx-hair {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: color-mix(in srgb, var(--ds-border-secondary) 88%, var(--ds-text-primary));
+  margin: 0 5px;
+  flex-shrink: 0;
+  opacity: 1;
+}
+
+/* `.fx-pill` / `.fx-pill--text` / `.fx-pill--narrow` moved to
+   primitives.tsx as the `pillClasses(variant)` helper. Consumers
+   (Pill component + raw `<button>` popover triggers) apply the
+   same Tailwind class chain so visuals stay in lock-step without
+   the cascade-conflict bug that the formatter.css version had. */
+
+/* Shared icon polish for the remaining fx-* chips that still live
+   in CSS (.fx-scope, .fx-popout). */
+.fx-scope > svg,
+.fx-popout > svg {
+  display: block;
+  flex-shrink: 0;
+  color: var(--fx-icon-rest);
+  filter: none;
+  opacity: 0.96;
+  stroke-width: 2;
+  transition: color 120ms, opacity 120ms;
+}
+.fx-scope:hover > svg,
+.fx-popout:hover > svg {
+  color: var(--ds-text-primary);
+  filter: none;
+  opacity: 1;
+}
+
+/* `.fx-split` moved to primitives.tsx as a thin re-export over
+   shadcn's `<ButtonGroup>`. The wrapper handles outer-corner radius,
+   inner-corner squaring, and the -1px gap that joins child borders. */
+
+/* ─── Context strip — target/scope segments + column label + lock + history ─ */
+
+.fx-ctx {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* `.fx-seg` / `.fx-seg__opt` moved to primitives.tsx (SegmentedToggle)
+   as Tailwind utilities resolving through `@wellsfargo-starui/design-system`
+   tokens. The hand-rolled mousedown-driven radiogroup is preserved
+   (radix ToggleGroup is click-driven, which conflicts with the popover
+   focus-trap survival contract that the formatter tests assert). */
+
+/* (No scope-aware disabled rules here — per-pill `disabled` handles
+   greying out individually. Reserved for future overrides if needed.) */
+
+/* Vertical context strip = sticky header.
+ *
+ * `min-width: 0` + `overflow: hidden` keep the strip clipped to the
+ * panel's width even when the user shrinks the popout below the
+ * comfortable default — items further to the right (preview pill,
+ * module trail) start clipping behind a hidden edge instead of
+ * pushing the parent wider. Combined with `.fx-shell--vertical`'s
+ * own `overflow: hidden`, this guarantees the OS popout window
+ * never grows scrollbars on its body.
+ */
+/* The sticky chrome (border, background, padding) now lives on
+   `.fx-panel-header`; inside it the context row is a plain wrapping flex
+   line that grows to fit the scope toggles + the readout's own line. */
+.fx-shell--vertical .fx-ctx {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border-bottom: none;
+  background: transparent;
+  position: static;
+  flex-wrap: wrap;
+  row-gap: 8px;
+  column-gap: 10px;
+  min-width: 0;
+  overflow: visible;
+}
+
+/* Column label readout — secondary readout tier (11px mono, muted ink). */
+.fx-col {
+  box-sizing: border-box;
+  border-radius: var(--fx-radius);
+  background: color-mix(in srgb, var(--fx-bg-sunken) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-border-secondary) 72%, var(--ds-text-primary));
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: border-color 120ms, background 120ms, color 120ms;
+}
+.fx-shell--vertical .fx-col {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+.fx-col__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ds-primary);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--ds-primary) 55%, transparent);
+  flex-shrink: 0;
+  animation: fxLivePulse 2s ease-in-out infinite;
+}
+.fx-col[data-disabled='true'] .fx-col__dot {
+  background: var(--ds-text-faint);
+  box-shadow: none;
+  animation: none;
+}
+.fx-col[data-disabled='true'] {
+  color: var(--ds-text-faint);
+}
+.fx-col__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+}
+
+/* Editable column-label chip — same dimensions as `.fx-col`, but
+ * rendered as a button so a single click commits the user into the
+ * inline rename input. The edit pencil is muted until hover so the
+ * chip stays clean when the user is just reading the active column. */
+.fx-col--editable {
+  cursor: text;
+}
+.fx-col--editable:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ds-primary-ring) 70%, var(--ds-border-secondary));
+  background: color-mix(in srgb, var(--ds-primary-soft) 35%, var(--fx-bg-sunken));
+  color: var(--ds-text-primary);
+}
+.fx-col--editable:disabled {
+  cursor: not-allowed;
+}
+.fx-col__edit {
+  color: var(--ds-text-faint);
+  opacity: 0.45;
+  flex-shrink: 0;
+  transition: color 120ms, opacity 120ms;
+}
+.fx-col--editable:hover:not(:disabled) .fx-col__edit {
+  color: var(--ds-primary);
+  opacity: 0.85;
+}
+
+/* `.fx-col-input` moved to ModuleContext.tsx as a shadcn `<Input>`
+   styled via Tailwind utilities + `@wellsfargo-starui/design-system` tokens. */
+
+@keyframes fxLivePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(1.2); }
+}
+
+/* Scope toggle — CELL ⇄ HEADER pill. */
+.fx-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--fx-pill-h);
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--fx-radius);
+  font-family: var(--ds-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ds-primary);
+  cursor: pointer;
+  transition: all 120ms;
+  white-space: nowrap;
+}
+.fx-scope:hover {
+  border-color: var(--ds-primary-ring);
+  background: var(--ds-primary-soft);
+}
+.fx-scope__swap {
+  opacity: 0.5;
+  transition: transform 200ms, opacity 200ms;
+}
+.fx-scope:hover .fx-scope__swap {
+  opacity: 1;
+  transform: rotate(180deg);
+}
+
+/* ─── Preview readout — phosphor amber, tabular-num. ─────────────── */
+
+.fx-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--fx-pill-h);
+  padding: 0 10px;
+  border-radius: var(--fx-radius);
+  background: var(--ds-overlay-warning-soft);
+  border: 1px solid var(--ds-overlay-warning-ring);
+  font-family: var(--ds-font-mono);
+  font-size: var(--fx-readout-fs);
+  color: var(--ds-accent-warning);
+  font-variant-numeric: tabular-nums;
+  max-width: 240px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fx-preview__lbl {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ds-accent-warning);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.fx-preview__val {
+  color: var(--ds-accent-warning);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Hairline divider between modules in horizontal mode. ──────── */
+
+.fx-shell--horizontal > .fx-divider {
+  width: 1px;
+  align-self: center;
+  height: 18px;
+  background: color-mix(in srgb, var(--ds-border-primary) 70%, transparent);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+.fx-shell--vertical > .fx-divider {
+  display: none;
+}
+
+/* Menu / MenuItem / MenuSep moved to primitives.tsx as Tailwind
+   utilities resolving through `@wellsfargo-starui/design-system` tokens. The
+   `.fx-menu*` rules used to live here. */
+
+/* ─── Pop-out trigger ──────────────────────────────────────────── */
+
+.fx-popout {
+  position: absolute;
+  /* Vertically centred on the full toolbar (one or two rows). */
+  top: 50%;
+  transform: translateY(-50%);
+  right: 12px;
+  width: var(--fx-pill-h);
+  height: var(--fx-pill-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: var(--fx-radius);
+  background: var(--ds-surface-primary);
+  color: var(--fx-toolbar-meta);
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+  z-index: 3;
+}
+
+.fx-popout::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--ds-border-primary);
+  pointer-events: none;
+}
+
+.fx-popout:hover {
+  color: var(--ds-primary);
+  border-color: var(--ds-primary-ring);
+  background: var(--ds-primary-soft);
+}
+
+/* ─── Vertical-mode body / scroll container ────────────────────── */
+
+.fx-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-border-secondary) transparent;
+}
+.fx-body::-webkit-scrollbar {
+  width: 8px;
+}
+.fx-body::-webkit-scrollbar-thumb {
+  background: var(--ds-border-secondary);
+  border-radius: var(--fx-radius);
+}
+.fx-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Vertical-mode footer — destruct zone. */
+.fx-footer {
+  padding: 14px 16px;
+  border-top: 1px solid var(--ds-border-primary);
+  background: var(--ds-surface-ground);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* `.fx-destruct` moved to ModuleClear.tsx as a shadcn `<Button
+   variant="outline">` styled via Tailwind utilities + design-system
+   tokens (destructive border/text, primary tint on confirmed state). */
+
+/* ─── Title bar (vertical / popped, OpenFin frameless mode) ────── */
+
+.fx-titlebar {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ds-border-primary);
+  /* A distinct, lighter design-system surface so the title bar reads as
+     window chrome, set apart from the `--ds-surface-ground` content below. */
+  background: var(--ds-surface-secondary);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-text-muted);
+  overflow: hidden;
+}
+/* Long gridIds (UUIDs) ellipsize instead of pushing the close button
+ * off-screen. The text label takes the available space, the close
+ * button keeps its fixed width on the right. */
+.fx-titlebar > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-titlebar__close {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--fx-radius);
+  transition: all 120ms;
+}
+.fx-titlebar__close:hover {
+  background: color-mix(in srgb, var(--ds-accent-negative) 18%, transparent);
+  color: var(--ds-accent-negative);
+}
+
+/* ─── Dropdown menu typography ──────────────────────────────────
+   Apply `fx-menu` to any shadcn `<DropdownMenuContent>` opened from
+   the toolbar so menu items match the 11px dock baseline instead of
+   the default `text-sm` (14px). Tighten padding to keep rows dense
+   without breaking the click target. */
+.fx-menu [role='menuitem'] {
+  font-size: 11px;
+  line-height: 1.2;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* ─── Stagger reveal on popout open ────────────────────────────── */
+
+.fx-shell--vertical .fx-panel-sections > .fx-panel-group {
+  opacity: 0;
+  transform: translateY(4px);
+  animation: fxReveal 240ms ease-out forwards;
+}
+.fx-shell--vertical .fx-panel-sections > .fx-panel-group:nth-child(1) { animation-delay: 40ms; }
+.fx-shell--vertical .fx-panel-sections > .fx-panel-group:nth-child(2) { animation-delay: 80ms; }
+.fx-shell--vertical .fx-panel-sections > .fx-panel-group:nth-child(3) { animation-delay: 120ms; }
+.fx-shell--vertical .fx-panel-sections > .fx-panel-group:nth-child(4) { animation-delay: 160ms; }
+.fx-shell--vertical .fx-panel-sections > .fx-panel-group:nth-child(5) { animation-delay: 200ms; }
+
+@keyframes fxReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-col__dot,
+  .fx-shell--vertical .fx-panel-sections > .fx-panel-group,
+  .fx-pill,
+  .fx-scope__swap {
+    animation: none !important;
+    transition: none !important;
+  }
+}

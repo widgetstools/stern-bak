@@ -1,0 +1,42 @@
+import { useEffect, useState } from 'react';
+import { MarketsGrid } from '@wellsfargo-starui/grid';
+import { useProviderStream } from '@wellsfargo-starui/host-data-react';
+import { applyDelta } from './data/applyDelta';
+import { positionColumnDefs } from './data/positionColumns';
+
+const MOCK_CFG = {
+  dataType: 'positions' as const,
+  rowCount: 200,
+  updateIntervalMs: 500,
+  enableUpdates: true,
+};
+
+/** Mock streaming grid — SharedWorker via useProviderStream. */
+export function App() {
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+
+  useProviderStream('mock-positions', MOCK_CFG, {
+    onDelta: (batch) => {
+      setRows((prev) => applyDelta(prev, batch.rows, 'positionId'));
+    },
+  });
+
+  useEffect(() => {
+    setRows([]);
+  }, []);
+
+  return (
+    <div className="flex h-screen flex-col bg-[color:var(--ds-surface-ground)] p-3">
+      <MarketsGrid
+        gridId="{{gridId}}"
+        rowData={rows}
+        columnDefs={positionColumnDefs}
+        rowIdField="positionId"
+        componentName="Mock Positions"
+        {{#each gridPropsLines}}
+        {{{this}}}
+        {{/each}}
+      />
+    </div>
+  );
+}

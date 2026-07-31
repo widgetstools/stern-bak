@@ -1,0 +1,56 @@
+{
+  "name": "@wellsfargo-starui/host-data-react",
+  "version": "0.1.0",
+  "private": true,
+  "description": "React bindings for @wellsfargo-starui/host-data",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.26",
+    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/host-data": "*",
+    "@wellsfargo-starui/types": "*",
+    "@wellsfargo-starui/ui": "*",
+    "lucide-react": "^0.554.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.0.2",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Table outline -->
+  <rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Header row fill -->
+  <rect x="2" y="3" width="20" height="4" rx="2" fill="currentColor" opacity="0.15"/>
+  <!-- Header bottom line -->
+  <line x1="2" y1="7" x2="22" y2="7" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+  <!-- Block square in header -->
+  <rect x="9.5" y="3.8" width="3" height="2.8" rx="0.4" stroke="currentColor" stroke-width="0.8" fill="currentColor" opacity="0.4"/>
+  <!-- Row separators -->
+  <line x1="3" y1="12.5" x2="21" y2="12.5" stroke="currentColor" stroke-width="0.5" opacity="0.15"/>
+  <line x1="3" y1="17" x2="21" y2="17" stroke="currentColor" stroke-width="0.5" opacity="0.15"/>
+  <!-- Row 1: thick block row (large notional) -->
+  <rect x="4" y="8" width="16.5" height="3.5" rx="0.5" fill="currentColor" opacity="0.15"/>
+  <line x1="5" y1="9.8" x2="9" y2="9.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="1"/>
+  <line x1="11" y1="9.8" x2="15" y2="9.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="16.5" y1="9.8" x2="19.5" y2="9.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+  <!-- Row 2: thick block row -->
+  <rect x="4" y="13" width="16.5" height="3.2" rx="0.5" fill="currentColor" opacity="0.1"/>
+  <line x1="5" y1="14.6" x2="8.5" y2="14.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+  <line x1="11" y1="14.6" x2="14.5" y2="14.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="16.5" y1="14.6" x2="19" y2="14.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+  <!-- Row 3: thick block row -->
+  <rect x="4" y="17.5" width="16.5" height="3" rx="0.5" fill="currentColor" opacity="0.07"/>
+  <line x1="5" y1="19" x2="8" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="11" y1="19" x2="15.5" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+  <line x1="16.5" y1="19" x2="19.5" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+</svg>

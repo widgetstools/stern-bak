@@ -1,0 +1,56 @@
+{
+  "name": "@wellsfargo-starui/demo-angular",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development"
+  },
+  "private": true,
+  "packageManager": "npm@11.3.0",
+  "//dependencies-registry-notes": {
+    "description": "All packages resolve from the public npm registry. Versions are pinned to the stable line for each major rather than tracking latest, so the app does not pull bleeding-edge releases.",
+    "pinning-strategy": "Exact pins for Angular core, AG Grid, and @widgetstools dock-manager; tilde (~) for PrimeNG runtime and Chart.js. Update intentionally, not automatically.",
+    "stable-vs-latest": {
+      "@angular/*": "21.1.0 stable (public latest is 21.2.x — intentionally trailing)",
+      "@angular/build": "21.1.0 (public latest 21.2.x)",
+      "@angular/cli": "21.1.0 (public latest 21.2.x)",
+      "@primeuix/themes": "~2.0.3 (public-registry theme engine for PrimeNG 21; its @primeuix/styled ^0.7.4 dep matches primeng 21's own. Replaced the deprecated @primeng/themes wrapper, which only re-exported this package)",
+      "ag-grid-*": "35.1.0 (public latest 35.2.x)",
+      "chart.js": "~4.4.9 (public latest 4.5.x)"
+    }
+  },
+  "dependencies": {
+    "@angular/animations": "^21.2.13",
+    "@angular/cdk": "^21.2.11",
+    "@angular/common": "^21.2.13",
+    "@angular/compiler": "^21.2.13",
+    "@angular/core": "^21.2.13",
+    "@angular/forms": "^21.2.13",
+    "@angular/platform-browser": "^21.2.13",
+    "@angular/router": "^21.2.13",
+    "@primeuix/themes": "~2.0.3",
+    "@widgetstools/angular-dock-manager": "1.0.0",
+    "@widgetstools/dock-manager-core": "1.0.0",
+    "ag-grid-angular": "35.1.0",
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "autoprefixer": "^10.4.27",
+    "chart.js": "~4.4.9",
+    "postcss": "^8.5.9",
+    "primeng": "^21.1.7",
+    "rxjs": "~7.8.2",
+    "tailwindcss": "3.4.1",
+    "tailwindcss-animate": "^1.0.7",
+    "tailwindcss-primeui": "^0.6.1",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.2.11",
+    "@angular/cli": "^21.2.11",
+    "@angular/compiler-cli": "^21.2.13",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.3"
+  }
+}

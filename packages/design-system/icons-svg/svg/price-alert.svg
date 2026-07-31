@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Bell body -->
+  <path d="M10 5a2 2 0 1 1 4 0 6 6 0 0 1 4 5.65V14l1.5 2H4.5L6 14v-3.35A6 6 0 0 1 10 5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Bell clapper -->
+  <path d="M10.5 18a1.75 1.75 0 0 0 3 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Alert radiating lines -->
+  <line x1="20" y1="5" x2="22" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="20.5" y1="8" x2="22.5" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+  <line x1="20" y1="11" x2="22" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.15"/>
+</svg>

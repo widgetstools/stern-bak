@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.083Z",
+  "profile": {
+    "name": "02 · Risk desk",
+    "gridId": "lab-overview-v7",
+    "state": {
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "high-yield-watch",
+              "name": "High-yield watch",
+              "enabled": true,
+              "priority": 20,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "yieldToWorst"
+                ]
+              },
+              "expression": "value > 8",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#3a3010",
+                  "color": "#f0d878"
+                },
+                "light": {
+                  "backgroundColor": "#fbf0cf",
+                  "color": "#5d4d10"
+                }
+              },
+              "indicator": {
+                "icon": "flame",
+                "position": "top-left",
+                "target": "cells+headers",
+                "color": "#f0a576"
+              }
+            },
+            {
+              "id": "wide-spread",
+              "name": "Wide bid/ask",
+              "enabled": true,
+              "priority": 15,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "bidAskWidthBps"
+                ]
+              },
+              "expression": "value > 10",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#3a3010",
+                  "color": "#f0d878"
+                },
+                "light": {
+                  "backgroundColor": "#fbf0cf",
+                  "color": "#5d4d10"
+                }
+              },
+              "indicator": {
+                "icon": "alert-triangle",
+                "position": "bottom-left",
+                "target": "cells",
+                "color": "#f0a576"
+              }
+            },
+            {
+              "id": "junk-rating",
+              "name": "Junk-rated row",
+              "enabled": true,
+              "priority": 30,
+              "scope": {
+                "type": "row"
+              },
+              "expression": "data.compositeRating in ['BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC']",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#2a1010"
+                },
+                "light": {
+                  "backgroundColor": "#fbeaea"
+                }
+              }
+            },
+            {
+              "id": "wide-spread-expr",
+              "name": "Wide spread (cross-field)",
+              "enabled": true,
+              "priority": 18,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "bidAskWidthBps"
+                ]
+              },
+              "expression": "([askPrice] - [bidPrice]) > 0.10",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#3a3010",
+                  "color": "#f0d878"
+                },
+                "light": {
+                  "backgroundColor": "#fbf0cf",
+                  "color": "#5d4d10"
+                }
+              },
+              "indicator": {
+                "icon": "alert-triangle",
+                "position": "bottom-left",
+                "target": "cells",
+                "color": "#f0a576"
+              }
+            }
+          ]
+        }
+      },
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "yieldToMaturity": {
+              "colId": "yieldToMaturity",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"📊 \"0.000%"
+              }
+            },
+            "yieldToWorst": {
+              "colId": "yieldToWorst",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"📊 \"0.000%"
+              }
+            },
+            "oas": {
+              "colId": "oas",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Yellow]\"🔥 \"0.00\" bps\""
+              }
+            },
+            "modifiedDuration": {
+              "colId": "modifiedDuration",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "initialWidth": 90,
+              "headerName": "Dur"
+            }
+          }
+        }
+      },
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "calc_carryRisk",
+              "headerName": "Carry/Risk",
+              "expression": "IF([modifiedDuration] > 0, [yieldToMaturity] / [modifiedDuration], null)",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "position": 101,
+              "initialWidth": 110
+            },
+            {
+              "colId": "calc_dollarDur",
+              "headerName": "Dollar Dur",
+              "expression": "[marketValue] * [modifiedDuration] / 100",
+              "cellDataType": "currency",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "currency",
+                "options": {
+                  "maximumFractionDigits": 0
+                }
+              },
+              "position": 102,
+              "initialWidth": 130
+            }
+          ]
+        }
+      }
+    }
+  }
+}

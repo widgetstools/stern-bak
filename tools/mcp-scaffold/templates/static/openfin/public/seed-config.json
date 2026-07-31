@@ -1,0 +1,89 @@
+{
+  "permissions": [
+    {
+      "permissionId": "config:read",
+      "description": "View component configurations",
+      "category": "config"
+    },
+    {
+      "permissionId": "config:write",
+      "description": "Create and update component configurations",
+      "category": "config"
+    },
+    {
+      "permissionId": "config:delete",
+      "description": "Delete component configurations",
+      "category": "config"
+    },
+    {
+      "permissionId": "snapshot:read",
+      "description": "View workspace snapshots",
+      "category": "snapshot"
+    },
+    {
+      "permissionId": "snapshot:write",
+      "description": "Save workspace snapshots",
+      "category": "snapshot"
+    },
+    {
+      "permissionId": "admin:users",
+      "description": "Manage user profiles and role assignments",
+      "category": "admin"
+    },
+    {
+      "permissionId": "admin:roles",
+      "description": "Manage role definitions and permissions",
+      "category": "admin"
+    }
+  ],
+  "roles": [
+    {
+      "roleId": "admin",
+      "displayName": "Administrator",
+      "permissionIds": [
+        "config:read",
+        "config:write",
+        "config:delete",
+        "snapshot:read",
+        "snapshot:write",
+        "admin:users",
+        "admin:roles"
+      ]
+    },
+    {
+      "roleId": "developer",
+      "displayName": "Developer",
+      "permissionIds": [
+        "config:read",
+        "config:write",
+        "snapshot:read",
+        "snapshot:write"
+      ]
+    },
+    {
+      "roleId": "viewer",
+      "displayName": "Viewer",
+      "permissionIds": [
+        "config:read",
+        "snapshot:read"
+      ]
+    }
+  ],
+  "appRegistry": [
+    {
+      "appId": "TestApp",
+      "displayName": "React Workspace Starter",
+      "manifestUrl": "http://localhost:5174/platform/manifest.fin.json",
+      "configServiceEnabled": false,
+      "environment": "dev"
+    }
+  ],
+  "userProfiles": [
+    {
+      "userId": "dev1",
+      "appId": "TestApp",
+      "roleIds": ["admin", "developer"],
+      "displayName": "Developer"
+    }
+  ]
+}

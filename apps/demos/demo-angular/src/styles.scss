@@ -1,0 +1,275 @@
+@import '@wellsfargo-starui/design-system/css';
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+// Import FI Design System tokens (repo root is four levels above `src/`)
+@import '../../../../packages/design-system/design-system/src/themes/fi-dark.css';
+@import '../../../../packages/design-system/design-system/src/themes/fi-light.css';
+
+// Import dock manager styles
+@import '@widgetstools/dock-manager-core/styles.css';
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: var(--ds-font-size-body);
+}
+
+
+// ── Font utilities ──
+.font-mono-fi { font-family: var(--ds-font-mono); }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-medium { font-weight: 500; }
+
+// ── Tab navigation ──
+.bn-tab {
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ds-text-secondary);
+  background: transparent;
+  border: none;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 150ms ease, border-color 150ms ease;
+  white-space: nowrap;
+  &:hover { color: var(--ds-text-primary); }
+  &.active {
+    color: var(--ds-text-primary);
+    border-bottom-color: var(--ds-accent-info);
+  }
+}
+
+// ── Pill action toggle ──
+.pact {
+  font-family: var(--ds-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ds-text-secondary);
+  background: transparent;
+  border: 1px solid var(--ds-border-secondary);
+  border-radius: 2px;
+  padding: 2px 8px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: background 150ms ease, color 150ms ease;
+  &:hover {
+    background: var(--ds-surface-tertiary);
+    color: var(--ds-text-primary);
+  }
+}
+
+// ── Price input ──
+.price-input {
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--ds-border-secondary);
+  background: var(--ds-surface-secondary);
+  color: var(--ds-text-primary);
+  outline: none;
+  &:focus { border-color: var(--ds-accent-info); }
+}
+
+// ── Buy / Sell CTA buttons ──
+.btn-buy {
+  width: 100%;
+  padding: 8px;
+  border-radius: 3px;
+  border: none;
+  background: var(--ds-overlay-positive-soft);
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+.btn-sell {
+  width: 100%;
+  padding: 8px;
+  border-radius: 3px;
+  border: none;
+  background: var(--ds-overlay-negative-soft);
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+// ── Order type tab ──
+.order-type-tab {
+  font-family: var(--ds-font-mono);
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+  &:hover { color: var(--ds-text-secondary); }
+}
+
+// ── Status badges ──
+.badge-filled   { background: var(--ds-overlay-positive-soft); color: var(--ds-accent-positive); border: 1px solid var(--ds-overlay-positive-ring); }
+.badge-partial  { background: var(--ds-overlay-warning-soft);  color: var(--ds-accent-warning); border: 1px solid var(--ds-overlay-warning-ring);  }
+.badge-new      { background: var(--ds-overlay-info-soft);     color: var(--ds-accent-info);  border: 1px solid var(--ds-overlay-info-ring);     }
+.badge-cancel   { background: var(--ds-overlay-negative-soft); color: var(--ds-accent-negative);   border: 1px solid var(--ds-overlay-negative-ring); }
+
+// ── Panel header helpers ──
+.ph-title {
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  letter-spacing: 0.04em;
+}
+.col-hdr {
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  color: var(--ds-text-secondary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+// ── Order book grid columns ──
+.ob-grid-cols { grid-template-columns: 48px 1fr 1fr 70px 70px 52px; }
+.ob-trades-cols { grid-template-columns: 40px 48px 1fr 1fr 60px 64px; }
+
+// ── Order book row backgrounds ──
+.ob-row-ask {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: var(--fill-pct, 0%);
+    background: var(--ob-ask-fill);
+    pointer-events: none;
+  }
+}
+.ob-row-bid {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: var(--fill-pct, 0%);
+    background: var(--ob-bid-fill);
+    pointer-events: none;
+  }
+}
+
+// ── RFQ quote arrival animation ──
+@keyframes rfqArrive {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rfq-arrive { animation: rfqArrive 0.3s ease forwards; }
+
+// ── Live dot pulse ──
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.live-dot { animation: livePulse 2s ease-in-out infinite; }
+
+// ── Utility: flex helpers (inline replacement for Tailwind) ──
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1; }
+.flex-shrink-0 { flex-shrink: 0; }
+.items-center { align-items: center; }
+.items-stretch { align-items: stretch; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.overflow-hidden { overflow: hidden; }
+.overflow-y-auto { overflow-y: auto; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.text-xs { font-size: 11px; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.border-b { border-bottom: 1px solid var(--ds-border-primary); }
+.border-t { border-top: 1px solid var(--ds-border-primary); }
+.border-r { border-right: 1px solid var(--ds-border-primary); }
+.rounded-sm { border-radius: 2px; }
+.rounded { border-radius: 4px; }
+.px-2 { padding-left: 8px; padding-right: 8px; }
+.px-3 { padding-left: 12px; padding-right: 12px; }
+.px-4 { padding-left: 16px; padding-right: 16px; }
+.py-1 { padding-top: 4px; padding-bottom: 4px; }
+.py-2 { padding-top: 8px; padding-bottom: 8px; }
+.ml-auto { margin-left: auto; }
+.mr-auto { margin-right: auto; }
+.whitespace-nowrap { white-space: nowrap; }
+.cursor-pointer { cursor: pointer; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+// ── Grid helpers ──
+.grid { display: grid; }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+// ── Light mode enhancements ──
+
+// Nav bar shadow for depth separation
+[data-theme="light"] [data-nav] {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+// Panel elevation with subtle shadows
+[data-theme="light"] .dock-manager-container [data-panel] {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+}
+
+// Light-mode badge visibility (vibrant colors on white)
+// Light-theme badge overrides removed — the base rules above now consume
+// --bn-*-soft/ring overlay tokens, which re-resolve per theme.
+
+// Active filter pill emphasis
+.pact.on { font-weight: 600; }
+
+// ── Accessibility ──
+
+// Visible focus ring for keyboard navigation
+:focus-visible {
+  outline: 2px solid var(--ds-accent-info);
+  outline-offset: 2px;
+}
+button:focus-visible,
+[role="tab"]:focus-visible,
+.bn-tab:focus-visible {
+  outline: 2px solid var(--ds-accent-info);
+  outline-offset: -1px;
+}
+// Remove outline for mouse clicks
+:focus:not(:focus-visible) {
+  outline: none;
+}

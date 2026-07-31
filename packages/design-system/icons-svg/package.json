@@ -1,0 +1,55 @@
+{
+  "name": "@wellsfargo-starui/icons-svg",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Framework-agnostic SVG icons for capital markets apps. Includes React and Angular bindings.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./angular": "./angular/index.ts",
+    "./all-icons": {
+      "types": "./dist/allIcons.d.ts",
+      "import": "./dist/allIcons.js"
+    },
+    "./svg/*": "./svg/*"
+  },
+  "files": [
+    "dist",
+    "svg/**/*.svg",
+    "angular/**/*"
+  ],
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@lucide/angular": "^1.17.0",
+    "lucide-react": "^0.554.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.5"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

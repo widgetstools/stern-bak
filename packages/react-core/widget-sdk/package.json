@@ -1,0 +1,53 @@
+{
+  "name": "@wellsfargo-starui/widget-sdk",
+  "version": "1.0.0",
+  "description": "Star Widget SDK \u2014 React hooks, WidgetHost, and extensibility over @wellsfargo-starui/widget",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc",
+    "watch": "tsc --watch",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@wellsfargo-starui/shared-types": "*",
+    "@tanstack/react-query": "^5.80.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/widget": "*",
+    "@wellsfargo-starui/widget-browser": "*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3"
+  },
+  "keywords": [
+    "star",
+    "widget",
+    "sdk",
+    "useWidget",
+    "platform-adapter"
+  ],
+  "author": "Star Development Team",
+  "license": "MIT",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist"
+  ]
+}

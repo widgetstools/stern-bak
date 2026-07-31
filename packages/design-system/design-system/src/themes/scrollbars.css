@@ -1,0 +1,82 @@
+/**
+ * scrollbars.css — theme-flipping scrollbar utilities.
+ *
+ * Two utility classes:
+ *   .scrollbar-themed  — full-thickness scrollbar that picks up the
+ *                        active theme's `--scrollbar-thumb` token.
+ *   .scrollbar-thin    — slim 6px variant for chrome-light surfaces
+ *                        (toolbars, dropdown lists, sidebars).
+ *
+ * Both implementations use the standard CSS Scrollbars API for
+ * Firefox (`scrollbar-width` + `scrollbar-color`) plus
+ * `::-webkit-scrollbar` selectors for Chromium/WebKit. Colors come
+ * from CSS variables defined in fi-dark.css / fi-light.css, so
+ * flipping `data-theme` flips the scrollbar without a layout pass.
+ *
+ * Usage:
+ *   <div className="scrollbar-themed overflow-auto"> … </div>
+ *
+ * Note: shadcn's `<ScrollArea>` overlays its own thumb track and
+ * doesn't need these classes — it picks up the same token via its
+ * built-in styling. Use this utility on plain `overflow-auto`
+ * surfaces (textareas, raw divs, AG-Grid sidebar, etc.).
+ */
+
+.scrollbar-themed {
+  scrollbar-width: auto;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.scrollbar-themed::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.scrollbar-themed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-themed::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 2px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.scrollbar-themed::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb);
+  filter: brightness(1.15);
+}
+
+.scrollbar-themed::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Thin variant ── */
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.15);
+}
+
+.scrollbar-thin::-webkit-scrollbar-corner {
+  background: transparent;
+}

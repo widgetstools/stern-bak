@@ -1,0 +1,5 @@
+{
+  "extends": "../../angular-core/tsconfig.angular.json",
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.spec.ts"]
+}

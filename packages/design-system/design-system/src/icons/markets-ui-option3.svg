@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- OPTION 3: Intersecting yield curves on a matrix grid -->
+  <defs>
+    <clipPath id="clip3"><rect width="512" height="512" rx="108"/></clipPath>
+    <linearGradient id="g3bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0c1222"/><stop offset="100%" stop-color="#162032"/>
+    </linearGradient>
+    <linearGradient id="g3curve1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="g3curve2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="g3fill1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.2"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="g3fill2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.15"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow3" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+      <feComposite in="SourceGraphic" in2="b" operator="over"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#clip3)">
+    <rect width="512" height="512" fill="url(#g3bg)"/>
+
+    <!-- Dense dot matrix grid — data/terminal aesthetic -->
+    <g fill="#334155" opacity="0.35">
+      <!-- Row 1 -->
+      <circle cx="80" cy="80" r="2"/><circle cx="128" cy="80" r="2"/><circle cx="176" cy="80" r="2"/>
+      <circle cx="224" cy="80" r="2"/><circle cx="272" cy="80" r="2"/><circle cx="320" cy="80" r="2"/>
+      <circle cx="368" cy="80" r="2"/><circle cx="416" cy="80" r="2"/>
+      <!-- Row 2 -->
+      <circle cx="80" cy="144" r="2"/><circle cx="128" cy="144" r="2"/><circle cx="176" cy="144" r="2"/>
+      <circle cx="224" cy="144" r="2"/><circle cx="272" cy="144" r="2"/><circle cx="320" cy="144" r="2"/>
+      <circle cx="368" cy="144" r="2"/><circle cx="416" cy="144" r="2"/>
+      <!-- Row 3 -->
+      <circle cx="80" cy="208" r="2"/><circle cx="128" cy="208" r="2"/><circle cx="176" cy="208" r="2"/>
+      <circle cx="224" cy="208" r="2"/><circle cx="272" cy="208" r="2"/><circle cx="320" cy="208" r="2"/>
+      <circle cx="368" cy="208" r="2"/><circle cx="416" cy="208" r="2"/>
+      <!-- Row 4 -->
+      <circle cx="80" cy="272" r="2"/><circle cx="128" cy="272" r="2"/><circle cx="176" cy="272" r="2"/>
+      <circle cx="224" cy="272" r="2"/><circle cx="272" cy="272" r="2"/><circle cx="320" cy="272" r="2"/>
+      <circle cx="368" cy="272" r="2"/><circle cx="416" cy="272" r="2"/>
+      <!-- Row 5 -->
+      <circle cx="80" cy="336" r="2"/><circle cx="128" cy="336" r="2"/><circle cx="176" cy="336" r="2"/>
+      <circle cx="224" cy="336" r="2"/><circle cx="272" cy="336" r="2"/><circle cx="320" cy="336" r="2"/>
+      <circle cx="368" cy="336" r="2"/><circle cx="416" cy="336" r="2"/>
+      <!-- Row 6 -->
+      <circle cx="80" cy="400" r="2"/><circle cx="128" cy="400" r="2"/><circle cx="176" cy="400" r="2"/>
+      <circle cx="224" cy="400" r="2"/><circle cx="272" cy="400" r="2"/><circle cx="320" cy="400" r="2"/>
+      <circle cx="368" cy="400" r="2"/><circle cx="416" cy="400" r="2"/>
+    </g>
+
+    <!-- Yield curve 1 (cyan) — filled area underneath -->
+    <path d="M60,340 C120,320 180,260 240,220 C300,180 360,170 440,165 L440,420 L60,420 Z" fill="url(#g3fill1)"/>
+    <!-- Yield curve 1 — line -->
+    <path d="M60,340 C120,320 180,260 240,220 C300,180 360,170 440,165"
+      stroke="url(#g3curve1)" stroke-width="4" stroke-linecap="round" fill="none" filter="url(#glow3)"/>
+
+    <!-- Yield curve 2 (violet) — inverted, crossing curve 1 -->
+    <path d="M60,180 C120,200 180,280 240,300 C300,320 380,290 440,260 L440,420 L60,420 Z" fill="url(#g3fill2)"/>
+    <!-- Yield curve 2 — line -->
+    <path d="M60,180 C120,200 180,280 240,300 C300,320 380,290 440,260"
+      stroke="url(#g3curve2)" stroke-width="4" stroke-linecap="round" fill="none" filter="url(#glow3)"/>
+
+    <!-- Intersection point — glowing node -->
+    <circle cx="210" cy="265" r="10" fill="#22d3ee" opacity="0.3"/>
+    <circle cx="210" cy="265" r="5" fill="#ffffff" opacity="0.9"/>
+
+    <!-- Second intersection -->
+    <circle cx="355" cy="260" r="10" fill="#a78bfa" opacity="0.3"/>
+    <circle cx="355" cy="260" r="5" fill="#ffffff" opacity="0.9"/>
+
+    <!-- Data point highlights on curve 1 -->
+    <circle cx="120" cy="320" r="4" fill="#22d3ee" opacity="0.7"/>
+    <circle cx="240" cy="220" r="4" fill="#22d3ee" opacity="0.7"/>
+    <circle cx="360" cy="170" r="4" fill="#22d3ee" opacity="0.7"/>
+
+    <!-- Data point highlights on curve 2 -->
+    <circle cx="120" cy="200" r="4" fill="#a78bfa" opacity="0.7"/>
+    <circle cx="300" cy="320" r="4" fill="#a78bfa" opacity="0.7"/>
+    <circle cx="440" cy="260" r="4" fill="#a78bfa" opacity="0.7"/>
+
+    <!-- Axis lines -->
+    <line x1="60" y1="420" x2="452" y2="420" stroke="#475569" stroke-width="1.5" opacity="0.4"/>
+    <line x1="60" y1="100" x2="60" y2="420" stroke="#475569" stroke-width="1.5" opacity="0.4"/>
+
+    <!-- Thin border -->
+    <rect x="8" y="8" width="496" height="496" rx="100" fill="none" stroke="#22d3ee" stroke-width="1" opacity="0.12"/>
+  </g>
+</svg>

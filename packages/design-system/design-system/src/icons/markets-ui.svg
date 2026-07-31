@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    All 5 colors from reference:
+      #a5c3e1 pale steel blue
+      #4ba5c3 mid teal-blue
+      #2d4b69 deep slate
+      #ff870f bright orange
+      #ff0f0f bright red
+
+    Composition: 4 slanted bars forming the M.
+    - Outer uprights split into two stacked colors (pale blue top, mid blue bottom)
+      to give vertical depth, like the reference's stacked horizontal bars.
+    - Inner short bars: orange and red - the warm focal point.
+    - A slate accent bar runs along the bottom as a baseline, tying it together.
+  -->
+
+  <g>
+    <!-- Bar 1: tall left upright, split into two blues -->
+    <!-- Top half (slanted parallelogram, upper portion) -->
+    <polygon points="88,140 152,108 152,260 88,260" fill="#a5c3e1"/>
+    <!-- Bottom half -->
+    <polygon points="88,260 152,260 152,420 88,420" fill="#4ba5c3"/>
+
+    <!-- Bar 2: short inner left - bright orange -->
+    <polygon points="168,236 232,204 232,420 168,420" fill="#ff870f"/>
+
+    <!-- Bar 3: short inner right - bright red -->
+    <polygon points="248,204 312,236 312,420 248,420" fill="#ff0f0f"/>
+
+    <!-- Bar 4: tall right upright, split into two blues -->
+    <polygon points="328,108 392,140 392,260 328,260" fill="#a5c3e1"/>
+    <polygon points="328,260 392,260 392,420 328,420" fill="#4ba5c3"/>
+
+    <!-- Slate baseline accent: a horizontal bar tying everything together at the bottom -->
+    <rect x="88" y="420" width="304" height="14" fill="#2d4b69"/>
+  </g>
+</svg>

@@ -1,0 +1,958 @@
+/**
+ * grid-chrome.css — Grid Customizer popout structural chrome.
+ *
+ * Restores the structural layout classes deleted when cockpit.ts was
+ * removed (Task 17 + Phase 6 sweeps). All colour references use
+ * --ds-* unified design-system tokens — the unified CSS adapter swaps
+ * them per theme automatically, so no per-class light-mode overrides
+ * are needed.
+ *
+ * Classes covered:
+ *   .ds-sheet / .ds-sheet-v2          — token scoping + baseline reset
+ *   .ds-popout / .is-maximized / .is-popped — popout shell + animations
+ *   .ds-popout-backdrop               — modal overlay
+ *   .ds-popout-title + sub-classes    — title-bar chrome
+ *   .ds-popout-module-btn + menu-item — module-switcher dropdown
+ *   .ds-popout-body                   — 2-column body grid
+ *   .ds-popout-list + sub-classes     — items-list rail
+ *   .ds-popout-editor                 — editor pane
+ *   .ds-editor-header / .ds-editor-scroll — editor-pane sub-layout
+ *   .ds-popout-footer                 — footer strip
+ *   .ds-caps / .ds-mono               — typography utility atoms
+ *   .ds-led                           — status LED indicator
+ *   .ds-formatting-toolbar            — scrollbar for formatting toolbar
+ *   Themed scrollbars for list / body / formatting toolbar
+ *
+ * Same pattern as BorderStyleEditor.css (fix for Task 17 visual regression).
+ */
+
+/* ── Token scoping ─────────────────────────────────────────────────────────
+ * Bind the sheet to the design-system surface tier. Applied to BOTH
+ * .ds-sheet (in-DOM panels) and .ds-sheet-v2 (Radix-portaled popovers /
+ * dropdowns mounted at document.body) so portaled menus resolve tokens.
+ */
+.ds-sheet,
+.ds-sheet-v2 {
+  font-family: var(--ds-font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ds-text-primary);
+  background: var(--ds-surface-ground);
+  letter-spacing: 0.005em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.ds-sheet *,
+.ds-sheet *::before,
+.ds-sheet *::after {
+  box-sizing: border-box;
+}
+
+.ds-sheet code,
+.ds-sheet kbd {
+  font-family: var(--ds-font-mono);
+  font-size: inherit;
+}
+
+/* ── Themed scrollbars ─────────────────────────────────────────────────────
+ * Thin scrollbar with token-resolved thumb so the default white
+ * browser scrollbar doesn't appear on dark surfaces.
+ */
+.ds-formatting-toolbar,
+.ds-popout-list-items,
+.ds-popout-body,
+.ds-popout-body main {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-border-secondary) var(--ds-surface-primary);
+}
+
+.ds-formatting-toolbar::-webkit-scrollbar,
+.ds-popout-list-items::-webkit-scrollbar,
+.ds-popout-body::-webkit-scrollbar,
+.ds-popout-body main::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.ds-formatting-toolbar::-webkit-scrollbar-track,
+.ds-popout-list-items::-webkit-scrollbar-track,
+.ds-popout-body::-webkit-scrollbar-track,
+.ds-popout-body main::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ds-formatting-toolbar::-webkit-scrollbar-thumb,
+.ds-popout-list-items::-webkit-scrollbar-thumb,
+.ds-popout-body::-webkit-scrollbar-thumb,
+.ds-popout-body main::-webkit-scrollbar-thumb {
+  background: var(--ds-border-secondary);
+  border-radius: 2px;
+}
+.ds-formatting-toolbar::-webkit-scrollbar-thumb:hover,
+.ds-popout-list-items::-webkit-scrollbar-thumb:hover,
+.ds-popout-body::-webkit-scrollbar-thumb:hover,
+.ds-popout-body main::-webkit-scrollbar-thumb:hover {
+  background: var(--ds-text-faint);
+}
+
+/* Sheet-scoped general scrollbar (portaled popovers excluded) */
+.ds-sheet ::-webkit-scrollbar { width: 8px; height: 8px; }
+.ds-sheet ::-webkit-scrollbar-track { background: transparent; }
+.ds-sheet ::-webkit-scrollbar-thumb {
+  background: var(--ds-border-secondary);
+  border-radius: 2px;
+}
+.ds-sheet ::-webkit-scrollbar-thumb:hover {
+  background: var(--ds-text-faint);
+}
+
+/* ── Backdrop ─────────────────────────────────────────────────────────────*/
+.ds-popout-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 10000;
+  animation: ds-popout-fade 140ms ease-out;
+}
+
+/* ── Popout shell ──────────────────────────────────────────────────────────*/
+.ds-popout {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 820px;
+  height: 640px;
+  max-width: 96vw;
+  max-height: 94vh;
+  background: var(--ds-surface-ground);
+  border: 1px solid var(--ds-border-secondary);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  color: var(--ds-text-primary);
+  z-index: 10001;
+  box-shadow: var(--ds-elevation-overlay), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  animation: ds-popout-rise 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Faster slide-in for the settings drawer. vaul hardcodes a 500 ms
+   transform transition (inline style + stylesheet animation) — on a
+   trading desk that half-second ease reads as "the customizer takes a
+   while to show up", and under live ticks it stacks on top of the
+   mount work. 220 ms keeps the motion cue without the wait. `!important`
+   is required to beat vaul's inline `transition` style; scoped to our
+   own drawer class so no other vaul surface changes feel. */
+.ds-settings-drawer[data-vaul-drawer] {
+  transition-duration: 0.22s !important;
+  animation-duration: 0.22s !important;
+}
+
+/* Inline settings drawer — fills the vaul right-rail panel (not centered modal). */
+.ds-drawer-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  overflow: hidden;
+}
+
+/* Popped mode — window IS the overlay; fill edge-to-edge */
+.ds-popout.is-popped {
+  position: static;
+  top: auto;
+  left: auto;
+  transform: none;
+  width: 100%;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  flex: 1;
+}
+
+@keyframes ds-popout-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ds-popout-rise {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ── Title bar ─────────────────────────────────────────────────────────────*/
+/* Taller than the module-tab strip below it, on an elevated surface with a
+ * drop shadow + stronger divider so the chrome reads as a distinct title bar
+ * rather than blending into the tabs/content (which sit on surface-primary). */
+.ds-popout-title {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 46px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ds-border-secondary);
+  background: var(--ds-surface-secondary);
+  box-shadow: 0 2px 5px -3px rgb(0 0 0 / 0.4);
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Right-side control cluster — divider + breathing room so it stops feeling
+ * crowded against the DIRTY readout. */
+.ds-popout-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--ds-border-primary);
+}
+
+.ds-popout-title-text {
+  font-family: var(--ds-font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-text-primary);
+}
+
+.ds-popout-title-sub {
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  color: var(--ds-text-faint);
+  letter-spacing: 0.04em;
+}
+
+.ds-popout-title-status {
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  color: var(--ds-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ds-popout-title-status strong {
+  color: var(--ds-text-primary);
+  font-weight: 500;
+}
+
+/* Parent-qualified so width/height beat the ChromeButton Tailwind reset
+ * (`h-auto`), otherwise the buttons collapse to the icon's intrinsic size
+ * and the cluster reads as cramped regardless of the flex gap. */
+.ds-popout-title .ds-popout-title-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+  transition: background 120ms, color 120ms;
+}
+
+.ds-popout-title .ds-popout-title-btn:hover {
+  background: var(--ds-surface-hover, color-mix(in srgb, var(--ds-text-primary) 8%, transparent));
+  color: var(--ds-text-primary);
+}
+
+/* ── Module dropdown ───────────────────────────────────────────────────────*/
+/* Portaled shadcn menus (`.ds-sheet-v2`) and modal dialogs must sit above the
+   vaul drawer panel (z 11001) and its dim overlay (z 11000). */
+[data-radix-popper-content-wrapper] .ds-sheet-v2,
+.ds-settings-module-popover,
+[data-testid='provider-editor-dialog'] {
+  z-index: 12050 !important;
+}
+
+/* ── Module menubar (grouped shadcn Menubar) ───────────────────────────── */
+/* Five category menus replace the scrollable tab strip — the bar never
+   overflows no matter how many modules a host registers. Secondary nav:
+   one step below title bar (12px) / caps labels (11px). */
+.ds-settings-menubar-bar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 33px;
+  padding: 0 8px 0 2px;
+  gap: 8px;
+  border-bottom: 1px solid var(--ds-border-primary);
+  background: var(--ds-surface-primary);
+}
+
+/* Strip the shadcn card chrome — the bar supplies the surface. */
+.ds-sheet-v2 .ds-settings-menubar {
+  height: 33px;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ds-sheet-v2 .ds-settings-menubar-trigger {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ds-text-muted);
+  font-family: var(--ds-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+
+.ds-sheet-v2 .ds-settings-menubar-trigger:hover,
+.ds-sheet-v2 .ds-settings-menubar-trigger[data-state='open'] {
+  color: var(--ds-text-secondary);
+  background: var(--ds-surface-secondary);
+}
+
+/* Group containing the active module — same accent as the old active tab. */
+.ds-sheet-v2 .ds-settings-menubar-trigger[data-active] {
+  color: var(--ds-text-primary);
+  border-bottom-color: var(--ds-primary);
+}
+
+/* Portaled menu panel — terminal chrome over the shadcn defaults. */
+.ds-sheet-v2.ds-settings-menubar-content {
+  min-width: 180px;
+  padding: 3px;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  background: var(--ds-surface-ground);
+  box-shadow: var(--ds-elevation-overlay);
+}
+
+.ds-sheet-v2 .ds-settings-menubar-item {
+  height: 26px;
+  padding: 0 8px 0 22px;
+  border-radius: 2px;
+  color: var(--ds-text-secondary);
+  font-family: var(--ds-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ds-sheet-v2 .ds-settings-menubar-item:focus,
+.ds-sheet-v2 .ds-settings-menubar-item[data-highlighted] {
+  background: var(--ds-surface-secondary);
+  color: var(--ds-text-primary);
+}
+
+.ds-sheet-v2 .ds-settings-menubar-item[data-state='checked'] {
+  color: var(--ds-primary);
+}
+
+/* Active-module breadcrumb on the right edge of the bar. */
+.ds-settings-menubar-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+  font-family: var(--ds-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ds-settings-menubar-crumb-group {
+  color: var(--ds-text-muted);
+}
+
+.ds-settings-menubar-crumb-sep {
+  color: var(--ds-text-faint);
+  font-size: 8px;
+}
+
+.ds-settings-menubar-crumb-module {
+  color: var(--ds-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Legacy module dropdown (removed from UI — kept for reference in older docs) */
+.ds-popout-module-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--ds-surface-secondary);
+  border: 1px solid var(--ds-border-secondary);
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.ds-popout-module-btn:hover,
+.ds-popout-module-btn[aria-expanded='true'] {
+  background: var(--ds-surface-tertiary);
+  border-color: var(--ds-text-faint);
+}
+
+.ds-popout-module-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms;
+}
+
+.ds-popout-module-menu-item:hover {
+  background: var(--ds-surface-tertiary);
+}
+
+.ds-popout-module-menu-item[aria-selected='true'] {
+  background: var(--ds-surface-tertiary);
+  border-left-color: var(--ds-primary);
+}
+
+/* ── Body (2-column grid: items list + editor) ─────────────────────────────*/
+.ds-popout-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+
+.ds-popout-body[data-layout='editor-only'] {
+  grid-template-columns: 1fr;
+}
+
+.ds-popout-body[data-layout='help'] {
+  grid-template-columns: 1fr;
+}
+
+/* ── Items list rail ───────────────────────────────────────────────────────*/
+.ds-popout-list {
+  border-right: 1px solid var(--ds-border-primary);
+  background: var(--ds-surface-ground);
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ds-popout-list-header {
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  background: var(--ds-surface-ground);
+  border-bottom: 1px solid var(--ds-border-primary);
+  z-index: 1;
+}
+
+.ds-popout-list-items {
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+  flex: 1;
+}
+
+.ds-popout-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 16px 9px 14px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms;
+}
+
+/* Persistent "this card is open" marker */
+.ds-popout-list-item[data-active='true'] {
+  background: var(--ds-surface-primary);
+  border-left-color: var(--ds-primary);
+}
+
+/* Keyboard / mouse highlight — same tint as :hover */
+.ds-popout-list-item[aria-selected='true']:not([data-active='true']) {
+  background: var(--ds-surface-primary);
+}
+
+.ds-popout-list-item:hover:not([data-active='true']) {
+  background: var(--ds-surface-primary);
+}
+
+.ds-popout-list-item[data-muted='true'] {
+  color: var(--ds-text-muted);
+}
+
+/* ── Editor pane ───────────────────────────────────────────────────────────*/
+.ds-popout-editor {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-surface-ground);
+}
+
+.ds-editor-header {
+  flex-shrink: 0;
+  background: var(--ds-surface-ground);
+  border-bottom: 1px solid var(--ds-border-primary);
+  /* Subtle lift shadow so the header feels elevated above the scroll content */
+  box-shadow: 0 1px 0 var(--ds-border-primary), 0 8px 12px -10px rgba(0, 0, 0, 0.45);
+  position: relative;
+  z-index: 2;
+}
+
+.ds-editor-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+/* ── Footer strip ──────────────────────────────────────────────────────────*/
+.ds-popout-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 40px;
+  padding: 0 16px;
+  background: var(--ds-surface-primary);
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  color: var(--ds-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ds-popout-footer-shortcuts {
+  color: var(--ds-text-faint);
+}
+
+/* ── Typography atoms ──────────────────────────────────────────────────────*/
+
+/* Tracked-caps label */
+.ds-caps {
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+/* Mono numeric / identifier voice */
+.ds-mono {
+  font-family: var(--ds-font-mono);
+  font-size: 12px;
+  color: var(--ds-text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* ── LED status indicator ──────────────────────────────────────────────────*/
+.ds-led {
+  width: 2px;
+  height: 12px;
+  display: inline-block;
+  flex-shrink: 0;
+  background: var(--ds-border-secondary);
+}
+
+.ds-led[data-on='true'] {
+  background: var(--ds-accent-positive);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--ds-accent-positive) 60%, transparent);
+}
+
+.ds-led[data-on='true'][data-amber='true'] {
+  background: var(--ds-accent-warning);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--ds-accent-warning) 55%, transparent);
+}
+
+/* ── Unified editing toolbar row ──────────────────────────────────────── */
+.ds-editing-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  padding: 3px 8px;
+  min-height: 30px;
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+[data-theme='light'] .ds-editing-toolbar {
+  background: var(--ds-surface-secondary);
+}
+
+/* Slim inline group — no boxed chrome; wraps as a unit with the row. */
+.ds-editing-toolbar__segment {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+}
+
+.ds-editing-toolbar__sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  flex-shrink: 0;
+  align-self: center;
+  background: var(--ds-border-secondary);
+}
+
+/* Fixed widths inside the unified row — segment mode omits standalone classes. */
+.ds-editing-toolbar .ds-smart-edit-toolbar__operand {
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.ds-editing-toolbar .ds-bulk-update-toolbar__input {
+  width: 112px;
+  flex-shrink: 0;
+}
+
+.ds-editing-toolbar .ds-bulk-update-toolbar__picker {
+  width: 88px;
+  flex-shrink: 0;
+}
+
+/* Shared label / meta typography inside the unified row */
+.ds-editing-toolbar__label,
+.ds-editing-toolbar .ds-edit-history-toolbar__label,
+.ds-editing-toolbar .ds-bulk-update-toolbar__label,
+.ds-editing-toolbar .ds-smart-edit-toolbar__label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+.ds-editing-toolbar__meta,
+.ds-editing-toolbar .ds-edit-history-toolbar__count,
+.ds-editing-toolbar .ds-bulk-update-toolbar__count,
+.ds-editing-toolbar .ds-smart-edit-toolbar__count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+/* Compact controls — 24px height, 12px type */
+.ds-editing-toolbar__control,
+.ds-editing-toolbar .ds-bulk-update-toolbar__input,
+.ds-editing-toolbar .ds-bulk-update-toolbar__select,
+.ds-editing-toolbar .ds-smart-edit-toolbar__operand {
+  height: 24px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.ds-editing-toolbar__control {
+  border-color: var(--ds-border-primary);
+}
+
+/* Icon + apply buttons */
+.ds-editing-toolbar__icon-btn,
+.ds-editing-toolbar__apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: var(--ds-radius-md, 2px);
+  background: transparent;
+  color: var(--ds-text-primary);
+  opacity: 0.82;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.ds-editing-toolbar__icon-btn:hover:not(:disabled),
+.ds-editing-toolbar__apply:hover:not(:disabled) {
+  color: var(--ds-primary);
+  opacity: 1;
+  background: var(--ds-primary-soft);
+  border-color: var(--ds-primary-ring);
+}
+
+.ds-editing-toolbar__icon-btn:disabled,
+.ds-editing-toolbar__apply:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ds-editing-toolbar__apply:not(:disabled) {
+  color: var(--ds-accent-positive);
+  border-color: color-mix(in srgb, var(--ds-accent-positive) 35%, var(--ds-border-primary));
+}
+
+.ds-editing-toolbar__apply:not(:disabled):hover {
+  color: var(--ds-accent-positive);
+  background: color-mix(in srgb, var(--ds-accent-positive) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ds-accent-positive) 45%, var(--ds-border-primary));
+}
+
+/* Segmented op button cluster (× ÷ + −, undo/redo) */
+.ds-editing-toolbar__op-group {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: var(--ds-radius-md, 2px);
+  flex-shrink: 0;
+}
+
+.ds-editing-toolbar__op-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  margin: 0;
+  border: none;
+  border-right: 1px solid var(--ds-border-secondary);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ds-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  opacity: 0.88;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    opacity 120ms ease;
+}
+
+.ds-editing-toolbar__op-btn:last-child {
+  border-right: none;
+}
+
+.ds-editing-toolbar__op-btn:hover:not(:disabled) {
+  color: var(--ds-primary);
+  opacity: 1;
+  background: var(--ds-primary-soft);
+}
+
+.ds-editing-toolbar__op-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Dropdown / select panels opened from the editing toolbar */
+.ds-editing-toolbar-popover {
+  font-size: 12px;
+}
+
+.ds-editing-toolbar-popover [role='menuitem'],
+.ds-editing-toolbar-popover [role='option'],
+.ds-editing-toolbar-popover [data-radix-collection-item] {
+  font-size: 12px;
+  line-height: 1.25;
+  min-height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.ds-editing-toolbar-popover [role='group'] > [data-radix-collection-item]:first-child,
+.ds-editing-toolbar-popover > [data-radix-collection-item]:first-child {
+  /* DropdownMenuLabel / SelectLabel — keep eyebrow smaller than items */
+}
+
+.ds-editing-toolbar-popover [data-radix-select-viewport] {
+  padding: 2px;
+}
+
+/* ── Smart Edit toolbar row ─────────────────────────────────────────────── */
+.ds-smart-edit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  font-size: 12px;
+}
+
+.ds-smart-edit-toolbar__operand {
+  width: 80px;
+}
+
+.ds-smart-edit-toolbar__label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-secondary);
+}
+
+.ds-smart-edit-toolbar__count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ds-text-muted);
+}
+
+/* ── Edit history toolbar row ─────────────────────────────────────────── */
+.ds-edit-history-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  font-size: 12px;
+}
+
+.ds-edit-history-toolbar__label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-secondary);
+}
+
+.ds-edit-history-toolbar__count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ds-text-muted);
+}
+
+/* ── Bulk Update toolbar row ────────────────────────────────────────────── */
+.ds-bulk-update-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  font-size: 12px;
+}
+
+.ds-bulk-update-toolbar__label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-secondary);
+}
+
+.ds-bulk-update-toolbar__input,
+.ds-bulk-update-toolbar__select {
+  width: 148px;
+}
+
+.ds-bulk-update-toolbar__picker {
+  width: 108px;
+}
+
+.ds-bulk-update-toolbar__count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ds-text-muted);
+}
+
+.ds-float-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 2px;
+  background: transparent;
+  border: none;
+  color: var(--ds-text-primary);
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  padding: 0;
+}
+
+.ds-float-close-btn:hover {
+  background: color-mix(in srgb, var(--ds-accent-negative) 14%, transparent);
+  color: var(--ds-accent-negative);
+}

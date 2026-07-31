@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "test": {
+      "dependsOn": [
+        "^build",
+        "build"
+      ]
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../react-ui/ui/src/**",
+        "../../react-grid/grid/src/**",
+        "../../react-core/widgets-react/src/**",
+        "../../react-core/config-browser/src/**",
+        "../../react-core/workspace-setup-react/src/**",
+        "../../data/host-data-react/src/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    }
+  }
+}

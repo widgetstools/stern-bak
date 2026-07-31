@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Bar chart columns (ascending) -->
+  <rect x="4" y="14" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <rect x="10" y="10" width="3.5" height="11" rx="1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <rect x="16" y="6" width="3.5" height="15" rx="1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Trend line going up -->
+  <polyline points="5.5,13 11.5,9 17.5,5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Plus icon at the peak -->
+  <line x1="17.5" y1="2.5" x2="17.5" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+  <line x1="16" y1="4" x2="19" y2="4" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+</svg>

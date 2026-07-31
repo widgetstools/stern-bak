@@ -1,0 +1,589 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tailwindPreset > matches snapshot 1`] = `
+{
+  "darkMode": [
+    "selector",
+    "[data-theme="dark"]",
+  ],
+  "plugins": [
+    {
+      "config": {
+        "theme": {
+          "extend": {
+            "animationDelay": [Function],
+            "animationDirection": {
+              "alternate": "alternate",
+              "alternate-reverse": "alternate-reverse",
+              "normal": "normal",
+              "reverse": "reverse",
+            },
+            "animationDuration": [Function],
+            "animationFillMode": {
+              "backwards": "backwards",
+              "both": "both",
+              "forwards": "forwards",
+              "none": "none",
+            },
+            "animationOpacity": [Function],
+            "animationRepeat": {
+              "0": "0",
+              "1": "1",
+              "infinite": "infinite",
+            },
+            "animationRotate": [Function],
+            "animationScale": [Function],
+            "animationTimingFunction": [Function],
+            "animationTranslate": [Function],
+            "keyframes": {
+              "enter": {
+                "from": {
+                  "opacity": "var(--tw-enter-opacity, 1)",
+                  "transform": "translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1)) rotate(var(--tw-enter-rotate, 0))",
+                },
+              },
+              "exit": {
+                "to": {
+                  "opacity": "var(--tw-exit-opacity, 1)",
+                  "transform": "translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0))",
+                },
+              },
+            },
+          },
+        },
+      },
+      "handler": [Function],
+    },
+    {
+      "config": {
+        "theme": {
+          "extend": {
+            "animation": {
+              "fadein": "fadein 0.15s linear",
+              "fadeindown": "fadeindown 0.15s linear",
+              "fadeinleft": "fadeinleft 0.15s linear",
+              "fadeinright": "fadeinright 0.15s linear",
+              "fadeinup": "fadeinup 0.15s linear",
+              "fadeout": "fadeout 0.15s linear",
+              "fadeoutdown": "fadeoutdown 0.15s linear",
+              "fadeoutleft": "fadeoutleft 0.15s linear",
+              "fadeoutright": "fadeoutright 0.15s linear",
+              "fadeoutup": "fadeoutup 0.15s linear",
+              "flip": "flip 0.15s linear",
+              "flipleft": "flipleft 0.15s linear",
+              "flipright": "flipright 0.15s linear",
+              "flipup": "flipup 0.15s linear",
+              "scalein": "scalein 0.15s linear",
+              "slidedown": "slidedown 0.45s ease-in-out",
+              "slideup": "slideup 0.45s cubic-bezier(0, 1, 0, 1)",
+              "width": "width 0.45s linear",
+              "zoomin": "zoomin 0.15s linear",
+              "zoomindown": "zoomindown 0.15s linear",
+              "zoominleft": "zoominleft 0.15s linear",
+              "zoominright": "zoominright 0.15s linear",
+              "zoominup": "zoominup 0.15s linear",
+            },
+            "animationDelay": {
+              "0": "0s",
+              "100": "100ms",
+              "1000": "1000ms",
+              "150": "150ms",
+              "200": "200ms",
+              "300": "300ms",
+              "400": "400ms",
+              "500": "500ms",
+              "700": "700ms",
+              "75": "75ms",
+            },
+            "animationDuration": {
+              "0": "0s",
+              "100": "100ms",
+              "1000": "1000ms",
+              "150": "150ms",
+              "200": "200ms",
+              "2000": "2000ms",
+              "300": "300ms",
+              "3000": "3000ms",
+              "400": "400ms",
+              "500": "500ms",
+              "700": "700ms",
+              "75": "75ms",
+            },
+            "animationOpacity": [Function],
+            "animationRotate": [Function],
+            "animationScale": [Function],
+            "animationTranslate": [Function],
+            "colors": {
+              "primary": "color-mix(in srgb, var(--p-primary-color) calc(100% * <alpha-value>), transparent)",
+              "primary-100": "color-mix(in srgb, var(--p-primary-100) calc(100% * <alpha-value>), transparent)",
+              "primary-200": "color-mix(in srgb, var(--p-primary-200) calc(100% * <alpha-value>), transparent)",
+              "primary-300": "color-mix(in srgb, var(--p-primary-300) calc(100% * <alpha-value>), transparent)",
+              "primary-400": "color-mix(in srgb, var(--p-primary-400) calc(100% * <alpha-value>), transparent)",
+              "primary-50": "color-mix(in srgb, var(--p-primary-50) calc(100% * <alpha-value>), transparent)",
+              "primary-500": "color-mix(in srgb, var(--p-primary-500) calc(100% * <alpha-value>), transparent)",
+              "primary-600": "color-mix(in srgb, var(--p-primary-600) calc(100% * <alpha-value>), transparent)",
+              "primary-700": "color-mix(in srgb, var(--p-primary-700) calc(100% * <alpha-value>), transparent)",
+              "primary-800": "color-mix(in srgb, var(--p-primary-800) calc(100% * <alpha-value>), transparent)",
+              "primary-900": "color-mix(in srgb, var(--p-primary-900) calc(100% * <alpha-value>), transparent)",
+              "primary-950": "color-mix(in srgb, var(--p-primary-950) calc(100% * <alpha-value>), transparent)",
+              "primary-contrast": "color-mix(in srgb, var(--p-primary-contrast-color) calc(100% * <alpha-value>), transparent)",
+              "primary-emphasis": "color-mix(in srgb, var(--p-primary-hover-color) calc(100% * <alpha-value>), transparent)",
+              "primary-emphasis-alt": "color-mix(in srgb, var(--p-primary-active-color) calc(100% * <alpha-value>), transparent)",
+              "surface-0": "color-mix(in srgb, var(--p-surface-0) calc(100% * <alpha-value>), transparent)",
+              "surface-100": "color-mix(in srgb, var(--p-surface-100) calc(100% * <alpha-value>), transparent)",
+              "surface-200": "color-mix(in srgb, var(--p-surface-200) calc(100% * <alpha-value>), transparent)",
+              "surface-300": "color-mix(in srgb, var(--p-surface-300) calc(100% * <alpha-value>), transparent)",
+              "surface-400": "color-mix(in srgb, var(--p-surface-400) calc(100% * <alpha-value>), transparent)",
+              "surface-50": "color-mix(in srgb, var(--p-surface-50) calc(100% * <alpha-value>), transparent)",
+              "surface-500": "color-mix(in srgb, var(--p-surface-500) calc(100% * <alpha-value>), transparent)",
+              "surface-600": "color-mix(in srgb, var(--p-surface-600) calc(100% * <alpha-value>), transparent)",
+              "surface-700": "color-mix(in srgb, var(--p-surface-700) calc(100% * <alpha-value>), transparent)",
+              "surface-800": "color-mix(in srgb, var(--p-surface-800) calc(100% * <alpha-value>), transparent)",
+              "surface-900": "color-mix(in srgb, var(--p-surface-900) calc(100% * <alpha-value>), transparent)",
+              "surface-950": "color-mix(in srgb, var(--p-surface-950) calc(100% * <alpha-value>), transparent)",
+            },
+            "keyframes": {
+              "enter": {
+                "from": {
+                  "opacity": "var(--p-enter-opacity, 1)",
+                  "transform": "translate3d(var(--p-enter-translate-x, 0), var(--p-enter-translate-y, 0), 0) scale3d(var(--p-enter-scale, 1), var(--p-enter-scale, 1), var(--p-enter-scale, 1)) rotate(var(--p-enter-rotate, 0))",
+                },
+              },
+              "fadein": {
+                "0%": {
+                  "opacity": "0",
+                },
+                "100%": {
+                  "opacity": "1",
+                },
+              },
+              "fadeindown": {
+                "0%": {
+                  "opacity": "0",
+                  "transform": "translateY(100%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "1",
+                  "transform": "translateY(0%)",
+                },
+              },
+              "fadeinleft": {
+                "0%": {
+                  "opacity": "0",
+                  "transform": "translateX(-100%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "1",
+                  "transform": "translateX(0%)",
+                },
+              },
+              "fadeinright": {
+                "0%": {
+                  "opacity": "0",
+                  "transform": "translateX(100%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "1",
+                  "transform": "translateX(0%)",
+                },
+              },
+              "fadeinup": {
+                "0%": {
+                  "opacity": "0",
+                  "transform": "translateY(-100%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "1",
+                  "transform": "translateY(0%)",
+                },
+              },
+              "fadeout": {
+                "0%": {
+                  "opacity": "1",
+                },
+                "100%": {
+                  "opacity": "0",
+                },
+              },
+              "fadeoutdown": {
+                "0%": {
+                  "opacity": "1",
+                  "transform": "translateY(0%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "0",
+                  "transform": "translateY(100%)",
+                },
+              },
+              "fadeoutleft": {
+                "0%": {
+                  "opacity": "1",
+                  "transform": "translateX(0%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "0",
+                  "transform": "translateX(-100%)",
+                },
+              },
+              "fadeoutright": {
+                "0%": {
+                  "opacity": "1",
+                  "transform": "translateX(0%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "0",
+                  "transform": "translateX(100%)",
+                },
+              },
+              "fadeoutup": {
+                "0%": {
+                  "opacity": "1",
+                  "transform": "translateY(0%)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "0",
+                  "transform": "translateY(-100%)",
+                },
+              },
+              "flip": {
+                "from": {
+                  "transform": "perspective(2000px) rotateX(-100deg)",
+                },
+                "to": {
+                  "transform": "perspective(2000px) rotateX(0)",
+                },
+              },
+              "flipleft": {
+                "from": {
+                  "opacity": "0",
+                  "transform": "perspective(2000px) rotateY(-100deg)",
+                },
+                "to": {
+                  "opacity": "1",
+                  "transform": "perspective(2000px) rotateY(0)",
+                },
+              },
+              "flipright": {
+                "from": {
+                  "opacity": "0",
+                  "transform": "perspective(2000px) rotateY(100deg)",
+                },
+                "to": {
+                  "opacity": "1",
+                  "transform": "perspective(2000px) rotateY(0)",
+                },
+              },
+              "flipup": {
+                "from": {
+                  "opacity": "0",
+                  "transform": "perspective(2000px) rotateX(-100deg)",
+                },
+                "to": {
+                  "opacity": "1",
+                  "transform": "perspective(2000px) rotateX(0)",
+                },
+              },
+              "leave": {
+                "to": {
+                  "opacity": "var(--p-leave-opacity, 1)",
+                  "transform": "translate3d(var(--p-leave-translate-x, 0), var(--p-leave-translate-y, 0), 0) scale3d(var(--p-leave-scale, 1), var(--p-leave-scale, 1), var(--p-leave-scale, 1)) rotate(var(--p-leave-rotate, 0))",
+                },
+              },
+              "scalein": {
+                "0%": {
+                  "opacity": "0",
+                  "transform": "scaleY(0.8)",
+                  "transition": "transform 0.12s cubic-bezier(0, 0, 0.2, 1), opacity 0.12s cubic-bezier(0, 0, 0.2, 1)",
+                },
+                "100%": {
+                  "opacity": "1",
+                  "transform": "scaleY(1)",
+                },
+              },
+              "slidedown": {
+                "0%": {
+                  "maxHeight": "0",
+                },
+                "100%": {
+                  "maxHeight": "auto",
+                },
+              },
+              "slideup": {
+                "0%": {
+                  "maxHeight": "1000px",
+                },
+                "100%": {
+                  "maxHeight": "0",
+                },
+              },
+              "width": {
+                "0%": {
+                  "width": "0",
+                },
+                "100%": {
+                  "width": "100%",
+                },
+              },
+              "zoomin": {
+                "50%": {
+                  "opacity": "1",
+                },
+                "from": {
+                  "opacity": "0",
+                  "transform": "scale3d(0.3, 0.3, 0.3)",
+                },
+              },
+              "zoomindown": {
+                "60%": {
+                  "opacity": "1",
+                  "transform": "scale3d(0.475, 0.475, 0.475) translate3d(0, 60px, 0)",
+                },
+                "from": {
+                  "opacity": "0",
+                  "transform": "scale3d(0.1, 0.1, 0.1) translate3d(0, -1000px, 0)",
+                },
+              },
+              "zoominleft": {
+                "60%": {
+                  "opacity": "1",
+                  "transform": "scale3d(0.475, 0.475, 0.475) translate3d(10px, 0, 0)",
+                },
+                "from": {
+                  "opacity": "0",
+                  "transform": "scale3d(0.1, 0.1, 0.1) translate3d(-1000px, 0, 0)",
+                },
+              },
+              "zoominright": {
+                "60%": {
+                  "opacity": "1",
+                  "transform": "scale3d(0.475, 0.475, 0.475) translate3d(-10px, 0, 0)",
+                },
+                "from": {
+                  "opacity": "0",
+                  "transform": "scale3d(0.1, 0.1, 0.1) translate3d(1000px, 0, 0)",
+                },
+              },
+              "zoominup": {
+                "60%": {
+                  "opacity": "1",
+                  "transform": "scale3d(0.475, 0.475, 0.475) translate3d(0, -60px, 0)",
+                },
+                "from": {
+                  "opacity": "0",
+                  "transform": "scale3d(0.1, 0.1, 0.1) translate3d(0, 1000px, 0)",
+                },
+              },
+            },
+          },
+        },
+      },
+      "handler": [Function],
+    },
+  ],
+  "theme": {
+    "extend": {
+      "animation": {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+      "borderRadius": {
+        "lg": "var(--radius-lg)",
+        "md": "var(--radius-md)",
+        "sm": "var(--radius-sm)",
+        "xl": "var(--radius-xl)",
+      },
+      "boxShadow": {
+        "card": "var(--shadow-card)",
+        "glow": "var(--ds-elevation-glow)",
+        "overlay": "var(--shadow-overlay)",
+      },
+      "colors": {
+        "accent": {
+          "DEFAULT": "oklch(var(--accent) / <alpha-value>)",
+          "foreground": "oklch(var(--accent-foreground) / <alpha-value>)",
+        },
+        "background": "oklch(var(--background) / <alpha-value>)",
+        "border": "oklch(var(--border) / <alpha-value>)",
+        "border-strong": "oklch(var(--border-strong) / <alpha-value>)",
+        "buy": {
+          "DEFAULT": "oklch(var(--buy) / <alpha-value>)",
+          "foreground": "oklch(var(--buy-foreground) / <alpha-value>)",
+        },
+        "card": {
+          "DEFAULT": "oklch(var(--card) / <alpha-value>)",
+          "foreground": "oklch(var(--card-foreground) / <alpha-value>)",
+        },
+        "destructive": {
+          "DEFAULT": "oklch(var(--destructive) / <alpha-value>)",
+          "foreground": "oklch(var(--destructive-foreground) / <alpha-value>)",
+        },
+        "foreground": "oklch(var(--foreground) / <alpha-value>)",
+        "info": {
+          "DEFAULT": "oklch(var(--info) / <alpha-value>)",
+          "foreground": "oklch(var(--info-foreground) / <alpha-value>)",
+        },
+        "input": "oklch(var(--input) / <alpha-value>)",
+        "muted": {
+          "DEFAULT": "oklch(var(--muted) / <alpha-value>)",
+          "foreground": "oklch(var(--muted-foreground) / <alpha-value>)",
+        },
+        "negative": "oklch(var(--negative) / <alpha-value>)",
+        "popover": {
+          "DEFAULT": "oklch(var(--popover) / <alpha-value>)",
+          "foreground": "oklch(var(--popover-foreground) / <alpha-value>)",
+        },
+        "positive": "oklch(var(--positive) / <alpha-value>)",
+        "primary": {
+          "DEFAULT": "oklch(var(--primary) / <alpha-value>)",
+          "foreground": "oklch(var(--primary-foreground) / <alpha-value>)",
+        },
+        "ring": "oklch(var(--ring) / <alpha-value>)",
+        "secondary": {
+          "DEFAULT": "oklch(var(--secondary) / <alpha-value>)",
+          "foreground": "oklch(var(--secondary-foreground) / <alpha-value>)",
+        },
+        "sell": {
+          "DEFAULT": "oklch(var(--sell) / <alpha-value>)",
+          "foreground": "oklch(var(--sell-foreground) / <alpha-value>)",
+        },
+        "success": {
+          "DEFAULT": "oklch(var(--positive) / <alpha-value>)",
+          "foreground": "oklch(var(--buy-foreground) / <alpha-value>)",
+        },
+        "surface": {
+          "100": "oklch(var(--surface-100) / <alpha-value>)",
+          "200": "oklch(var(--surface-200) / <alpha-value>)",
+          "300": "oklch(var(--surface-300) / <alpha-value>)",
+          "400": "oklch(var(--surface-400) / <alpha-value>)",
+          "50": "oklch(var(--surface-50) / <alpha-value>)",
+          "500": "oklch(var(--surface-500) / <alpha-value>)",
+          "600": "oklch(var(--surface-600) / <alpha-value>)",
+          "700": "oklch(var(--surface-700) / <alpha-value>)",
+          "800": "oklch(var(--surface-800) / <alpha-value>)",
+          "900": "oklch(var(--surface-900) / <alpha-value>)",
+          "950": "oklch(var(--surface-950) / <alpha-value>)",
+        },
+        "warning": {
+          "DEFAULT": "oklch(var(--warning) / <alpha-value>)",
+          "foreground": "oklch(var(--warning-foreground) / <alpha-value>)",
+        },
+      },
+      "fontFamily": {
+        "mono": [
+          "var(--font-mono)",
+        ],
+        "sans": [
+          "var(--font-sans)",
+        ],
+      },
+      "fontSize": {
+        "2xl": [
+          "var(--text-2xl)",
+          {
+            "lineHeight": "1.25",
+          },
+        ],
+        "2xs": [
+          "var(--text-2xs)",
+          {
+            "lineHeight": "1.4",
+          },
+        ],
+        "3xl": [
+          "var(--text-3xl)",
+          {
+            "lineHeight": "1.2",
+          },
+        ],
+        "base": [
+          "var(--text-base)",
+          {
+            "lineHeight": "1.5",
+          },
+        ],
+        "lg": [
+          "var(--text-lg)",
+          {
+            "lineHeight": "1.45",
+          },
+        ],
+        "md": [
+          "var(--text-md)",
+          {
+            "lineHeight": "1.5",
+          },
+        ],
+        "sm": [
+          "var(--text-sm)",
+          {
+            "lineHeight": "1.45",
+          },
+        ],
+        "xl": [
+          "var(--text-xl)",
+          {
+            "lineHeight": "1.35",
+          },
+        ],
+        "xs": [
+          "var(--text-xs)",
+          {
+            "lineHeight": "1.4",
+          },
+        ],
+      },
+      "height": {
+        "control": "var(--control-h)",
+        "control-lg": "var(--control-h-lg)",
+        "control-sm": "var(--control-h-sm)",
+      },
+      "keyframes": {
+        "accordion-down": {
+          "from": {
+            "height": "0",
+          },
+          "to": {
+            "height": "var(--radix-accordion-content-height)",
+          },
+        },
+        "accordion-up": {
+          "from": {
+            "height": "var(--radix-accordion-content-height)",
+          },
+          "to": {
+            "height": "0",
+          },
+        },
+      },
+      "minHeight": {
+        "control": "var(--control-h)",
+        "control-lg": "var(--control-h-lg)",
+        "control-sm": "var(--control-h-sm)",
+      },
+      "minWidth": {
+        "control": "var(--control-h)",
+        "control-lg": "var(--control-h-lg)",
+        "control-sm": "var(--control-h-sm)",
+      },
+      "size": {
+        "control": "var(--control-h)",
+        "control-lg": "var(--control-h-lg)",
+        "control-sm": "var(--control-h-sm)",
+      },
+      "width": {
+        "control": "var(--control-h)",
+        "control-lg": "var(--control-h-lg)",
+        "control-sm": "var(--control-h-sm)",
+      },
+    },
+  },
+}
+`;

@@ -1,0 +1,10 @@
+{
+  "url": "http://localhost:5210/?view=blotter",
+  "fdc3InteropApi": "2.0",
+  "interop": {
+    "currentContextGroup": "green"
+  },
+  "customData": {
+    "instanceId": "demo-stomp-blotter"
+  }
+}

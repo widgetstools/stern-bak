@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@wellsfargo-starui/grid": ["./src/index.ts"],
+      "@wellsfargo-starui/grid/customizer": ["./src/customizer/index.ts"],
+      "@wellsfargo-starui/engine": ["../../shared/engine/src/index.ts"],
+      "@wellsfargo-starui/types": ["../../shared/types/src/index.ts"],
+      "@wellsfargo-starui/host": ["../../shared/host/src/index.ts"]
+    },
+    "noEmit": true
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  "references": [
+    { "path": "../../shared/types" },
+    { "path": "../../shared/host" },
+    { "path": "../../shared/engine" }
+  ]
+}

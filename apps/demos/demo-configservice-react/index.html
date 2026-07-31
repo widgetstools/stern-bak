@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarketsGrid × ConfigService — Integration Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body, #root { height: 100%; width: 100%; margin: 0; padding: 0; }
+    body {
+      font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+      /* Theme-aware: defer to --background / --foreground defined in
+         globals.css so light/dark mode toggling works. */
+      background: var(--background, #0b0e11);
+      color: var(--foreground, #eaecef);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Show header icons only on hover ───────────────────────── */
+    /* Hide menu button, filter button, and sort icons by default */
+    .ag-header-cell .ag-header-cell-menu-button,
+    .ag-header-cell .ag-header-cell-filter-button,
+    .ag-header-cell .ag-sort-indicator-icon {
+      opacity: 0;
+      transition: opacity 150ms;
+    }
+    /* Show on header cell hover */
+    .ag-header-cell:hover .ag-header-cell-menu-button,
+    .ag-header-cell:hover .ag-header-cell-filter-button,
+    .ag-header-cell:hover .ag-sort-indicator-icon {
+      opacity: 1;
+    }
+    /* Always show sort icon when column IS sorted (active state) */
+    .ag-header-cell .ag-sort-indicator-icon.ag-sort-ascending-icon,
+    .ag-header-cell .ag-sort-indicator-icon.ag-sort-descending-icon {
+      opacity: 1;
+    }
+
+    /* ── Hide floating filters by default, show on hover ──────── */
+    .ag-floating-filter-body,
+    .ag-floating-filter-button {
+      opacity: 0;
+      transition: opacity 150ms;
+    }
+    .ag-header-row-floating-filter:hover .ag-floating-filter-body,
+    .ag-header-row-floating-filter:hover .ag-floating-filter-button,
+    .ag-floating-filter:hover .ag-floating-filter-body,
+    .ag-floating-filter:hover .ag-floating-filter-button {
+      opacity: 1;
+    }
+    /* Always show floating filter when it has an active filter */
+    .ag-floating-filter-body:has(input:not([value=""])),
+    .ag-floating-filter.ag-floating-filter-active .ag-floating-filter-body,
+    .ag-floating-filter.ag-floating-filter-active .ag-floating-filter-button {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./src/main.tsx"></script>
+</body>
+</html>

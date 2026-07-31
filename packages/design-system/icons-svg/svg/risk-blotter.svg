@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Table outline -->
+  <rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Header row fill -->
+  <rect x="2" y="3" width="20" height="4" rx="2" fill="currentColor" opacity="0.15"/>
+  <!-- Header bottom line -->
+  <line x1="2" y1="7" x2="22" y2="7" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+  <!-- Shield-warning in header -->
+  <path d="M11,3.3 L11,6.2 Q11,6.8 9.5,6.2" stroke="currentColor" stroke-width="0.7" stroke-linecap="round" fill="none" opacity="0.9"/>
+  <path d="M11,3.3 L11,6.2 Q11,6.8 12.5,6.2" stroke="currentColor" stroke-width="0.7" stroke-linecap="round" fill="none" opacity="0.9"/>
+  <line x1="11" y1="4" x2="11" y2="5.2" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="11" cy="5.7" r="0.25" fill="currentColor" opacity="0.9"/>
+  <!-- Row separators -->
+  <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="0.5" opacity="0.15"/>
+  <line x1="3" y1="16.5" x2="21" y2="16.5" stroke="currentColor" stroke-width="0.5" opacity="0.15"/>
+  <!-- Row 1: label + risk level bar (high) -->
+  <line x1="4" y1="10" x2="7" y2="10" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+  <rect x="9" y="9" width="12" height="2" rx="1" stroke="currentColor" stroke-width="0.7" fill="none" opacity="0.3"/>
+  <rect x="9" y="9" width="11" height="2" rx="1" fill="currentColor" opacity="0.7"/>
+  <!-- Row 2: label + risk level bar (medium) -->
+  <line x1="4" y1="14.5" x2="7" y2="14.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+  <rect x="9" y="13.5" width="12" height="2" rx="1" stroke="currentColor" stroke-width="0.7" fill="none" opacity="0.3"/>
+  <rect x="9" y="13.5" width="7" height="2" rx="1" fill="currentColor" opacity="0.45"/>
+  <!-- Row 3: label + risk level bar (low) -->
+  <line x1="4" y1="19" x2="6.5" y2="19" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+  <rect x="9" y="18" width="12" height="2" rx="1" stroke="currentColor" stroke-width="0.7" fill="none" opacity="0.3"/>
+  <rect x="9" y="18" width="3.5" height="2" rx="1" fill="currentColor" opacity="0.25"/>
+</svg>

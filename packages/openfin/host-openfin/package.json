@@ -1,0 +1,49 @@
+{
+  "name": "@wellsfargo-starui/host-openfin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenFin RuntimePort plugin for StarGrid",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc --project tsconfig.json",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/host-browser": "*",
+    "@wellsfargo-starui/types": "*"
+  },
+  "peerDependencies": {
+    "@openfin/core": "43.101.2",
+    "@openfin/workspace": "23.0.20"
+  },
+  "peerDependenciesMeta": {
+    "@openfin/core": {
+      "optional": true
+    },
+    "@openfin/workspace": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@openfin/core": "43.101.2",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

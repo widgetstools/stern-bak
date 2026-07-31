@@ -1,0 +1,51 @@
+{
+  "licenseKey": "openfin-demo-license-key",
+  "runtime": {
+    "arguments": "--enable-mesh --security-realm=marketsui-e2e --remote-debugging-port=9190",
+    "version": "43.142.101.2"
+  },
+  "$comment": "E2E-only manifest — port 5197 + CDP 9190 so local dev on 5174 does not collide. providerUrl carries ?e2eBridge=1 to force test-bridge install.",
+  "devtools_port": 9190,
+  "platform": {
+    "uuid": "marketsui-e2e-platform",
+    "icon": "http://localhost:5197/dock-provider.png",
+    "autoShow": false,
+    "providerUrl": "http://localhost:5197/platform/provider?e2eBridge=1",
+    "preventQuitOnLastWindowClosed": true
+  },
+  "shortcut": {
+    "company": "OpenFin",
+    "description": "MarketsUI E2E OpenFin platform",
+    "icon": "http://localhost:5197/favicon.ico",
+    "name": "MarketsUI E2E",
+    "target": ["desktop", "start-menu"]
+  },
+  "supportInformation": {
+    "company": "OpenFin",
+    "product": "MarketsUI E2E",
+    "email": "support@openfin.co",
+    "forwardErrorReports": true
+  },
+  "customSettings": {
+    "seedConfigUrl": "http://localhost:5197/seed-config.json",
+    "useRest": false,
+    "configServiceRestUrl": "http://localhost:3001/api/v1",
+    "apps": [
+      {
+        "appId": "react-view1",
+        "name": "react-view1",
+        "title": "React View 1",
+        "description": "Display the React View 1",
+        "manifest": "http://localhost:5197/views/view1.fin.json",
+        "manifestType": "view",
+        "icons": [{ "src": "http://localhost:5197/favicon.ico" }],
+        "contactEmail": "contact@example.com",
+        "supportEmail": "support@example.com",
+        "publisher": "OpenFin",
+        "intents": [],
+        "images": [],
+        "tags": ["view", "openfin"]
+      }
+    ]
+  }
+}

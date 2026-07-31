@@ -1,0 +1,75 @@
+{
+  "name": "@wellsfargo-starui/openfin-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenFin workspace shell + browser-safe config entry point",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/configOnly.d.ts",
+      "import": "./dist/configOnly.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.js"
+    },
+    "./test-bridge": {
+      "types": "./dist/testBridge/index.d.ts",
+      "import": "./dist/testBridge/index.js"
+    },
+    "./dock-editor": {
+      "types": "./dist/dockEditor/index.d.ts",
+      "import": "./dist/dockEditor/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc --project tsconfig.json && node ./scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/design-system": "*",
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/host-data": "*",
+    "@wellsfargo-starui/icons-svg": "*",
+    "@wellsfargo-starui/types": "*"
+  },
+  "devDependencies": {
+    "@openfin/core": "43.101.2",
+    "@openfin/workspace": "23.0.20",
+    "@openfin/workspace-platform": "23.0.20",
+    "jsdom": "^29.0.2",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "peerDependencies": {
+    "@openfin/core": "43.101.2",
+    "@openfin/workspace": "23.0.20",
+    "@openfin/workspace-platform": "23.0.20"
+  },
+  "peerDependenciesMeta": {
+    "@openfin/core": {
+      "optional": true
+    },
+    "@openfin/workspace": {
+      "optional": true
+    },
+    "@openfin/workspace-platform": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Left user silhouette -->
+  <circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M3 15 C3 12.8 4.8 11 7 11 C9.2 11 11 12.8 11 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Right user silhouette -->
+  <circle cx="17" cy="7" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M13 15 C13 12.8 14.8 11 17 11 C19.2 11 21 12.8 21 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Dashed connecting line -->
+  <line x1="9.5" y1="7" x2="14.5" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-dasharray="1.5 1.5" opacity="0.5"/>
+  <!-- Downward chevrons below -->
+  <polyline points="10,18 12,20 14,18" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+  <polyline points="10,21 12,23 14,21" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+</svg>

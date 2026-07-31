@@ -1,0 +1,49 @@
+/**
+ * demo-react / globals.css
+ *
+ *   1. Unified design-system CSS (tokens + scrollbar + base resets).
+ *   2. Web fonts (IBM Plex Sans + IBM Plex Mono + JetBrains Mono).
+ *   3. MarketsGrid chrome via `@wellsfargo-starui/grid/styles.css`
+ *      (ships the .gc-* toolbar + filter-pill rules).
+ *   4. Tailwind directives.
+ *   5. App-local tweaks (body, ticking-dot animation).
+ */
+
+@import '@wellsfargo-starui/design-system/css';
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+/* MarketsGrid toolbar + filter chrome. Consumes --bn-* / --fi-* tokens. */
+@import '@wellsfargo-starui/grid/styles.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { @apply border-border; }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body, #root { height: 100%; width: 100%; }
+  body {
+    /* TODO: remove legacy references */
+    background: var(--ds-surface-ground);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-sans), -apple-system, sans-serif;
+    font-size: var(--ds-font-size-body);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ─── Live-tick indicator ──────────────────────────────────────────── */
+/* Header pill flashes while live ticking is enabled (see App.tsx).
+   Everything else in the app either uses Tailwind utilities (compiled
+   against the shadcn tokens via the canonical hsl(var(--x)) wrapping)
+   or inline styles that reference --bn-* / --fi-* tokens directly. */
+
+@keyframes ds-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.ds-live-dot {
+  animation: ds-live-pulse 1.6s ease-in-out infinite;
+}

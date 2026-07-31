@@ -1,0 +1,13 @@
+{
+  "appId": "platform-hooks-demo",
+  "userId": "dev1",
+  "useRest": false,
+  "appDataBootstrap": {
+    "onHubReady": ["session-context", "desk-defaults"],
+    "runPolicy": "if-missing",
+    "targets": {
+      "session-context": ["SessionContext"],
+      "desk-defaults": ["DeskDefaults", "positions"]
+    }
+  }
+}

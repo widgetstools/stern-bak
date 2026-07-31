@@ -1,0 +1,42 @@
+{
+  "name": "starui-apps",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nested workspace for StarUI consumer/reference demo apps (React + node only). Vite resolves @wellsfargo-starui/* from packages/ source; tarballs are not required to build or run the apps. demo-angular is intentionally excluded — the build pipeline targets React + shared.",
+  "workspaces": [
+    "demos/basic",
+    "demos/dataprovider-editor",
+    "demos/demo-configservice-react",
+    "demos/demo-react",
+    "demos/demo-stomp-markets-grid",
+    "demos/design-system",
+    "demos/e2e-browser-blotter",
+    "demos/e2e-openfin-vitest",
+    "demos/e2e-openfin-workspace",
+    "demos/markets-grid-lab",
+    "demos/markets-ui-react-reference",
+    "demos/marketsgrid-container-e2e",
+    "demos/mockdata-provider",
+    "demos/platform-hooks-demo",
+    "demos/star-demo",
+    "demos/stomp",
+    "demos/stomp-marketsgrid-minimal",
+    "demos/stomp-view-server"
+  ],
+  "scripts": {
+    "install:apps": "npm install",
+    "build": "node ../scripts/build-app-track.mjs build",
+    "typecheck": "node ../scripts/build-app-track.mjs typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "overrides": {
+    "@openfin/core": "43.101.2",
+    "esbuild": "0.28.0",
+    "hono": "^4.12.20"
+  },
+  "dependencies": {
+    "marketsui-platform": "file:.."
+  }
+}

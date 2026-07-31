@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Stepped staircase - left side ascending -->
+  <path d="M2 20H5V16H8V12H11V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+  <!-- Peak -->
+  <path d="M11 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Stepped staircase - right side descending -->
+  <path d="M13 8V12H16V16H19V20H22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+  <!-- Fill area -->
+  <path d="M2 20H5V16H8V12H11V8H13V12H16V16H19V20H22V20H2Z" fill="currentColor" opacity="0.08"/>
+  <!-- Baseline -->
+  <line x1="2" y1="20" x2="22" y2="20" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+</svg>

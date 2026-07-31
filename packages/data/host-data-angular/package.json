@@ -1,0 +1,28 @@
+{
+  "name": "@wellsfargo-starui/host-data-angular",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Angular bindings for @wellsfargo-starui/host-data — twin of @wellsfargo-starui/host-data-react (scaffold)",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "echo '@wellsfargo-starui/host-data-angular: scaffold (no emit)'",
+    "typecheck": "tsc --noEmit",
+    "test": "echo '@wellsfargo-starui/host-data-angular: no tests yet'"
+  },
+  "peerDependencies": {
+    "@angular/core": "^21.1.0"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/host-data": "*",
+    "@wellsfargo-starui/types": "*"
+  },
+  "devDependencies": {
+    "@angular/core": "^21.1.0",
+    "typescript": "~5.9.3"
+  }
+}

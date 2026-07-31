@@ -1,0 +1,26 @@
+# .npmrc.example — corporate Artifactory npm registry (no public npm access)
+#
+# At a site where registry.npmjs.org is unreachable and all packages come from
+# Artifactory, copy this file to `.npmrc` (repo root) AND to `apps/.npmrc`
+# (npm reads the project .npmrc from each install prefix; `npm --prefix apps`
+# does NOT inherit the root one), then:
+#
+#   export ARTIFACTORY_TOKEN=<your-base64-or-identity-token>   # PowerShell: $env:ARTIFACTORY_TOKEN="..."
+#   npm install            # regenerates package-lock.json against Artifactory
+#   npm install --prefix apps
+#
+# This is intentionally NOT committed as an active `.npmrc`: doing so would
+# point THIS repo's own installs at Artifactory and break development on
+# public npm. Keep the active `.npmrc` local (it is gitignored).
+#
+# Adjust the host and virtual-repo name (`npm-virtual`) to your instance.
+
+registry=https://artifactory.corp.com/artifactory/api/npm/npm-virtual/
+
+# Auth for that registry (token kept out of the file via env interpolation):
+//artifactory.corp.com/artifactory/api/npm/npm-virtual/:_authToken=${ARTIFACTORY_TOKEN}
+always-auth=true
+
+# Artifactory typically doesn't implement the npm audit/fund endpoints:
+audit=false
+fund=false

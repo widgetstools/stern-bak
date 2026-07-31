@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-28T01:28:43.084Z",
+  "profile": {
+    "name": "03 · Spreads & liquidity",
+    "gridId": "lab-calculated-v5",
+    "state": {
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "calc_bidAskBps",
+              "headerName": "B/A bps (calc)",
+              "expression": "([askPrice] - [bidPrice]) * 100",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "position": 103,
+              "initialWidth": 120
+            },
+            {
+              "colId": "calc_spreadToBench",
+              "headerName": "Sprd→Bench (bps)",
+              "expression": "([yieldToMaturity] - [benchmarkYield]) * 100",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "position": 105,
+              "initialWidth": 140
+            },
+            {
+              "colId": "calc_liquidityScore",
+              "headerName": "Liquidity (log)",
+              "expression": "LOG10([avgDailyVolume30d])",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "position": 106,
+              "initialWidth": 120
+            },
+            {
+              "colId": "calc_yieldSpread",
+              "headerName": "YTW − YTM",
+              "expression": "[yieldToWorst] - [yieldToMaturity]",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 3,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "position": 109,
+              "initialWidth": 110
+            }
+          ]
+        }
+      }
+    }
+  }
+}

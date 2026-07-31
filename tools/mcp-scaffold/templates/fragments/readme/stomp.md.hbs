@@ -1,0 +1,17 @@
+# {{appName}}
+
+STOMP streaming app — HostedMarketsGrid + SharedWorker + bundled `stomp-view-server`.
+
+## Run
+
+```bash
+npm ci
+npm run dev          # Vite app on :{{port}}
+npm run dev:stomp    # WebSocket server on :8081
+```
+
+In the grid, press **Alt+Shift+P** (Win/Linux) or **Cmd+Shift+P** (Mac) and select **STOMP Positions (local)**.
+
+## Theme architecture
+
+`applyTheme()` → `[data-theme]` → MarketsGrid `useGridTheme()` → `agGridDarkTheme` / `agGridLightTheme` from `@wellsfargo-starui/design-system/adapters/ag-grid`.

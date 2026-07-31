@@ -1,0 +1,107 @@
+{
+  "name": "@wellsfargo-starui/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarketsUI design system \u2014 primitives, semantic tokens, themes, and framework adapters. Consolidates fi-trading-terminal tokens + star UI wrappers.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./css": "./dist/css/theme.css",
+    "./styles.css": "./dist/css/styles.css",
+    "./reset.css": "./dist/css/reset.css",
+    "./tailwind": {
+      "types": "./dist/adapters/tailwind.d.ts",
+      "import": "./dist/adapters/tailwind.js",
+      "default": "./dist/adapters/tailwind.js"
+    },
+    "./primeng": {
+      "types": "./dist/adapters/primeng.d.ts",
+      "import": "./dist/adapters/primeng.js",
+      "default": "./dist/adapters/primeng.js"
+    },
+    "./shadcn": {
+      "types": "./dist/adapters/shadcn.d.ts",
+      "import": "./dist/adapters/shadcn.js",
+      "default": "./dist/adapters/shadcn.js"
+    },
+    "./adapters/ag-grid": {
+      "types": "./dist/adapters/agGrid.d.ts",
+      "import": "./dist/adapters/agGrid.js",
+      "default": "./dist/adapters/agGrid.js"
+    },
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.js"
+    },
+    "./tokens/primitives": {
+      "types": "./dist/tokens/primitives.d.ts",
+      "import": "./dist/tokens/primitives.js"
+    },
+    "./tokens/semantic": {
+      "types": "./dist/tokens/semantic.d.ts",
+      "import": "./dist/tokens/semantic.js"
+    },
+    "./tokens/components": {
+      "types": "./dist/tokens/components.d.ts",
+      "import": "./dist/tokens/components.js"
+    },
+    "./tokens/controls": {
+      "types": "./dist/tokens/controls.d.ts",
+      "import": "./dist/tokens/controls.js"
+    },
+    "./cell-renderers": {
+      "types": "./dist/cellRenderers.d.ts",
+      "import": "./dist/cellRenderers.js"
+    },
+    "./cell-renderers-registry": {
+      "types": "./dist/cellRendererRegistry.d.ts",
+      "import": "./dist/cellRendererRegistry.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf dist tsconfig.tsbuildinfo && tsc --project tsconfig.json && tsx scripts/build-css.ts && tsx scripts/build-styles-css.ts && node ./scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "ag-grid-community": "^35.1.0",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "ag-grid-community": "35.1.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "3.4.1",
+    "tsx": "^4.22.2",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "files": [
+    "dist",
+    "src/styles"
+  ],
+  "dependencies": {
+    "@primeuix/themes": "^1.2.3",
+    "@wellsfargo-starui/shared-types": "*",
+    "tailwindcss-animate": "^1.0.7",
+    "tailwindcss-primeui": "^0.6.1"
+  },
+  "peerDependenciesMeta": {
+    "tailwindcss": {
+      "optional": true
+    }
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

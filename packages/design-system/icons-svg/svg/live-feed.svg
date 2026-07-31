@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <!-- Line chart path -->
+  <polyline points="2,16 5,14 8,15 11,10 14,12 17,7 19,9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Static dot at end -->
+  <circle cx="19" cy="9" r="2" fill="currentColor" opacity="0.3"/>
+  <circle cx="19" cy="9" r="1" fill="currentColor"/>
+  <!-- Pulsing animated circle -->
+  <circle cx="19" cy="9" r="2" stroke="currentColor" stroke-width="1" fill="none" opacity="0.6">
+    <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.6;0;0.6" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <!-- Baseline -->
+  <line x1="2" y1="20" x2="22" y2="20" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
+  <!-- Y-axis -->
+  <line x1="2" y1="5" x2="2" y2="20" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
+</svg>

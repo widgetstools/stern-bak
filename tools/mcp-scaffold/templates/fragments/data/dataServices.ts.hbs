@@ -1,0 +1,9 @@
+import { bootstrapDataServicesWithWorkerAsset } from '@wellsfargo-starui/host-data';
+import workerAssetUrl from '@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url';
+import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
+
+/** SharedWorker data-services hub — required for STOMP/mock/live providers. */
+export const dataServices = bootstrapDataServicesWithWorkerAsset(workerAssetUrl, {
+  appName: '{{appName}}',
+  userId: LOGGED_IN_USER_ID,
+});

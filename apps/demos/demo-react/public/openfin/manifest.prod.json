@@ -1,0 +1,34 @@
+{
+  "$comment": "Production variant — expects the demo to be BUILT (`npm run build`) and served from a static host. `npm run start:openfin` boots a local `serve` on :4173 pointing at apps/demo/dist and launches OpenFin against it. Swap the URL for a real deploy target (GitHub Pages, Cloudfront, corporate intranet, etc) when shipping internally.",
+
+  "licenseKey": "openfin-demo",
+  "runtime": {
+    "version": "stable"
+  },
+
+  "startup_app": {
+    "uuid": "grid-customizer-demo-prod",
+    "name": "grid-customizer-demo-prod",
+    "url": "http://localhost:4173/",
+    "applicationIcon": "http://localhost:4173/favicon.ico",
+
+    "autoShow": true,
+    "defaultWidth": 1440,
+    "defaultHeight": 900,
+    "defaultCentered": true,
+    "resizable": true,
+    "maximizable": true,
+    "saveWindowState": true,
+    "frame": true,
+    "alwaysOnTop": false,
+    "nonPersistent": false
+  },
+
+  "shortcut": {
+    "company": "Grid Customizer",
+    "description": "AG-Grid Customization Platform (OpenFin)",
+    "icon": "http://localhost:4173/favicon.ico",
+    "name": "Grid Customizer",
+    "target": ["desktop", "start-menu"]
+  }
+}

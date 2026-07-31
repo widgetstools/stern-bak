@@ -1,0 +1,168 @@
+/**
+ * Editing toolbar — visual language aligned with formatter (`formatter.css`).
+ * Ghost pills, labeled clusters, hairline separators; no boxed button groups.
+ */
+
+.ex-shell {
+  font-family: var(--ds-font-sans);
+  color: var(--ds-text-primary);
+  --ex-toolbar-label: var(--ds-text-secondary);
+  --ex-toolbar-meta: color-mix(in srgb, var(--ds-text-secondary) 82%, var(--ds-text-primary));
+  --ex-field-border: color-mix(in srgb, var(--ds-border-secondary) 90%, var(--ds-text-primary));
+  --ex-field-bg: color-mix(in srgb, var(--ds-surface-primary) 52%, transparent);
+  /* Single knob for edit-box width. 1 = native sizing; 2 = +100% wider. */
+  --ex-field-scale: 2;
+}
+
+.ex-shell--horizontal {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 6px 12px 8px;
+  min-height: 48px;
+  background: var(--ds-surface-sunken);
+  border-bottom: 1px solid var(--ds-border-primary);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Each segment is an atomic unit — never compresses; wraps as a whole. */
+.ex-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  flex: 0 0 auto;
+}
+
+.ex-toolbar-group__label {
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ex-toolbar-label);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.ex-toolbar-group__body {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.ex-toolbar-group__meta-sep {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  background: color-mix(in srgb, var(--ds-border-secondary) 88%, var(--ds-text-primary));
+}
+
+.ex-toolbar-meta {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 4.75rem;
+  padding: 0 2px 0 6px;
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--ex-toolbar-meta);
+  white-space: nowrap;
+}
+
+/* Operator pills — larger tap targets and glyph size than formatter text pills. */
+.ex-op-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ex-op-btn {
+  flex-shrink: 0;
+}
+
+.ex-op-btn--symbol {
+  min-width: 36px !important;
+  width: 36px;
+  height: 32px !important;
+  padding: 0 !important;
+  font-family: var(--ds-font-mono);
+  font-size: 18px !important;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ds-text-primary) !important;
+}
+
+.ex-op-btn--label {
+  min-width: 48px !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Compact numeric / value fields — ~5 digits at rest, grow with content. */
+.ex-field {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  border-color: var(--ex-field-border) !important;
+  background: var(--ex-field-bg) !important;
+}
+
+.ex-field-numeric {
+  width: calc(var(--ex-field-cols, 4) * var(--ex-field-scale, 1) * 1ch + 0.625rem) !important;
+  min-width: calc(3ch * var(--ex-field-scale, 1) + 0.625rem);
+  max-width: calc(8ch * var(--ex-field-scale, 1) + 0.625rem);
+}
+
+.ex-field-grow {
+  width: calc(var(--ex-field-cols, 6) * var(--ex-field-scale, 1) * 1ch + 0.625rem) !important;
+  min-width: calc(4ch * var(--ex-field-scale, 1) + 0.625rem);
+  max-width: calc(12ch * var(--ex-field-scale, 1) + 0.625rem);
+}
+
+.ex-field-select {
+  width: auto !important;
+  min-width: calc(5.75rem * var(--ex-field-scale, 1));
+  max-width: calc(9rem * var(--ex-field-scale, 1));
+  flex-shrink: 0;
+  border-color: var(--ex-field-border) !important;
+  background: var(--ex-field-bg) !important;
+}
+
+.ex-hair {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: color-mix(in srgb, var(--ds-border-secondary) 88%, var(--ds-text-primary));
+  margin: 0 8px;
+  flex: 0 0 auto;
+  opacity: 1;
+}
+
+.ex-editing-toolbar-popover {
+  font-size: 12px;
+}
+
+.ex-editing-toolbar-popover [role='menuitem'],
+.ex-editing-toolbar-popover [role='option'],
+.ex-editing-toolbar-popover [data-radix-collection-item] {
+  font-size: 12px;
+  min-height: 28px;
+}

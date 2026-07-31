@@ -1,0 +1,473 @@
+/* ───────────────────────────────────────────────────────────────────
+ * ProfileSelector — profile picker popover chrome.
+ *
+ * AUDIT i5 partial migration: this stylesheet hosts the STATIC layout
+ * and chrome that the component used to author inline. State-dependent
+ * styles (active-row highlight, hover background, dirty-dot color)
+ * remain inline in ProfileSelector.tsx because they branch on React
+ * state and would require additional data-* attributes to hand off
+ * cleanly to CSS. Migrating those is a cosmetic-only change best done
+ * with a visual-regression verification pass.
+ *
+ * Tokens come from the cockpit CSS vars (`--ck-*`) when the selector
+ * is mounted inside `.ds-sheet`, and from the market-grid surface
+ * defaults otherwise.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.ds-profile-selector {
+  display: inline-flex;
+}
+
+/* Trigger — filled toolbar chip; geometry aligned with `.ds-primary-date-picker`. */
+.ds-ps-trigger {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  height: var(--ds-toolbar-chip-height, 30px) !important;
+  min-height: var(--ds-toolbar-chip-height, 30px) !important;
+  max-height: var(--ds-toolbar-chip-height, 30px) !important;
+  min-width: 108px;
+  max-width: 240px;
+  padding: 0 8px 0 10px;
+  background: var(--ds-surface-secondary);
+  border: 1px solid var(--ds-border-secondary);
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  cursor: pointer;
+  font-family: var(--ds-font-sans);
+  /* Beat shadcn chrome `Button` (`text-sm`, `h-auto`) — match date picker chip. */
+  font-size: 11px !important;
+  font-weight: 600;
+  line-height: 1 !important;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: none;
+  overflow: visible;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+[data-theme='light'] .ds-ps-trigger {
+  background: var(--ds-surface-primary);
+  border-color: var(--ds-border-primary);
+}
+.ds-ps-trigger[data-empty='true'] {
+  color: var(--ds-text-muted);
+}
+.ds-ps-trigger[data-empty='true'] .ds-ps-trigger-label {
+  font-weight: 500;
+}
+.ds-ps-trigger:hover {
+  background: color-mix(in srgb, var(--ds-surface-secondary) 90%, var(--ds-primary) 10%);
+  border-color: color-mix(in srgb, var(--ds-primary) 35%, var(--ds-border-secondary));
+  color: var(--ds-text-primary);
+}
+[data-theme='light'] .ds-ps-trigger:hover {
+  background: color-mix(in srgb, var(--ds-surface-primary) 92%, var(--ds-primary) 8%);
+  border-color: color-mix(in srgb, var(--ds-primary) 30%, var(--ds-border-primary));
+}
+.ds-ps-trigger[data-empty='true']:hover {
+  color: var(--ds-text-muted);
+}
+.ds-ps-trigger[data-open='true'] {
+  background: color-mix(in srgb, var(--ds-primary-soft) 55%, var(--ds-surface-secondary));
+  border-color: var(--ds-primary-ring);
+  color: var(--ds-text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-primary) 10%, transparent);
+}
+[data-theme='light'] .ds-ps-trigger[data-open='true'] {
+  background: color-mix(in srgb, var(--ds-primary-soft) 70%, var(--ds-surface-primary));
+}
+.ds-ps-trigger:focus-visible {
+  outline: none;
+  border-color: var(--ds-primary-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-primary) 16%, transparent);
+}
+.ds-ps-trigger-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ds-primary) 22%, var(--ds-surface-tertiary));
+  color: var(--ds-primary-display);
+}
+[data-theme='light'] .ds-ps-trigger-icon-badge {
+  background: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+.ds-ps-trigger-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 160px;
+  margin-right: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+.ds-ps-trigger-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--ds-text-muted);
+  opacity: 0.9;
+  transition: transform 150ms ease, color 120ms ease;
+}
+.ds-ps-trigger:hover .ds-ps-trigger-chevron,
+.ds-ps-trigger[data-open='true'] .ds-ps-trigger-chevron {
+  color: var(--ds-text-secondary);
+}
+.ds-ps-trigger-chevron[data-open='true'] {
+  transform: rotate(180deg);
+}
+
+.ds-ps-shell {
+  /* Header + fixed-height list + footer — shell height stays stable as
+   * layouts are added; only the list body scrolls. */
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  /* ~2/3 of the previous default (288/340/480), and responsive: the
+   * vw/vh caps shrink the popover on small host windows so it never
+   * overflows its container. */
+  min-width: 240px;
+  max-width: min(300px, calc(100vw - 24px));
+  max-height: min(320px, calc(100vh - 48px));
+  border-radius: 2px !important;
+  /* Beat shadcn PopoverContent (`border`, `bg-popover`, `shadow-md`). */
+  background: var(--ds-surface-ground) !important;
+  border: 1px solid var(--ds-border-secondary) !important;
+  box-shadow: var(--ds-elevation-overlay), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+  overflow: hidden;
+  isolation: isolate;
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--ds-text-primary);
+}
+
+/* Profile list row — clickable surface (not a button; row hosts icon buttons). */
+.ds-ps-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--ds-text-primary);
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  transition: background 120ms;
+}
+.ds-ps-row[data-active='true'] {
+  background: var(--ds-primary-soft);
+}
+.ds-ps-row-accent {
+  position: absolute;
+  left: 2px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+.ds-ps-row[data-active='true'] .ds-ps-row-accent {
+  background: var(--ds-primary);
+}
+.ds-ps-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px !important;
+  font-weight: 500;
+  line-height: 1.2 !important;
+  letter-spacing: 0.01em;
+  color: var(--ds-text-primary);
+}
+
+/* Hover action cluster — see ProfileSelector.tsx. Absolutely positioned
+ * over the row's right edge so the layout name keeps the FULL row width at
+ * rest (in-flow trailing icons used to reserve ~4×22px and collapse the
+ * flex name column to a single character). A short left-edge fade masks
+ * the name's tail so long captions don't read through the revealed icons.
+ * The cluster fades in on row hover OR keyboard focus-within. */
+.ds-ps-row-actions {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 24px;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--ds-surface-ground) 24px);
+  transition: opacity 120ms ease;
+}
+.ds-ps-row:hover .ds-ps-row-actions,
+.ds-ps-row:focus-within .ds-ps-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Match the fade mask to the active row's tint so the cluster reads cleanly. */
+.ds-ps-row[data-active='true'] .ds-ps-row-actions {
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--ds-primary-soft) 86%, var(--ds-surface-ground)) 24px
+  );
+}
+.ds-ps-row[data-active='true'] .ds-ps-row-name {
+  font-weight: 600;
+}
+.ds-ps-row[data-active='true']:hover {
+  background: color-mix(in srgb, var(--ds-primary-soft) 82%, var(--ds-primary) 18%);
+}
+.ds-ps-row[data-active='true']:hover .ds-ps-row-name {
+  color: var(--ds-text-primary);
+}
+.ds-ps-row-lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--ds-text-secondary);
+  opacity: 0.72;
+}
+.ds-ps-row[data-active='true'] .ds-ps-row-lock {
+  color: var(--ds-text-primary);
+  opacity: 0.78;
+}
+
+/* Save-current-as composite field */
+.ds-ps-create-field {
+  display: flex;
+  align-items: stretch;
+  background: var(--ds-surface-ground);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  overflow: hidden;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.ds-ps-create-field input {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+}
+.ds-ps-create-field[data-focused='true'] {
+  border-color: color-mix(in srgb, var(--ds-primary) 55%, var(--ds-border-primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-primary) 18%, transparent);
+}
+.ds-ps-save-btn {
+  box-sizing: border-box;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0;
+  gap: 4px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+  padding: 0 10px !important;
+  margin: 0 !important;
+  border: none;
+  border-left: 1px solid var(--ds-border-primary);
+  border-radius: 0;
+  /* Beat shadcn chrome `Button` (`text-sm`, `font-semibold`, `px-0`, `py-0`). */
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.ds-ps-save-btn svg {
+  flex-shrink: 0;
+}
+.ds-ps-save-btn:not(:disabled) {
+  background: var(--ds-primary);
+  color: var(--ds-primary-foreground);
+  border-left-color: transparent;
+  cursor: pointer;
+}
+.ds-ps-save-btn:disabled {
+  background: transparent;
+  color: var(--ds-text-muted);
+  cursor: not-allowed;
+}
+
+/* Import / export footer buttons */
+.ds-ps-io-btn {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 10px !important;
+  margin: 0 !important;
+  background: transparent;
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 2px;
+  color: var(--ds-text-primary);
+  /* Beat shadcn chrome `Button` (`text-sm`, `font-semibold`, `px-0`, `py-0`). */
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms, color 120ms;
+}
+.ds-ps-io-btn svg {
+  flex-shrink: 0;
+}
+.ds-ps-io-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ds-primary) 55%, var(--ds-border-primary));
+  color: var(--ds-primary);
+}
+
+[data-theme='light'] .ds-ps-shell {
+  box-shadow: var(--ds-elevation-overlay), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Header strip — same shape as `.ds-popout-title` (36px tall, surface
+ * primary, bottom hairline border) so the picker shares the
+ * customizer's visual language without adopting its busy chrome. */
+.ds-ps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--ds-surface-primary);
+  border-bottom: 1px solid var(--ds-border-primary);
+  flex-shrink: 0;
+}
+
+/* Section labels — header + footer share one hierarchy tier. */
+.ds-ps-section-label,
+.ds-ps-header-label {
+  font-family: var(--ds-font-sans);
+  font-size: 10px !important;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-text-secondary);
+}
+
+.ds-ps-header-count {
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-faint);
+}
+
+.ds-ps-create-section {
+  padding: 8px 10px 10px;
+}
+
+.ds-ps-section-label {
+  margin-bottom: 6px;
+}
+
+.ds-ps-io-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+
+/* Scrollable layout list — fixed height so the popover footprint stays
+ * constant; rows scroll inside this pane as layouts are added. */
+.ds-ps-list {
+  /* Flex (not fixed) so the list yields height to the pinned header and
+   * footer when the shell hits its max-height — otherwise a fixed-height
+   * list pushes the Export/Import footer past the shell's clipped bottom
+   * edge. `min-height: 0` lets it shrink + scroll; the preferred height
+   * below keeps the stable ~200px footprint when there's room. */
+  flex: 1 1 auto;
+  /* ~2/3 of the previous 300px default; `40vh` makes the list track the
+   * host window height (responsive), the 200px cap keeps it from growing
+   * past the 2/3 default on tall screens. */
+  height: min(200px, 40vh);
+  min-height: 0;
+  max-height: min(200px, calc(100vh - 240px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--ds-surface-ground);
+  scrollbar-width: thin;
+}
+.ds-ps-list::-webkit-scrollbar {
+  width: 6px;
+}
+.ds-ps-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ds-text-muted) 35%, transparent);
+  border-radius: 2px;
+}
+
+/* Footer sections (Save current as, Export / Import) sit below the
+ * scrolling list and never scroll themselves. */
+.ds-ps-footer {
+  flex-shrink: 0;
+  background: var(--ds-surface-ground);
+  border-top: 1px solid var(--ds-border-primary);
+}
+
+.ds-ps-empty {
+  padding: 18px 12px;
+  font-size: 11px !important;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--ds-text-muted);
+}
+
+/* Leading 14×14 slot that holds either a check (active) or a dot
+   (inactive) before the profile name. */
+.ds-ps-row-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.ds-ps-row-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ds-text-muted) 45%, transparent);
+}
+
+/* Inactive-row hover tint — kept in CSS so the row can serve as the
+   `data-row-hover-target` for nested GhostIconButtons without each
+   button needing its own React hover state. The active row owns its
+   own (stronger) background via inline `data-active` styling. */
+.ds-ps-row:not([data-active='true']):hover {
+  background: color-mix(in srgb, var(--ds-text-primary) 5%, transparent) !important;
+}

@@ -1,0 +1,8 @@
+# Line-ending policy.
+#
+# The repo is otherwise checked out per each machine's core.autocrlf.
+# npm rewrites every app package.json with LF on each `npm install`
+# (propagate / install:apps), which under core.autocrlf=true shows up
+# as a phantom CRLF↔LF "modification" with no content change. Pin those
+# files to LF so Git and npm agree and the churn stops.
+apps/**/package.json text eol=lf
