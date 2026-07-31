@@ -8,7 +8,7 @@ import { installBootWatchdog } from "./bootWatchdog";
 applyTheme(getTheme());
 installBootWatchdog();
 
-import { StarGridApp } from "@wellsfargo-starui/app";
+import { StarGridApp } from "./starGridApp/index.js";
 import { BrowserRuntime } from "@wellsfargo-starui/host-browser";
 import { OpenFinRuntime, isOpenFin } from "@wellsfargo-starui/host-openfin";
 import { useOpenFinThemeSync } from "./useOpenFinThemeSync";

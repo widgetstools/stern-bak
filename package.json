@@ -15,7 +15,6 @@
     "packages/openfin/*",
     "packages/react-core/*",
     "packages/shared/*",
-    "tools/mcp-scaffold",
     "e2e-openfin"
   ],
   "scripts": {
@@ -76,7 +75,6 @@
     "test:e2e:openfin:vitest-legacy": "npm run test:e2e -w @wellsfargo-starui/e2e-openfin-vitest",
     "bootstrap": "node scripts/bootstrap.mjs",
     "propagate": "node scripts/propagate.mjs",
-    "pack:mcp": "node scripts/pack-mcp-scaffold.mjs",
     "verify:apps": "node scripts/verify-apps.mjs",
     "check:deps": "node scripts/check-package-cycles.mjs",
     "check:deps:strict": "node scripts/check-package-cycles.mjs --strict",
