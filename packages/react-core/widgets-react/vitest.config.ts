@@ -8,6 +8,7 @@ export default defineConfig({
     globals: false,
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
+    setupFiles: ['./src/test/setup.ts'],
     // Each test file gets its own module graph — prevents vi.mock collisions
     // on shared packages like `@wellsfargo-starui/host-data-react/runtime`.
     pool: 'forks',

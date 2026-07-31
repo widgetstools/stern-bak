@@ -92,3 +92,49 @@ describe('FieldsTab — checkbox selection persists', () => {
     expect(cbAfter.getAttribute('data-state')).toBe('checked');
   });
 });
+
+describe('FieldsTab — infer UI', () => {
+  it('shows inference errors and triggers infer', () => {
+    const onInfer = vi.fn();
+    render(
+      <FieldsTab
+        cfg={SAMPLE_CFG}
+        inferredFields={[]}
+        inferenceSummary={null}
+        inferring={false}
+        inferenceError="probe failed"
+        sampleSize={200}
+        onSampleSizeChange={() => {}}
+        onInfer={onInfer}
+        onColumnsChange={() => {}}
+        selectedColumnFields={[]}
+      />,
+    );
+    expect(screen.getByText('probe failed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Infer Fields/i }));
+    expect(onInfer).toHaveBeenCalled();
+  });
+
+  it('filters fields via search and supports select-all', () => {
+    const onCols = vi.fn();
+    render(
+      <FieldsTab
+        cfg={SAMPLE_CFG}
+        inferredFields={FIELDS}
+        inferenceSummary={{ rowsFetched: 10, rowsUsed: 10, fieldsDetected: 2 }}
+        inferring={false}
+        inferenceError={null}
+        sampleSize={200}
+        onSampleSizeChange={() => {}}
+        onInfer={() => {}}
+        onColumnsChange={onCols}
+        selectedColumnFields={[]}
+      />,
+    );
+    fireEvent.change(screen.getByPlaceholderText('Search fields…'), { target: { value: 'sym' } });
+    expect(screen.getByText('symbol')).toBeInTheDocument();
+    expect(screen.queryByText('price')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Select All'));
+    expect(onCols).toHaveBeenCalled();
+  });
+});

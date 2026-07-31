@@ -6,12 +6,13 @@ import { DiagnosticsTab } from './DiagnosticsTab.js';
 const attach = vi.fn();
 const detach = vi.fn();
 const stop = vi.fn();
+const useProviderStats = vi.hoisted(() => vi.fn());
 
 vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
   useDataServices: () => ({
     client: { attach, detach, stop },
   }),
-  useProviderStats: () => undefined,
+  useProviderStats,
 }));
 
 const CFG = {
@@ -27,6 +28,12 @@ describe('DiagnosticsTab', () => {
     attach.mockReset();
     detach.mockReset();
     stop.mockReset();
+    useProviderStats.mockImplementation(() => undefined);
+  });
+
+  it('prompts to save before diagnostics are available', () => {
+    render(<DiagnosticsTab providerId={null} cfg={CFG} />);
+    expect(screen.getByText(/Save the provider first/i)).toBeInTheDocument();
   });
 
   it('starts a cold provider restart with the saved provider config', () => {
@@ -50,5 +57,15 @@ describe('DiagnosticsTab', () => {
       }),
       { extra: expect.objectContaining({ __refresh: expect.any(Number) }) },
     );
+  });
+
+  it('stops the provider', () => {
+    vi.useFakeTimers();
+    attach.mockReturnValue('sub-1');
+    render(<DiagnosticsTab providerId="dp-1" cfg={CFG} />);
+    fireEvent.click(screen.getByRole('button', { name: /Stop/i }));
+    expect(stop).toHaveBeenCalledWith('dp-1');
+    vi.advanceTimersByTime(800);
+    vi.useRealTimers();
   });
 });

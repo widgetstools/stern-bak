@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
 import {
+  exportProviderConfig,
   parseProviderConfigImport,
   toPortableProviderConfig,
 } from './providerConfigIo.js';
@@ -82,5 +83,40 @@ describe('parseProviderConfigImport', () => {
 
   it('throws when config is missing', () => {
     expect(() => parseProviderConfigImport(JSON.stringify({ providerType: 'stomp' }))).toThrow(/config/);
+  });
+});
+
+describe('exportProviderConfig', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('downloads a portable JSON envelope with a sanitized filename stem', () => {
+    vi.useFakeTimers();
+    const click = vi.fn();
+    const remove = vi.fn();
+    const appendChild = vi.spyOn(document.body, 'appendChild').mockImplementation(() => document.body);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '',
+      download: '',
+      click,
+      remove,
+    } as unknown as HTMLAnchorElement);
+
+    exportProviderConfig({
+      ...base,
+      name: 'STOMP Positions!!!',
+    });
+
+    expect(click).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
+    expect(appendChild).toHaveBeenCalled();
+    const anchor = (document.createElement as ReturnType<typeof vi.fn>).mock.results[0]?.value as HTMLAnchorElement;
+    expect(anchor.download).toMatch(/^starui-data-provider-stomp-positions.*\.json$/);
+    vi.advanceTimersByTime(1000);
+    expect(revoke).toHaveBeenCalledWith('blob:test');
   });
 });
