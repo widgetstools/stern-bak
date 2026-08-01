@@ -196,9 +196,6 @@ export default tseslint.config(
     files: [
       'packages/react-core/ui/src/components/**/*.{ts,tsx}',
       'packages/react-grid/grid/src/customizer/ui/shadcn/**/*.{ts,tsx}',
-      'packages/angular-core/**/*.{ts,tsx}',
-      'packages/angular-grid/**/*.{ts,tsx}',
-      'packages/angular-ui/**/*.{ts,tsx}',
       'packages/data/host-data-angular/**/*.{ts,tsx}',
     ],
     rules: { 'unicorn/filename-case': 'off' },

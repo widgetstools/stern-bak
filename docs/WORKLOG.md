@@ -53,27 +53,6 @@ manifest, so retargeting is plausible but unverified.
 
 ---
 
-## 2. `eslint.config.mjs` references deleted packages
-
-**Repo:** stern-bak · **Blocked on:** a repo hook that forbids agent edits to that file
-
-Stale after the deletions in `7e4a674` and `47c802a`:
-
-- `FRAMEWORK_ADAPTERS` still lists `@wellsfargo-starui/app` (deleted)
-- `APP_REVERSE_DEP` guards against importing `@wellsfargo-starui/app` — a rule
-  for a package that no longer exists, plus its usage block on `OPENFIN_GLOBS`
-- lint globs for `packages/angular-core/**`, `packages/angular-grid/**`,
-  `packages/angular-ui/**` (all deleted)
-
-**Nothing is broken** — the patterns simply match nothing. This is dead config,
-not a failure.
-
-**Done looks like** a human pass removing those entries. One edit, no logic
-change. The hook exists to stop agents weakening lint config, which is why it
-was respected rather than bypassed.
-
----
-
 ## 3. `host-data-angular` is the last Angular package
 
 **Repo:** stern-bak · **Blocked on:** nothing — needs a decision only
@@ -113,7 +92,7 @@ that fails if the set grows. **Done looks like** regenerating those SVGs with
 
 **Repo:** stern-bak · **Blocked on:** deciding whether the fix is safe
 
-`packages/shared/host-browser/src/identity.ts` hardcodes:
+`packages/core/host-browser/src/identity.ts` hardcodes:
 
 ```ts
 userId: LOGGED_IN_USER_ID,   // 'dev1'
@@ -144,12 +123,12 @@ Surfaced writing the coverage-70 Session 1 tests. Both are the same shape: a
 factory that exists to give callers a *safe* object hands back a reference into
 module-level state.
 
-- `packages/shared/shared-types/src/dockConfig.ts` — `createMenuItem()` does
+- `packages/types/shared-types/src/dockConfig.ts` — `createMenuItem()` does
   `windowOptions: partial?.windowOptions || DEFAULT_WINDOW_OPTIONS`. Every menu
   item created without explicit options aliases the **same** object, so a dock
   editor writing `item.windowOptions.width = 900` resizes every other item that
   took the default. Same for `viewOptions` / `DEFAULT_VIEW_OPTIONS`.
-- `packages/shared/shared-types/src/dataProvider.ts` —
+- `packages/types/shared-types/src/dataProvider.ts` —
   `getDefaultProviderConfig()` returns `{ ...DEFAULT_PROVIDER_CONFIGS[type] }`,
   a *shallow* copy. The stomp default's `heartbeat` object and the appdata
   default's `variables` record are still shared, so a provider editor binding a
