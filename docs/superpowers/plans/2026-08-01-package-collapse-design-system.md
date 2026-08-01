@@ -56,9 +56,15 @@ If empty, proceed to Task 1. If not empty, resolve per the same order of prefere
 - Delete: `packages/design-system/icons-svg/package.json`
 - Delete: `packages/design-system/icons-svg/vitest.config.ts`
 - Delete: `packages/design-system/icons-svg/turbo.json`
+- Modify: `packages/design-system/icons-svg/tsconfig.json` (found during execution: pre-existing `include` typo, `"all-icons.ts"` vs the real `allIcons.ts`, never before exercised because icons-svg never had its own `typecheck` script — the new merged `typecheck` script is the first thing to run `tsc --noEmit` against this exact config)
+- Modify: `scripts/packageDistFinalize.mjs` (found during execution: `finalizeDist()` unconditionally read `pkgDir/package.json` just to log a name — throws ENOENT for a collapsed member subfolder, which by design no longer has one. Made the read optional with a directory-basename fallback; this is shared infra every future sub-phase's members will also hit, not something specific to design-system)
+- Modify: `packages/react-grid/grid/vitest.config.ts` (found during execution: a hardcoded Vite `resolve.alias` bare-matches `@wellsfargo-starui/design-system` as a string prefix and rewrites it to a fixed file path, `../../design-system/design-system/dist/index.js` — this swallows every subpath that isn't given its own more-specific alias entry first, including the new `/icons/all-icons`. Confirmed via repo-wide grep this exact pattern exists in no other package's vite/vitest config — added one more specific alias, following the file's own existing convention of listing specific subpaths before the bare fallback)
+- Modify: `scripts/pack-npm.mjs` (found during execution: `discover()` only ever checked `packages/<bucket>/<member>/package.json` — a hardcoded two-level assumption. Silently skipped `design-system` from `pack:npm` entirely, no error, just 19 tarballs instead of 20. This is a hard functional break, not the accepted coverage-tooling gap — fixed now: check the bucket root for a package.json first, only fall back to the member-level scan if it's absent, so uncollapsed buckets are unaffected)
+- Modify: `scripts/staruiConsumerAliases.mjs` (found during execution: `discoverManifestFromPackages()` and `findMemberFolder()` have the identical two-level-only assumption, but this file backs the apps repo's **source-track** Vite dev/build alias resolution and the generated consumer tsconfig — silently dropping design-system there would break `npm run dev`/`build:source` for any app importing it, not just a reporting gap. My plan's tarball-only validation (Step 14) wouldn't have caught this. Fixed both functions the same way: bucket-root package.json checked first; `findMemberFolder` returns `''` for the collapsed case, which `path.join` naturally resolves back to the bucket root everywhere it's used downstream (verified: no other call site needed changes; confirmed end-to-end via `npm run check:source-aliases` and by re-running `npm run pack:npm`, which now emits 20 tarballs including `design-system`)
 - Modify: `packages/design-system/icons-svg/allIcons.test.ts` (add environment override)
 - Modify: `packages/design-system/icons-svg/index.test.ts` (add environment override)
 - Modify: `package.json:9` (root workspaces array)
+- Modify: `package.json` `devDependencies` (drop the root-level `@wellsfargo-starui/icons-svg` dev-dependency — found during execution, not caught during planning: root `package.json` devDependencies also declares `@wellsfargo-starui/design-system`, `@wellsfargo-starui/icons-svg`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/types` for repo-root tooling; only the `icons-svg` line needs removing, the others are unaffected)
 - Modify: `packages/openfin/openfin-platform/src/dockEditor/iconUtils.ts:12`
 - Modify: `packages/openfin/openfin-platform/src/dockEditor/iconUtils.test.ts:3`
 - Modify: `packages/openfin/openfin-platform/package.json`
@@ -466,12 +472,16 @@ ls dist-npm/*.tgz | wc -l
 
 Expected: **20** tarballs (was 21 — `design-system` and `icons-svg` collapse from 2 into 1).
 
+**Important — found during execution:** if you're running this from a git worktree (not the main checkout), `setup.mjs` defaults to resolving the platform repo as a *sibling directory* of `starui-apps` — i.e. the main checkout, not your worktree. Running plain `npm run setup:tarball` here silently vendors the **main checkout's** stale `dist-npm/` (still 21 tarballs, the old split) instead of your worktree's freshly-packed 20. Set `STARUI_PLATFORM` to point at the worktree explicitly:
+
 ```bash
 cd /Users/develop/wfh/starui-apps
-npm run setup:tarball
-npm run build:tarball
+STARUI_PLATFORM=/Users/develop/wfh/stern-bak/.claude/worktrees/pkg-collapse-design-system npm run setup:tarball
+STARUI_PLATFORM=/Users/develop/wfh/stern-bak/.claude/worktrees/pkg-collapse-design-system npm run build:tarball
 cd -
 ```
+
+(Adjust the path to whatever worktree you're actually running from — check `pwd` in the platform repo first.)
 
 Expected: `setup:tarball`'s own cleanup step ("Drop vendored tarballs that no longer correspond to a packed package") removes the stale `vendor/wellsfargo-starui-icons-svg.tgz` automatically, and `build:tarball` builds all six tarball-track apps clean. If `build:tarball` fails specifically because `source/star-demo/package.json` (in the **apps repo**, not this one) still declares a dependency on `@wellsfargo-starui/icons-svg`, that is a real, expected finding — it means the apps repo needs its own follow-up to drop that dependency (mirroring this repo's Step 10). Do not edit files in `/Users/develop/wfh/starui-apps` as part of this task; if this happens, stop and report it rather than silently patching a sibling repo, and note it for Task 2's WORKLOG update.
 
