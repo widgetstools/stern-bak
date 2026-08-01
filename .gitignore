@@ -4,6 +4,9 @@ dist/
 .vite/
 .turbo/
 
+# Vitest coverage output (apps coverage-70 effort) — mirrors the platform ignore.
+coverage/
+
 # Lockfiles are not committed — they pin registry.npmjs.org, which a client site
 # behind a corporate Artifactory cannot reach. Each environment regenerates its
 # own on `npm install`. Reproducibility rests on the version pins in

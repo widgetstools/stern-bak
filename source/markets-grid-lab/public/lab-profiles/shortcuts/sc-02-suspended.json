@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "gc-profile",
-  "exportedAt": "2026-05-28T01:28:43.089Z",
+  "exportedAt": "2026-08-01T01:59:56.218Z",
   "profile": {
     "name": "02 · Module off",
     "gridId": "lab-shortcuts",
@@ -21,7 +21,7 @@
           },
           "shortcuts": [
             {
-              "id": "sc-mpote3be-qooh",
+              "id": "sc-ms9q4lyg-y97p",
               "name": "H ×100 qty",
               "enabled": true,
               "shortcutKey": "h",

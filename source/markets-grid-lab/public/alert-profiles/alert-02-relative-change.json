@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "kind": "gc-profile",
-  "exportedAt": "2026-05-26T17:11:28.765Z",
+  "exportedAt": "2026-08-01T01:59:56.274Z",
   "profile": {
     "name": "02 · Relative-change",
-    "gridId": "lab-alerts-v1",
+    "gridId": "lab-alerts-v2",
     "state": {
       "alerts": {
         "v": 1,
@@ -29,23 +29,6 @@
                 "badge"
               ],
               "debounceMs": 2000
-            },
-            {
-              "id": "alert-price-tick",
-              "name": "Any change on last",
-              "enabled": false,
-              "priority": 40,
-              "severity": "info",
-              "trigger": {
-                "kind": "relativeChange",
-                "column": "bidPrice",
-                "mode": "ANY_CHANGE",
-                "direction": "both"
-              },
-              "message": "{rowId} bid → {value}",
-              "channels": [
-                "badge"
-              ]
             }
           ],
           "settings": {

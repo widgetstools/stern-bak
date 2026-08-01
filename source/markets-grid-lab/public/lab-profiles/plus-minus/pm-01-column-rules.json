@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "gc-profile",
-  "exportedAt": "2026-05-28T01:28:43.089Z",
+  "exportedAt": "2026-08-01T01:59:56.218Z",
   "profile": {
     "name": "01 · Column rules",
     "gridId": "lab-plus-minus",
@@ -21,7 +21,7 @@
           },
           "nudges": [
             {
-              "id": "pm-mpote3be-bbhy",
+              "id": "pm-ms9q4lyf-thdv",
               "name": "Qty ±100",
               "enabled": true,
               "scope": {
@@ -32,7 +32,7 @@
               "incrementStep": 100
             },
             {
-              "id": "pm-mpote3be-wb5t",
+              "id": "pm-ms9q4lyf-yrhe",
               "name": "Mid ±0.01",
               "enabled": true,
               "scope": {

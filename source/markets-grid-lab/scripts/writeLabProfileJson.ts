@@ -42,10 +42,7 @@ import {
 } from '../src/profiles/catalogs';
 import { toExportedProfilePayload } from '../src/profiles/labProfileKit';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const outRoot = join(__dirname, '../public/lab-profiles');
-
-const CATALOGS = [
+export const CATALOGS = [
   { folder: 'overview', gridId: OVERVIEW_GRID_ID, profiles: OVERVIEW_DEMO_PROFILES },
   { folder: 'conditional-styling', gridId: CONDITIONAL_GRID_ID, profiles: CONDITIONAL_DEMO_PROFILES },
   { folder: 'calculated-columns', gridId: CALCULATED_GRID_ID, profiles: CALCULATED_DEMO_PROFILES },
@@ -64,12 +61,37 @@ const CATALOGS = [
   { folder: 'visual-excel', gridId: VISUAL_EXCEL_GRID_ID, profiles: VISUAL_EXCEL_DEMO_PROFILES },
 ] as const;
 
-for (const { folder, gridId, profiles } of CATALOGS) {
-  const dir = join(outRoot, folder);
-  mkdirSync(dir, { recursive: true });
-  for (const entry of profiles) {
-    const payload = toExportedProfilePayload(entry, gridId);
-    writeFileSync(join(dir, `${entry.id}.json`), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-    console.log('wrote', join(folder, `${entry.id}.json`));
+export interface WriteLabProfilesOptions {
+  outRoot: string;
+  mkdir?: typeof mkdirSync;
+  write?: typeof writeFileSync;
+  log?: (message: string) => void;
+}
+
+/** Write all lab demo profile JSON files under `outRoot`. */
+export function writeLabProfileJsonFiles({
+  outRoot,
+  mkdir = mkdirSync,
+  write = writeFileSync,
+  log = console.log,
+}: WriteLabProfilesOptions): number {
+  let count = 0;
+  for (const { folder, gridId, profiles } of CATALOGS) {
+    const dir = join(outRoot, folder);
+    mkdir(dir, { recursive: true });
+    for (const entry of profiles) {
+      const payload = toExportedProfilePayload(entry, gridId);
+      write(join(dir, `${entry.id}.json`), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+      log(`wrote ${join(folder, `${entry.id}.json`)}`);
+      count += 1;
+    }
   }
+  return count;
+}
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isMain) {
+  writeLabProfileJsonFiles({ outRoot: join(__dirname, '../public/lab-profiles') });
 }

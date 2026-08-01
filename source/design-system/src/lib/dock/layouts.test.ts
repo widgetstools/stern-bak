@@ -1,3 +1,4 @@
+import '../../testSetupMocks';
 import { describe, expect, it } from 'vitest';
 import { collectAllPanelsOrdered } from '@widgetstools/dock-manager-core';
 import { TAB_LAYOUTS } from './layouts';

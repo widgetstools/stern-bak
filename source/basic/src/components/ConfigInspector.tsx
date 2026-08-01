@@ -90,7 +90,13 @@ export function ConfigInspector({
   const profileCount = snapshot.parsed?.profiles.length ?? 0;
   const activeId = snapshot.parsed?.activeProfileId ?? null;
   const prettyJson = snapshot.raw
-    ? JSON.stringify(snapshot.parsed ?? JSON.parse(snapshot.raw), null, 2)
+    ? (() => {
+        try {
+          return JSON.stringify(snapshot.parsed ?? JSON.parse(snapshot.raw), null, 2);
+        } catch {
+          return snapshot.raw;
+        }
+      })()
     : null;
 
   return (

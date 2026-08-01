@@ -31,8 +31,8 @@ const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const task = process.argv[2] ?? 'build';
 const track = process.argv[3] ?? 'source';
 
-if (task !== 'build' && task !== 'typecheck') {
-  process.stderr.write('Usage: node scripts/app-track.mjs [build|typecheck] [source|tarball]\n');
+if (task !== 'build' && task !== 'typecheck' && task !== 'test') {
+  process.stderr.write('Usage: node scripts/app-track.mjs [build|typecheck|test] [source|tarball]\n');
   process.exit(1);
 }
 if (track !== 'source' && track !== 'tarball') {

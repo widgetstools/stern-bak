@@ -179,6 +179,57 @@ function rewriteTsconfig(destDir, filename) {
   return true;
 }
 
+function patchTarballVitestConfig(destDir) {
+  const vitestPath = join(destDir, 'vitest.config.ts');
+  if (!existsSync(vitestPath)) return;
+  let content = readFileSync(vitestPath, 'utf8');
+  content = content.replace(/\nimport \{ tarballReactResolve \}[^\n]+\n/g, '\n');
+  content = content.replace(/\n\s*resolve: tarballReactResolve\(import\.meta\),\n/g, '\n');
+  content = content.replace(
+    'mergeConfig(\n  mergeConfig(viteConfig, defineConfig({ resolve: tarballReactResolve(import.meta) })),',
+    'mergeConfig(\n  viteConfig,',
+  );
+
+  const repoSetup = "join(dirname(fileURLToPath(import.meta.url)), '../../test-utils/setup.ts')";
+  if (!content.includes('fileURLToPath')) {
+    content = content.replace(
+      "import { defineConfig, mergeConfig } from 'vitest/config';",
+      "import { dirname, join } from 'node:path';\nimport { fileURLToPath } from 'node:url';\nimport { defineConfig, mergeConfig } from 'vitest/config';",
+    );
+  }
+  content = content.replace(
+    "'../../test-utils/setup.ts'",
+    repoSetup,
+  );
+
+  if (!content.includes('deps:')) {
+    content = content.replace(
+      /test: \{\s*\n(\s*)environment:/,
+      `test: {
+$1server: {
+$1  deps: {
+$1    inline: [/@wellsfargo-starui\\/.*/],
+$1  },
+$1},
+$1environment:`,
+    );
+  }
+
+  content = content.replace(
+    'inline: [/@wellsfargo-starui\\\\/.*/]',
+    'inline: [/@wellsfargo-starui\\/.*/]',
+  );
+
+  if (!content.includes('optimizeDeps')) {
+    content = content.replace(
+      'defineConfig({',
+      "defineConfig({\n    optimizeDeps: {\n      exclude: [/@wellsfargo-starui\\/.*/],\n    },",
+    );
+  }
+
+  writeFileSync(vitestPath, content);
+}
+
 function makeApp(app) {
   const cfg = APPS[app];
   if (!cfg) throw new Error(`No tarball spec for "${app}". Known: ${Object.keys(APPS).join(', ')}`);
@@ -256,6 +307,15 @@ function makeApp(app) {
   const dev = { ...(pkg.devDependencies ?? {}) };
   dev['@types/react'] ??= '19.2.18';
   dev['@types/react-dom'] ??= '19.2.4';
+  if (pkg.scripts?.test) {
+    dev.vitest ??= '^4.1.4';
+    dev['@vitest/coverage-v8'] ??= '^4.1.4';
+    dev.jsdom ??= '^29.0.2';
+    dev['@testing-library/react'] ??= '^16.3.2';
+    dev['@testing-library/dom'] ??= '^10.4.0';
+    dev['@testing-library/jest-dom'] ??= '^6.9.1';
+    dev['@testing-library/user-event'] ??= '^14.6.1';
+  }
   pkg.devDependencies = Object.fromEntries(Object.entries(dev).sort(([a], [b]) => a.localeCompare(b)));
 
   // Retarget any script that hardcoded the source port (e.g. star-demo's OpenFin launcher).
@@ -272,6 +332,7 @@ function makeApp(app) {
   if (existsSync(join(destDir, 'tailwind.config.js'))) {
     writeFileSync(join(destDir, 'tailwind.config.js'), tailwindConfig(app));
   }
+  patchTarballVitestConfig(destDir);
   const tsconfigs = ['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json']
     .filter((f) => rewriteTsconfig(destDir, f));
 

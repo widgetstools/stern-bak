@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "kind": "gc-profile",
-  "exportedAt": "2026-05-26T17:11:28.765Z",
+  "exportedAt": "2026-08-01T01:59:56.274Z",
   "profile": {
     "name": "01 · Data-change",
-    "gridId": "lab-alerts-v1",
+    "gridId": "lab-alerts-v2",
     "state": {
       "alerts": {
         "v": 1,
@@ -47,23 +47,6 @@
                 "openfin"
               ],
               "debounceMs": 5000
-            },
-            {
-              "id": "alert-yield-watch",
-              "name": "YTW > 9%",
-              "enabled": false,
-              "priority": 20,
-              "severity": "info",
-              "trigger": {
-                "kind": "dataChange",
-                "expression": "[yieldToWorst] > 9",
-                "column": "yieldToWorst"
-              },
-              "message": "{rowId} yield {value}",
-              "channels": [
-                "badge"
-              ],
-              "debounceMs": 10000
             }
           ],
           "settings": {

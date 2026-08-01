@@ -18,6 +18,13 @@
     "typecheck": "npm run typecheck:source && npm run typecheck:tarball",
     "typecheck:source": "node scripts/app-track.mjs typecheck source",
     "typecheck:tarball": "node scripts/app-track.mjs typecheck tarball",
+    "test": "node scripts/app-track.mjs test source",
+    "test:tarball": "node scripts/app-track.mjs test tarball",
+    "test:all": "node scripts/app-track.mjs test source && node scripts/app-track.mjs test tarball",
+    "test:coverage": "node scripts/run-test-coverage.mjs",
+    "test:coverage:source": "node scripts/run-test-coverage.mjs --source-only",
+    "test:coverage:tarball": "node scripts/run-test-coverage.mjs --tarball-only",
+    "test:coverage:check": "node scripts/check-package-coverage.mjs",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:ui": "playwright test --ui"
@@ -25,8 +32,15 @@
   "//types-note": "React types live at the repo root so every app — and the package .d.ts they pull in — sees exactly one copy. Two @types/react in one graph produce spurious JSX type conflicts.",
   "devDependencies": {
     "@playwright/test": "1.59.1",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4"
+    "@types/react-dom": "19.2.4",
+    "@vitest/coverage-v8": "^4.1.4",
+    "jsdom": "^29.0.2",
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=20.0.0"

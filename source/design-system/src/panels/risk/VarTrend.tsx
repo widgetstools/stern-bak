@@ -26,7 +26,11 @@ function buildVarSeries(): VarPoint[] {
 
 const VAR_SERIES = buildVarSeries();
 
-const latestVar = VAR_SERIES[VAR_SERIES.length - 1]?.var ?? 0;
+export function latestVarFromSeries(series: readonly VarPoint[]): number {
+  return series[series.length - 1]?.var ?? 0;
+}
+
+const latestVar = latestVarFromSeries(VAR_SERIES);
 
 // ── chart config at module scope ──────────────────────────────────────────────
 

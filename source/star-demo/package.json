@@ -11,6 +11,9 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.app.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary --coverage.reporter=lcov",
     "validate:seed": "node scripts/validate-seed.mjs",
     "preview": "vite preview",
     "client": "node launch.mjs http://localhost:5175/platform/manifest.fin.json"
