@@ -1,0 +1,132 @@
+{
+  "name": "@wellsfargo-starui/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarketsUI design system — primitives, semantic tokens, themes, framework adapters, and framework-agnostic SVG icons. Consolidates fi-trading-terminal tokens + star UI wrappers + icons-svg.",
+  "type": "module",
+  "main": "./design-system/dist/index.js",
+  "module": "./design-system/dist/index.js",
+  "types": "./design-system/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./design-system/dist/index.d.ts",
+      "import": "./design-system/dist/index.js"
+    },
+    "./css": "./design-system/dist/css/theme.css",
+    "./styles.css": "./design-system/dist/css/styles.css",
+    "./reset.css": "./design-system/dist/css/reset.css",
+    "./tailwind": {
+      "types": "./design-system/dist/adapters/tailwind.d.ts",
+      "import": "./design-system/dist/adapters/tailwind.js",
+      "default": "./design-system/dist/adapters/tailwind.js"
+    },
+    "./primeng": {
+      "types": "./design-system/dist/adapters/primeng.d.ts",
+      "import": "./design-system/dist/adapters/primeng.js",
+      "default": "./design-system/dist/adapters/primeng.js"
+    },
+    "./shadcn": {
+      "types": "./design-system/dist/adapters/shadcn.d.ts",
+      "import": "./design-system/dist/adapters/shadcn.js",
+      "default": "./design-system/dist/adapters/shadcn.js"
+    },
+    "./adapters/ag-grid": {
+      "types": "./design-system/dist/adapters/agGrid.d.ts",
+      "import": "./design-system/dist/adapters/agGrid.js",
+      "default": "./design-system/dist/adapters/agGrid.js"
+    },
+    "./tokens": {
+      "types": "./design-system/dist/tokens/index.d.ts",
+      "import": "./design-system/dist/tokens/index.js"
+    },
+    "./tokens/primitives": {
+      "types": "./design-system/dist/tokens/primitives.d.ts",
+      "import": "./design-system/dist/tokens/primitives.js"
+    },
+    "./tokens/semantic": {
+      "types": "./design-system/dist/tokens/semantic.d.ts",
+      "import": "./design-system/dist/tokens/semantic.js"
+    },
+    "./tokens/components": {
+      "types": "./design-system/dist/tokens/components.d.ts",
+      "import": "./design-system/dist/tokens/components.js"
+    },
+    "./tokens/controls": {
+      "types": "./design-system/dist/tokens/controls.d.ts",
+      "import": "./design-system/dist/tokens/controls.js"
+    },
+    "./cell-renderers": {
+      "types": "./design-system/dist/cellRenderers.d.ts",
+      "import": "./design-system/dist/cellRenderers.js"
+    },
+    "./cell-renderers-registry": {
+      "types": "./design-system/dist/cellRendererRegistry.d.ts",
+      "import": "./design-system/dist/cellRendererRegistry.js"
+    },
+    "./icons": {
+      "types": "./icons-svg/dist/index.d.ts",
+      "import": "./icons-svg/dist/index.js",
+      "require": "./icons-svg/dist/index.js"
+    },
+    "./icons/react": {
+      "types": "./icons-svg/dist/react/index.d.ts",
+      "import": "./icons-svg/dist/react/index.js"
+    },
+    "./icons/angular": "./icons-svg/angular/index.ts",
+    "./icons/all-icons": {
+      "types": "./icons-svg/dist/allIcons.d.ts",
+      "import": "./icons-svg/dist/allIcons.js"
+    },
+    "./icons/svg/*": "./icons-svg/svg/*"
+  },
+  "scripts": {
+    "build": "rimraf design-system/dist design-system/tsconfig.tsbuildinfo icons-svg/dist && tsc --project design-system/tsconfig.json && tsx design-system/scripts/build-css.ts && tsx design-system/scripts/build-styles-css.ts && node design-system/scripts/copy-assets.mjs && tsc --project icons-svg/tsconfig.build.json && node icons-svg/scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project design-system/tsconfig.json && tsc --noEmit --project icons-svg/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "ag-grid-community": "^35.1.0",
+    "tailwindcss": "^3.4.1",
+    "react": "^19.2.5"
+  },
+  "peerDependenciesMeta": {
+    "tailwindcss": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@types/react": "^19.2.14",
+    "ag-grid-community": "35.1.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "3.4.1",
+    "tsx": "^4.22.2",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "files": [
+    "design-system/dist",
+    "design-system/src/styles",
+    "icons-svg/dist",
+    "icons-svg/svg/**/*.svg",
+    "icons-svg/angular/**/*"
+  ],
+  "dependencies": {
+    "@primeuix/themes": "^1.2.3",
+    "@wellsfargo-starui/shared-types": "*",
+    "tailwindcss-animate": "^1.0.7",
+    "tailwindcss-primeui": "^0.6.1",
+    "@lucide/angular": "^1.17.0",
+    "lucide-react": "^0.554.0"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

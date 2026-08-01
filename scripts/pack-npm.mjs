@@ -54,20 +54,31 @@ for (let i = 0; i < rawArgs.length; i++) {
 
 const log = (m) => console.log(`[pack-npm] ${m}`);
 
+function tryAdd(out, dir) {
+  const pj = path.join(dir, 'package.json');
+  if (!existsSync(pj)) return false;
+  const pkg = JSON.parse(readFileSync(pj, 'utf8'));
+  if (!pkg.name?.startsWith('@wellsfargo-starui/')) return false;
+  if (SKIP_MEMBERS.has(pkg.name)) return false;
+  out.push({ dir, pkg, short: pkg.name.split('/').pop() });
+  return true;
+}
+
 function discover() {
   const out = [];
   for (const bucket of readdirSync(PACKAGES_ROOT)) {
     if (SKIP_BUCKETS.has(bucket)) continue;
     const bucketDir = path.join(PACKAGES_ROOT, bucket);
     if (!statSync(bucketDir).isDirectory()) continue;
+    // Collapsed bucket (WORKLOG #11 phase 2): one package.json at the
+    // bucket root, member subfolders are source-only. Don't also recurse
+    // into members in this case — they no longer have their own
+    // package.json anyway, so the loop below is a no-op for them.
+    if (tryAdd(out, bucketDir)) continue;
     for (const folder of readdirSync(bucketDir)) {
       const dir = path.join(bucketDir, folder);
-      const pj = path.join(dir, 'package.json');
-      if (!statSync(dir).isDirectory() || !existsSync(pj)) continue;
-      const pkg = JSON.parse(readFileSync(pj, 'utf8'));
-      if (!pkg.name?.startsWith('@wellsfargo-starui/')) continue;
-      if (SKIP_MEMBERS.has(pkg.name)) continue;
-      out.push({ dir, pkg, short: pkg.name.split('/').pop() });
+      if (!statSync(dir).isDirectory()) continue;
+      tryAdd(out, dir);
     }
   }
   return out.sort((a, b) => a.pkg.name.localeCompare(b.pkg.name));

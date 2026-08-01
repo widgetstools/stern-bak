@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MARKET_ICON_SVGS } from '@wellsfargo-starui/icons-svg/all-icons';
+import { MARKET_ICON_SVGS } from '@wellsfargo-starui/design-system/icons/all-icons';
 import { AllocationBarEditor } from './AllocationBarEditor';
 import { CountryFlagEditor } from './CountryFlagEditor';
 import { HeatmapEditor } from './HeatmapEditor';

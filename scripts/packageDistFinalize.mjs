@@ -88,9 +88,14 @@ function fixEsmSpecifiers(pkgDir) {
 export function finalizeDist(pkgDirUrl, opts = {}) {
   const pkgDir =
     typeof pkgDirUrl === 'string' ? pkgDirUrl : fileURLToPath(pkgDirUrl);
-  const pkgName = JSON.parse(
-    readFileSync(path.join(pkgDir, 'package.json'), 'utf8'),
-  ).name;
+  // Collapsed-bucket members (see WORKLOG #11 phase 2) have a src/dist tree
+  // but no package.json of their own — only the bucket root does. Fall back
+  // to the directory name for the log label; nothing below depends on the
+  // real package name, only on pkgDir's src/dist contents.
+  const pkgJsonPath = path.join(pkgDir, 'package.json');
+  const pkgName = existsSync(pkgJsonPath)
+    ? JSON.parse(readFileSync(pkgJsonPath, 'utf8')).name
+    : path.basename(pkgDir);
 
   if (!existsSync(path.join(pkgDir, 'dist'))) {
     throw new Error(`${pkgName}: dist/ missing — run tsc before copy-assets`);

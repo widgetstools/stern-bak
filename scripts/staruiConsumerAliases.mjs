@@ -56,6 +56,13 @@ export function reactResolveConfig(appDir) {
 export function findMemberFolder(bucket, memberName) {
   const bucketDir = join(REPO_ROOT, 'packages', bucket);
   if (!existsSync(bucketDir)) return memberName.split('/').pop();
+  // Collapsed bucket (WORKLOG #11 phase 2): package.json lives at the
+  // bucket root, not in a member subfolder — '' joins back to bucketDir.
+  const bucketPkgPath = join(bucketDir, 'package.json');
+  if (existsSync(bucketPkgPath)) {
+    const bucketPkg = JSON.parse(readFileSync(bucketPkgPath, 'utf8'));
+    if (bucketPkg.name === memberName) return '';
+  }
   for (const dir of readdirSync(bucketDir)) {
     const pkgPath = join(bucketDir, dir, 'package.json');
     if (!existsSync(pkgPath)) continue;
@@ -110,6 +117,17 @@ function discoverManifestFromPackages() {
   for (const bucket of readdirSync(packagesRoot, { withFileTypes: true })) {
     if (!bucket.isDirectory()) continue;
     const bucketDir = join(packagesRoot, bucket.name);
+    // Collapsed bucket (WORKLOG #11 phase 2): one package.json at the
+    // bucket root — treat it as the sole member and skip the subfolder
+    // scan below (which would find nothing anyway, by design).
+    const bucketPkgPath = join(bucketDir, 'package.json');
+    if (existsSync(bucketPkgPath)) {
+      const bucketPkg = JSON.parse(readFileSync(bucketPkgPath, 'utf8'));
+      if (bucketPkg.name) {
+        manifest[`@wellsfargo-starui/${bucket.name}`] = { bucket: bucket.name, members: [bucketPkg.name] };
+      }
+      continue;
+    }
     const members = [];
     for (const child of readdirSync(bucketDir, { withFileTypes: true })) {
       if (!child.isDirectory()) continue;

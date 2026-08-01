@@ -9,7 +9,7 @@
  * with the requested color applied (replacing currentColor).
  */
 
-import { marketIconToDataUrl } from "@wellsfargo-starui/icons-svg/all-icons";
+import { marketIconToDataUrl } from "@wellsfargo-starui/design-system/icons/all-icons";
 import { buildOpenFinPalettesFromDesignSystem } from "../openfinPalette";
 
 function resolveThemedIconColors(): { dark: string; light: string } {

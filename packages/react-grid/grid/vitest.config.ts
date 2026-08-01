@@ -17,6 +17,10 @@ export default defineConfig({
         replacement: resolve(__dirname, '../../design-system/design-system/dist/tokens/index.js'),
       },
       {
+        find: '@wellsfargo-starui/design-system/icons/all-icons',
+        replacement: resolve(__dirname, '../../design-system/icons-svg/dist/allIcons.js'),
+      },
+      {
         find: '@wellsfargo-starui/design-system',
         replacement: resolve(__dirname, '../../design-system/design-system/dist/index.js'),
       },

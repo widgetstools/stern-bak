@@ -13,9 +13,9 @@
  */
 
 import { useState, useMemo } from "react";
-import { DynamicIcon as Icon } from "@wellsfargo-starui/icons-svg/react";
-import { MARKET_ICON_SVGS, svgToDataUrl } from "@wellsfargo-starui/icons-svg/all-icons";
-import { ICON_META } from "@wellsfargo-starui/icons-svg";
+import { DynamicIcon as Icon } from "@wellsfargo-starui/design-system/icons/react";
+import { MARKET_ICON_SVGS, svgToDataUrl } from "@wellsfargo-starui/design-system/icons/all-icons";
+import { ICON_META } from "@wellsfargo-starui/design-system/icons";
 import { Input, ScrollArea, cn } from "@wellsfargo-starui/ui";
 import { ICON_OPTIONS } from "./dock-editor/icons";
 

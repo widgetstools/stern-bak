@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   MARKET_ICON_SVGS, marketIconToDataUrl, svgToDataUrl,

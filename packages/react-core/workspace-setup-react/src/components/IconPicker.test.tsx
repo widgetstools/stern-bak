@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ICON_META } from '@wellsfargo-starui/icons-svg';
+import { ICON_META } from '@wellsfargo-starui/design-system/icons';
 import { IconPicker } from './IconPicker.js';
 
 /**

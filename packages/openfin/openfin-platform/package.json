@@ -41,7 +41,6 @@
     "@wellsfargo-starui/host": "*",
     "@wellsfargo-starui/host-config": "*",
     "@wellsfargo-starui/host-data": "*",
-    "@wellsfargo-starui/icons-svg": "*",
     "@wellsfargo-starui/types": "*"
   },
   "devDependencies": {

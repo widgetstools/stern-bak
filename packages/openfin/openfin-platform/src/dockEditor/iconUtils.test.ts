@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@wellsfargo-starui/icons-svg/all-icons', () => ({
+vi.mock('@wellsfargo-starui/design-system/icons/all-icons', () => ({
   marketIconToDataUrl: (name: string, color: string) => `data:mkt:${name}:${color}`,
 }));
 

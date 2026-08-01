@@ -58,7 +58,6 @@
     "@wellsfargo-starui/engine": "*",
     "@wellsfargo-starui/host": "*",
     "@wellsfargo-starui/host-openfin": "*",
-    "@wellsfargo-starui/icons-svg": "*",
     "@wellsfargo-starui/shared-types": "*",
     "@wellsfargo-starui/types": "*",
     "@wellsfargo-starui/ui": "*",

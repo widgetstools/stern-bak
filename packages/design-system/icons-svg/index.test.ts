@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   ICON_CATEGORIES, ICON_CATEGORY_NAMES, ICON_META, ICON_NAMES, ICON_PATHS,

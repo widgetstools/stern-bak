@@ -16,15 +16,16 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "../../react-ui/ui/src/**",
-        "../../react-grid/grid/src/**",
-        "../../react-grid/widgets-react/src/**",
-        "../../react-grid/config-browser/src/**",
-        "../../react-core/workspace-setup-react/src/**",
-        "../../react-core/host-data-react/src/**"
+        "../react-ui/ui/src/**",
+        "../react-grid/grid/src/**",
+        "../react-grid/widgets-react/src/**",
+        "../react-grid/config-browser/src/**",
+        "../react-core/workspace-setup-react/src/**",
+        "../react-core/host-data-react/src/**"
       ],
       "outputs": [
-        "dist/**"
+        "design-system/dist/**",
+        "icons-svg/dist/**"
       ]
     }
   }
