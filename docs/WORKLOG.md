@@ -9,7 +9,7 @@ Each entry states what is wrong, why it was left, and what "done" looks like, so
 it can be picked up cold. Close an item by deleting its section in the same
 change that fixes it.
 
-Last updated: 2026-07-31.
+Last updated: 2026-08-01.
 
 ---
 
@@ -324,22 +324,19 @@ Three moves do the work: `host-config` → `core` kills the cycle, `host-data-re
 are unaffected), and `config-browser` + `widgets-react` → `grid` confines
 `ag-grid-enterprise` to one bucket.
 
-**When it runs.** Whenever someone picks it up — nothing blocks it any more.
+**Folder-move stage: done.** `host-config` → `shared`, `host-data-react` →
+`react-core`, `config-browser` + `widgets-react` → `react-grid` landed as
+three separate commits, each validated with `npx turbo typecheck build
+test`, `npm run check:deps`, and a full tarball install + build in the
+sibling `starui-apps` repo. Package count is still 21 — only folder
+location changed, per the design spec at
+[`docs/superpowers/specs/2026-08-01-package-bucket-realignment-design.md`](./superpowers/specs/2026-08-01-package-bucket-realignment-design.md).
 
-**The original sequencing did not happen, and that is worth knowing.** The plan
-was to run this immediately after coverage session 3 so that sessions 4–16 (313
-files, all of `grid` and `ui`) were written once against the final layout instead
-of codemodded afterwards. Those sessions ran first. The restructure therefore now
-has to move ~350 colocated test files as well as the source they sit beside.
-
-That is a bigger move but a *safer* one, for two reasons the original note could
-not assume: the tests are colocated, so each one moves with its subject in the
-same `git mv` and the specifier rewrite is verified completely by `tsc` — a wrong
-one is a compile error; and the repo is now at **807/807**, so the per-file bar
-gives an exact, non-negotiable assertion for the rework: **the coverage number
-must move by zero.** Before, 70% of the 839 cross-bucket rewrites sat in packages
-still below the bar, and a rewrite that silently dropped a file from the gate
-would not have been visible. Now it would.
+**What remains** is the second stage this item originally described:
+collapsing 21 `package.json` files into 7, which still requires
+`check-package-cycles.mjs` and `check-package-coverage.mjs` to be taught to
+treat `packages/<bucket>/<member>/` as graph nodes (see "Still true" above)
+before it can start.
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level
 `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
