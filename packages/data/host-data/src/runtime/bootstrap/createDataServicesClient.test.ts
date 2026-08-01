@@ -98,7 +98,7 @@ describe('createDataServicesClient', () => {
 
     MockSharedWorker.errorHandler?.({ type: 'error' });
     expect(consoleError).toHaveBeenCalledWith(
-      '[@wellsfargo-starui/host-data] SharedWorker error event',
+      '[@wellsfargo-starui/data] SharedWorker error event',
       expect.objectContaining({ type: 'error' }),
     );
     consoleError.mockRestore();

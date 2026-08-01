@@ -3,7 +3,7 @@
  * surfaces a "Test Connection" button under it.
  *
  * The actual connection-test logic lives in `useProviderProbe`, which
- * dispatches to `probeStomp` / `probeRest` from `@wellsfargo-starui/host-data/runtime`.
+ * dispatches to `probeStomp` / `probeRest` from `@wellsfargo-starui/data/runtime`.
  * The hook is owned by EditorForm and passed in (since FieldsTab also
  * needs the same probe state).
  */

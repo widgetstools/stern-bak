@@ -9,13 +9,13 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import type { SharedWorkerDataServicesClient } from '@wellsfargo-starui/host-data/runtime/client';
+import type { SharedWorkerDataServicesClient } from '@wellsfargo-starui/data/runtime/client';
 import {
   AppDataMirror,
   DataProviderConfigStore,
   type DataServices,
-} from '@wellsfargo-starui/host-data/runtime';
-import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/host-data';
+} from '@wellsfargo-starui/data/runtime';
+import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/data';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import type { ConfigManager } from '@wellsfargo-starui/host-config';
 

@@ -241,10 +241,10 @@ describe('runAppDataBootstrap', () => {
     ctx.log('hello');
     ctx.log('with detail', { x: 1 });
     expect(infoSpy).toHaveBeenCalledWith(
-      '[@wellsfargo-starui/host-data appDataBootstrap] hello',
+      '[@wellsfargo-starui/data appDataBootstrap] hello',
     );
     expect(infoSpy).toHaveBeenCalledWith(
-      '[@wellsfargo-starui/host-data appDataBootstrap] with detail',
+      '[@wellsfargo-starui/data appDataBootstrap] with detail',
       { x: 1 },
     );
     infoSpy.mockRestore();

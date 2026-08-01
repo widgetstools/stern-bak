@@ -9,8 +9,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import type { ConfigManager } from '@wellsfargo-starui/host-config';
-import type { DataServices } from '@wellsfargo-starui/host-data/runtime';
-import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/host-data';
+import type { DataServices } from '@wellsfargo-starui/data/runtime';
+import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/data';
 import { useDataServices } from '@wellsfargo-starui/host-data-react/runtime';
 
 let captureClient: unknown = null;

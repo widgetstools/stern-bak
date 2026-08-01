@@ -32,7 +32,7 @@
  * One caveat, documented in docs/EXTERNAL_CONSUMPTION.md:
  *   - Vite DEV prebundles bare node_modules imports into `.vite/deps/`,
  *     which relocates this module and breaks the relative resolution. Vite
- *     dev users add `optimizeDeps: { exclude: ['@wellsfargo-starui/host-data'] }`.
+ *     dev users add `optimizeDeps: { exclude: ['@wellsfargo-starui/data'] }`.
  *     (A package cannot opt itself out of Vite's optimizer.)
  *   - A Blob-URL worker would sidestep that but is NOT viable here: every
  *     `createObjectURL` yields a distinct URL, so each window would get its
@@ -40,7 +40,7 @@
  *
  * Passing an explicit URL still wins, and remains the right choice for
  * CDN / OpenFin-manifest / plain-<script> hosting, where the pre-built
- * `@wellsfargo-starui/host-data/assets/data-services-worker.mjs` is served
+ * `@wellsfargo-starui/data/assets/data-services-worker.mjs` is served
  * directly.
  *
  * Bootstrap fields (appId, userId, seed URL, REST URL) are sent as a
@@ -74,7 +74,7 @@ export interface CreateDataServicesWorkerOpts {
 
 /** Package export path for the bundled worker (after `npm run build`). */
 export const DATA_SERVICES_WORKER_ASSET =
-  '@wellsfargo-starui/host-data/assets/data-services-worker.mjs';
+  '@wellsfargo-starui/data/assets/data-services-worker.mjs';
 
 function resolveWorkerScriptUrl(scriptUrl: string): string {
   try {
@@ -94,7 +94,7 @@ export function createDataServicesWorker(
 ): SharedWorker {
   if (typeof SharedWorker === 'undefined') {
     throw new Error(
-      '[@wellsfargo-starui/host-data] SharedWorker is not available in this '
+      '[@wellsfargo-starui/data] SharedWorker is not available in this '
         + 'environment. The data-services hub requires a browser; guard your '
         + 'bootstrap call for SSR/Node rendering.',
     );
@@ -115,7 +115,7 @@ export function createDataServicesWorker(
 
   worker.addEventListener('error', (ev) => {
     // eslint-disable-next-line no-console
-    console.error('[@wellsfargo-starui/host-data] SharedWorker error event', ev);
+    console.error('[@wellsfargo-starui/data] SharedWorker error event', ev);
   });
 
   // Must go out before anything else uses this port: the worker entry blocks

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { DEV_PLATFORM_BOOTSTRAP, PlatformBootstrapConfigError } from '@wellsfargo-starui/host-data';
+import { DEV_PLATFORM_BOOTSTRAP, PlatformBootstrapConfigError } from '@wellsfargo-starui/data';
 
 const resolveActiveIdentityFromSeedUrl = vi.fn();
 const resolveSeedConfigUrl = vi.fn(async (u: string) => u);
@@ -14,8 +14,8 @@ vi.mock('@wellsfargo-starui/host-config', async (importOriginal) => {
   };
 });
 
-vi.mock('@wellsfargo-starui/host-data', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/host-data')>();
+vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/data')>();
   return {
     ...actual,
     resolvePlatformBootstrapFromJson: (...a: unknown[]) =>

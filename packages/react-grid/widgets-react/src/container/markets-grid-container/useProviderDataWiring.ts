@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef } from 'react';
 import type { GridApi } from 'ag-grid-community';
-import type { IDataProvider } from '@wellsfargo-starui/host-data';
+import type { IDataProvider } from '@wellsfargo-starui/data';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import { createApplyProviderToGridState } from './applyProviderToGrid.js';
 import type { ProviderMode } from './gridLevelState.js';

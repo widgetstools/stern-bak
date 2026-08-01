@@ -10,7 +10,7 @@ import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 
 const bootstrap = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-data/runtime', () => ({
+vi.mock('@wellsfargo-starui/data/runtime', () => ({
   bootstrapDataServicesWithWorkerAsset: (...args: unknown[]) => bootstrap(...args),
 }));
 

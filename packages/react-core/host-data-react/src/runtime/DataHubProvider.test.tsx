@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Component, Suspense, type ReactNode } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ConfigManager } from '@wellsfargo-starui/host-config';
-import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/host-data';
+import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/data';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import { usePlatformIdentityOrNull } from './DataServicesProvider.js';
 
@@ -15,8 +15,8 @@ import { usePlatformIdentityOrNull } from './DataServicesProvider.js';
 
 const ensurePlatformReady = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-data', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/host-data')>();
+vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/data')>();
   return { ...actual, ensurePlatformReady: (...args: unknown[]) => ensurePlatformReady(...args) };
 });
 

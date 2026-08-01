@@ -29,7 +29,7 @@ import { COMPONENT_TYPES } from "@wellsfargo-starui/types";
 import type { DockEditorConfig } from './dockConfigTypes';
 import { getConfigServiceRestUrlFromManifest } from './manifestConfig';
 import type { RegistryEditorConfig } from './registryConfigTypes';
-import { resolvePlatformBootstrapFromJson } from '@wellsfargo-starui/host-data';
+import { resolvePlatformBootstrapFromJson } from '@wellsfargo-starui/data';
 import {
   resolveDeploymentIdentity,
   resolvePlatformBootstrapFromManifest,

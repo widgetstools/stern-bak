@@ -107,10 +107,10 @@ export function createAppDataBootstrapContext(
     log(message, detail) {
       if (detail !== undefined) {
         // eslint-disable-next-line no-console
-        console.info(`[@wellsfargo-starui/host-data appDataBootstrap] ${message}`, detail);
+        console.info(`[@wellsfargo-starui/data appDataBootstrap] ${message}`, detail);
       } else {
         // eslint-disable-next-line no-console
-        console.info(`[@wellsfargo-starui/host-data appDataBootstrap] ${message}`);
+        console.info(`[@wellsfargo-starui/data appDataBootstrap] ${message}`);
       }
     },
     async upsertAppData(input: AppDataUpsertInput): Promise<void> {

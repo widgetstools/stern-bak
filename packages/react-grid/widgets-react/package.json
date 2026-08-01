@@ -54,7 +54,7 @@
     "@wellsfargo-starui/engine": "*",
     "@wellsfargo-starui/grid": "*",
     "@wellsfargo-starui/host-config": "*",
-    "@wellsfargo-starui/host-data": "*",
+    "@wellsfargo-starui/data": "*",
     "@wellsfargo-starui/host-data-react": "*",
     "@wellsfargo-starui/openfin": "*",
     "@wellsfargo-starui/shared-types": "*",

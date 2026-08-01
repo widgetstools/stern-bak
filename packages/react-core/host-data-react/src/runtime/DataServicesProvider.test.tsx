@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Suspense, type ReactNode } from 'react';
 import { cleanup, render, renderHook, screen } from '@testing-library/react';
 import type { ConfigManager } from '@wellsfargo-starui/host-config';
-import type { DataServices } from '@wellsfargo-starui/host-data/runtime';
-import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/host-data';
+import type { DataServices } from '@wellsfargo-starui/data/runtime';
+import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/data';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
   DataServicesProvider,

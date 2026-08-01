@@ -13,7 +13,7 @@
  *
  * The dataServices handle is structurally typed (`DataServicesHandle`)
  * so we mock it here with a minimal in-memory `appData` surface. The
- * real `AppDataMirror` from `@wellsfargo-starui/host-data` satisfies the same
+ * real `AppDataMirror` from `@wellsfargo-starui/data` satisfies the same
  * shape verbatim — no adapter required.
  */
 

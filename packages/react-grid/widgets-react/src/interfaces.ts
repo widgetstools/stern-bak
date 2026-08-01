@@ -3,10 +3,10 @@
  * These are injected via BlotterProvider, NOT imported directly.
  */
 
-import type { IDataProvider } from '@wellsfargo-starui/host-data';
+import type { IDataProvider } from '@wellsfargo-starui/data';
 
 /**
- * @deprecated Use {@link IDataProvider} from `@wellsfargo-starui/host-data` instead.
+ * @deprecated Use {@link IDataProvider} from `@wellsfargo-starui/data` instead.
  * Kept as a type alias for legacy BlotterProvider injection sites.
  */
 export type IBlotterDataProvider = IDataProvider;

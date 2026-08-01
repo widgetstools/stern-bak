@@ -1,9 +1,9 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
-import { coverage } from '../../../scripts/vitestCoverage.mjs';
+import { coverage } from '../../scripts/vitestCoverage.mjs';
 
 /**
- * Vitest config for `@wellsfargo-starui/host-data`.
+ * Vitest config for `@wellsfargo-starui/data`.
  *
  * Runs in Node-with-DOM-shim (`jsdom`) so `MessageChannel`, `MessageEvent`,
  * and structured-clone are available for protocol tests. The actual
@@ -13,14 +13,16 @@ import { coverage } from '../../../scripts/vitestCoverage.mjs';
 export default defineConfig({
   resolve: {
     alias: {
-      '@wellsfargo-starui/host-data': resolve(__dirname, 'src/index.ts'),
+      '@wellsfargo-starui/data': resolve(__dirname, 'host-data/src/index.ts'),
     },
   },
   test: {
-    coverage: coverage(),
+    coverage: coverage({
+      include: ['host-data/src/**/*.{ts,tsx,js,jsx}'],
+    }),
     environment: 'jsdom',
     globals: true,
-    include: ['src/**/*.test.ts'],
+    include: ['host-data/src/**/*.test.ts'],
     css: false,
   },
 });

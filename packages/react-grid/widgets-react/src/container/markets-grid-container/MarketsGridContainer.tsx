@@ -33,7 +33,7 @@ import {
   useMarketsGridEventBridge,
 } from '@wellsfargo-starui/grid';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
-import { traceStompProviderCfg } from '@wellsfargo-starui/host-data/runtime';
+import { traceStompProviderCfg } from '@wellsfargo-starui/data/runtime';
 import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/engine';
 import {
   useDataProviderConfig,

@@ -17,7 +17,7 @@ vi.mock('./manifestConfig.js', () => ({
   getConfigServiceRestUrlFromManifest: (...a: unknown[]) => getConfigServiceRestUrlFromManifest(...a),
 }));
 
-vi.mock('@wellsfargo-starui/host-data', () => ({
+vi.mock('@wellsfargo-starui/data', () => ({
   resolvePlatformBootstrapFromJson: (...a: unknown[]) => resolvePlatformBootstrapFromJson(...a),
 }));
 

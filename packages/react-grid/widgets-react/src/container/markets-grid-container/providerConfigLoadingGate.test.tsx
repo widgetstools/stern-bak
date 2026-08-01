@@ -6,7 +6,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ProviderStatus } from '@wellsfargo-starui/host-data/runtime';
+import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import type { StorageAdapter } from '@wellsfargo-starui/engine';
 
 const LIVE_PROVIDER_ID = 'dp-live';

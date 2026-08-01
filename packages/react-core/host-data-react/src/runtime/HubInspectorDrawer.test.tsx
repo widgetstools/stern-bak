@@ -6,7 +6,7 @@ import type {
   DataServices,
   HubIntrospectSnapshot,
   HubProviderIntrospectRow,
-} from '@wellsfargo-starui/host-data/runtime';
+} from '@wellsfargo-starui/data/runtime';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import { HubInspectorDrawer } from './HubInspectorDrawer.js';
 

@@ -1,13 +1,13 @@
 /**
- * @wellsfargo-starui/host-data — public entry.
+ * @wellsfargo-starui/data — public entry.
  *
  * The runtime is the live surface. The root entry re-exports runtime
- * types so `@wellsfargo-starui/host-data` continues to give consumers a
+ * types so `@wellsfargo-starui/data` continues to give consumers a
  * usable barrel. For specific entry points use the subpath exports:
  *
- *   `@wellsfargo-starui/host-data/runtime`               — protocol types + main-thread helpers
- *   `@wellsfargo-starui/host-data/runtime/client`        — the SharedWorkerDataServicesClient
- *   `@wellsfargo-starui/host-data/runtime/sharedWorker`  — installSharedWorkerHub + SharedWorkerDataServicesHub
+ *   `@wellsfargo-starui/data/runtime`               — protocol types + main-thread helpers
+ *   `@wellsfargo-starui/data/runtime/client`        — the SharedWorkerDataServicesClient
+ *   `@wellsfargo-starui/data/runtime/sharedWorker`  — installSharedWorkerHub + SharedWorkerDataServicesHub
  *
  * `probeStomp` / `probeRest` / `inferFields` are pure main-thread
  * helpers (the design doc's `transport: 'main'` mode) consumed by

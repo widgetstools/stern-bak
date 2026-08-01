@@ -15,7 +15,7 @@ import {
   resolvePlatformBootstrapFromJson,
   resolvePlatformBootstrapFromObject,
   type PlatformBootstrapConfig,
-} from '@wellsfargo-starui/host-data';
+} from '@wellsfargo-starui/data';
 
 import { DEFAULT_APP_ID } from './defaultAppId.js';
 import { resolveSeedConfigUrl } from './resolveSeedConfigUrl.js';

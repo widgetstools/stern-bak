@@ -2,7 +2,7 @@
 declare const fin: any;
 
 import { useEffect, useMemo, useState } from 'react';
-import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/host-data';
+import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/data';
 import { usePlatformIdentityOrNull } from '@wellsfargo-starui/host-data-react/runtime';
 import { createConfigServiceStorage } from '@wellsfargo-starui/host-config';
 import type {

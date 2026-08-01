@@ -587,7 +587,7 @@ export const COMPOSITE_KEY_SEPARATOR = '-';
  * Provider lifecycle status as surfaced to subscribers (hub `status`
  * events, `IDataProvider.onStatus`, grid loading overlays). Lives in
  * the foundation layer so UI packages can type against it without a
- * dependency edge on `@wellsfargo-starui/host-data` (which re-exports it for its
+ * dependency edge on `@wellsfargo-starui/data` (which re-exports it for its
  * own consumers).
  */
 export type ProviderStatus = 'loading' | 'ready' | 'error';

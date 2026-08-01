@@ -47,7 +47,7 @@
     "@wellsfargo-starui/host": "*",
     "@wellsfargo-starui/host-browser": "*",
     "@wellsfargo-starui/host-config": "*",
-    "@wellsfargo-starui/host-data": "*",
+    "@wellsfargo-starui/data": "*",
     "@wellsfargo-starui/types": "*"
   },
   "peerDependencies": {

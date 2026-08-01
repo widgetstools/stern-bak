@@ -1,5 +1,5 @@
 /**
- * React bindings for `@wellsfargo-starui/host-data` — one context provider +
+ * React bindings for `@wellsfargo-starui/data` — one context provider +
  * focused hooks.
  *
  * Surface:
@@ -28,13 +28,13 @@ import {
 import type {
   DataListener,
   StatsListener,
-} from '@wellsfargo-starui/host-data/runtime/client';
+} from '@wellsfargo-starui/data/runtime/client';
 import {
   collectTemplateRefs,
   resolveCfg,
   type AppDataMirror,
-} from '@wellsfargo-starui/host-data/runtime';
-import type { ProviderStatus } from '@wellsfargo-starui/host-data/runtime';
+} from '@wellsfargo-starui/data/runtime';
+import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
 import {
   DataServicesProvider,
@@ -438,14 +438,14 @@ export type {
   AttachOpts,
   SubId,
   SharedWorkerDataServicesClient,
-} from '@wellsfargo-starui/host-data/runtime/client';
+} from '@wellsfargo-starui/data/runtime/client';
 export type {
   ProviderStats,
   ProviderStatus,
-} from '@wellsfargo-starui/host-data/runtime';
+} from '@wellsfargo-starui/data/runtime';
 export type {
   HubIntrospectSnapshot,
   HubProviderIntrospectRow,
   HubAppDataIntrospectRow,
-} from '@wellsfargo-starui/host-data/runtime';
+} from '@wellsfargo-starui/data/runtime';
 export { createAppDataServices, type CreateAppDataServicesOpts } from './createAppDataServices.js';

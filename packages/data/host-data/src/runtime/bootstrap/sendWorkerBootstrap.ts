@@ -47,7 +47,7 @@ export function sendWorkerBootstrap(port: MessagePort, input: WorkerBootstrapInp
     // configServiceRestUrl is silently ignored.
     // eslint-disable-next-line no-console
     console.error(
-      '[@wellsfargo-starui/host-data] failed to send the worker bootstrap handshake; '
+      '[@wellsfargo-starui/data] failed to send the worker bootstrap handshake; '
         + 'the SharedWorker will run local/anonymous',
       err,
     );

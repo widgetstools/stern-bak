@@ -294,22 +294,22 @@ export function auditSourceModePaths(appDir, opts = {}) {
   const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs');
   if (!existsSync(workerPath)) {
     requiresBuild.push({
-      label: '@wellsfargo-starui/host-data/assets/data-services-worker.mjs',
+      label: '@wellsfargo-starui/data/assets/data-services-worker.mjs',
       relTarget: './dist/assets/data-services-worker.mjs',
       path: workerPath,
-      member: '@wellsfargo-starui/host-data',
+      member: '@wellsfargo-starui/data',
     });
   } else {
-    ok.push('@wellsfargo-starui/host-data/assets/data-services-worker.mjs');
+    ok.push('@wellsfargo-starui/data/assets/data-services-worker.mjs');
   }
 
   return { broken, requiresBuild, ok };
 }
 
 const HOST_DATA_WORKER_ASSET_RE =
-  /^@wellsfargo-starui\/(?:data\/)?host-data\/assets\/data-services-worker\.mjs\?url$/;
+  /^@wellsfargo-starui\/data\/assets\/data-services-worker\.mjs\?url$/;
 
-/** Resolve `@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url` for Vite. */
+/** Resolve `@wellsfargo-starui/data/assets/data-services-worker.mjs?url` for Vite. */
 export function resolveHostDataWorkerAssetUrl(source, appDir) {
   if (!HOST_DATA_WORKER_ASSET_RE.test(source)) return null;
   void appDir;
@@ -434,8 +434,8 @@ export function staruiOptimizeDeps() {
       // Keep host-data out of the deps prebundle — prebundling breaks
       // `new SharedWorker(new URL(..., import.meta.url))` inside the
       // library. Apps must construct SharedWorkers at the call site.
-      '@wellsfargo-starui/host-data',
-      '@wellsfargo-starui/host-data/runtime',
+      '@wellsfargo-starui/data',
+      '@wellsfargo-starui/data/runtime',
       // Single React context instance — prebundling widgets-react pulls
       // a second copy of host-data-react and breaks <DataServicesProvider>.
       '@wellsfargo-starui/host-data-react',

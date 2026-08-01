@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { ConfigManager } from '@wellsfargo-starui/host-config';
-import type { DataServices } from '@wellsfargo-starui/host-data/runtime';
-import type { IDataProvider, ProviderCapabilities, Unsubscribe } from '@wellsfargo-starui/host-data';
+import type { DataServices } from '@wellsfargo-starui/data/runtime';
+import type { IDataProvider, ProviderCapabilities, Unsubscribe } from '@wellsfargo-starui/data';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
-import type { ProviderStatus } from '@wellsfargo-starui/host-data/runtime';
+import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import { useDataProvider } from './useDataProvider.js';
 
@@ -62,8 +62,8 @@ function createMockProvider(providerId: string): IDataProvider & {
 
 const mockInstances: ReturnType<typeof createMockProvider>[] = [];
 
-vi.mock('@wellsfargo-starui/host-data', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/host-data')>();
+vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/data')>();
   return {
     ...actual,
     ProviderClientAdapter: vi.fn(function MockProviderClientAdapter(opts: { providerId: string }) {

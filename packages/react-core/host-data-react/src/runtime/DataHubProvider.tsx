@@ -19,8 +19,8 @@ import {
   ensurePlatformReady,
   type PlatformBootstrapConfig,
   type ResolvedDataServicesHubBundle,
-} from '@wellsfargo-starui/host-data';
-import type { DataServices } from '@wellsfargo-starui/host-data/runtime';
+} from '@wellsfargo-starui/data';
+import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import { HubInspectorHost } from './HubInspectorHost.js';

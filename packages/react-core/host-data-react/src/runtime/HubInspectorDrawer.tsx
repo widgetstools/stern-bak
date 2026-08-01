@@ -25,7 +25,7 @@ import type {
   HubIntrospectSnapshot,
   HubProviderIntrospectRow,
   ProviderStatus,
-} from '@wellsfargo-starui/host-data/runtime';
+} from '@wellsfargo-starui/data/runtime';
 import {
   HubInspectorVirtualSection,
   type HubInspectorRowMeasureProps,

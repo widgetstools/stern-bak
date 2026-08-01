@@ -33,7 +33,7 @@
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",
     "@wellsfargo-starui/host-config": "*",
-    "@wellsfargo-starui/host-data": "*",
+    "@wellsfargo-starui/data": "*",
     "@wellsfargo-starui/types": "*",
     "@wellsfargo-starui/ui": "*",
     "lucide-react": "^0.554.0"

@@ -6,9 +6,9 @@
  * root for editor / field-inference flows that don't need the worker.
  *
  * Subpaths:
- *   `@wellsfargo-starui/host-data/runtime`               — main thread (client + protocol types)
- *   `@wellsfargo-starui/host-data/runtime/sharedWorker`  — SharedWorker entry + SharedWorkerDataServicesHub
- *   `@wellsfargo-starui/host-data/runtime/client`        — SharedWorkerDataServicesClient
+ *   `@wellsfargo-starui/data/runtime`               — main thread (client + protocol types)
+ *   `@wellsfargo-starui/data/runtime/sharedWorker`  — SharedWorker entry + SharedWorkerDataServicesHub
+ *   `@wellsfargo-starui/data/runtime/client`        — SharedWorkerDataServicesClient
  */
 
 export type {

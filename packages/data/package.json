@@ -1,0 +1,57 @@
+{
+  "name": "@wellsfargo-starui/data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SharedWorker-backed data services for StarGrid DataPort. Consolidates host-data (host-data-angular stays excluded from the pipeline).",
+  "type": "module",
+  "main": "./host-data/dist/index.js",
+  "types": "./host-data/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./host-data/dist/index.d.ts",
+      "import": "./host-data/dist/index.js"
+    },
+    "./runtime": {
+      "types": "./host-data/dist/runtime/index.d.ts",
+      "import": "./host-data/dist/runtime/index.js"
+    },
+    "./runtime/sharedWorker": {
+      "types": "./host-data/dist/runtime/worker/index.d.ts",
+      "import": "./host-data/dist/runtime/worker/index.js"
+    },
+    "./runtime/client": {
+      "types": "./host-data/dist/runtime/client/index.d.ts",
+      "import": "./host-data/dist/runtime/client/index.js"
+    },
+    "./runtime/worker/defaultEntry": {
+      "types": "./host-data/dist/runtime/worker/defaultEntry.d.ts",
+      "import": "./host-data/dist/runtime/worker/defaultEntry.js"
+    },
+    "./assets/data-services-worker.mjs": "./host-data/dist/assets/data-services-worker.mjs"
+  },
+  "files": [
+    "host-data/dist"
+  ],
+  "scripts": {
+    "build": "rimraf host-data/dist host-data/tsconfig.tsbuildinfo && tsc --project host-data/tsconfig.json && node host-data/scripts/buildWorker.mjs && node host-data/scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project host-data/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/types": "*"
+  },
+  "devDependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "@types/node": "^22.19.17",
+    "esbuild": "^0.28.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

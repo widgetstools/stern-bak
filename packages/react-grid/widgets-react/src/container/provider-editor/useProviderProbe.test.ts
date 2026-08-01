@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { useProviderProbe } from './useProviderProbe.js';
 
-vi.mock('@wellsfargo-starui/host-data', () => ({
+vi.mock('@wellsfargo-starui/data', () => ({
   probeStomp: vi.fn(),
   connectStomp: vi.fn(),
   probeRest: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('@wellsfargo-starui/host-data', () => ({
   })),
 }));
 
-vi.mock('@wellsfargo-starui/host-data/runtime', () => ({
+vi.mock('@wellsfargo-starui/data/runtime', () => ({
   resolveCfg: vi.fn((cfg: unknown) => cfg),
 }));
 
@@ -32,7 +32,7 @@ import {
   probeMock,
   probeRest,
   probeStomp,
-} from '@wellsfargo-starui/host-data';
+} from '@wellsfargo-starui/data';
 
 const stompCfg = {
   providerType: 'stomp' as const,

@@ -2,8 +2,8 @@
  * Barrel — `bootstrapDataServices` + `DataServices` type.
  *
  * Subpath consumers:
- *   `import { bootstrapDataServices } from '@wellsfargo-starui/host-data'`     ← preferred
- *   `import { bootstrapDataServices } from '@wellsfargo-starui/host-data/runtime'`
+ *   `import { bootstrapDataServices } from '@wellsfargo-starui/data'`     ← preferred
+ *   `import { bootstrapDataServices } from '@wellsfargo-starui/data/runtime'`
  */
 
 export {

@@ -1,5 +1,5 @@
 /**
- * Default SharedWorker entry for `@wellsfargo-starui/host-data`.
+ * Default SharedWorker entry for `@wellsfargo-starui/data`.
  *
  * Bootstrap fields (`appId`, `userId`, seed URL, REST URL) arrive as a
  * `worker-bootstrap` message on the first client port.
@@ -105,7 +105,7 @@ function withTimeout(): Promise<WorkerBootstrapPayload | null> {
     const timer = setTimeout(() => {
       // eslint-disable-next-line no-console
       console.warn(
-        '[@wellsfargo-starui/host-data worker] no worker-bootstrap message within '
+        '[@wellsfargo-starui/data worker] no worker-bootstrap message within '
           + `${BOOTSTRAP_TIMEOUT_MS}ms — booting local/anonymous. The client is `
           + 'likely older than the bootstrap handshake.',
       );
@@ -149,14 +149,14 @@ async function boot(): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.info(
-    `[@wellsfargo-starui/host-data worker] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
+    `[@wellsfargo-starui/data worker] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
   );
   // eslint-disable-next-line no-console
-  console.info('[@wellsfargo-starui/host-data worker] catalog + AppData hydrated; hub waiting for ports');
+  console.info('[@wellsfargo-starui/data worker] catalog + AppData hydrated; hub waiting for ports');
 }
 
 boot().catch((err) => {
   // eslint-disable-next-line no-console
-  console.error('[@wellsfargo-starui/host-data worker] boot failed', err);
+  console.error('[@wellsfargo-starui/data worker] boot failed', err);
   throw err;
 });

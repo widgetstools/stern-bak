@@ -21,8 +21,8 @@ declare const fin: any;
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GridApi } from 'ag-grid-community';
-import type { DataServices } from '@wellsfargo-starui/host-data/runtime';
-import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/host-data';
+import type { DataServices } from '@wellsfargo-starui/data/runtime';
+import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/data';
 import { DataServicesProvider, DataHubProvider } from '@wellsfargo-starui/host-data-react/runtime';
 import type { MarketsGridHandle } from '@wellsfargo-starui/grid';
 import { MarketsGridContainer, type MarketsGridContainerProps } from '../container/markets-grid-container/index.js';

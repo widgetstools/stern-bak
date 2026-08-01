@@ -145,4 +145,4 @@ export {
   resolvePlatformBootstrapFromCustomSettings,
   resolvePlatformBootstrapFromManifest,
 } from './platformBootstrap';
-export type { PlatformBootstrapConfig } from '@wellsfargo-starui/host-data';
+export type { PlatformBootstrapConfig } from '@wellsfargo-starui/data';

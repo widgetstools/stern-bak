@@ -26,7 +26,7 @@
  * Worker URL constraint (Vite + tarball consumers):
  *   Prefer the bundled worker asset + `bootstrapDataServicesWithWorkerAsset`:
  *
- *     import workerAssetUrl from '@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url';
+ *     import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
  *     export const dataServices = bootstrapDataServicesWithWorkerAsset(workerAssetUrl, { ... });
  *
  *   The `?url` import must stay in app code; the library ships a
@@ -118,7 +118,7 @@ export function createDataServicesClient(
 
   worker.addEventListener('error', (ev) => {
     // eslint-disable-next-line no-console
-    console.error('[@wellsfargo-starui/host-data] SharedWorker error event', ev);
+    console.error('[@wellsfargo-starui/data] SharedWorker error event', ev);
   });
 
   // This path previously sent NOTHING — the comment above claimed the worker
