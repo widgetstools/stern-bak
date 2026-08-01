@@ -39,7 +39,7 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 | 1 | **UI Design System** | `packages/design-system/` | `@wellsfargo-starui/design-system` |
 | 2 | **React UI Controls** | `packages/react-ui/` | `@wellsfargo-starui/ui` |
 | 3 | **React Grid** | `packages/react-grid/` | `@wellsfargo-starui/grid`, `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/widgets-react` |
-| 4 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-angular` |
+| 4 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/data` |
 | 5 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/openfin` |
 | 6 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/app`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/host-wrapper-react`, `@wellsfargo-starui/workspace-setup-react`, `@wellsfargo-starui/host-data-react` |
 | 7 | **Core / Shared** | `packages/shared/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser`, `@wellsfargo-starui/host-config` |

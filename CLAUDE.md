@@ -54,7 +54,7 @@ architecture buckets (see
 | 1 | UI Design System | `design-system/` | `design-system` |
 | 2 | React UI Controls | `react-ui/` | `ui` |
 | 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid`, `config-browser`, `widgets-react` |
-| 4 | Data Utilities | `data/` | `host-data`, `host-data-angular` |
+| 4 | Data Utilities | `data/` | `data` |
 | 5 | OpenFin Utils | `openfin/` | `openfin` |
 | 6 | React Core | `react-core/` | `widget-sdk`, `host-wrapper-react`, `workspace-setup-react`, `host-data-react` |
 | 7 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser`, `host-config` |
@@ -160,7 +160,7 @@ on the next run. Don't remove it.
   `build:packages`, apps consume dist — *not* live TS. Delete a package's
   `dist/` to get live-source behaviour for that package.
 - **Build-generated assets self-heal.** Source mode aliases TS/TSX live, but the
-  design-system CSS (`dist/css/theme.css`) and host-data SharedWorker
+  design-system CSS (`dist/css/theme.css`) and `@wellsfargo-starui/data` SharedWorker
   (`dist/assets/data-services-worker.mjs`) are emitted by `build:packages`. The
   shared Vite config (`staruiEnsureBuiltAssetsPlugin` in
   `scripts/staruiConsumerAliases.mjs`) checks for them at `buildStart` and runs
@@ -190,7 +190,7 @@ use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 - Vitest 4 + jsdom 29 for unit tests. Baseline (2026-07-31): **3076 passing,
   1 skipped across 315 test files** (`npm test` — turbo across `packages/`).
-  Largest contributors: `grid` (697), `host-data` (355), `engine` (241),
+  Largest contributors: `grid` (697), `data` (355), `engine` (241),
   `widgets-react` (218), `design-system` (193), `workspace-setup-react` (187).
   The per-file 70% coverage gate is a separate run — see
   [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`

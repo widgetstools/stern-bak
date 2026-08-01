@@ -392,8 +392,49 @@ The 6th, `star-demo`, still fails: its real application source
 `@wellsfargo-starui/openfin/host` — genuine `stern-apps` app code, out
 of this repo's scope.
 
-**Next:** sub-phase 3 (`data` bucket — `host-data` alone, the
-trivial single-member case), per the roadmap in
+**Package-collapse sub-phase 3: done.** `host-data` (the bucket's only
+non-Angular member) collapsed into `@wellsfargo-starui/data` — the
+trivial single-member case, no folder regroup needed, same mechanical
+package.json-to-bucket-root pattern as sub-phases 1-2 for consistency.
+`host-data-angular` stays excluded from the pipeline, untouched. ~70
+import sites across `openfin`, `host-data-react`, `widgets-react`, plus
+explanatory comments in `shared/host-config` and `shared/shared-types`,
+were migrated, including `staruiConsumerAliases.mjs`'s dedicated
+worker-asset resolution logic (regex, labels, `optimizeDeps` exclude
+list) — a code region the sub-phase-1 generic two-level-scan fix didn't
+cover, since it's data-bucket-specific rather than a manifest-discovery
+concern. 19 tarballs (unchanged count from sub-phase 2 — a rename, not
+a merge). Per the design spec at
+[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md),
+the coverage-tooling gap remains accepted, not fixed here.
+
+**`stern-apps` follow-up (non-blocking):** after regenerating
+`tarball/*/package.json`'s generated `overrides` block via
+`npm run make:tarball-apps` (same regeneration this repo's own tooling
+already needed in sub-phase 2), 4 of 6 tarball apps still fail to
+build — all four confirmed via direct source inspection to be genuine,
+hand-written application code, not generated-config staleness:
+`dataprovider-editor`, `markets-grid-lab`, and
+`stomp-marketsgrid-minimal` (`source/*/src/{platformBootstrap,bootstrap}.ts`)
+import `@wellsfargo-starui/host-data` directly (one also imports the
+`/assets/data-services-worker.mjs?url` subpath) and need updating to
+`@wellsfargo-starui/data`; the 4th, `star-demo`, is the
+already-known sub-phase-2 `host-openfin` finding, not new. `basic` and
+`design-system` build clean, confirming `@wellsfargo-starui/data`
+itself is correctly externally-installable — all four failures are
+genuine `stern-apps` app code, out of this repo's scope.
+
+**Documentation-staleness note:** `README.md` and
+`docs/EXTERNAL_CONSUMPTION.md` still reference retired package
+identities (`host-openfin`, `openfin-platform`) left stale by
+sub-phase 2 and not touched here either, to keep this sub-phase's
+scope consistent with precedent (only CLAUDE.md,
+PACKAGE_ORGANIZATION.md, ARCHITECTURE.md, current-features.md, and this
+file are updated per sub-phase). Worth a single consolidated doc sweep
+once all sub-phases land, rather than fixing piecemeal.
+
+**Next:** sub-phase 4 (`grid` bucket — `grid` + `config-browser` +
+`widgets-react`), per the roadmap in
 [`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level
