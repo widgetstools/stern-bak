@@ -340,6 +340,9 @@ EOF
 - Move: `packages/react-core/widgets-react/` → `packages/react-grid/widgets-react/`
 - Modify: `scripts/tailwindContentGlobs.mjs:12-13,34-35`
 - Modify: `scripts/staruiTailwindContent.cjs:50-51`
+- Modify: `packages/design-system/design-system/turbo.json` (build.inputs — added during Task 3, discovered after Task 2's review found the same class of gap in this file)
+- Modify: `packages/design-system/design-system/scripts/build-styles-css.ts` (CONTENT_GLOBS — same discovery)
+- Modify: `tools/scripts/check-ds-tokens.ts` (ALLOW_PATHS allowlist entries — same discovery, different failure mode: a stale entry here doesn't break a build, it makes `npm run check:ds-tokens` false-positive on legitimate hex values)
 - Modify: `docs/PACKAGE_ORGANIZATION.md:41,44` (bucket table)
 
 **Interfaces:**
@@ -409,7 +412,67 @@ Two entries per array (`platformAppTailwindContent`, `demoAppTailwindContent`), 
    ];
 ```
 
-- [ ] **Step 6: Update the bucket table in `docs/PACKAGE_ORGANIZATION.md`**
+- [ ] **Step 6: Fix the design-system package's own build-input globs and the ds-tokens allowlist**
+
+Task 2's review found that the top-level `scripts/tailwindContentGlobs.mjs`/`staruiTailwindContent.cjs` files were not the only hardcoded-path locations — `packages/design-system/design-system/` carries its own build-input list, and `tools/scripts/check-ds-tokens.ts` carries an unrelated allowlist that also references these packages by path. Both need the same `react-core` → `react-grid` fix for `widgets-react` and `config-browser`.
+
+Edit `packages/design-system/design-system/turbo.json` (relative paths, from `packages/design-system/design-system/`):
+
+```diff
+       "inputs": [
+         "$TURBO_DEFAULT$",
+         "../../react-ui/ui/src/**",
+         "../../react-grid/grid/src/**",
+-        "../../react-core/widgets-react/src/**",
+-        "../../react-core/config-browser/src/**",
++        "../../react-grid/widgets-react/src/**",
++        "../../react-grid/config-browser/src/**",
+         "../../react-core/workspace-setup-react/src/**",
+         "../../react-core/host-data-react/src/**"
+       ],
+```
+
+Edit `packages/design-system/design-system/scripts/build-styles-css.ts` (repo-root-relative path strings in the `CONTENT_GLOBS` array):
+
+```diff
+ const CONTENT_GLOBS = [
+   'packages/react-ui/ui/src/**/*.{ts,tsx}',
+   'packages/react-grid/grid/src/**/*.{ts,tsx}',
+-  'packages/react-core/widgets-react/src/**/*.{ts,tsx}',
+-  'packages/react-core/config-browser/src/**/*.{ts,tsx}',
++  'packages/react-grid/widgets-react/src/**/*.{ts,tsx}',
++  'packages/react-grid/config-browser/src/**/*.{ts,tsx}',
+   'packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',
+   'packages/react-core/host-data-react/src/**/*.{ts,tsx}',
+ ].map((g) => resolve(repoRoot, g).replace(/\\/g, '/'));
+```
+
+Edit `tools/scripts/check-ds-tokens.ts`'s `ALLOW_PATHS` array — three entries reference exact file paths under the old `packages/react-core/widgets-react/` location; a stale entry here means the check silently ignores the wrong file (or nothing) rather than the intended one:
+
+```diff
+   'packages/design-system/design-system/tests/',
+-  'packages/react-core/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx',
++  'packages/react-grid/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx',
+   'packages/react-grid/grid/src/customizer/ui/ExpressionEditor/language.ts',
+```
+
+```diff
+   'packages/react-grid/grid/src/customizer/modules/column-templates/snapshotTemplate.test.ts',
+-  'packages/react-core/widgets-react/src/hosted/__tests__/useColorLinking.test.tsx',
+-  'packages/react-core/widgets-react/src/hosted/useColorLinking.ts',
++  'packages/react-grid/widgets-react/src/hosted/__tests__/useColorLinking.test.tsx',
++  'packages/react-grid/widgets-react/src/hosted/useColorLinking.ts',
+```
+
+Then run the check directly to confirm it's clean (it is not part of `lint:all` or any turbo pipeline, so nothing else exercises it automatically):
+
+```bash
+npm run check:ds-tokens
+```
+
+Expected: exits clean (no new hardcoded-hex/legacy-var findings). If it reports findings on the three files above, the path fix is wrong — re-check the exact relative paths against where the files actually live post-move.
+
+- [ ] **Step 7: Update the bucket table in `docs/PACKAGE_ORGANIZATION.md`**
 
 Edit line 41 (React Grid row) — add both packages:
 
@@ -425,15 +488,16 @@ Edit line 44 (React Core row) — remove both packages (state after Task 2's edi
 +| 6 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/app`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/host-wrapper-react`, `@wellsfargo-starui/workspace-setup-react`, `@wellsfargo-starui/host-data-react` |
 ```
 
-- [ ] **Step 7: Confirm no leftover relative import crosses the old boundary**
+- [ ] **Step 8: Confirm no leftover relative import crosses the old boundary**
 
 ```bash
 grep -rn "from '\.\./\.\./react-core/config-browser\|from '\.\./\.\./react-core/widgets-react" packages/ || echo "no matches"
+grep -rln "react-core/widgets-react\|react-core/config-browser" --include="*.ts" --include="*.mjs" --include="*.cjs" --include="*.json" . 2>/dev/null | grep -v node_modules | grep -v /dist/ | grep -v tsbuildinfo || echo "no matches"
 ```
 
-Expected: `no matches`.
+Expected: `no matches` for the first command (import-style specifiers). The second command is a broader literal-string sweep across the whole repo (not just `packages/`) — after Step 6's edits it should also print `no matches`; if it finds anything, that's a fourth hardcoded-path location Step 6 didn't anticipate and needs the same fix before proceeding.
 
-- [ ] **Step 8: Run the in-repo validation gate**
+- [ ] **Step 9: Run the in-repo validation gate**
 
 ```bash
 npx turbo typecheck build test
@@ -441,7 +505,7 @@ npx turbo typecheck build test
 
 Expected: all green — this is the move most likely to surface a real break, since `widgets-react` is the biggest of the four packages moving in this plan; read any failure carefully before assuming it's a path issue.
 
-- [ ] **Step 9: Run the cycle checker**
+- [ ] **Step 10: Run the cycle checker**
 
 ```bash
 npm run check:deps
@@ -449,7 +513,7 @@ npm run check:deps
 
 Expected: no cycle reported.
 
-- [ ] **Step 10: Pack and validate against the tarball apps**
+- [ ] **Step 11: Pack and validate against the tarball apps**
 
 ```bash
 npm run pack:npm
@@ -461,16 +525,16 @@ cd -
 
 Expected: all six tarball apps build clean. `star-demo` pins both `@wellsfargo-starui/config-browser` and `@wellsfargo-starui/widgets-react` by name via `vendor/*.tgz`, unaffected by the folder move.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 12: Commit**
 
 `git mv` already staged both folder renames — only the edited config files need staging:
 
 ```bash
-git add scripts/tailwindContentGlobs.mjs scripts/staruiTailwindContent.cjs docs/PACKAGE_ORGANIZATION.md
+git add scripts/tailwindContentGlobs.mjs scripts/staruiTailwindContent.cjs packages/design-system/design-system/turbo.json packages/design-system/design-system/scripts/build-styles-css.ts tools/scripts/check-ds-tokens.ts docs/PACKAGE_ORGANIZATION.md
 git status --short
 ```
 
-Review the output before committing: `packages/react-core/config-browser/...` → `packages/react-grid/config-browser/...` and `packages/react-core/widgets-react/...` → `packages/react-grid/widgets-react/...` renames, plus the three edited files as `M` — nothing else.
+Review the output before committing: `packages/react-core/config-browser/...` → `packages/react-grid/config-browser/...` and `packages/react-core/widgets-react/...` → `packages/react-grid/widgets-react/...` renames, plus the six edited files as `M` — nothing else.
 
 ```bash
 git commit -m "$(cat <<'EOF'
