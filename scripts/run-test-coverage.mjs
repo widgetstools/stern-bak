@@ -7,7 +7,9 @@
  *
  *   1. runs `npx turbo test` across every package, passing the coverage
  *      reporters through to each package's vitest;
- *   2. scans `packages/<bucket>/<pkg>/coverage/lcov.info`;
+ *   2. scans `packages/<bucket>/coverage/lcov.info` (collapsed buckets write
+ *      coverage at the bucket root) plus `packages/<bucket>/<pkg>/coverage/`
+ *      for stragglers that still own their own manifest;
  *   3. rewrites each `SF:` record to a **repo-relative** path — Sonar resolves
  *      sources against the project root, and vitest emits absolute paths, which
  *      Sonar silently drops as unmatched files;
@@ -89,9 +91,24 @@ function findLcovFiles() {
   for (const bucket of readdirSync(PACKAGES_ROOT, { withFileTypes: true })) {
     if (!bucket.isDirectory()) continue;
     const bucketDir = join(PACKAGES_ROOT, bucket.name);
+    // Collapsed buckets run one vitest per bucket and write coverage at the
+    // bucket root.
+    const bucketLcov = join(bucketDir, 'coverage', 'lcov.info');
+    if (existsSync(bucketLcov)) found.push(bucketLcov);
+    // Two-level scan stays for stragglers — member dirs that still own a
+    // @wellsfargo-starui/* manifest (host-data-angular). A collapsed member's
+    // own coverage/ (if present) is a stale pre-collapse artifact that would
+    // double-report the same sources with older data, so dirs without a
+    // scoped manifest — including the core-engine build shim, which every
+    // script ignores — are skipped.
     for (const pkg of readdirSync(bucketDir, { withFileTypes: true })) {
       if (!pkg.isDirectory()) continue;
-      const lcov = join(bucketDir, pkg.name, 'coverage', 'lcov.info');
+      const pkgDir = join(bucketDir, pkg.name);
+      const manifestPath = join(pkgDir, 'package.json');
+      if (!existsSync(manifestPath)) continue;
+      const name = JSON.parse(readFileSync(manifestPath, 'utf8')).name ?? '';
+      if (!name.startsWith('@wellsfargo-starui/')) continue;
+      const lcov = join(pkgDir, 'coverage', 'lcov.info');
       if (existsSync(lcov)) found.push(lcov);
     }
   }

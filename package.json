@@ -33,6 +33,7 @@
     "lint:fix": "eslint \"packages/**/*.{ts,tsx}\" --fix",
     "lint:all": "npm run lint && npm run check:deps && npm run check:design-system-deps && npm run check:rtl",
     "check:deps": "node scripts/check-package-cycles.mjs",
+    "verify:external": "node scripts/verify-external-consumers.mjs",
     "check:deps:strict": "node scripts/check-package-cycles.mjs --strict",
     "clean": "rimraf -g node_modules packages/*/*/node_modules packages/*/*/dist .turbo",
     "pack:npm": "node scripts/pack-npm.mjs"

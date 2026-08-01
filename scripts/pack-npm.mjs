@@ -3,13 +3,11 @@
  * INDIVIDUAL npm tarball, ready for `npm publish` to Artifactory (or a
  * `file:` install by teams without registry access).
  *
- * Why this exists alongside `propagate.mjs`: propagate packs one tarball
- * per architecture BUCKET, renaming everything to
- * `@wellsfargo-starui/<bucket>` with `./<member>` subpaths. That shape
- * only resolves through the repo's Vite alias layer, because every
- * shipped `dist` file imports its siblings by their real member name
- * (`@wellsfargo-starui/core`). External consumers get the member
- * packages instead — the standard npm model, no aliases, no config.
+ * This is the only packing path: one tarball per collapsed bucket package,
+ * under its real npm name — the standard npm model, no aliases, no build
+ * config on the consumer side. (The old bucket-tarball `propagate.mjs`
+ * shape is gone; see docs/APPS_REPO.md for why it could never be
+ * installed externally.)
  *
  * Per package it stages a copy and rewrites the manifest so it is
  * actually installable:
@@ -19,10 +17,17 @@
  *     the graph from a registry
  *   - leaves everything else (exports/files/peerDeps) untouched
  *
+ * Stale-output pruning (package-collapse sub-phase 7, spec section 4):
+ * `dist-npm/` used to accumulate tarballs for retired package names
+ * forever (18 pre-collapse tarballs survived the collapse). A full pack
+ * now wipes the directory and rebuilds the manifest from exactly that
+ * run; a subset pack keeps the merge but deletes any tarball + manifest
+ * entry whose package name is no longer in the discovery set.
+ *
  * Usage:
  *   node scripts/pack-npm.mjs                 # pack all → dist-npm/
  *   node scripts/pack-npm.mjs --dry-run       # print the plan
- *   node scripts/pack-npm.mjs grid engine     # pack a subset
+ *   node scripts/pack-npm.mjs grid core       # pack a subset
  *   node scripts/pack-npm.mjs --version 1.2.3 # stamp one version on all
  */
 import { execFileSync } from 'node:child_process';
@@ -128,6 +133,16 @@ function stage(member) {
 }
 
 function main() {
+  // A typo'd or retired selector must fail loudly — silently packing the rest
+  // reads as success while the intended package never ships.
+  const shorts = new Set(all.map((m) => m.short));
+  const unknown = args.only.filter((s) => !shorts.has(s));
+  if (unknown.length > 0) {
+    console.error(
+      `[pack-npm] unknown package selector(s): ${unknown.join(', ')} — valid: ${[...shorts].sort().join(', ')}`,
+    );
+    process.exit(1);
+  }
   const selected = args.only.length
     ? all.filter((m) => args.only.includes(m.short))
     : all;
@@ -144,6 +159,10 @@ function main() {
     return;
   }
 
+  // Full pack: this run is the complete record — wipe the directory so
+  // tarballs for retired package identities can never linger.
+  const fullPack = args.only.length === 0;
+  if (fullPack) rmSync(OUT_DIR, { recursive: true, force: true });
   mkdirSync(OUT_DIR, { recursive: true });
   const packed = [];
   for (const member of selected) {
@@ -159,12 +178,21 @@ function main() {
   }
 
   // Merge into any existing manifest — a partial run (`pack:npm grid`)
-  // must not truncate the record of everything already packed.
+  // must not truncate the record of everything already packed. Entries
+  // whose package name is no longer discoverable are retired identities:
+  // prune both the entry and its tarball so they can never linger.
+  // (A full pack wiped the directory above, so this loop is a no-op then.)
   const manifestPath = path.join(OUT_DIR, 'manifest.json');
+  const knownNames = new Set(all.map((m) => m.pkg.name));
   const byName = new Map();
   if (existsSync(manifestPath)) {
     try {
       for (const p of JSON.parse(readFileSync(manifestPath, 'utf8')).packages ?? []) {
+        if (!knownNames.has(p.name)) {
+          rmSync(path.join(OUT_DIR, p.file), { force: true });
+          log(`pruned retired ${p.name} (${p.file})`);
+          continue;
+        }
         if (existsSync(path.join(OUT_DIR, p.file))) byName.set(p.name, p);
       }
     } catch { /* regenerate from scratch on a corrupt manifest */ }
