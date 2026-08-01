@@ -506,10 +506,12 @@ that working tree (~150 new test files + vitest harness). The tarball
 pipeline self-corrected — `setup.mjs` re-vendored the 7 new tarballs and
 `makeTarballApp` recomputed every twin's dependency list from actual
 imports. Validated: build green on both tracks (7 source apps, 6
-regenerated tarball apps), `npm test` green (112 test files). Known
-residue from the WIP snapshot, not the migration: `tsc --noEmit` type
-defects inside the new WIP test files (81 across 5 apps) — type-level
-fixes follow as their own apps-repo commit.
+regenerated tarball apps), `npm test` green (112 test files). The WIP snapshot's
+own residue is closed too: apps commit `1de2956` fixes the 81 test-side
+type defects (and star-demo's tests turned out to have never been
+typechecked at all — its composite app tsconfig couldn't include them; a
+non-composite `tsconfig.test.json` now covers them). Both tracks build,
+typecheck and test green.
 
 **eslint.config.mjs (pending, hook-blocked):** two stale
 `packages/react-ui/ui/**` paths (the no-native-input `ignores` entry and
