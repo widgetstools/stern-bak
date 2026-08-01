@@ -58,7 +58,7 @@ sub-phase 1's execution, now known up front).
   a comment (explaining an architectural boundary), not a real import —
   confirmed by grep for actual `import`/`from` statements. Same shape as
   design-system/icons-svg's zero cross-dependency in sub-phase 1.
-- **27 external consumer files across 5 packages** import one or both of
+- **28 external consumer files across 5 packages** import one or both of
   the two current names — larger than sub-phase 1's 7 files:
   - `@wellsfargo-starui/host-openfin` (7 files, all bare `.` imports, no
     subpaths — it only has one export): `react-grid/grid` (4 files:
@@ -67,11 +67,11 @@ sub-phase 1's execution, now known up front).
     `runtime/openFin.ts`), `react-grid/widgets-react` (3 files:
     `hosted/useGridLinkNotifications.ts` + `.test.tsx`,
     `hosted/windowOptionsSubscription.ts`).
-  - `@wellsfargo-starui/openfin-platform` (20 files, ~35 import
-    statements including `vi.mock`/dynamic `import()` — exact count to be
-    re-verified during planning): `react-core/host-wrapper-react` (1 file,
-    `/test-bridge` subpath), `react-core/workspace-setup-react` (16 files,
-    overwhelmingly the `/config` subpath, two files —
+  - `@wellsfargo-starui/openfin-platform` (21 files, 35 real import
+    statements including `vi.mock`/dynamic `import()`, verified by
+    programmatic grep — not hand-counted): `react-core/host-wrapper-react`
+    (1 file, `/test-bridge` subpath), `react-core/workspace-setup-react`
+    (17 files, overwhelmingly the `/config` subpath, two files —
     `registry/useRegistryEditor.ts` and `.test.ts` — using the bare `.`
     barrel, which WORKLOG item 7c already flags as a pre-existing bug
     unrelated to this collapse: `useDockEditor` deliberately uses `/config`
@@ -130,7 +130,7 @@ sub-phase 1's execution, now known up front).
   needed (unlike sub-phase 1's genuine `jsdom` vs `node` environment
   conflict).
 - **Consumer migration**: all real import/`vi.mock`/dynamic-`import()`
-  statements across the 27 files get their package-name prefix swapped —
+  statements across the 28 files get their package-name prefix swapped —
   `@wellsfargo-starui/host-openfin` → `@wellsfargo-starui/openfin/host`;
   `@wellsfargo-starui/openfin-platform` (bare) →
   `@wellsfargo-starui/openfin`; `@wellsfargo-starui/openfin-platform/config`
