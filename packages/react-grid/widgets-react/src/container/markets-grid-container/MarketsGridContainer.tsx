@@ -415,7 +415,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
 
   // `keyColumn` may be a single column name OR an array of column
   // names (composite key — values joined with `-`, see
-  // `composeRowId` in @wellsfargo-starui/shared-types). We pass the raw shape
+  // `composeRowId` in @wellsfargo-starui/types/shared). We pass the raw shape
   // through to MarketsGrid + use it for the live-update add/update
   // dispatch below so the cache key matches AG-Grid's getRowId
   // byte-for-byte.

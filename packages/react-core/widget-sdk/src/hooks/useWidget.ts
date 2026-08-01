@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LayoutInfo } from '@wellsfargo-starui/shared-types';
+import type { LayoutInfo } from '@wellsfargo-starui/types/shared';
 import type { WidgetContext, WidgetConfig } from '@wellsfargo-starui/widget';
 import { useWidgetHost } from '../providers/WidgetHost.js';
 import {

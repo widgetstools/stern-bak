@@ -4,7 +4,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 import {
   ProviderGridHostProvider,
   type ProviderGridHostApi,

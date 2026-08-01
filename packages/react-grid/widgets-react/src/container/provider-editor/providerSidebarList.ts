@@ -1,4 +1,4 @@
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 
 /** Synthetic sidebar id for an unsaved create/clone draft (never persisted). */
 export const DRAFT_LIST_ID_PREFIX = '__draft__:';

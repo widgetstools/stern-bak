@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ColumnDefinition } from '@wellsfargo-starui/shared-types';
+import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
 import { removeColumnDefinition } from './ColumnsTab.js';
 
 const START: ColumnDefinition[] = [

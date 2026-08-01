@@ -22,7 +22,7 @@ import {
   SelectValue,
   Switch,
 } from '@wellsfargo-starui/react';
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export interface BehaviourFieldsProps {
   cfg: ProviderConfig;

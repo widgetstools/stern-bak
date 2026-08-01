@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export type ProviderGridHostMode = 'live' | 'historical';
 

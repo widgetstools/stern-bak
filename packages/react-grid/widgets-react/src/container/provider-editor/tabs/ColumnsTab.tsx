@@ -29,8 +29,8 @@ import {
 import { ChevronDown, Download, Plus, SquareFunction, Trash2, Upload } from 'lucide-react';
 import { ExpressionEditor } from '@wellsfargo-starui/grid/customizer';
 import { ExpressionEngine } from '@wellsfargo-starui/engine';
-import type { ColumnDefinition } from '@wellsfargo-starui/shared-types';
-import { normalizeKeyColumns } from '@wellsfargo-starui/shared-types';
+import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
+import { normalizeKeyColumns } from '@wellsfargo-starui/types/shared';
 import { MultiSelect } from '../MultiSelect.js';
 import { ensureProviderEditorAgGridModules } from '../ensureProviderEditorAgGridModules.js';
 import { exportColumnDefs, parseColumnDefsImport } from '../columnDefsIo.js';

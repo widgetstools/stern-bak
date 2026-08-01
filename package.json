@@ -11,7 +11,7 @@
     "packages/data",
     "packages/openfin",
     "packages/react-core",
-    "packages/types/*",
+    "packages/types",
     "packages/core/*"
   ],
   "scripts": {
@@ -40,7 +40,6 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@wellsfargo-starui/design-system": "*",
-    "@wellsfargo-starui/shared-types": "*",
     "@wellsfargo-starui/types": "*",
     "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.4.27",

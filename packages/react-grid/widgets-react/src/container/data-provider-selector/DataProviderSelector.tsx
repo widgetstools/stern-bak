@@ -28,7 +28,7 @@ import {
   Badge, Button, ScrollArea,
 } from '@wellsfargo-starui/react';
 import { Database, Loader2, Pencil, Plus, RefreshCw } from 'lucide-react';
-import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 
 const PUBLIC_USER_ID = 'system';

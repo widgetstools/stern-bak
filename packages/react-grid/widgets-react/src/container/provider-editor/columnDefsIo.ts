@@ -13,7 +13,7 @@
  * foreign file can't smuggle junk onto a definition.
  */
 
-import type { ColumnDefinition } from '@wellsfargo-starui/shared-types';
+import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
 
 const EXPORT_KIND = 'starui.columnDefs';
 const EXPORT_VERSION = 1;

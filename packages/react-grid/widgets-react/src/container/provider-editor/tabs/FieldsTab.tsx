@@ -17,8 +17,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Button, Checkbox, Input, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, Label } from '@wellsfargo-starui/react';
 import { Database, Loader2, Search, RefreshCw, X } from 'lucide-react';
-import type { FieldNode, ProviderConfig, ColumnDefinition } from '@wellsfargo-starui/shared-types';
-import { collectNonObjectLeaves, filterFields } from '@wellsfargo-starui/shared-types';
+import type { FieldNode, ProviderConfig, ColumnDefinition } from '@wellsfargo-starui/types/shared';
+import { collectNonObjectLeaves, filterFields } from '@wellsfargo-starui/types/shared';
 
 const SAMPLE_SIZES = [50, 100, 200, 500] as const;
 

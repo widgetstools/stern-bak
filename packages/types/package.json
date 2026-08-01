@@ -1,0 +1,54 @@
+{
+  "name": "@wellsfargo-starui/types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarketsUI foundation types — host-port identity/theme/surface types plus the shared widget-framework contracts. Consolidates types and shared-types.",
+  "type": "module",
+  "main": "./types/dist/index.js",
+  "module": "./types/dist/index.js",
+  "types": "./types/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/dist/index.d.ts",
+      "import": "./types/dist/index.js"
+    },
+    "./shared": {
+      "types": "./shared-types/dist/index.d.ts",
+      "import": "./shared-types/dist/index.js",
+      "require": "./shared-types/dist/index.js"
+    },
+    "./shared/configuration": {
+      "types": "./shared-types/dist/configuration.d.ts",
+      "import": "./shared-types/dist/configuration.js",
+      "require": "./shared-types/dist/configuration.js"
+    },
+    "./shared/dataProvider": {
+      "types": "./shared-types/dist/dataProvider.d.ts",
+      "import": "./shared-types/dist/dataProvider.js",
+      "require": "./shared-types/dist/dataProvider.js"
+    },
+    "./shared/fieldSelector": {
+      "types": "./shared-types/dist/fieldSelector.d.ts",
+      "import": "./shared-types/dist/fieldSelector.js",
+      "require": "./shared-types/dist/fieldSelector.js"
+    }
+  },
+  "files": [
+    "types/dist",
+    "shared-types/dist"
+  ],
+  "scripts": {
+    "build": "rimraf shared-types/dist shared-types/tsconfig.tsbuildinfo types/dist types/tsconfig.tsbuildinfo && tsc --project shared-types/tsconfig.json && tsc --project types/tsconfig.json",
+    "typecheck": "tsc --noEmit --project shared-types/tsconfig.json && tsc --noEmit --project types/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

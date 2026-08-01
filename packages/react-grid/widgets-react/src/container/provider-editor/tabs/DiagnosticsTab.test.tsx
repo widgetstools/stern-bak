@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { ProviderConfig } from '@wellsfargo-starui/types/shared';
 import { DiagnosticsTab } from './DiagnosticsTab.js';
 
 const attach = vi.fn();

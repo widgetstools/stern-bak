@@ -24,7 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@wellsfargo-starui/react';
 import { Database, Copy, Globe, Plus, Radio, Search, Trash2, TestTube2, Upload } from 'lucide-react';
-import type { DataProviderConfig, ProviderConfig, ProviderType } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig, ProviderConfig, ProviderType } from '@wellsfargo-starui/types/shared';
 import { useDataServices, useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 import { cloneProviderConfig } from './cloneProviderConfig.js';
 import { parseProviderConfigImport, type PortableProviderConfig } from './providerConfigIo.js';

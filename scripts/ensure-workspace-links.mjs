@@ -18,7 +18,6 @@ const PACKAGES_ROOT = join(REPO_ROOT, 'packages');
 /** Workspace packages every package build expects hoisted at root. */
 const REQUIRED_WORKSPACE_PACKAGES = [
   '@wellsfargo-starui/design-system',
-  '@wellsfargo-starui/shared-types',
   '@wellsfargo-starui/types',
   '@wellsfargo-starui/host-config',
   '@wellsfargo-starui/react',

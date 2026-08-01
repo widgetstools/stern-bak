@@ -10,7 +10,7 @@
  * because they live on `config`.
  */
 
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 
 const EXPORT_KIND = 'starui.dataProvider';
 const EXPORT_VERSION = 1;

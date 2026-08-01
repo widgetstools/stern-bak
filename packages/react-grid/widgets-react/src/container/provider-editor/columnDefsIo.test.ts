@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ColumnDefinition } from '@wellsfargo-starui/shared-types';
+import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
 import { serializeColumnDefs, parseColumnDefsImport, exportColumnDefs } from './columnDefsIo';
 
 const sample: ColumnDefinition[] = [

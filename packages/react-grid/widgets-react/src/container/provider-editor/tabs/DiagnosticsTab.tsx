@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Badge, Button, Separator } from '@wellsfargo-starui/react';
 import { Loader2, RefreshCw, Square } from 'lucide-react';
 import { useDataServices, useProviderStats, type ProviderStats, type ProviderStatus } from '@wellsfargo-starui/react/data/runtime';
-import type { ProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { ProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export interface DiagnosticsTabProps {
   providerId: string | null;

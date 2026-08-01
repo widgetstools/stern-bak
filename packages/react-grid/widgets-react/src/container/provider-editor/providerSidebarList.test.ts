@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 import {
   buildProviderSidebarConfigs,
   isDraftListId,

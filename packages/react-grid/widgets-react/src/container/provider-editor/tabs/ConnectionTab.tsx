@@ -10,7 +10,7 @@
 
 import { Button, ScrollArea } from '@wellsfargo-starui/react';
 import { CheckCircle2, Loader2, Plug, XCircle } from 'lucide-react';
-import type { ProviderConfig, StompProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { ProviderConfig, StompProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { StompFields } from '../transports/StompFields.js';
 import { RestFields } from '../transports/RestFields.js';
 import { MockFields } from '../transports/MockFields.js';

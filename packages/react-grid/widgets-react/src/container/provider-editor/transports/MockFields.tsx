@@ -4,7 +4,7 @@
  */
 
 import { Input, Label, Switch } from '@wellsfargo-starui/react';
-import type { MockProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { MockProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export interface MockFieldsProps {
   cfg: MockProviderConfig;

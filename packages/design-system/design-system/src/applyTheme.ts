@@ -28,7 +28,7 @@
 //  reads only hit the new keys.
 // ─────────────────────────────────────────────────────────────
 
-import { THEME_STORAGE_KEY } from '@wellsfargo-starui/shared-types';
+import { THEME_STORAGE_KEY } from '@wellsfargo-starui/types/shared';
 
 export type Mode = 'dark' | 'light';
 export type LightVariant = 'clinical' | 'paper';

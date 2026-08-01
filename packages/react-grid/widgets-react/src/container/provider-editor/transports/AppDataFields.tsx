@@ -17,7 +17,7 @@ import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, CellValueChangedEvent, GetRowIdParams, ICellRendererParams } from 'ag-grid-community';
 import { Button, Input, Label } from '@wellsfargo-starui/react';
 import { Plus, Trash2 } from 'lucide-react';
-import type { AppDataVariable, AppDataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { AppDataVariable, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useAgGridTheme } from '../../../theme/useAgGridTheme.js';
 import { ensureProviderEditorAgGridModules } from '../ensureProviderEditorAgGridModules.js';
 

@@ -33,7 +33,7 @@ import type { ColDef, ValueGetterParams } from 'ag-grid-community';
 import { ExpressionEngine, type ExpressionNode } from '@wellsfargo-starui/engine';
 
 type CompiledFn = ReturnType<ExpressionEngine['compile']>;
-import { getPathAccessor, getValueByPath } from '@wellsfargo-starui/shared-types';
+import { getPathAccessor, getValueByPath } from '@wellsfargo-starui/types/shared';
 
 /** Match ExpressionEngine parse-cache policy — grids have few distinct expressions. */
 const COMPILE_CACHE_MAX = 1000;

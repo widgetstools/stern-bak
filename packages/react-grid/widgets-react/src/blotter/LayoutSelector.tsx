@@ -1,5 +1,5 @@
 import React from 'react';
-import type { LayoutInfo } from '@wellsfargo-starui/shared-types';
+import type { LayoutInfo } from '@wellsfargo-starui/types/shared';
 import {
   Select,
   SelectContent,

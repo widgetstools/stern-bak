@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import type { AppConfigRow } from '@wellsfargo-starui/shared-types';
+import type { AppConfigRow } from '@wellsfargo-starui/types/shared';
 import type { PlatformAdapter } from '@wellsfargo-starui/widget';
 
 /**

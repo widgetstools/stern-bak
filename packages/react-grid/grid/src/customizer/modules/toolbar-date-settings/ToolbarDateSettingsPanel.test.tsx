@@ -13,7 +13,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/engine';
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { GridProvider } from '../../hooks/GridProvider';
 import {
   ProviderGridHostProvider,

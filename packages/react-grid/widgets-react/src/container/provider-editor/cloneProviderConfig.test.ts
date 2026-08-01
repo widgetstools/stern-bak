@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { cloneProviderConfig, copyNameFrom } from './cloneProviderConfig.js';
 
 const base: DataProviderConfig = {

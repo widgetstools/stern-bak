@@ -119,12 +119,12 @@
     "icons-svg/angular/**/*"
   ],
   "dependencies": {
-    "@primeuix/themes": "^1.2.3",
-    "@wellsfargo-starui/shared-types": "*",
-    "tailwindcss-animate": "^1.0.7",
-    "tailwindcss-primeui": "^0.6.1",
     "@lucide/angular": "^1.17.0",
-    "lucide-react": "^0.554.0"
+    "@primeuix/themes": "^1.2.3",
+    "@wellsfargo-starui/types": "*",
+    "lucide-react": "^0.554.0",
+    "tailwindcss-animate": "^1.0.7",
+    "tailwindcss-primeui": "^0.6.1"
   },
   "sideEffects": [
     "*.css"

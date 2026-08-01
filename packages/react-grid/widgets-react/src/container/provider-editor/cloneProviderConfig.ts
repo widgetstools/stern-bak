@@ -1,4 +1,4 @@
-import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { DataProviderConfig } from '@wellsfargo-starui/types/shared';
 
 const COPY_SUFFIX = / \(copy(?: \d+)?\)$/i;
 

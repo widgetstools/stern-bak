@@ -1,5 +1,5 @@
 import type { AppConfigRow, CreateConfigInput } from '@wellsfargo-starui/host-config';
-import type { LayoutInfo } from '@wellsfargo-starui/shared-types';
+import type { LayoutInfo } from '@wellsfargo-starui/types/shared';
 
 /**
  * The slice of `ConfigManager` these helpers need. Structural so

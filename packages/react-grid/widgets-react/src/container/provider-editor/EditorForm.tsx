@@ -24,7 +24,7 @@ import {
   Button, Input, Label, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Textarea,
 } from '@wellsfargo-starui/react';
 import { CheckCircle2, Columns3, Copy, Download, Loader2, X } from 'lucide-react';
-import type { ColumnDefinition, DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { ColumnDefinition, DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataServices } from '@wellsfargo-starui/react/data/runtime';
 import { exportProviderConfig } from './providerConfigIo.js';
 import { useProviderProbe } from './useProviderProbe.js';

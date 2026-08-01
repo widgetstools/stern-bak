@@ -11,8 +11,8 @@ import { describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { FieldNode, ColumnDefinition } from '@wellsfargo-starui/shared-types';
-import type { ProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { FieldNode, ColumnDefinition } from '@wellsfargo-starui/types/shared';
+import type { ProviderConfig } from '@wellsfargo-starui/types/shared';
 import { FieldsTab, buildColumns } from './FieldsTab.js';
 
 const FIELDS: FieldNode[] = [

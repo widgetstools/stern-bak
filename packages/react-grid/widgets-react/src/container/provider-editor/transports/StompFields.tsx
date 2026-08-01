@@ -8,7 +8,7 @@
  */
 
 import { Input, Label } from '@wellsfargo-starui/react';
-import type { StompProviderConfig } from '@wellsfargo-starui/shared-types';
+import type { StompProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export interface StompFieldsProps {
   cfg: StompProviderConfig;

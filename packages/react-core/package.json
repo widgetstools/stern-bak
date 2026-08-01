@@ -110,7 +110,6 @@
     "@wellsfargo-starui/host": "*",
     "@wellsfargo-starui/host-config": "*",
     "@wellsfargo-starui/openfin": "*",
-    "@wellsfargo-starui/shared-types": "*",
     "@wellsfargo-starui/types": "*",
     "@wellsfargo-starui/widget": "*",
     "@wellsfargo-starui/widget-browser": "*",
