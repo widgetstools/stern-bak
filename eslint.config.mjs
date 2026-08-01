@@ -20,9 +20,9 @@ import globals from 'globals';
 const FOUNDATION_GLOBS = [
   'packages/design-system/design-system/**/*.{ts,tsx}',
   'packages/design-system/icons-svg/**/*.{ts,tsx}',
-  'packages/shared/shared-types/**/*.{ts,tsx}',
+  'packages/types/shared-types/**/*.{ts,tsx}',
 ];
-const ENGINE_GLOBS = ['packages/shared/engine/**/*.{ts,tsx}'];
+const ENGINE_GLOBS = ['packages/core/engine/**/*.{ts,tsx}'];
 const REACT_GRID_GLOBS = ['packages/react-grid/**/*.{ts,tsx}'];
 const OPENFIN_GLOBS = ['packages/openfin/**/*.{ts,tsx}'];
 
@@ -36,44 +36,44 @@ const DEFAULT_IGNORES = [
   ...OPENFIN_GLOBS,
 ];
 
-// Foundation packages may only depend on each other (design-system,
-// icons-svg, shared-types). The extglob excludes those three.
+// Foundation packages may only depend on each other (design-system, types —
+// the collapsed names; icons-svg lives inside design-system, shared-types
+// inside types). The extglob excludes those two.
 const NON_FOUNDATION_STARUI = {
   group: [
-    '@wellsfargo-starui/!(design-system|icons-svg|shared-types)',
-    '@wellsfargo-starui/!(design-system|icons-svg|shared-types)/**',
+    '@wellsfargo-starui/!(design-system|types)',
+    '@wellsfargo-starui/!(design-system|types)/**',
   ],
   message:
-    'Foundation packages (design-system, icons-svg, shared-types) may only import each other.',
+    'Foundation packages (design-system, types) may only import each other.',
 };
 
-// @wellsfargo-starui/engine is the framework-agnostic platform; it must never reach up
-// into a framework adapter.
+// The engine (@wellsfargo-starui/core's `.` entry) is the framework-agnostic
+// platform; it must never reach up into a framework adapter. Grid subpaths
+// (./widgets, ./config-browser) and react subpaths ride on the bare-name
+// globs' `/**` variants.
 const FRAMEWORK_ADAPTERS = {
   group: [
     '@wellsfargo-starui/grid',
-    '@wellsfargo-starui/grid-angular',
-    '@wellsfargo-starui/widgets-react',
-    '@wellsfargo-starui/widgets-angular',
-    '@wellsfargo-starui/app',
-    '@wellsfargo-starui/app-angular',
-    '@wellsfargo-starui/ui',
+    '@wellsfargo-starui/grid/**',
+    '@wellsfargo-starui/react',
+    '@wellsfargo-starui/react/**',
   ],
   message:
-    '@wellsfargo-starui/engine must not import from framework adapters (grid/widgets/app/ui).',
+    'The engine (@wellsfargo-starui/core) must not import from framework adapters (grid/react).',
 };
 
 const OPENFIN_CORE = {
   group: ['@openfin/*'],
   message:
-    'Only @wellsfargo-starui/host-openfin and @wellsfargo-starui/openfin-platform may import @openfin/*. Inject OpenFin behaviour via a port/callback instead.',
+    'Only @wellsfargo-starui/openfin may import @openfin/*. Inject OpenFin behaviour via a port/callback instead.',
 };
 
-// OpenFin bucket sits *below* the React core bucket; it must not import the app.
+// OpenFin bucket sits *below* the React core bucket; it must not import React UI.
 const APP_REVERSE_DEP = {
-  group: ['@wellsfargo-starui/app', '@wellsfargo-starui/app/**'],
+  group: ['@wellsfargo-starui/react', '@wellsfargo-starui/react/**'],
   message:
-    '@wellsfargo-starui/openfin-platform must not depend on @wellsfargo-starui/app (reverse layer dependency). Move shared contracts down to @wellsfargo-starui/types or @wellsfargo-starui/host.',
+    '@wellsfargo-starui/openfin must not depend on @wellsfargo-starui/react (reverse layer dependency). Move shared contracts down to @wellsfargo-starui/types or @wellsfargo-starui/core/host.',
 };
 
 const restrict = (...patterns) => ['error', { patterns }];
@@ -136,18 +136,17 @@ export default tseslint.config(
   },
 
   // Native form controls in React packages must use the shadcn/Radix
-  // primitives from @wellsfargo-starui/ui (Input, Textarea, Select, Checkbox, Slider).
+  // primitives from @wellsfargo-starui/react (Input, Textarea, Select, Checkbox, Slider).
   // See CLAUDE.md "UI stack rules". Carve-outs: hidden `type="file"` pickers
   // and the `type="color"` eyedropper have no shadcn equivalent and are
-  // allowed; the shadcn primitive library itself (react-ui/ui) is excluded.
+  // allowed; the shadcn primitive library itself (react-core/ui) is excluded.
   {
     files: [
-      'packages/react-ui/**/*.tsx',
       'packages/react-grid/**/*.tsx',
       'packages/react-core/**/*.tsx',
     ],
     ignores: [
-      'packages/react-ui/ui/**',
+      'packages/react-core/ui/**',
       'packages/react-grid/grid/src/customizer/ui/shadcn/**',
       'packages/**/*.{test,spec}.tsx',
       'packages/**/__tests__/**/*.tsx',
@@ -159,17 +158,17 @@ export default tseslint.config(
         {
           selector: "JSXOpeningElement[name.name='select']",
           message:
-            'Use Select/SelectTrigger/SelectContent/SelectItem from @wellsfargo-starui/ui instead of a native <select>.',
+            'Use Select/SelectTrigger/SelectContent/SelectItem from @wellsfargo-starui/react instead of a native <select>.',
         },
         {
           selector: "JSXOpeningElement[name.name='textarea']",
-          message: 'Use Textarea from @wellsfargo-starui/ui instead of a native <textarea>.',
+          message: 'Use Textarea from @wellsfargo-starui/react instead of a native <textarea>.',
         },
         {
           selector:
             "JSXOpeningElement[name.name='input']:not(:has(JSXAttribute[name.name='type'] Literal[value=/^(file|color)$/]))",
           message:
-            'Use Input/Checkbox/Slider/Select from @wellsfargo-starui/ui instead of a native <input>. Native <input> is only allowed for type="file" and type="color".',
+            'Use Input/Checkbox/Slider/Select from @wellsfargo-starui/react instead of a native <input>. Native <input> is only allowed for type="file" and type="color".',
         },
       ],
     },
@@ -195,7 +194,7 @@ export default tseslint.config(
   // buckets (Angular Style Guide mandates kebab). See CLAUDE.md "File naming".
   {
     files: [
-      'packages/react-ui/ui/src/components/**/*.{ts,tsx}',
+      'packages/react-core/ui/src/components/**/*.{ts,tsx}',
       'packages/react-grid/grid/src/customizer/ui/shadcn/**/*.{ts,tsx}',
       'packages/angular-core/**/*.{ts,tsx}',
       'packages/angular-grid/**/*.{ts,tsx}',

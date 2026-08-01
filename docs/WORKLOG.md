@@ -570,13 +570,21 @@ failing as module-not-found, **react absent for a data-only consumer and
 ag-grid-enterprise absent for a react-only consumer** — the sub-phase-7
 peer-isolation assertion, already holding.
 
-**eslint.config.mjs (pending, hook-blocked, grew this sub-phase):** in
-addition to the two stale `packages/react-ui/ui/**` paths from
-sub-phase 5, the foundation-package extglobs still name
-`shared-types`/`icons-svg` and `ENGINE_GLOBS` points at
-`packages/shared/engine/**` (now `packages/core/engine/**`). Same
-resolution: owner disables the config-protection hook, one follow-up
-commit fixes all of it.
+**eslint.config.mjs: fixed.** The config-protection hook turned out to be
+already disabled (`.claude/settings.local.json` sets
+`ECC_DISABLED_HOOKS=pre:config-protection`; env vars from settings apply
+at session start, so the block observed in sub-phase 5 predated that
+entry taking effect). One follow-up commit landed the full backlog:
+sub-phase 5's stale `packages/react-ui/ui/**` paths → `react-core/ui`,
+`FOUNDATION_GLOBS`/`ENGINE_GLOBS` → `packages/types/shared-types` /
+`packages/core/engine`, the foundation extglob → `!(design-system|types)`,
+`FRAMEWORK_ADAPTERS`/`APP_REVERSE_DEP` groups rebuilt on the collapsed
+names (grid/react + `/**` subpath variants — the old lists named only
+retired identities, so those `error`-severity boundaries had been
+enforcing nothing), and retired names scrubbed from rule messages.
+`npx eslint "packages/**/*.{ts,tsx}"`: 0 errors, 376 warnings (the
+pre-existing warn-level `any`/size backlog). The former "lint flags ui's
+shadcn wrappers" symptom is gone.
 
 **README.md needs a standalone refresh:** its bucket table and package
 names are current again (fixed here), but large sections still describe
