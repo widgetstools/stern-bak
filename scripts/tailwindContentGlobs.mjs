@@ -7,7 +7,7 @@
 export const platformAppTailwindContent = [
   '../../packages/react-ui/ui/src/**/*.{ts,tsx}',
   '../../packages/react-grid/grid/src/**/*.{ts,tsx}',
-  '../../packages/data/host-data-react/src/**/*.{ts,tsx}',
+  '../../packages/react-core/host-data-react/src/**/*.{ts,tsx}',
   '../../packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',
   '../../packages/react-core/widgets-react/src/**/*.{ts,tsx}',
   '../../packages/react-core/config-browser/src/**/*.{ts,tsx}',
@@ -29,7 +29,7 @@ export const platformAppTailwindContent = [
 export const demoAppTailwindContent = [
   '../../../packages/react-ui/ui/src/**/*.{ts,tsx}',
   '../../../packages/react-grid/grid/src/**/*.{ts,tsx}',
-  '../../../packages/data/host-data-react/src/**/*.{ts,tsx}',
+  '../../../packages/react-core/host-data-react/src/**/*.{ts,tsx}',
   '../../../packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',
   '../../../packages/react-core/widgets-react/src/**/*.{ts,tsx}',
   '../../../packages/react-core/config-browser/src/**/*.{ts,tsx}',

@@ -10,7 +10,6 @@
     "packages/react-ui/*",
     "packages/react-grid/*",
     "packages/data/host-data",
-    "packages/data/host-data-react",
     "packages/openfin/*",
     "packages/react-core/*",
     "packages/shared/*"
