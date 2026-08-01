@@ -69,4 +69,38 @@ describe('styleBridge', () => {
     });
     expect(next.light?.borderTopWidth).toBeUndefined();
   });
+
+  it('reads strikethrough, numeric fontWeight, justify align, and dotted borders', () => {
+    const value = toStyleEditorValue({
+      light: {
+        fontWeight: '600',
+        textDecoration: 'line-through',
+        textAlign: 'justify',
+        borderRightWidth: '1px',
+        borderRightStyle: 'dotted',
+        borderRightColor: '#222',
+      },
+    });
+    expect(value.strikethrough).toBe(true);
+    expect(value.fontWeight).toBe(600);
+    expect(value.align).toBe('justify');
+    expect(value.borders?.right?.style).toBe('dotted');
+  });
+
+  it('writes fontWeight without bold and strikethrough decoration', () => {
+    const next = fromStyleEditorValue({ light: {}, dark: {} }, {
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: true,
+      fontWeight: 500,
+      backgroundAlpha: 100,
+      borders: {
+        bottom: { width: 2, color: '#000', style: 'dashed' },
+      },
+    });
+    expect(next.light?.fontWeight).toBe('500');
+    expect(next.light?.textDecoration).toBe('line-through');
+    expect(next.light?.borderBottomStyle).toBe('dashed');
+  });
 });

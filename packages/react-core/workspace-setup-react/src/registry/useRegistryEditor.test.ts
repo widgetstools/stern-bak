@@ -12,7 +12,7 @@ import type { RegistryEntry } from '@wellsfargo-starui/openfin-platform/config';
  *
  * The hook imports the MAIN `@wellsfargo-starui/openfin-platform` barrel,
  * which cannot be evaluated outside OpenFin — hence the whole-barrel mock
- * rather than a partial one. See WORKLOG item 8.
+ * rather than a partial one. See WORKLOG item 7.
  */
 
 const loadRegistryConfig = vi.fn();
@@ -362,7 +362,7 @@ describe('useRegistryEditor — test launch', () => {
     // Pinning real behaviour, not endorsing it: `testComponent` is memoised
     // with an empty dependency list, so it closes over the INITIAL hostEnv
     // and `customData.userId` is always undefined even after readHostEnv
-    // resolved with 'k123'. Recorded as WORKLOG item 8.
+    // resolved with 'k123'. Recorded as WORKLOG item 7.
     expect(result.current.hostEnv.userId).toBe('k123');
     expect(createView.mock.calls[0][0].customData.userId).toBeUndefined();
   });

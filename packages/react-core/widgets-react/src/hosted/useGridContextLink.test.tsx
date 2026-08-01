@@ -10,6 +10,8 @@ function fakeApi(selectedNodes: unknown[] = []): GridApi {
     getSelectedNodes: () => selectedNodes,
     getFilterModel: () => ({}),
     setFilterModel: vi.fn(),
+    setGridOption: vi.fn(),
+    onFilterChanged: vi.fn(),
     getColumn: (id: string) => ({ colId: id }),
     addEventListener: (event: string, fn: () => void) => {
       let set = listeners.get(event);
@@ -123,5 +125,70 @@ describe('useGridContextLink', () => {
       throw new Error('destroyed');
     });
     expect(() => unmount()).not.toThrow();
+  });
+
+  it('ignores its own broadcast echo on receive', () => {
+    const api = fakeApi([{ id: 'row-1', data: { id: 'row-1' } }]);
+    const fdc3 = fakeFdc3();
+    const onReceive = vi.fn();
+    renderHook(() =>
+      useGridContextLink({
+        gridApi: api,
+        fdc3,
+        instanceId: 'grid-a',
+        config: { enabled: true, mode: 'rowId' },
+        onReceive,
+      }),
+    );
+    act(() => {
+      (api as any).__fireSelection();
+    });
+    const source = (fdc3.broadcast.mock.calls[0]?.[0] as { source?: string })?.source;
+    act(() => {
+      fdc3.__emit('starui.gridSelection', {
+        type: 'starui.gridSelection',
+        source,
+        criteria: { rowIds: ['row-1'] },
+      });
+    });
+    expect(onReceive).not.toHaveBeenCalled();
+  });
+
+  it('applies rowId filters in rowId receive mode', () => {
+    const api = fakeApi();
+    const fdc3 = fakeFdc3();
+    renderHook(() =>
+      useGridContextLink({
+        gridApi: api,
+        fdc3,
+        instanceId: 'grid-a',
+        config: { enabled: true, mode: 'rowId', receive: true },
+      }),
+    );
+    act(() => {
+      fdc3.__emit('starui.gridSelection', {
+        type: 'starui.gridSelection',
+        source: 'peer',
+        rowIds: ['r1'],
+      });
+    });
+    expect(api.setGridOption).toHaveBeenCalledWith('isExternalFilterPresent', expect.any(Function));
+  });
+
+  it('skips publish when receive-only linking is configured', () => {
+    const api = fakeApi([{ id: 'row-1', data: { id: 'row-1' } }]);
+    const fdc3 = fakeFdc3();
+    renderHook(() =>
+      useGridContextLink({
+        gridApi: api,
+        fdc3,
+        instanceId: 'grid-a',
+        config: { enabled: true, publish: false },
+      }),
+    );
+    act(() => {
+      (api as any).__fireSelection();
+    });
+    expect(fdc3.broadcast).not.toHaveBeenCalled();
   });
 });

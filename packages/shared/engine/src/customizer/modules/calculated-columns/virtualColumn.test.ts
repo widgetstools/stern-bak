@@ -115,4 +115,40 @@ describe('buildVirtualColDef', () => {
     const style = (col.cellStyle as (p: { value: number }) => Record<string, string>)({ value: 1 });
     expect(style.color).toBeTruthy();
   });
+
+  it('uses aggregate allRows snapshot for column-wide expressions', () => {
+    const col = buildVirtualColDef(virtual({ expression: 'SUM([price])' }), engine, cache);
+    const api = {
+      forEachNode: (cb: (node: { data?: Record<string, unknown> }) => void) => {
+        cb({ data: { price: 10 } });
+        cb({ data: { price: 20 } });
+      },
+    } as unknown as GridApi;
+    const getter = col.valueGetter as (p: {
+      data: Record<string, unknown>;
+      api: GridApi;
+    }) => unknown;
+    expect(getter({ data: { price: 10 }, api })).toBe(30);
+  });
+
+  it('clears inline color when formatter has no color tag', () => {
+    const col = buildVirtualColDef(
+      virtual({ valueFormatterTemplate: { kind: 'preset', preset: 'number' } }),
+      engine,
+      cache,
+    );
+    expect(typeof col.cellStyle).toBe('function');
+    const style = (col.cellStyle as () => Record<string, string>)();
+    expect(style).toEqual({ color: '' });
+  });
+
+  it('formats values when a formatter template is configured', () => {
+    const col = buildVirtualColDef(
+      virtual({ valueFormatterTemplate: { kind: 'preset', preset: 'number' } }),
+      engine,
+      cache,
+    );
+    const fmt = col.valueFormatter as (p: { value: number }) => string;
+    expect(fmt({ value: 1234 })).toContain('1,234');
+  });
 });

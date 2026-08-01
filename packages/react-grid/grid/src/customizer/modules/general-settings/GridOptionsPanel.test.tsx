@@ -214,4 +214,72 @@ describe('GridOptionsPanel (v4 schema-driven)', () => {
       platform.store.getModuleState<GeneralSettingsState>('general-settings').rowHeight,
     ).toBe(INITIAL_GENERAL_SETTINGS.rowHeight);
   });
+
+  it('edits header height via NumberControl change+blur pattern', () => {
+    mount(platform);
+    const headerHeight = screen.getByTestId('go-header-height') as HTMLInputElement;
+    fireEvent.change(headerHeight, { target: { value: '52' } });
+    fireEvent.blur(headerHeight);
+    act(() => screen.getByTestId('go-save-btn').click());
+    expect(
+      platform.store.getModuleState<GeneralSettingsState>('general-settings').headerHeight,
+    ).toBe(52);
+  });
+
+  it('sidebar band nav scrolls to the matching section anchor', () => {
+    mount(platform);
+    fireEvent.click(screen.getByTestId('go-nav-10'));
+    expect(screen.getByTestId('go-section-10')).toBeTruthy();
+  });
+
+  it('edits flash duration and fade duration num fields', () => {
+    mount(platform);
+    commitIconInput(screen.getByTestId('go-flash-duration'), '500');
+    commitIconInput(screen.getByTestId('go-fade-duration'), '300');
+    act(() => screen.getByTestId('go-save-btn').click());
+    const state = platform.store.getModuleState<GeneralSettingsState>('general-settings');
+    expect(state.cellFlashDuration).toBe(500);
+    expect(state.cellFadeDuration).toBe(300);
+  });
+
+  it('edits quick filter text field', () => {
+    mount(platform);
+    commitIconInput(screen.getByTestId('go-quick-filter'), 'bond');
+    act(() => screen.getByTestId('go-save-btn').click());
+    expect(
+      platform.store.getModuleState<GeneralSettingsState>('general-settings').quickFilterText,
+    ).toBe('bond');
+  });
+
+  it('edits group display select', async () => {
+    const user = userEvent.setup();
+    mount(platform);
+    await user.click(screen.getByTestId('go-group-display'));
+    await user.click(await screen.findByRole('option', { name: 'Single column' }));
+    act(() => screen.getByTestId('go-save-btn').click());
+    expect(
+      platform.store.getModuleState<GeneralSettingsState>('general-settings').groupDisplayType,
+    ).toBe('singleColumn');
+  });
+
+  it('toggles pivot mode bool field', () => {
+    mount(platform);
+    fireEvent.click(screen.getByTestId('go-pivot-mode'));
+    act(() => screen.getByTestId('go-save-btn').click());
+    expect(
+      platform.store.getModuleState<GeneralSettingsState>('general-settings').pivotMode,
+    ).toBe(true);
+  });
+
+  it('undo/redo custom row reveals limit control when enabled', () => {
+    mount(platform);
+    fireEvent.click(screen.getByTestId('go-undo-redo'));
+    const limit = screen.getByTestId('go-undo-redo-limit') as HTMLInputElement;
+    fireEvent.change(limit, { target: { value: '25' } });
+    fireEvent.blur(limit);
+    act(() => screen.getByTestId('go-save-btn').click());
+    expect(
+      platform.store.getModuleState<GeneralSettingsState>('general-settings').undoRedoCellEditingLimit,
+    ).toBe(25);
+  });
 });

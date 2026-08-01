@@ -4,8 +4,8 @@ import { coverage } from '../../../scripts/vitestCoverage.mjs';
 export default defineConfig({
   test: {
     coverage: coverage(),
-    environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    environment: 'jsdom',
+    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     snapshotFormat: { printBasicPrototype: false },
   },
 });

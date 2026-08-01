@@ -24,4 +24,23 @@ describe('buildStreamSafeComponents', () => {
     );
     expect(map).toHaveProperty('streamSafeDate');
   });
+
+  it('includes date filter from nested column groups and compound filters', () => {
+    const nested = buildStreamSafeComponents(
+      [{ children: [{ field: 'asOf', floatingFilterComponent: 'streamSafeDate' }] }],
+      false,
+    );
+    expect(nested).toHaveProperty('streamSafeDate');
+
+    const compound = buildStreamSafeComponents(
+      [{ field: 'asOf', filter: { filters: [{ filter: 'agDateColumnFilter' }] } }],
+      false,
+    );
+    expect(compound).toHaveProperty('streamSafeDate');
+  });
+
+  it('returns base map when column defs are empty', () => {
+    const map = buildStreamSafeComponents([], false);
+    expect(map).not.toHaveProperty('streamSafeDate');
+  });
 });

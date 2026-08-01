@@ -177,4 +177,79 @@ describe('useBlotterDataConnection', () => {
       update: [{ id: 'r1', x: 2 }],
     }, expect.any(Function));
   });
+
+  it('stays disconnected when gridApi or provider is missing', () => {
+    const { result, rerender } = renderHook(
+      (props: { api: GridApi | null; prov: IDataProvider | null }) =>
+        useBlotterDataConnection({ gridApi: props.api, provider: props.prov }),
+      { initialProps: { api: null as GridApi | null, prov: provider } },
+    );
+    expect(result.current.isConnected).toBe(false);
+
+    rerender({ api: gridApi, prov: null });
+    expect(result.current.isConnected).toBe(false);
+  });
+
+  it('warns when explicit provider id does not match provider.id', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    renderHook(() =>
+      useBlotterDataConnection({ gridApi, provider, providerId: 'other-id' }),
+    );
+    await waitFor(() => expect(provider.start).toHaveBeenCalled());
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('does not match providerId'));
+    warn.mockRestore();
+  });
+
+  it('ignores empty ticks and treats falsy getRowId as null', async () => {
+    gridApi.getRowNode.mockReturnValue(null);
+    renderHook(() =>
+      useBlotterDataConnection({
+        gridApi,
+        provider,
+        getRowId: () => '',
+      }),
+    );
+    await waitFor(() => expect(provider.start).toHaveBeenCalled());
+    provider.emitTick([]);
+    expect(gridApi.applyTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it('logs provider errors and start failures', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing = createMockProvider();
+    failing.start.mockRejectedValueOnce(new Error('start failed'));
+    const errorHandlers = new Set<(err: Error) => void>();
+    failing.onError = vi.fn((handler) => {
+      errorHandlers.add(handler);
+      return () => errorHandlers.delete(handler);
+    });
+
+    renderHook(() => useBlotterDataConnection({ gridApi, provider: failing }));
+    await waitFor(() => expect(failing.start).toHaveBeenCalled());
+    for (const handler of errorHandlers) handler(new Error('stream error'));
+    expect(errorLog).toHaveBeenCalled();
+
+    errorLog.mockRestore();
+  });
+
+  it('swallows flushAsyncTransactions errors during snapshot apply', async () => {
+    gridApi.flushAsyncTransactions.mockImplementation(() => {
+      throw new Error('teardown');
+    });
+    renderHook(() => useBlotterDataConnection({ gridApi, provider }));
+    await waitFor(() => expect(provider.start).toHaveBeenCalled());
+    await act(async () => {
+      provider.emitSnapshot([{ id: 'r1' }]);
+      await Promise.resolve();
+    });
+    expect(gridApi.setGridOption).toHaveBeenCalledWith('rowData', [{ id: 'r1' }]);
+  });
+
+  it('applies ticks without getRowId using the default id field', async () => {
+    gridApi.getRowNode.mockImplementation((id: string) => (id === 'r1' ? { id } : null));
+    renderHook(() => useBlotterDataConnection({ gridApi, provider }));
+    await waitFor(() => expect(provider.start).toHaveBeenCalled());
+    provider.emitTick([{ id: 'r1', x: 1 }]);
+    expect(gridApi.applyTransactionAsync).toHaveBeenCalled();
+  });
 });

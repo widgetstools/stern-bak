@@ -33,4 +33,27 @@ describe('filterPresets', () => {
   it('is case-insensitive', () => {
     expect(filterPresets(numberPresets, 'INTEGER').map((p) => p.id)).toContain('num-integer');
   });
+
+  it('searches tick, expression, and preset template kinds', () => {
+    const tickPreset = numberPresets.find((p) => p.template.kind === 'tick');
+    const exprPreset = numberPresets.find((p) => p.template.kind === 'expression');
+    if (tickPreset && tickPreset.template.kind === 'tick') {
+      expect(filterPresets(numberPresets, tickPreset.template.tick).map((p) => p.id)).toContain(tickPreset.id);
+    }
+    if (exprPreset && exprPreset.template.kind === 'expression') {
+      expect(filterPresets(numberPresets, exprPreset.template.expression.slice(0, 4)).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('matches on preset kind code via synthetic preset', () => {
+    const synthetic: typeof numberPresets[number] = {
+      id: 'synthetic-preset',
+      category: 'number',
+      label: 'Named preset',
+      template: { kind: 'preset', preset: 'currency' },
+    };
+    expect(filterPresets([...numberPresets, synthetic], 'currency').map((p) => p.id)).toContain(
+      'synthetic-preset',
+    );
+  });
 });

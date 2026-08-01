@@ -99,4 +99,11 @@ describe('moveGroupAtPath', () => {
       'first',
     ]);
   });
+
+  it('leaves tree content unchanged for invalid update/delete paths', () => {
+    const original = tree();
+    expect(updateGroupAtPath(original, [99], (g) => g)).toStrictEqual(original);
+    expect(deleteGroupAtPath(original, [99])).toStrictEqual(original);
+    expect(moveGroupAtPath(original, [0, 99], 1)).toStrictEqual(original);
+  });
 });

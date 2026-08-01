@@ -14,12 +14,13 @@
  * the same surface the settings sheet would render.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/engine';
 import { GridProvider } from '../../hooks/GridProvider';
 import {
   CalculatedColumnsEditor,
   CalculatedColumnsList,
+  CalculatedColumnsPanel,
 } from './CalculatedColumnsPanel';
 import { calculatedColumnsModule } from './index';
 import type { CalculatedColumnsState } from './state';
@@ -203,5 +204,64 @@ describe('CalculatedColumnsPanel (v4)', () => {
       </GridProvider>,
     );
     expect(screen.getByText(/No column selected/i)).toBeTruthy();
+  });
+
+  it('DELETE selects the next column when the active one is removed', () => {
+    const onSelect = vi.fn();
+    platform.store.setModuleState<CalculatedColumnsState>('calculated-columns', (s) => ({
+      ...s,
+      virtualColumns: [
+        ...s.virtualColumns,
+        {
+          colId: 'netPnl',
+          headerName: 'Net P&L',
+          expression: '[price]',
+          position: 21,
+        },
+      ],
+    }));
+    render(
+      <GridProvider platform={platform}>
+        <CalculatedColumnsList gridId="test-grid" selectedId="grossPnl" onSelect={onSelect} />
+      </GridProvider>,
+    );
+    act(() => screen.getByTestId('cc-virtual-delete-grossPnl').click());
+    expect(onSelect).toHaveBeenCalledWith('netPnl');
+  });
+
+  it('editor returns null for a missing selected column', () => {
+    render(
+      <GridProvider platform={platform}>
+        <CalculatedColumnsEditor gridId="test-grid" selectedId="missing-col" />
+      </GridProvider>,
+    );
+    expect(screen.queryByTestId(/cc-virtual-editor-/)).toBeNull();
+  });
+
+  it('edits expression, formatter, and column id in the virtual editor', () => {
+    render(<MasterDetail platform={platform} />);
+    fireEvent.change(screen.getByTestId('cc-virtual-expr-grossPnl'), {
+      target: { value: '[price] + [quantity]' },
+    });
+    fireEvent.change(screen.getByTestId('cc-virtual-colid-grossPnl'), {
+      target: { value: 'grossPnlRenamed' },
+    });
+    fireEvent.keyDown(screen.getByTestId('cc-virtual-colid-grossPnl'), { key: 'Enter' });
+
+    expect((screen.getByTestId('cc-virtual-expr-grossPnl') as HTMLTextAreaElement).value).toBe(
+      '[price] + [quantity]',
+    );
+    expect((screen.getByTestId('cc-virtual-colid-grossPnl') as HTMLInputElement).value).toBe(
+      'grossPnlRenamed',
+    );
+  });
+
+  it('renders legacy CalculatedColumnsPanel shell', () => {
+    render(
+      <GridProvider platform={platform}>
+        <CalculatedColumnsPanel />
+      </GridProvider>,
+    );
+    expect(screen.getByTestId('cc-panel')).toBeTruthy();
   });
 });

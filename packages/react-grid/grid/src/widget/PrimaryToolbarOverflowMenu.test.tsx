@@ -49,6 +49,34 @@ describe('PrimaryToolbarOverflowMenu', () => {
     await user.click(screen.getByTestId('grid-info-btn'));
     expect(screen.getByText('Grid')).toBeInTheDocument();
   });
+
+  it('routes settings and admin actions from overflow menu', async () => {
+    const user = userEvent.setup();
+    const adminClick = vi.fn();
+    const props = makeProps({
+      adminActions: [{ id: 'diag', label: 'Diagnostics', onClick: adminClick }],
+    });
+    render(<PrimaryToolbarOverflowMenu {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByTestId('v2-settings-open-btn'));
+    expect(props.onOpenSettings).toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByTestId('admin-action-diag'));
+    expect(adminClick).toHaveBeenCalled();
+  });
+
+  it('hides export menu item when visual excel is not enabled', async () => {
+    const user = userEvent.setup();
+    render(
+      <PrimaryToolbarOverflowMenu
+        {...makeProps({ visualExcelExportEnabled: false })}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.queryByTestId('visual-excel-export-btn')).toBeNull();
+  });
 });
 
 describe('PrimaryToolbarInlineActions', () => {

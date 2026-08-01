@@ -226,3 +226,214 @@ describe('CELL_CHANGE_FLASH_CSS_HANDLE', () => {
     expect(addRule).toHaveBeenCalled();
   });
 });
+
+describe('generalSettingsModule migrate/deserialize', () => {
+  it('migrate returns defaults for null and non-object payloads', () => {
+    expect(generalSettingsModule.migrate!(null)).toEqual(INITIAL_GENERAL_SETTINGS);
+    expect(generalSettingsModule.migrate!('bad')).toEqual(INITIAL_GENERAL_SETTINGS);
+  });
+
+  it('deserialize overlays stored values onto defaults', () => {
+    expect(generalSettingsModule.deserialize!({ rowHeight: 40 })).toMatchObject({
+      rowHeight: 40,
+      enableCellChangeFlash: INITIAL_GENERAL_SETTINGS.enableCellChangeFlash,
+    });
+  });
+});
+
+describe('generalSettingsModule.transformGridOptions multi-sort and enter-nav', () => {
+  const ctx = makeCtx();
+
+  it.each([
+    ['replace', { suppressMultiSort: true, alwaysMultiSort: false, multiSortKey: undefined }],
+    ['shift', { suppressMultiSort: false, alwaysMultiSort: false, multiSortKey: undefined }],
+    ['ctrl', { suppressMultiSort: false, alwaysMultiSort: false, multiSortKey: 'ctrl' }],
+    ['always', { suppressMultiSort: false, alwaysMultiSort: true, multiSortKey: undefined }],
+  ] as const)('maps multiSortMode %s', (mode, expected) => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, multiSortMode: mode },
+      ctx,
+    );
+    expect(opts).toMatchObject(expected);
+  });
+
+  it.each([
+    ['default', { enterNavigatesVertically: false, enterNavigatesVerticallyAfterEdit: false }],
+    ['always', { enterNavigatesVertically: true, enterNavigatesVerticallyAfterEdit: false }],
+    ['afterEdit', { enterNavigatesVertically: false, enterNavigatesVerticallyAfterEdit: true }],
+    ['both', { enterNavigatesVertically: true, enterNavigatesVerticallyAfterEdit: true }],
+  ] as const)('maps enterNavigation %s', (mode, expected) => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, enterNavigation: mode },
+      ctx,
+    );
+    expect(opts).toMatchObject(expected);
+  });
+});
+
+describe('generalSettingsModule.transformGridOptions sidebar and status bar', () => {
+  const ctx = makeCtx();
+
+  it('emits sideBar false when disabled or no panels enabled', () => {
+    const off = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, sideBar: false },
+      ctx,
+    );
+    expect(off.sideBar).toBe(false);
+
+    const emptyPanels = generalSettingsModule.transformGridOptions!(
+      {},
+      {
+        ...INITIAL_GENERAL_SETTINGS,
+        sideBar: true,
+        sideBarShowColumns: false,
+        sideBarShowFilters: false,
+      },
+      ctx,
+    );
+    expect(emptyPanels.sideBar).toBe(false);
+  });
+
+  it('builds sideBar toolPanels and honours default panel when enabled', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      {
+        ...INITIAL_GENERAL_SETTINGS,
+        sideBar: true,
+        sideBarShowColumns: true,
+        sideBarShowFilters: true,
+        sideBarDefaultPanel: 'filters',
+      },
+      ctx,
+    );
+    expect(opts.sideBar).toMatchObject({
+      defaultToolPanel: 'filters',
+      toolPanels: expect.arrayContaining([
+        expect.objectContaining({ id: 'columns' }),
+        expect.objectContaining({ id: 'filters' }),
+      ]),
+    });
+  });
+
+  it('omits defaultToolPanel when default panel is disabled', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      {
+        ...INITIAL_GENERAL_SETTINGS,
+        sideBar: true,
+        sideBarShowColumns: true,
+        sideBarShowFilters: false,
+        sideBarDefaultPanel: 'filters',
+      },
+      ctx,
+    );
+    expect((opts.sideBar as { defaultToolPanel?: string }).defaultToolPanel).toBeUndefined();
+  });
+
+  it('omits statusBar when disabled or no panels', () => {
+    const off = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, statusBar: false },
+      ctx,
+    );
+    expect(off.statusBar).toBeUndefined();
+
+    const empty = generalSettingsModule.transformGridOptions!(
+      {},
+      {
+        ...INITIAL_GENERAL_SETTINGS,
+        statusBar: true,
+        statusBarShowTotalAndFilteredCount: false,
+        statusBarShowFilteredCount: false,
+        statusBarShowTotalCount: false,
+        statusBarShowSelectedCount: false,
+        statusBarShowAggregation: false,
+      },
+      ctx,
+    );
+    expect(empty.statusBar).toBeUndefined();
+  });
+
+  it('builds statusBar panels when enabled', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      {
+        ...INITIAL_GENERAL_SETTINGS,
+        statusBar: true,
+        statusBarShowTotalAndFilteredCount: false,
+        statusBarShowFilteredCount: false,
+        statusBarShowSelectedCount: false,
+        statusBarShowTotalCount: true,
+        statusBarShowAggregation: true,
+      },
+      ctx,
+    );
+    expect(opts.statusBar?.statusPanels).toEqual([
+      { statusPanel: 'agTotalRowCountComponent' },
+      { statusPanel: 'agAggregationComponent', align: 'right' },
+    ]);
+  });
+});
+
+describe('generalSettingsModule.transformGridOptions misc branches', () => {
+  const ctx = makeCtx();
+
+  it('singleRow checkbox selection omits headerCheckbox', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      {
+        ...INITIAL_GENERAL_SETTINGS,
+        rowSelection: 'singleRow',
+        checkboxSelection: true,
+      },
+      ctx,
+    );
+    expect(opts.rowSelection).toEqual({ mode: 'singleRow', checkboxes: true });
+    expect((opts.rowSelection as { headerCheckbox?: boolean }).headerCheckbox).toBeUndefined();
+  });
+
+  it('clears pagination child options when pagination is off', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, pagination: false },
+      ctx,
+    );
+    expect(opts.paginationPageSize).toBeUndefined();
+    expect(opts.paginationAutoPageSize).toBeUndefined();
+  });
+
+  it('omits undoRedoCellEditingLimit when undo/redo disabled', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, undoRedoCellEditing: false },
+      ctx,
+    );
+    expect(opts.undoRedoCellEditingLimit).toBeUndefined();
+  });
+
+  it('installs tooltipValueGetter when showCellTooltips is on', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, showCellTooltips: true },
+      ctx,
+    );
+    const getter = opts.defaultColDef?.tooltipValueGetter as
+      | ((p: { value: unknown }) => string | null)
+      | undefined;
+    expect(getter?.({ value: 'hello' })).toBe('hello');
+    expect(getter?.({ value: null })).toBeNull();
+    expect(getter?.({ value: '' })).toBeNull();
+  });
+
+  it('clears quickFilterText when empty string', () => {
+    const opts = generalSettingsModule.transformGridOptions!(
+      {},
+      { ...INITIAL_GENERAL_SETTINGS, quickFilterText: '' },
+      ctx,
+    );
+    expect(opts.quickFilterText).toBeUndefined();
+  });
+});

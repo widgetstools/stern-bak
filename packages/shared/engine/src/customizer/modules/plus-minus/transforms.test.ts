@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { applyPlusMinusColDefTransforms } from './transforms.js';
 
 describe('applyPlusMinusColDefTransforms', () => {
@@ -21,5 +21,22 @@ describe('applyPlusMinusColDefTransforms', () => {
     const out = applyPlusMinusColDefTransforms(defs);
     expect((out[0] as { suppressKeyboardEvent?: unknown }).suppressKeyboardEvent).toBeUndefined();
     expect((out[1] as { suppressKeyboardEvent?: unknown }).suppressKeyboardEvent).toBeUndefined();
+  });
+
+  it('preserves nested groups and chains existing suppressKeyboardEvent', () => {
+    const prev = vi.fn(() => true);
+    const defs = [{
+      headerName: 'G',
+      children: [{
+        field: 'qty',
+        editable: true,
+        cellDataType: 'number',
+        suppressKeyboardEvent: prev,
+      }],
+    }];
+    const out = applyPlusMinusColDefTransforms(defs);
+    const child = (out[0] as { children: Array<{ suppressKeyboardEvent?: (p: { event: KeyboardEvent; editing: boolean }) => boolean }> }).children[0];
+    expect(child.suppressKeyboardEvent?.({ event: { key: 'a' } as KeyboardEvent, editing: false })).toBe(true);
+    expect(child.suppressKeyboardEvent?.({ event: { key: '+' } as KeyboardEvent, editing: false })).toBe(true);
   });
 });

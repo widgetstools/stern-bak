@@ -122,4 +122,53 @@ describe('useProviderProbe', () => {
     });
     expect(result.current.testResult).toBeNull();
   });
+
+  it('records mock probe success with row count', async () => {
+    vi.mocked(probeMock).mockResolvedValue({ ok: true, rows: [{ id: 1 }, { id: 2 }] });
+    const { result } = renderHook(() =>
+      useProviderProbe({ providerType: 'mock', rowCount: 2, updateIntervalMs: 1, enableUpdates: false }),
+    );
+    await act(async () => {
+      await result.current.test();
+    });
+    await waitFor(() => expect(result.current.testResult).toEqual({ success: true, rowCount: 2 }));
+  });
+
+  it('treats appdata transports as always reachable', async () => {
+    const { result } = renderHook(() =>
+      useProviderProbe({ providerType: 'appdata', variables: {} }),
+    );
+    await act(async () => {
+      await result.current.test();
+      await result.current.infer();
+    });
+    await waitFor(() => expect(result.current.testResult?.success).toBe(true));
+    expect(result.current.inferenceSummary?.fieldsDetected).toBe(1);
+  });
+
+  it('records non-Error inference failures as strings', async () => {
+    vi.mocked(probeRest).mockRejectedValue('timeout');
+    const { result } = renderHook(() =>
+      useProviderProbe({ providerType: 'rest', baseUrl: 'https://x', endpoint: '/a' }),
+    );
+    await act(async () => {
+      await result.current.infer();
+    });
+    await waitFor(() => expect(result.current.inferenceError).toBe('timeout'));
+  });
+
+  it('reports unsupported provider types during test', async () => {
+    const { result } = renderHook(() =>
+      useProviderProbe({ providerType: 'websocket', url: 'ws://x' } as never),
+    );
+    await act(async () => {
+      await result.current.test();
+    });
+    await waitFor(() =>
+      expect(result.current.testResult).toEqual({
+        success: false,
+        error: 'Test not implemented for websocket',
+      }),
+    );
+  });
 });

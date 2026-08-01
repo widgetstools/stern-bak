@@ -223,4 +223,137 @@ describe('validateDeployExport', () => {
     expect(warnings.some((w) => w.code === 'EMPTY_PROFILE_STATE')).toBe(true);
     expect(warnings.some((w) => w.code === 'MISSING_GRID_LEVEL_PROVIDER')).toBe(true);
   });
+
+  it('errors when no activeAppId can be determined', () => {
+    const input = baseInput({
+      activeAppId: '',
+      appRegistry: [],
+      userProfiles: [],
+    });
+    const warnings = validateDeployExport(input);
+    expect(warnings.some((w) => w.code === 'NO_ACTIVE_APP_ID' && w.severity === 'error')).toBe(true);
+  });
+
+  it('warns on instance IDs mismatch between snapshot and declared list', () => {
+    const input = baseInput({
+      appConfig: [{
+        configId: 'WS_1',
+        appId: 'StarDemo',
+        userId: 'dev1',
+        isPublic: true,
+        displayText: 'ws',
+        componentType: 'workspace',
+        componentSubType: 'SNAPSHOT',
+        isTemplate: false,
+        payload: {
+          instanceIds: ['declared-id'],
+          openfinSnapshot: { windows: [{ views: [{ name: 'v1', url: '/x', customData: { instanceId: 'custom-id' } }] }] },
+        },
+        createdBy: 'dev1',
+        updatedBy: 'dev1',
+        creationTime: '2026-01-01T00:00:00.000Z',
+        updatedTime: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    const warnings = validateDeployExport(input);
+    expect(warnings.some((w) => w.code === 'CUSTOM_DATA_INSTANCE_MISMATCH')).toBe(true);
+  });
+
+  it('warns when snapshot has instances but declared list is empty', () => {
+    const input = baseInput({
+      appConfig: [{
+        configId: 'WS_1',
+        appId: 'StarDemo',
+        userId: 'dev1',
+        isPublic: true,
+        displayText: 'ws',
+        componentType: 'workspace',
+        componentSubType: 'SNAPSHOT',
+        isTemplate: false,
+        payload: {
+          instanceIds: [],
+          openfinSnapshot: { windows: [{ views: [{ url: '/x?id=snap-id' }] }] },
+        },
+        createdBy: 'dev1',
+        updatedBy: 'dev1',
+        creationTime: '2026-01-01T00:00:00.000Z',
+        updatedTime: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    const warnings = validateDeployExport(input);
+    expect(warnings.some((w) => w.code === 'INSTANCE_IDS_EMPTY')).toBe(true);
+  });
+
+  it('detects custom data instance ids from nested windows', () => {
+    const snap = {
+      windows: [{
+        views: [{
+          customData: { instanceId: 'inst-a' },
+        }],
+      }],
+    };
+    const input = baseInput({
+      appConfig: [
+        profileRow('inst-a', 'StarDemo'),
+        {
+          configId: 'WS_1',
+          appId: 'StarDemo',
+          userId: 'dev1',
+          isPublic: true,
+          displayText: 'ws',
+          componentType: 'workspace',
+          componentSubType: 'SNAPSHOT',
+          isTemplate: false,
+          payload: { instanceIds: ['inst-a'], openfinSnapshot: snap },
+          createdBy: 'dev1',
+          updatedBy: 'dev1',
+          creationTime: '2026-01-01T00:00:00.000Z',
+          updatedTime: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const warnings = validateDeployExport(input);
+    expect(warnings.some((w) => w.code === 'MISSING_INSTANCE_ROW')).toBe(false);
+  });
+
+  it('handles non-empty custom data list without mismatch', () => {
+    const snap = {
+      windows: [{
+        views: [{
+          customData: { instanceId: 'inst-a' },
+        }],
+      }],
+    };
+    const input = baseInput({
+      appConfig: [
+        profileRow('inst-a', 'StarDemo'),
+        {
+          configId: 'WS_1',
+          appId: 'StarDemo',
+          userId: 'dev1',
+          isPublic: true,
+          displayText: 'ws',
+          componentType: 'workspace',
+          componentSubType: 'SNAPSHOT',
+          isTemplate: false,
+          payload: { instanceIds: ['inst-a'], openfinSnapshot: snap },
+          createdBy: 'dev1',
+          updatedBy: 'dev1',
+          creationTime: '2026-01-01T00:00:00.000Z',
+          updatedTime: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const warnings = validateDeployExport(input);
+    expect(warnings.some((w) => w.code === 'CUSTOM_DATA_INSTANCE_MISMATCH')).toBe(false);
+  });
+
+  it('handles hasErrors flag correctly', () => {
+    const input = baseInput({
+      activeAppId: '',
+      appRegistry: [],
+    });
+    const result = buildDeployExport(input);
+    expect(result.hasErrors).toBe(true);
+  });
 });

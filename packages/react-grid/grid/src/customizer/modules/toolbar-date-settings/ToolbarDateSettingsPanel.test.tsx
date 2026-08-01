@@ -10,6 +10,7 @@
  * staging assertions without Radix Select pointer plumbing.
  */
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/engine';
 import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
@@ -149,5 +150,95 @@ describe('Custom Settings panel — explicit Save', () => {
     expect(providerHost.onHistoricalChange).not.toHaveBeenCalled();
     // Bindings unchanged → host not asked to replace the map.
     expect(bindingsHost.setBindings).not.toHaveBeenCalled();
+  });
+
+  it('staging an event binding does NOT apply to the host until Save', async () => {
+    const user = userEvent.setup();
+    bindingsHost = makeBindingsHost({
+      handlerIds: ['logEvent'],
+      handlerMeta: { logEvent: { label: 'Log to console' } },
+    });
+    mount(providerHost, bindingsHost);
+
+    await user.click(screen.getByTestId('grid-event-handler-select-grid:ready'));
+    await user.click(await screen.findByRole('option', { name: 'Log to console' }));
+    expect(bindingsHost.setBindings).not.toHaveBeenCalled();
+    expect(saveBtn().disabled).toBe(false);
+
+    fireEvent.click(saveBtn());
+    expect(bindingsHost.setBindings).toHaveBeenCalled();
+  });
+
+  it('renders panel shell with section navigation', () => {
+    mount(providerHost, bindingsHost);
+    expect(screen.getByTestId('toolbar-date-settings-panel')).toBeTruthy();
+    expect(screen.getByTestId('tds-section-nav')).toBeTruthy();
+  });
+
+  it('navigates between sections via sidebar buttons', () => {
+    mount(providerHost, bindingsHost);
+    fireEvent.click(screen.getByTestId('tds-nav-02'));
+    expect(screen.getByTestId('provider-grid-host-section')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('tds-nav-04'));
+    expect(screen.getByTestId('tds-row-filter-section')).toBeTruthy();
+  });
+
+  it('staging toolbar-date enabled toggle dirties Save', () => {
+    mount(providerHost, bindingsHost);
+    fireEvent.click(screen.getByTestId('tds-enabled-switch'));
+    expect(saveBtn().disabled).toBe(false);
+    fireEvent.click(saveBtn());
+    expect(saveBtn().disabled).toBe(true);
+  });
+
+  it('row filter example inserts expression and clear resets it', () => {
+    mount(providerHost, bindingsHost);
+    fireEvent.click(screen.getByTestId('tds-nav-04'));
+    fireEvent.click(screen.getAllByTestId('tds-row-filter-example')[0]!);
+    expect(saveBtn().disabled).toBe(false);
+    fireEvent.click(screen.getByTestId('tds-row-filter-clear'));
+    fireEvent.click(resetBtn());
+    expect(saveBtn().disabled).toBe(true);
+  });
+
+  it('shows row filter validation error for malformed expression', () => {
+    mount(providerHost, bindingsHost);
+    fireEvent.click(screen.getByTestId('tds-nav-04'));
+    fireEvent.change(screen.getByTestId('tds-row-filter-editor'), { target: { value: '[price] >' } });
+    expect(screen.getByTestId('tds-row-filter-error')).toBeTruthy();
+  });
+
+  it('discard resets staged provider and bindings without applying', () => {
+    mount(providerHost, bindingsHost);
+    fireEvent.click(histModeBtn());
+    fireEvent.click(resetBtn());
+    expect(providerHost.onModeChange).not.toHaveBeenCalled();
+    expect(saveBtn().disabled).toBe(true);
+  });
+
+  it('Save applies live provider change when staged', async () => {
+    const user = userEvent.setup();
+    providerHost = makeProviderHost({
+      liveProviders: [provider('live-1', 'Live One'), provider('live-2', 'Live Two')],
+    });
+    mount(providerHost, bindingsHost);
+    fireEvent.click(screen.getByTestId('tds-nav-02'));
+    const triggers = screen.getAllByTestId('provider-live-select');
+    await user.click(triggers[triggers.length - 1]!);
+    await user.click(await screen.findByRole('option', { name: /Live Two/i }));
+    fireEvent.click(saveBtn());
+    expect(providerHost.onLiveChange).toHaveBeenCalledWith('live-2');
+  });
+
+  it('navigates toolbar date and event callback sections', () => {
+    bindingsHost = makeBindingsHost({
+      handlerIds: ['logEvent'],
+      handlerMeta: { logEvent: { label: 'Log to console' } },
+    });
+    mount(providerHost, bindingsHost);
+    fireEvent.click(screen.getByTestId('tds-nav-01'));
+    expect(screen.getByTestId('toolbar-date-appdata-section')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('tds-nav-03'));
+    expect(screen.getByTestId('grid-event-handler-select-grid:ready')).toBeTruthy();
   });
 });

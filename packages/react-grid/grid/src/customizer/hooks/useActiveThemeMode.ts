@@ -14,17 +14,21 @@
 import { useEffect, useState } from 'react';
 import { getActiveTheme, type GridThemeMode } from '@wellsfargo-starui/engine';
 
+/** Subscribe to `<html data-theme>` changes. SSR-safe — returns a no-op
+ *  cleanup when `document` is unavailable. */
+export function subscribeActiveThemeMode(setMode: (mode: GridThemeMode) => void): () => void {
+  if (typeof document === 'undefined') return () => {};
+  setMode(getActiveTheme());
+  const html = document.documentElement;
+  const observer = new MutationObserver(() => setMode(getActiveTheme()));
+  observer.observe(html, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
 export function useActiveThemeMode(): GridThemeMode {
   const [mode, setMode] = useState<GridThemeMode>(getActiveTheme);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    setMode(getActiveTheme());
-    const html = document.documentElement;
-    const observer = new MutationObserver(() => setMode(getActiveTheme()));
-    observer.observe(html, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
+  useEffect(() => subscribeActiveThemeMode(setMode), []);
 
   return mode;
 }

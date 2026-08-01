@@ -14,7 +14,9 @@ vi.mock('ag-grid-react', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/grid/customizer', () => ({
-  ExpressionEditor: () => null,
+  ExpressionEditor: ({ onCommit }: { onCommit: (expr: string) => void }) => (
+    <button type="button" onClick={() => onCommit('[qty] * 2')}>commit-expression</button>
+  ),
 }));
 
 vi.mock('../../../theme/useAgGridTheme.js', () => ({
@@ -145,6 +147,21 @@ describe('ColumnsTab — rendering', () => {
     );
   });
 
+  it('uses a generic import error for non-Error throws', async () => {
+    vi.mocked(parseColumnDefsImport).mockImplementationOnce(() => {
+      throw 'nope';
+    });
+    render(
+      <ColumnsTab columns={[]} onChange={vi.fn()} keyColumn={undefined} onKeyColumnChange={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByTestId('columns-tab-import-input'), {
+      target: { files: [new File(['x'], 'bad.json', { type: 'application/json' })] },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('columns-tab-import-error')).toHaveTextContent('Import failed.'),
+    );
+  });
+
   it('reorders and deletes columns from grid callbacks', () => {
     const onChange = vi.fn();
     render(
@@ -162,5 +179,82 @@ describe('ColumnsTab — rendering', () => {
     const deleteCol = lastGridProps.columnDefs.at(-1);
     deleteCol.onCellClicked({ data: columns[0] });
     expect(onChange).toHaveBeenCalledWith([columns[1]]);
+  });
+
+  it('skips duplicate manual columns and import without a file', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ColumnsTab columns={columns} onChange={onChange} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
+    );
+    await user.type(screen.getByPlaceholderText('e.g., trade_id'), 'positionId');
+    expect(screen.getByTitle('Field already exists')).toBeDisabled();
+    fireEvent.change(screen.getByTestId('columns-tab-import-input'), { target: { files: [] } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('opens the expression editor and commits a valueGetter', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ColumnsTab columns={columns} onChange={onChange} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
+    );
+    const exprCol = lastGridProps.columnDefs.find((c: any) => c.onCellClicked && c.cellRenderer);
+    exprCol.onCellClicked({ data: columns[0] });
+    await user.click(await screen.findByRole('button', { name: 'commit-expression' }));
+    await user.click(await screen.findByRole('button', { name: /Save expression/i }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ field: 'positionId', valueGetter: '[qty] * 2' })]),
+    );
+  });
+
+  it('defaults cellDataType to text in the grid valueGetter', () => {
+    render(
+      <ColumnsTab columns={[{ field: 'a', headerName: 'A' }]} onChange={vi.fn()} keyColumn={undefined} onKeyColumnChange={vi.fn()} />,
+    );
+    const typeCol = lastGridProps.columnDefs.find((c: any) => c.field === 'cellDataType');
+    expect(typeCol.valueGetter({ data: { field: 'a', headerName: 'A' } })).toBe('text');
+  });
+
+  it('prunes stale key columns after import', async () => {
+    const onKeyColumnChange = vi.fn();
+    render(
+      <ColumnsTab
+        columns={[]}
+        onChange={vi.fn()}
+        keyColumn={['missing', 'imported']}
+        onKeyColumnChange={onKeyColumnChange}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('columns-tab-import-input'), {
+      target: { files: [new File(['[]'], 'cols.json', { type: 'application/json' })] },
+    });
+    await waitFor(() => expect(onKeyColumnChange).toHaveBeenCalledWith(['imported']));
+  });
+
+  it('clears an existing expression from the dialog', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const withExpr = [{ ...columns[0], valueGetter: '[x]' }, columns[1]!];
+    render(
+      <ColumnsTab columns={withExpr} onChange={onChange} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
+    );
+    const exprCol = lastGridProps.columnDefs.find((c: any) => c.onCellClicked && c.cellRenderer);
+    exprCol.onCellClicked({ data: withExpr[0] });
+    await user.click(await screen.findByRole('button', { name: /^Clear$/i }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.not.objectContaining({ valueGetter: expect.anything() })]),
+    );
+  });
+
+  it('opens the hidden import input from the toolbar', async () => {
+    const user = userEvent.setup();
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    render(
+      <ColumnsTab columns={columns} onChange={vi.fn()} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
+    );
+    await user.click(screen.getByTestId('columns-tab-import'));
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
   });
 });

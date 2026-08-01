@@ -154,6 +154,18 @@ describe('ToolbarDatePicker history gating', () => {
     expect(onChange).toHaveBeenCalledWith('2026-05-15');
     expect(screen.queryByRole('grid')).toBeNull();
   });
+
+  it('ignores null calendar selection and respects disabled trigger', () => {
+    const onChange = vi.fn();
+    render(
+      <ToolbarDatePicker
+        value={todayIsoDate()}
+        onChange={onChange}
+        disabled
+      />,
+    );
+    expect(screen.getByTestId('toolbar-date-picker-trigger')).toBeDisabled();
+  });
 });
 
 describe('toolbarDateUtils', () => {

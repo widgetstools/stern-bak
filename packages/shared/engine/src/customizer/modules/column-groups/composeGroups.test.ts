@@ -79,6 +79,30 @@ describe('composeGroups', () => {
     composeGroups(input, [group('g', 'G', [{ kind: 'col', colId: 'a' }])], {});
     expect(input[0]).toEqual({ colId: 'a', field: 'a' });
   });
+
+  it('builds nested groups with header styling and marryChildren', () => {
+    const groups = [group('root', 'Root', [
+      {
+        kind: 'group',
+        group: group('inner', 'Inner', [{ kind: 'col', colId: 'b', show: 'open' }], {
+          headerStyle: { bold: true },
+          marryChildren: true,
+        }),
+      },
+    ])];
+    const out = composeGroups(defs, groups, {});
+    const root = out.find((d) => 'groupId' in d && d.groupId === 'root') as {
+      children: Array<{ groupId?: string; headerClass?: string; marryChildren?: boolean; children?: Array<{ columnGroupShow?: string }> }>;
+    };
+    expect(root?.children[0]?.headerClass).toContain('ds-hdr-grp-inner');
+    expect(root?.children[0]?.marryChildren).toBe(true);
+    expect(root?.children[0]?.children?.[0]?.columnGroupShow).toBe('open');
+  });
+
+  it('emits orphan groups whose columns are entirely missing from defs', () => {
+    const groups = [group('orphan', 'Orphan', [{ kind: 'col', colId: 'missing' }])];
+    expect(composeGroups(defs, groups, {})).toEqual(defs);
+  });
 });
 
 describe('collectGroupIds / collectAssignedColIds', () => {

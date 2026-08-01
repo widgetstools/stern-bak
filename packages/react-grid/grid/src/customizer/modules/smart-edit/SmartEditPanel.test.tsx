@@ -70,14 +70,41 @@ describe('SmartEditPanel', () => {
     expect(ops.includes('multiply')).toBe(false);
   });
 
-  it('DISCARD reverts draft changes', () => {
+  it('confirm threshold input updates draft', () => {
     mount(platform);
     act(() => {
-      fireEvent.click(screen.getByTestId('se-enabled-toggle'));
+      fireEvent.change(screen.getByTestId('se-confirm-input'), { target: { value: '10' } });
+      fireEvent.blur(screen.getByTestId('se-confirm-input'));
     });
-    act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-    });
+    act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
+    expect(platform.store.getModuleState('smart-edit').settings.confirmThreshold).toBe(10);
+  });
+
+  it('Reset reverts unsaved draft', () => {
+    mount(platform);
+    act(() => fireEvent.click(screen.getByTestId('se-enabled-toggle')));
+    act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset' })));
     expect(platform.store.getModuleState('smart-edit').settings.enabled).toBe(true);
+  });
+
+  it('increment input and magnitude toggle update draft', () => {
+    mount(platform);
+    act(() => {
+      fireEvent.change(screen.getByTestId('se-increment-input'), { target: { value: '0.5' } });
+      fireEvent.blur(screen.getByTestId('se-increment-input'));
+    });
+    act(() => fireEvent.click(screen.getByTestId('se-magnitude-toggle')));
+    act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
+    const settings = platform.store.getModuleState('smart-edit').settings;
+    expect(settings.incrementStep).toBe(0.5);
+    expect(settings.magnitudeShortcutsEnabled).toBe(false);
+  });
+
+  it('re-enabling a disabled op via toggle commits on save', () => {
+    mount(platform);
+    act(() => fireEvent.click(screen.getByTestId('se-op-divide')));
+    act(() => fireEvent.click(screen.getByTestId('se-op-divide')));
+    act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
+    expect(platform.store.getModuleState('smart-edit').settings.enabledOps.includes('divide')).toBe(true);
   });
 });

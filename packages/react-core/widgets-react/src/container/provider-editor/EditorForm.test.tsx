@@ -161,4 +161,30 @@ describe('EditorForm', () => {
     expect(screen.getByTestId('connection-tab')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Fields/i })).not.toBeInTheDocument();
   });
+
+  it('updates an existing provider and edits header metadata', async () => {
+    const user = userEvent.setup();
+    render(
+      <EditorForm
+        initial={{ ...initial, providerId: 'p-1', name: 'Saved', description: 'old' }}
+        userId="dev"
+      />,
+    );
+    await user.clear(screen.getByPlaceholderText('positions-live'));
+    await user.type(screen.getByPlaceholderText('positions-live'), 'Renamed');
+    await user.type(screen.getByPlaceholderText(/What this provider streams/i), ' updated');
+    await user.click(screen.getByRole('switch', { name: /Public/i }));
+    await user.click(screen.getByRole('button', { name: /Update DataProvider/i }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Renamed', public: true }),
+      'dev',
+    ));
+  });
+
+  it('opens the behaviour tab for non-appdata providers', async () => {
+    const user = userEvent.setup();
+    render(<EditorForm initial={initial} userId="dev" />);
+    await user.click(screen.getByRole('tab', { name: /Behaviour/i }));
+    expect(screen.getByTestId('behaviour-tab')).toBeInTheDocument();
+  });
 });

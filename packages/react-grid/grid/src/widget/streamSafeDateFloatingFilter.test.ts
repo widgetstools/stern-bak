@@ -188,4 +188,75 @@ describe('StreamSafeDateFloatingFilter', () => {
     await Promise.resolve();
     expect(setColumnFilterModel).toHaveBeenCalled();
   });
+
+  it('clears standalone date filter when input emptied', async () => {
+    const onFloatingFilterChanged = vi.fn();
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'asOf',
+        getColDef: () => ({ filter: 'agDateColumnFilter' }),
+      },
+      parentFilterInstance: vi.fn((cb) => cb({ onFloatingFilterChanged, setModel: vi.fn() })),
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    await Promise.resolve();
+    expect(onFloatingFilterChanged).toHaveBeenCalledWith(null, null);
+  });
+
+  it('routes bare-date CSV to compound OR when set sub-filter is absent', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'asOf',
+        getColDef: () => ({
+          filter: 'agMultiColumnFilter',
+          filterParams: { filters: [{ filter: 'agDateColumnFilter' }] },
+        }),
+      },
+      api: { setColumnFilterModel, onFilterChanged: vi.fn() },
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = '2025-01-15, 2025-02-15';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    await Promise.resolve();
+    expect(setColumnFilterModel).toHaveBeenCalledWith(
+      'asOf',
+      expect.objectContaining({
+        filterModels: [expect.objectContaining({ operator: 'OR' })],
+      }),
+    );
+  });
+
+  it('ignores unparseable date input without clearing existing filter', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({ api: { setColumnFilterModel, onFilterChanged: vi.fn() } });
+    filter.onParentModelChanged({ filterType: 'date', type: 'equals', dateFrom: '2025-01-01 00:00:00' });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = 'not-a-date!!!';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    await Promise.resolve();
+    expect(setColumnFilterModel).not.toHaveBeenCalled();
+  });
+
+  it('stringifies set and ge/le range models for display', () => {
+    const { filter } = mountFilter();
+    filter.onParentModelChanged({
+      filterType: 'multi',
+      filterModels: [null, { filterType: 'set', values: ['2025-01-01', '2025-02-01'] }],
+    });
+    expect((filter.getGui().querySelector('input') as HTMLInputElement).value).toContain('2025-01-01');
+
+    filter.onParentModelChanged({
+      filterType: 'date',
+      type: 'inRange',
+      dateFrom: '2025-01-01 00:00:00',
+      dateTo: '9999-12-31 23:59:59',
+    });
+    expect((filter.getGui().querySelector('input') as HTMLInputElement).value).toBe('>=2025-01-01');
+  });
 });

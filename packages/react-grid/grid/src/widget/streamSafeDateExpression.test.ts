@@ -202,3 +202,41 @@ describe('parseDateExpression — comparator + relative keyword (existing behavi
     });
   });
 });
+
+describe('parseDateExpression — calendar shapes and locales', () => {
+  const NOW = new Date(2026, 5, 20, 14, 30, 0);
+
+  it('parses ISO datetime and year/month periods', () => {
+    expect(parseDateExpression('2025-06-20 09:15:00', 'us', NOW)).toMatchObject({ type: 'equals' });
+    expect(parseDateExpression('2025-06', 'us', NOW)).toMatchObject({ type: 'inRange' });
+    expect(parseDateExpression('Jan 2025', 'us', NOW)).toMatchObject({ type: 'inRange' });
+    expect(parseDateExpression('Q2 2025', 'us', NOW)).toMatchObject({ type: 'inRange' });
+  });
+
+  it('parses slash, dot, and epoch literals', () => {
+    expect(parseDateExpression('06/12/2025', 'us', NOW)).toMatchObject({ type: 'equals' });
+    expect(parseDateExpression('15.01.2025', 'us', NOW)).toMatchObject({ type: 'equals' });
+    expect(parseDateExpression('1735689600', 'us', NOW)).toMatchObject({ type: 'equals' });
+  });
+
+  it('honours EU locale for ambiguous slash dates', () => {
+    expect(parseDateExpression('10/12/2025', 'eu', NOW)).toMatchObject({ type: 'equals' });
+  });
+
+  it('supports range, OR, AND, and notEqual forms', () => {
+    expect(parseDateExpression('2025-01-01..2025-12-31', 'us', NOW)).toMatchObject({ type: 'inRange' });
+    expect(parseDateExpression('=2025-01-01 or =2025-02-01', 'us', NOW)).toMatchObject({ operator: 'OR' });
+    expect(parseDateExpression('>=2025-01-01 and <=2025-06-30', 'us', NOW)).toMatchObject({ operator: 'AND' });
+    expect(parseDateExpression('!=2025-01-01', 'us', NOW)).toMatchObject({ type: 'notEqual' });
+  });
+
+  it('handles mixed and/or by returning the first parseable fragment', () => {
+    expect(parseDateExpression('=2025-01-01 or >=2025-06-01 and <=2025-06-30', 'us', NOW)).toMatchObject({
+      type: 'equals',
+    });
+  });
+
+  it('returns null for unparseable input', () => {
+    expect(parseDateExpression('not-a-date', 'us', NOW)).toBeNull();
+  });
+});

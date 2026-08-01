@@ -106,4 +106,68 @@ describe('calculatedColumnsModule.activate — refresh gating + coalescing', () 
     expect(refreshCells).not.toHaveBeenCalled();
     dispose();
   });
+
+  it('swallows parse errors when detecting aggregate columns', () => {
+    const { refreshCells, fire, dispose } = makeHarness([
+      { colId: 'bad', headerName: 'Bad', expression: '[[[invalid' },
+    ]);
+    fire();
+    flushFrame();
+    expect(refreshCells).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('falls back to setTimeout when requestAnimationFrame is unavailable', () => {
+    vi.useFakeTimers();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('requestAnimationFrame', undefined);
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    const { refreshCells, fire, dispose } = makeHarness([
+      { colId: 'total', headerName: 'Total', expression: 'SUM([notional])' },
+    ]);
+    fire();
+    expect(setTimeoutSpy).toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(refreshCells).toHaveBeenCalled();
+    dispose();
+    setTimeoutSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('cancels pending rAF on dispose', () => {
+    const cancel = vi.fn();
+    vi.stubGlobal('cancelAnimationFrame', cancel);
+    const { fire, dispose } = makeHarness([
+      { colId: 'total', headerName: 'Total', expression: 'SUM([notional])' },
+    ]);
+    fire();
+    dispose();
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('no-ops refresh when api is detached', () => {
+    const refreshCells = vi.fn();
+    const listeners = new Map<string, () => void>();
+    const platform = {
+      api: {
+        api: null,
+        on: (event: string, cb: () => void) => {
+          listeners.set(event, cb);
+          return () => listeners.delete(event);
+        },
+      },
+      getState: () => ({
+        virtualColumns: [{ colId: 'total', headerName: 'Total', expression: 'SUM([x])' }],
+      }),
+      resources: {
+        cache: () => new WeakMap(),
+        expression: () => new ExpressionEngine(),
+      },
+    };
+    const dispose = calculatedColumnsModule.activate!(platform as never);
+    listeners.get('rowDataUpdated')?.();
+    flushFrame();
+    expect(refreshCells).not.toHaveBeenCalled();
+    dispose();
+  });
 });

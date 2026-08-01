@@ -62,4 +62,47 @@ describe('BehaviourFields', () => {
     await user.click(await screen.findByRole('option', { name: /Columnar/i }));
     expect(onChange).toHaveBeenCalled();
   });
+
+  it('derives conflate options from inferred fields when column defs are absent', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <BehaviourFields
+        cfg={{
+          providerType: 'stomp',
+          websocketUrl: 'ws://x',
+          listenerTopic: '/t',
+          inferredFields: [{ path: 'symbol', label: 'symbol', type: 'string' }],
+        }}
+        onChange={onChange}
+      />,
+    );
+    const conflateCombo = screen.getByText('Conflate by key').parentElement!.querySelector('[role=combobox]') as HTMLElement;
+    await user.click(conflateCombo);
+    await user.click(await screen.findByRole('option', { name: 'symbol' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ conflateByKey: 'symbol' }));
+  });
+
+  it('updates throttle and snapshot chunk size inputs', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <BehaviourFields
+        cfg={{
+          providerType: 'stomp',
+          websocketUrl: 'ws://x',
+          listenerTopic: '/t',
+          throttleMs: 100,
+          snapshotChunkSize: 250,
+        }}
+        onChange={onChange}
+      />,
+    );
+    const spinners = screen.getAllByRole('spinbutton');
+    await user.clear(spinners.at(-2)!);
+    await user.type(spinners.at(-2)!, '50');
+    await user.clear(spinners.at(-1)!);
+    await user.type(spinners.at(-1)!, '100');
+    expect(onChange).toHaveBeenCalled();
+  });
 });

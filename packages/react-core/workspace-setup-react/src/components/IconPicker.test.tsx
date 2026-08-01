@@ -11,7 +11,7 @@ import { IconPicker } from './IconPicker.js';
  * test failure.
  *
  * Two tests below pin behaviour that is wrong rather than intended — see the
- * "known-wrong" block and WORKLOG item 8.
+ * "known-wrong" block and WORKLOG item 7.
  */
 
 /**
@@ -114,7 +114,7 @@ describe('IconPicker', () => {
   });
 });
 
-describe('IconPicker — known-wrong behaviour, pinned (WORKLOG item 8)', () => {
+describe('IconPicker — known-wrong behaviour, pinned (WORKLOG item 7)', () => {
   /**
    * `buildIconList` concatenates ICON_META (tagged source 'market') with
    * ICON_OPTIONS (tagged source 'lucide' wholesale). But 80 of ICON_OPTIONS'

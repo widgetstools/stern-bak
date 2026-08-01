@@ -69,8 +69,8 @@ function makeFakeApi(): FakeApiHarness {
 
   return {
     api: api as GridApi,
-    fireEvent: (evt: string) => {
-      for (const fn of Array.from(listeners.get(evt) ?? [])) fn();
+    fireEvent: (evt: string, event?: unknown) => {
+      for (const fn of Array.from(listeners.get(evt) ?? [])) fn(event);
     },
     setLiveModel: (m) => { liveModel = m; },
     setFilterModelCalls,
@@ -225,6 +225,42 @@ describe('useFilterModel — saved-filter handlers', () => {
 describe('useFilterModel — AG-Grid wiring', () => {
   let platform: GridPlatform;
   beforeEach(() => { platform = makePlatform(); });
+
+  it('updates filter counts incrementally on asyncTransactionsFlushed', () => {
+    vi.useFakeTimers();
+    try {
+      seedFilters(platform, [{
+        id: 'a',
+        label: 'A',
+        active: true,
+        filterModel: { side: { filterType: 'text', type: 'equals', filter: 'BUY' } },
+      }]);
+
+      const nodes = [
+        { id: 'r1', data: { side: 'BUY' } },
+        { id: 'r2', data: { side: 'SELL' } },
+      ];
+      const fake = makeFakeApi();
+      fake.api.forEachNode = ((fn: (node: typeof nodes[number]) => void) => {
+        for (const node of nodes) fn(node);
+      }) as GridApi['forEachNode'];
+      platform.onGridReady(fake.api);
+
+      const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+      expect(result.current.filterCounts.a).toBe(1);
+
+      nodes[1] = { id: 'r2', data: { side: 'BUY' } };
+      act(() => {
+        fake.fireEvent('asyncTransactionsFlushed', {
+          results: [{ update: [nodes[1]] }],
+        });
+        vi.runAllTimers();
+      });
+      expect(result.current.filterCounts.a).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('addFromLive captures the live model into a new pill and pushes it back through setFilterModel', () => {
     const fake = makeFakeApi();
@@ -388,6 +424,33 @@ describe('useFilterModel — AG-Grid wiring', () => {
     error.mockRestore();
   });
 
+  it('repairs multi-filter child entries with malformed set values', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    seedFilters(platform, [{
+      id: 'multi',
+      label: 'Multi',
+      active: true,
+      filterModel: {
+        side: {
+          filterType: 'multi',
+          filterModels: [
+            null,
+            { filterType: 'set', values: { 0: 'BUY', 1: 'SELL' } as unknown as string[] },
+          ],
+        },
+      },
+    }]);
+
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+
+    const side = (result.current.filters[0]?.filterModel as Record<string, { filterModels?: Array<{ values?: string[] }> }>).side;
+    expect(side?.filterModels?.[1]?.values).toEqual(['BUY', 'SELL']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('registers profile:loaded listener that re-pushes filters', () => {
     seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: { x: { filterType: 'text', filter: '1' } } }]);
     const fake = makeFakeApi();
@@ -400,5 +463,110 @@ describe('useFilterModel — AG-Grid wiring', () => {
 
     act(() => { platform.events.emit('profile:loaded', { gridId: 'test-grid', profileId: 'p1' }); });
     expect(setFilterModel).toHaveBeenCalled();
+  });
+
+  it('recomputes filter counts when rows are present', () => {
+    seedFilters(platform, [{
+      id: 'a',
+      label: 'A',
+      active: true,
+      filterModel: { side: { filterType: 'text', type: 'equals', filter: 'BUY' } },
+    }]);
+
+    const fake = makeFakeApi();
+    const nodes = [
+      { id: 'r1', data: { side: 'BUY' } },
+      { id: 'r2', data: { side: 'SELL' } },
+    ];
+    const api = {
+      ...fake.api,
+      forEachNode: (fn: (node: { id: string; data: Record<string, unknown> }) => void) => {
+        for (const node of nodes) fn(node);
+      },
+    } as GridApi;
+    platform.onGridReady(api);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    expect(result.current.filterCounts.a).toBe(1);
+  });
+
+  it('addFromLive is a no-op when live model duplicates an existing pill', () => {
+    const savedModel = { side: { filterType: 'text', type: 'equals', filter: 'BUY' } };
+    seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: savedModel }]);
+
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    fake.setLiveModel(savedModel);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    act(() => fake.fireEvent('filterChanged'));
+    act(() => result.current.addFromLive());
+    expect(readFilters(platform)).toHaveLength(1);
+  });
+
+  it('re-pushes active filters on firstDataRendered', () => {
+    seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: { x: { filterType: 'text', filter: '1' } } }]);
+    const fake = makeFakeApi();
+    const setFilterModel = vi.fn();
+    platform.onGridReady({ ...fake.api, setFilterModel } as GridApi);
+
+    renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    setFilterModel.mockClear();
+    act(() => fake.fireEvent('firstDataRendered'));
+    expect(setFilterModel).toHaveBeenCalled();
+  });
+
+  it('addFromLive no-ops when live model adds no delta over active pills', () => {
+    const activeModel = { side: { filterType: 'set', values: ['BUY'] } };
+    seedFilters(platform, [{ id: 'a', label: 'A', active: true, filterModel: activeModel }]);
+
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    fake.setLiveModel(activeModel);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    act(() => fake.fireEvent('filterChanged'));
+    act(() => result.current.addFromLive());
+    expect(readFilters(platform)).toHaveLength(1);
+  });
+
+  it('drops unsalvageable multi-filter child entries during normalization', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    platform.store.setModuleState<SavedFiltersState>('saved-filters', () => ({
+      filters: [{
+        id: 'multi',
+        label: 'Multi',
+        active: true,
+        filterModel: {
+          side: {
+            filterType: 'multi',
+            filterModels: [undefined, { filterType: 'set', values: { 0: 'BUY' } as unknown as string[] }],
+          },
+        },
+      }] as unknown as SavedFilter[],
+    }));
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    expect(result.current.filters).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it('rejects saved filters with blank labels during normalization', () => {
+    platform.store.setModuleState<SavedFiltersState>('saved-filters', () => ({
+      filters: [{ id: 'a', label: '', active: false, filterModel: {} }] as unknown as SavedFilter[],
+    }));
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    expect(result.current.filters).toEqual([]);
+  });
+
+  it('merges multiple active pills when pushing filter model', () => {
+    seedFilters(platform, [
+      { id: 'a', label: 'A', active: true, filterModel: { side: { filterType: 'text', filter: 'BUY' } } },
+      { id: 'b', label: 'B', active: true, filterModel: { ccy: { filterType: 'set', values: ['USD'] } } },
+    ]);
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    expect(fake.setFilterModelCalls.some((m) => m && Object.keys(m).length === 2)).toBe(true);
   });
 });

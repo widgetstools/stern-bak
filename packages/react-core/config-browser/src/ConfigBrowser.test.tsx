@@ -53,7 +53,7 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 /**
  * The drawer's JSON textarea has no accessible name, so it cannot be told
- * apart from the toolbar's quick-filter box by role+name — see WORKLOG item 9.
+ * apart from the toolbar's quick-filter box by role+name — see WORKLOG item 8.
  * Filtering on the tag is the closest RTL query available until it gets one.
  *
  * The drawer also stays mounted while closed (so the slide-out can play), so

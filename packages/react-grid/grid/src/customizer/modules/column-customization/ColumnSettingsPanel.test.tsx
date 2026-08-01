@@ -11,14 +11,15 @@
  *  - empty-assignment pruning: saving a reset draft deletes the entry
  */
 import * as React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Column, GridApi } from 'ag-grid-community';
 import { GridPlatform } from '@wellsfargo-starui/engine';
 import { GridProvider } from '../../hooks/GridProvider';
 import {
   ColumnSettingsEditor,
   ColumnSettingsList,
+  ColumnSettingsPanel,
 } from './ColumnSettingsPanel';
 import { columnCustomizationModule } from './index';
 import { columnTemplatesModule } from '../column-templates';
@@ -178,5 +179,131 @@ describe('ColumnSettingsPanel (v4)', () => {
       </GridProvider>,
     );
     expect(screen.getByText(/No column selected/i)).toBeTruthy();
+  });
+
+  it('filters the column list from the search box', () => {
+    render(<MasterDetail platform={platform} />);
+    fireEvent.change(screen.getByTestId('cols-filter-input'), { target: { value: 'Quant' } });
+    expect(screen.getByTestId('cols-item-quantity')).toBeTruthy();
+    expect(screen.queryByTestId('cols-item-price')).toBeNull();
+  });
+
+  it('switches selected column in the list rail', () => {
+    render(<MasterDetail platform={platform} />);
+    fireEvent.click(screen.getByTestId('cols-item-quantity'));
+    expect(screen.getByTestId('cols-editor-quantity')).toBeTruthy();
+  });
+
+  it('renders legacy ColumnSettingsPanel shell', () => {
+    render(
+      <GridProvider platform={platform}>
+        <ColumnSettingsPanel />
+      </GridProvider>,
+    );
+    expect(screen.getByTestId('cols-panel')).toBeTruthy();
+    expect(screen.getByTestId('cols-editor-price')).toBeTruthy();
+  });
+
+  it('shows override badge and dirty LED for edited columns', () => {
+    platform.store.setModuleState<ColumnCustomizationState>('column-customization', (s) => ({
+      ...s,
+      assignments: { price: { colId: 'price', headerName: 'Bid' } },
+    }));
+    render(<MasterDetail platform={platform} />);
+    expect(screen.getByTitle('Has overrides')).toBeTruthy();
+
+    const name = screen.getByTestId('cols-header-name-price') as HTMLInputElement;
+    fireEvent.change(name, { target: { value: 'Dirty Bid' } });
+    expect(screen.getAllByTitle('Unsaved changes').length).toBeGreaterThan(0);
+  });
+
+  it('shows empty state when grid has no columns', () => {
+    const emptyPlatform = new GridPlatform({
+      gridId: 'empty-grid',
+      modules: [generalSettingsModule, columnTemplatesModule, columnCustomizationModule],
+    });
+    emptyPlatform.onGridReady(makeFakeApi([]));
+    render(
+      <GridProvider platform={emptyPlatform}>
+        <ColumnSettingsList gridId="empty-grid" selectedId={null} onSelect={() => {}} />
+      </GridProvider>,
+    );
+    expect(screen.getByText(/No columns available yet/i)).toBeTruthy();
+  });
+
+  it('shows message when filter matches nothing', () => {
+    render(<MasterDetail platform={platform} />);
+    fireEvent.change(screen.getByTestId('cols-filter-input'), { target: { value: 'zzz' } });
+    expect(screen.getByText(/No columns match/i)).toBeTruthy();
+  });
+
+  it('re-selects first visible column when filter hides the current selection', () => {
+    render(<MasterDetail platform={platform} />);
+    expect(screen.getByTestId('cols-editor-price')).toBeTruthy();
+    fireEvent.change(screen.getByTestId('cols-filter-input'), { target: { value: 'Quant' } });
+    expect(screen.getByTestId('cols-editor-quantity')).toBeTruthy();
+    expect(screen.queryByTestId('cols-editor-price')).toBeNull();
+  });
+
+  it('windowing hides far rows when the list scrolls inside a tall column set', async () => {
+    const many = Array.from({ length: 65 }, (_, i) => ({
+      id: `col${i}`,
+      headerName: `Column ${i}`,
+    }));
+    const bigPlatform = new GridPlatform({
+      gridId: 'big-grid',
+      modules: [generalSettingsModule, columnTemplatesModule, columnCustomizationModule],
+    });
+    bigPlatform.onGridReady(makeFakeApi(many));
+
+    render(
+      <GridProvider platform={bigPlatform}>
+        <div
+          data-testid="scroller"
+          style={{ overflowY: 'auto', height: 100, position: 'relative' }}
+        >
+          <ColumnSettingsList gridId="big-grid" selectedId="col0" onSelect={() => {}} />
+        </div>
+      </GridProvider>,
+    );
+
+    const scroller = screen.getByTestId('scroller');
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 120 });
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 0 });
+    vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      width: 200,
+      height: 120,
+      bottom: 120,
+      right: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const listInner = screen.getByTestId('cols-item-col0').parentElement!;
+    vi.spyOn(listInner, 'getBoundingClientRect').mockReturnValue({
+      top: 80,
+      left: 0,
+      width: 200,
+      height: 65 * 33,
+      bottom: 80 + 65 * 33,
+      right: 200,
+      x: 0,
+      y: 80,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.scroll(scroller);
+    await waitFor(() => expect(screen.queryByTestId('cols-item-col64')).toBeNull());
+  });
+
+  it('returns null editor when selected column is missing from grid', () => {
+    render(
+      <GridProvider platform={platform}>
+        <ColumnSettingsEditor gridId="test-grid" selectedId="ghost-col" />
+      </GridProvider>,
+    );
+    expect(screen.queryByTestId('cols-editor-ghost-col')).toBeNull();
   });
 });

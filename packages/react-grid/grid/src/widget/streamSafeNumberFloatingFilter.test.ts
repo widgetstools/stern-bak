@@ -168,4 +168,75 @@ describe('StreamSafeNumberFloatingFilter', () => {
     await Promise.resolve();
     expect(setColumnFilterModel).not.toHaveBeenCalled();
   });
+
+  it('clears standalone number filter when input emptied', async () => {
+    const onFloatingFilterChanged = vi.fn();
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'price',
+        getColDef: () => ({ filter: 'agNumberColumnFilter' }),
+      },
+      parentFilterInstance: vi.fn((cb) => cb({ onFloatingFilterChanged, setModel: vi.fn() })),
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    await Promise.resolve();
+    expect(onFloatingFilterChanged).toHaveBeenCalledWith(null, null);
+  });
+
+  it('uses compound OR equals when bare CSV has no set sub-filter', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'price',
+        getColDef: () => ({
+          filter: 'agMultiColumnFilter',
+          filterParams: { filters: [{ filter: 'agNumberColumnFilter' }] },
+        }),
+      },
+      api: { setColumnFilterModel, onFilterChanged: vi.fn() },
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = '1,2';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    await Promise.resolve();
+    expect(setColumnFilterModel).toHaveBeenCalledWith(
+      'price',
+      expect.objectContaining({
+        filterModels: [expect.objectContaining({ operator: 'OR' })],
+      }),
+    );
+  });
+
+  it('falls back to first parseable fragment for mixed and/or input', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'price',
+        getColDef: () => ({ filter: 'agNumberColumnFilter' }),
+      },
+      api: { setColumnFilterModel, onFilterChanged: vi.fn() },
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = '>100 and <50 or =5';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    await Promise.resolve();
+    expect(setColumnFilterModel).toHaveBeenCalled();
+  });
+
+  it('stringifies set and multi envelope models for display', () => {
+    const { filter } = mountFilter();
+    filter.onParentModelChanged({
+      filterType: 'multi',
+      filterModels: [null, { filterType: 'set', values: ['1', '2'] }],
+    });
+    expect((filter.getGui().querySelector('input') as HTMLInputElement).value).toBe('1, 2');
+
+    filter.onParentModelChanged({ filterType: 'number', type: 'notEqual', filter: 9 });
+    expect((filter.getGui().querySelector('input') as HTMLInputElement).value).toBe('!=9');
+  });
 });

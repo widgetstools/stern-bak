@@ -38,6 +38,39 @@ describe('buildVisualExcelStyles', () => {
     expect(ids).toContain(formatExcelClassId('#,##0.00'));
     expect(ids).toContain('ds-rule-r1');
   });
+
+  it('uses dark theme styles and skips disabled or empty rules', () => {
+    const conditionalStyling: ConditionalStylingState = {
+      ...INITIAL_CONDITIONAL_STYLING,
+      rules: [
+        {
+          id: 'off',
+          name: 'Off',
+          enabled: false,
+          priority: 0,
+          expression: 'true',
+          scope: { type: 'cell', columns: ['x'] },
+          style: { light: { color: '#111' } },
+        },
+        {
+          id: 'dark-only',
+          name: 'Dark',
+          enabled: true,
+          priority: 1,
+          expression: 'true',
+          scope: { type: 'cell', columns: ['x'] },
+          style: { dark: { color: '#FFF' } },
+        },
+      ],
+    };
+    const styles = buildVisualExcelStyles({
+      columnCustomization: INITIAL_COLUMN_CUSTOMIZATION,
+      conditionalStyling,
+      themeMode: 'dark',
+    });
+    expect(styles.some((s) => s.id === 'ds-rule-dark-only')).toBe(true);
+    expect(styles.some((s) => s.id === 'ds-rule-off')).toBe(false);
+  });
 });
 
 describe('applyFormatExcelClasses', () => {
@@ -57,5 +90,28 @@ describe('applyFormatExcelClasses', () => {
     );
     const rules = (out as { cellClassRules?: Record<string, unknown> }).cellClassRules ?? {};
     expect(Object.keys(rules)).toContain(formatExcelClassId('0.00%'));
+  });
+
+  it('recurses nested column groups and no-ops columns without format', () => {
+    const state: ColumnCustomizationState = {
+      ...INITIAL_COLUMN_CUSTOMIZATION,
+      assignments: {
+        bidPrice: {
+          colId: 'bidPrice',
+          valueFormatterTemplate: { kind: 'excelFormat', format: '0.00%' },
+        },
+      },
+    };
+    const nested = applyFormatExcelClasses([
+      {
+        headerName: 'Group',
+        children: [{ field: 'bidPrice', colId: 'bidPrice' }],
+      },
+      { field: 'plain', colId: 'plain' },
+    ], state);
+    const childRules = (nested[0] as { children: Array<{ cellClassRules?: Record<string, unknown> }> })
+      .children[0]?.cellClassRules ?? {};
+    expect(Object.keys(childRules)).toContain(formatExcelClassId('0.00%'));
+    expect((nested[1] as { cellClassRules?: unknown }).cellClassRules).toBeUndefined();
   });
 });

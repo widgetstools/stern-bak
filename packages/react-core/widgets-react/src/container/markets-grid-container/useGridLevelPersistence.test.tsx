@@ -99,4 +99,42 @@ describe('useGridLevelPersistence — edge paths', () => {
     );
     warn.mockRestore();
   });
+
+  it('marks loaded immediately when the adapter lacks grid-level persistence', async () => {
+    const adapter = {
+      loadGridLevelData: undefined,
+      saveGridLevelData: vi.fn(),
+    } as unknown as StorageAdapter;
+    const { result } = renderHook(() =>
+      useGridLevelPersistence({
+        adapter,
+        gridId: 'g1',
+        defaultHistoricalProviderId: 'hist-default',
+        gridHandle: null,
+      }),
+    );
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.selection.historicalProviderId).toBe('hist-default');
+  });
+
+  it('persists caption and event binding changes', async () => {
+    const adapter = makeAdapter({ liveProviderId: 'p1', historicalProviderId: null, mode: 'live' });
+    const { result } = renderHook(() =>
+      useGridLevelPersistence({ adapter, gridId: 'g1', gridHandle: null }),
+    );
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    act(() => {
+      result.current.setPersistedCaption('My caption');
+      result.current.setEventBindings({ 'row:click': ['handler-1'] });
+    });
+    await waitFor(() =>
+      expect(adapter.saveGridLevelData).toHaveBeenCalledWith(
+        'g1',
+        expect.objectContaining({
+          caption: 'My caption',
+          eventBindings: { 'row:click': ['handler-1'] },
+        }),
+      ),
+    );
+  });
 });

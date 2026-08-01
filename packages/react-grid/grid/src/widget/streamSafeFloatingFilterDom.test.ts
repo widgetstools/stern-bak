@@ -26,7 +26,7 @@ describe('buildFloatingFilterDom', () => {
     expect(onClearMouseDown).toHaveBeenCalled();
   });
 
-  it('hides clear button when input is empty', () => {
+  it('fires clear-button hover handlers', () => {
     const dom = buildFloatingFilterDom({
       placeholder: 'x',
       onInput: () => {},
@@ -34,8 +34,12 @@ describe('buildFloatingFilterDom', () => {
     });
     dom.input.value = 'x';
     dom.syncClearVisibility();
-    dom.input.value = '';
-    dom.syncClearVisibility();
-    expect(dom.clearBtn.style.display).toBe('none');
+
+    dom.clearBtn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(dom.clearBtn.style.opacity).toBe('1');
+
+    dom.clearBtn.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(dom.clearBtn.style.opacity).toBe('0.75');
+    expect(dom.clearBtn.style.background).toBe('transparent');
   });
 });

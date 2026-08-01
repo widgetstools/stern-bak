@@ -114,4 +114,274 @@ describe('processTimedActivations — delta vs full pass', () => {
 
     expect(evaluated).toEqual([]); // no path changed → no rule evaluation
   });
+
+  it('removes row snapshots on delta removed nodes', () => {
+    const nodes = [makeNode('a', { __id: 'a', price: 1 })];
+    const { timed, forEachNode } = makeHarness(nodes);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    timed.processTimedActivations({ added: [nodes[0] as any], updated: [], removed: [], full: false });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    timed.processTimedActivations({ added: [], updated: [], removed: [nodes[0] as any], full: false });
+    forEachNode.mockClear();
+    timed.processTimedActivations();
+    expect(forEachNode).toHaveBeenCalled();
+  });
+
+  it('attachCellValueChangedListener activates row rules and disposes', () => {
+    const node = makeNode('a', { __id: 'a', price: 1 });
+    const apiListeners = new Map<string, Set<(event: unknown) => void>>();
+    const api = {
+      addEventListener: (evt: string, fn: (event: unknown) => void) => {
+        if (!apiListeners.has(evt)) apiListeners.set(evt, new Set());
+        apiListeners.get(evt)!.add(fn);
+      },
+      removeEventListener: (evt: string, fn: (event: unknown) => void) => {
+        apiListeners.get(evt)?.delete(fn);
+      },
+    };
+    const store = createTimedRuleStore();
+    const deps = {
+      store,
+      triggers: { get: () => new Set(['price']) } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh: vi.fn(),
+      scheduleTargetedRefresh: vi.fn(),
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    };
+    const platform = {
+      api: { api },
+      getState: () => ({
+        rules: [{
+          id: 'r1',
+          enabled: true,
+          activeDurationMs: 5_000,
+          expression: '[price] > 0',
+          scope: { type: 'row' as const },
+        }],
+      }),
+      resources: {
+        expression: () => ({
+          parseAndEvaluate: () => true,
+        }),
+      },
+    };
+    const timed = createTimedActivations(platform as never, deps as never);
+    const dispose = timed.attachCellValueChangedListener();
+    for (const fn of apiListeners.get('cellValueChanged') ?? []) {
+      fn({
+        node,
+        column: { getColId: () => 'price' },
+        oldValue: 0,
+        newValue: 1,
+      });
+    }
+    expect(store.byRowId.size).toBeGreaterThan(0);
+    expect(deps.armNextExpiry).toHaveBeenCalled();
+    dispose();
+    timed.dispose();
+  });
+
+  it('no-ops when api is missing or no timed rules are armed', () => {
+    const deps = {
+      store: createTimedRuleStore(),
+      triggers: { get: () => new Set(['price']) } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh: vi.fn(),
+      scheduleTargetedRefresh: vi.fn(),
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    };
+    const timed = createTimedActivations({
+      api: { api: null },
+      getState: () => ({ rules: [{ id: 'r1', enabled: true, activeDurationMs: 1000, expression: '[price]>0', scope: { type: 'row' } }] }),
+      resources: { expression: () => ({ parseAndEvaluate: () => true }) },
+    } as never, deps as never);
+    timed.processTimedActivations();
+    expect(deps.armNextExpiry).not.toHaveBeenCalled();
+
+    const timed2 = createTimedActivations({
+      api: { api: { forEachNode: vi.fn(), getColumns: () => [] } },
+      getState: () => ({ rules: [{ id: 'r1', enabled: true, activeDurationMs: null, expression: '[price]>0', scope: { type: 'row' } }] }),
+      resources: { expression: () => ({ parseAndEvaluate: () => true }) },
+    } as never, deps as never);
+    timed2.processTimedActivations();
+    expect(deps.armNextExpiry).not.toHaveBeenCalled();
+  });
+
+  it('activates cell-scope rules and schedules cross-column refresh', () => {
+    const node = makeNode('a', { __id: 'a', price: 1, side: 'B', qty: 10 });
+    const apiListeners = new Map<string, Set<(event: unknown) => void>>();
+    const scheduleTargetedRefresh = vi.fn();
+    const api = {
+      addEventListener: (evt: string, fn: (event: unknown) => void) => {
+        if (!apiListeners.has(evt)) apiListeners.set(evt, new Set());
+        apiListeners.get(evt)!.add(fn);
+      },
+      removeEventListener: (evt: string, fn: (event: unknown) => void) => {
+        apiListeners.get(evt)?.delete(fn);
+      },
+      getColumns: () => [{ getColId: () => 'price' }, { getColId: () => 'side' }],
+    };
+    const store = createTimedRuleStore();
+    const deps = {
+      store,
+      triggers: {
+        get: (rule: { id: string }) => (rule.id === 'cell-rule' ? new Set(['price']) : new Set()),
+      } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh: vi.fn(),
+      scheduleTargetedRefresh,
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    };
+    const platform = {
+      api: { api },
+      getState: () => ({
+        rules: [{
+          id: 'cell-rule',
+          enabled: true,
+          activeDurationMs: 5_000,
+          expression: '[price] > 0',
+          scope: { type: 'cell' as const, columns: ['price', 'side'] },
+          flash: { enabled: true, target: 'headers', mode: 'solid', color: { light: '#fff', dark: '#000' } },
+        }],
+      }),
+      resources: {
+        expression: () => ({
+          parseAndEvaluate: () => true,
+        }),
+      },
+    };
+    const timed = createTimedActivations(platform as never, deps as never);
+    timed.attachCellValueChangedListener();
+    timed.processTimedActivations({
+      added: [],
+      updated: [node],
+      removed: [],
+      full: false,
+    });
+    expect(store.byRowId.size).toBeGreaterThan(0);
+
+    for (const fn of apiListeners.get('cellValueChanged') ?? []) {
+      fn({
+        node,
+        column: { getColId: () => 'price' },
+        oldValue: 0,
+        newValue: 2,
+      });
+    }
+    expect(scheduleTargetedRefresh).toHaveBeenCalled();
+    expect(deps.evaluate).toHaveBeenCalled();
+    timed.dispose();
+  });
+
+  it('skips cell rules when trigger columns did not change and handles evaluate errors', () => {
+    const nodes = [makeNode('a', { __id: 'a', price: 1, side: 'B' })];
+    const engine = {
+      parseAndEvaluate: vi.fn(() => { throw new Error('bad expr'); }),
+    };
+    const rule = {
+      id: 'cell-rule',
+      enabled: true,
+      activeDurationMs: 5_000,
+      expression: '[side] > 0',
+      scope: { type: 'cell' as const, columns: ['side'] },
+    };
+    const platform = {
+      api: { api: { forEachNode: vi.fn(), getColumns: () => [{ getColId: () => 'price' }] } },
+      getState: () => ({ rules: [rule] }),
+      resources: { expression: () => engine },
+    };
+    const deps = {
+      store: createTimedRuleStore(),
+      triggers: { get: () => new Set(['side']) } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh: vi.fn(),
+      scheduleTargetedRefresh: vi.fn(),
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    };
+    const timed = createTimedActivations(platform as never, deps as never);
+    timed.processTimedActivations({
+      added: [],
+      updated: [nodes[0]],
+      removed: [],
+      full: false,
+    });
+    expect(deps.armNextExpiry).not.toHaveBeenCalled();
+    timed.dispose();
+  });
+
+  it('attachCellValueChangedListener no-ops when api is missing', () => {
+    const timed = createTimedActivations({
+      api: { api: null },
+      getState: () => ({ rules: [] }),
+      resources: { expression: () => ({ parseAndEvaluate: () => true }) },
+    } as never, {
+      store: createTimedRuleStore(),
+      triggers: { get: () => new Set() } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh: vi.fn(),
+      scheduleTargetedRefresh: vi.fn(),
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    } as never);
+    expect(timed.attachCellValueChangedListener()).toEqual(expect.any(Function));
+  });
+
+  it('cellValueChanged ignores malformed events and non-matching cell rules', () => {
+    const node = makeNode('a', { __id: 'a', price: 1, side: 'B' });
+    const apiListeners = new Map<string, Set<(event: unknown) => void>>();
+    const scheduleRefresh = vi.fn();
+    const api = {
+      addEventListener: (evt: string, fn: (event: unknown) => void) => {
+        if (!apiListeners.has(evt)) apiListeners.set(evt, new Set());
+        apiListeners.get(evt)!.add(fn);
+      },
+      removeEventListener: vi.fn(),
+      getColumns: () => [{ getColId: () => 'price' }],
+    };
+    const store = createTimedRuleStore();
+    const deps = {
+      store,
+      triggers: { get: () => new Set(['price']) } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh,
+      scheduleTargetedRefresh: vi.fn(),
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    };
+    const platform = {
+      api: { api },
+      getState: () => ({
+        rules: [{
+          id: 'cell-rule',
+          enabled: true,
+          activeDurationMs: 5_000,
+          expression: '[price] > 99',
+          scope: { type: 'cell' as const, columns: ['side'] },
+        }],
+      }),
+      resources: {
+        expression: () => ({
+          parseAndEvaluate: () => false,
+        }),
+      },
+    };
+    const timed = createTimedActivations(platform as never, deps as never);
+    const dispose = timed.attachCellValueChangedListener();
+    for (const fn of apiListeners.get('cellValueChanged') ?? []) {
+      fn({});
+      fn({ node, column: {} });
+      fn({
+        node,
+        column: { getColId: () => 'price' },
+        oldValue: 0,
+        newValue: 1,
+      });
+    }
+    expect(scheduleRefresh).not.toHaveBeenCalled();
+    dispose();
+  });
 });

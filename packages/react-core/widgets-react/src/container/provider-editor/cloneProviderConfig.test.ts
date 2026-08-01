@@ -26,6 +26,11 @@ describe('copyNameFrom', () => {
     expect(copyNameFrom('STOMP Positions (copy)')).toBe('STOMP Positions (copy)');
     expect(copyNameFrom('STOMP Positions (copy 2)')).toBe('STOMP Positions (copy)');
   });
+
+  it('uses untitled when the source name is blank', () => {
+    expect(copyNameFrom('   ')).toBe('untitled (copy)');
+    expect(copyNameFrom('')).toBe('untitled (copy)');
+  });
 });
 
 describe('cloneProviderConfig', () => {

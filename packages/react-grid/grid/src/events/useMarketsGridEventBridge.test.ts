@@ -96,4 +96,118 @@ describe('useMarketsGridEventBridge', () => {
       expect.objectContaining({ gridId: 'g1' }),
     );
   });
+
+  it('no-ops when handle or handlers are missing', () => {
+    const containerBus = createMarketsGridContainerEventBus();
+    const appData = {
+      get: () => undefined,
+      listProviders: () => [],
+      keysOf: () => [],
+      subscribe: () => () => {},
+      set: () => {},
+    };
+    expect(() =>
+      renderHook(() =>
+        useMarketsGridEventBridge({
+          handle: null,
+          gridId: 'g1',
+          appData,
+          eventBindings: { 'profile:saved': ['x'] },
+          handlers: { x: vi.fn() },
+          containerBus,
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('skips invalid bindings and warns when a handler throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const apiListeners = new Map<string, Set<(event?: unknown) => void>>();
+    const handle = {
+      gridApi: {},
+      platform: {
+        events: { on: vi.fn(() => () => {}) },
+        api: {
+          on: vi.fn((evt: string, fn: (event?: unknown) => void) => {
+            if (!apiListeners.has(evt)) apiListeners.set(evt, new Set());
+            apiListeners.get(evt)!.add(fn);
+            return () => apiListeners.get(evt)?.delete(fn);
+          }),
+        },
+      },
+    } as unknown as MarketsGridHandle;
+
+    const ok = vi.fn();
+    const bad = vi.fn(() => {
+      throw new Error('handler failed');
+    });
+    const appData = {
+      get: () => undefined,
+      listProviders: () => [],
+      keysOf: () => [],
+      subscribe: () => () => {},
+      set: () => {},
+    };
+    const containerBus = createMarketsGridContainerEventBus();
+
+    renderHook(() =>
+      useMarketsGridEventBridge({
+        handle,
+        gridId: 'g1',
+        appData,
+        eventBindings: {
+          'not-a-real-event': ['ok'],
+          'grid:cellClicked': ['missing', 'bad', 'ok'],
+        },
+        handlers: { ok, bad },
+        containerBus,
+      }),
+    );
+
+    act(() => {
+      for (const fn of apiListeners.get('cellClicked') ?? []) fn({});
+    });
+
+    expect(ok).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('handler "bad" failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
+  it('routes provider container events to handlers', () => {
+    const handler = vi.fn();
+    const handle = {
+      gridApi: {},
+      platform: {
+        events: { on: vi.fn(() => () => {}) },
+        api: { on: vi.fn(() => () => {}) },
+      },
+    } as unknown as MarketsGridHandle;
+    const containerBus = createMarketsGridContainerEventBus();
+    const appData = {
+      get: () => undefined,
+      listProviders: () => [],
+      keysOf: () => [],
+      subscribe: () => () => {},
+      set: () => {},
+    };
+
+    renderHook(() =>
+      useMarketsGridEventBridge({
+        handle,
+        gridId: 'g1',
+        appData,
+        eventBindings: { 'provider:status': ['status'] },
+        handlers: { status: handler },
+        containerBus,
+      }),
+    );
+
+    act(() => {
+      containerBus.emit('provider:status', { providerId: 'p1', status: 'ready' });
+    });
+    expect(handler).toHaveBeenCalled();
+  });
 });

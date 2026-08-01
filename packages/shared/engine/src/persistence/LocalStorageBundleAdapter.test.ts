@@ -171,4 +171,61 @@ describe('LocalStorageBundleAdapter', () => {
       (await adapter.loadProfile(gridId, RESERVED_DEFAULT_PROFILE_ID))?.state,
     ).toEqual({ m: { v: 2, data: { a: 999 } } });
   });
+
+  it('deleteProfile removes non-default rows and ignores wrong gridId', async () => {
+    const adapter = new LocalStorageBundleAdapter(gridId);
+    const t = Date.now();
+    await adapter.applySerializedConfig({
+      gridId,
+      activeProfileId: 'p2',
+      profiles: [
+        { id: RESERVED_DEFAULT_PROFILE_ID, gridId, name: 'Default', state: {}, createdAt: t, updatedAt: t },
+        { id: 'p2', gridId, name: 'Two', state: {}, createdAt: t, updatedAt: t },
+      ],
+    });
+    await adapter.deleteProfile('other-grid', 'p2');
+    expect(await adapter.listProfiles('other-grid')).toEqual([]);
+    await adapter.deleteProfile(gridId, RESERVED_DEFAULT_PROFILE_ID);
+    await adapter.deleteProfile(gridId, 'p2');
+    const list = await adapter.listProfiles(gridId);
+    expect(list.some((p) => p.id === 'p2')).toBe(false);
+    expect(list.some((p) => p.id === RESERVED_DEFAULT_PROFILE_ID)).toBe(true);
+  });
+
+  it('rejects empty profiles array and returns null for foreign grid operations', async () => {
+    const adapter = new LocalStorageBundleAdapter(gridId);
+    await expect(adapter.applySerializedConfig({
+      gridId,
+      activeProfileId: RESERVED_DEFAULT_PROFILE_ID,
+      profiles: [],
+    })).rejects.toThrow(/non-empty array/);
+    expect(await adapter.loadProfile('other', RESERVED_DEFAULT_PROFILE_ID)).toBeNull();
+    expect(await adapter.loadGridLevelData('other')).toBeNull();
+  });
+
+  it('falls back active profile when pointer references missing id', async () => {
+    const adapter = new LocalStorageBundleAdapter(gridId);
+    const t = Date.now();
+    await adapter.applySerializedConfig({
+      gridId,
+      activeProfileId: 'missing',
+      profiles: [
+        { id: RESERVED_DEFAULT_PROFILE_ID, gridId, name: 'Default', state: {}, createdAt: t, updatedAt: t },
+      ],
+    });
+    const cfg = adapter.readConfig();
+    expect(cfg.activeProfileId).toBe(RESERVED_DEFAULT_PROFILE_ID);
+  });
+
+  it('survives corrupt bundle json and invalid bundle metadata', async () => {
+    const adapter = new LocalStorageBundleAdapter(gridId);
+    localStorage.setItem(marketsGridLocalStorageBundleKey(gridId), '{bad-json');
+    expect(await adapter.listProfiles(gridId)).toEqual([]);
+
+    localStorage.setItem(
+      marketsGridLocalStorageBundleKey(gridId),
+      JSON.stringify({ kind: 'wrong', version: 1, gridId, activeProfileId: 'x', profiles: [] }),
+    );
+    expect(await adapter.listProfiles(gridId)).toEqual([]);
+  });
 });

@@ -91,4 +91,51 @@ describe('AppDataFields', () => {
     deleteCol.onCellClicked({ data: { _rowId: 'a-0', key: 'a' } });
     expect(onChange).toHaveBeenCalledTimes(2);
   });
+
+  it('ignores add when key or value is blank and strips legacy editing keys', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <AppDataFields
+        cfg={{
+          providerType: 'appdata',
+          variables: {
+            '__editing_tmp': { key: '__editing_tmp', value: 'x', type: 'string', durability: 'volatile' },
+            keep: { key: 'keep', value: '1', type: 'string', durability: 'volatile' },
+          },
+        }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.queryByText('__editing_tmp')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Add/i }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('normalizes date cell edits to ISO strings', () => {
+    const onChange = vi.fn();
+    render(
+      <AppDataFields
+        cfg={{
+          providerType: 'appdata',
+          variables: {
+            d: { key: 'd', value: '2026-01-01', type: 'date', durability: 'volatile' },
+          },
+        }}
+        onChange={onChange}
+      />,
+    );
+    lastGridProps.onCellValueChanged({
+      data: { key: 'd', value: '2026-01-01', type: 'date', durability: 'volatile', _rowId: 'd-0' },
+      colDef: { field: 'value' },
+      newValue: new Date('2026-02-01T12:00:00Z'),
+    });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          d: expect.objectContaining({ value: '2026-02-01' }),
+        }),
+      }),
+    );
+  });
 });

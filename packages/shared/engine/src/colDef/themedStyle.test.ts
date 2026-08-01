@@ -8,7 +8,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CellStyleOverrides, ThemedCellStyleOverrides } from './types';
 import {
+  getActiveTheme,
   mergeCellStyleOverrides,
+  mergeThemedStyle,
+  migrateThemedStyle,
+  patchActiveStyle,
   resolveActiveStyle,
   resolveEffectiveStyle,
 } from './themedStyle';
@@ -74,6 +78,43 @@ describe('resolveEffectiveStyle', () => {
     });
     expect(resolveActiveStyle(themed, 'light')).toEqual({
       colors: { background: '#fff' },
+    });
+  });
+});
+
+describe('getActiveTheme', () => {
+  it('reads data-theme from document and falls back to dark', () => {
+    document.documentElement.dataset.theme = 'light';
+    expect(getActiveTheme()).toBe('light');
+    delete document.documentElement.dataset.theme;
+    expect(getActiveTheme()).toBe('dark');
+  });
+});
+
+describe('patchActiveStyle and migrateThemedStyle', () => {
+  it('patches and clears individual theme slots', () => {
+    const themed = patchActiveStyle(undefined, 'dark', { colors: { text: '#000' } });
+    expect(resolveActiveStyle(themed, 'dark')?.colors?.text).toBe('#000');
+    expect(patchActiveStyle(themed, 'dark', undefined)).toBeUndefined();
+  });
+
+  it('lifts legacy flat overrides into both theme slots', () => {
+    const flat = { typography: { bold: true } };
+    expect(migrateThemedStyle(flat)).toEqual({ dark: flat, light: flat });
+    expect(migrateThemedStyle({ dark: flat })).toEqual({ dark: flat });
+  });
+});
+
+describe('mergeThemedStyle', () => {
+  it('merges slots independently via the supplied merge function', () => {
+    const merged = mergeThemedStyle(
+      { dark: { colors: { text: '#000' } } },
+      { light: { colors: { background: '#fff' } } },
+      mergeCellStyleOverrides,
+    );
+    expect(merged).toEqual({
+      dark: { colors: { text: '#000' } },
+      light: { colors: { background: '#fff' } },
     });
   });
 });

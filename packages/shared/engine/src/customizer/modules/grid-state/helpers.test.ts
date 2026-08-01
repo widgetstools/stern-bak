@@ -1,106 +1,166 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { GridApi } from 'ag-grid-community';
-import { applyGridState, captureGridState, captureGridStateInto } from './helpers.js';
-import { GRID_STATE_SCHEMA_VERSION, type SavedGridState } from './state.js';
+import {
+  applyGridState,
+  captureGridState,
+  captureGridStateInto,
+} from './helpers';
+import type { SavedGridState } from './state';
+import { GRID_STATE_SCHEMA_VERSION } from './state';
 
-function saved(overrides: Partial<SavedGridState> = {}): SavedGridState {
+function makeApi(overrides: Record<string, unknown> = {}) {
+  const listeners = new Map<string, Set<() => void>>();
   return {
-    schemaVersion: GRID_STATE_SCHEMA_VERSION,
-    savedAt: '2026-01-01T00:00:00Z',
-    gridState: {},
-    viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+    getState: vi.fn(() => ({ columnOrder: { orderedColIds: ['a', 'b'] } })),
+    getFirstDisplayedRowIndex: vi.fn(() => 3),
+    getHorizontalPixelRange: vi.fn(() => ({ left: 120, right: 800 })),
+    getAllDisplayedColumns: vi.fn(() => [
+      { getColId: () => 'a', getLeft: () => 0, getActualWidth: () => 100 },
+      { getColId: () => 'b', getLeft: () => 100, getActualWidth: () => 100 },
+    ]),
+    getGridOption: vi.fn(() => 'quick'),
+    setState: vi.fn(),
+    applyColumnState: vi.fn(),
+    setGridOption: vi.fn(),
+    getDisplayedRowCount: vi.fn(() => 10),
+    ensureIndexVisible: vi.fn(),
+    getColumn: vi.fn((id: string) => (id === 'b' ? { getColId: () => 'b' } : null)),
+    ensureColumnVisible: vi.fn(),
+    getColumns: vi.fn(() => [{ getColId: () => 'a' }, { getColId: () => 'b' }, { getColId: () => 'new' }]),
+    addEventListener: vi.fn((evt: string, fn: () => void) => {
+      const set = listeners.get(evt) ?? new Set();
+      set.add(fn);
+      listeners.set(evt, set);
+    }),
+    removeEventListener: vi.fn(),
     ...overrides,
   };
 }
 
 describe('captureGridState', () => {
-  it('reads grid state and viewport anchor from the api', () => {
-    const api = {
-      getState: () => ({ sort: { sortModel: [] } }),
-      getFirstDisplayedRowIndex: () => 5,
-      getHorizontalPixelRange: () => ({ left: 120, right: 800 }),
-      getAllDisplayedColumns: () => [{
-        getColId: () => 'price',
-        getLeft: () => 100,
-        getActualWidth: () => 80,
-      }],
-      getGridOption: (key: string) => (key === 'quickFilterText' ? 'USD' : undefined),
-    } as unknown as GridApi;
-
-    const snap = captureGridState(api);
-    expect(snap.schemaVersion).toBe(GRID_STATE_SCHEMA_VERSION);
-    expect(snap.gridState).toEqual({ sort: { sortModel: [] } });
-    expect(snap.viewportAnchor).toEqual({
-      firstRowIndex: 5,
-      leftColId: 'price',
-      horizontalPixel: 120,
-    });
-    expect(snap.quickFilter).toBe('USD');
+  it('captures grid state, viewport anchor, and quick filter', () => {
+    const saved = captureGridState(makeApi() as never);
+    expect(saved.schemaVersion).toBe(GRID_STATE_SCHEMA_VERSION);
+    expect(saved.viewportAnchor.firstRowIndex).toBe(3);
+    expect(saved.viewportAnchor.leftColId).toBe('b');
+    expect(saved.quickFilter).toBe('quick');
   });
 
-  it('swallows api errors and still returns a snapshot shell', () => {
-    const api = {
+  it('returns minimal snapshot when api methods throw', () => {
+    const saved = captureGridState({
       getState: () => {
-        throw new Error('boom');
+        throw new Error('fail');
       },
       getFirstDisplayedRowIndex: () => {
-        throw new Error('boom');
+        throw new Error('fail');
       },
       getGridOption: () => {
-        throw new Error('boom');
+        throw new Error('fail');
       },
-    } as unknown as GridApi;
-    expect(captureGridState(api).gridState).toEqual({});
+    } as never);
+    expect(saved.gridState).toEqual({});
+    expect(saved.viewportAnchor.firstRowIndex).toBe(0);
   });
 });
 
 describe('applyGridState', () => {
-  it('sanitizes malformed set-filter entries before setState', () => {
+  it('sanitises malformed set-filter entries before setState', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const setState = vi.fn();
-    const api = {
-      setState,
-      getDisplayedRowCount: () => 0,
-      addEventListener: vi.fn(),
-    } as unknown as GridApi;
-
-    applyGridState(api, saved({
+    const api = makeApi();
+    const saved: SavedGridState = {
+      schemaVersion: GRID_STATE_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
       gridState: {
         filter: {
           filterModel: {
-            status: { filterType: 'set', values: undefined },
-            ok: { filterType: 'text', filter: 'x' },
+            side: { filterType: 'set', values: 'not-an-array' },
+            price: { filterType: 'number', type: 'greaterThan', filter: 10 },
           },
         },
+        columnOrder: { orderedColIds: ['a'] },
       },
-    }));
-
-    expect(setState).toHaveBeenCalled();
-    const passed = setState.mock.calls[0]?.[0] as {
+      viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+    };
+    applyGridState(api as never, saved);
+    const passed = api.setState.mock.calls[0]?.[0] as {
       filter?: { filterModel?: Record<string, unknown> };
     };
-    expect(passed.filter?.filterModel?.status).toBeUndefined();
-    expect(passed.filter?.filterModel?.ok).toBeDefined();
+    expect(passed.filter?.filterModel?.side).toBeUndefined();
+    expect(passed.filter?.filterModel?.price).toBeDefined();
     warn.mockRestore();
   });
 
-  it('is a no-op for missing api or saved snapshot', () => {
-    const api = { setState: vi.fn() } as unknown as GridApi;
-    applyGridState(null as unknown as GridApi, saved());
-    applyGridState(api, null as unknown as SavedGridState);
+  it('no-ops on missing api or saved snapshot', () => {
+    const api = makeApi();
+    applyGridState(null as never, {} as SavedGridState);
+    applyGridState(api as never, null as never);
     expect(api.setState).not.toHaveBeenCalled();
   });
+});
 
-  it('captureGridStateInto writes into the store module slice', () => {
-    const api = {
-      getState: () => ({}),
-      getFirstDisplayedRowIndex: () => 0,
-      getGridOption: () => undefined,
-    } as unknown as GridApi;
+describe('captureGridStateInto', () => {
+  it('writes captured state into the grid-state module slice', () => {
+    const api = makeApi();
     const setModuleState = vi.fn();
-    captureGridStateInto({ setModuleState } as never, api);
+    captureGridStateInto(
+      { setModuleState } as never,
+      api as never,
+    );
     expect(setModuleState).toHaveBeenCalledWith('grid-state', expect.any(Function));
-    const reducer = setModuleState.mock.calls[0]?.[1] as () => { saved: SavedGridState };
-    expect(reducer().saved.schemaVersion).toBe(GRID_STATE_SCHEMA_VERSION);
+    const updater = setModuleState.mock.calls[0][1] as () => { saved: SavedGridState };
+    expect(updater(undefined as never).saved.viewportAnchor.firstRowIndex).toBe(3);
+  });
+
+  it('warns on schema mismatch and restores column order with pinning and widths', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const api = makeApi({
+      getDisplayedRowCount: vi.fn(() => 5),
+      getColumns: vi.fn(() => [
+        { getColId: () => 'a' },
+        { getColId: () => 'b' },
+        { getColId: () => 'new' },
+      ]),
+    });
+    const saved: SavedGridState = {
+      schemaVersion: 0,
+      savedAt: new Date().toISOString(),
+      gridState: {
+        columnOrder: { orderedColIds: ['b', 'a'] },
+        columnPinning: { leftColIds: ['a'], rightColIds: [] },
+        columnSizing: { columnSizingModel: [{ colId: 'a', width: 120, flex: 1 }] },
+      },
+      viewportAnchor: { firstRowIndex: 1, leftColId: null, horizontalPixel: 50 },
+      quickFilter: 'find',
+    };
+    applyGridState(api as never, saved);
+    await new Promise<void>((r) => queueMicrotask(r));
+    expect(api.applyColumnState).toHaveBeenCalled();
+    expect(api.setGridOption).toHaveBeenCalledWith('quickFilterText', 'find');
+    warn.mockRestore();
+  });
+
+  it('sanitizes malformed multi-filter sub entries', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const api = makeApi();
+    applyGridState(api as never, {
+      schemaVersion: GRID_STATE_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      gridState: {
+        filter: {
+          filterModel: {
+            side: {
+              filterType: 'multi',
+              filterModels: [{ filterType: 'set', values: 'bad' }, { filterType: 'number', type: 'greaterThan', filter: 1 }],
+            },
+          },
+        },
+      },
+      viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+    });
+    const passed = api.setState.mock.calls[0]?.[0] as {
+      filter?: { filterModel?: Record<string, { filterModels?: unknown[] }> };
+    };
+    expect(passed.filter?.filterModel?.side?.filterModels?.[0]).toBeNull();
+    expect(passed.filter?.filterModel?.side?.filterModels?.[1]).toBeTruthy();
+    warn.mockRestore();
   });
 });

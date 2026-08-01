@@ -80,4 +80,14 @@ describe('ViewMenu', () => {
     expect(screen.queryByTestId('auto-format-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('editing-toolbar-toggle')).not.toBeInTheDocument();
   });
+
+  it('toggles the editing toolbar from the menu', async () => {
+    const user = userEvent.setup();
+    const props = makeProps();
+    render(<ViewMenu {...props} />);
+
+    await user.click(screen.getByTestId('toolbar-view-menu-trigger'));
+    await user.click(screen.getByTestId('editing-toolbar-toggle'));
+    expect(props.onToggleEditingToolbar).toHaveBeenCalledTimes(1);
+  });
 });

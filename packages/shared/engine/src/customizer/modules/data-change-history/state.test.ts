@@ -31,5 +31,19 @@ describe('data-change-history state', () => {
   it('maps edit sources to recordSources keys', () => {
     expect(recordSourceKey('smart-edit')).toBe('smartEdit');
     expect(recordSourceKey('cell-editor')).toBe('cellEditor');
+    expect(recordSourceKey('bulk-update')).toBe('bulkUpdate');
+    expect(recordSourceKey('plus-minus')).toBe('plusMinus');
+    expect(recordSourceKey('shortcut')).toBe('shortcuts');
+    expect(recordSourceKey('stream' as never)).toBeNull();
+  });
+
+  it('deserializes non-object input and partial booleans', () => {
+    expect(deserializeDataChangeHistoryState(undefined)).toEqual(INITIAL_DATA_CHANGE_HISTORY);
+    const state = deserializeDataChangeHistoryState({
+      settings: { enabled: false, suspended: true, unifyUndo: false },
+    });
+    expect(state.settings.enabled).toBe(false);
+    expect(state.settings.suspended).toBe(true);
+    expect(state.settings.unifyUndo).toBe(false);
   });
 });

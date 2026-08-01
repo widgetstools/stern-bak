@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataProviderEditor } from './DataProviderEditor.js';
 
@@ -44,6 +44,9 @@ vi.mock('./providerConfigIo.js', () => ({
 
 afterEach(() => {
   cleanup();
+  remove.mockClear();
+  save.mockClear();
+  refresh.mockClear();
 });
 
 describe('DataProviderEditor', () => {
@@ -82,5 +85,30 @@ describe('DataProviderEditor', () => {
     fireEvent.change(input, { target: { files: [file] } });
     await waitFor(() => expect(save).toHaveBeenCalled());
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it('clones an existing provider into a new draft', async () => {
+    const user = userEvent.setup();
+    render(<DataProviderEditor userId="dev" initialProviderId="p1" />);
+    await user.click(screen.getByTitle('Duplicate'));
+    expect(screen.getByTestId('editor-form')).toHaveTextContent('Live STOMP (copy)');
+  });
+
+  it('surfaces delete failures', async () => {
+    remove.mockRejectedValueOnce(new Error('locked'));
+    const user = userEvent.setup();
+    render(<DataProviderEditor userId="dev" initialProviderId="p1" />);
+    await user.click(screen.getByTitle('Delete'));
+    await user.click(await screen.findByRole('button', { name: /^Delete$/i }));
+    await waitFor(() => expect(screen.getByText(/locked/i)).toBeInTheDocument());
+  });
+
+  it('cancels delete confirmation without removing the provider', async () => {
+    const user = userEvent.setup();
+    render(<DataProviderEditor userId="dev" initialProviderId="p1" />);
+    await user.click(screen.getByTitle('Delete'));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(remove).not.toHaveBeenCalled();
   });
 });

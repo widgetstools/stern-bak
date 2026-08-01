@@ -94,4 +94,45 @@ describe('useInteropChannel', () => {
     expect(interop.joinContextGroup).toHaveBeenCalledWith('purple');
     expect(interop.removeFromContextGroup).toHaveBeenCalled();
   });
+
+  it('no-ops when interop is unavailable', async () => {
+    const { result } = renderHook(() => useInteropChannel());
+    await act(async () => {
+      await result.current.broadcast({ type: 'x' });
+      await result.current.join('purple');
+      await result.current.leave();
+    });
+    const cleanup = result.current.addContextListener('x', vi.fn());
+    expect(cleanup).toEqual(expect.any(Function));
+    cleanup();
+  });
+
+  it('logs setContext failures when debug is enabled', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installInterop({
+      setContext: vi.fn().mockRejectedValue(new Error('not linked')),
+    });
+    const { result } = renderHook(() => useInteropChannel({ debug: true }));
+    await act(async () => {
+      await result.current.broadcast({ type: 'x' });
+    });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('unsubscribes async context handlers on cleanup', async () => {
+    const unsubscribe = vi.fn();
+    installInterop({
+      addContextHandler: vi.fn().mockResolvedValue({ unsubscribe }),
+    });
+    const { result, unmount } = renderHook(() => useInteropChannel());
+    let cleanup = () => {};
+    act(() => {
+      cleanup = result.current.addContextListener('starui.gridSelection', vi.fn());
+    });
+    await waitFor(() => expect(unsubscribe).not.toHaveBeenCalled());
+    cleanup();
+    unmount();
+    expect(unsubscribe).toHaveBeenCalled();
+  });
 });

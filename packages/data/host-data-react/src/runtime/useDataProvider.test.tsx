@@ -176,4 +176,146 @@ describe('useDataProvider', () => {
     await result.current.start();
     expect(mockInstances[0]?.start).toHaveBeenCalledTimes(1);
   });
+
+  it('does not track status when trackStatus is false', async () => {
+    const { result, unmount } = renderHook(
+      () => useDataProvider('p1', { trackStatus: false }),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(mockInstances[0]?.start).toHaveBeenCalled();
+    });
+
+    expect(result.current.status).toBe('loading');
+    expect(result.current.error).toBeUndefined();
+
+    mockInstances[0]!.emitStatus('ready');
+    expect(result.current.status).toBe('loading');
+
+    unmount();
+    await waitFor(() => {
+      expect(mockInstances[0]?.stop).toHaveBeenCalled();
+    });
+  });
+
+  it('handles start() error and re-throws', async () => {
+    const { result } = renderHook(
+      () => useDataProvider('p1', { autoStart: false }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(mockInstances[0]).toBeDefined());
+
+    mockInstances[0]!.start.mockRejectedValueOnce(new Error('start failed'));
+
+    await expect(result.current.start()).rejects.toThrow('start failed');
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+      expect(result.current.error).toBe('start failed');
+    });
+  });
+
+  it('handles restart() error and re-throws', async () => {
+    const { result } = renderHook(
+      () => useDataProvider('p1', { autoStart: false }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(mockInstances[0]).toBeDefined());
+    await result.current.start();
+
+    mockInstances[0]!.restart.mockRejectedValueOnce(new Error('restart failed'));
+
+    await expect(result.current.restart()).rejects.toThrow('restart failed');
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+      expect(result.current.error).toBe('restart failed');
+    });
+  });
+
+  it('handles non-Error exceptions as strings', async () => {
+    const { result } = renderHook(
+      () => useDataProvider('p1', { autoStart: false }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(mockInstances[0]).toBeDefined());
+
+    mockInstances[0]!.start.mockRejectedValueOnce('string error');
+
+    await expect(result.current.start()).rejects.toBe('string error');
+    await waitFor(() => {
+      expect(result.current.error).toBe('string error');
+    });
+  });
+
+  it('clears status and error when providerId changes to null', async () => {
+    const { result, rerender } = renderHook(
+      ({ providerId }: { providerId: string | null }) => useDataProvider(providerId),
+      { wrapper, initialProps: { providerId: 'p1' as string | null } },
+    );
+
+    await waitFor(() => {
+      expect(result.current.provider).not.toBeNull();
+    });
+
+    rerender({ providerId: null });
+
+    await waitFor(() => {
+      expect(result.current.provider).toBeNull();
+      expect(result.current.status).toBe('loading');
+      expect(result.current.error).toBeUndefined();
+    });
+  });
+
+  it('cancels pending auto-start on unmount', async () => {
+    const { unmount } = renderHook(() => useDataProvider('p1'), { wrapper });
+
+    unmount();
+
+    // Provider.stop should be called even if start is still pending
+    await waitFor(() => {
+      expect(mockInstances[0]?.stop).toHaveBeenCalled();
+    });
+  });
+
+  it('calls refresh even when provider is starting', async () => {
+    const { result } = renderHook(() => useDataProvider('p1'), { wrapper });
+
+    await result.current.refresh();
+    expect(mockInstances[0]?.refresh).toHaveBeenCalled();
+  });
+
+  it('handles restart with extra config', async () => {
+    const { result } = renderHook(
+      () => useDataProvider('p1', { autoStart: false }),
+      { wrapper },
+    );
+
+    await result.current.start();
+
+    const extra = { timeout: 5000, retryCount: 3 };
+    await result.current.restart(extra);
+
+    expect(mockInstances[0]!.restart).toHaveBeenCalledWith(extra);
+    expect(result.current.status).toBe('loading');
+  });
+
+  it('unsubscribes from status and error handlers on unmount', async () => {
+    const { unmount } = renderHook(() => useDataProvider('p1'), { wrapper });
+
+    await waitFor(() => {
+      expect(mockInstances[0]?.onStatus).toHaveBeenCalled();
+      expect(mockInstances[0]?.onError).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    // Emit after unmount should not cause errors
+    mockInstances[0]!.emitStatus('ready');
+    mockInstances[0]!.emitError('should not update');
+
+    // No crash means success
+  });
 });

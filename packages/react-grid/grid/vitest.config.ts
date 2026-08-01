@@ -30,14 +30,20 @@ export default defineConfig({
     ],
   },
   test: {
-    coverage: coverage({
-      exclude: ['src/widget/test/**'],
-    }),
+    coverage: {
+      ...coverage({
+        exclude: ['src/**/test/**'],
+      }),
+      // Avoid mid-run wipe when another vitest touches the same reportsDirectory.
+      clean: false,
+    },
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts', './src/test/providers.tsx'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     testTimeout: 15_000,
+    // Serialise file execution — 237 suites racing on coverage/.tmp loses shards.
+    fileParallelism: false,
   },
 });

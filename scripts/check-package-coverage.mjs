@@ -8,7 +8,8 @@
  *      like `"test": "echo no tests yet"` — silently contributes nothing to the
  *      merged Sonar LCOV while looking green in `turbo test`. That is worse
  *      than a red package, because nobody notices.
- *   2. A source file is below the line threshold (default 70%).
+ *   2. A source file is below the threshold (default 70%) on lines, statements,
+ *      functions or branches.
  *
  * Reads the `coverage/coverage-summary.json` each package writes, so run
  * `npm run test:coverage` first.
@@ -28,6 +29,8 @@ const argv = process.argv.slice(2);
 const reportOnly = argv.includes('--report');
 const thresholdArg = argv.indexOf('--threshold');
 const THRESHOLD = thresholdArg !== -1 ? Number(argv[thresholdArg + 1]) : 70;
+
+const METRIC_KEYS = ['lines', 'statements', 'functions', 'branches'];
 
 /** Excluded from the pipeline entirely — see CLAUDE.md. */
 const SKIP_PACKAGES = new Set(['@wellsfargo-starui/host-data-angular']);
@@ -78,14 +81,25 @@ for (const pkg of packages) {
   for (const [file, metrics] of Object.entries(summary)) {
     if (file === 'total') continue;
     totalFiles += 1;
-    const pct = metrics.lines?.pct ?? 0;
-    if (pct < THRESHOLD) {
-      below.push({ file: relative(REPO_ROOT, file), pct });
+
+    const failingMetrics = [];
+    let minPct = 100;
+
+    for (const key of METRIC_KEYS) {
+      const pct = metrics[key]?.pct ?? 0;
+      minPct = Math.min(minPct, pct);
+      if (pct < THRESHOLD) {
+        failingMetrics.push({ name: key, pct });
+      }
+    }
+
+    if (failingMetrics.length > 0) {
+      below.push({ file: relative(REPO_ROOT, file), minPct, failingMetrics });
       totalBelow += 1;
     }
   }
   if (below.length > 0) {
-    below.sort((a, b) => a.pct - b.pct);
+    below.sort((a, b) => a.minPct - b.minPct);
     belowByPackage.set(pkg.name, below);
   }
 }
@@ -113,11 +127,12 @@ if (noSummary.length > 0) {
 }
 
 if (belowByPackage.size > 0) {
-  w(`\n✗ ${totalBelow} file(s) below ${THRESHOLD}% line coverage:\n`);
+  w(`\n✗ ${totalBelow} file(s) below ${THRESHOLD}% on any metric:\n`);
   for (const [name, files] of [...belowByPackage].sort((a, b) => b[1].length - a[1].length)) {
     w(`\n  ${name}  (${files.length})\n`);
     for (const f of files.slice(0, 15)) {
-      w(`    ${String(f.pct.toFixed(1)).padStart(5)}%  ${f.file}\n`);
+      const metricStrs = f.failingMetrics.map((m) => `${m.name}:${m.pct.toFixed(1)}%`).join(', ');
+      w(`    ${metricStrs.padEnd(40)}  ${f.file}\n`);
     }
     if (files.length > 15) w(`    … and ${files.length - 15} more\n`);
   }

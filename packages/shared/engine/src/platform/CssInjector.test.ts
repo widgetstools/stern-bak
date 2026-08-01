@@ -77,4 +77,35 @@ describe('CssInjector — coalesced, change-gated flushes', () => {
     await flushMicrotasks();
     expect(styleEl('g3')).toBeNull();
   });
+
+  it('clear removes all rules and skips when already empty', async () => {
+    const css = new CssInjector('g4', 'm1');
+    css.clear();
+    css.addRule('a', '.a { color: red; }');
+    await flushMicrotasks();
+    css.clear();
+    await flushMicrotasks();
+    expect(styleEl('g4')?.textContent ?? '').toBe('');
+    css.clear();
+  });
+
+  it('removeRule skips flush when rule id was absent', async () => {
+    const css = new CssInjector('g5', 'm1');
+    css.removeRule('missing');
+    await flushMicrotasks();
+    expect(styleEl('g5')).toBeNull();
+  });
+
+  it('flushes synchronously when queueMicrotask is unavailable', async () => {
+    const original = globalThis.queueMicrotask;
+    // @ts-expect-error test override
+    globalThis.queueMicrotask = undefined;
+    try {
+      const css = new CssInjector('g6', 'm1');
+      css.addRule('a', '.a { color: red; }');
+      expect(styleEl('g6')?.textContent).toContain('color: red');
+    } finally {
+      globalThis.queueMicrotask = original;
+    }
+  });
 });

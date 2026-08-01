@@ -78,4 +78,33 @@ describe('deserializePlusMinusState', () => {
     expect(state.nudges).toHaveLength(1);
     expect(state.nudges[0]?.incrementStep).toBe(10);
   });
+
+  it('parses optional decrementStep and expression, rejecting bad scopes', () => {
+    const state = deserializePlusMinusState({
+      nudges: [{
+        id: 'n2',
+        name: 'Expr',
+        enabled: false,
+        scope: 'bad',
+        expression: 'true',
+        incrementStep: 5,
+        decrementStep: -1,
+      }],
+    });
+    expect(state.nudges[0]).toMatchObject({
+      id: 'n2',
+      enabled: false,
+      scope: { columnIds: [] },
+      expression: 'true',
+      incrementStep: 5,
+      decrementStep: undefined,
+    });
+  });
+
+  it('returns defaults for non-object input and mints new nudge ids', () => {
+    expect(deserializePlusMinusState(null).nudges).toEqual([]);
+    const nudge = defaultPlusMinusNudge('Test');
+    expect(nudge.id).toMatch(/^pm-/);
+    expect(nudge.incrementStep).toBe(1);
+  });
 });

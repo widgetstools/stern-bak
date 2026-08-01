@@ -52,4 +52,45 @@ describe('wrapEditableValueSetters', () => {
     defs[0]?.valueSetter?.({ data: { id: 'r1', qty: 1 }, oldValue: 1, newValue: 2, column: { getColId: () => 'qty' } } as never);
     expect(prev).toHaveBeenCalled();
   });
+
+  it('skips non-editable columns and unchanged values', () => {
+    const defs = wrapEditableValueSetters(
+      [{ field: 'note', editable: false }, { field: 'qty', editable: true }],
+      structuredClone(INITIAL_DATA_CHANGE_HISTORY),
+      ctx,
+    );
+    expect(defs[0]?.valueSetter).toBeUndefined();
+
+    defs[1]?.valueSetter?.({
+      data: { id: 'r1', qty: 5 },
+      oldValue: 5,
+      newValue: 5,
+      column: { getColId: () => 'qty' },
+    } as never);
+    expect(getEditJournal({ gridId: 'g-wrap', getModuleState: ctx.getModuleState }).canUndo).toBe(false);
+  });
+
+  it('does not record when history module is disabled', () => {
+    const disabled = structuredClone(INITIAL_DATA_CHANGE_HISTORY);
+    disabled.settings.enabled = false;
+    const localCtx = {
+      ...ctx,
+      getModuleState: (id: string) => {
+        if (id === 'data-change-history') return disabled;
+        throw new Error(id);
+      },
+    };
+    const defs = wrapEditableValueSetters(
+      [{ field: 'qty', editable: true }],
+      disabled,
+      localCtx,
+    );
+    defs[0]?.valueSetter?.({
+      data: { id: 'r1', qty: 2 },
+      oldValue: 1,
+      newValue: 2,
+      column: { getColId: () => 'qty' },
+    } as never);
+    expect(getEditJournal({ gridId: 'g-wrap', getModuleState: localCtx.getModuleState }).canUndo).toBe(false);
+  });
 });

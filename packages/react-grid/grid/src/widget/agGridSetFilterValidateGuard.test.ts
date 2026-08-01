@@ -57,6 +57,20 @@ describe('installAgGridSetFilterValidateGuard', () => {
     expect(prevent).toHaveBeenCalled();
   });
 
+  it('matches AG bug from string message without Error stack', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installAgGridSetFilterValidateGuard();
+
+    const err = new Error('model.values is not iterable');
+    err.stack = 'validateModel somewhere';
+    const event = new ErrorEvent('error', { error: err, message: err.message });
+    const prevent = vi.spyOn(event, 'preventDefault');
+    window.dispatchEvent(event);
+
+    expect(warn).toHaveBeenCalled();
+    expect(prevent).toHaveBeenCalled();
+  });
+
   it('ignores unrelated errors', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     installAgGridSetFilterValidateGuard();

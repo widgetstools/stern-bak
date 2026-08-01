@@ -37,6 +37,15 @@ describe('buildShortcutPatches', () => {
     const patches = buildShortcutPatches({ cells, key: 'h', shortcuts });
     expect(patches[0]?.newValue).toBe(250_000);
   });
+
+  it('returns empty when no shortcut matches the key/column', () => {
+    const cells = [{ rowId: 'r1', colId: 'quantityFace', field: 'quantityFace', value: 10 }];
+    expect(buildShortcutPatches({
+      cells,
+      key: 'z',
+      shortcuts: [{ ...defaultShortcut('None'), shortcutKey: 'h', scope: { columnIds: ['other'] } }],
+    })).toEqual([]);
+  });
 });
 
 describe('collectShortcutKeys', () => {

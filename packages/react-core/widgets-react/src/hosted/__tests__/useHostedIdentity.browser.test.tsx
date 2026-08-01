@@ -45,4 +45,31 @@ describe('useHostedIdentity — browser path', () => {
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.identity.instanceId).toBe('plain-default');
   });
+
+  it('accepts id query param as an instance id alias', async () => {
+    window.history.replaceState({}, '', '/?id=alias-id');
+    const { result } = renderHook(() =>
+      useHostedIdentity({
+        defaultInstanceId: 'unused-default',
+        componentName: 'TestGrid',
+      }),
+    );
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.identity.instanceId).toBe('alias-id');
+  });
+
+  it('builds a storage factory when withStorage is enabled', async () => {
+    const { result } = renderHook(() =>
+      useHostedIdentity({
+        defaultInstanceId: 'stored-grid',
+        defaultAppId: 'app',
+        defaultUserId: 'user',
+        componentName: 'TestGrid',
+        withStorage: true,
+        configManager: fakeConfigManager,
+      }),
+    );
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.identity.storage).toEqual(expect.any(Function));
+  });
 });

@@ -167,4 +167,92 @@ describe('StreamSafeTextFloatingFilter', () => {
     vi.advanceTimersByTime(50);
     expect(filter.getGui()).toBeTruthy();
   });
+
+  it('clears multi-filter envelope when input emptied', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'side',
+        getColDef: () => ({
+          filter: 'agMultiColumnFilter',
+          filterParams: { filters: [{ filter: 'agTextColumnFilter' }, { filter: 'agSetColumnFilter' }] },
+        }),
+      },
+      api: { setColumnFilterModel, onFilterChanged: vi.fn() },
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = 'BUY';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    expect(setColumnFilterModel).toHaveBeenLastCalledWith(
+      'side',
+      expect.objectContaining({ filterType: 'multi' }),
+    );
+  });
+
+  it('routes single token to number sub-filter inside multi envelope', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'price',
+        getColDef: () => ({
+          filter: 'agMultiColumnFilter',
+          filterParams: { filters: [{ filter: 'agNumberColumnFilter' }, { filter: 'agSetColumnFilter' }] },
+        }),
+      },
+      api: { setColumnFilterModel, onFilterChanged: vi.fn() },
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = '42';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    expect(setColumnFilterModel).toHaveBeenCalledWith(
+      'price',
+      expect.objectContaining({
+        filterModels: expect.arrayContaining([
+          { filterType: 'number', type: 'equals', filter: 42 },
+        ]),
+      }),
+    );
+  });
+
+  it('uses setModel fallback on standalone filter without onFloatingFilterChanged', async () => {
+    const setModel = vi.fn();
+    const { filter } = mountFilter({
+      parentFilterInstance: vi.fn((cb) => cb({ getFilterType: () => 'text', setModel })),
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = 'solo';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    expect(setModel).toHaveBeenCalledWith({ filterType: 'text', type: 'contains', filter: 'solo' });
+  });
+
+  it('applies standalone compound OR text for comma-separated tokens', async () => {
+    const setColumnFilterModel = vi.fn(async () => {});
+    const { filter } = mountFilter({
+      column: {
+        getColId: () => 'name',
+        getColDef: () => ({ filter: 'agTextColumnFilter' }),
+      },
+      api: { setColumnFilterModel, onFilterChanged: vi.fn() },
+    });
+    const input = filter.getGui().querySelector('input') as HTMLInputElement;
+    input.value = 'a,b';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(15);
+    expect(setColumnFilterModel).toHaveBeenCalledWith(
+      'name',
+      expect.objectContaining({ operator: 'OR' }),
+    );
+  });
+
+  it('returns empty string for multi envelope with only null slots', () => {
+    const { filter } = mountFilter();
+    filter.onParentModelChanged({ filterType: 'multi', filterModels: [null, null] });
+    expect((filter.getGui().querySelector('input') as HTMLInputElement).value).toBe('');
+  });
 });

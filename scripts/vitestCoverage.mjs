@@ -11,9 +11,10 @@
  *       test: { environment: 'jsdom', coverage: coverage() },
  *     });
  *
- * Policy: **70% lines per FILE**, not per package. `perFile: true` is the whole
- * point — a package-level average lets a well-tested module hide a completely
- * untested neighbour, which is exactly what this is meant to prevent.
+ * Policy: **70% per FILE on lines, statements, functions and branches**, not per
+ * package. `perFile: true` is the whole point — a package-level average lets a
+ * well-tested module hide a completely untested neighbour, which is exactly
+ * what this is meant to prevent.
  *
  * (`docs/package-coverage-and-sonar-lcov.md` suggests 60% as a per-package
  * baseline for a *new* package. 70% per file is the deliberately stricter bar
@@ -39,6 +40,8 @@ const INCLUDE = ['src/**/*.{ts,tsx,js,jsx}'];
 const EXCLUDE = [
   // Tests and fixtures themselves.
   '**/*.{test,spec}.{ts,tsx,js,jsx}',
+  // vitest bench() files — run by `npm run bench`, not shipped logic.
+  '**/*.bench.{ts,tsx,js,jsx}',
   '**/__tests__/**',
   '**/__mocks__/**',
   '**/__fixtures__/**',
@@ -57,7 +60,7 @@ const EXCLUDE = [
 
 /**
  * @param {object} [opts]
- * @param {number} [opts.lines=70] per-file line threshold
+ * @param {number} [opts.lines=70] per-file threshold for lines, statements, functions and branches
  * @param {string[]} [opts.include] REPLACES the default `src/**` include. Needed
  *   by packages whose source is not under src/ — icons-svg keeps its generated
  *   barrels at the package root, where the default matches nothing and coverage
@@ -78,9 +81,9 @@ export function coverage(opts = {}) {
     thresholds: {
       perFile,
       lines,
-      // Only lines is gated. Statements/branches/functions are reported but not
-      // enforced: gating four correlated metrics at once mostly produces
-      // assertions written to move a number rather than to check behaviour.
+      statements: lines,
+      functions: lines,
+      branches: lines,
     },
   };
 }

@@ -75,4 +75,21 @@ describe('collectFocusedCell', () => {
     const api = mockApi({ getFocusedCell: () => null });
     expect(collectFocusedCell(api, (d) => String(d.id))).toEqual([]);
   });
+
+  it('collectFocusedCell guards missing column, row data, and non-numeric types', () => {
+    expect(collectFocusedCell(mockApi({ getFocusedCell: () => ({ rowIndex: 0, column: { getColId: () => '' } }) }), (d) => String(d.id))).toEqual([]);
+    expect(collectFocusedCell(mockApi({ getDisplayedRowAtIndex: () => undefined }), (d) => String(d.id))).toEqual([]);
+    expect(collectFocusedCell(mockApi({ getColumn: () => null }), (d) => String(d.id))).toEqual([]);
+    expect(collectFocusedCell(mockApi({
+      getColumn: () => ({ getColDef: () => ({ editable: true, field: 'note', cellDataType: 'text' }) }),
+    }), (d) => String(d.id))).toEqual([]);
+  });
+
+  it('uses getRowId when row node id is absent', () => {
+    const api = mockApi({
+      getDisplayedRowAtIndex: () => ({ data: { id: 'derived' } }),
+    });
+    const cells = collectTargetCells(api, (d) => String(d.id));
+    expect(cells[0]?.rowId).toBe('derived');
+  });
 });

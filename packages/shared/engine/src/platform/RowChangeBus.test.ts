@@ -135,4 +135,53 @@ describe('RowChangeBus', () => {
     await nextFrame();
     expect(got).toHaveLength(0);
   });
+
+  it('tracks add/remove transactions and filterChanged marks full', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const got: RowChange[] = [];
+    bus.subscribe((c) => got.push(c));
+
+    fire('asyncTransactionsFlushed', flushResult([], [{ id: 'new' }], [{ id: 'old' }]));
+    await nextFrame();
+    expect(got[0]?.added.map((n) => n.id)).toEqual(['new']);
+    expect(got[0]?.removed.map((n) => n.id)).toEqual(['old']);
+
+    fire('filterChanged');
+    await nextFrame();
+    expect(got.at(-1)?.full).toBe(true);
+  });
+
+  it('start is idempotent and isolates subscriber errors', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    bus.start();
+    const seen: number[] = [];
+    bus.subscribe(() => { throw new Error('boom'); });
+    bus.subscribe((c) => seen.push(c.updated.length));
+    fire('asyncTransactionsFlushed', flushResult([{ id: 'a' }]));
+    await nextFrame();
+    expect(seen).toEqual([1]);
+  });
+
+  it('rowDataUpdated alone marks structural and unsubscribe stops delivery', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const got: RowChange[] = [];
+    const unsub = bus.subscribe((c) => got.push(c));
+    unsub();
+
+    fire('rowDataUpdated');
+    await nextFrame();
+    expect(got).toHaveLength(0);
+  });
 });

@@ -75,4 +75,54 @@ describe('DataProviderSelector', () => {
     await user.click(screen.getByTitle('Edit'));
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'p1' }));
   });
+
+  it('clears selection via the none option in dropdown mode', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<DataProviderSelector value="p1" onChange={onChange} />);
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: /None/i }));
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it('shows empty-state messaging and create affordance in list mode', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    vi.mocked(useDataProvidersList).mockReturnValue({
+      configs: [],
+      loading: false,
+      refresh: vi.fn(),
+    });
+    render(
+      <DataProviderSelector value={null} onChange={vi.fn()} mode="list" subtype="rest" onCreate={onCreate} />,
+    );
+    expect(screen.getByText(/REST providers configured/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Create your first/i }));
+    expect(onCreate).toHaveBeenCalled();
+  });
+
+  it('refreshes the provider list from list mode', async () => {
+    const user = userEvent.setup();
+    const refresh = vi.fn();
+    vi.mocked(useDataProvidersList).mockReturnValue({
+      configs,
+      loading: false,
+      refresh,
+    });
+    render(<DataProviderSelector value={null} onChange={vi.fn()} mode="list" />);
+    await user.click(screen.getByTitle('Refresh'));
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('shows list errors and wires create in dropdown mode', async () => {
+    const onCreate = vi.fn();
+    vi.mocked(useDataProvidersList).mockReturnValue({
+      configs: [],
+      loading: false,
+      error: 'catalog down',
+      refresh: vi.fn(),
+    });
+    render(<DataProviderSelector value={null} onChange={vi.fn()} onCreate={onCreate} />);
+    expect(screen.getByRole('button', { name: /New/i })).toBeInTheDocument();
+  });
 });

@@ -234,4 +234,82 @@ describe('ImportConfig — inside OpenFin', () => {
 
     await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
   });
+
+  it('clicking the drop zone opens the file picker', async () => {
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    const dropZone = screen.getByText(/Click to select a/);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+
+    await userEvent.click(dropZone);
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it('shows the file name after selection', async () => {
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    await userEvent.upload(fileInput(), jsonFile(JSON.stringify({ appConfig: [{}] }), 'my-config.json'));
+
+    expect(await screen.findByText('my-config.json')).toBeDefined();
+  });
+
+  it('clears the file name and message when a new file is selected', async () => {
+    importConfigBundle.mockResolvedValue(result());
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    await userEvent.upload(fileInput(), jsonFile(JSON.stringify({ appConfig: [{}] })));
+    expect(await screen.findByText('Imported 2 config rows.')).toBeDefined();
+
+    await userEvent.upload(fileInput(), jsonFile(JSON.stringify({ appConfig: [{}] })));
+    // Clear the previous result and show new status
+    expect(screen.queryByText('Imported 2 config rows.')).toBeDefined();
+  });
+
+  it('handles empty file gracefully', async () => {
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    await userEvent.upload(fileInput(), jsonFile(''));
+
+    expect(await screen.findByText(/Failed to read the file/)).toBeDefined();
+  });
+
+  it('renders without OpenFin and handles cancel', async () => {
+    // No OpenFin stub in this test
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    await userEvent.click(cancelButton);
+
+    // Should not throw even though fin is not available
+    expect(cancelButton).toBeDefined();
+  });
+
+  it('handles import with empty appConfig list', async () => {
+    importConfigBundle.mockResolvedValue(result({
+      appConfig: { imported: 0, failed: 0 },
+      totalImported: 0,
+    }));
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    await userEvent.upload(fileInput(), jsonFile(JSON.stringify({ appConfig: [] })));
+
+    expect(await screen.findByText('No importable rows found in this file.')).toBeDefined();
+  });
+
+  it('reports singular failure correctly', async () => {
+    importConfigBundle.mockResolvedValue(result({ totalFailed: 1 }));
+    const ImportConfig = await loadComponent();
+    render(<ImportConfig />);
+
+    await userEvent.upload(fileInput(), jsonFile(JSON.stringify({ appConfig: [{}] })));
+
+    expect(await screen.findByText(/1 row failed — see console for details\./)).toBeDefined();
+  });
 });

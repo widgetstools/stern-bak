@@ -137,4 +137,53 @@ describe('SmartEditToolbarBody', () => {
       });
     });
   });
+
+  it('confirm dialog Apply executes the pending op', async () => {
+    const platform = makePlatform({ confirmThreshold: 1 });
+    const api = makeMockApi();
+    api.getCellRanges = () => [
+      {
+        columns: [{ getColId: () => 'qty' }],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 1 },
+      },
+    ];
+    api.getDisplayedRowAtIndex = (i: number) => ({
+      id: `r${i + 1}`,
+      data: { id: `r${i + 1}`, qty: 10 },
+    });
+    mount(platform, api);
+
+    act(() => fireEvent.click(screen.getByTestId('smart-edit-op-add')));
+    act(() => fireEvent.click(screen.getByRole('button', { name: 'Apply' })));
+    await waitFor(() => {
+      expect(api.applyTransactionAsync).toHaveBeenCalled();
+    });
+  });
+
+  it('preview-before-apply opens preview table and applies valid patches', async () => {
+    const platform = makePlatform({ confirmThreshold: 0, previewBeforeApply: true });
+    const { api } = mount(platform);
+    act(() => fireEvent.click(screen.getByTestId('smart-edit-op-divide')));
+    expect(screen.getByTestId('smart-edit-preview-table')).toBeTruthy();
+    act(() => fireEvent.click(screen.getByTestId('smart-edit-preview-apply')));
+    await waitFor(() => {
+      expect(api.applyTransactionAsync).toHaveBeenCalled();
+    });
+  });
+
+  it('disables ops when enforceSingleColumn guard fails', () => {
+    const platform = makePlatform({ enforceSingleColumn: true });
+    const api = makeMockApi();
+    api.getCellRanges = () => [
+      {
+        columns: [{ getColId: () => 'qty' }, { getColId: () => 'ticker' }],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 0 },
+      },
+    ];
+    mount(platform, api);
+    expect((screen.getByTestId('smart-edit-op-multiply') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/1 col/)).toBeTruthy();
+  });
 });

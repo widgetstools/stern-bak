@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { ColumnDefinition } from '@wellsfargo-starui/shared-types';
-import { serializeColumnDefs, parseColumnDefsImport } from './columnDefsIo';
+import { serializeColumnDefs, parseColumnDefsImport, exportColumnDefs } from './columnDefsIo';
 
 const sample: ColumnDefinition[] = [
   { field: 'positionId', headerName: 'Position Id', cellDataType: 'text' },
@@ -81,5 +81,69 @@ describe('parseColumnDefsImport', () => {
 
   it('throws when no entry has a field', () => {
     expect(() => parseColumnDefsImport(JSON.stringify([{ headerName: 'x' }]))).toThrow(/needs a "field"/i);
+  });
+
+  it('preserves recognized optional column fields', () => {
+    const cols = parseColumnDefsImport(
+      JSON.stringify([
+        {
+          field: 'qty',
+          headerName: 'Qty',
+          cellDataType: 'number',
+          width: 120,
+          filter: true,
+          sortable: false,
+          resizable: true,
+          hide: true,
+          type: 'numericColumn',
+          valueFormatter: 'fmt',
+          cellRenderer: 'badge',
+        },
+      ]),
+    );
+    expect(cols[0]).toEqual({
+      field: 'qty',
+      headerName: 'Qty',
+      cellDataType: 'number',
+      width: 120,
+      filter: true,
+      sortable: false,
+      resizable: true,
+      hide: true,
+      type: 'numericColumn',
+      valueFormatter: 'fmt',
+      cellRenderer: 'badge',
+    });
+  });
+
+  it('throws a generic message for non-Error import failures', () => {
+    expect(() => parseColumnDefsImport(JSON.stringify({ columns: 'nope' }))).toThrow(/column-definitions array/i);
+  });
+});
+
+describe('exportColumnDefs', () => {
+  it('downloads a JSON file via a temporary anchor', () => {
+    vi.useFakeTimers();
+    const click = vi.fn();
+    const remove = vi.fn();
+    const appendChild = vi.spyOn(document.body, 'appendChild').mockImplementation(() => null as unknown as Node);
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:cols');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '',
+      download: '',
+      click,
+      remove,
+    } as unknown as HTMLAnchorElement);
+
+    exportColumnDefs(sample);
+
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(click).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:cols');
+    appendChild.mockRestore();
+    vi.useRealTimers();
   });
 });

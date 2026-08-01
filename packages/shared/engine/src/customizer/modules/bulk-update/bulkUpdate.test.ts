@@ -92,6 +92,101 @@ describe('collectBulkUpdateTargets', () => {
     };
     expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toHaveLength(0);
   });
+
+  it('falls back to focused cell when range yields nothing', () => {
+    const api = {
+      getCellRanges: () => [],
+      getDisplayedRowAtIndex: (i: number) =>
+        i === 2 ? { id: 'r2', data: { id: 'r2', qty: 5 } } : undefined,
+      getColumn: () => ({
+        getColDef: () => ({ editable: true, field: 'qty', cellDataType: 'number' }),
+      }),
+      getCellValue: () => 5,
+      getFocusedCell: () => ({ rowIndex: 2, column: { getColId: () => 'qty' } }),
+    };
+    const targets = collectBulkUpdateTargets(api, (d) => String(d.id));
+    expect(targets).toEqual([{ rowId: 'r2', colId: 'qty', field: 'qty', value: 5, cellDataType: 'number' }]);
+  });
+
+  it('skips selection column, missing columns, and function editable that throws', () => {
+    const api = {
+      getCellRanges: () => [{
+        columns: [
+          { getColId: () => 'ag-Grid-SelectionColumn' },
+          { getColId: () => 'ghost' },
+          { getColId: () => 'qty' },
+        ],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 0 },
+      }],
+      getDisplayedRowAtIndex: () => ({ id: 'r1', data: { id: 'r1' } }),
+      getColumn: (colId: string) =>
+        colId === 'qty'
+          ? {
+              getColDef: () => ({
+                editable: () => { throw new Error('no'); },
+                field: 'qty',
+                cellDataType: 'number',
+              }),
+            }
+          : null,
+      getCellValue: () => 1,
+      getFocusedCell: () => null,
+    };
+    expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toHaveLength(0);
+  });
+
+  it('honors editable false and function editable returning false', () => {
+    const base = {
+      getCellRanges: () => [{
+        columns: [{ getColId: () => 'qty' }],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 0 },
+      }],
+      getDisplayedRowAtIndex: () => ({ id: 'r1', data: { id: 'r1' } }),
+      getCellValue: () => 1,
+      getFocusedCell: () => null,
+    };
+    expect(collectBulkUpdateTargets({
+      ...base,
+      getColumn: () => ({ getColDef: () => ({ editable: false, field: 'qty', cellDataType: 'number' }) }),
+    }, (d) => String(d.id))).toHaveLength(0);
+
+    expect(collectBulkUpdateTargets({
+      ...base,
+      getColumn: () => ({
+        getColDef: () => ({
+          editable: () => false,
+          field: 'qty',
+          cellDataType: 'number',
+        }),
+      }),
+    }, (d) => String(d.id))).toHaveLength(0);
+  });
+
+  it('dedupes the same cell across overlapping ranges', () => {
+    const api = {
+      getCellRanges: () => [
+        {
+          columns: [{ getColId: () => 'qty' }],
+          startRow: { rowIndex: 0 },
+          endRow: { rowIndex: 0 },
+        },
+        {
+          columns: [{ getColId: () => 'qty' }],
+          startRow: { rowIndex: 0 },
+          endRow: { rowIndex: 0 },
+        },
+      ],
+      getDisplayedRowAtIndex: () => ({ id: 'r1', data: { id: 'r1', qty: 1 } }),
+      getColumn: () => ({
+        getColDef: () => ({ editable: true, field: 'qty', cellDataType: 'number' }),
+      }),
+      getCellValue: () => 1,
+      getFocusedCell: () => null,
+    };
+    expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toHaveLength(1);
+  });
 });
 
 describe('buildBulkUpdatePatches', () => {
@@ -127,5 +222,28 @@ describe('resolveColumnDistinctValues', () => {
     };
     const values = resolveColumnDistinctValues(api as never, 'currency', 10);
     expect(values).toEqual(['EUR', 'USD']);
+  });
+
+  it('sorts nulls last and stops at limit', () => {
+    const api = {
+      getDisplayedRowCount: () => 4,
+      getDisplayedRowAtIndex: (i: number) => ({ id: `r${i}` }),
+      getCellValue: ({ rowNode }: { rowNode: { id?: string } }) => {
+        if (rowNode.id === 'r0') return null;
+        if (rowNode.id === 'r1') return 2;
+        if (rowNode.id === 'r2') return 1;
+        return 1;
+      },
+    };
+    expect(resolveColumnDistinctValues(api as never, 'qty', 2)).toEqual([2, null]);
+  });
+
+  it('skips missing row nodes', () => {
+    const api = {
+      getDisplayedRowCount: () => 1,
+      getDisplayedRowAtIndex: () => undefined,
+      getCellValue: () => 'x',
+    };
+    expect(resolveColumnDistinctValues(api as never, 'col', 5)).toEqual([]);
   });
 });

@@ -372,4 +372,176 @@ describe('useFormatterActions', () => {
     expect(result.current.state.previewText).toBeTruthy();
     expect(result.current.state.cellsEditable).toBe(false);
   });
+
+  it('toggleBold clears bold when already enabled', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    platform.store.setModuleState<ColumnCustomizationState>('column-customization', () => ({
+      assignments: {
+        price: {
+          colId: 'price',
+          cellStyleOverrides: { dark: { typography: { bold: true } } },
+        },
+      },
+    }));
+    const { result } = renderHook(
+      () => useFormatterActions({
+        selection: makeSelection({
+          fmt: { bold: true, italic: false, underline: false, borders: {} },
+        }),
+        pickerDataType: 'number',
+      }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.toggleBold());
+    const cust = platform.store.getModuleState<ColumnCustomizationState>('column-customization');
+    expect(cust?.assignments?.price?.cellStyleOverrides?.dark?.typography?.bold).toBeUndefined();
+  });
+
+  it('setFontSizePx and setTextColor no-op without selected columns', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    const { result } = renderHook(
+      () => useFormatterActions({
+        selection: makeSelection({ colIds: [], scope: 'selected' }),
+        pickerDataType: 'number',
+      }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.setFontSizePx(14));
+    act(() => result.current.actions.setTextColor('#111111'));
+    const cust = platform.store.getModuleState<ColumnCustomizationState>('column-customization');
+    expect(cust?.assignments?.price).toBeUndefined();
+  });
+
+  it('applyBordersMap sets and clears border sides in one step', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    const { result } = renderHook(
+      () => useFormatterActions({
+        selection: makeSelection({
+          fmt: {
+            bold: false,
+            italic: false,
+            underline: false,
+            borders: { top: { width: 1, style: 'solid', color: '#000' } },
+          },
+        }),
+        pickerDataType: 'number',
+      }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.applyBordersMap({
+      top: { width: 2, style: 'solid', color: '#111' },
+      bottom: undefined,
+    }));
+    const cust = platform.store.getModuleState<ColumnCustomizationState>('column-customization');
+    expect(cust?.assignments?.price?.cellStyleOverrides?.dark?.borders?.top?.width).toBe(2);
+  });
+
+  it('redo restores state after undo', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    const { result } = renderHook(
+      () => useFormatterActions({ selection: makeSelection(), pickerDataType: 'number' }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.toggleBold());
+    act(() => result.current.actions.undo());
+    act(() => result.current.actions.redo());
+    const cust = platform.store.getModuleState<ColumnCustomizationState>('column-customization');
+    expect(cust?.assignments?.price?.cellStyleOverrides?.dark?.typography?.bold).toBe(true);
+  });
+
+  it('increaseDecimals with scope all writes global number formatter', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    const { result } = renderHook(
+      () => useFormatterActions({
+        selection: makeSelection({ scope: 'all', colIds: [] }),
+        pickerDataType: 'number',
+      }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.increaseDecimals());
+    const cust = platform.store.getModuleState<ColumnCustomizationState>('column-customization');
+    expect(cust?.globalCellNumberFormatter?.kind).toBe('preset');
+  });
+
+  it('surfaces disabled and custom filter states from assignment', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    platform.store.setModuleState<ColumnCustomizationState>('column-customization', () => ({
+      assignments: {
+        price: {
+          colId: 'price',
+          filter: { enabled: false, kind: 'agTextColumnFilter' },
+        },
+      },
+    }));
+    const { result } = renderHook(
+      () => useFormatterActions({ selection: makeSelection(), pickerDataType: 'number' }),
+      { wrapper: wrapper(platform) },
+    );
+    expect(result.current.state.filterPrimaryKind).toBeUndefined();
+
+    platform.store.setModuleState<ColumnCustomizationState>('column-customization', () => ({
+      assignments: {
+        price: {
+          colId: 'price',
+          filter: { kind: 'agTextColumnFilter', floatingFilter: true },
+        },
+      },
+    }));
+    const { result: custom } = renderHook(
+      () => useFormatterActions({ selection: makeSelection(), pickerDataType: 'number' }),
+      { wrapper: wrapper(platform) },
+    );
+    expect(custom.current.state.filterIsCustom).toBe(true);
+    expect(custom.current.state.floatingFilterOn).toBe(true);
+  });
+
+  it('setHeaderName no-ops unless exactly one column is selected', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }, { id: 'qty' }]));
+    const { result } = renderHook(
+      () => useFormatterActions({
+        selection: makeSelection({ colIds: ['price', 'qty'] }),
+        pickerDataType: 'number',
+      }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.setHeaderName('Renamed'));
+    const cust = platform.store.getModuleState<ColumnCustomizationState>('column-customization');
+    expect(cust?.assignments?.price).toBeUndefined();
+    expect(cust?.assignments?.qty).toBeUndefined();
+  });
+
+  it('confirmClearSelected no-ops without columns', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'price' }]));
+    const { result } = renderHook(
+      () => useFormatterActions({
+        selection: makeSelection({ colIds: [] }),
+        pickerDataType: 'number',
+      }),
+      { wrapper: wrapper(platform) },
+    );
+
+    act(() => result.current.actions.confirmClearSelected());
+    expect(result.current.state.clearSelectedConfirmed).toBe(false);
+  });
+
+  it('renders preview text for date and boolean picker types', () => {
+    platform.onGridReady(makeFakeApi([{ id: 'asOf', cellDataType: 'date' }]));
+    const dateHook = renderHook(
+      () => useFormatterActions({ selection: makeSelection({ colIds: ['asOf'] }), pickerDataType: 'date' }),
+      { wrapper: wrapper(platform) },
+    );
+    expect(dateHook.result.current.state.previewText).toBe('2026-04-17');
+
+    const boolHook = renderHook(
+      () => useFormatterActions({ selection: makeSelection(), pickerDataType: 'boolean' }),
+      { wrapper: wrapper(platform) },
+    );
+    expect(boolHook.result.current.state.previewText).toBe('true');
+  });
 });

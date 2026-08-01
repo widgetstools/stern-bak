@@ -42,4 +42,21 @@ describe('applyPatches', () => {
       update: [{ id: 'r1', qty: 50 }],
     });
   });
+
+  it('returns 0 for empty patches', async () => {
+    const api = mockWriter({});
+    expect(await applyPatches(api, [], 'redo')).toBe(0);
+    expect(api.applyTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it('synthesizes row object when row node is missing but still applies patches', async () => {
+    const api = mockWriter({});
+    const count = await applyPatches(api, [
+      { rowId: 'missing', colId: 'qty', field: 'qty', oldValue: 1, newValue: 2 },
+    ], 'redo');
+    expect(count).toBe(1);
+    expect(api.applyTransactionAsync).toHaveBeenCalledWith({
+      update: [{ id: 'missing', qty: 2 }],
+    });
+  });
 });

@@ -68,4 +68,43 @@ describe('DiagnosticsTab', () => {
     vi.advanceTimersByTime(800);
     vi.useRealTimers();
   });
+
+  it('renders live stats and status badges', async () => {
+    useProviderStats.mockImplementation((_id, opts) => {
+      queueMicrotask(() => {
+        opts?.onStats?.({
+          rowCount: 1200,
+          snapshotFetchMs: 250,
+          restartRequestMs: 900,
+          firstMessageMs: 1500,
+          msgCount: 42,
+          msgPerSec: 3.5,
+          byteCount: 2048,
+          publishCount: 10,
+          publishPerSec: 1.2,
+          publishPerMin: 72,
+          subscriberCount: 2,
+          startedAt: Date.now(),
+          lastMessageAt: Date.now(),
+          errorCount: 1,
+          lastError: 'socket reset',
+          cacheBytes: 4096,
+        });
+      });
+    });
+    attach.mockReturnValue('sub-1');
+    render(<DiagnosticsTab providerId="dp-1" cfg={CFG} />);
+    expect(await screen.findByText('1,200')).toBeInTheDocument();
+    expect(screen.getByText('socket reset')).toBeInTheDocument();
+  });
+
+  it('shows status banner errors after restart', () => {
+    attach.mockImplementation((_id, _cfg, handlers) => {
+      handlers.onStatus('error', 'broker down');
+      return 'sub-1';
+    });
+    render(<DiagnosticsTab providerId="dp-1" cfg={CFG} />);
+    fireEvent.click(screen.getByRole('button', { name: /restart/i }));
+    expect(screen.getByText('broker down')).toBeInTheDocument();
+  });
 });

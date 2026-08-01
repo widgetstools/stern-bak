@@ -64,4 +64,130 @@ describe('CompactFormatterPicker — tabbed selector', () => {
     expect(screen.getByTestId('fp-preset-str-camel')).toBeTruthy();
     expect(screen.getByTestId('fp-preset-str-upper')).toBeTruthy();
   });
+
+  it('clears formatter from compact clear button', async () => {
+    const onChange = vi.fn();
+    render(
+      <FormatterPicker
+        compact
+        dataType="number"
+        value={{ kind: 'excelFormat', format: '#,##0.00' }}
+        onChange={onChange}
+        data-testid="fp"
+      />,
+    );
+    open();
+    act(() => {
+      fireEvent.click(screen.getByTestId('fp-clear'));
+    });
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it('shows empty search message when nothing matches', () => {
+    render(<FormatterPicker compact dataType="number" value={undefined} onChange={() => {}} data-testid="fp" />);
+    open();
+    act(() => {
+      fireEvent.change(screen.getByTestId('fp-search'), { target: { value: 'zzzznotfound' } });
+    });
+    expect(screen.getByText(/No formats match/)).toBeTruthy();
+  });
+
+  it('switches category tab to tick presets', () => {
+    render(<FormatterPicker compact dataType="number" value={undefined} onChange={() => {}} data-testid="fp" />);
+    open();
+    act(() => {
+      fireEvent.click(screen.getByTestId('fp-tab-tick'));
+    });
+    const tickPreset = screen.getByTestId('fp-preset-tick-32');
+    fireEvent.mouseEnter(tickPreset);
+    fireEvent.mouseLeave(tickPreset);
+    expect(tickPreset).toBeTruthy();
+  });
+
+  it('clears inline excel when input emptied', () => {
+    const onChange = vi.fn();
+    render(
+      <FormatterPicker
+        dataType="number"
+        value={{ kind: 'excelFormat', format: '#,##0.00' }}
+        onChange={onChange}
+        data-testid="ifp"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('ifp-excel'), { target: { value: '' } });
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it('uses explicit sampleValue prop', () => {
+    render(
+      <FormatterPicker
+        compact
+        dataType="number"
+        value={{ kind: 'excelFormat', format: '#,##0' }}
+        onChange={() => {}}
+        sampleValue={9999}
+        data-testid="fp"
+      />,
+    );
+    open();
+    expect(screen.getByTestId('fp')).toBeTruthy();
+  });
+});
+
+describe('FormatterPicker — non-compact inline mode', () => {
+  it('renders expanded inline picker by default', () => {
+    render(
+      <FormatterPicker dataType="number" value={undefined} onChange={() => {}} data-testid="ifp" />,
+    );
+    expect(screen.getByTestId('ifp')).toBeTruthy();
+    expect(screen.getByTestId('ifp-preset')).toBeTruthy();
+    expect(screen.getByTestId('ifp-excel')).toBeTruthy();
+  });
+
+  it('collapses and expands inline picker', () => {
+    render(
+      <FormatterPicker
+        dataType="number"
+        value={{ kind: 'excelFormat', format: '#,##0.00' }}
+        onChange={() => {}}
+        defaultCollapsed
+        data-testid="ifp"
+      />,
+    );
+    expect(screen.getByTestId('ifp-collapsed')).toBeTruthy();
+    act(() => {
+      fireEvent.click(screen.getByTestId('ifp-collapsed'));
+    });
+    expect(screen.getByTestId('ifp')).toBeTruthy();
+  });
+
+  it('commits excel format from inline input', () => {
+    const onChange = vi.fn();
+    render(
+      <FormatterPicker
+        dataType="number"
+        value={undefined}
+        onChange={onChange}
+        data-testid="ifp"
+      />,
+    );
+    const input = screen.getByTestId('ifp-excel');
+    fireEvent.change(input, { target: { value: '#,##0.00' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith({ kind: 'excelFormat', format: '#,##0.00' });
+  });
+
+  it('renders vertical layout without preview chip', () => {
+    render(
+      <FormatterPicker
+        dataType="number"
+        value={{ kind: 'excelFormat', format: '#,##0.00' }}
+        onChange={() => {}}
+        layout="vertical"
+        data-testid="vfp"
+      />,
+    );
+    expect(screen.getByTestId('vfp')).toBeTruthy();
+    expect(screen.queryByText('PREVIEW')).toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ExpressionEngine, type AlertRule, type AlertTrigger } from '@wellsfargo-starui/engine';
-import { collectWatchedColIds } from './evaluateCellDelta.js';
+import { collectWatchedColIds, evaluateCellDelta, partitionEnabledRules } from './evaluateCellDelta.js';
+import { createPreviousValuesStore } from './previousValues.js';
 
 /**
  * Contract under test: the watched-column set must be derived from what
@@ -109,5 +110,62 @@ describe('collectWatchedColIds', () => {
     );
     expect([...ids].sort()).toEqual(['price', 'side', 'trader']);
     expect(stable).toBe(true);
+  });
+});
+
+describe('partitionEnabledRules', () => {
+  it('splits enabled dataChange and relativeChange rules', () => {
+    const rules = [
+      rule({ kind: 'relativeChange', column: 'price', mode: 'ANY_CHANGE' }),
+      rule({ kind: 'dataChange', expression: '[qty] > 0' }),
+      rule({ kind: 'rowChange', event: 'ROW_ADDED' }),
+      rule({ kind: 'dataChange', expression: 'false' }, false),
+    ];
+    const partitioned = partitionEnabledRules(rules);
+    expect(partitioned.relativeChange).toHaveLength(1);
+    expect(partitioned.dataChange).toHaveLength(1);
+  });
+});
+
+describe('evaluateCellDelta', () => {
+  const engine = new ExpressionEngine();
+
+  it('dispatches dataChange hits and updates baseline', () => {
+    const prevValues = createPreviousValuesStore();
+    prevValues.set('r1', 'price', 50);
+    const dispatch = vi.fn();
+    evaluateCellDelta({
+      rowId: 'r1',
+      colId: 'price',
+      prev: 50,
+      next: 100,
+      data: { price: 100 },
+      dataChange: [rule({ kind: 'dataChange', expression: '[price] > 75' }) as never],
+      relativeChange: [],
+      engine,
+      dispatcher: { dispatch } as never,
+      prevValues,
+    });
+    expect(dispatch).toHaveBeenCalled();
+    expect(prevValues.get('r1', 'price')).toBe(100);
+  });
+
+  it('evaluates relativeChange only for matching column', () => {
+    const prevValues = createPreviousValuesStore();
+    const dispatch = vi.fn();
+    evaluateCellDelta({
+      rowId: 'r1',
+      colId: 'qty',
+      prev: 10,
+      next: 20,
+      data: { qty: 20 },
+      dataChange: [],
+      relativeChange: [rule({ kind: 'relativeChange', column: 'price', mode: 'ANY_CHANGE' }) as never],
+      engine,
+      dispatcher: { dispatch } as never,
+      prevValues,
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(prevValues.get('r1', 'qty')).toBe(20);
   });
 });

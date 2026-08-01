@@ -93,59 +93,7 @@ individually-listed workspace members can collapse to a `packages/data/*` glob.
 
 ---
 
-## 4. 260 files still below 70% line coverage
-
-**Repo:** stern-bak · **Branch:** `test/coverage-70` · **Blocked on:** nothing, just volume
-
-The coverage infrastructure is in place and enforcing; the tests are not written
-yet. `npm run test:coverage && npm run check:coverage` reports the live number.
-The runner now pins `--concurrency=1` itself, and the gate prints `INVALID`
-rather than a percentage if any package failed to produce a summary — so the
-number is reproducible without remembering a flag.
-
-**Progress:** 550 / 810 files at or above 70% (67.9%), from 412 / 806 at the
-start. All 21 packages now have a real suite — five had none at all — and 18 of
-the 21 clear the gate outright.
-
-**Where the remaining gap is concentrated:**
-
-| Package | Files < 70% |
-|---|---:|
-| `grid` | 164 |
-| `ui` | 54 |
-| `engine` | 42 |
-| `widgets-react` | 30 |
-
-`config-browser` (was 13) cleared in session 3. `openfin-platform` (was listed
-as 23) turns out to have been clear already — that 23 was an artifact of a
-default-concurrency measurement, not real uncovered code. That measurement bug
-is now fixed: `test:coverage` pins `--concurrency=1`.
-
-**→ Session-by-session breakdown, conventions and progress log:
-[`COVERAGE_PLAN.md`](./COVERAGE_PLAN.md).** ~14 sessions remaining. Read its
-`## Conventions` before writing tests.
-
-**Notes for whoever picks this up:**
-
-- The gate is `thresholds: { lines: 70, perFile: true }` in
-  `scripts/vitestCoverage.mjs`. It only bites under `npm run test:coverage` —
-  plain `npm test` runs without `--coverage`, so the suite stays fast and green.
-- React components must be tested with React Testing Library, enforced by
-  `npm run check:rtl` (wired into `lint:all`).
-- Barrels are safe: a file with zero executable lines scores 100%, so pure
-  re-export `index.ts` files do not need tests.
-- `docs/package-coverage-and-sonar-lcov.md` suggests 60% per package; this gate
-  is deliberately stricter at 70% per file. Reconciling the two numbers is a
-  decision nobody has made.
-- Work smallest-gap-first — each package cleared is one that can never regress.
-- **Item 11 lands after session 3, not after session 16.** The bucket restructure
-  interrupts here deliberately, so sessions 4–16 (313 files, all of `grid` and
-  `ui`) are written once against the final layout. **Sessions 4–16 are blocked on
-  it**: it moves every package folder and reworks this gate's two-level
-  `packages/<bucket>/<pkg>/coverage/` scan. Nothing written before it is wasted —
-  the bar is per-file, so tests move unchanged.
-
-## 5. 25 icons cannot be recoloured or themed
+## 4. 25 icons cannot be recoloured or themed
 
 **Repo:** stern-bak · **Blocked on:** nothing, needs regenerating the SVGs
 
@@ -161,7 +109,7 @@ The list is pinned in `allIcons.test.ts` as `KNOWN_HARDCODED_COLOUR`, with a tes
 that fails if the set grows. **Done looks like** regenerating those SVGs with
 `currentColor` and deleting their entries from that list.
 
-## 6. `resolveBrowserIdentity` ignores the userId it is given
+## 5. `resolveBrowserIdentity` ignores the userId it is given
 
 **Repo:** stern-bak · **Blocked on:** deciding whether the fix is safe
 
@@ -188,7 +136,7 @@ existing profiles resolve, which is a migration question, not a one-line edit.
 LOGGED_IN_USER_ID` and accepting the profile-scope move, or removing `userId`
 from `IdentityOverrides` so the type stops promising something it does not do.
 
-## 7. Two config factories hand out shared mutable defaults
+## 6. Two config factories hand out shared mutable defaults
 
 **Repo:** stern-bak · **Blocked on:** nothing, but each fix needs a caller audit
 
@@ -222,7 +170,7 @@ definition was deleted still passes the check but is absent from the list. Both
 behaviours are pinned in `configManager.authTables.test.ts`; which one is
 correct is a product question.
 
-## 8. Three defects in `workspace-setup-react`, all pinned not fixed
+## 7. Three defects in `workspace-setup-react`, all pinned not fixed
 
 **Repo:** stern-bak · **Blocked on:** nothing; each is a small change with a
 caller audit attached
@@ -271,7 +219,7 @@ import change; the tests currently mock the whole barrel to work around it.
 returns `"-"`. A brand-new draft therefore previews its id as a lone hyphen and
 the em-dash branch is unreachable.
 
-## 9. `config-browser`'s JSON editor has no accessible name
+## 8. `config-browser`'s JSON editor has no accessible name
 
 **Repo:** stern-bak · **Blocked on:** nothing; one attribute
 
@@ -287,7 +235,7 @@ therefore fine. **Done looks like** an `aria-label="JSON payload"` (or an
 `id`/`htmlFor` pair against the existing heading), after which the test helper
 can go back to a plain role+name query.
 
-## 11. `CollapsibleToolbar`'s pin control has no accessible name
+## 9. `CollapsibleToolbar`'s pin control has no accessible name
 
 **Repo:** stern-bak · **Blocked on:** nothing; one attribute
 
@@ -298,9 +246,45 @@ falls back to querying the sole button after hover expand. **Done looks like**
 `aria-label="Pin toolbar open"` / `"Unpin toolbar"` (or equivalent), after which
 the test can name the control explicitly.
 
-## 10. Bucket contents are wrong; 21 published packages should become 7
+## 10. A `--force` build can be read half-written, failing ~109 suites
 
-**Repo:** stern-bak · **Unblocked:** coverage **session 3** has landed (item 4)
+**Repo:** stern-bak · **Blocked on:** nothing; needs a repro loop to confirm the fix
+
+Seen once in four consecutive `npm run test:coverage -- --force` runs on an
+unchanged tree. `grid` failed **109 suites at collection** — not at assertion —
+all with the same error:
+
+```
+Failed to resolve import "./primitives" from
+  ../../design-system/design-system/dist/tokens/index.js
+```
+
+The emitted barrel was mid-write. A finished build emits
+`from './primitives.js'`; the file on disk at that moment had the extensionless
+specifier from a partial emit, which vite cannot resolve. Every package that
+transitively imports design-system tokens then fails to load. `widgets-react` and
+`workspace-setup-react` went down with it — three packages produced no coverage
+summary.
+
+Every library build is `rimraf dist && tsc` (required, see `CLAUDE.md` — it
+defeats a TS5055 on Turbo cache-restore). That leaves a window where `dist/`
+exists but is incomplete, and a consumer's vite transform reading it gets a
+truncated module. `--concurrency=1` does not close the window, so serialising is
+not the answer.
+
+**This failed loudly, which is the good news.** `check-package-coverage.mjs`
+printed `INVALID — 3 of 21 package(s) produced no summary` and refused to give a
+percentage. Before that guard existed it would have reported a plausible
+`402/402 (100.0%)` and nobody would have looked.
+
+**Done looks like** a repro (a loop of `--force` runs) and then one of: `tsc`
+emitting to a temp dir and renaming into place atomically; or the `test` task
+depending on a build output the consumer can't observe mid-write. Confirm by
+running the loop 20× green, not once.
+
+## 11. Bucket contents are wrong; 21 published packages should become 7
+
+**Repo:** stern-bak · **Unblocked:** the coverage effort is finished (807/807)
 
 `pack:npm` publishes **21** tarballs. That is 21 artifacts to onboard through
 Artifactory, 21 names for consumers to choose between, and 21 versions moving
@@ -321,8 +305,8 @@ the packages. The misfiling is **`host-config`**: it sits at layer 3 with 8
 consumers across 4 buckets, filed under "Data Utilities". That single placement is
 what closes the loop.
 
-**The agreed arrangement** — verified mechanically as a 6-layer DAG. Record it here
-so nothing drifts while item 4 runs: **do not add a new package to a bucket that
+**The agreed arrangement** — verified mechanically as a 6-layer DAG. Recorded here
+so nothing drifts before it runs: **do not add a new package to a bucket that
 contradicts this table.**
 
 | Layer | Published package | Members |
@@ -340,24 +324,29 @@ Three moves do the work: `host-config` → `core` kills the cycle, `host-data-re
 are unaffected), and `config-browser` + `widgets-react` → `grid` confines
 `ag-grid-enterprise` to one bucket.
 
-**When it runs.** Immediately after coverage **session 3** (`config-browser`), so
-sessions 4–16 — **313 of the remaining files**, including all of `grid` and `ui` —
-are written once against the final layout rather than codemodded afterwards. The
-coverage tooling is therefore reworked once, not re-baselined at the end.
+**When it runs.** Whenever someone picks it up — nothing blocks it any more.
 
-**This blocks sessions 4–16** until green: collapsing 21 vitest configs → 7 breaks
-the two-level `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs`
-and `check-package-coverage.mjs`, and the latter's "package has no real test
-script" check must be re-expressed **per member** or a suite-less member hides
-inside a bucket its siblings carry. The per-file bar is unchanged, so the reported
-coverage number must move by **zero** across the rework — assert that.
+**The original sequencing did not happen, and that is worth knowing.** The plan
+was to run this immediately after coverage session 3 so that sessions 4–16 (313
+files, all of `grid` and `ui`) were written once against the final layout instead
+of codemodded afterwards. Those sessions ran first. The restructure therefore now
+has to move ~350 colocated test files as well as the source they sit beside.
 
-**Known risk.** 70% of the 839 cross-bucket rewrites sit in packages still below
-the bar, concentrated in `grid` (370) and `widgets-react` (141). Mitigated by `tsc`
-verifying specifier rewrites completely — a wrong one is a compile error — and by
-landing the folder moves as a separate, provably inert commit first. No coverage
-work already done is wasted either way: the bar is per-file, so files and tests
-move unchanged.
+That is a bigger move but a *safer* one, for two reasons the original note could
+not assume: the tests are colocated, so each one moves with its subject in the
+same `git mv` and the specifier rewrite is verified completely by `tsc` — a wrong
+one is a compile error; and the repo is now at **807/807**, so the per-file bar
+gives an exact, non-negotiable assertion for the rework: **the coverage number
+must move by zero.** Before, 70% of the 839 cross-bucket rewrites sat in packages
+still below the bar, and a rewrite that silently dropped a file from the gate
+would not have been visible. Now it would.
+
+**Still true:** collapsing 21 vitest configs → 7 breaks the two-level
+`packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
+`check-package-coverage.mjs`, and the latter's "package has no real test script"
+check must be re-expressed **per member**, or a suite-less member hides inside a
+bucket its siblings carry. Land the folder moves as a separate, provably inert
+commit first.
 
 **Done looks like:** folders moved (names unchanged, tree green) → buckets
 collapsed to one `package.json` each → `check-package-cycles.mjs` taught to treat

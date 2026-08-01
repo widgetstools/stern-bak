@@ -137,4 +137,24 @@ describe('template reducers', () => {
       undefined,
     )).toBeUndefined();
   });
+
+  it('rename/remove reducers no-op for unknown template ids', () => {
+    expect(renameTemplateReducer('missing', 'Name')(tpls)).toBe(tpls);
+    expect(removeTemplateReducer('missing')(tpls)).toBe(tpls);
+  });
+
+  it('pickTemplateFields captures behavior flags and header overrides', () => {
+    const fields = pickTemplateFields({
+      colId: 'x',
+      editable: true,
+      filterable: false,
+      resizable: true,
+      headerStyleOverrides: { light: { typography: { bold: true } } },
+      cellRendererName: 'badge',
+    });
+    expect(fields.editable).toBe(true);
+    expect(fields.filterable).toBe(false);
+    expect(fields.headerStyleOverrides).toBeDefined();
+    expect(fields.cellRendererName).toBe('badge');
+  });
 });

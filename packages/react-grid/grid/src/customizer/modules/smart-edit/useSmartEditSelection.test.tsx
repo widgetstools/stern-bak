@@ -68,4 +68,37 @@ describe('useSmartEditSelection', () => {
     });
     expect(result.current.count).toBe(0);
   });
+
+  it('returns empty selection before grid api is ready', () => {
+    const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+    const { result } = renderHook(() => useSmartEditSelection(), {
+      wrapper: ({ children }) => (
+        <GridProvider platform={platform}>{children}</GridProvider>
+      ),
+    });
+    expect(result.current.count).toBe(0);
+  });
+
+  it('counts cells from a range selection', () => {
+    const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+    const api = makeMockApi();
+    api.getCellRanges = () => [{
+      columns: [{ getColId: () => 'qty' }, { getColId: () => 'price' }],
+      startRow: { rowIndex: 0 },
+      endRow: { rowIndex: 1 },
+    }];
+    api.getDisplayedRowAtIndex = (i: number) => ({
+      id: `r${i + 1}`,
+      data: { id: `r${i + 1}`, qty: 1, price: 2 },
+    });
+    api.getFocusedCell = () => null;
+    platform.onGridReady(api as never);
+
+    const { result } = renderHook(() => useSmartEditSelection(), {
+      wrapper: ({ children }) => (
+        <GridProvider platform={platform}>{children}</GridProvider>
+      ),
+    });
+    expect(result.current.count).toBe(4);
+  });
 });

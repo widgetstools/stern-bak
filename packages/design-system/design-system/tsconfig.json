@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": false
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "src/themes/**/*.css"]
+  "exclude": ["node_modules", "dist", "src/themes/**/*.css", "src/**/*.test.ts"]
 }

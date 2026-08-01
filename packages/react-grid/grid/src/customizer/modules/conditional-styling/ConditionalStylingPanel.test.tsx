@@ -17,6 +17,7 @@ import { GridProvider } from '../../hooks/GridProvider';
 import {
   ConditionalStylingEditor,
   ConditionalStylingList,
+  ConditionalStylingPanel,
 } from './ConditionalStylingPanel';
 import { conditionalStylingModule } from './index';
 import type { ConditionalRule, ConditionalStylingState } from './state';
@@ -395,5 +396,34 @@ describe('ConditionalStylingPanel (v4)', () => {
       </GridProvider>,
     );
     expect(screen.getByText(/No rule selected/i)).toBeTruthy();
+  });
+
+  it('indicator band toggles target, position, and clear', async () => {
+    const user = userEvent.setup();
+    render(<MasterDetail platform={platform} />);
+    await user.click(screen.getByTestId('cs-rule-indicator-icon-arrow-up-rule-one'));
+    await user.click(screen.getByTestId('cs-rule-indicator-target-headers-rule-one'));
+    await user.click(screen.getByTestId('cs-rule-indicator-position-bottom-left-rule-one'));
+    act(() => screen.getByTestId('cs-rule-save-rule-one').click());
+    const rule = platform.store.getModuleState<ConditionalStylingState>('conditional-styling').rules[0];
+    expect(rule.indicator?.target).toBe('headers');
+    expect(rule.indicator?.position).toBe('bottom-left');
+    expect(rule.indicator?.icon).toBe('arrow-up');
+
+    await user.click(screen.getByTestId('cs-rule-indicator-clear-rule-one'));
+    act(() => screen.getByTestId('cs-rule-save-rule-one').click());
+    expect(
+      platform.store.getModuleState<ConditionalStylingState>('conditional-styling').rules[0].indicator,
+    ).toBeUndefined();
+  });
+
+  it('combined panel renders list rail and editor', () => {
+    render(
+      <GridProvider platform={platform}>
+        <ConditionalStylingPanel />
+      </GridProvider>,
+    );
+    expect(screen.getByTestId('cs-panel')).toBeTruthy();
+    expect(screen.getByTestId('cs-rule-card-rule-one')).toBeTruthy();
   });
 });

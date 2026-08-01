@@ -1,15 +1,13 @@
-# Coverage plan — reaching 70% per file
+# Coverage plan — 70% per file on lines, statements, functions and branches
 
 Branch: **`test/coverage-70`**
 
-The gate (`{ lines: 70, perFile: true }`) is in place and enforcing. This file
-splits the remaining work into sessions that can be picked up cold, one at a
-time, each leaving the branch green.
+**The gate is met. Every file in every package is at or above 70% on all four metrics.**
 
-**Read `## Conventions` before writing a single test.** The point of this work is
-tests that catch defects, not tests that move a number — five of the findings so
-far came from tests written against behaviour, and none would have come from
-tests written to satisfy a threshold.
+This file is now the record of how it was done and the rules that keep it that
+way. `## Conventions` stays binding for every new test — the point of the work
+was tests that catch defects, not tests that move a number, and eight of the
+findings below came from tests written against behaviour.
 
 ---
 
@@ -17,26 +15,45 @@ tests written to satisfy a threshold.
 
 | | |
 |---|---|
-| Files at or above 70% | **520 / 810** (64.2%) |
-| Packages fully clear | 17 of 21 |
-| Remaining files | **290** — all in `grid`, `ui`, `engine`, `widgets-react` |
+| Files at or above 70% (all metrics) | **807 / 807** (100.0%) |
+| Packages fully clear | **21 of 21** |
+| Remaining files | **0** |
+| Tests | 4,748 passing, 1 skipped |
 
-Run this to get the live number; never quote this file's number without checking:
+Verify with:
 
 ```bash
-npm run test:coverage -- --force --concurrency=1   # merges coverage/lcov.info for Sonar
-npm run check:coverage                             # the gate — lists every file below 70%
+npm run test:coverage    # merges coverage/lcov.info for Sonar; pins --concurrency=1
+npm run check:coverage   # the gate — lists every file below 70% on any metric
 ```
 
-**`--concurrency=1` is load-bearing, not tidiness.** At turbo's default
-concurrency four consecutive runs on an unchanged tree reported 504, 515, 520 and
-391 files clear, and a package that is fully covered can report as failing —
-`openfin-platform` did, which is why session 4 below has nothing left to do.
-The runner now pins `--concurrency=1`, so the number is reproducible by default.
+Never quote this file's number without re-running those. The measurement used to
+be load-dependent: at turbo's default concurrency four consecutive runs on an
+unchanged tree reported 504, 515, 520 and 391 files clear, and a fully-covered
+package could report as failing — `openfin-platform` did, which is why session 4
+had nothing to do. `run-test-coverage.mjs` now pins `--concurrency=1` itself, and
+`check-package-coverage.mjs` prints `INVALID` instead of a percentage if any
+package failed to produce a summary, so a collection failure can no longer read
+as a coverage result.
+
+**Keeping it at 100%.** The gate runs per file, so a new source file with no test
+fails the build on the commit that adds it — there is no drift to police. Three
+categories are excluded by `scripts/vitestCoverage.mjs` and are the only legitimate
+way for a file to escape it: tests and fixtures, `*.bench.*` files (run by
+`npm run bench`, not shipped), and `*.d.ts`. Adding to that list is a decision,
+not a convenience.
 
 ---
 
 ## Conventions
+
+### Branch coverage is the binding constraint
+
+The gate enforces 70% on lines, statements, functions and branches per file.
+In practice **branch coverage is the tightest metric**: a file can clear lines
+while still failing on an untaken `if`, `catch` or early return. When a file is
+close to the bar, check branches first — that is where the swallow paths and
+degradation branches live, and where the defects found so far were hiding.
 
 ### React components — React Testing Library, always
 
@@ -112,11 +129,10 @@ source (this broke the `host-browser` build once already).
 
 ---
 
-## Sessions
+## Sessions — all complete
 
-Sizing assumes ~35 logic files or ~20 React components per session — the rate
-actually observed, not an estimate. Order is smallest-gap-first so each session
-finishes packages outright.
+Sizing assumed ~35 logic files or ~20 React components per session; order was
+smallest-gap-first so each session finished packages outright.
 
 | # | Scope | Files | Kind | Exit criteria |
 |---|---|---:|---|---|
@@ -124,16 +140,19 @@ finishes packages outright.
 | ✅ 1 | `host-openfin` (1) · `host-config` (5) · `shared-types` (6) · `host-data` (6) | 18 | logic | 4 packages clear |
 | ✅ 2 | `widget-sdk` (6) · `host-data-react` (8) · `workspace-setup-react` (9) | 23 | 14 React | 3 packages clear |
 | ✅ 3 | `config-browser` (13) | 13 | 11 React | 1 package clear |
-| ~~4~~ | ~~`openfin-platform` (23)~~ — **already clear; measure before starting** | 0 | — | — |
-| 5 | `engine` — part 1 | 21 | logic | — |
-| 6 | `engine` — part 2 | 21 | logic | `engine` clear |
+| ~~4~~ | ~~`openfin-platform` (23)~~ — never ran; it was already clear | 0 | — | — |
+| ✅ 5 | `engine` — part 1 | 18 | logic | — |
+| ✅ 6 | `engine` — part 2 | 22 | logic | `engine` clear |
 | ✅ 7 | `widgets-react` (30) | 30 | 20 React | 1 package clear |
-| 8–10 | `ui` (54) — shadcn components, ~18 per session | 54 | all React | `ui` clear |
-| 11–16 | `grid` (164) — customizer modules, ~27 per session | 164 | 101 React | `grid` clear |
+| ✅ 8 | `ui` — shadcn primitives, part 1 | 19 | all React | — |
+| ✅ 9–10 | `ui` — overlays, forms, toasts | 35 | all React | `ui` clear |
+| ✅ H | Gate hygiene — `*.bench.*` + `src/**/test/**` excluded | −3 | — | Denominator 810 → 807 |
+| ✅ 11 | `grid` — widget surface | 45 | React | — |
+| ✅ 12–15 | `grid` — customizer editors, UI, runtimes, panels | 118 | 101 React | `grid` clear · **807/807** |
 
-**~12 sessions remaining.** `grid` and `ui` are 75% of the total and are
-deliberately last: they are the most repetitive, so the conventions will be well
-established by the time they are reached.
+**Nothing remaining.** Session 4 was struck rather than run: `openfin-platform`
+was already above the bar and only *reported* as failing under the unreproducible
+measurement described above.
 
 ### Notes per session
 
@@ -175,8 +194,8 @@ panel is only a thin form over it.
 
 ## Progress log
 
-Append a row per session. Numbers come from `npm run check:coverage`, after a
-**serialised** `npm run test:coverage -- --force --concurrency=1`.
+Numbers come from `npm run check:coverage` after `npm run test:coverage`. Rows in
+chronological order; every one below was measured, not estimated.
 
 | Session | Date | Files ≥70% | Δ | Packages cleared |
 |---|---|---:|---:|---|
@@ -185,14 +204,65 @@ Append a row per session. Numbers come from `npm run check:coverage`, after a
 | 2 | 2026-07-31 | 461 → 484 | +23 | widget-sdk, host-data-react, workspace-setup-react |
 | 3 | 2026-07-31 | 484 → 520 | +36** | config-browser (openfin-platform was already clear) |
 | 7 | 2026-07-31 | 520 → 550 | +30 | widgets-react |
+| 5 | 2026-07-31 | 550 → 568 | +18 | — (engine, part 1) |
+| 8 | 2026-07-31 | 568 → 587 | +19 | — (ui, part 1) |
+| 11 | 2026-07-31 | 587 → 632 | +45 | — (grid, widget surface) |
+| H | 2026-07-31 | 632/810 → 632/807 | −3 files scored | gate hygiene; no tests written |
+| 6, 9–10, 12–15 | 2026-07-31 | 632 → **807** | +175 | **engine, ui, grid — 807/807, gate PASS** |
 
 \* harness added, package not yet fully clear.
 
 \*\* Session 3 wrote tests for 13 files, all in `config-browser`. The other +23
-is `openfin-platform`, which this session did not touch: it was already above the
+is `openfin-platform`, which that session did not touch: it was already above the
 bar and only *reported* as failing under a parallel `test:coverage` run. The
 before-number (484) came from such a run; 520 is the reproducible serialised
 number.
+
+**Why the last seven sessions share one row.** They were written and landed as a
+single batch, so no intermediate measurement exists for any of them individually.
+Earlier drafts of this table carried per-session rows (`689 → 714`, `714 → 807`)
+that nothing produced — they are removed rather than left in, because an invented
+number here is exactly what the `--concurrency=1` fix was meant to stop. The
+endpoints are real: 632/807 was measured twice before the batch, 807/807 twice
+after.
+
+**Final batch notes (sessions 6, 9–10, 12–15).** 175 files, 154 new test files,
++559 tests. Verified on landing:
+
+- `npm run check:coverage` — **807/807 (100.0%)**, PASS, three runs of four.
+- `npx turbo run typecheck build test --force` — 62/62 tasks green.
+- `npm run check:rtl` — PASS.
+- 4,748 tests passing, 1 skipped, 0 failing.
+
+The fourth run failed, and not on coverage: a `--force` rebuild was read
+half-written and 109 `grid` suites died at collection. Recorded as `WORKLOG.md`
+item 10. It matters here only because it is the failure the gate is now built to
+survive — `check-package-coverage.mjs` printed `INVALID — 3 of 21 package(s)
+produced no summary` and refused to give a percentage, where the old code would
+have reported a clean-looking `402/402 (100.0%)`.
+
+Checked for threshold-chasing rather than assumed absent: of the 807 files, 542
+sit at 95–100% and only **14 land in the 70–72% band**. A suite written to clear
+a bar rather than to describe behaviour piles up just above it; this one does not.
+No `.skip` or `.todo` exists anywhere in the repo.
+
+Two harness changes were needed and are worth knowing:
+
+- **`ui/src/test/setup.ts` grew jsdom shims** — `ResizeObserver`, `matchMedia`,
+  `setPointerCapture`/`releasePointerCapture`/`hasPointerCapture`,
+  `scrollIntoView`, `elementFromPoint`. Without them Radix overlays (dialog,
+  popover, select, dropdown-menu) and vaul's drawer reject asynchronously on
+  open, which surfaces as an unhandled error rather than a failed assertion.
+- **`grid`'s coverage exclude widened** from `src/widget/test/**` to
+  `src/**/test/**`, which also covers `src/customizer/test/`. Both hold only test
+  setup and query helpers.
+
+One thing left undone: `SmartEditPanel.test.tsx` traded its
+"DISCARD reverts draft changes" case for a confirm-threshold case. Nothing real
+was lost — the old assertion checked that module state stayed `true` after
+toggle-then-Reset, which passes whether or not Reset does anything, since the
+toggle only touches the draft. But `discard` still has no test that would catch
+it breaking. Worth one when someone next touches that panel.
 
 **Session 3 notes.** All 13 target files cleared — `config-browser` went from
 5.7% to **99.0% lines / 92.1% branches**, 243 tests across 14 files, no assertion
@@ -202,15 +272,17 @@ and `tsconfig.build.json` also excludes `src/test-utils/**`.
 
 Two findings, both recorded in `WORKLOG.md`:
 
-- **Item 9 — `test:coverage` is not reproducible at default concurrency.** Found
-  while trying to record this session's before/after honestly. Four runs on an
-  unchanged tree gave 504 / 515 / 520 / 391. One of those runs scored the repo
-  out of **651** files instead of 810 because several packages never wrote a
-  summary and `check-package-coverage.mjs` counted them as absent rather than
-  failing. This is why session 4 has nothing to do.
-- **Item 10 — `RowDrawer`'s JSON textarea has no accessible name.** It is the
-  package's primary control and cannot be found by role+name; the panel test
-  filters on `tagName` with a pointer to the item.
+- **`test:coverage` was not reproducible at default concurrency** — found while
+  trying to record this session's before/after honestly. Four runs on an unchanged
+  tree gave 504 / 515 / 520 / 391, and one scored the repo out of **651** files
+  instead of 810 because several packages never wrote a summary and
+  `check-package-coverage.mjs` counted them as absent rather than failing. This is
+  why session 4 had nothing to do. *Since fixed and the worklog item closed* —
+  the runner pins `--concurrency=1` and the gate now prints `INVALID` rather than
+  a percentage when a summary is missing.
+- **`RowDrawer`'s JSON textarea has no accessible name** (`WORKLOG.md` item 8).
+  It is the package's primary control and cannot be found by role+name; the panel
+  test filters on `tagName` with a pointer to the item.
 
 What the next React session should know:
 
@@ -247,7 +319,7 @@ what the code does after reading it — the mock trades ticker mints *and then*
 mutates in the same tick (so an empty book emits >1 row, not 1), and
 `ConfigManager`'s v2 migration only fills an absent field rather than
 overwriting a half-migrated row. Neither is a defect. Three aliasing /
-consistency hazards surfaced and are recorded as `WORKLOG.md` item 7.
+consistency hazards surfaced and are recorded as `WORKLOG.md` item 6.
 
 Two things worth knowing before the next Dexie-backed session:
 
@@ -262,7 +334,7 @@ Two things worth knowing before the next Dexie-backed session:
 **Session 2 notes.** All 23 target files cleared; every package landed well
 above the bar (`widget-sdk` 100%, `host-data-react` ≥88% per file,
 `workspace-setup-react` ≥89%). 470 tests added, no assertion weakened. Four
-findings are recorded as `WORKLOG.md` item 8 — three real defects in
+findings are recorded as `WORKLOG.md` item 7 — three real defects in
 `workspace-setup-react` (the `IconPicker` duplicate-id bug that breaks its own
 search, `testComponent`'s stale-closure `userId`, and `useRegistryEditor`
 importing the OpenFin-only barrel) plus one cosmetic id-preview fallback. All
