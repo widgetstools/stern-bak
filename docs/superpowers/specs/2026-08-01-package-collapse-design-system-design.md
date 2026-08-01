@@ -74,26 +74,23 @@ when picked up.
   other (grepped both directions; `design-system/src/cellRenderers.ts` and
   `cellRendererRegistry.ts` only *mention* `@wellsfargo-starui/icons-svg` in
   comments, no real import).
-- **4 external consumers** import `@wellsfargo-starui/icons-svg` directly
-  across 10 files: `openfin/openfin-platform` (4 files: `dockEditor/icons.ts`,
-  `dockEditor/iconUtils.ts`, `dockEditor/iconUtils.test.ts`,
-  `icons/meta.ts`), `react-core/workspace-setup-react` (3 files:
-  `components/IconPicker.tsx`, `components/IconPicker.test.tsx`,
-  `ImportConfig.tsx`), `react-grid/grid` (2 files:
-  `customizer/modules/column-customization/CellRendererEditors/IconTextEditor.tsx`,
-  `.../CellRendererEditors.test.tsx`), `react-grid/config-browser` (1 file:
-  `src/icons.tsx`).
-- **Dependency-declaration side note**: `config-browser` imports from
-  `icons-svg` in `src/icons.tsx` but never declares it in `package.json` —
-  it works today only via npm's hoisting, because `config-browser` already
-  depends on `design-system`, which is a workspace sibling of `icons-svg`.
-  This is a pre-existing latent bug, not something this sub-phase
-  introduces — and the collapse fixes it as a side effect, since
-  `config-browser` already correctly depends on `design-system`, which will
-  now genuinely contain the icons content.
+- **3 external consumers** actually import `@wellsfargo-starui/icons-svg`
+  (verified by real `import`/`vi.mock` statements, not comment mentions) —
+  7 files, 9 import statements: `openfin/openfin-platform` (2 files:
+  `dockEditor/iconUtils.ts` line 12, `dockEditor/iconUtils.test.ts` line 3),
+  `react-core/workspace-setup-react` (3 files: `components/IconPicker.tsx`
+  lines 16–18 [3 imports], `components/IconPicker.test.tsx` line 4,
+  `ImportConfig.tsx` line 12), `react-grid/grid` (2 files:
+  `customizer/modules/column-customization/CellRendererEditors/IconTextEditor.tsx`
+  line 10, `.../CellRendererEditors.test.tsx` line 3). A fourth package,
+  `react-grid/config-browser`, was flagged during design-time grepping but
+  is **not** a real consumer — its `src/icons.tsx` only *mentions*
+  `@wellsfargo-starui/icons-svg` in a comment explaining it deliberately
+  uses `lucide-react` instead; confirmed no import and no dependency
+  declaration. No change needed there.
 - `openfin-platform`, `workspace-setup-react`, and `grid` already depend on
-  **both** `design-system` and `icons-svg` — after collapse they just drop
-  the now-redundant `icons-svg` line.
+  **both** `design-system` and `icons-svg` in `package.json` — after
+  collapse they just drop the now-redundant `icons-svg` line.
 
 ### Target state
 
@@ -138,13 +135,11 @@ when picked up.
   scripts/copy-assets.mjs && tsc -p tsconfig.icons.build.json && node
   scripts/copy-icons-assets.mjs` (exact script names/paths get finalized in
   the implementation plan — this spec fixes the *shape*, not every path).
-- **Consumer migration**: all 11 files in the 4 consumer packages get their
-  `@wellsfargo-starui/icons-svg` imports rewritten to
+- **Consumer migration**: all 9 import statements across the 7 files in the
+  3 real consumer packages get rewritten to
   `@wellsfargo-starui/design-system/icons...`; each consumer's
-  `package.json` drops the `icons-svg` dependency line (already covered by
-  their existing `design-system` dependency, or newly added for
-  `config-browser`, which gains an explicit declaration it was
-  missing).
+  `package.json` drops the now-redundant `icons-svg` dependency line
+  (already covered by their existing `design-system` dependency).
 
 ### Known, accepted gap: coverage tooling
 
@@ -203,7 +198,8 @@ consumer in this same change gets updated for real.
   this bucket, name `@wellsfargo-starui/design-system`, version `0.1.0`,
   18 `exports` entries, merged dependency lists as specified above.
 - `npm run pack:npm` emits 20 tarballs (was 21).
-- All 10 consumer-side `@wellsfargo-starui/icons-svg` imports are rewritten;
+- All 9 consumer-side `@wellsfargo-starui/icons-svg` import statements (7
+  files, 3 packages) are rewritten;
   `grep -r "@wellsfargo-starui/icons-svg" packages/` (excluding the merged
   package's own build artifacts, if any) returns nothing outside historical
   docs/comments.
