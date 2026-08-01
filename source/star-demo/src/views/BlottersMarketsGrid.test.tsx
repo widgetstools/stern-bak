@@ -19,7 +19,8 @@ import type { StarGridAppState } from '../starGridApp/types';
 
 const boot: PlatformBootstrapResult = {
   config: { appId: 'StarDemo', userId: 'dev1' },
-  platform: { configManager: { init: vi.fn() } } as PlatformBootstrapResult['platform'],
+  // Intentional partial mock: the view only reads configManager off the bundle.
+  platform: { configManager: { init: vi.fn() } } as unknown as PlatformBootstrapResult['platform'],
 };
 
 function makeAppState(): StarGridAppState {
@@ -29,7 +30,8 @@ function makeAppState(): StarGridAppState {
       setTheme: vi.fn(),
       onThemeChanged: () => () => {},
       openSurface: mockOpenSurface,
-    } as StarGridAppState['runtime'],
+      // Intentional partial mock: only the theme + surface slice is exercised.
+    } as unknown as StarGridAppState['runtime'],
     theme: 'dark',
     setTheme: vi.fn(),
     onThemeChanged: () => () => {},

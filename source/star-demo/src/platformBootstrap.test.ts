@@ -86,9 +86,11 @@ describe('platformBootstrap', () => {
       usePlatformBootstrap,
     } = await import('./platformBootstrap');
 
-    const boot = { config, platform };
+    // Intentional partial mock: the provider only stores and hands back the
+    // value, so the hub-bundle surface (ready/stopProvider/…) is never touched.
+    const boot = { config, platform } as unknown as import('./platformBootstrap').PlatformBootstrapResult;
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(PlatformBootstrapProvider, { value: boot }, children);
+      React.createElement(PlatformBootstrapProvider, { value: boot, children });
 
     const { result } = renderHook(() => usePlatformBootstrap(), { wrapper });
     expect(result.current).toBe(boot);

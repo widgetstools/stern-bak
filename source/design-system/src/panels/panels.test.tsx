@@ -31,7 +31,7 @@ import { VarTrend } from './risk/VarTrend';
 import { RiskLimits } from './risk/RiskLimits';
 import { ResearchList } from './research/ResearchList';
 import { NoteDetail } from './research/NoteDetail';
-import { mockToast } from '../testSetupMocks';
+import { mockToast, widgetProps } from '../testSetupMocks';
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -95,9 +95,9 @@ describe('market panels', () => {
   it('renders dock widget adapters', () => {
     render(
       <Providers>
-        <BlotterWidget />
-        <PriceChartWidget />
-        <OrderEntryWidget />
+        <BlotterWidget {...widgetProps()} />
+        <PriceChartWidget {...widgetProps()} />
+        <OrderEntryWidget {...widgetProps()} />
       </Providers>,
     );
     expect(getOneByTestId('ag-grid-react')).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe('market panels', () => {
   it('renders OrderBook and handles level click', async () => {
     render(
       <Providers>
-        <OrderBookWidget />
+        <OrderBookWidget {...widgetProps()} />
       </Providers>,
     );
     expect(screen.getByTestId('order-book')).toBeInTheDocument();
@@ -131,9 +131,9 @@ describe('orders panels', () => {
   it('renders orders blotter, kpi strip, and detail', async () => {
     render(
       <Providers>
-        <OrdersKpiStrip />
-        <OrdersBlotter />
-        <OrderDetail />
+        <OrdersKpiStrip {...widgetProps()} />
+        <OrdersBlotter {...widgetProps()} />
+        <OrderDetail {...widgetProps()} />
       </Providers>,
     );
     expect(screen.getByTestId('orders-kpi')).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe('orders panels', () => {
   it('selects an order row in the blotter', async () => {
     render(
       <Providers>
-        <OrdersBlotter />
+        <OrdersBlotter {...widgetProps()} />
       </Providers>,
     );
     const rows = screen.getAllByTestId(/^grid-row-/);
@@ -155,12 +155,12 @@ describe('analytics panels', () => {
   it('renders all analytics widgets', () => {
     render(
       <Providers>
-        <OasDurationScatter />
-        <DurationBuckets />
-        <SectorDonut />
-        <HistoricalOas />
-        <OasDistribution />
-        <PnlAttribution />
+        <OasDurationScatter {...widgetProps()} />
+        <DurationBuckets {...widgetProps()} />
+        <SectorDonut {...widgetProps()} />
+        <HistoricalOas {...widgetProps()} />
+        <OasDistribution {...widgetProps()} />
+        <PnlAttribution {...widgetProps()} />
       </Providers>,
     );
     expect(screen.getByTestId('panel-oasDuration')).toBeInTheDocument();
@@ -173,12 +173,12 @@ describe('risk panels', () => {
   it('renders all risk widgets', () => {
     render(
       <Providers>
-        <RiskKpiStrip />
-        <BookRisk />
-        <Dv01ByBook />
-        <RateScenarios />
-        <VarTrend />
-        <RiskLimits />
+        <RiskKpiStrip {...widgetProps()} />
+        <BookRisk {...widgetProps()} />
+        <Dv01ByBook {...widgetProps()} />
+        <RateScenarios {...widgetProps()} />
+        <VarTrend {...widgetProps()} />
+        <RiskLimits {...widgetProps()} />
       </Providers>,
     );
     expect(screen.getByTestId('panel-dv01ByBook')).toBeInTheDocument();
@@ -189,8 +189,8 @@ describe('research panels', () => {
   it('renders research list and note detail', async () => {
     render(
       <Providers>
-        <ResearchList />
-        <NoteDetail />
+        <ResearchList {...widgetProps()} />
+        <NoteDetail {...widgetProps()} />
       </Providers>,
     );
     expect(screen.getByTestId('panel-researchList')).toBeInTheDocument();
@@ -200,7 +200,7 @@ describe('research panels', () => {
   it('filters research notes by sector chip', () => {
     render(
       <Providers>
-        <ResearchList />
+        <ResearchList {...widgetProps()} />
       </Providers>,
     );
     const panel = getOneByTestId('panel-researchList');

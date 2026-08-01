@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ValueFormatterParams, ValueGetterParams } from 'ag-grid-community';
+import type { ColDef, ValueFormatterParams, ValueGetterParams } from 'ag-grid-community';
 import {
   baseColumns,
   COL_GROUP,
@@ -15,6 +15,12 @@ const fp = (value: unknown): ValueFormatterParams =>
 
 const gp = (data: Partial<LabRow> | undefined): ValueGetterParams<LabRow> =>
   ({ data }) as ValueGetterParams<LabRow>;
+
+/** `ColDef.valueGetter` is `string | ValueGetterFunc` — narrow to the callable form. */
+const getterOf = (col: ColDef<LabRow> | undefined) => {
+  const vg = col?.valueGetter;
+  return typeof vg === 'function' ? vg : undefined;
+};
 
 describe('fmt', () => {
   it('formats numeric and temporal values', () => {
@@ -72,15 +78,15 @@ describe('column helpers', () => {
   it('runs value getters for synthetic columns', () => {
     const widthCol = findCol('bidAskWidthBps');
     const sparkCol = findCol('krdSparkline');
-    expect(widthCol?.valueGetter?.(gp({ bidPrice: 100, askPrice: 101 }))).toBe(100);
-    expect(widthCol?.valueGetter?.(gp({ bidPrice: NaN, askPrice: 101 }))).toBeUndefined();
+    expect(getterOf(widthCol)?.(gp({ bidPrice: 100, askPrice: 101 }))).toBe(100);
+    expect(getterOf(widthCol)?.(gp({ bidPrice: NaN, askPrice: 101 }))).toBeUndefined();
     expect(
-      sparkCol?.valueGetter?.(
+      getterOf(sparkCol)?.(
         gp({ krd1Y: 1, krd2Y: 2, krd5Y: 3, krd10Y: 4, krd30Y: 5 }),
       ),
     ).toEqual([1, 2, 3, 4, 5]);
-    expect(sparkCol?.valueGetter?.(gp(undefined))).toBeUndefined();
-    expect(sparkCol?.valueGetter?.(gp({}))).toEqual([0, 0, 0, 0, 0]);
+    expect(getterOf(sparkCol)?.(gp(undefined))).toBeUndefined();
+    expect(getterOf(sparkCol)?.(gp({}))).toEqual([0, 0, 0, 0, 0]);
   });
 
   it('defines base columns and default col def', () => {

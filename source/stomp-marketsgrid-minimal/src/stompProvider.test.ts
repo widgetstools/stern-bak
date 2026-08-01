@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
 import {
   STOMP_HISTORICAL_PROVIDER_ID,
   STOMP_LIVE_PROVIDER_ID,
@@ -6,6 +7,17 @@ import {
   stompHistoricalProviderDraft,
   stompProviderDraft,
 } from './stompProvider.js';
+
+/** Narrows the catalog row's ProviderConfig union to the stomp shape. */
+function asStompConfig(config: ProviderConfig): StompProviderConfig {
+  if (config.providerType !== 'stomp') {
+    throw new Error(`expected a stomp provider config, got ${config.providerType}`);
+  }
+  return config;
+}
+
+const liveConfig = asStompConfig(stompProviderDraft.config);
+const historicalConfig = asStompConfig(stompHistoricalProviderDraft.config);
 
 describe('stompProvider', () => {
   it('exports stable provider ids and cfg version', () => {
@@ -23,11 +35,11 @@ describe('stompProvider', () => {
       public: false,
     });
     expect(stompProviderDraft.config.providerType).toBe('stomp');
-    expect(stompProviderDraft.config.websocketUrl).toBe('ws://localhost:8081');
-    expect(stompProviderDraft.config.listenerTopic).toBe('/snapshot/positions/TRADER001');
-    expect(stompProviderDraft.config.requestMessage).toBe('/snapshot/positions/TRADER001/1000/50');
-    expect(stompProviderDraft.config.keyColumn).toBe('positionId');
-    expect(stompProviderDraft.config.conflateByKey).toBe('positionId');
+    expect(liveConfig.websocketUrl).toBe('ws://localhost:8081');
+    expect(liveConfig.listenerTopic).toBe('/snapshot/positions/TRADER001');
+    expect(liveConfig.requestMessage).toBe('/snapshot/positions/TRADER001/1000/50');
+    expect(liveConfig.keyColumn).toBe('positionId');
+    expect(liveConfig.conflateByKey).toBe('positionId');
   });
 
   it('defines historical provider draft with date-templated destinations', () => {
@@ -36,20 +48,18 @@ describe('stompProvider', () => {
       name: 'STOMP Positions (Historical)',
       providerType: 'stomp',
     });
-    expect(stompHistoricalProviderDraft.config.listenerTopic).toBe(
+    expect(historicalConfig.listenerTopic).toBe(
       '/snapshot/positions/TRADER001/{{positions.asOfDate}}',
     );
-    expect(stompHistoricalProviderDraft.config.requestMessage).toBe(
+    expect(historicalConfig.requestMessage).toBe(
       '/snapshot/positions/TRADER001/{{positions.asOfDate}}/50',
     );
   });
 
   it('shares column definitions and live tuning between live and historical configs', () => {
-    expect(stompHistoricalProviderDraft.config.columnDefinitions).toEqual(
-      stompProviderDraft.config.columnDefinitions,
-    );
-    expect(stompHistoricalProviderDraft.config.throttleMs).toBe(100);
-    expect(stompHistoricalProviderDraft.config.snapshotChunkSize).toBe(1000);
-    expect(stompProviderDraft.config.columnDefinitions?.length).toBeGreaterThan(20);
+    expect(historicalConfig.columnDefinitions).toEqual(liveConfig.columnDefinitions);
+    expect(historicalConfig.throttleMs).toBe(100);
+    expect(historicalConfig.snapshotChunkSize).toBe(1000);
+    expect(liveConfig.columnDefinitions?.length).toBeGreaterThan(20);
   });
 });

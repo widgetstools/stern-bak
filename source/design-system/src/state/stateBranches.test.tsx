@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { getOneByTestId } from '../../../../test-utils/queries';
+import { widgetProps } from '../testSetupMocks';
 
 describe('DemoStateProvider empty seed branches', () => {
   afterEach(() => {
@@ -62,7 +63,7 @@ describe('RiskKpiStrip negative spread P&L branch', () => {
     });
 
     const { RiskKpiStrip } = await import('../panels/risk/RiskKpiStrip');
-    render(<RiskKpiStrip />);
+    render(<RiskKpiStrip {...widgetProps()} />);
     expect(getOneByTestId('panel-riskKpi')).toBeInTheDocument();
   });
 
@@ -78,7 +79,7 @@ describe('RiskKpiStrip negative spread P&L branch', () => {
     });
 
     const { RiskKpiStrip } = await import('../panels/risk/RiskKpiStrip');
-    render(<RiskKpiStrip />);
+    render(<RiskKpiStrip {...widgetProps()} />);
     expect(getOneByTestId('panel-riskKpi')).toBeInTheDocument();
   });
 });

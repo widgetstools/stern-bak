@@ -59,7 +59,9 @@ describe('StarGridApp', () => {
       <StarGridApp
         appId="demo"
         persistence="config"
-        configManager={configManager}
+        // Intentional partial mock: StarGridApp only awaits init() before
+        // rendering children; the rest of ConfigManager is never touched.
+        configManager={configManager as unknown as import('@wellsfargo-starui/core/host/config').ConfigManager}
       >
         <div data-testid="ready">Ready</div>
       </StarGridApp>,
@@ -75,7 +77,7 @@ describe('StarGridApp', () => {
 
   it('registers plugins after bootstrap', async () => {
     const register = vi.fn();
-    const plugin = { register };
+    const plugin = { id: 'test-plugin', register };
 
     render(
       <StarGridApp appId="demo" plugins={[plugin]}>

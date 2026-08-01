@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
 const dockApi = {
-  hasPanel: vi.fn(() => false),
+  hasPanel: vi.fn((_panelId: string) => false),
   closePanel: vi.fn(),
   addPanel: vi.fn(),
   floatPanel: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
 
 vi.mock('@wellsfargo-starui/react', () => {
   const passthrough =
-    (Tag: keyof JSX.IntrinsicElements = 'div') =>
+    (Tag: keyof React.JSX.IntrinsicElements = 'div') =>
     ({
       children,
       onClick,

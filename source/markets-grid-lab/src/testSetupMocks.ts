@@ -2,9 +2,11 @@ import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 import type { ValueFormatterParams, ValueGetterParams } from 'ag-grid-community';
+import type { ThemeOptions } from '@wellsfargo-starui/design-system';
+import type { StorageAdapterFactory } from '@wellsfargo-starui/grid';
 
 export const mockApplyTheme = vi.fn();
-export const mockGetTheme = vi.fn(() => ({ theme: 'dark' as const }));
+export const mockGetTheme = vi.fn((): ThemeOptions => ({ theme: 'dark' }));
 
 export const mockGridApi = {
   applyTransactionAsync: vi.fn((tx: unknown, cb?: () => void) => cb?.()),
@@ -94,9 +96,13 @@ vi.mock('@wellsfargo-starui/grid', () => ({
       'data-component-name': props.componentName,
     });
   },
-  createMarketsGridLocalStorageStorage: () => ({
-    load: vi.fn(),
-    save: vi.fn(),
+  // The real helper returns a StorageAdapterFactory FUNCTION (per-grid
+  // adapter factory), not an adapter object — mirror that shape honestly.
+  createMarketsGridLocalStorageStorage: (): StorageAdapterFactory => () => ({
+    loadProfile: vi.fn(async () => null),
+    saveProfile: vi.fn(async () => undefined),
+    deleteProfile: vi.fn(async () => undefined),
+    listProfiles: vi.fn(async () => []),
   }),
 }));
 
@@ -216,13 +222,11 @@ vi.mock('@wellsfargo-starui/react', () => {
     Sheet: ({
       open = false,
       children,
-      onOpenChange,
     }: React.PropsWithChildren<{ open?: boolean; onOpenChange?: (v: boolean) => void }>) =>
       React.createElement(
         SheetOpenContext.Provider,
         { value: open },
         React.createElement('div', { 'data-testid': 'sheet', 'data-open': String(open) }, children),
-        onOpenChange,
       ),
     SheetContent: ({
       children,

@@ -4,6 +4,7 @@ import { WIDGETS, type WidgetId } from './registry';
 import { DemoStateProvider } from '../../state/DemoStateProvider';
 import { ResearchProvider } from '../../state/ResearchProvider';
 import { ThemeModeProvider } from '../useThemeMode';
+import { widgetProps } from '../../testSetupMocks';
 
 const widgetIds = Object.keys(WIDGETS) as WidgetId[];
 
@@ -13,7 +14,7 @@ function renderWidget(id: WidgetId) {
     <ThemeModeProvider>
       <DemoStateProvider>
         <ResearchProvider>
-          <Widget />
+          <Widget {...widgetProps(id)} />
         </ResearchProvider>
       </DemoStateProvider>
     </ThemeModeProvider>,

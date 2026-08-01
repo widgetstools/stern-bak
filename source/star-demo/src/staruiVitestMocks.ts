@@ -4,8 +4,15 @@ import { vi } from 'vitest';
 
 export const mockApplyTheme = vi.fn();
 export const mockGetTheme = vi.fn(() => ({ theme: 'dark' as const }));
-export const mockSubscribeThemeBroadcast = vi.fn(() => () => {});
-export const mockInitWorkspace = vi.fn(() => Promise.resolve());
+export const mockSubscribeThemeBroadcast = vi.fn<
+  (listener: (theme: string) => void) => () => void
+>(() => () => {});
+// Matches the slice of the real initWorkspace(options) signature the tests
+// drive; the module mock below erases the type again, so this only has to be
+// honest, not complete.
+export const mockInitWorkspace = vi.fn<
+  (options?: { onProgress?: (message: string) => void }) => Promise<void>
+>(() => Promise.resolve());
 export const mockInstallTestBridge = vi.fn();
 export const mockOpenSurface = vi.fn(() => Promise.resolve());
 export const mockEnsureConfigReady = vi.fn();
@@ -59,7 +66,7 @@ export function resetStaruiMocks(): void {
 }
 
 vi.mock('@wellsfargo-starui/design-system', () => ({
-  applyTheme: (...args: unknown[]) => mockApplyTheme(...args),
+  applyTheme: mockApplyTheme,
   getTheme: () => mockGetTheme(),
   ThemeProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -72,7 +79,7 @@ vi.mock('@wellsfargo-starui/types', () => ({
 vi.mock('@wellsfargo-starui/openfin/host', () => ({
   OpenFinRuntime: { create: () => mockOpenFinRuntimeCreate() },
   isOpenFin: () => mockIsOpenFin(),
-  subscribeThemeBroadcast: (...args: unknown[]) => mockSubscribeThemeBroadcast(...args),
+  subscribeThemeBroadcast: mockSubscribeThemeBroadcast,
 }));
 
 vi.mock('@wellsfargo-starui/core/host/browser', () => ({
@@ -80,19 +87,19 @@ vi.mock('@wellsfargo-starui/core/host/browser', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/core/host', () => ({
-  buildGridHostContext: (...args: unknown[]) => mockBuildGridHostContext(...args),
-  storageFactoryForPersistence: (...args: unknown[]) => mockStorageFactoryForPersistence(...args),
-  defineStarGridPlugin: (...args: unknown[]) => mockDefineStarGridPlugin(...args),
+  buildGridHostContext: mockBuildGridHostContext,
+  storageFactoryForPersistence: mockStorageFactoryForPersistence,
+  defineStarGridPlugin: mockDefineStarGridPlugin,
 }));
 
 vi.mock('@wellsfargo-starui/core/host/config', () => ({
-  createConfigServiceStorage: (...args: unknown[]) => mockCreateConfigServiceStorage(...args),
-  createConfigPort: (...args: unknown[]) => mockCreateConfigPort(...args),
+  createConfigServiceStorage: mockCreateConfigServiceStorage,
+  createConfigPort: mockCreateConfigPort,
 }));
 
 vi.mock('@wellsfargo-starui/data', () => ({
-  ensureConfigReady: (...args: unknown[]) => mockEnsureConfigReady(...args),
-  ensurePlatformReady: (...args: unknown[]) => mockEnsurePlatformReady(...args),
+  ensureConfigReady: mockEnsureConfigReady,
+  ensurePlatformReady: mockEnsurePlatformReady,
   resolvePlatformBootstrapFromJson: (...args: unknown[]) =>
     mockResolvePlatformBootstrapFromJson(...args),
   resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>
@@ -102,7 +109,7 @@ vi.mock('@wellsfargo-starui/data', () => ({
 vi.mock('@wellsfargo-starui/openfin/config', () => ({
   resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>
     mockResolvePlatformBootstrapFromManifest(...args),
-  setConfigManager: (...args: unknown[]) => mockSetConfigManager(...args),
+  setConfigManager: mockSetConfigManager,
 }));
 
 vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
@@ -115,13 +122,13 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/openfin', () => ({
-  initWorkspace: (...args: unknown[]) => mockInitWorkspace(...args),
+  initWorkspace: mockInitWorkspace,
   ACTION_EXPORT_CONFIG: 'export-config',
   ACTION_IMPORT_CONFIG: 'import-config',
 }));
 
 vi.mock('@wellsfargo-starui/react/host/test-bridge', () => ({
-  installTestBridge: (...args: unknown[]) => mockInstallTestBridge(...args),
+  installTestBridge: mockInstallTestBridge,
 }));
 
 vi.mock('@wellsfargo-starui/grid/config-browser', () => ({

@@ -151,7 +151,7 @@ describe('InspectorDrawer', () => {
     render(
       <InspectorDrawer
         guide={guide}
-        configBlocks={[{ label: 'Sample', code: '{ "a": 1 }' }]}
+        configBlocks={[{ label: 'Sample', lang: 'json', code: '{ "a": 1 }' }]}
         fullDocs="# Full docs"
       />,
     );

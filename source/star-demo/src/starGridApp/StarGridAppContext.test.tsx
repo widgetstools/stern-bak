@@ -15,7 +15,8 @@ function makeState(): StarGridAppState {
       getTheme: () => 'dark',
       setTheme: () => {},
       onThemeChanged: () => () => {},
-    } as StarGridAppState['runtime'],
+      // Intentional partial mock: these tests only exercise the theme slice.
+    } as unknown as StarGridAppState['runtime'],
     theme: 'dark',
     setTheme: () => {},
     onThemeChanged: () => () => {},
@@ -33,7 +34,7 @@ describe('StarGridAppContext', () => {
   it('returns app state inside provider', () => {
     const state = makeState();
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(StarGridAppProvider, { value: state }, children);
+      React.createElement(StarGridAppProvider, { value: state, children });
 
     const { result } = renderHook(() => useStarGridApp(), { wrapper });
     expect(result.current).toBe(state);
@@ -42,7 +43,7 @@ describe('StarGridAppContext', () => {
   it('useStarGridHost delegates to hostForGrid', () => {
     const state = makeState();
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(StarGridAppProvider, { value: state }, children);
+      React.createElement(StarGridAppProvider, { value: state, children });
 
     const { result } = renderHook(
       () => useStarGridHost({ gridId: 'grid-a' }),

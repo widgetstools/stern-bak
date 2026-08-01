@@ -18,8 +18,7 @@ describe('dock helpers', () => {
     });
     const child = tg('g2', ['c']);
     const split = sp('s1', 'horizontal', [60, 40], [child]);
-    expect(split.type).toBe('split');
-    expect(split.direction).toBe('horizontal');
+    expect(split).toMatchObject({ type: 'split', direction: 'horizontal' });
   });
 
   it('base assembles docked placements for all panels', () => {

@@ -61,7 +61,11 @@ describe('seeds', () => {
   });
 
   it('defines quick filter pill sets', () => {
-    expect(QUICK_FILTERS_CURRICULUM.filters.some((p) => p.active)).toBe(true);
+    // SavedFiltersState.filters is unknown[] by design (filter models are
+    // opaque to core) — narrow to the pill contract the seed writes.
+    expect(
+      QUICK_FILTERS_CURRICULUM.filters.some((p) => (p as { active: boolean }).active),
+    ).toBe(true);
     expect(QUICK_FILTERS_EMPTY.filters).toEqual([]);
   });
 

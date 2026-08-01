@@ -1,20 +1,18 @@
 {
   "extends": "@wellsfargo-starui/platform/tsconfig.consumer.json",
   "compilerOptions": {
-    "composite": true,
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "outDir": "./node_modules/.tmp/tsc-out",
+    "noEmit": true,
     "types": [
       "./src/types/fin",
       "./src/types/svg"
     ]
   },
   "include": [
-    "src"
-  ],
-  "exclude": [
+    "src/vite-env.d.ts",
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
-    "src/staruiVitestMocks.ts"
+    "src/staruiVitestMocks.ts",
+    "../../test-utils/queries.ts",
+    "../../test-utils/vitePort.ts"
   ]
 }

@@ -2,10 +2,26 @@ import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { Controller } from 'react-hook-form';
 import { vi } from 'vitest';
+import { PanelApi } from '@widgetstools/dock-manager-core';
+import type { WidgetProps } from '@widgetstools/react-dock-manager';
 
 export const mockApplyTheme = vi.fn();
 export const mockGetTheme = vi.fn(() => ({ theme: 'dark' as const }));
 export const mockToast = vi.fn();
+
+/**
+ * Real, fully-typed `WidgetProps` for rendering dock widgets outside a dock.
+ * `PanelApi` is the actual core class (the dock-manager-core mock below spreads
+ * the original module), constructible from a panel id alone; the widgets under
+ * test ignore their props, so nothing else needs wiring.
+ */
+export function widgetProps(panelId = 'test-panel'): WidgetProps {
+  return {
+    panelId,
+    panel: { id: panelId, title: panelId },
+    api: new PanelApi(panelId),
+  };
+}
 
 const SheetOpenContext = React.createContext(false);
 const TabsContext = React.createContext<{ value?: string; onValueChange?: (v: string) => void }>({});

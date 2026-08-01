@@ -1,9 +1,12 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
+// Type-only import — erased at compile time, so it does not defeat the
+// vi.mock('@wellsfargo-starui/design-system') below.
+import type { ThemeOptions } from '@wellsfargo-starui/design-system';
 
 export const mockApplyTheme = vi.fn();
-export const mockGetTheme = vi.fn(() => ({ theme: 'dark' as const }));
+export const mockGetTheme = vi.fn((): ThemeOptions => ({ theme: 'dark' }));
 export const mockMarketsGridEvents = {
   on: vi.fn(),
   off: vi.fn(),

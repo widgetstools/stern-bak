@@ -16,8 +16,8 @@ describe('Provider', () => {
   });
 
   it('initializes workspace and prefetches tool chunks', async () => {
-    mockInitWorkspace.mockImplementation(async ({ onProgress }: { onProgress?: (msg: string) => void }) => {
-      onProgress?.('Starting…');
+    mockInitWorkspace.mockImplementation(async (options) => {
+      options?.onProgress?.('Starting…');
     });
 
     const Provider = (await import('./Provider')).default;

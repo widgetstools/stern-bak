@@ -1,4 +1,4 @@
-import '../testSetupMocks';
+import { widgetProps } from '../testSetupMocks';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -24,7 +24,7 @@ function mockDemo(overrides: {
 } = {}) {
   const state = { ...baseState, ...overrides.state };
   vi.spyOn(demoState, 'useDemoState').mockReturnValue({
-    store: { state },
+    store: { state, live: false, setLive: vi.fn(), intervalMs: 1200, setIntervalMs: vi.fn() },
     selectedId: overrides.selectedId ?? state.instruments[0]?.id ?? '',
     setSelectedId: vi.fn(),
     clickedPrice: null,
@@ -49,7 +49,7 @@ describe('panel branch coverage', () => {
 
   it('SectorDonut falls back when there are no positions', () => {
     mockDemo({ state: { positions: [] } });
-    render(<SectorDonut />);
+    render(<SectorDonut {...widgetProps()} />);
     expect(getOneByTestId('panel-sectorDonut')).toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe('panel branch coverage', () => {
         }],
       },
     });
-    render(<SectorDonut />);
+    render(<SectorDonut {...widgetProps()} />);
     expect(getOneByTestId('panel-sectorDonut')).toBeInTheDocument();
   });
 
@@ -79,7 +79,7 @@ describe('panel branch coverage', () => {
         quotes: { [inst.id]: { ...baseState.quotes[inst.id], oas: 99 } },
       },
     });
-    render(<OasDistribution />);
+    render(<OasDistribution {...widgetProps()} />);
     expect(getOneByTestId('panel-oasDistribution')).toBeInTheDocument();
   });
 
@@ -89,7 +89,7 @@ describe('panel branch coverage', () => {
       selectedNoteId: nullTarget.id,
       setSelectedNoteId: vi.fn(),
     });
-    const { unmount } = render(<NoteDetail />);
+    const { unmount } = render(<NoteDetail {...widgetProps()} />);
     expect(screen.getByText('—')).toBeInTheDocument();
     unmount();
 
@@ -97,44 +97,44 @@ describe('panel branch coverage', () => {
       selectedNoteId: 'missing-note',
       setSelectedNoteId: vi.fn(),
     });
-    render(<NoteDetail />);
+    render(<NoteDetail {...widgetProps()} />);
     expect(screen.getByText(/Select a note from the list/)).toBeInTheDocument();
   });
 
   it('OrderDetail covers sell, limit, pending, and empty selection', () => {
     const sellRfq = baseState.orders.find((o) => o.side === 'sell' && o.kind === 'RFQ')!;
     mockDemo({ selectedOrderId: sellRfq.id });
-    const { unmount: u1 } = render(<OrderDetail />);
+    const { unmount: u1 } = render(<OrderDetail {...widgetProps()} />);
     expect(screen.getByText('T+1')).toBeInTheDocument();
     expect(screen.getByText('SELL')).toBeInTheDocument();
     u1();
 
     const limit = baseState.orders.find((o) => o.kind === 'Limit')!;
     mockDemo({ selectedOrderId: limit.id });
-    const { unmount: u2 } = render(<OrderDetail />);
+    const { unmount: u2 } = render(<OrderDetail {...widgetProps()} />);
     expect(screen.getByText('T+2')).toBeInTheDocument();
     u2();
 
     const pending = baseState.orders.find((o) => o.filled === 0)!;
     mockDemo({ selectedOrderId: pending.id });
-    const { unmount: u3 } = render(<OrderDetail />);
+    const { unmount: u3 } = render(<OrderDetail {...widgetProps()} />);
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     u3();
 
     mockDemo({ selectedOrderId: 'missing-order' });
-    render(<OrderDetail />);
+    render(<OrderDetail {...widgetProps()} />);
     expect(screen.getByText(/Select an order to view detail/)).toBeInTheDocument();
   });
 
   it('OrdersKpiStrip handles empty order book', () => {
     mockDemo({ state: { orders: [] as Order[] } });
-    render(<OrdersKpiStrip />);
+    render(<OrdersKpiStrip {...widgetProps()} />);
     expect(getOneByTestId('orders-kpi')).toBeInTheDocument();
   });
 
   it('OrderBook shows fallback when quote data is missing', () => {
     mockDemo({ state: { quotes: {} }, selectedId: 'missing' });
-    render(<OrderBookWidget />);
+    render(<OrderBookWidget {...widgetProps()} />);
     expect(screen.getByText(/No instrument selected/)).toBeInTheDocument();
   });
 });

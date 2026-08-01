@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import type { ValueFormatterParams, ValueGetterParams } from 'ag-grid-community';
+import type { RefObject } from 'react';
+import type { GridApi } from 'ag-grid-community';
 import { applyDelta } from './applyDelta';
 import { labStorage } from './storage';
 import { useDebouncedValue } from './useDebouncedValue';
@@ -9,6 +10,7 @@ import {
   LAB_DEMO_PROFILES_FLAG_VERSION,
   useLabDemoProfiles,
 } from './useLabDemoProfiles';
+import type { LabDemoProfileEntry } from '../profiles/labProfileKit';
 import { mockGridApi, mockMarketsGridHandle, mockStreamControls } from '../testSetupMocks';
 import type { LabRow } from './types';
 
@@ -31,9 +33,10 @@ describe('applyDelta', () => {
 
 describe('labStorage', () => {
   it('is created from grid storage factory', () => {
+    // createMarketsGridLocalStorageStorage() yields a StorageAdapterFactory —
+    // a function MarketsGrid calls per grid instance to obtain an adapter.
     expect(labStorage).toBeDefined();
-    expect(typeof labStorage.load).toBe('function');
-    expect(typeof labStorage.save).toBe('function');
+    expect(typeof labStorage).toBe('function');
   });
 });
 
@@ -64,8 +67,14 @@ describe('useMockStream', () => {
     mockStreamControls.reset();
   });
 
+  // mockGridApi implements only the 3 GridApi methods useMockStream touches —
+  // the partial mock is the point, hence the through-unknown cast.
+  const mockGridApiRef = (): RefObject<GridApi | null> => ({
+    current: mockGridApi as unknown as GridApi,
+  });
+
   it('applies full snapshots to row state', async () => {
-    const gridApiRef = { current: null as typeof mockGridApi | null };
+    const gridApiRef: RefObject<GridApi | null> = { current: null };
     const rows: LabRow[] = [
       { id: '1', bidPrice: 100 } as LabRow,
       { id: '2', bidPrice: 101 } as LabRow,
@@ -81,7 +90,7 @@ describe('useMockStream', () => {
   });
 
   it('routes tick deltas through grid api when ready', () => {
-    const gridApiRef = { current: mockGridApi };
+    const gridApiRef = mockGridApiRef();
     renderHook(() => useMockStream('mock-ticks', {}, { gridApiRef }));
 
     act(() =>
@@ -91,7 +100,7 @@ describe('useMockStream', () => {
   });
 
   it('clears rows when provider id changes', async () => {
-    const gridApiRef = { current: mockGridApi };
+    const gridApiRef = mockGridApiRef();
     const { rerender } = renderHook(
       ({ providerId }) => useMockStream(providerId, {}, { gridApiRef }),
       { initialProps: { providerId: 'a' } },
@@ -109,8 +118,8 @@ describe('useLabDemoProfiles', () => {
   });
 
   it('installs demo profiles on first mount', async () => {
-    const profiles = [
-      { id: 'p1', name: 'One', blurb: 'b', seed: { 'general-settings': { activeDurationMs: 100 } } },
+    const profiles: LabDemoProfileEntry[] = [
+      { id: 'p1', name: 'One', blurb: 'b', seed: { 'general-settings': { cellFlashDuration: 100 } } },
     ];
     const { result } = renderHook(() =>
       useLabDemoProfiles('grid-test', profiles, 'p1'),

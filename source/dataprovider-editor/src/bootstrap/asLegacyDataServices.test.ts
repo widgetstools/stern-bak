@@ -1,14 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import { asLegacyDataServices } from './asLegacyDataServices';
 
 describe('asLegacyDataServices', () => {
   it('maps hub bundle fields onto legacy DataServices shape', async () => {
     const dispose = vi.fn();
     const ready = Promise.resolve();
+    // The bridge passes these three services through by reference, so opaque
+    // tokens standing in for the real classes are the point of the mock.
     const bundle = {
-      client: { id: 'client' },
-      appData: { id: 'appData' },
-      configManager: { id: 'configManager' },
+      client: { id: 'client' } as unknown as DataServices['client'],
+      appData: { id: 'appData' } as unknown as DataServices['appData'],
+      configManager: { id: 'configManager' } as unknown as DataServices['configManager'],
       ready,
       dispose,
     };
