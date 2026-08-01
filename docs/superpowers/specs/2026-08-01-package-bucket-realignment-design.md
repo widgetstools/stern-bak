@@ -20,6 +20,37 @@ moving the three misfiled folders to their correct buckets, with all
 package names, npm identities, and per-package `package.json`s unchanged.
 Collapsing buckets into single `package.json`s is a separate, later spec.
 
+## Convention constraint
+
+This phase uses only mechanisms npm workspaces and TypeScript project
+references already provide — nothing bespoke:
+
+- **Folder moves are `git mv`, full stop.** No symlinks, no transitional
+  re-export shims, no dual-publishing a package under two paths during a
+  cutover window.
+- **Package identity doesn't move.** Name, version, `exports` map, `main`,
+  `types` in each `package.json` stay exactly as they are — only the parent
+  directory changes. Consumers resolve by npm package name today and after;
+  nothing about that resolution changes.
+- **`workspaces` in the root `package.json` stays a plain array of
+  glob/explicit-path strings** (the form already in use) — no custom
+  workspace-discovery script, no `pnpm`-style `workspace:*` protocol (this
+  repo is npm-only per `CLAUDE.md`).
+- **`tsconfig.json` edits are limited to what the move literally breaks**
+  (the `references` paths in `host-config`, per step 4 below) — not a
+  broader tsconfig cleanup or restructuring of `extends`/`references`
+  conventions.
+- **The two Tailwind content-glob scripts get a mechanical path-segment
+  edit** (old bucket name → new bucket name in existing string literals) —
+  not a rewrite to a dynamic/glob-based discovery mechanism, even though
+  that would arguably be more robust. That's a separate improvement, not
+  bundled into this move.
+
+If executing any step turns out to need something more elaborate than a
+`git mv` plus the specific fix-ups listed below, that's a signal the plan is
+wrong, not a cue to add tooling — stop and revisit rather than reaching for
+a workaround.
+
 ## Non-goals (explicitly out of scope for this phase)
 
 - Collapsing 21 `package.json` files into 7.
