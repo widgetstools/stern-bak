@@ -2,7 +2,7 @@ import * as React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnyModule } from '@wellsfargo-starui/engine';
+import type { AnyModule } from '@wellsfargo-starui/core';
 import { SettingsModuleMenubar } from './SettingsModuleMenubar';
 
 function mod(id: string, name = id): AnyModule {

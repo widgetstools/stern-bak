@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   COMPONENT_TYPE_APPDATA,
   COMPONENT_TYPE_DATA_PROVIDER,

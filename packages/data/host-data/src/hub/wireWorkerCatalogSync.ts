@@ -1,4 +1,4 @@
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { SharedWorkerDataServicesClient } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import { isCatalogConfigRow } from './isCatalogConfigRow.js';
 

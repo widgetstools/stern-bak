@@ -13,7 +13,7 @@ import type {
   ColumnCustomizationState,
   ValueFormatterTemplate,
 } from './state';
-import type { ThemedCellStyleOverrides } from '@wellsfargo-starui/engine';
+import type { ThemedCellStyleOverrides } from '@wellsfargo-starui/core';
 import {
   applyAlignmentReducer,
   applyBordersReducer,

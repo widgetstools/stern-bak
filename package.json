@@ -12,7 +12,7 @@
     "packages/openfin",
     "packages/react-core",
     "packages/types",
-    "packages/core/*"
+    "packages/core"
   ],
   "scripts": {
     "install:all": "npm install && npm run build:packages",

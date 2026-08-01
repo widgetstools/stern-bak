@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import {
   DEFAULT_ALERTS_SETTINGS,
   type AlertHit,
   type AlertRule,
   type AlertsSettings,
   type AlertsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { createAlertDispatcher } from './dispatch';
 
 function makePlatform(initial: AlertsState): {

@@ -8,7 +8,7 @@
  *
  *   import { HostWrapper, useHost } from '@wellsfargo-starui/react/host';
  *   import { BrowserRuntime } from '@wellsfargo-starui/runtime-browser';
- *   import { createConfigManager } from '@wellsfargo-starui/host-config';
+ *   import { createConfigManager } from '@wellsfargo-starui/core/host/config';
  *
  *   const runtime = new BrowserRuntime({ identity: { appId, userId } });
  *   const configManager = createConfigManager({ configServiceRestUrl: baseUrl });

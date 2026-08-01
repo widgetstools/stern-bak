@@ -8,8 +8,8 @@ import type {
   Unsubscribe,
 } from '@wellsfargo-starui/types';
 import { THEME_STORAGE_KEY } from '@wellsfargo-starui/types';
-import type { RuntimePort } from '@wellsfargo-starui/host';
-import type { IdentityOverrides } from '@wellsfargo-starui/host-browser';
+import type { RuntimePort } from '@wellsfargo-starui/core/host';
+import type { IdentityOverrides } from '@wellsfargo-starui/core/host/browser';
 import { resolveOpenFinIdentity, getCurrentView, isOpenFin } from './identity.js';
 import { openOpenFinPopout } from './popout.js';
 import { readThemePayload } from './themeBroadcast.js';

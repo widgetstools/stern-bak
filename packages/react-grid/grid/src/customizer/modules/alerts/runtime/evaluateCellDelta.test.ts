@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ExpressionEngine, type AlertRule, type AlertTrigger } from '@wellsfargo-starui/engine';
+import { ExpressionEngine, type AlertRule, type AlertTrigger } from '@wellsfargo-starui/core';
 import { collectWatchedColIds, evaluateCellDelta, partitionEnabledRules } from './evaluateCellDelta.js';
 import { createPreviousValuesStore } from './previousValues.js';
 

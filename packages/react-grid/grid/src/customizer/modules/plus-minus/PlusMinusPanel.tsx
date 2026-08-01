@@ -5,14 +5,14 @@ import {
   Input,
   Switch,
 } from '@wellsfargo-starui/react';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import {
   defaultPlusMinusNudge,
   PLUS_MINUS_MODULE_ID,
   type PlusMinusNudge,
   type PlusMinusSettings,
   type PlusMinusState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useModuleState } from '../../hooks/useModuleState';

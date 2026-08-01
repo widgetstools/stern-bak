@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, waitFor } from '@testing-library/react';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 const lastProviderGridHost = { current: null as { available?: boolean } | null };
 

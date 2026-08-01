@@ -7,7 +7,7 @@
  * so legacy / malformed entries from older profile snapshots are dropped
  * or normalized at load time instead of poisoning runtime state.
  */
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 
 export const SAVED_FILTERS_MODULE_ID = 'saved-filters';
 

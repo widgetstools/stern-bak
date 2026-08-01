@@ -89,8 +89,8 @@ vi.mock('../customizer/hooks/useModuleState.js', () => ({
   useModuleState: () => [undefined, vi.fn()],
 }));
 
-vi.mock('@wellsfargo-starui/engine', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/engine')>();
+vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/core')>();
   return {
     ...actual,
     MemoryAdapter: class MemoryAdapter {

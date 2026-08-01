@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { createInPageWiring, SharedWorkerDataServicesClient } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import { SharedWorkerDataServicesHub, type PortLike } from '../runtime/worker/SharedWorkerDataServicesHub.js';

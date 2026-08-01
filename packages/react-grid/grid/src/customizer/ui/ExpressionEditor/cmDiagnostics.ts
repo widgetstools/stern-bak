@@ -1,6 +1,6 @@
 import { linter, type Diagnostic } from '@codemirror/lint';
 import type { Extension } from '@codemirror/state';
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
 
 /**
  * Parse-error + deprecation diagnostics for the DSL.

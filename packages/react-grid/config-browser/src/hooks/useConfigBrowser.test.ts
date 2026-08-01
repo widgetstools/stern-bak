@@ -4,7 +4,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { createFakeConfigManager, type FakeConfigManager } from '../test-utils/fakeConfigManager';
 
 /**
- * Mock the module boundary, not the hook. `@wellsfargo-starui/host-config`
+ * Mock the module boundary, not the hook. `@wellsfargo-starui/core/host/config`
  * (buildDeployExport, normalizeImportedAppConfigRow) stays real so the
  * import-reowning and deploy-validation logic under test is the shipped one.
  */

@@ -8,7 +8,7 @@
  * contract instead of importing app-internal symbols.
  */
 
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { StorageAdapterFactory } from '@wellsfargo-starui/grid';
 
 export type { ConfigManager, StorageAdapterFactory };

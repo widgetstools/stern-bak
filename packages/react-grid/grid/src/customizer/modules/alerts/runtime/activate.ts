@@ -25,8 +25,8 @@
  * falsely fire relativeChange alerts against a stale baseline.
  */
 
-import type { GridApi, Module, PlatformHandle, RowChange } from '@wellsfargo-starui/engine';
-import { detectRowChanges, type AlertsState } from '@wellsfargo-starui/engine';
+import type { GridApi, Module, PlatformHandle, RowChange } from '@wellsfargo-starui/core';
+import { detectRowChanges, type AlertsState } from '@wellsfargo-starui/core';
 
 /** Structural shape of an AG-Grid row node — avoids leaking an ag-grid import. */
 type RowNodeLike = { id?: unknown; data?: Record<string, unknown> };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_ALERTS } from '@wellsfargo-starui/engine';
+import { INITIAL_ALERTS } from '@wellsfargo-starui/core';
 import { alertsModule, ALERTS_MODULE_ID } from './index';
 
 describe('alertsModule', () => {

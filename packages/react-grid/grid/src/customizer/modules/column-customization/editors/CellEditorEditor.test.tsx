@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { AppDataLookup } from '@wellsfargo-starui/engine';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import type { AppDataLookup } from '@wellsfargo-starui/core';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../../hooks/GridProvider';
 import { CellEditorEditor, parseValuesSource } from './CellEditorEditor';
 import { pickNativeSelect } from '../../../test/selectHelpers';

@@ -59,7 +59,7 @@
  */
 const DELETION_ENABLED = false;
 
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import { COMPONENT_TYPES } from '@wellsfargo-starui/types';
 import { deriveSingletonConfigId } from './registryConfigTypes';
 import { loadRegistryConfig } from './db';

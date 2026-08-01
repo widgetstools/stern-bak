@@ -6,7 +6,7 @@ import {
   defaultShortcut,
   GridPlatform,
   INITIAL_SHORTCUTS,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { shortcutsModule } from '../index.js';
 
 function makeMockApi() {

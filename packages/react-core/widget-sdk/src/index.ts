@@ -8,7 +8,7 @@ export type {
   ParentIdentity,
   SettingsScreenContext,
   ActionContext,
-} from '@wellsfargo-starui/widget';
+} from '@wellsfargo-starui/core/widget';
 
 export type { SettingsScreenDefinition } from './types/settings.js';
 
@@ -25,19 +25,19 @@ export { WidgetHost, useWidgetHost } from './providers/WidgetHost.js';
 export { useWidget } from './hooks/useWidget.js';
 export { useSettingsScreen } from './hooks/useSettingsScreen.js';
 
-export { BrowserAdapter } from '@wellsfargo-starui/widget-browser';
+export { BrowserAdapter } from '@wellsfargo-starui/core/widget/browser';
 export {
   getLayouts,
   saveLayout,
   loadLayout,
   deleteLayout,
-} from '@wellsfargo-starui/widget';
+} from '@wellsfargo-starui/core/widget';
 
-export { createConfigManager } from '@wellsfargo-starui/host-config';
+export { createConfigManager } from '@wellsfargo-starui/core/host/config';
 export type {
   ConfigManager,
   ConfigManagerOptions,
-} from '@wellsfargo-starui/host-config';
+} from '@wellsfargo-starui/core/host/config';
 
 export { renderSlot } from './extensibility/renderSlot.js';
 export { createExtendedWidget } from './extensibility/createExtendedWidget.js';

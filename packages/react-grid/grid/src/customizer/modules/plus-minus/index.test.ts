@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_PLUS_MINUS,
   PLUS_MINUS_MODULE_ID,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { plusMinusModule } from './index';
 
 describe('plusMinusModule', () => {

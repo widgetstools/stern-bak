@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
 import { createTriggerCache } from './triggerCache.js';
 
 describe('createTriggerCache', () => {

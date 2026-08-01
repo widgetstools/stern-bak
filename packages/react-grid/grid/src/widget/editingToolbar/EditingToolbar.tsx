@@ -10,7 +10,7 @@ import {
   type PlusMinusState,
   type ShortcutsState,
   type SmartEditState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useModuleState } from '../../customizer/hooks/useModuleState';
 import { BulkUpdateToolbarBody } from '../../customizer/modules/bulk-update/BulkUpdateToolbarBody';
 import { EditHistoryToolbarBody } from '../../customizer/modules/data-change-history/EditHistoryToolbarBody';

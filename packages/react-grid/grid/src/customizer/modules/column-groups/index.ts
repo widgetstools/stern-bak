@@ -12,7 +12,7 @@
  * render applies it as `ColGroupDef.openByDefault`, so reloading the app
  * restores the exact layout the user left.
  */
-import type { Module, PlatformHandle } from '@wellsfargo-starui/engine';
+import type { Module, PlatformHandle } from '@wellsfargo-starui/core';
 import {
   isColumnGroupsState,
   type ColumnGroupNode,
@@ -26,7 +26,7 @@ import {
   hasHeaderBorders,
   hasHeaderStyle,
 } from './composeGroups';
-import type { CssHandle } from '@wellsfargo-starui/engine';
+import type { CssHandle } from '@wellsfargo-starui/core';
 import { cssEscapeColId } from '../column-customization/transforms';
 import {
   ColumnGroupsEditor,

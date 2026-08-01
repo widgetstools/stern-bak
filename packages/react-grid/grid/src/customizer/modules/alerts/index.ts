@@ -21,12 +21,12 @@
  *   ./AlertsBadge.tsx             — toolbar bell + notification popover
  */
 
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   deserializeAlertsState,
   INITIAL_ALERTS,
   type AlertsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { AlertsEditor, AlertsList, AlertsPanel } from './AlertsPanel';
 import { activateAlerts } from './runtime/activate';
 

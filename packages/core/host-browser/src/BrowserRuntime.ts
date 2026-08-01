@@ -1,4 +1,4 @@
-import type { RuntimePort } from '@wellsfargo-starui/host';
+import type { RuntimePort } from '@wellsfargo-starui/core/host';
 import type {
   IdentitySnapshot,
   SurfaceHandle,

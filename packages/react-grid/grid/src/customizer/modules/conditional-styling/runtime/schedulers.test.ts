@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTimedRuleStore } from '@wellsfargo-starui/engine';
+import { createTimedRuleStore } from '@wellsfargo-starui/core';
 import {
   createExpiryScheduler,
   createRefreshScheduler,

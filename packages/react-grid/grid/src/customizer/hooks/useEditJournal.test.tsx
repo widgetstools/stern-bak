@@ -3,7 +3,7 @@
  */
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from './GridProvider';
 import { clearEditJournalRegistry, getEditJournal } from '../editing/editJournalScope';
 import { useEditJournal, useSyncJournalSuspend } from './useEditJournal';

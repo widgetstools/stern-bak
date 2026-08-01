@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTimedRuleStore } from '@wellsfargo-starui/engine';
+import { createTimedRuleStore } from '@wellsfargo-starui/core';
 import { createTimedActivations } from './timedActivations.js';
 import type { TriggerCache } from './triggerCache.js';
 

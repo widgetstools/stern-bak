@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { AppConfigRow } from '@wellsfargo-starui/types/shared';
-import type { ParentIdentity, PlatformAdapter } from '@wellsfargo-starui/widget';
+import type { ParentIdentity, PlatformAdapter } from '@wellsfargo-starui/core/widget';
 
 /**
  * useWidget wires a widget to config, layouts, lifecycle and the platform
  * adapter. ConfigManager is mocked at the module edge (Dexie boundary); the
- * layout helpers from `@wellsfargo-starui/widget` run for real against the
+ * layout helpers from `@wellsfargo-starui/core/widget` run for real against the
  * fake store, so the round-trip through them is exercised too.
  *
  * Each test uses its own configId: WidgetHost shares a module-level
@@ -52,7 +52,7 @@ const configManager = {
   deleteConfig: vi.fn(async (id: string) => { rows.delete(id); }),
 };
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: () => configManager,
 }));
 

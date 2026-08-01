@@ -34,7 +34,7 @@ import {
 } from '@wellsfargo-starui/grid';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
 import { traceStompProviderCfg } from '@wellsfargo-starui/data/runtime';
-import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/engine';
+import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/core';
 import {
   useDataProviderConfig,
   useResolvedCfg,

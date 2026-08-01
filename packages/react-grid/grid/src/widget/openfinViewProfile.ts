@@ -1,5 +1,5 @@
 /// <reference path="../types/openfinRuntime.d.ts" />
-import type { ActiveIdSource } from '@wellsfargo-starui/engine';
+import type { ActiveIdSource } from '@wellsfargo-starui/core';
 
 /**
  * OpenFin per-view active-profile pointer source.

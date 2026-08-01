@@ -1,4 +1,4 @@
-import type { FlashColor } from '@wellsfargo-starui/engine';
+import type { FlashColor } from '@wellsfargo-starui/core';
 import { FLASH_PALETTE } from '../conditional-styling/transforms';
 
 export const CELL_CHANGE_FLASH_CSS_RULE_ID = 'cell-change-flash-color';

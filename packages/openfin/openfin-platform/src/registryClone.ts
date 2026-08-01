@@ -10,7 +10,7 @@
  * it from scratch.
  */
 
-import type { AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import { getConfigManager } from './db';
 import { deriveTemplateConfigId } from './registryConfigTypes';
 

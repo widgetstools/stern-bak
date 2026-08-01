@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { defaultShortcut, EditJournal } from '@wellsfargo-starui/engine';
+import { defaultShortcut, EditJournal } from '@wellsfargo-starui/core';
 import { applyShortcutEdit } from './applyShortcutEdit.js';
 
 describe('applyShortcutEdit', () => {

@@ -8,7 +8,7 @@
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus, WireEncoding, AppDataEvent, SubscriberMeta } from '../protocol.js';
 import type { ProviderHandle } from '../providers/Provider.js';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 
 /**

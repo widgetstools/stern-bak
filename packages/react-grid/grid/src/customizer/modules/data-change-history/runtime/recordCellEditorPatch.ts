@@ -1,4 +1,4 @@
-import type { CellPatch, DataChangeHistoryState, TransformContext } from '@wellsfargo-starui/engine';
+import type { CellPatch, DataChangeHistoryState, TransformContext } from '@wellsfargo-starui/core';
 import { isJournalApplyInProgress } from '../../../editing/journalApplyGuard.js';
 import { resolveEditRecording } from '../../../editing/recordEdit.js';
 

@@ -2,11 +2,11 @@
  * @wellsfargo-starui/grid/customizer — React UI for the MarketsUI grid customizer.
  *
  * Hosts every React surface that previously lived under
- * `@wellsfargo-starui/engine/src/{ui,hooks,modules}` (extracted in PR-8). Consumers
+ * `@wellsfargo-starui/core/src/{ui,hooks,modules}` (extracted in PR-8). Consumers
  * are `@wellsfargo-starui/markets-grid` and any host app that needs the
  * settings-panel primitives, hooks, or module definitions.
  *
- * `@wellsfargo-starui/engine` remains framework-agnostic vanilla TS: GridPlatform,
+ * `@wellsfargo-starui/core` remains framework-agnostic vanilla TS: GridPlatform,
  * ProfileManager, expression engine, persistence adapters, etc.
  */
 
@@ -362,7 +362,7 @@ export {
   exportVisualExcel,
   type VisualExcelExportOptions,
 } from './modules/visual-excel';
-export type { VisualExcelState } from '@wellsfargo-starui/engine';
+export type { VisualExcelState } from '@wellsfargo-starui/core';
 export {
   toolbarVisibilityModule,
   TOOLBAR_VISIBILITY_MODULE_ID,

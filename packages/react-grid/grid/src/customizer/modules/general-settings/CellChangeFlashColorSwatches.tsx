@@ -1,5 +1,5 @@
 import { controls, radius, spacing } from '@wellsfargo-starui/design-system/tokens';
-import type { FlashColor } from '@wellsfargo-starui/engine';
+import type { FlashColor } from '@wellsfargo-starui/core';
 import { ChromeButton } from '../../ui/ChromeButton';
 import { FLASH_PALETTE } from '../conditional-styling/transforms';
 

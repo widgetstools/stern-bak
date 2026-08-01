@@ -5,4 +5,4 @@ export type {
   StyleEditorDataType,
   TextAlign,
   FontWeight,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';

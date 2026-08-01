@@ -32,7 +32,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createConfigServiceStorage } from './profileBundle';
 import type { AppConfigRow } from './types';
 import type { ConfigManager } from './ConfigManager';
-import type { ProfileSnapshot } from '@wellsfargo-starui/engine';
+import type { ProfileSnapshot } from '@wellsfargo-starui/core';
 
 // ─── In-memory ConfigManager fake ───────────────────────────────────
 

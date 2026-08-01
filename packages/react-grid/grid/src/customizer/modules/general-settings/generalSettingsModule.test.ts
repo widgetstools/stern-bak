@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { TransformContext } from '@wellsfargo-starui/engine';
+import type { TransformContext } from '@wellsfargo-starui/core';
 import { generalSettingsModule } from './index';
 import { INITIAL_GENERAL_SETTINGS } from './state';
 import {

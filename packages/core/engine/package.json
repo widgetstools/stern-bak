@@ -1,49 +1,6 @@
 {
-  "name": "@wellsfargo-starui/engine",
-  "version": "0.1.0",
+  "//": "Build shim, NOT a workspace member — @wellsfargo-starui/core is the only package in this bucket. vite-plugin-dts walks up from the entry to the nearest package.json for the types-entry path; without this file it finds the bucket manifest and resolves its './engine/dist/index.d.ts' against engine/ itself, so the declaration rollup fails on engine/engine/dist. Excluded from the packed tarball (bucket 'files' lists engine/dist only).",
+  "name": "core-engine-build-shim",
   "private": true,
-  "description": "Vanilla TS grid engine \u2014 GridPlatform, ProfileManager, ExpressionEngine (ported from @wellsfargo-starui/core)",
-  "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "rimraf dist tsconfig.tsbuildinfo && tsc && vite build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "bench": "vitest bench --run"
-  },
-  "peerDependencies": {
-    "ag-grid-community": "^35.1.0"
-  },
-  "dependencies": {
-    "@wellsfargo-starui/types": "*",
-    "ssf": "^0.11.2",
-    "zustand": "^5.0.12"
-  },
-  "devDependencies": {
-    "ag-grid-community": "35.1.0",
-    "ag-grid-enterprise": "35.1.0",
-    "ag-grid-react": "35.1.0",
-    "jsdom": "^29.0.2",
-    "rimraf": "^6.0.1",
-    "typescript": "~5.9.3",
-    "vite": "~7.3.2",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^4.1.4"
-  },
-  "sideEffects": [
-    "*.css"
-  ]
+  "type": "module"
 }

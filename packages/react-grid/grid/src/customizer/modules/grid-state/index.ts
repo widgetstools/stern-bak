@@ -13,7 +13,7 @@
  * AG-Grid's `GridStateModule` must be registered globally — it ships in
  * `AllEnterpriseModule`, which MarketsGrid already registers.
  */
-import type { Module, PlatformHandle } from '@wellsfargo-starui/engine';
+import type { Module, PlatformHandle } from '@wellsfargo-starui/core';
 import {
   GRID_STATE_SCHEMA_VERSION,
   INITIAL_GRID_STATE,

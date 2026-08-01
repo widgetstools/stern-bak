@@ -5,7 +5,7 @@ import {
   bulkUpdateValueKind,
   resolveColumnDistinctValues,
   type BulkUpdateState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   AlertDialog,
   AlertDialogAction,

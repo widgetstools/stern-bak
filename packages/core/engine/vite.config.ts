@@ -31,7 +31,7 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
       // Self-imports in src/ use the package name; map to source during the lib build.
-      '@wellsfargo-starui/engine': resolve(__dirname, 'src/index.ts'),
+      '@wellsfargo-starui/core': resolve(__dirname, 'src/index.ts'),
     },
   },
 });

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, Hash, Search, X } from 'lucide-react';
 import { controls, radius, spacing, typography } from '@wellsfargo-starui/design-system/tokens';
 import { Input, Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@wellsfargo-starui/react';
-import type { ValueFormatterTemplate } from '@wellsfargo-starui/engine';
+import type { ValueFormatterTemplate } from '@wellsfargo-starui/core';
 import { FormatPopover } from '../format-editor';
 import { SubLabel } from '../SettingsPanel';
 import { ChromeButton } from '../ChromeButton';

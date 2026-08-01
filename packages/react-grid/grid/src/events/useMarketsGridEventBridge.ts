@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { AppDataLookup, ApiEventName, PlatformEventMap } from '@wellsfargo-starui/engine';
+import type { AppDataLookup, ApiEventName, PlatformEventMap } from '@wellsfargo-starui/core';
 import type { MarketsGridHandle } from '../widget/types.js';
 import { isMarketsGridEventId, type MarketsGridEventId } from './marketsGridEventCatalog.js';
 import type {

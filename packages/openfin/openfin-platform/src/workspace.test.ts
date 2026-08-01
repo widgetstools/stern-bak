@@ -42,7 +42,7 @@ vi.mock('@openfin/workspace', () => ({
   Storefront,
 }));
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...a: unknown[]) => createConfigManager(...a),
 }));
 

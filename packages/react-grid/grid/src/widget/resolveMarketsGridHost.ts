@@ -1,5 +1,5 @@
-import type { GridHostContext, StoragePort, DataPort } from '@wellsfargo-starui/host';
-import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/engine';
+import type { GridHostContext, StoragePort, DataPort } from '@wellsfargo-starui/core/host';
+import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/core';
 
 /**
  * Bridge GridHostContext.storage (StoragePort) to engine StorageAdapter.

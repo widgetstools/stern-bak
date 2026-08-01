@@ -16,7 +16,7 @@ import { isAppDataRequest, isRequest } from '../protocol';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../providers/Provider';
 import type { ProviderStats, ProviderStatus } from '../protocol';
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import { DataProviderConfigStore } from '../config/store.js';
 
 interface TestController {

@@ -3,7 +3,7 @@
  * and K/M/B magnitude shortcuts.
  */
 
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   applySmartEditColDefTransforms,
   deserializeSmartEditState,
@@ -11,7 +11,7 @@ import {
   SMART_EDIT_MODULE_ID,
   SMART_EDIT_SCHEMA_VERSION,
   type SmartEditState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { SmartEditPanel } from './SmartEditPanel.js';
 import { activateSmartEdit } from './runtime/activate.js';
 

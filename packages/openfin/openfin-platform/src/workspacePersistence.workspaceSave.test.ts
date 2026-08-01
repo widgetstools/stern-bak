@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   createWorkspacePersistenceOverride,
   __resetWorkspaceSaveChannelForTests,

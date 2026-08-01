@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isValidExcelFormat,
   type ValueFormatterTemplate,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   defaultSampleValue,
   findMatchingPreset,

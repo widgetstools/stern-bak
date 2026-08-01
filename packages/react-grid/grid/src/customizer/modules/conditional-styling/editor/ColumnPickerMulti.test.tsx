@@ -5,7 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Column, GridApi } from 'ag-grid-community';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../../hooks/GridProvider';
 import { ColumnPickerMulti } from './ColumnPickerMulti';
 

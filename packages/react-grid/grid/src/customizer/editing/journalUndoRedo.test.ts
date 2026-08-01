@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EditJournal } from '@wellsfargo-starui/engine';
+import { EditJournal } from '@wellsfargo-starui/core';
 import { journalRedo, journalUndo, journalUndoEntry } from './journalUndoRedo';
 
 describe('journalUndoRedo', () => {

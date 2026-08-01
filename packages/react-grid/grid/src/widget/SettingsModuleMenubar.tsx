@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties } from 'react';
-import type { AnyModule } from '@wellsfargo-starui/engine';
+import type { AnyModule } from '@wellsfargo-starui/core';
 import {
   Menubar,
   MenubarContent,

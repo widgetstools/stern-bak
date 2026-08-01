@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, RemoveFormatting } from 'lucide-react';
 import { FormatColorPicker, FormatDropdown, FormatPopover } from '../format-editor';
-import type { BorderSpec } from '@wellsfargo-starui/engine';
+import type { BorderSpec } from '@wellsfargo-starui/core';
 import { ChromeButton } from '../ChromeButton';
 
 /**

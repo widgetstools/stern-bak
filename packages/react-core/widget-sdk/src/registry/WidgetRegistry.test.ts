@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WidgetProps } from '@wellsfargo-starui/widget';
+import type { WidgetProps } from '@wellsfargo-starui/core/widget';
 import { WidgetRegistry } from './WidgetRegistry.js';
 
 /**

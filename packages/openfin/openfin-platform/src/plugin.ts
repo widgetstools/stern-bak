@@ -4,7 +4,7 @@
  * In OpenFin runtime contexts, call `initWorkspace` during app boot.
  * In plain browser dev, the plugin no-ops.
  */
-import type { StarGridPlugin } from '@wellsfargo-starui/host';
+import type { StarGridPlugin } from '@wellsfargo-starui/core/host';
 import { initWorkspace } from './workspace.js';
 
 declare const fin: { Platform?: { getCurrentSync?: () => unknown } } | undefined;

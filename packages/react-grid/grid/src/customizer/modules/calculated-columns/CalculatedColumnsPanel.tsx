@@ -24,7 +24,7 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useDirty } from '../../hooks/useDirty';

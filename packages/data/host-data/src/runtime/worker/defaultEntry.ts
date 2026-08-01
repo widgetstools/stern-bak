@@ -23,7 +23,7 @@
  */
 
 import { installSharedWorkerHub, type AdoptedPort } from './index.js';
-import { createConfigManager } from '@wellsfargo-starui/host-config';
+import { createConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   isWorkerBootstrapRequest,
   type WorkerBootstrapPayload,

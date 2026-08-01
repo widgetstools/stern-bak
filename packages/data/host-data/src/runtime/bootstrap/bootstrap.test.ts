@@ -11,7 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub.js';
 import { isAppDataRequest, isRequest } from '../protocol.js';
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import { bootstrapDataServices, _resetBootstrapRegistryForTests } from './bootstrap.js';
 
 interface FakeWorker {

@@ -3,7 +3,7 @@
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider, useGridPlatform, useOptionalGridPlatform } from './GridProvider.js';
 
 describe('GridProvider', () => {

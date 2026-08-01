@@ -1,4 +1,4 @@
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   VISUAL_EXCEL_MODULE_ID,
   INITIAL_VISUAL_EXCEL,
@@ -6,7 +6,7 @@ import {
   buildVisualExcelStyles,
   applyFormatExcelClasses,
   type VisualExcelState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   CONDITIONAL_STYLING_MODULE_ID,
   type ConditionalStylingState,

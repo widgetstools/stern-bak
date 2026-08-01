@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LocalStorageBundleAdapter, MemoryAdapter } from '@wellsfargo-starui/engine';
+import { LocalStorageBundleAdapter, MemoryAdapter } from '@wellsfargo-starui/core';
 import { useMarketsGridController } from './useMarketsGridController';
 
 const mocks = vi.hoisted(() => ({

@@ -19,7 +19,7 @@ import {
 } from '@wellsfargo-starui/design-system/adapters/ag-grid';
 import type { Theme } from 'ag-grid-community';
 import { useGeneralSettingsSnapshot } from './useGeneralSettingsSnapshot';
-import { type AnyModule, type StorageAdapter } from '@wellsfargo-starui/engine';
+import { type AnyModule, type StorageAdapter } from '@wellsfargo-starui/core';
 import {
   GridProvider,
   ProviderGridHostProvider,
@@ -325,7 +325,7 @@ function MarketsGridInner<TData = unknown>(
     console.warn(
       '[MarketsGrid] No storage prop provided. Using in-memory storage — ' +
       'profiles, layouts and grid-level-data WILL be lost on reload. ' +
-      'Wire @wellsfargo-starui/host-config via createConfigServiceStorage(...) or pass `host` with storage to persist.',
+      'Wire @wellsfargo-starui/core/host/config via createConfigServiceStorage(...) or pass `host` with storage to persist.',
     );
   }
 

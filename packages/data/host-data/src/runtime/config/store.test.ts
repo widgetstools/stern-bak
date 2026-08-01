@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import type { DataProviderConfig } from '@wellsfargo-starui/types';
 import { DataProviderConfigStore } from './store.js';
 

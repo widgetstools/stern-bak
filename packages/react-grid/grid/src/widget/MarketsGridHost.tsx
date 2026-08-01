@@ -28,7 +28,7 @@ import { AgGridReact } from 'ag-grid-react';
 import type { GetContextMenuItemsParams, GridReadyEvent } from 'ag-grid-community';
 import { TooltipProvider } from '@wellsfargo-starui/react';
 import { resolveGridDensity } from '@wellsfargo-starui/design-system/adapters/ag-grid';
-import type { AnyModule, StorageAdapter } from '@wellsfargo-starui/engine';
+import type { AnyModule, StorageAdapter } from '@wellsfargo-starui/core';
 import type { AdminAction, MarketsGridHandle, MarketsGridProps } from './types';
 import { FormattingToolbar } from './FormattingToolbar';
 import { EditingToolbar } from './editingToolbar/EditingToolbar';

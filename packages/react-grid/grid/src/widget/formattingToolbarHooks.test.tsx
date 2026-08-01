@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Column, GridApi } from 'ag-grid-community';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../customizer/hooks/GridProvider.js';
 import {
   readAllColumnIds,

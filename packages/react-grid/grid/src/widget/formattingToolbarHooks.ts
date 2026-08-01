@@ -4,8 +4,8 @@ import type {
   BorderSpec,
   CellStyleOverrides,
   ValueFormatterTemplate,
-} from '@wellsfargo-starui/engine';
-import { resolveActiveStyle } from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
+import { resolveActiveStyle } from '@wellsfargo-starui/core';
 import {
   resolveTemplates,
   useActiveThemeMode,
@@ -248,7 +248,7 @@ export function useColumnFormatting(
     const empty: ResolvedFormatting = { bold: false, italic: false, underline: false, borders: {} };
     if (!cust) return empty;
 
-    let themedStyle: import('@wellsfargo-starui/engine').ThemedCellStyleOverrides | undefined;
+    let themedStyle: import('@wellsfargo-starui/core').ThemedCellStyleOverrides | undefined;
     let valueFormatterTemplate: ValueFormatterTemplate | undefined;
     let headerName: string | undefined;
     let editable: boolean | undefined;

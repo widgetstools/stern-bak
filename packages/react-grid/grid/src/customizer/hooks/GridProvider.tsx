@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { GridPlatform } from '@wellsfargo-starui/engine';
+import type { GridPlatform } from '@wellsfargo-starui/core';
 
 const Ctx = createContext<GridPlatform | null>(null);
 

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it, vi } from 'vitest';
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
 import { createHeaderPainter, hasHeaderPaintRules } from './headerPainter.js';
 import type { ConditionalStylingState } from '../state.js';
 

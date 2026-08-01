@@ -7,7 +7,7 @@ import {
   ExpressionEngine,
   GridPlatform,
   INITIAL_ALERTS,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { alertsModule } from '../index.js';
 import { activateAlerts } from './activate.js';
 

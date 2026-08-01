@@ -3,9 +3,9 @@
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EditJournal } from '@wellsfargo-starui/engine';
-import { GridPlatform } from '@wellsfargo-starui/engine';
-import type { DataChangeHistoryState } from '@wellsfargo-starui/engine';
+import { EditJournal } from '@wellsfargo-starui/core';
+import { GridPlatform } from '@wellsfargo-starui/core';
+import type { DataChangeHistoryState } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { clearEditJournalRegistry, getEditJournal } from '../../editing/editJournalScope';
 import { EditHistoryToolbarBody } from './EditHistoryToolbarBody';

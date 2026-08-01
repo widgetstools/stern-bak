@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidExcelFormat, valueFormatterFromTemplate } from '@wellsfargo-starui/engine';
+import { isValidExcelFormat, valueFormatterFromTemplate } from '@wellsfargo-starui/core';
 import { CATEGORY_LABELS } from './formatCategories';
 import {
   ALL_PRESETS,

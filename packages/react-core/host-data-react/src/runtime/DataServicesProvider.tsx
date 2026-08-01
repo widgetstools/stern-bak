@@ -17,7 +17,7 @@ import {
 } from '@wellsfargo-starui/data/runtime';
 import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/data';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 function readConfigManagerAppId(configManager: ConfigManager | undefined): string | undefined {
   if (!configManager || typeof configManager.getAppId !== 'function') return undefined;

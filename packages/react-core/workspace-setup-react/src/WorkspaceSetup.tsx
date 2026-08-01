@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { injectEditorStyles } from "@wellsfargo-starui/engine";
+import { injectEditorStyles } from "@wellsfargo-starui/core";
 import { useRegistryEditor } from "./registry/useRegistryEditor";
 import {
   ACTION_LAUNCH_COMPONENT,

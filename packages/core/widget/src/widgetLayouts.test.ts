@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AppConfigRow, CreateConfigInput } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow, CreateConfigInput } from '@wellsfargo-starui/core/host/config';
 import {
   deleteLayout, getLayouts, loadLayout, saveLayout, type LayoutConfigStore,
 } from './widgetLayouts.js';

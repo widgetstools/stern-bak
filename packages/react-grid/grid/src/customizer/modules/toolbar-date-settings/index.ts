@@ -1,4 +1,4 @@
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   INITIAL_TOOLBAR_DATE_SETTINGS,
   TOOLBAR_DATE_SETTINGS_MODULE_ID,

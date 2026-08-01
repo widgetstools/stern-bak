@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WidgetProps } from '@wellsfargo-starui/widget';
+import type { WidgetProps } from '@wellsfargo-starui/core/widget';
 import type { SlotContent } from '../types/slots.js';
 import { renderSlot } from './renderSlot.js';
 import { createExtendedWidget } from './createExtendedWidget.js';

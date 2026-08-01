@@ -3,7 +3,7 @@
  */
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EditJournal } from '@wellsfargo-starui/engine';
+import { EditJournal } from '@wellsfargo-starui/core';
 import { EditHistoryMonitor } from './EditHistoryMonitor';
 
 function makeEntry(id: string, source: 'bulk-update' | 'smart-edit' = 'bulk-update') {

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppDataMirror } from './AppDataMirror';
 import { SharedWorkerDataServicesHub } from '../worker/SharedWorkerDataServicesHub';
 import type { AppDataEvent, AppDataRequest, PortLike } from '../worker/index';
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 
 // ─── Stub ConfigManager ────────────────────────────────────────────
 

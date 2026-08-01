@@ -23,7 +23,7 @@ import {
   ScrollArea,
   Separator,
 } from '@wellsfargo-starui/react';
-import type { AlertsState } from '@wellsfargo-starui/engine';
+import type { AlertsState } from '@wellsfargo-starui/core';
 import { useOptionalGridPlatform } from '../../hooks/GridProvider';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useAlertsToastBridge } from './useAlertsToastBridge';

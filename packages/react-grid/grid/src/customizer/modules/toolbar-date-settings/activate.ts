@@ -17,7 +17,7 @@
  * rule never pays for a full `onFilterChanged()` on every cell edit.
  */
 
-import type { Module, PlatformHandle } from '@wellsfargo-starui/engine';
+import type { Module, PlatformHandle } from '@wellsfargo-starui/core';
 import type { ToolbarDateSettingsState } from './state';
 
 export function activateRowExclusion(

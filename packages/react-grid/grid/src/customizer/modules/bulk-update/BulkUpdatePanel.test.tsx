@@ -3,11 +3,11 @@
  */
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { BulkUpdatePanel } from './BulkUpdatePanel';
 import { bulkUpdateModule } from './index';
-import type { BulkUpdateState } from '@wellsfargo-starui/engine';
+import type { BulkUpdateState } from '@wellsfargo-starui/core';
 
 function makePlatform(): GridPlatform {
   return new GridPlatform({ gridId: 'test-grid', modules: [bulkUpdateModule] });

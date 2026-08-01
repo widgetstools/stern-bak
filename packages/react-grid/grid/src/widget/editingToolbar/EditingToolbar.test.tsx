@@ -2,14 +2,14 @@ import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import {
   BULK_UPDATE_MODULE_ID,
   DATA_CHANGE_HISTORY_MODULE_ID,
   PLUS_MINUS_MODULE_ID,
   SHORTCUTS_MODULE_ID,
   SMART_EDIT_MODULE_ID,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { GridProvider } from '@wellsfargo-starui/grid/customizer';
 import { EditingToolbar } from './EditingToolbar';
 

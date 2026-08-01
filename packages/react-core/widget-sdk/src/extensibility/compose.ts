@@ -1,4 +1,4 @@
-import type { WidgetProps } from '@wellsfargo-starui/widget';
+import type { WidgetProps } from '@wellsfargo-starui/core/widget';
 import type { WidgetEnhancer } from '../types/slots.js';
 
 /**

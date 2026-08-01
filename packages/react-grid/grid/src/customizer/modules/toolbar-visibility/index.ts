@@ -10,7 +10,7 @@
  * do NOT seed `false` for unknown toolbars so a host that adds a new
  * toolbar id later doesn't have to migrate every old profile.
  */
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 
 export const TOOLBAR_VISIBILITY_MODULE_ID = 'toolbar-visibility';
 

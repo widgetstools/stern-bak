@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const createConfigManager = vi.fn();
 const installSharedWorkerHub = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...args: unknown[]) => createConfigManager(...args),
 }));
 

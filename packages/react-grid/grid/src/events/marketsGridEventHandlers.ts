@@ -1,4 +1,4 @@
-import type { AppDataLookup } from '@wellsfargo-starui/engine';
+import type { AppDataLookup } from '@wellsfargo-starui/core';
 import type { ProviderStatus } from '@wellsfargo-starui/types';
 import type { MarketsGridHandle } from '../widget/types.js';
 import type { ProviderGridHostMode } from '../customizer/providerGridHost/ProviderGridHostContext.js';

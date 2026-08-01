@@ -2,7 +2,7 @@ import * as React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import {
   GENERAL_SETTINGS_MODULE_ID,
   GridProvider,

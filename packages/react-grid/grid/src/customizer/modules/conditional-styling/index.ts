@@ -23,7 +23,7 @@
  *   ./deserializeMigration.ts     — legacy-profile normaliser
  */
 
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   INITIAL_CONDITIONAL_STYLING,
   type ConditionalStylingState,

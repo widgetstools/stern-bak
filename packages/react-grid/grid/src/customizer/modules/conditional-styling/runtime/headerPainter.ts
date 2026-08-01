@@ -16,7 +16,7 @@
  * modelUpdated / filterChanged listeners in the orchestrator.
  */
 
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import { cssEscapeColId } from '../../column-customization/transforms';
 import type { ConditionalRule, ConditionalStylingState } from '../state';
 import type { DiffCacheByApi } from '../transforms';

@@ -3,7 +3,7 @@
  * Preloaded after ConfigManager init so attach can resolve cfg by id.
  */
 
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
 import {
   DataProviderConfigStore,

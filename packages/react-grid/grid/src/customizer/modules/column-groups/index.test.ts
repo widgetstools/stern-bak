@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { columnGroupsModule, COLUMN_GROUPS_MODULE_ID } from './index';
 import type { ColumnGroupsState } from './state';
 

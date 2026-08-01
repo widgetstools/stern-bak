@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { COMPONENT_TYPES } from '@wellsfargo-starui/types';
-import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   createWorkspacePersistenceOverride,
   instanceIdsFromSnapshot,

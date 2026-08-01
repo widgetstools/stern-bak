@@ -7,7 +7,7 @@ import {
   EditJournal,
   ExpressionEngine,
   INITIAL_PLUS_MINUS,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { applyPlusMinusNudge } from './applyPlusMinusNudge.js';
 
 describe('applyPlusMinusNudge', () => {

@@ -20,7 +20,7 @@
  *   - the safely() cleanup wrapper that isolates teardown steps
  */
 
-import type { Module, PlatformHandle } from '@wellsfargo-starui/engine';
+import type { Module, PlatformHandle } from '@wellsfargo-starui/core';
 import {
   CONDITIONAL_DIFF_CACHE_KEY,
   CONDITIONAL_TIMED_RULE_CACHE_KEY,

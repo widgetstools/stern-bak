@@ -3,7 +3,7 @@ import {
   INITIAL_SHORTCUTS,
   SHORTCUTS_MODULE_ID,
   defaultShortcut,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { shortcutsModule } from './index';
 
 describe('shortcutsModule', () => {

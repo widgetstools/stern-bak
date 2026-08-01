@@ -3,7 +3,7 @@
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform, type SmartEditState } from '@wellsfargo-starui/engine';
+import { GridPlatform, type SmartEditState } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { SmartEditToolbarBody } from './SmartEditToolbarBody';
 import { smartEditModule } from './index';

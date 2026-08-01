@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { AppConfigRow } from '@wellsfargo-starui/types/shared';
-import type { PlatformAdapter } from '@wellsfargo-starui/widget';
+import type { PlatformAdapter } from '@wellsfargo-starui/core/widget';
 
 /**
  * useSettingsScreen runs in a standalone settings window: its only input is
@@ -42,7 +42,7 @@ const configManager = {
   updateConfig: (...args: unknown[]) => updateConfig(...args),
 };
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: () => configManager,
 }));
 

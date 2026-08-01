@@ -4,11 +4,11 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { ShortcutsEditor, ShortcutsList, ShortcutsPanel } from './ShortcutsPanel';
 import { shortcutsModule } from './index';
-import type { ShortcutsState } from '@wellsfargo-starui/engine';
+import type { ShortcutsState } from '@wellsfargo-starui/core';
 
 function makePlatform() {
   const platform = new GridPlatform({ gridId: 'test-grid', modules: [shortcutsModule] });

@@ -21,7 +21,7 @@ import * as React from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import {
   GridProvider,
   savedFiltersModule,

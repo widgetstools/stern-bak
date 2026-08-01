@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useDeferredValue, useEffect, useMemo, useRef, 
 import './grid-chrome.css';
 import {
   type AnyModule,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { isOpenFin } from '../runtime/openFin.js';
 import {
   Poppable,

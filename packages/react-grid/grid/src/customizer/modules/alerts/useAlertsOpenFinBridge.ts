@@ -32,7 +32,7 @@ import type {
   AlertsState,
   AlertSeverity,
   GridPlatform,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 const MODULE_ID = 'alerts';
 

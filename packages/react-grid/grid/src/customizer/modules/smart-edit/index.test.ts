@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_SMART_EDIT,
   SMART_EDIT_MODULE_ID,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { smartEditModule } from './index';
 
 describe('smartEditModule', () => {

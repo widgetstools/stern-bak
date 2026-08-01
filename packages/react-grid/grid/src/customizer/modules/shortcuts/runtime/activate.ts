@@ -1,9 +1,9 @@
 import type { GridApi } from 'ag-grid-community';
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import {
   SHORTCUTS_MODULE_ID,
   type ShortcutsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { resolveEditRecording } from '../../../editing/recordEdit.js';
 import { resolveTargetCells } from '../../smart-edit/runtime/applyEdits.js';
 import { applyShortcutEdit } from './applyShortcutEdit.js';

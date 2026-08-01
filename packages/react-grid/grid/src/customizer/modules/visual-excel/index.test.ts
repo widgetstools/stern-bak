@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_VISUAL_EXCEL,
   VISUAL_EXCEL_MODULE_ID,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { visualExcelModule } from './index';
 
 describe('visualExcelModule', () => {

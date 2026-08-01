@@ -8,7 +8,7 @@ import {
   type ProfileManagerState,
   type ProfileMeta,
   type StorageAdapter,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useGridPlatform } from './GridProvider';
 
 const NOOP_UNSUBSCRIBE = () => {};
@@ -85,7 +85,7 @@ export function useProfileManager(opts: {
   autoSaveDebounceMs?: number;
   disableAutoSave?: boolean;
   /** Optional higher-priority active-id pointer (e.g. OpenFin view
-   *  customData). See `ActiveIdSource` in `@wellsfargo-starui/engine`. */
+   *  customData). See `ActiveIdSource` in `@wellsfargo-starui/core`. */
   activeIdSource?: ActiveIdSource;
 }): UseProfileManagerResult {
   const platform = useGridPlatform();

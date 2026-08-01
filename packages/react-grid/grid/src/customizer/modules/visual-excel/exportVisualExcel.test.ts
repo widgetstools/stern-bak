@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
-import { INITIAL_VISUAL_EXCEL } from '@wellsfargo-starui/engine';
+import { INITIAL_VISUAL_EXCEL } from '@wellsfargo-starui/core';
 import { exportVisualExcel } from './exportVisualExcel';
 
 describe('exportVisualExcel', () => {

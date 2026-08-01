@@ -3,8 +3,8 @@
  */
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
-import type { AlertsState } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
+import type { AlertsState } from '@wellsfargo-starui/core';
 import { useAlertsToastBridge } from './useAlertsToastBridge';
 import { alertsModule } from './index';
 

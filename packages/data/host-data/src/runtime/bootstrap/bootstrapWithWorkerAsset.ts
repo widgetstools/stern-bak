@@ -1,4 +1,4 @@
-import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/host-config';
+import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { bootstrapDataServices, type DataServices } from './bootstrap.js';
 import {
   createDataServicesWorker,

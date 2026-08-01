@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import { ConfigCatalogCache } from './ConfigCatalogCache.js';
 
 function stompRow(id: string, name = id): AppConfigRow {

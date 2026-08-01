@@ -31,7 +31,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, Plus, Trash2 } from 'lucide-react';
 import { FormatColorPicker, FormatPopover } from '../../ui/format-editor';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';

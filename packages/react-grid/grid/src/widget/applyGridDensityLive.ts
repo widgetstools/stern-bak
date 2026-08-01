@@ -2,8 +2,8 @@ import {
   gridDensityStructuralParams,
   type GridDensity,
 } from '@wellsfargo-starui/design-system/adapters/ag-grid';
-import type { GeneralSettingsState } from '@wellsfargo-starui/engine';
-import type { GridPlatform } from '@wellsfargo-starui/engine';
+import type { GeneralSettingsState } from '@wellsfargo-starui/core';
+import type { GridPlatform } from '@wellsfargo-starui/core';
 import { GENERAL_SETTINGS_MODULE_ID } from '../customizer/modules/general-settings';
 
 function gridApi(platform: GridPlatform) {

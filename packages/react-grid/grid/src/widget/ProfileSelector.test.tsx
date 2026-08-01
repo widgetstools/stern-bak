@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RESERVED_DEFAULT_PROFILE_ID } from '@wellsfargo-starui/engine';
+import { RESERVED_DEFAULT_PROFILE_ID } from '@wellsfargo-starui/core';
 import { ProfileSelector, type ProfileSelectorProps } from './ProfileSelector';
 
 function makeProps(overrides: Partial<ProfileSelectorProps> = {}): ProfileSelectorProps {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DeployExportResult, DeployExportWarning } from '@wellsfargo-starui/host-config';
+import type { DeployExportResult, DeployExportWarning } from '@wellsfargo-starui/core/host/config';
 import { DeployExportPreviewDialog } from './DeployExportPreviewDialog';
 
 afterEach(cleanup);

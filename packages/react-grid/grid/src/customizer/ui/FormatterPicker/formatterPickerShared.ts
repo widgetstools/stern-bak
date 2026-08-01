@@ -8,7 +8,7 @@
 import {
   valueFormatterFromTemplate,
   type ValueFormatterTemplate,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import type { FormatterPickerDataType, FormatterPreset } from './presetsForDataType';
 
 /** Body-props contract shared by CompactFormatterPicker + InlineFormatterPicker.

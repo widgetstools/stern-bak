@@ -3,7 +3,7 @@ import {
   SHORTCUTS_MODULE_ID,
   type PlusMinusState,
   type ShortcutsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   DropdownMenu,
   DropdownMenuContent,

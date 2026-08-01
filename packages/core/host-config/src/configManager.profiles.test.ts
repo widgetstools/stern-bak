@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChangeNotifier } from './changeNotifier';
 import { createConfigManager, type ConfigManager } from './ConfigManager';
-import type { ProfileSnapshot } from '@wellsfargo-starui/engine';
+import type { ProfileSnapshot } from '@wellsfargo-starui/core';
 
 // Each test gets its own instanceId so writes don't bleed between
 // tests. The default ConfigManager DB is shared per-file (fake-

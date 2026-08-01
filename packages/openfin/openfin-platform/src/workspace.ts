@@ -3,7 +3,7 @@ declare const fin: any;
 import type OpenFin from "@openfin/core";
 import { Home, Storefront, type App } from "@openfin/workspace";
 import { init, getCurrentSync, ColorSchemeOptionType, type WorkspacePlatformOverrideCallback } from "@openfin/workspace-platform";
-import { createConfigManager, type ConfigManager } from "@wellsfargo-starui/host-config";
+import { createConfigManager, type ConfigManager } from "@wellsfargo-starui/core/host/config";
 import { THEME_STORAGE_KEY } from "@wellsfargo-starui/types";
 import {
   peekConfigManager,

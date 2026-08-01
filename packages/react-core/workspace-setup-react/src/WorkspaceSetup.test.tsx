@@ -46,7 +46,7 @@ vi.mock('@wellsfargo-starui/openfin', async () => ({
   ...storageMocks,
 }));
 
-vi.mock('@wellsfargo-starui/engine', () => ({ injectEditorStyles: vi.fn() }));
+vi.mock('@wellsfargo-starui/core', () => ({ injectEditorStyles: vi.fn() }));
 
 const { WorkspaceSetup } = await import('./WorkspaceSetup.js');
 const { ACTION_LAUNCH_COMPONENT } = await import('@wellsfargo-starui/openfin/config');

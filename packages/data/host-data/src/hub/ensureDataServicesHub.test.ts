@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { DEV_PLATFORM_BOOTSTRAP } from '../bootstrap/PlatformBootstrapConfig.js';
 import {
   _resetEnsureDataServicesHubForTests,

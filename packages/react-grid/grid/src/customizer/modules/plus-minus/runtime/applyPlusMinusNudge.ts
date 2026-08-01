@@ -5,7 +5,7 @@ import {
   type BuildNudgePatchesOptions,
   type EditJournal,
   type NudgeDirection,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { withJournalApplyGuard } from '../../../editing/journalApplyGuard.js';
 
 export interface ApplyPlusMinusOptions {

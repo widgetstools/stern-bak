@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DATA_CHANGE_HISTORY_MODULE_ID,
   INITIAL_DATA_CHANGE_HISTORY,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { resolveEditRecording } from './recordEdit.js';
 
 describe('resolveEditRecording', () => {

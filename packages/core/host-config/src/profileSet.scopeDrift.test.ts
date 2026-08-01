@@ -3,7 +3,7 @@ import { createConfigServiceStorage } from './profileBundle';
 import type { AppConfigRow } from './types';
 import type { ConfigManager } from './ConfigManager';
 import { readProfileSetPayload, isProfileSetRow } from './profileBundle';
-import type { ProfileSnapshot } from '@wellsfargo-starui/engine';
+import type { ProfileSnapshot } from '@wellsfargo-starui/core';
 
 function makeRow(over: Partial<AppConfigRow>): AppConfigRow {
   return {

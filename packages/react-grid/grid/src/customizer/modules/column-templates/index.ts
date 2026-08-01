@@ -7,8 +7,8 @@
  * Priority 5 places this BEFORE column-customization (10) so its state is
  * settled by the time the customization walker reads it.
  */
-import type { Module } from '@wellsfargo-starui/engine';
-import { migrateThemedStyle } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
+import { migrateThemedStyle } from '@wellsfargo-starui/core';
 import {
   INITIAL_COLUMN_TEMPLATES,
   type ColumnDataType,

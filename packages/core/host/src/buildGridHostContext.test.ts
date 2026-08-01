@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { StorageAdapter, StorageAdapterFactory } from '@wellsfargo-starui/engine';
+import type { StorageAdapter, StorageAdapterFactory } from '@wellsfargo-starui/core';
 import type { IdentitySnapshot } from '@wellsfargo-starui/types';
 import type { RuntimePort } from './RuntimePort.js';
 import type { ConfigPort } from './ConfigPort.js';

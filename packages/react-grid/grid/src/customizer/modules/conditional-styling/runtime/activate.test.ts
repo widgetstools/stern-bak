@@ -6,7 +6,7 @@ import {
   ExpressionEngine,
   GridPlatform,
   INITIAL_CONDITIONAL_STYLING,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { conditionalStylingModule } from '../index.js';
 import { activateConditionalStyling } from './activate.js';
 

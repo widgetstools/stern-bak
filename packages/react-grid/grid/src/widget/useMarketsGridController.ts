@@ -29,7 +29,7 @@ import {
   LocalStorageBundleAdapter,
   MemoryAdapter,
   type StorageAdapter,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   captureGridStateInto,
   COLUMN_CUSTOMIZATION_MODULE_ID,
@@ -41,7 +41,7 @@ import {
   VISUAL_EXCEL_MODULE_ID,
   type VisualExcelExportOptions,
 } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import { type VisualExcelState } from '@wellsfargo-starui/engine';
+import { type VisualExcelState } from '@wellsfargo-starui/core';
 import type { FormattingToolbarHandle } from './FormattingToolbar';
 import type { SettingsSheetHandle } from './SettingsSheet';
 import type { MarketsGridHandle, MarketsGridLocalStorageConfig } from './types';

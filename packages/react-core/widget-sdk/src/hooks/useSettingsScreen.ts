@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SettingsScreenContext } from '@wellsfargo-starui/widget';
-import type { WidgetConfig } from '@wellsfargo-starui/widget';
+import type { SettingsScreenContext } from '@wellsfargo-starui/core/widget';
+import type { WidgetConfig } from '@wellsfargo-starui/core/widget';
 import { useWidgetHost } from '../providers/WidgetHost.js';
 
 /**

@@ -5,7 +5,7 @@
  * `customSettings` and registry tables are legacy fallbacks only.
  */
 
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { DEFAULT_APP_ID, DEFAULT_USER_ID } from './registryHostEnv';
 import type { CustomSettings } from './types';
 

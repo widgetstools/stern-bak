@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { IconInput } from '../../../ui/SettingsPanel';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import { useGridPlatform } from '../../../hooks/GridProvider';
-import type { AppDataLookup } from '@wellsfargo-starui/engine';
+import type { AppDataLookup } from '@wellsfargo-starui/core';
 import type { CellEditorKind, ColumnCellEditorConfig } from '../state';
 import { Row } from './Row';
 

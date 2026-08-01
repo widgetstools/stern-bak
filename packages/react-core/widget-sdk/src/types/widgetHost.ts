@@ -1,4 +1,4 @@
-import type { PlatformAdapter } from '@wellsfargo-starui/widget';
+import type { PlatformAdapter } from '@wellsfargo-starui/core/widget';
 import type { WidgetRegistry } from '../registry/WidgetRegistry.js';
 
 /**

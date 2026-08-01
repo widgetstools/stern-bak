@@ -1,11 +1,11 @@
 import type { GridApi } from 'ag-grid-community';
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import {
   PLUS_MINUS_MODULE_ID,
   SMART_EDIT_MODULE_ID,
   type PlusMinusState,
   type SmartEditState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { resolveEditRecording } from '../../../editing/recordEdit.js';
 import { applyEdits, resolveTargetCells } from './applyEdits.js';
 

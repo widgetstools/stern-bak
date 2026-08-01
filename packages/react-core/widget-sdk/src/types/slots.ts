@@ -1,5 +1,5 @@
-import type { WidgetProps } from '@wellsfargo-starui/widget';
-import type { ActionContext } from '@wellsfargo-starui/widget';
+import type { WidgetProps } from '@wellsfargo-starui/core/widget';
+import type { ActionContext } from '@wellsfargo-starui/core/widget';
 
 export type { ActionContext };
 

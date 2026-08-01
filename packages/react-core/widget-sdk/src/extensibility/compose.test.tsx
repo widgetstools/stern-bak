@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import type { WidgetProps } from '@wellsfargo-starui/widget';
+import type { WidgetProps } from '@wellsfargo-starui/core/widget';
 import type { WidgetEnhancer } from '../types/slots.js';
 import { compose } from './compose.js';
 

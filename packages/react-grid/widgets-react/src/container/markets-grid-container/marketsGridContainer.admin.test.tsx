@@ -6,7 +6,7 @@ import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { StorageAdapter } from '@wellsfargo-starui/engine';
+import type { StorageAdapter } from '@wellsfargo-starui/core';
 
 const lastMarketsGridProps: { current: any } = { current: null };
 const refreshMock = vi.fn().mockResolvedValue(undefined);

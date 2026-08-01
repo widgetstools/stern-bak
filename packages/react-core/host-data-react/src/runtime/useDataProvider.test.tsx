@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import type { IDataProvider, ProviderCapabilities, Unsubscribe } from '@wellsfargo-starui/data';
 import type { ProviderConfig } from '@wellsfargo-starui/types';

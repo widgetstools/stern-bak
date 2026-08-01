@@ -1,4 +1,4 @@
-import { createConfigManager, isSeedIdentityCached, type ConfigManager } from '@wellsfargo-starui/host-config';
+import { createConfigManager, isSeedIdentityCached, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   validatePlatformBootstrapConfig,
   resolveConfigServiceRestUrl,

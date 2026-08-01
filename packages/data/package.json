@@ -39,8 +39,7 @@
   },
   "dependencies": {
     "@stomp/stompjs": "^7.3.0",
-    "@wellsfargo-starui/host": "*",
-    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/core": "*",
     "@wellsfargo-starui/types": "*"
   },
   "devDependencies": {

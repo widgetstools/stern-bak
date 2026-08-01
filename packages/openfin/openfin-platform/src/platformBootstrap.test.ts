@@ -5,8 +5,8 @@ const resolveActiveIdentityFromSeedUrl = vi.fn();
 const resolveSeedConfigUrl = vi.fn(async (u: string) => u);
 const resolvePlatformBootstrapFromJson = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-config', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/host-config')>();
+vi.mock('@wellsfargo-starui/core/host/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/core/host/config')>();
   return {
     ...actual,
     resolveActiveIdentityFromSeedUrl: (...a: unknown[]) =>

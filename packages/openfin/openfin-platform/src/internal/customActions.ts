@@ -7,7 +7,7 @@ import {
   type CustomActionsMap,
 } from '@openfin/workspace-platform';
 import { type App } from '@openfin/workspace';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   ACTION_EXPORT_CONFIG,
   ACTION_IMPORT_CONFIG,

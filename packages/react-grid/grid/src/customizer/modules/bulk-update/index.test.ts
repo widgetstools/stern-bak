@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BULK_UPDATE_MODULE_ID,
   INITIAL_BULK_UPDATE,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { bulkUpdateModule } from './index';
 
 describe('bulkUpdateModule', () => {

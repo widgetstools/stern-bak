@@ -4,8 +4,8 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnyModule } from '@wellsfargo-starui/engine';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import type { AnyModule } from '@wellsfargo-starui/core';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '@wellsfargo-starui/grid/customizer';
 import { SettingsSheet } from './SettingsSheet';
 

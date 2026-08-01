@@ -1,5 +1,5 @@
 /**
- * @wellsfargo-starui/engine — vanilla grid platform (ported from @wellsfargo-starui/core).
+ * @wellsfargo-starui/core — vanilla grid platform (ported from @wellsfargo-starui/core).
  *
  *   platform/      GridPlatform, store, events, api hub
  *   expression/    CSP-safe expression engine

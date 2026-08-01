@@ -17,7 +17,7 @@
  * `asyncTransactionWaitMillis`; default 5/sec).
  */
 import type { GridOptions } from 'ag-grid-community';
-import type { Module, TransformContext } from '@wellsfargo-starui/engine';
+import type { Module, TransformContext } from '@wellsfargo-starui/core';
 import { INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from './state';
 import { GridOptionsPanel } from './GridOptionsPanel';
 import {

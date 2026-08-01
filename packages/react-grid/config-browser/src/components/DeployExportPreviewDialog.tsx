@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Button, Checkbox } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "../icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import type { DeployExportResult, DeployExportWarning } from "@wellsfargo-starui/host-config";
+import type { DeployExportResult, DeployExportWarning } from "@wellsfargo-starui/core/host/config";
 
 interface DeployExportPreviewDialogProps {
   result: DeployExportResult;

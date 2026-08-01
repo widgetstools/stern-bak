@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ChangeEvent } from 'react';
 import type { UseProfileManagerResult } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import type { ProfileMeta } from '@wellsfargo-starui/engine';
+import type { ProfileMeta } from '@wellsfargo-starui/core';
 
 export interface ProfileSelectorActions {
   readonly onCreate: (name: string) => void | Promise<unknown>;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { GridHostContext } from '@wellsfargo-starui/host';
+import type { GridHostContext } from '@wellsfargo-starui/core/host';
 import {
   dataPortAsAppDataLookup,
   resolveMarketsGridHost,

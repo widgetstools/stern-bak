@@ -36,7 +36,7 @@ import {
 import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../ui/NativeOptionsSelect';
 import { Tooltip } from '../../ui/HoverTooltip';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useDirty } from '../../hooks/useDirty';

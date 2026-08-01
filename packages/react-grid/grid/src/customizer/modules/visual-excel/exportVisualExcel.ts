@@ -2,7 +2,7 @@ import type { GridApi } from 'ag-grid-community';
 import {
   defaultVisualExcelFileName,
   type VisualExcelState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 export interface VisualExcelExportOptions {
   fileName?: string;

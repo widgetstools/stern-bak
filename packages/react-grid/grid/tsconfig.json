@@ -5,9 +5,9 @@
     "paths": {
       "@wellsfargo-starui/grid": ["./src/index.ts"],
       "@wellsfargo-starui/grid/customizer": ["./src/customizer/index.ts"],
-      "@wellsfargo-starui/engine": ["../../core/engine/src/index.ts"],
+      "@wellsfargo-starui/core": ["../../core/engine/src/index.ts"],
       "@wellsfargo-starui/types": ["../../types/types/src/index.ts"],
-      "@wellsfargo-starui/host": ["../../core/host/src/index.ts"]
+      "@wellsfargo-starui/core/host": ["../../core/host/src/index.ts"]
     },
     "noEmit": true
   },

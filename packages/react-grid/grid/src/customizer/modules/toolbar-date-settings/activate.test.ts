@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { toolbarDateSettingsModule } from './index.js';
 import { INITIAL_TOOLBAR_DATE_SETTINGS } from './state.js';
 import { activateRowExclusion } from './activate.js';

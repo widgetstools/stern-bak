@@ -2,14 +2,14 @@
  * Bulk Update — replace all selected cells in one column with the same value.
  */
 
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   BULK_UPDATE_MODULE_ID,
   BULK_UPDATE_SCHEMA_VERSION,
   deserializeBulkUpdateState,
   INITIAL_BULK_UPDATE,
   type BulkUpdateState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { BulkUpdatePanel } from './BulkUpdatePanel';
 import { BulkUpdateToolbarBody } from './BulkUpdateToolbarBody';
 

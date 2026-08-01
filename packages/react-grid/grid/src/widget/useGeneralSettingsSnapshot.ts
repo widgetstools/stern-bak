@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import type { GeneralSettingsState } from '@wellsfargo-starui/engine';
-import type { GridPlatform } from '@wellsfargo-starui/engine';
+import type { GeneralSettingsState } from '@wellsfargo-starui/core';
+import type { GridPlatform } from '@wellsfargo-starui/core';
 import { GENERAL_SETTINGS_MODULE_ID } from '../customizer/modules/general-settings';
 
 /** Subscribe to the general-settings module slice for reactive toolbar / theme reads. */

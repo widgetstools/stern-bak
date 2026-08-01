@@ -3,7 +3,7 @@
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform, type BulkUpdateState } from '@wellsfargo-starui/engine';
+import { GridPlatform, type BulkUpdateState } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { BulkUpdateToolbarBody } from './BulkUpdateToolbarBody';
 import { bulkUpdateModule } from './index';

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { IdentitySnapshot, Theme } from '@wellsfargo-starui/types';
-import type { RuntimePort } from '@wellsfargo-starui/host';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { RuntimePort } from '@wellsfargo-starui/core/host';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { HostContext, type HostContextValue } from './HostContext.js';
 
 export interface HostWrapperProps {

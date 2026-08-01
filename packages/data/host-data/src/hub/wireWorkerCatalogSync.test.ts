@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { SharedWorkerDataServicesClient } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import { wireWorkerCatalogSync } from './wireWorkerCatalogSync.js';
 

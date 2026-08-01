@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { EditJournal } from '@wellsfargo-starui/engine';
+import type { EditJournal } from '@wellsfargo-starui/core';
 import { getEditJournal } from '../editing/editJournalScope';
 import { useGridPlatform } from './GridProvider';
 

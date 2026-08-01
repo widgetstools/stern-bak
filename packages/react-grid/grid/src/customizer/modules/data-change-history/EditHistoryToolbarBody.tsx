@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import {
   DATA_CHANGE_HISTORY_MODULE_ID,
   type DataChangeHistoryState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wellsfargo-starui/react';
 import { Redo2, Undo2 } from 'lucide-react';
 import type { EditingToolbarSegmentProps } from '../../editing/editingToolbarLayout';

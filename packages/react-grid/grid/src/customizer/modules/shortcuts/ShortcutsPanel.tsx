@@ -5,7 +5,7 @@ import {
   Input,
   Switch,
 } from '@wellsfargo-starui/react';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import {
   defaultShortcut,
   SHORTCUTS_MODULE_ID,
@@ -13,7 +13,7 @@ import {
   type ShortcutOperation,
   type ShortcutsSettings,
   type ShortcutsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useGridColumns } from '../../hooks/useGridColumns';

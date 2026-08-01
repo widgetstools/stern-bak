@@ -1,11 +1,11 @@
 import * as React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import {
   PLUS_MINUS_MODULE_ID,
   SHORTCUTS_MODULE_ID,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { GridProvider } from '@wellsfargo-starui/grid/customizer';
 import { EditingToolbarKeyboardMenu } from './EditingToolbarKeyboardMenu';
 

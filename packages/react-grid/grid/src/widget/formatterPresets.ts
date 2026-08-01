@@ -1,4 +1,4 @@
-import type { ValueFormatterTemplate } from '@wellsfargo-starui/engine';
+import type { ValueFormatterTemplate } from '@wellsfargo-starui/core';
 
 /**
  * Formatter presets + inspection helpers for the FormattingToolbar.

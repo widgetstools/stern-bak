@@ -1,4 +1,4 @@
-import { type AnyModule } from '@wellsfargo-starui/engine';
+import { type AnyModule } from '@wellsfargo-starui/core';
 import {
   alertsModule,
   bulkUpdateModule,

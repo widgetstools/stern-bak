@@ -33,7 +33,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@wellsfargo-starui/react';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import {
   DEFAULT_ALERTS_SETTINGS,
   type AlertChannel,
@@ -44,7 +44,7 @@ import {
   type EvaluationMode,
   type RelativeChangeDirection,
   type RelativeChangeMode,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';

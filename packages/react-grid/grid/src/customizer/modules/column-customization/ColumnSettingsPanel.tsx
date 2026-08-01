@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import { Search } from 'lucide-react';
-import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
+import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useGridPlatform } from '../../hooks/GridProvider';
@@ -19,7 +19,7 @@ import type { StyleEditorValue } from '../../ui/StyleEditor';
 import {
   patchActiveStyle,
   resolveActiveStyle,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useActiveThemeMode } from '../../hooks/useActiveThemeMode';
 import type {
   ColumnAssignment,

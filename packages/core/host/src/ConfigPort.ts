@@ -2,7 +2,7 @@
  * ConfigPort — cross-instance configuration sync (ConfigManager).
  * Optional: grid works with local-only storage when omitted.
  *
- * Full interface lands in phase 5 when @wellsfargo-starui/host-config is ported.
+ * Full interface lands in phase 5 when @wellsfargo-starui/core/host/config is ported.
  */
 export interface ConfigPort {
   readonly appId: string;

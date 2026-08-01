@@ -13,7 +13,7 @@
 import { memo, type ReactElement } from 'react';
 import { Save, Check } from 'lucide-react';
 import { Button } from '@wellsfargo-starui/react';
-import type { ProfileMeta } from '@wellsfargo-starui/engine';
+import type { ProfileMeta } from '@wellsfargo-starui/core';
 import type { GridDensity } from '@wellsfargo-starui/design-system/adapters/ag-grid';
 import type { AdminAction } from './types';
 import { FiltersToolbar } from './FiltersToolbar';

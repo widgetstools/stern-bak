@@ -1,0 +1,76 @@
+{
+  "name": "@wellsfargo-starui/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarketsUI core runtime — vanilla-TS grid engine, host ports (browser adapter + Dexie config store), and widget framework. Consolidates engine, host, host-browser, host-config, widget, widget-browser.",
+  "type": "module",
+  "main": "./engine/dist/index.cjs",
+  "module": "./engine/dist/index.js",
+  "types": "./engine/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./engine/dist/index.d.ts",
+      "import": "./engine/dist/index.js",
+      "require": "./engine/dist/index.cjs"
+    },
+    "./host": {
+      "types": "./host/dist/index.d.ts",
+      "import": "./host/dist/index.js"
+    },
+    "./host/browser": {
+      "types": "./host-browser/dist/index.d.ts",
+      "import": "./host-browser/dist/index.js"
+    },
+    "./host/config": {
+      "types": "./host-config/dist/index.d.ts",
+      "import": "./host-config/dist/index.js"
+    },
+    "./widget": {
+      "types": "./widget/dist/index.d.ts",
+      "import": "./widget/dist/index.js"
+    },
+    "./widget/browser": {
+      "types": "./widget-browser/dist/index.d.ts",
+      "import": "./widget-browser/dist/index.js"
+    }
+  },
+  "files": [
+    "engine/dist",
+    "host/dist",
+    "host-browser/dist",
+    "host-config/dist",
+    "widget/dist",
+    "widget-browser/dist"
+  ],
+  "scripts": {
+    "build": "rimraf engine/dist engine/tsconfig.tsbuildinfo host/dist host/tsconfig.tsbuildinfo host-browser/dist host-browser/tsconfig.tsbuildinfo host-config/dist host-config/tsconfig.tsbuildinfo widget/dist widget/tsconfig.tsbuildinfo widget-browser/dist widget-browser/tsconfig.tsbuildinfo && (cd engine && tsc && vite build) && tsc --project host/tsconfig.json && tsc --project host-browser/tsconfig.json && tsc --project host-config/tsconfig.json && node host-config/scripts/copy-assets.mjs && tsc --project widget/tsconfig.json && tsc --project widget-browser/tsconfig.json",
+    "typecheck": "tsc --noEmit --project engine/tsconfig.json && tsc --noEmit --project host/tsconfig.json && tsc --noEmit --project host-browser/tsconfig.json && tsc --noEmit --project host-config/tsconfig.json && tsc --noEmit --project widget/tsconfig.json && tsc --noEmit --project widget-browser/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "vitest bench --run"
+  },
+  "peerDependencies": {
+    "ag-grid-community": "^35.1.0"
+  },
+  "dependencies": {
+    "@wellsfargo-starui/types": "*",
+    "dexie": "^4.4.2",
+    "ssf": "^0.11.2",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "ag-grid-react": "35.1.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.0.2",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vite": "~7.3.2",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

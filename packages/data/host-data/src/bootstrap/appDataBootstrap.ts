@@ -1,4 +1,4 @@
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { AppDataConfig } from '../runtime/providers/appdata/store.js';
 import type { AppDataMirror } from '../runtime/mirror/AppDataMirror.js';
 import type { AppDataBootstrapManifest } from './PlatformBootstrapConfig.js';

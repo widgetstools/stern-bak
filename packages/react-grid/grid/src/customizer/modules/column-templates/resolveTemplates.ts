@@ -1,1 +1,1 @@
-export * from '@wellsfargo-starui/engine';
+export * from '@wellsfargo-starui/core';

@@ -1,4 +1,4 @@
-// ─── Dock + Registry persistence (backed by @wellsfargo-starui/host-config) ───
+// ─── Dock + Registry persistence (backed by @wellsfargo-starui/core/host/config) ───
 //
 // This file is the single entry point for dock-editor and
 // registry-editor persistence. Both save as `AppConfigRow` rows
@@ -23,8 +23,8 @@
 // configIds so existing Dexie rows continue to work after upgrade.
 // The next save rewrites them in the canonical shape.
 
-import { createConfigManager, type ConfigManager } from "@wellsfargo-starui/host-config";
-import type { AppConfigRow } from "@wellsfargo-starui/host-config";
+import { createConfigManager, type ConfigManager } from "@wellsfargo-starui/core/host/config";
+import type { AppConfigRow } from "@wellsfargo-starui/core/host/config";
 import { COMPONENT_TYPES } from "@wellsfargo-starui/types";
 import type { DockEditorConfig } from './dockConfigTypes';
 import { getConfigServiceRestUrlFromManifest } from './manifestConfig';

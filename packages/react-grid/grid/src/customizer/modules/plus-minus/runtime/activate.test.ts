@@ -7,7 +7,7 @@ import {
   ExpressionEngine,
   GridPlatform,
   INITIAL_PLUS_MINUS,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { plusMinusModule } from '../index.js';
 
 function makeMockApi() {

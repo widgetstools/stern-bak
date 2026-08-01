@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import type { Store } from '@wellsfargo-starui/engine';
+import type { Store } from '@wellsfargo-starui/core';
 import { useGridPlatform } from './GridProvider';
 
 /**

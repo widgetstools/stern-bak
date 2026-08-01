@@ -19,7 +19,7 @@
  * (renaming, toggling colour) doesn't churn the parse cache.
  */
 
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import { extractTriggerColumns } from '../transforms';
 import type { ConditionalRule, ConditionalStylingState } from '../state';
 

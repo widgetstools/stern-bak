@@ -17,7 +17,7 @@
  * state, not persistence.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { StorageAdapter } from '@wellsfargo-starui/engine';
+import type { StorageAdapter } from '@wellsfargo-starui/core';
 import type { MarketsGridHandle } from '@wellsfargo-starui/grid';
 import {
   DEFAULT_PROVIDER_SELECTION,

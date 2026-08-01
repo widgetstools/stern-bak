@@ -1,4 +1,4 @@
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { PlatformBootstrapConfig } from '../bootstrap/PlatformBootstrapConfig.js';
 import { resolveConfigServiceRestUrl } from '../bootstrap/PlatformBootstrapConfig.js';
 import type { DataServices } from '../runtime/bootstrap/bootstrap.js';

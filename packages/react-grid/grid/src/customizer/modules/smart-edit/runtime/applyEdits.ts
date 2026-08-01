@@ -9,7 +9,7 @@ import {
   type EditJournal,
   type SmartEditOp,
   type TargetCell,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { withJournalApplyGuard } from '../../../editing/journalApplyGuard.js';
 
 export function resolveTargetCells(api: GridApi, rowIdField = 'id'): TargetCell[] {

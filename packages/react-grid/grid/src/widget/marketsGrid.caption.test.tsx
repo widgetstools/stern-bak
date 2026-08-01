@@ -28,10 +28,10 @@ vi.mock('../customizer/hooks/useModuleState.js', () => ({
   useModuleState: () => [undefined, vi.fn()],
 }));
 
-// Vanilla shells from @wellsfargo-starui/engine — only the constants + the
+// Vanilla shells from @wellsfargo-starui/core — only the constants + the
 // `MemoryAdapter` class that MarketsGrid uses for default storage.
-vi.mock('@wellsfargo-starui/engine', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/engine')>();
+vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/core')>();
   return {
     ...actual,
     MemoryAdapter: class { async loadGridLevelData() { return null; } async saveGridLevelData() {} },

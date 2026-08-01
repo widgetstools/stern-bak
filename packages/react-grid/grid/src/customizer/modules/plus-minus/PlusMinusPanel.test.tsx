@@ -4,11 +4,11 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { PlusMinusEditor, PlusMinusList, PlusMinusPanel } from './PlusMinusPanel';
 import { plusMinusModule } from './index';
-import type { PlusMinusState } from '@wellsfargo-starui/engine';
+import type { PlusMinusState } from '@wellsfargo-starui/core';
 
 function makePlatform() {
   const platform = new GridPlatform({ gridId: 'test-grid', modules: [plusMinusModule] });

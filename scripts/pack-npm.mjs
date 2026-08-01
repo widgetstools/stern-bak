@@ -8,7 +8,7 @@
  * `@wellsfargo-starui/<bucket>` with `./<member>` subpaths. That shape
  * only resolves through the repo's Vite alias layer, because every
  * shipped `dist` file imports its siblings by their real member name
- * (`@wellsfargo-starui/engine`). External consumers get the member
+ * (`@wellsfargo-starui/core`). External consumers get the member
  * packages instead — the standard npm model, no aliases, no config.
  *
  * Per package it stages a copy and rewrites the manifest so it is

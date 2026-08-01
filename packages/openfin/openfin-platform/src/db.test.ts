@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config';
+import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { COMPONENT_TYPES } from '@wellsfargo-starui/types';
 
 const createConfigManager = vi.fn();
@@ -9,7 +9,7 @@ const resolvePlatformBootstrapFromJson = vi.fn();
 const resolveDeploymentIdentity = vi.fn();
 const resolveDefaultPlatformScope = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...a: unknown[]) => createConfigManager(...a),
 }));
 

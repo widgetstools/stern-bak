@@ -23,7 +23,7 @@ import {
   valueFormatterFromTemplate,
   type BorderSpec,
   type ValueFormatterTemplate,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   applyAlignmentReducer,
   applyBordersReducer,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, memo } from 'react';
 import { ChevronDown, Check, Plus, Trash2, Lock, User, Download, Upload, Copy, Pencil, X } from 'lucide-react';
-import { RESERVED_DEFAULT_PROFILE_ID, type ProfileMeta } from '@wellsfargo-starui/engine';
+import { RESERVED_DEFAULT_PROFILE_ID, type ProfileMeta } from '@wellsfargo-starui/core';
 // styles stay inline (see ProfileSelector.css for rationale).
 import './ProfileSelector.css';
 import {

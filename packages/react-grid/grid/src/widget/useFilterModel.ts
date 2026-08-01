@@ -25,7 +25,7 @@ import {
   useState,
 } from 'react';
 import type { GridApi, IRowNode } from 'ag-grid-community';
-import type { RowChange } from '@wellsfargo-starui/engine';
+import type { RowChange } from '@wellsfargo-starui/core';
 import {
   useGridApi,
   useGridPlatform,

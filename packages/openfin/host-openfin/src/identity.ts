@@ -1,5 +1,5 @@
 import { LOGGED_IN_USER_ID, type IdentitySnapshot } from '@wellsfargo-starui/types';
-import { resolveBrowserIdentity, type IdentityOverrides } from '@wellsfargo-starui/host-browser';
+import { resolveBrowserIdentity, type IdentityOverrides } from '@wellsfargo-starui/core/host/browser';
 
 /**
  * Identity resolution for OpenFin views.

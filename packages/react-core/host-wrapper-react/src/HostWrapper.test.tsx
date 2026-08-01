@@ -10,8 +10,8 @@ import type {
   Theme,
   Unsubscribe,
 } from '@wellsfargo-starui/types';
-import type { RuntimePort } from '@wellsfargo-starui/host';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { RuntimePort } from '@wellsfargo-starui/core/host';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { HostWrapper, useHost } from './index.js';
 
 class FakeRuntime implements RuntimePort {

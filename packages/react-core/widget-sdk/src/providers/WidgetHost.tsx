@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/host-config';
-import type { PlatformAdapter } from '@wellsfargo-starui/widget';
+import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/core/host/config';
+import type { PlatformAdapter } from '@wellsfargo-starui/core/widget';
 import type { WidgetHostProps } from '../types/widgetHost.js';
 import { WidgetRegistry } from '../registry/WidgetRegistry.js';
-import { BrowserAdapter } from '@wellsfargo-starui/widget-browser';
+import { BrowserAdapter } from '@wellsfargo-starui/core/widget/browser';
 
 export interface WidgetHostContextValue {
   apiUrl: string;

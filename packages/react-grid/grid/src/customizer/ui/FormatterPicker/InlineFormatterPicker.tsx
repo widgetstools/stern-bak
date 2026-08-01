@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronLeft, Hash } from 'lucide-react';
-import { isValidExcelFormat } from '@wellsfargo-starui/engine';
+import { isValidExcelFormat } from '@wellsfargo-starui/core';
 import { controls, radius, spacing } from '@wellsfargo-starui/design-system/tokens';
 import { FormatDropdown } from '../format-editor';
 import { Caps, IconInput } from '../SettingsPanel';

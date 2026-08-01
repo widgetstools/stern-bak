@@ -6,7 +6,7 @@
  * editor implementation. Only the thin provider-registration wrapper was
  * Monaco-specific; everything here is plain data + pure functions.
  */
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
 
 export type ColumnsFn = () => Array<{ colId: string; headerName: string; dataType?: string }>;
 export type FunctionsFn = () => Array<{ name: string; category: string; signature: string; description: string }>;

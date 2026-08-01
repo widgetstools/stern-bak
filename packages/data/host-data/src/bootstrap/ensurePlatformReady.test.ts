@@ -8,7 +8,7 @@ import {
   ensureConfigReady,
   ensurePlatformReady,
 } from './ensurePlatformReady.js';
-import { isSeedIdentityCached } from '@wellsfargo-starui/host-config';
+import { isSeedIdentityCached } from '@wellsfargo-starui/core/host/config';
 import { _resetEnsureDataServicesHubForTests } from '../hub/ensureDataServicesHub.js';
 import { isPlatformWarm, markPlatformWarm } from './platformWarmSession.js';
 import { runAppDataBootstrap } from './appDataBootstrap.js';
@@ -24,7 +24,7 @@ vi.mock('./appDataBootstrap.js', async (importOriginal) => {
 const createConfigManagerMock = vi.fn();
 const ensureDataServicesHubMock = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...args: unknown[]) => createConfigManagerMock(...args),
   isSeedIdentityCached: vi.fn(() => false),
 }));

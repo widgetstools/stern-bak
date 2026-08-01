@@ -17,7 +17,7 @@ import { DeleteAllDialog } from "./components/DeleteAllDialog";
 import { ResetToSeedDialog } from "./components/ResetToSeedDialog";
 import { injectEditorStyles } from "./editorStyles";
 import type { ImportMode, ImportPreview } from "./hooks/useConfigBrowser";
-import type { DeployExportResult } from "@wellsfargo-starui/host-config";
+import type { DeployExportResult } from "@wellsfargo-starui/core/host/config";
 
 // ─── Main Component ──────────────────────────────────────────────────
 

@@ -19,7 +19,7 @@ const PACKAGES_ROOT = join(REPO_ROOT, 'packages');
 const REQUIRED_WORKSPACE_PACKAGES = [
   '@wellsfargo-starui/design-system',
   '@wellsfargo-starui/types',
-  '@wellsfargo-starui/host-config',
+  '@wellsfargo-starui/core',
   '@wellsfargo-starui/react',
   '@wellsfargo-starui/grid',
 ];

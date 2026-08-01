@@ -12,7 +12,7 @@
  *
  *   2. **Local mode** — routes every CRUD op through an injected
  *      `DataProviderLocalBackend`. Useful when the consumer ships an
- *      IndexedDB / Dexie persistence layer (`@wellsfargo-starui/host-config`'s
+ *      IndexedDB / Dexie persistence layer (`@wellsfargo-starui/core/host/config`'s
  *      `ConfigManager` is the canonical implementation) and doesn't
  *      want to require a running config server.
  *
@@ -105,7 +105,7 @@ export class DataProviderConfigService {
    * Switch into local-backend mode. Pass a backend to enable, pass
    * `undefined` to revert to REST.
    *
-   * The reference app wires `@wellsfargo-starui/host-config`'s `ConfigManager`
+   * The reference app wires `@wellsfargo-starui/core/host/config`'s `ConfigManager`
    * as the backend so DataProviders persist into the same IndexedDB
    * the rest of the platform's config rows live in — no separate
    * server required for dev.

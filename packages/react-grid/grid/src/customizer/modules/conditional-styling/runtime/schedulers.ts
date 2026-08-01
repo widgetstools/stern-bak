@@ -24,7 +24,7 @@
  * doesn't skip the next.
  */
 
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import type { TimedRuleStore } from '../transforms';
 import type { ConditionalStylingState } from '../state';
 import { isTimedTraceOn, traceTimed } from './utils';

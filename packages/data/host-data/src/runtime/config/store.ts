@@ -23,7 +23,7 @@
  * live in `@wellsfargo-starui/react/data`.
  */
 
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
 import {
   COMPONENT_TYPE_APPDATA,

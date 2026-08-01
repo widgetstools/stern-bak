@@ -12,8 +12,8 @@ import {
   buildDeployExport,
   normalizeImportedAppConfigRow,
   type DeployExportResult,
-} from "@wellsfargo-starui/host-config";
-import type { ConfigManager, ResetToSeedResult } from "@wellsfargo-starui/host-config";
+} from "@wellsfargo-starui/core/host/config";
+import type { ConfigManager, ResetToSeedResult } from "@wellsfargo-starui/core/host/config";
 import { TABLES, type TableKey, type TableMeta } from "../types";
 
 interface Counts {

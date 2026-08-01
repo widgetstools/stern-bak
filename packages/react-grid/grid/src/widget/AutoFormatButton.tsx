@@ -2,7 +2,7 @@
  * AutoFormatButton — a one-click "Auto Format" action in the primary
  * toolbar. It reads every column from the live grid, matches each field
  * name against the FI/equity field-format catalog (see
- * `@wellsfargo-starui/engine` → `buildAutoFormatPlan`), and applies the resolved
+ * `@wellsfargo-starui/core` → `buildAutoFormatPlan`), and applies the resolved
  * NATIVE formatting in ONE profile-persisted state update: number/date
  * value formatters, sign-coloured P&L/change via `excelFormat` colour tags,
  * right-alignment for numerics, localised dates, centred categoricals, and

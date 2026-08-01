@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProfileMeta } from '@wellsfargo-starui/engine';
+import type { ProfileMeta } from '@wellsfargo-starui/core';
 import {
   useProfileImportInputHandler,
   useProfileSelectorActions,

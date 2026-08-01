@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../../hooks/GridProvider';
 import { generalSettingsModule } from '../../general-settings';
 import { RowGroupingEditor } from './RowGroupingEditor';

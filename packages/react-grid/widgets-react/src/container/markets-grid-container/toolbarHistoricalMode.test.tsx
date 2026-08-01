@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, render, waitFor } from '@testing-library/react';
-import type { StorageAdapter } from '@wellsfargo-starui/engine';
+import type { StorageAdapter } from '@wellsfargo-starui/core';
 import type { IDataProvider, Unsubscribe } from '@wellsfargo-starui/data';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 

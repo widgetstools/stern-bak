@@ -4,7 +4,7 @@ import {
   buildShortcutPatches,
   type EditJournal,
   type ShortcutDefinition,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { withJournalApplyGuard } from '../../../editing/journalApplyGuard.js';
 
 export interface ApplyShortcutOptions {

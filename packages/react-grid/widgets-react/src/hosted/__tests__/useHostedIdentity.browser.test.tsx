@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { useHostedIdentity } from '../useHostedIdentity.js';
 
 const fakeConfigManager = {} as unknown as ConfigManager;

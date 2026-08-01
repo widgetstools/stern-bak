@@ -24,7 +24,7 @@
  * to grab shared state.
  */
 
-import type { PlatformHandle, RowChange } from '@wellsfargo-starui/engine';
+import type { PlatformHandle, RowChange } from '@wellsfargo-starui/core';
 import type { GridApi } from 'ag-grid-community';
 import { getValueByPath } from '@wellsfargo-starui/types';
 import type { DiffCacheByApi, TimedRuleStore } from '../transforms';

@@ -4,7 +4,7 @@
  * diff pass (host `rowData` stream updates).
  */
 
-import type { ExpressionEngineLike, ExpressionNode } from '@wellsfargo-starui/engine';
+import type { ExpressionEngineLike, ExpressionNode } from '@wellsfargo-starui/core';
 import {
   computeRelativeChange,
   evaluateDataChangeRule,
@@ -13,7 +13,7 @@ import {
   type AlertRule,
   type DataChangeRule,
   type RelativeChangeRule,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import type { AlertDispatcher } from './dispatch';
 import type { PreviousValuesStore } from './previousValues';
 

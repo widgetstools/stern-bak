@@ -14,7 +14,7 @@ vi.mock('./bootstrap.js', () => ({
   bootstrapDataServices: (...args: unknown[]) => bootstrapDataServices(...args),
 }));
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: vi.fn(() => ({ init: vi.fn(), isRestMode: () => false })),
 }));
 
@@ -105,7 +105,7 @@ describe('createDataServicesClient', () => {
   });
 
   it('uses a supplied mainThreadConfigManager instead of creating one', async () => {
-    const hostConfig = await import('@wellsfargo-starui/host-config');
+    const hostConfig = await import('@wellsfargo-starui/core/host/config');
     const createConfigManager = vi.mocked(hostConfig.createConfigManager);
     createConfigManager.mockClear();
     const customCm = { init: vi.fn() };

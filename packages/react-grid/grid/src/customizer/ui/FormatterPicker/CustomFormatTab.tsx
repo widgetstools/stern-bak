@@ -1,7 +1,7 @@
 import { Check, Copy, Hash, X } from 'lucide-react';
-import { isValidExcelFormat } from '@wellsfargo-starui/engine';
+import { isValidExcelFormat } from '@wellsfargo-starui/core';
 import { controls, radius, spacing, typography } from '@wellsfargo-starui/design-system/tokens';
-import type { ValueFormatterTemplate } from '@wellsfargo-starui/engine';
+import type { ValueFormatterTemplate } from '@wellsfargo-starui/core';
 import { Caps, IconInput, SubLabel } from '../SettingsPanel';
 import { ChromeButton } from '../ChromeButton';
 import { EXCEL_EXAMPLES } from './excelExamples';

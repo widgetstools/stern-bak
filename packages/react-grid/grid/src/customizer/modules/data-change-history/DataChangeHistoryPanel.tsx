@@ -4,7 +4,7 @@ import {
   type DataChangeHistoryRecordSources,
   type DataChangeHistorySettings,
   type DataChangeHistoryState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { journalUndoEntry } from '../../editing/journalUndoRedo';
 import { journalCanUndoEntry } from '../../editing/editJournalScope';

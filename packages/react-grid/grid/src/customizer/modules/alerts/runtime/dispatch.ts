@@ -12,7 +12,7 @@
  * Dropped hits are silent — counted internally for telemetry only.
  */
 
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import {
   capHistory,
   renderMessage,
@@ -21,7 +21,7 @@ import {
   type AlertNotification,
   type AlertRule,
   type AlertsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 export interface DispatchCounters {
   /** Total hits handed to dispatch. */

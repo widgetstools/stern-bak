@@ -12,7 +12,7 @@ import {
   resolveGridDensity,
   type GridDensity,
 } from '@wellsfargo-starui/design-system/adapters/ag-grid';
-import type { GeneralSettingsState } from '@wellsfargo-starui/engine';
+import type { GeneralSettingsState } from '@wellsfargo-starui/core';
 import { useOptionalGridPlatform } from '../customizer/hooks/GridProvider';
 import { applyGridDensityLive } from './applyGridDensityLive';
 

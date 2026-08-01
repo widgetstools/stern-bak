@@ -15,7 +15,7 @@ import type {
   ColumnTemplate,
   ColumnTemplatesState,
 } from './state';
-import type { CellStyleOverrides, ThemedCellStyleOverrides } from '@wellsfargo-starui/engine';
+import type { CellStyleOverrides, ThemedCellStyleOverrides } from '@wellsfargo-starui/core';
 import {
   addTemplateReducer,
   pickTemplateFields,

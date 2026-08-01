@@ -6,7 +6,7 @@ import {
   type CellPatch,
   type SmartEditOp,
   type SmartEditState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   AlertDialog,
   AlertDialogAction,

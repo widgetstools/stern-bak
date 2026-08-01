@@ -3,4 +3,4 @@ export {
   isMarketsGridLocalStorageStorageFactory,
   type StorageAdapterFactory,
   type StorageAdapterFactoryOpts,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';

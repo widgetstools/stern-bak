@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CellClassParams, ColDef } from 'ag-grid-community';
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
-import type { CssHandle, ExpressionEngineLike } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
+import type { CssHandle, ExpressionEngineLike } from '@wellsfargo-starui/core';
 import {
   applyCellRulesToDefs,
   buildRowClassPredicate,

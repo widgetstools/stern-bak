@@ -43,11 +43,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@wellsfargo-starui/design-system": "*",
-    "@wellsfargo-starui/host": "*",
-    "@wellsfargo-starui/host-browser": "*",
-    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/core": "*",
     "@wellsfargo-starui/data": "*",
+    "@wellsfargo-starui/design-system": "*",
     "@wellsfargo-starui/types": "*"
   },
   "peerDependencies": {

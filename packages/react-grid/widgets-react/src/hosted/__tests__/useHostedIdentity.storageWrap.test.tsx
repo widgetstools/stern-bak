@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 // Mock createConfigServiceStorage so we can observe the per-call opts
 // the wrapper passes to the underlying factory.
@@ -9,9 +9,9 @@ const innerAdapter = { __innerAdapter: true };
 const innerFactory = vi.fn(() => innerAdapter);
 const createConfigServiceStorageMock = vi.fn(() => innerFactory);
 
-vi.mock('@wellsfargo-starui/host-config', async () => {
-  const actual = await vi.importActual<typeof import('@wellsfargo-starui/host-config')>(
-    '@wellsfargo-starui/host-config',
+vi.mock('@wellsfargo-starui/core/host/config', async () => {
+  const actual = await vi.importActual<typeof import('@wellsfargo-starui/core/host/config')>(
+    '@wellsfargo-starui/core/host/config',
   );
   return {
     ...actual,

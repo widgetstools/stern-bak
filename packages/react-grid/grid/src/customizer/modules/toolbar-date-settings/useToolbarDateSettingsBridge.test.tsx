@@ -3,7 +3,7 @@
  */
 import { renderHook, act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { toolbarDateSettingsModule } from './index';
 import { INITIAL_TOOLBAR_DATE_SETTINGS } from './state';

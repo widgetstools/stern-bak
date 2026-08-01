@@ -1,9 +1,9 @@
 import type { CellValueChangedEvent, GridApi } from 'ag-grid-community';
-import type { PlatformHandle } from '@wellsfargo-starui/engine';
+import type { PlatformHandle } from '@wellsfargo-starui/core';
 import {
   DATA_CHANGE_HISTORY_MODULE_ID,
   type DataChangeHistoryState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import { isJournalApplyInProgress } from '../../../editing/journalApplyGuard.js';
 import { getEditJournal } from '../../../editing/editJournalScope.js';
 import { isUserCellEditorChange } from './isUserCellEditorChange.js';

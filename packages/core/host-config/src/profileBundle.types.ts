@@ -5,7 +5,7 @@
  * factory, and the ConfigPort adapter (all in `profileBundle.ts`).
  */
 
-import type { ProfileSnapshot } from '@wellsfargo-starui/engine';
+import type { ProfileSnapshot } from '@wellsfargo-starui/core';
 
 /** ComponentType used on the AppConfigRow that holds a whole
  *  instance's bundle of profiles. Singular "profile-set" (not

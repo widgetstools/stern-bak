@@ -21,7 +21,7 @@
  * defeating that.
  */
 
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { SharedWorkerDataServicesClient } from '../client/SharedWorkerDataServicesClient.js';
 import type { AppDataMirror } from '../mirror/AppDataMirror.js';
 

@@ -9,7 +9,7 @@ export interface ParentIdentity {
 
 /**
  * PlatformAdapter — abstracts browser vs OpenFin (or other platforms).
- * BrowserAdapter lives in `@wellsfargo-starui/widget-browser`; OpenFin adapters in platform shells.
+ * BrowserAdapter lives in `@wellsfargo-starui/core/widget/browser`; OpenFin adapters in platform shells.
  */
 export interface PlatformAdapter {
   readonly name: string;

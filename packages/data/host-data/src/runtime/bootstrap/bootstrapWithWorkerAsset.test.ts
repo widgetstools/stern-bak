@@ -15,7 +15,7 @@ const bootstrapDataServices = vi.fn();
 vi.mock('./createDataServicesWorker.js', () => ({
   createDataServicesWorker: (...args: unknown[]) => createDataServicesWorker(...args),
 }));
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...args: unknown[]) => createConfigManager(...args),
 }));
 vi.mock('./bootstrap.js', () => ({

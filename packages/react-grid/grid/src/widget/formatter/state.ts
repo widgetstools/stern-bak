@@ -28,7 +28,7 @@
 import {
   type BorderSpec,
   type ValueFormatterTemplate,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import type {
   CellEditorKind,
   FilterKind,

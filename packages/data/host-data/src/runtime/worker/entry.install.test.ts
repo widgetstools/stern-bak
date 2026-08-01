@@ -12,7 +12,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { installSharedWorkerHub } from './entry.js';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 type Snapshot = { kind: string; reqId?: string };
 

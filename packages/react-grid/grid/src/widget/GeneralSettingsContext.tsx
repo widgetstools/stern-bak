@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { GeneralSettingsState } from '@wellsfargo-starui/engine';
+import type { GeneralSettingsState } from '@wellsfargo-starui/core';
 
 const GeneralSettingsContext = createContext<GeneralSettingsState | undefined>(undefined);
 

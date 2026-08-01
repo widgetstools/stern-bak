@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "engine/dist/**",
+        "host/dist/**",
+        "host-browser/dist/**",
+        "host-config/dist/**",
+        "widget/dist/**",
+        "widget-browser/dist/**"
+      ]
+    },
+    "test": {
+      "dependsOn": ["build", "^build"],
+      "outputs": ["junit.xml", "coverage/**"]
+    }
+  }
+}

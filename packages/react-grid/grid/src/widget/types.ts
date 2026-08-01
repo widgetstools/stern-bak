@@ -1,10 +1,10 @@
 import type { ColDef, GridApi, SideBarDef, StatusPanelDef, Theme } from 'ag-grid-community';
-import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/engine';
-import type { GridHostContext } from '@wellsfargo-starui/host';
+import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
+import type { GridHostContext } from '@wellsfargo-starui/core/host';
 import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 export type { ProviderGridHostApi, ProviderGridHostMode, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-export type { MarketsGridLocalStorageConfig, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/engine';
+export type { MarketsGridLocalStorageConfig, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
 
 /**
  * One saved filter pinned to the toolbar. Shape is stable across
@@ -367,7 +367,7 @@ export interface MarketsGridHandle {
   /** The hook-shaped profile manager — `{ activeProfileId, profiles,
    *  isDirty, saveActiveProfile(), loadProfile(id), cloneProfile(…),
    *  deleteProfile(…), renameProfile(…), exportProfile(), importProfile(),
-   *  … }`. This is `UseProfileManagerResult` (from @wellsfargo-starui/engine) rather
+   *  … }`. This is `UseProfileManagerResult` (from @wellsfargo-starui/core) rather
    *  than the raw ProfileManager class — matches how consumers already
    *  interact with profiles via the useProfileManager hook. */
   profiles: UseProfileManagerResult;

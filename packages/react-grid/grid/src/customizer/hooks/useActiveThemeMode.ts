@@ -12,7 +12,7 @@
  * are handled by the browser cascade with no rebuild.
  */
 import { useEffect, useState } from 'react';
-import { getActiveTheme, type GridThemeMode } from '@wellsfargo-starui/engine';
+import { getActiveTheme, type GridThemeMode } from '@wellsfargo-starui/core';
 
 /** Subscribe to `<html data-theme>` changes. SSR-safe — returns a no-op
  *  cleanup when `document` is unavailable. */

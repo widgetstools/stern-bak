@@ -11,7 +11,7 @@
  *
  * The same shape lives at `packages/runtime-openfin/src/fin.d.ts`. If
  * widgets-react ever needs richer types, the right move is to import
- * a typed wrapper from a future `@wellsfargo-starui/host`-shaped
+ * a typed wrapper from a future `@wellsfargo-starui/core/host`-shaped
  * package, not to add `@openfin/core` back.
  */
 

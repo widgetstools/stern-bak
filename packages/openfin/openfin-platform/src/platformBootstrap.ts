@@ -8,7 +8,7 @@
 declare const fin: any;
 
 import type OpenFin from '@openfin/core';
-import { resolveActiveIdentityFromSeedUrl } from '@wellsfargo-starui/host-config';
+import { resolveActiveIdentityFromSeedUrl } from '@wellsfargo-starui/core/host/config';
 import {
   DEV_PLATFORM_BOOTSTRAP,
   PlatformBootstrapConfigError,

@@ -2,7 +2,7 @@
  * Plus / Minus — keyboard nudge rules with per-column steps and optional expressions.
  */
 
-import type { Module } from '@wellsfargo-starui/engine';
+import type { Module } from '@wellsfargo-starui/core';
 import {
   PLUS_MINUS_MODULE_ID,
   PLUS_MINUS_SCHEMA_VERSION,
@@ -10,7 +10,7 @@ import {
   deserializePlusMinusState,
   INITIAL_PLUS_MINUS,
   type PlusMinusState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   PlusMinusEditor,
   PlusMinusList,

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { WidgetProps } from '@wellsfargo-starui/widget';
+import type { WidgetProps } from '@wellsfargo-starui/core/widget';
 import type { SlotContent, WidgetExtensionConfig } from '../types/slots.js';
 
 /**

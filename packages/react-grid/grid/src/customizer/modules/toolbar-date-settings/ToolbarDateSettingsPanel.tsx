@@ -14,7 +14,7 @@ import {
 } from '../../ui/SettingsPanel';
 import { Select } from '../../ui/NativeOptionsSelect';
 import { cn } from '@wellsfargo-starui/react';
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
 import { ChromeButton } from '../../ui/ChromeButton';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';
 import { useGridColumns } from '../../hooks/useGridColumns';

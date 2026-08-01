@@ -4,8 +4,8 @@ import type {
   Theme,
   Unsubscribe,
 } from '@wellsfargo-starui/types';
-import type { RuntimePort } from '@wellsfargo-starui/host';
-import type { ConfigManager } from '@wellsfargo-starui/host-config';
+import type { RuntimePort } from '@wellsfargo-starui/core/host';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 /**
  * `HostContext` — Seam #2 of the architecture (see docs/ARCHITECTURE.md).

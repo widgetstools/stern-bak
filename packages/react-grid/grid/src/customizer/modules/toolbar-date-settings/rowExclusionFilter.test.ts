@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { ExpressionEngine } from '@wellsfargo-starui/engine';
-import type { ExpressionEngineLike, TransformContext } from '@wellsfargo-starui/engine';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
+import type { ExpressionEngineLike, TransformContext } from '@wellsfargo-starui/core';
 import type { IRowNode } from 'ag-grid-community';
 import {
   __resetRowExclusionCache,

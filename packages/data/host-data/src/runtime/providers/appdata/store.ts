@@ -17,7 +17,7 @@
  * don't have to care which write path produced the row.
  */
 
-import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';
+import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import {
   COMPONENT_TYPE_APPDATA,
   COMPONENT_TYPE_DATA_PROVIDER,

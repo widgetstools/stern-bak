@@ -6,13 +6,13 @@
  * its rules can reference the new virtual colIds.
  */
 import type { GridApi } from 'ag-grid-community';
-import type { Module, PlatformHandle } from '@wellsfargo-starui/engine';
+import type { Module, PlatformHandle } from '@wellsfargo-starui/core';
 import {
   INITIAL_CALCULATED_COLUMNS,
   type CalculatedColumnsState,
   type VirtualColumnDef,
 } from './state';
-import { astUsesAggregateFunctions } from '@wellsfargo-starui/engine';
+import { astUsesAggregateFunctions } from '@wellsfargo-starui/core';
 import {
   buildVirtualColDef,
   invalidateAllRowsCache,

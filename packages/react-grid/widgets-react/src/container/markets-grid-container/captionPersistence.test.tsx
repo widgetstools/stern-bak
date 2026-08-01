@@ -12,7 +12,7 @@
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
-import type { StorageAdapter } from '@wellsfargo-starui/engine';
+import type { StorageAdapter } from '@wellsfargo-starui/core';
 
 // Capture what MarketsGrid sees so tests can assert + invoke
 // onCaptionChange.

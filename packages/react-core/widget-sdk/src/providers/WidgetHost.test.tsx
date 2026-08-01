@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
-import type { PlatformAdapter } from '@wellsfargo-starui/widget';
+import type { PlatformAdapter } from '@wellsfargo-starui/core/widget';
 
 /**
  * WidgetHost owns three things worth testing: what it puts in context,
@@ -13,7 +13,7 @@ const init = vi.fn();
 const dispose = vi.fn();
 const createConfigManager = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...args: unknown[]) => createConfigManager(...args),
 }));
 

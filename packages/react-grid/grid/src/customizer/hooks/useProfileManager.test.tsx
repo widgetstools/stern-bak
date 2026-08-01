@@ -3,7 +3,7 @@
  */
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GridPlatform, MemoryAdapter } from '@wellsfargo-starui/engine';
+import { GridPlatform, MemoryAdapter } from '@wellsfargo-starui/core';
 import { GridProvider } from './GridProvider.js';
 import { useProfileManager } from './useProfileManager.js';
 

@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/engine';
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider, generalSettingsModule } from '@wellsfargo-starui/grid/customizer';
 import { FormattingToolbar } from './FormattingToolbar';
 
