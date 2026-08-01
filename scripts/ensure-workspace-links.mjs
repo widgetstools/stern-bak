@@ -20,7 +20,6 @@ const REQUIRED_WORKSPACE_PACKAGES = [
   '@wellsfargo-starui/design-system',
   '@wellsfargo-starui/shared-types',
   '@wellsfargo-starui/types',
-  '@wellsfargo-starui/icons-svg',
   '@wellsfargo-starui/host-config',
   '@wellsfargo-starui/react',
   '@wellsfargo-starui/grid',

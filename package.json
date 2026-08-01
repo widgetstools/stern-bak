@@ -11,7 +11,8 @@
     "packages/data",
     "packages/openfin",
     "packages/react-core",
-    "packages/shared/*"
+    "packages/types/*",
+    "packages/core/*"
   ],
   "scripts": {
     "install:all": "npm install && npm run build:packages",

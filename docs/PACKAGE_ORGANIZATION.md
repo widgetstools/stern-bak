@@ -41,7 +41,8 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 | 3 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/data` |
 | 4 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/openfin` |
 | 5 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/react` |
-| 6 | **Core / Shared** | `packages/shared/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser`, `@wellsfargo-starui/host-config` |
+| 6 | **Types** | `packages/types/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types` |
+| 7 | **Core** | `packages/core/` | `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser`, `@wellsfargo-starui/host-config` |
 
 ## Import rules
 
