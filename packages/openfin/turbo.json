@@ -1,0 +1,16 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": ["openfin-platform/dist/**", "host-openfin/dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build", "^build"],
+      "outputs": ["junit.xml", "coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["build", "^build"]
+    }
+  }
+}

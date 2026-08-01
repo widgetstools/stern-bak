@@ -1,6 +1,8 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "extends": ["//"],
+  "extends": [
+    "//"
+  ],
   "tasks": {
     "build": {
       "outputs": [
@@ -12,8 +14,20 @@
       ]
     },
     "test": {
-      "dependsOn": ["build", "^build"],
-      "outputs": ["junit.xml", "coverage/**"]
+      "dependsOn": [
+        "build",
+        "^build"
+      ],
+      "outputs": [
+        "junit.xml",
+        "coverage/**"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "build",
+        "^build"
+      ]
     }
   }
 }

@@ -27,6 +27,12 @@
         "design-system/dist/**",
         "icons-svg/dist/**"
       ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "build",
+        "^build"
+      ]
     }
   }
 }

@@ -1,13 +1,31 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "extends": ["//"],
+  "extends": [
+    "//"
+  ],
   "tasks": {
     "build": {
-      "outputs": ["grid/dist/**", "config-browser/dist/**", "widgets-react/dist/**"]
+      "outputs": [
+        "grid/dist/**",
+        "config-browser/dist/**",
+        "widgets-react/dist/**"
+      ]
     },
     "test": {
-      "dependsOn": ["build", "^build"],
-      "outputs": ["junit.xml", "coverage/**"]
+      "dependsOn": [
+        "build",
+        "^build"
+      ],
+      "outputs": [
+        "junit.xml",
+        "coverage/**"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "build",
+        "^build"
+      ]
     }
   }
 }
