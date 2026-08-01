@@ -140,6 +140,135 @@ describe('startRest', () => {
     // No 'ready' should fire after stop.
     expect(events.find((e) => 'status' in e && e.status === 'ready')).toBeFalsy();
   });
+
+  it('errors when no fetch implementation is available', async () => {
+    vi.stubGlobal('fetch', undefined);
+    try {
+      const events: ProviderEmitEvent[] = [];
+      startRest(cfg(), (e) => events.push(e));
+      await flush();
+      const err = events.find((e) => 'status' in e && e.status === 'error') as { error?: string };
+      expect(err?.error).toMatch(/no fetch implementation/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('errors when baseUrl or endpoint is missing', async () => {
+    const { fetchImpl } = makeFetch(() => ({ status: 200, body: '[]' }));
+    const events: ProviderEmitEvent[] = [];
+    startRest(
+      cfg({ baseUrl: '', endpoint: '' }),
+      (e) => events.push(e),
+      { fetchImpl },
+    );
+    await flush();
+    expect(events.find((e) => 'status' in e && e.status === 'error')).toMatchObject({
+      status: 'error',
+      error: expect.stringContaining('baseUrl and endpoint'),
+    });
+  });
+
+  it('surfaces network failures from fetch', async () => {
+    const fetchImpl = async (): Promise<Response> => {
+      throw new Error('network down');
+    };
+    const events: ProviderEmitEvent[] = [];
+    startRest(cfg(), (e) => events.push(e), { fetchImpl });
+    await flush();
+    expect(events.find((e) => 'status' in e && e.status === 'error')).toMatchObject({
+      error: 'network down',
+    });
+  });
+
+  it('surfaces JSON parse failures', async () => {
+    const { fetchImpl } = makeFetch(() => ({ status: 200, body: 'not-json' }));
+    const events: ProviderEmitEvent[] = [];
+    startRest(cfg(), (e) => events.push(e), { fetchImpl });
+    await flush();
+    expect(events.find((e) => 'status' in e && e.status === 'error')).toMatchObject({
+      error: 'Failed to parse JSON response',
+    });
+  });
+
+  it('returns empty rows when rowsPath segment is missing', async () => {
+    const { fetchImpl } = makeFetch(() => ({ status: 200, body: JSON.stringify({ data: {} }) }));
+    const events: ProviderEmitEvent[] = [];
+    startRest(cfg({ rowsPath: 'data.missing' }), (e) => events.push(e), { fetchImpl });
+    await flush();
+    const replace = events.find((e) => 'rows' in e && e.replace) as { rows: unknown[] };
+    expect(replace.rows).toEqual([]);
+  });
+
+  it('filters non-object entries from the rows array', async () => {
+    const { fetchImpl } = makeFetch(() => ({
+      status: 200,
+      body: JSON.stringify([{ id: 'ok' }, null, 42, 'bad']),
+    }));
+    const events: ProviderEmitEvent[] = [];
+    startRest(cfg(), (e) => events.push(e), { fetchImpl });
+    await flush();
+    const replace = events.find((e) => 'rows' in e && e.replace) as { rows: unknown[] };
+    expect(replace.rows).toEqual([{ id: 'ok' }]);
+  });
+
+  it('appends query params with & when the endpoint already contains ?', async () => {
+    const { fetchImpl, calls } = makeFetch(() => ({ status: 200, body: '[]' }));
+    startRest(
+      cfg({ endpoint: '/positions?filter=active', queryParams: { limit: '5' } }),
+      () => undefined,
+      { fetchImpl },
+    );
+    await flush();
+    expect(calls[0].url).toBe('http://api.test/positions?filter=active&limit=5');
+  });
+
+  it('attaches apikey and basic auth headers', async () => {
+    const { fetchImpl, calls } = makeFetch(() => ({ status: 200, body: '[]' }));
+    startRest(
+      cfg({ auth: { type: 'apikey', credentials: 'key99', headerName: 'X-Custom-Key' } }),
+      () => undefined,
+      { fetchImpl },
+    );
+    await flush();
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers['X-Custom-Key']).toBe('key99');
+
+    calls.length = 0;
+    startRest(
+      cfg({ auth: { type: 'basic', credentials: 'dXNlcjpwYXNz' } }),
+      () => undefined,
+      { fetchImpl },
+    );
+    await flush();
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Basic dXNlcjpwYXNz');
+  });
+
+  it('restart overlay uses JSON body alone when cfg.body is empty', async () => {
+    const { fetchImpl, calls } = makeFetch(() => ({ status: 200, body: '[]' }));
+    const handle = startRest(
+      cfg({ method: 'POST', body: '' }),
+      () => undefined,
+      { fetchImpl },
+    );
+    await flush();
+    await handle.restart({ asOfDate: '2026-04-01' });
+    await flush();
+    expect(JSON.parse(calls[1].init.body as string)).toEqual({ asOfDate: '2026-04-01' });
+  });
+
+  it('restart overlay leaves body unchanged when POST body parses to a non-object', async () => {
+    const { fetchImpl, calls } = makeFetch(() => ({ status: 200, body: '[]' }));
+    const handle = startRest(
+      cfg({ method: 'POST', body: '[1,2,3]' }),
+      () => undefined,
+      { fetchImpl },
+    );
+    await flush();
+    await handle.restart({ asOfDate: '2026-04-01' });
+    await flush();
+    expect(calls[1].init.body).toBe('[1,2,3]');
+  });
 });
 
 describe('probeRest', () => {

@@ -88,6 +88,38 @@ describe('cloneRegistryTemplateConfig', () => {
     expect(cm.configs.has('grid-test-copy')).toBe(false);
   });
 
+  it('returns false when source and target template ids match', async () => {
+    cm.configs.set('grid-test', templateRow());
+
+    const ok = await cloneRegistryTemplateConfig({
+      sourceTemplateId: 'grid-test',
+      targetComponentType: 'grid',
+      targetComponentSubType: 'test',
+      displayText: 'Same id',
+    });
+
+    expect(ok).toBe(false);
+  });
+
+  it('returns false when saveConfig throws', async () => {
+    cm.configs.set('grid-test', templateRow());
+    const original = cm.saveConfig.bind(cm);
+    cm.saveConfig = async () => { throw new Error('disk full'); };
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ok = await cloneRegistryTemplateConfig({
+      sourceTemplateId: 'grid-test',
+      targetComponentType: 'grid',
+      targetComponentSubType: 'fail-copy',
+      displayText: 'Copy',
+    });
+
+    expect(ok).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    cm.saveConfig = original;
+    warn.mockRestore();
+  });
+
   it('is idempotent when the target template already exists', async () => {
     cm.configs.set('grid-test', templateRow());
     cm.configs.set(

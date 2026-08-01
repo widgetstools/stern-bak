@@ -267,3 +267,82 @@ describe('AppDataMirror — cross-mirror convergence', () => {
     expect(c.get('positions', 'asOfDate')).toBe('2026-05-08');
   });
 });
+
+describe('AppDataMirror — edge cases', () => {
+  it('rejects upsert when the hub ack reports failure', async () => {
+    let lastReqId = '';
+    const mirror = new AppDataMirror({
+      subId: 'fail-sub',
+      userId: 'alice',
+      send: (req) => {
+        if ('reqId' in req && req.reqId) lastReqId = req.reqId;
+      },
+    });
+    await mirror.attach();
+    mirror.handleEvent({ kind: 'appdata-snapshot', subId: 'fail-sub', rows: [] });
+
+    const failPromise = mirror.set('positions', 'asOfDate', '2026-05-08');
+    mirror.handleEvent({
+      kind: 'appdata-ack',
+      reqId: lastReqId,
+      ok: false,
+      error: 'disk full',
+    });
+    await expect(failPromise).rejects.toThrow(/disk full/);
+  });
+
+  it('reindexes byName when a row is upserted under a new name', async () => {
+    const m = rig.mountMirror({ subId: 'rename-sub' });
+    await m.attach();
+    await m.ready();
+    m.handleEvent({
+      kind: 'appdata-delta',
+      subId: 'rename-sub',
+      op: 'upsert',
+      row: {
+        configId: 'ad-1',
+        name: 'OldName',
+        isPublic: false,
+        values: { key: 'v1' },
+        userId: 'alice',
+      },
+    });
+    m.handleEvent({
+      kind: 'appdata-delta',
+      subId: 'rename-sub',
+      op: 'upsert',
+      row: {
+        configId: 'ad-1',
+        name: 'NewName',
+        isPublic: false,
+        values: { key: 'v2' },
+        userId: 'alice',
+      },
+    });
+
+    expect(m.get('OldName', 'key')).toBeUndefined();
+    expect(m.get('NewName', 'key')).toBe('v2');
+  });
+
+  it('isolates throwing subscribe listeners', async () => {
+    const m = rig.mountMirror();
+    await m.attach();
+    await m.ready();
+
+    const good = vi.fn();
+    const bad = vi.fn(() => { throw new Error('listener boom'); });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    m.subscribe(bad);
+    m.subscribe(good);
+
+    await m.set('positions', 'asOfDate', '2026-05-08');
+
+    expect(bad).toHaveBeenCalled();
+    expect(good).toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalledWith(
+      '[AppDataMirror] listener threw',
+      expect.any(Error),
+    );
+    errSpy.mockRestore();
+  });
+});

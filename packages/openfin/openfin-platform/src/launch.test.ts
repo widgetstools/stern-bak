@@ -250,4 +250,108 @@ describe('launchRegisteredComponent', () => {
       expect.anything(),
     );
   });
+
+  it('skips template clone when the template row does not exist yet', async () => {
+    loadRegistryConfig.mockResolvedValue({ version: 1, entries: [entry], updatedAt: '' });
+    const saveConfig = vi.fn();
+    getConfigManager.mockResolvedValue({
+      getConfig: vi.fn().mockResolvedValue(null),
+      saveConfig,
+    });
+    await launchRegisteredComponent('e1');
+    expect(saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('generates a templateId when the registry entry has no configId', async () => {
+    const noConfig = { ...entry, configId: undefined };
+    loadRegistryConfig.mockResolvedValue({ version: 1, entries: [noConfig], updatedAt: '' });
+    getConfigManager.mockResolvedValue({
+      getConfig: vi.fn().mockResolvedValue(null),
+      saveConfig: vi.fn(),
+    });
+    await launchRegisteredComponent('e1');
+    expect(createView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customData: expect.objectContaining({
+          templateId: expect.stringContaining('grid'),
+        }),
+      }),
+    );
+  });
+
+  it('uses setAsForeground and bringToFront when focusing a singleton window', async () => {
+    const singleton = { ...entry, singleton: true, configId: 'grid-trade' };
+    loadRegistryConfig.mockResolvedValue({
+      version: 1,
+      entries: [singleton],
+      updatedAt: '',
+    });
+    getConfigManager.mockResolvedValue({
+      getConfig: vi.fn().mockResolvedValue(null),
+      saveConfig: vi.fn(),
+    });
+    const owner = {
+      focus: vi.fn().mockResolvedValue(undefined),
+      setAsForeground: vi.fn().mockResolvedValue(undefined),
+      bringToFront: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn().mockResolvedValue(undefined),
+    };
+    createWindow.mockResolvedValueOnce(owner);
+    await launchRegisteredComponent('e1', { asWindow: true });
+    await launchRegisteredComponent('e1', { asWindow: true });
+    expect(owner.setAsForeground).toHaveBeenCalled();
+    expect(owner.bringToFront).toHaveBeenCalled();
+    expect(createWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears singleton cache when the in-flight launch rejects', async () => {
+    const singleton = { ...entry, singleton: true, configId: 'grid-trade' };
+    loadRegistryConfig.mockResolvedValue({
+      version: 1,
+      entries: [singleton],
+      updatedAt: '',
+    });
+    getConfigManager.mockResolvedValue({
+      getConfig: vi.fn().mockResolvedValue(null),
+      saveConfig: vi.fn(),
+    });
+    createView.mockRejectedValueOnce(new Error('launch failed'));
+    await expect(launchRegisteredComponent('e1')).rejects.toThrow('launch failed');
+    createView.mockResolvedValueOnce({
+      focus: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn().mockResolvedValue(undefined),
+    });
+    await launchRegisteredComponent('e1');
+    expect(createView).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes singleton map entry when the owner closes', async () => {
+    const singleton = { ...entry, singleton: true, configId: 'grid-trade' };
+    loadRegistryConfig.mockResolvedValue({
+      version: 1,
+      entries: [singleton],
+      updatedAt: '',
+    });
+    getConfigManager.mockResolvedValue({
+      getConfig: vi.fn().mockResolvedValue(null),
+      saveConfig: vi.fn(),
+    });
+    let closedHandler: (() => void) | undefined;
+    const owner = {
+      focus: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn(async (evt: string, h: () => void) => {
+        if (evt === 'closed') closedHandler = h;
+      }),
+    };
+    createView.mockResolvedValueOnce(owner);
+    await launchRegisteredComponent('e1');
+    expect(closedHandler).toBeTypeOf('function');
+    closedHandler!();
+    createView.mockResolvedValueOnce({
+      focus: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn().mockResolvedValue(undefined),
+    });
+    await launchRegisteredComponent('e1');
+    expect(createView).toHaveBeenCalledTimes(2);
+  });
 });

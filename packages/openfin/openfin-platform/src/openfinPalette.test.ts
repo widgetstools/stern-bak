@@ -4,10 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   rgbStringToHex,
+  oklchComponentsToHex,
   buildPaletteFromThemeScope,
   buildOpenFinPalettesFromDesignSystem,
+  applyDarkPaletteOverrides,
   paletteContrastRatio,
   FALLBACK_OPENFIN_DARK_PALETTE,
+  FALLBACK_OPENFIN_LIGHT_PALETTE,
 } from './openfinPalette';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +26,38 @@ describe('rgbStringToHex', () => {
 
   it('passes through existing hex', () => {
     expect(rgbStringToHex('#0A76D3')).toBe('#0A76D3');
+  });
+
+  it('returns the input unchanged when rgb parsing fails', () => {
+    expect(rgbStringToHex('not-a-color')).toBe('not-a-color');
+  });
+});
+
+describe('oklchComponentsToHex', () => {
+  it('returns black when fewer than three components are supplied', () => {
+    expect(oklchComponentsToHex('0.5 0.1')).toBe('#000000');
+  });
+
+  it('converts valid OKLCH components to hex', () => {
+    expect(oklchComponentsToHex('0.5 0.1 256')).toMatch(/^#[0-9A-F]{6}$/);
+  });
+});
+
+describe('applyDarkPaletteOverrides', () => {
+  it('merges optional brand/background overrides onto the palette', () => {
+    const base = { ...FALLBACK_OPENFIN_DARK_PALETTE };
+    const merged = applyDarkPaletteOverrides(base, {
+      brandPrimary: '#112233',
+      backgroundPrimary: '#445566',
+    });
+    expect(merged.brandPrimary).toBe('#112233');
+    expect(merged.backgroundPrimary).toBe('#445566');
+    expect(merged.brandSecondary).toBe(base.brandSecondary);
+  });
+
+  it('returns the palette unchanged when overrides are omitted', () => {
+    const base = { ...FALLBACK_OPENFIN_DARK_PALETTE };
+    expect(applyDarkPaletteOverrides(base)).toBe(base);
   });
 });
 
@@ -126,5 +161,24 @@ describe('buildOpenFinPalettesFromDesignSystem', () => {
     expect(lift).toBeGreaterThan(1.15);
     // Title bar and tab-strip surface stay in lock-step.
     expect(dark.background2).toBe(dark.backgroundPrimary);
+  });
+
+  it('uses fallback palettes when token CSS is unavailable', () => {
+    const style = document.querySelector('[data-test-tokens]');
+    style?.remove();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { dark, light } = buildOpenFinPalettesFromDesignSystem();
+    expect(dark.brandPrimary).toBe(FALLBACK_OPENFIN_DARK_PALETTE.brandPrimary);
+    expect(light.background1).toBe(FALLBACK_OPENFIN_LIGHT_PALETTE.background1);
+    if (style) document.head.appendChild(style);
+  });
+
+  it('restores previous html theme attributes after sampling', () => {
+    const html = document.documentElement;
+    html.setAttribute('data-theme', 'light');
+    html.setAttribute('data-ag-theme-mode', 'light');
+    buildOpenFinPalettesFromDesignSystem();
+    expect(html.getAttribute('data-theme')).toBe('light');
+    expect(html.getAttribute('data-ag-theme-mode')).toBe('light');
   });
 });

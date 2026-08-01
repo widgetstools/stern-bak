@@ -22,7 +22,13 @@ const postMessage = vi.fn();
 
 class MockSharedWorker {
   port = { postMessage };
-  addEventListener = vi.fn();
+  addEventListener = vi.fn((event: string, handler: (ev: unknown) => void) => {
+    if (event === 'error') {
+      MockSharedWorker.errorHandler = handler;
+    }
+  });
+  static errorHandler: ((ev: unknown) => void) | undefined;
+
   constructor(public url: URL | string, public opts: SharedWorkerOptions) {}
 }
 
@@ -72,6 +78,48 @@ describe('createDataServicesClient', () => {
       expect.objectContaining({
         payload: expect.objectContaining({ appId: 'Star-Demo-Prod' }),
       }),
+    );
+  });
+
+  it('logs SharedWorker error events and wires bootstrapDataServices', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { createDataServicesClient } = await import('./createDataServicesClient.js');
+
+    createDataServicesClient({ appName: 'demo', userId: 'dev1' });
+
+    expect(bootstrapDataServices).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appName: 'demo',
+        userId: 'dev1',
+        worker: expect.any(MockSharedWorker),
+        configManager: expect.any(Object),
+      }),
+    );
+
+    MockSharedWorker.errorHandler?.({ type: 'error' });
+    expect(consoleError).toHaveBeenCalledWith(
+      '[@wellsfargo-starui/host-data] SharedWorker error event',
+      expect.objectContaining({ type: 'error' }),
+    );
+    consoleError.mockRestore();
+  });
+
+  it('uses a supplied mainThreadConfigManager instead of creating one', async () => {
+    const hostConfig = await import('@wellsfargo-starui/host-config');
+    const createConfigManager = vi.mocked(hostConfig.createConfigManager);
+    createConfigManager.mockClear();
+    const customCm = { init: vi.fn() };
+    const { createDataServicesClient } = await import('./createDataServicesClient.js');
+
+    createDataServicesClient({
+      appName: 'demo',
+      userId: 'dev1',
+      mainThreadConfigManager: customCm as never,
+    });
+
+    expect(createConfigManager).not.toHaveBeenCalled();
+    expect(bootstrapDataServices).toHaveBeenCalledWith(
+      expect.objectContaining({ configManager: customCm }),
     );
   });
 });

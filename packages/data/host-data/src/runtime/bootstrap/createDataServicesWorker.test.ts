@@ -3,7 +3,12 @@ import { createDataServicesWorker } from './createDataServicesWorker.js';
 
 class MockSharedWorker {
   port = { postMessage: vi.fn() };
-  addEventListener = vi.fn();
+  addEventListener = vi.fn((event: string, handler: (ev: unknown) => void) => {
+    if (event === 'error') {
+      MockSharedWorker.errorHandler = handler;
+    }
+  });
+  static errorHandler: ((ev: unknown) => void) | undefined;
 
   constructor(
     public url: string,
@@ -81,5 +86,21 @@ describe('createDataServicesWorker', () => {
         payload: expect.objectContaining({ appId: 'fallback-app' }),
       }),
     );
+  });
+
+  it('throws when SharedWorker is unavailable', () => {
+    vi.stubGlobal('SharedWorker', undefined);
+
+    expect(() =>
+      createDataServicesWorker('/worker.mjs', { appName: 'demo' }),
+    ).toThrow('SharedWorker is not available');
+  });
+
+  it('logs worker error events', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    createDataServicesWorker('/assets/data-services-worker.mjs', { appName: 'demo' });
+    MockSharedWorker.errorHandler?.({ type: 'error' });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

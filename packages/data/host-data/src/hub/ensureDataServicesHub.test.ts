@@ -4,6 +4,7 @@ import { DEV_PLATFORM_BOOTSTRAP } from '../bootstrap/PlatformBootstrapConfig.js'
 import {
   _resetEnsureDataServicesHubForTests,
   ensureDataServicesHub,
+  warmHubConnection,
 } from './ensureDataServicesHub.js';
 
 const createDataServicesWorkerMock = vi.fn();
@@ -120,5 +121,68 @@ describe('ensureDataServicesHub', () => {
     const provider = bundle.getProvider('p1');
     expect(provider.id).toBe('p1');
     expect(provider.capabilities.providerType).toBe('mock');
+  });
+
+  it('warmHubConnection swallows worker spawn errors for later surfacing', () => {
+    createDataServicesWorkerMock.mockImplementation(() => {
+      throw new Error('no SharedWorker');
+    });
+
+    expect(() => warmHubConnection({
+      ...DEV_PLATFORM_BOOTSTRAP,
+      workerScriptUrl: '/worker.mjs',
+    })).not.toThrow();
+  });
+
+  it('stopProvider forwards to the hub client and dispose clears singletons', async () => {
+    const stop = vi.fn();
+    bootstrapDataServicesMock.mockImplementation(() => ({
+      client: { waitForCatalogReady, stop },
+      appData: {},
+      configManager: fakeCm,
+      ready: Promise.resolve(),
+      dispose,
+    }));
+
+    const bundle = await ensureDataServicesHub({
+      ...DEV_PLATFORM_BOOTSTRAP,
+      workerScriptUrl: '/worker.mjs',
+      mainThreadConfigManager: fakeCm,
+    });
+
+    await bundle.stopProvider('p1');
+    expect(stop).toHaveBeenCalledWith('p1');
+
+    bundle.dispose();
+    expect(dispose).toHaveBeenCalled();
+
+    await ensureDataServicesHub({
+      ...DEV_PLATFORM_BOOTSTRAP,
+      workerScriptUrl: '/worker.mjs',
+      mainThreadConfigManager: fakeCm,
+    });
+    expect(createDataServicesWorkerMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the pending hub promise after bootstrap failure so a retry can run', async () => {
+    bootstrapDataServicesMock
+      .mockImplementationOnce(() => { throw new Error('bootstrap failed'); })
+      .mockImplementation(() => ({
+        client: { waitForCatalogReady, stop: vi.fn() },
+        appData: {},
+        configManager: fakeCm,
+        ready: Promise.resolve(),
+        dispose,
+      }));
+
+    const opts = {
+      ...DEV_PLATFORM_BOOTSTRAP,
+      workerScriptUrl: '/worker.mjs',
+      mainThreadConfigManager: fakeCm,
+    };
+
+    await expect(ensureDataServicesHub(opts)).rejects.toThrow('bootstrap failed');
+    await expect(ensureDataServicesHub(opts)).resolves.toBeDefined();
+    expect(bootstrapDataServicesMock).toHaveBeenCalledTimes(2);
   });
 });

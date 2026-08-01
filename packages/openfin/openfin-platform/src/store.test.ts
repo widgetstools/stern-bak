@@ -48,4 +48,17 @@ describe('registerStore', () => {
     await expect(registerStore(settings as never)).resolves.toBeUndefined();
     expect(console.error).toHaveBeenCalled();
   });
+
+  it('defaults app lists to empty when apps is omitted', async () => {
+    const meta = { clientId: 's1' };
+    storefrontRegister.mockResolvedValue(meta);
+
+    await registerStore(settings as never);
+
+    const provider = storefrontRegister.mock.calls[0][0];
+    expect(await provider.getApps()).toEqual([]);
+    expect((await provider.getNavigation())[0].items[0].templateData.apps).toEqual([]);
+    expect((await provider.getLandingPage()).topRow.items[0].templateData.apps).toEqual([]);
+    expect((await provider.getFooter()).logo.size).toBe('32');
+  });
 });

@@ -137,9 +137,14 @@ describe('initWorkspace', () => {
   let setActiveWorkspace: ReturnType<typeof vi.fn>;
   let getSnapshot: ReturnType<typeof vi.fn>;
   let setSelectedScheme: ReturnType<typeof vi.fn>;
+  let getSelectedScheme: ReturnType<typeof vi.fn>;
   let platformOn: ReturnType<typeof vi.fn>;
   let providerOnce: ReturnType<typeof vi.fn>;
   let platformQuit: ReturnType<typeof vi.fn>;
+  let capturedCustomActionDeps: {
+    runThemeToggle: (cont: (isDark: boolean) => Promise<void>) => Promise<void>;
+    exportAllConfig: (cm: unknown) => Promise<void>;
+  } | undefined;
   let cm: {
     init: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
@@ -159,6 +164,7 @@ describe('initWorkspace', () => {
     setActiveWorkspace = vi.fn().mockResolvedValue(undefined);
     getSnapshot = vi.fn().mockResolvedValue({ windows: [] });
     setSelectedScheme = vi.fn().mockResolvedValue(undefined);
+    getSelectedScheme = vi.fn().mockResolvedValue('dark');
     platformQuit = vi.fn().mockResolvedValue(undefined);
     platformOn = vi.fn((evt: string, h: (e: { name?: string }) => void) => {
       if (evt === 'window-closed') windowClosedHandler = h;
@@ -172,7 +178,7 @@ describe('initWorkspace', () => {
       getSnapshot,
       setActiveWorkspace,
       Theme: {
-        getSelectedScheme: vi.fn().mockResolvedValue('dark'),
+        getSelectedScheme,
         setSelectedScheme,
       },
       on: platformOn,
@@ -208,7 +214,10 @@ describe('initWorkspace', () => {
     migrateRegistryToGlobalScope.mockReset().mockResolvedValue({ migrated: 1 });
     migrateRegistryAppIdDrift.mockReset().mockResolvedValue({ migrated: 1 });
     gcOrphanedConfigs.mockReset().mockResolvedValue({ wouldDelete: 1, deleted: 0 });
-    buildCustomActions.mockClear().mockReturnValue({});
+    buildCustomActions.mockClear().mockImplementation((deps) => {
+      capturedCustomActionDeps = deps;
+      return {};
+    });
     openChildToolWindow.mockReset().mockResolvedValue(undefined);
     openDataProvidersToolWindow.mockReset().mockResolvedValue(undefined);
     launchApp.mockReset();
@@ -385,5 +394,145 @@ describe('initWorkspace', () => {
     expect(shutdownDock).toHaveBeenCalled();
     expect(cm.dispose).toHaveBeenCalled();
     expect(platformQuit).toHaveBeenCalled();
+  });
+
+  it('logs boot-time orphan GC telemetry when rows would be deleted', async () => {
+    const log = vi.fn();
+    gcOrphanedConfigs.mockResolvedValue({ wouldDelete: 3, deleted: 0 });
+    await initWorkspace({ onProgress: log });
+    await vi.waitFor(() => {
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('Workspace GC (boot): 3 orphan row(s)'),
+      );
+    });
+  });
+
+  it('runThemeToggle flips data-theme and coalesces rapid re-entry', async () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    await initWorkspace();
+    expect(capturedCustomActionDeps?.runThemeToggle).toBeTypeOf('function');
+    const cont = vi.fn().mockResolvedValue(undefined);
+    await Promise.all([
+      capturedCustomActionDeps!.runThemeToggle(cont),
+      capturedCustomActionDeps!.runThemeToggle(cont),
+    ]);
+    expect(cont).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+  });
+
+  it('reads persisted theme from localStorage when data-theme is missing', async () => {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('starui:theme', 'light');
+    await initWorkspace();
+    await capturedCustomActionDeps!.runThemeToggle(vi.fn());
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+  });
+
+  it('warns when syncPlatformColorScheme cannot call setSelectedScheme', async () => {
+    setSelectedScheme.mockImplementationOnce(() => {
+      throw new Error('scheme unavailable');
+    });
+    await initWorkspace();
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('setSelectedScheme failed'),
+      expect.anything(),
+    );
+  });
+
+  it('exports dock and registry rows through exportAllConfig', async () => {
+    await initWorkspace();
+    cm.getConfig
+      .mockResolvedValueOnce({ configId: 'dock-config', payload: { buttons: [] } })
+      .mockResolvedValueOnce({ configId: 'component-registry', payload: { entries: [] } });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await capturedCustomActionDeps!.exportAllConfig(cm);
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
+  });
+
+  it('supports selective component registration and excludeTools wiring', async () => {
+    await initWorkspace({
+      components: { home: false, store: true, dock: true, notifications: false },
+      dock: { excludeTools: ['export-config'] },
+    });
+    expect(registerHome).not.toHaveBeenCalled();
+    expect(registerStore).toHaveBeenCalled();
+    expect(registerDock).toHaveBeenCalled();
+    expect(registerNotifications).not.toHaveBeenCalled();
+    expect(setExcludedDockTools).toHaveBeenCalledWith(['export-config']);
+  });
+
+  it('does not reset active workspace while browser windows remain open', async () => {
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    await initWorkspace();
+    browserGetAllWindows.mockResolvedValueOnce([
+      { identity: { name: 'w1' } },
+      { identity: { name: 'w2' } },
+    ]);
+    windowClosedHandler!({ name: 'w1' });
+    await settle();
+    expect(setActiveWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('skips active-workspace reset while the platform is quitting', async () => {
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    await initWorkspace();
+    await closeRequestedHandler!();
+    browserGetAllWindows.mockResolvedValueOnce([]);
+    windowClosedHandler!({});
+    await settle();
+    expect(setActiveWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('logs when platform-api-ready component registration fails', async () => {
+    registerHome.mockRejectedValueOnce(new Error('home fail'));
+    await initWorkspace({ components: { home: true, store: false, dock: false, notifications: false } });
+    expect(console.error).toHaveBeenCalledWith(
+      'Failed to initialize workspace components:',
+      expect.anything(),
+    );
+  });
+
+  it('dock dispatcher covers config-browser uuid fallback and error paths', async () => {
+    getPlatformDefaultScope.mockReturnValueOnce({ appId: '', userId: 'dev1' });
+    await initWorkspace();
+    const dispatcher = (registerDock as unknown as {
+      dispatcher: (id: string, data?: unknown) => Promise<void>;
+    }).dispatcher;
+
+    await dispatcher(ACTION_OPEN_CONFIG_BROWSER);
+    expect(openChildToolWindow).toHaveBeenCalledWith(
+      'config-browser',
+      '/config-browser',
+      1100,
+      720,
+      expect.objectContaining({ customData: { appId: 'plat-uuid', userId: 'dev1' } }),
+    );
+
+    (fin.Application.getCurrentSync as ReturnType<typeof vi.fn>).mockReturnValue({
+      getViews: vi.fn().mockResolvedValue([
+        { inspectSharedWorker: vi.fn().mockRejectedValue(new Error('no worker')) },
+      ]),
+    });
+    await dispatcher(ACTION_INSPECT_SHARED_WORKER);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('No view has a SharedWorker'),
+      expect.anything(),
+    );
+
+    (fin.Application.getCurrentSync as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('views unavailable');
+    });
+    await dispatcher(ACTION_INSPECT_SHARED_WORKER);
+    expect(console.error).toHaveBeenCalledWith('Failed to inspect shared worker.', expect.anything());
+
+    const providerWindow = fin.Window.getCurrentSync();
+    providerWindow.showDeveloperTools.mockRejectedValueOnce(new Error('devtools fail'));
+    await dispatcher(ACTION_SHOW_DEVTOOLS);
+    expect(console.error).toHaveBeenCalledWith('Failed to open developer tools.', expect.anything());
+
+    providerWindow.isShowing.mockResolvedValueOnce(false);
+    await dispatcher(ACTION_TOGGLE_PROVIDER);
+    expect(providerWindow.show).toHaveBeenCalled();
   });
 });

@@ -270,5 +270,214 @@ describe('dock', () => {
         expect.anything(),
       );
     });
+
+    it('loads saved dock config and applies folder favorites with themed icons', async () => {
+      loadDockConfig.mockResolvedValueOnce({
+        version: 1,
+        updatedAt: '',
+        buttons: [
+          {
+            type: 'DropdownButton',
+            tooltip: 'Apps',
+            iconId: 'mkt:bond',
+            options: [
+              {
+                tooltip: 'Grid',
+                iconUrl: 'https://api.iconify.design/lucide/home.svg?color=%23ffffff',
+                action: { id: 'launch-app', customData: { appId: 'a' } },
+              },
+            ],
+          },
+          {
+            type: 'ActionButton',
+            tooltip: 'Folder',
+            icon: { dark: 'dark-icon.png', light: 'light-icon.png' },
+            action: { id: 'noop' },
+          },
+        ],
+      });
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      const initArgs = dockInit.mock.calls[0][0];
+      const folder = initArgs.config.favorites.find((e: { type: string }) => e.type === 'folder');
+      expect(folder?.icon).toBeTruthy();
+      expect(initArgs.config.contentMenu.some((e: { id: string }) => e.id === 'system-tools')).toBe(true);
+    });
+
+    it('hard-reloads via soft update when provider was never initialised', async () => {
+      await reloadDockFromConfig();
+      expect(dockInit).not.toHaveBeenCalled();
+    });
+
+    it('shuts down dock3 and swallows shutdown / IAB unsubscribe errors', async () => {
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      dockProvider.shutdown.mockRejectedValueOnce(new Error('shutdown fail'));
+      iabUnsubscribe.mockRejectedValueOnce(new Error('unsub fail'));
+      await shutdownDock();
+      expect(console.error).toHaveBeenCalled();
+    });
+
+    it('override launchEntry flips light→dark and swallows IAB publish failures', async () => {
+      getSelectedScheme.mockResolvedValueOnce('light');
+      iabPublish.mockRejectedValueOnce(new Error('publish fail'));
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      const Override = capturedOverride!(class {
+        config = { favorites: [], contentMenu: [] };
+      });
+      const instance = new Override() as {
+        launchEntry: (p: { entry: unknown }) => Promise<void>;
+      };
+      await instance.launchEntry({
+        entry: { id: 'theme-toggle', itemData: { actionId: ACTION_TOGGLE_THEME } },
+      });
+      expect(setSelectedScheme).toHaveBeenCalledWith('dark');
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('IAB publish failed'),
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('outside OpenFin', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+      __resetDockStateForTests();
+    });
+
+    it('readDockTheme falls back to localStorage when data-theme is absent', async () => {
+      vi.stubGlobal('fin', undefined);
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('starui:theme', 'light');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      const provider = classicRegister.mock.calls[0][0];
+      const themeToggle = provider.buttons.find((b: { tooltip: string }) => b.tooltip === 'Toggle Theme');
+      expect(themeToggle.iconUrl).toBeTruthy();
+    });
+  });
+
+  describe('shared lifecycle', () => {
+    it('setExcludedDockTools(undefined) restores the full Tools menu', async () => {
+      setExcludedDockTools(['export-config']);
+      setExcludedDockTools(undefined);
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      const tools = classicRegister.mock.calls[0][0].buttons.find(
+        (b: { tooltip: string }) => b.tooltip === 'Tools',
+      );
+      expect(tools.options.some((o: { action: { id: string } }) => o.action.id === 'export-config')).toBe(true);
+    });
+
+    it('updateDockButtons logs when dock3 is not initialised', async () => {
+      await updateDockButtons({ version: 1, updatedAt: '', buttons: [] });
+      expect(saveDockConfig).toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Cannot update dock'),
+      );
+    });
+
+    it('classic register refreshes in place when already registered with saved config', async () => {
+      loadDockConfig.mockResolvedValueOnce({
+        version: 1,
+        updatedAt: '',
+        buttons: [{ type: 'ActionButton', tooltip: 'Saved', iconId: 'lucide:home', action: { id: 'x' } }],
+      });
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      classicUpdate.mockClear();
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      expect(classicRegister).toHaveBeenCalledTimes(1);
+      expect(classicUpdate).toHaveBeenCalled();
+    });
+
+    it('classic applyDockClassicConfig warns when registration handle is missing', async () => {
+      await reloadDockFromConfig();
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Cannot update classic dock'),
+      );
+    });
+
+    it('swallows classic IAB subscribe failures on both topics', async () => {
+      iabSubscribe
+        .mockImplementationOnce(() => {
+          throw new Error('config topic');
+        })
+        .mockImplementationOnce(() => {
+          throw new Error('reload topic');
+        });
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Could not subscribe to dock-config-update'),
+        expect.anything(),
+      );
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Could not subscribe to reload-dock-after-import'),
+        expect.anything(),
+      );
+    });
+
+    it('invokes classic IAB handlers to persist config and reload after import', async () => {
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      const configHandler = iabSubscribe.mock.calls.find(
+        (c) => c[1] === 'dock-config-update',
+      )?.[2] as (cfg: unknown) => Promise<void>;
+      const reloadHandler = iabSubscribe.mock.calls.find(
+        (c) => c[1] === 'reload-dock-after-import',
+      )?.[2] as () => Promise<void>;
+      expect(configHandler).toBeTypeOf('function');
+      expect(reloadHandler).toBeTypeOf('function');
+      await configHandler({ version: 1, updatedAt: 'now', buttons: [] });
+      expect(saveDockConfig).toHaveBeenCalled();
+      expect(classicUpdate).toHaveBeenCalled();
+      loadDockConfig.mockResolvedValueOnce({ version: 1, updatedAt: '', buttons: [] });
+      await reloadHandler();
+      expect(loadDockConfig).toHaveBeenCalled();
+    });
+
+    it('registers classic dock with defaults when no saved config or apps exist', async () => {
+      loadDockConfig.mockResolvedValueOnce(null);
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('starui:theme', 'light');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      const buttons = classicRegister.mock.calls[0][0].buttons;
+      expect(buttons.some((b: { tooltip: string }) => b.tooltip === 'Tools')).toBe(true);
+      expect(buttons.some((b: { tooltip: string }) => b.tooltip === 'Toggle Theme')).toBe(true);
+    });
+
+    it('logs when classic updateDockProviderConfig fails on refresh', async () => {
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      classicUpdate.mockRejectedValueOnce(new Error('update fail'));
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      expect(console.error).toHaveBeenCalledWith(
+        'Failed to update classic dock config.',
+        expect.anything(),
+      );
+    });
+
+    it('dock3 excludes tool actions from the flattened content menu', async () => {
+      setExcludedDockTools(['export-config']);
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      const menu = dockInit.mock.calls[0][0].config.contentMenu;
+      const toolsFolder = menu.find((e: { id: string }) => e.id === 'system-tools');
+      const childIds = (toolsFolder?.children ?? []).map(
+        (c: { itemData?: { actionId?: string } }) => c.itemData?.actionId,
+      );
+      expect(childIds).not.toContain('export-config');
+    });
+
+    it('override launchEntry returns early when itemData has no actionId', async () => {
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      const Override = capturedOverride!(class { config = {}; });
+      const instance = new Override() as {
+        launchEntry: (p: { entry: unknown }) => Promise<void>;
+      };
+      await instance.launchEntry({ entry: { itemData: {} } });
+      expect(setSelectedScheme).not.toHaveBeenCalled();
+    });
+
+    it('hard-reload unsubscribes IAB handlers before re-init', async () => {
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      iabUnsubscribe.mockClear();
+      await reloadDockFromConfig();
+      expect(iabUnsubscribe).toHaveBeenCalled();
+      expect(dockInit).toHaveBeenCalledTimes(2);
+    });
   });
 });

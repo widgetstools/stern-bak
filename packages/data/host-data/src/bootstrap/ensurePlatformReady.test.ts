@@ -215,7 +215,101 @@ describe('ensurePlatformReady', () => {
       }),
     );
   });
+
+  it('allows retry after a failed platform bootstrap', async () => {
+    ensureDataServicesHubMock
+      .mockRejectedValueOnce(new Error('hub down'))
+      .mockImplementation(() =>
+        Promise.resolve({
+          client: {
+            stop: vi.fn(),
+            invalidateConfig: vi.fn().mockResolvedValue(undefined),
+          },
+          appData: {},
+          configManager: {},
+          ready: Promise.resolve(),
+          appDataReady: Promise.resolve(),
+          catalogReady: Promise.resolve(),
+          dispose: vi.fn(),
+          getProvider: vi.fn(),
+          stopProvider: vi.fn(),
+        }),
+      );
+
+    await expect(
+      ensurePlatformReady(DEV_PLATFORM_BOOTSTRAP, { workerScriptUrl: '/worker.mjs' }),
+    ).rejects.toThrow(/hub down/);
+
+    const bundle = await ensurePlatformReady(DEV_PLATFORM_BOOTSTRAP, { workerScriptUrl: '/worker.mjs' });
+    expect(bundle.ready).toBeInstanceOf(Promise);
+    expect(ensureDataServicesHubMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not mark the platform warm when hub hydration fails', async () => {
+    ensureDataServicesHubMock.mockImplementation(() =>
+      Promise.resolve({
+        client: {
+          stop: vi.fn(),
+          invalidateConfig: vi.fn().mockResolvedValue(undefined),
+        },
+        appData: {},
+        configManager: {},
+        ready: Promise.reject(new Error('hydrate failed')),
+        appDataReady: Promise.resolve(),
+        catalogReady: Promise.resolve(),
+        dispose: vi.fn(),
+        getProvider: vi.fn(),
+        stopProvider: vi.fn(),
+      }),
+    );
+
+    const bundle = await ensurePlatformReady(DEV_PLATFORM_BOOTSTRAP, { workerScriptUrl: '/worker.mjs' });
+    await expect(bundle.ready).rejects.toThrow(/hydrate failed/);
+    expect(isPlatformWarm('TestApp')).toBe(false);
+  });
+
+  it('logs AppData bootstrap failures without rejecting ensurePlatformReady', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    ensureDataServicesHubMock.mockImplementation(() =>
+      Promise.resolve({
+        client: {
+          stop: vi.fn(),
+          invalidateConfig: vi.fn().mockResolvedValue(undefined),
+        },
+        appData: {},
+        configManager: {},
+        ready: Promise.resolve(),
+        appDataReady: Promise.reject(new Error('appdata hydrate failed')),
+        catalogReady: Promise.resolve(),
+        dispose: vi.fn(),
+        getProvider: vi.fn(),
+        stopProvider: vi.fn(),
+      }),
+    );
+
+    const bundle = await ensurePlatformReady(
+      {
+        ...DEV_PLATFORM_BOOTSTRAP,
+        appDataBootstrap: { onHubReady: ['session-context'], runPolicy: 'always' },
+      },
+      { workerScriptUrl: '/worker.mjs', appDataBootstrapHooks: { 'session-context': vi.fn() } },
+    );
+    await flushMicrotasks();
+
+    expect(errSpy).toHaveBeenCalledWith(
+      '[ensurePlatformReady:TestApp] AppData bootstrap failed:',
+      expect.any(Error),
+    );
+    expect(runAppDataBootstrap).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
 });
+
+async function flushMicrotasks(): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    await Promise.resolve();
+  }
+}
 
 describe('ensureConfigReady', () => {
   beforeEach(() => {
@@ -268,5 +362,29 @@ describe('ensureConfigReady', () => {
     await expect(
       ensureConfigReady({ appId: '', userId: 'dev1' }),
     ).rejects.toBeInstanceOf(PlatformBootstrapConfigError);
+  });
+
+  it('allows retry after a failed config bootstrap', async () => {
+    const initMock = vi.fn()
+      .mockRejectedValueOnce(new Error('idb blocked'))
+      .mockResolvedValue(undefined);
+    createConfigManagerMock.mockImplementation((opts: unknown) => ({
+      _opts: opts,
+      init: initMock,
+      onConfigChanged: vi.fn(() => () => {}),
+    }));
+
+    await expect(ensureConfigReady(DEV_PLATFORM_BOOTSTRAP)).rejects.toThrow(/idb blocked/);
+
+    const { configManager } = await ensureConfigReady(DEV_PLATFORM_BOOTSTRAP);
+    expect(configManager).toBeDefined();
+    expect(initMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('_resetEnsurePlatformReadyForTests clears cached promises', async () => {
+    await ensureConfigReady(DEV_PLATFORM_BOOTSTRAP);
+    _resetEnsurePlatformReadyForTests();
+    await ensureConfigReady(DEV_PLATFORM_BOOTSTRAP);
+    expect(createConfigManagerMock).toHaveBeenCalledTimes(2);
   });
 });

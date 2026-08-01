@@ -21,6 +21,8 @@ import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config
 import {
   createWorkspacePersistenceOverride,
   instanceIdsFromSnapshot,
+  __resetWorkspaceSaveChannelForTests,
+  WORKSPACE_SAVE_CHANNEL,
 } from './workspacePersistence';
 
 // ─── Test doubles ────────────────────────────────────────────────────
@@ -50,8 +52,26 @@ class InMemoryConfigManager {
   }
 }
 
+const superSpies = {
+  createView: vi.fn(async (payload: unknown) => ({ payload })),
+  createWindow: vi.fn(async (payload: unknown) => ({ payload })),
+  applyWorkspace: vi.fn(async () => true),
+  openViewTabContextMenu: vi.fn(async () => undefined),
+};
+
 class StubWorkspacePlatformProvider {
-  // Bare empty class — the override never calls super.*
+  async createView(payload: unknown, identity?: unknown) {
+    return superSpies.createView(payload, identity);
+  }
+  async createWindow(payload: unknown, identity?: unknown) {
+    return superSpies.createWindow(payload, identity);
+  }
+  async applyWorkspace(payload: unknown) {
+    return superSpies.applyWorkspace(payload);
+  }
+  async openViewTabContextMenu(req: unknown, identity?: unknown) {
+    return superSpies.openViewTabContextMenu(req, identity);
+  }
 }
 
 function makeProvider(opts: {
@@ -79,10 +99,13 @@ const USER_ID = 'dev1';
 
 beforeEach(() => {
   delete (globalThis as any).fin;
+  __resetWorkspaceSaveChannelForTests();
+  for (const spy of Object.values(superSpies)) spy.mockClear();
 });
 
 afterEach(() => {
   delete (globalThis as any).fin;
+  __resetWorkspaceSaveChannelForTests();
 });
 
 // ─── instanceIdsFromSnapshot ─────────────────────────────────────────
@@ -485,5 +508,137 @@ describe('full round trip', () => {
     await provider.deleteSavedWorkspace('rt');
     list = await provider.getSavedWorkspaces();
     expect(list).toEqual([]);
+  });
+});
+
+describe('save channel + live snapshot augmentation', () => {
+  it('dispatches workspace-saving and publishes workspace-saved around create', async () => {
+    const cm = new InMemoryConfigManager();
+    const dispatch = vi.fn().mockResolvedValue(undefined);
+    const publish = vi.fn().mockResolvedValue([]);
+    const channelCreate = vi.fn().mockResolvedValue({
+      connections: [{ uuid: 'v1', name: 'view-1' }],
+      dispatch,
+      publish,
+    });
+    (globalThis as any).fin = {
+      InterApplicationBus: { Channel: { create: channelCreate } },
+      Platform: { getCurrentSync: () => ({ getSnapshot: async () => ({ windows: [] }) }) },
+    };
+
+    const provider = await makeProvider({ cm, appId: APP_ID, userId: USER_ID });
+    await provider.createSavedWorkspace({
+      workspace: { workspaceId: 'ws1', title: 'WS1', snapshot: {} },
+    });
+
+    expect(channelCreate).toHaveBeenCalledWith(WORKSPACE_SAVE_CHANNEL);
+    expect(dispatch).toHaveBeenCalledWith(
+      { uuid: 'v1', name: 'view-1' },
+      'workspace-saving',
+      { workspaceId: 'ws1' },
+    );
+    expect(publish).toHaveBeenCalledWith('workspace-saved', { workspaceId: 'ws1' });
+  });
+
+  it('merges live view customData into the saved snapshot', async () => {
+    const cm = new InMemoryConfigManager();
+    const snapshot = {
+      windows: [{ views: [{ name: 'grid-1', url: 'http://app.test/v?id=live', customData: { stale: true } }] }],
+    };
+    (globalThis as any).fin = {
+      me: { identity: { uuid: 'plat' } },
+      View: {
+        wrapSync: vi.fn(() => ({
+          getOptions: vi.fn().mockResolvedValue({ customData: { activeProfileId: 'p2' } }),
+        })),
+      },
+      Platform: { getCurrentSync: () => ({ getSnapshot: async () => snapshot }) },
+    };
+
+    const provider = await makeProvider({ cm, appId: APP_ID, userId: USER_ID });
+    await provider.createSavedWorkspace({
+      workspace: { workspaceId: 'ws-live', title: 'Live', snapshot },
+    });
+
+    const row = cm.rows.get('WS_ws-live');
+    expect(row!.payload.openfinSnapshot.windows[0].views[0].customData).toEqual({
+      stale: true,
+      activeProfileId: 'p2',
+    });
+  });
+
+  it('updateSavedWorkspace captures a live snapshot when none is supplied', async () => {
+    const cm = new InMemoryConfigManager();
+    const liveSnapshot = { windows: [{ views: [{ url: 'http://app.test/v?id=upd' }] }] };
+    stubFinSnapshot(liveSnapshot);
+    const provider = await makeProvider({ cm, appId: APP_ID, userId: USER_ID });
+    await provider.updateSavedWorkspace({
+      workspace: { workspaceId: 'upd', title: 'Updated' },
+    });
+    expect(cm.rows.get('WS_upd')!.payload.instanceIds).toEqual(['upd']);
+  });
+});
+
+describe('provider view/window overrides', () => {
+  it('createView strips legacy isolation and disables background throttling before delegating', async () => {
+    const provider = await makeProvider({ cm: new InMemoryConfigManager(), appId: APP_ID, userId: USER_ID });
+    (globalThis as any).fin = { me: { identity: { uuid: 'plat' } } };
+    const payload = {
+      opts: { processAffinity: 'view-iso-old', backgroundThrottling: true },
+    };
+    await provider.createView(payload, { uuid: 'plat' });
+    expect(superSpies.createView).toHaveBeenCalledWith(payload, { uuid: 'plat' });
+    expect(payload.opts.backgroundThrottling).toBe(false);
+  });
+
+  it('createWindow cleans nested layouts and window options', async () => {
+    const provider = await makeProvider({ cm: new InMemoryConfigManager(), appId: APP_ID, userId: USER_ID });
+    (globalThis as any).fin = { me: { identity: { uuid: 'plat' } } };
+    const payload = {
+      layout: { content: [{ views: [{ processAffinity: 'view-iso-old' }] }] },
+      windowOptions: { layout: { views: [{ processAffinity: 'view-iso-old' }] }, backgroundThrottling: true },
+      backgroundThrottling: true,
+    };
+    await provider.createWindow(payload, { uuid: 'plat' });
+    expect(superSpies.createWindow).toHaveBeenCalled();
+    expect(payload.backgroundThrottling).toBe(false);
+    expect(payload.windowOptions.backgroundThrottling).toBe(false);
+  });
+
+  it('applyWorkspace forces skipPrompt and injects rename into the tab context menu', async () => {
+    const provider = await makeProvider({ cm: new InMemoryConfigManager(), appId: APP_ID, userId: USER_ID });
+    await provider.applyWorkspace({ workspaceId: 'ws1', options: { foo: true } });
+    expect(superSpies.applyWorkspace).toHaveBeenCalledWith({
+      workspaceId: 'ws1',
+      options: { foo: true, skipPrompt: true },
+    });
+    await provider.openViewTabContextMenu(
+      { menuEntries: [], selectedViews: [{ name: 'tab-1' }], template: [] },
+      { uuid: 'plat' },
+    );
+    expect(superSpies.openViewTabContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({ menuEntries: expect.any(Array) }),
+      { uuid: 'plat' },
+    );
+  });
+});
+
+describe('outside OpenFin', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    __resetWorkspaceSaveChannelForTests();
+  });
+
+  it('skips save-channel fan-out when fin is undefined', async () => {
+    vi.stubGlobal('fin', undefined);
+    const cm = new InMemoryConfigManager();
+    const provider = await makeProvider({ cm, appId: APP_ID, userId: USER_ID });
+    await expect(
+      provider.createSavedWorkspace({
+        workspace: { workspaceId: 'offline', title: 'Offline', snapshot: {} },
+      }),
+    ).resolves.toBeUndefined();
+    expect(cm.rows.has('WS_offline')).toBe(true);
   });
 });

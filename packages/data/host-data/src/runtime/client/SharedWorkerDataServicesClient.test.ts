@@ -8,7 +8,7 @@
  * only one that doesn't need an external transport.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInPageWiring, SharedWorkerDataServicesClient } from './SharedWorkerDataServicesClient';
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub';
 import { registerProvider } from '../providers/registry';
@@ -909,3 +909,337 @@ describe('SharedWorkerDataServicesClient — columnar wire format end-to-end', (
     handle.unsubscribe();
   });
 });
+
+describe('SharedWorkerDataServicesClient — edge cases and error paths', () => {
+  let w: Wiring;
+  beforeEach(() => { w = wire(); });
+  afterEach(() => w.close());
+
+  it('detach() is a no-op for unknown subIds', async () => {
+    w.client.detach('missing-sub');
+    await flush();
+    expect(w.client.hasDataSubscription('missing-sub')).toBe(false);
+  });
+
+  it('hasDataSubscription reflects attach/detach lifecycle', async () => {
+    const { listener } = makeListener();
+    const subId = w.client.attach('p1', cfg(), listener);
+    expect(w.client.hasDataSubscription(subId)).toBe(true);
+    w.client.detach(subId);
+    expect(w.client.hasDataSubscription(subId)).toBe(false);
+  });
+
+  it('waitForProviderRunning resolves false after timeout', async () => {
+    const result = await w.client.waitForProviderRunning('never-started', {
+      timeoutMs: 60,
+      intervalMs: 20,
+    });
+    expect(result).toBe(false);
+  });
+
+  it('isProviderRunning returns false when the client is closed', async () => {
+    w.client.close();
+    expect(await w.client.isProviderRunning('p1')).toBe(false);
+  });
+
+  it('isCatalogReady returns false when the client is closed', async () => {
+    w.client.close();
+    expect(await w.client.isCatalogReady()).toBe(false);
+  });
+
+  it('getHubIntrospect throws when the hub reports failure', async () => {
+    const orig = w.hub.handleRequest.bind(w.hub);
+    w.hub.handleRequest = (port, req) => {
+      if (req.kind === 'hub-introspect') {
+        port.postMessage({
+          kind: 'config-snapshot',
+          reqId: req.reqId,
+          ok: false,
+          error: 'introspect denied',
+        });
+        return;
+      }
+      return orig(port, req);
+    };
+    await expect(w.client.getHubIntrospect()).rejects.toThrow(/introspect denied/);
+  });
+
+  it('catalog RPC rejects when the hub returns ok:false', async () => {
+    const orig = w.hub.handleRequest.bind(w.hub);
+    w.hub.handleRequest = (port, req) => {
+      if (req.kind === 'get-config') {
+        port.postMessage({
+          kind: 'config-snapshot',
+          reqId: req.reqId,
+          ok: false,
+          error: 'missing row',
+        });
+        return;
+      }
+      return orig(port, req);
+    };
+    await expect(w.client.getProviderConfig('missing')).rejects.toThrow(/missing row/);
+  });
+
+  it('onCatalogChange isolates throwing listeners', async () => {
+    const cm = stubConfigManager();
+    cm._rows.set('p1', mockProviderRow('p1'));
+    const local = wire({ configManager: cm });
+    await local.hub.hydrateCatalog();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const good = vi.fn();
+    local.client.onCatalogChange(() => { throw new Error('listener boom'); });
+    local.client.onCatalogChange(good);
+    await local.client.invalidateConfig('p1');
+    await flush();
+
+    expect(good).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[SharedWorkerDataServicesClient] catalog change listener threw',
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
+    local.close();
+  });
+
+  it('subscribe onReset flushes buffered reset deltas on registration', async () => {
+    const handle = w.client.subscribe<{ id: string; x: number }>('p1', cfg());
+    await flush();
+    controllers.get('c-1')!.emit({ rows: [{ id: 'r1', x: 1 }], replace: true });
+    controllers.get('c-1')!.emit({ status: 'ready' });
+    await handle.snapshot;
+
+    controllers.get('c-1')!.emit({ rows: [{ id: 'r1', x: 99 }], replace: true });
+    await flush();
+
+    const resets: Array<readonly { id: string; x: number }[]> = [];
+    handle.onReset((rows) => resets.push(rows));
+    expect(resets).toEqual([[{ id: 'r1', x: 99 }]]);
+    handle.unsubscribe();
+  });
+
+  it('subscribe refresh rejects before the initial snapshot settles', async () => {
+    const handle = w.client.subscribe('p1', cfg());
+    await flush();
+    await expect(handle.refresh()).rejects.toThrow(/before the initial snapshot/);
+    const snapP = handle.snapshot;
+    handle.unsubscribe();
+    await expect(snapP).rejects.toThrow(/cancelled/);
+  });
+
+  it('subscribe refresh rejects when the provider errors during cache replay', async () => {
+    const handle = w.client.subscribe('p1', cfg());
+    await flush();
+    controllers.get('c-1')!.emit({ rows: [{ id: 'r1' }], replace: true });
+    controllers.get('c-1')!.emit({ status: 'ready' });
+    await handle.snapshot;
+
+    const refreshP = handle.refresh();
+    controllers.get('c-1')!.emit({ status: 'error', error: 'refresh failed' });
+    await expect(refreshP).rejects.toThrow(/refresh failed/);
+    handle.unsubscribe();
+  });
+
+  it('subscribe unsubscribe rejects an in-flight cache refresh', async () => {
+    const handle = w.client.subscribe('p1', cfg());
+    await flush();
+    controllers.get('c-1')!.emit({ rows: [{ id: 'r1' }], replace: true });
+    controllers.get('c-1')!.emit({ status: 'ready' });
+    await handle.snapshot;
+
+    const refreshP = handle.refresh();
+    handle.unsubscribe();
+    await expect(refreshP).rejects.toThrow(/cache refresh/);
+  });
+
+  it('closed client rejects attach, subscribe, and attachStats', async () => {
+    const { listener } = makeListener();
+    w.client.close();
+    expect(() => w.client.attach('p1', cfg(), listener)).toThrow(/closed/);
+    expect(() => w.client.subscribe('p1', cfg())).toThrow(/closed/);
+    expect(() => w.client.attachStats('p1', { onStats: vi.fn() })).toThrow(/closed/);
+  });
+
+  it('stop() is a no-op after close', async () => {
+    const { listener } = makeListener();
+    w.client.attach('p1', cfg(), listener);
+    await flush();
+    w.client.close();
+    expect(() => w.client.stop('p1')).not.toThrow();
+  });
+});
+
+describe('SharedWorkerDataServicesClient — direct port events', () => {
+  function wireDirect(subId = 'direct-sub'): {
+    client: SharedWorkerDataServicesClient;
+    inject: (event: unknown) => Promise<void>;
+    close: () => void;
+  } {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      generateSubId: () => subId,
+    });
+    return {
+      client,
+      inject: async (event) => {
+        channel.port2.postMessage(event);
+        await flush();
+      },
+      close: () => {
+        client.close();
+        try { channel.port2.close(); } catch { /* idempotent */ }
+      },
+    };
+  }
+
+  it('ignores delta events for detached subIds', async () => {
+    const { client, inject, close } = wireDirect();
+    const { listener, captured } = makeListener();
+    client.attach('p1', cfg(), listener);
+    client.detach('direct-sub');
+    await inject({ kind: 'delta', subId: 'direct-sub', rows: [{ id: 'x' }], replace: false });
+    expect(captured.deltas).toHaveLength(0);
+    close();
+  });
+
+  it('surfaces postMessage failures via onStatus error', () => {
+    const channel = new MessageChannel();
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      generateSubId: () => 'err-sub',
+    });
+    client.attach('p1', cfg(), makeListener().listener);
+    vi.spyOn(channel.port1, 'postMessage').mockImplementation(() => {
+      throw new Error('port dead');
+    });
+    const failing = makeListener();
+    client.attach('p2', cfg('c-2'), failing.listener);
+    expect(failing.captured.statuses.some((s) => s.status === 'error' && s.error === 'port dead')).toBe(true);
+    client.close();
+  });
+
+  it('logs delta-bin decode failures without crashing', async () => {
+    const { client, inject, close } = wireDirect();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    client.attach('p1', cfg(), makeListener().listener);
+    await inject({
+      kind: 'delta-bin',
+      subId: 'direct-sub',
+      buf: new TextEncoder().encode('not-json').buffer,
+      replace: false,
+    });
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('delta-bin decode failed'),
+      'direct-sub',
+      'json',
+      expect.any(SyntaxError),
+    );
+    errSpy.mockRestore();
+    close();
+  });
+
+  it('delta-patch without sub-init is ignored safely', async () => {
+    const { client, inject, close } = wireDirect();
+    const { listener, captured } = makeListener();
+    client.attach('p1', cfg(), listener);
+    await inject({
+      kind: 'delta-patch',
+      subId: 'direct-sub',
+      patches: [{ k: 'r1', s: { px: 2 } }],
+    });
+    expect(captured.deltas).toHaveLength(0);
+    close();
+  });
+
+  it('merges delta-patch inserts and field updates after sub-init', async () => {
+    const { client, inject, close } = wireDirect();
+    const { listener, captured } = makeListener();
+    client.attach('p1', cfg(), listener);
+    await inject({ kind: 'sub-init', subId: 'direct-sub', keyColumn: 'id' });
+    await inject({
+      kind: 'delta',
+      subId: 'direct-sub',
+      rows: [{ id: 'r1', px: 1 }],
+      replace: true,
+    });
+    await inject({
+      kind: 'delta-patch',
+      subId: 'direct-sub',
+      patches: [
+        { k: 'r1', s: { px: 2 } },
+        { k: 'r2', f: { id: 'r2', px: 5 } },
+      ],
+    });
+    expect(captured.deltas).toHaveLength(2);
+    expect(captured.deltas[1].rows).toEqual([
+      { id: 'r1', px: 2 },
+      { id: 'r2', px: 5 },
+    ]);
+    close();
+  });
+
+  it('routes appdata-ack events to every attached mirror', async () => {
+    const cm = stubConfigManager();
+    const local = wire({ configManager: cm });
+    await local.hub.hydrateAppData('alice');
+    const a = local.client.attachAppData({ userId: 'alice', subId: 'a' });
+    const b = local.client.attachAppData({ userId: 'alice', subId: 'b' });
+    await a.attach();
+    await b.attach();
+    await Promise.all([a.ready(), b.ready()]);
+
+    await a.set('positions', 'asOfDate', '2026-05-08');
+    expect(b.get('positions', 'asOfDate')).toBe('2026-05-08');
+    local.close();
+  });
+});
+
+describe('SharedWorkerDataServicesClient — subscription-lost recovery', () => {
+  it('re-sends attach when subscription-lost arrives for a data subscription', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: unknown[] = [];
+    const origPost = channel.port1.postMessage.bind(channel.port1);
+    vi.spyOn(channel.port1, 'postMessage').mockImplementation((msg, transfer) => {
+      posts.push(msg);
+      return origPost(msg, transfer);
+    });
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      generateSubId: () => 's-lost',
+    });
+    client.attach('p1', cfg(), makeListener().listener);
+    posts.length = 0;
+    channel.port2.postMessage({ kind: 'subscription-lost', subId: 's-lost' });
+    await flush();
+    expect(posts.some((m) => (m as { kind?: string; mode?: string }).kind === 'attach'
+      && (m as { mode?: string }).mode === 'data')).toBe(true);
+    client.close();
+  });
+
+  it('re-sends attach when subscription-lost arrives for a stats subscription', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: unknown[] = [];
+    const origPost = channel.port1.postMessage.bind(channel.port1);
+    vi.spyOn(channel.port1, 'postMessage').mockImplementation((msg, transfer) => {
+      posts.push(msg);
+      return origPost(msg, transfer);
+    });
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      generateSubId: () => 'stats-lost',
+    });
+    client.attachStats('p1', { onStats: vi.fn() });
+    posts.length = 0;
+    channel.port2.postMessage({ kind: 'subscription-lost', subId: 'stats-lost' });
+    await flush();
+    expect(posts.some((m) => (m as { kind?: string; mode?: string }).kind === 'attach'
+      && (m as { mode?: string }).mode === 'stats')).toBe(true);
+    client.close();
+  });
+});
+

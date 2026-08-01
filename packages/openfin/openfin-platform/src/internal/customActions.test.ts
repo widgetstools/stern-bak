@@ -314,4 +314,80 @@ describe('buildCustomActions', () => {
       expect.anything(),
     );
   });
+
+  it('no-ops child-window actions for the wrong callerType', async () => {
+    const wrong = CustomActionCallerType.ViewTabContextMenu;
+    await actions[ACTION_OPEN_DOCK_EDITOR]({ callerType: wrong } as never);
+    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: wrong } as never);
+    await actions[ACTION_OPEN_WORKSPACE_SETUP]({ callerType: wrong } as never);
+    await actions[ACTION_OPEN_DATA_PROVIDERS]({ callerType: wrong } as never);
+    await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: wrong } as never);
+    await actions[ACTION_RELOAD_DOCK]({ callerType: btn } as never);
+    await actions[ACTION_SHOW_DEVTOOLS]({ callerType: btn } as never);
+    await actions[ACTION_EXPORT_CONFIG]({ callerType: btn } as never);
+    await actions[ACTION_IMPORT_CONFIG]({ callerType: btn } as never);
+    await actions[ACTION_TOGGLE_PROVIDER]({ callerType: btn } as never);
+    await actions[ACTION_INSPECT_SHARED_WORKER]({ callerType: btn } as never);
+    expect(createWindow).not.toHaveBeenCalled();
+    expect(openChildWindow).not.toHaveBeenCalled();
+    expect(openDataProvidersToolWindow).not.toHaveBeenCalled();
+  });
+
+  it('warns when providerUrl cannot be resolved for child windows', async () => {
+    (fin.Application.getCurrent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      getManifest: vi.fn().mockResolvedValue({ platform: { providerUrl: '' } }),
+    });
+    await actions[ACTION_OPEN_DOCK_EDITOR]({ callerType: btn } as never);
+    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: drop } as never);
+    await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
+    await actions[ACTION_IMPORT_CONFIG]({ callerType: drop } as never);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Could not determine app origin'),
+      expect.anything(),
+    );
+    expect(createWindow).not.toHaveBeenCalled();
+  });
+
+  it('foregrounds existing registry / config-browser / import windows', async () => {
+    (fin.Window.wrapSync as ReturnType<typeof vi.fn>).mockImplementation(({ name }: { name: string }) => {
+      if (name === 'registry-editor' || name === 'config-browser' || name === 'import-config') {
+        return existingWindow;
+      }
+      throw new Error('missing');
+    });
+    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: drop } as never);
+    await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
+    await actions[ACTION_IMPORT_CONFIG]({ callerType: drop } as never);
+    expect(existingWindow.setAsForeground).toHaveBeenCalledTimes(3);
+  });
+
+  it('falls back to fin.me.identity.uuid when platform scope appId is empty', async () => {
+    getPlatformDefaultScope.mockReturnValueOnce({ appId: '', userId: 'dev1' });
+    await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
+    expect(createWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customData: { appId: 'plat', userId: 'dev1' },
+      }),
+    );
+  });
+
+  it('swallows setSelectedScheme, export, devtools, and provider-toggle failures', async () => {
+    setSelectedScheme.mockImplementationOnce(() => {
+      throw new Error('scheme fail');
+    });
+    await actions[ACTION_TOGGLE_THEME]({ callerType: btn } as never);
+    expect(console.warn).toHaveBeenCalledWith('setSelectedScheme failed:', expect.anything());
+
+    exportAllConfig.mockRejectedValueOnce(new Error('export fail'));
+    await actions[ACTION_EXPORT_CONFIG]({ callerType: drop } as never);
+    expect(console.error).toHaveBeenCalledWith('Failed to export config.', expect.anything());
+
+    providerWindow.showDeveloperTools.mockRejectedValueOnce(new Error('devtools fail'));
+    await actions[ACTION_SHOW_DEVTOOLS]({ callerType: drop } as never);
+    expect(console.error).toHaveBeenCalledWith('Failed to open developer tools.', expect.anything());
+
+    providerWindow.isShowing.mockRejectedValueOnce(new Error('toggle fail'));
+    await actions[ACTION_TOGGLE_PROVIDER]({ callerType: drop } as never);
+    expect(console.error).toHaveBeenCalledWith('Failed to toggle provider window.', expect.anything());
+  });
 });

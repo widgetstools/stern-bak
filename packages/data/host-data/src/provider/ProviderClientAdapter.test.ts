@@ -7,7 +7,7 @@ import { registerProvider } from '../runtime/providers/registry.js';
 import { isAppDataRequest, isRequest } from '../runtime/protocol.js';
 import type { ProviderHandle, ProviderEmit } from '../runtime/providers/Provider.js';
 import { ConfigCatalogCache } from '../hub/ConfigCatalogCache.js';
-import { ProviderClientAdapter } from './ProviderClientAdapter.js';
+import { ProviderClientAdapter, resolveProviderCapabilities } from './ProviderClientAdapter.js';
 
 interface TestController {
   emit: ProviderEmit;
@@ -106,6 +106,25 @@ async function flush(): Promise<void> {
     await new Promise<void>((r) => setTimeout(r, 0));
   }
 }
+
+describe('resolveProviderCapabilities', () => {
+  it('maps provider types to streaming/restart capabilities', () => {
+    expect(resolveProviderCapabilities('rest')).toMatchObject({
+      streaming: false,
+      realtime: false,
+      supportsRefresh: true,
+    });
+    expect(resolveProviderCapabilities('appdata')).toMatchObject({
+      streaming: false,
+      supportsRefresh: false,
+      supportsRestart: false,
+    });
+    expect(resolveProviderCapabilities('custom' as never)).toMatchObject({
+      providerType: 'custom',
+      supportsRefresh: true,
+    });
+  });
+});
 
 describe('ProviderClientAdapter', () => {
   let w: Wiring;
@@ -314,5 +333,110 @@ describe('ProviderClientAdapter', () => {
 
     expect(adapter.getData()).toEqual([{ id: 'x' }]);
     await adapter.stop();
+  });
+
+  it('getConfig throws before start and refresh throws after stop', async () => {
+    const adapter = new ProviderClientAdapter({ client: w.client, providerId: 'p1' });
+
+    expect(() => adapter.getConfig()).toThrow(/before start/i);
+
+    const startPromise = adapter.start();
+    await flush();
+    controllers.get('default')!.emit({ rows: [{ id: 'r1' }], replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+    await startPromise;
+
+    expect(adapter.getConfig().providerType).toBe('mock');
+    await adapter.stop();
+    await expect(adapter.refresh()).rejects.toThrow(/requires start/i);
+  });
+
+  it('delivers status updates to onStatus subscribers', async () => {
+    const adapter = new ProviderClientAdapter({ client: w.client, providerId: 'p1' });
+    const statuses: string[] = [];
+    const off = adapter.onStatus((status) => statuses.push(status));
+
+    const startPromise = adapter.start();
+    await flush();
+    controllers.get('default')!.emit({ rows: [{ id: 'r1' }], replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+    await startPromise;
+
+    controllers.get('default')!.emit({ status: 'loading' });
+    await flush();
+
+    expect(statuses).toContain('ready');
+    expect(statuses).toContain('loading');
+    off();
+  });
+
+  it('restart() without extra re-fetches config after stop cleared state', async () => {
+    const adapter = new ProviderClientAdapter<{ id: string }>({
+      client: w.client,
+      providerId: 'p1',
+    });
+
+    const startPromise = adapter.start();
+    await flush();
+    controllers.get('default')!.emit({ rows: [{ id: 'r1' }], replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+    await startPromise;
+    await adapter.stop();
+
+    const restartPromise = adapter.restart();
+    await flush();
+    controllers.get('default')!.emit({ rows: [{ id: 'r2' }], replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+    await restartPromise;
+
+    expect(adapter.getData()).toEqual([{ id: 'r2' }]);
+  });
+
+  it('routes onReset through onSnapshotData and default column defs', async () => {
+    w.close();
+    w = wireCatalog([{
+      ...mockProviderRow('p1'),
+      payload: {
+        providerType: 'mock',
+        keyColumn: 'id',
+        __testKey: 'default',
+        __providerMeta: { public: true },
+      },
+    }]);
+    await w.client.waitForCatalogReady();
+
+    const adapter = new ProviderClientAdapter<{ id: string }>({
+      client: w.client,
+      providerId: 'p1',
+    });
+    const snapshots: Array<readonly { id: string }[]> = [];
+    adapter.onSnapshotData((rows) => snapshots.push(rows));
+
+    const startPromise = adapter.start();
+    await flush();
+    controllers.get('default')!.emit({ rows: [{ id: 'r1' }], replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+    await startPromise;
+
+    expect(adapter.getColumnDefs()).toEqual([]);
+
+    controllers.get('default')!.emit({ rows: [{ id: 'reset' }], replace: true });
+    await flush();
+
+    expect(snapshots.some((rows) => rows[0]?.id === 'reset')).toBe(true);
+    await adapter.stop();
+  });
+
+  it('routes snapshot rejection to onError with a synthesized message', async () => {
+    const adapter = new ProviderClientAdapter({ client: w.client, providerId: 'p1' });
+    const errors: string[] = [];
+    adapter.onError((err) => errors.push(err.message));
+
+    const startPromise = adapter.start();
+    await flush();
+    controllers.get('default')!.emit({ status: 'error' });
+
+    await expect(startPromise).rejects.toThrow();
+    expect(errors.some((m) => m.includes('Provider error') || m.length > 0)).toBe(true);
   });
 });

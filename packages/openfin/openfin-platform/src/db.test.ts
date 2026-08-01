@@ -2,6 +2,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/host-config';
 import { COMPONENT_TYPES } from '@wellsfargo-starui/types';
 
+const createConfigManager = vi.fn();
+const getConfigServiceRestUrlFromManifest = vi.fn();
+const resolvePlatformBootstrapFromManifest = vi.fn();
+const resolvePlatformBootstrapFromJson = vi.fn();
+const resolveDeploymentIdentity = vi.fn();
+const resolveDefaultPlatformScope = vi.fn();
+
+vi.mock('@wellsfargo-starui/host-config', () => ({
+  createConfigManager: (...a: unknown[]) => createConfigManager(...a),
+}));
+
+vi.mock('./manifestConfig.js', () => ({
+  getConfigServiceRestUrlFromManifest: (...a: unknown[]) => getConfigServiceRestUrlFromManifest(...a),
+}));
+
+vi.mock('@wellsfargo-starui/host-data', () => ({
+  resolvePlatformBootstrapFromJson: (...a: unknown[]) => resolvePlatformBootstrapFromJson(...a),
+}));
+
+vi.mock('./platformBootstrap.js', () => ({
+  resolvePlatformBootstrapFromManifest: (...a: unknown[]) => resolvePlatformBootstrapFromManifest(...a),
+  resolveDeploymentIdentity: (...a: unknown[]) => resolveDeploymentIdentity(...a),
+}));
+
+vi.mock('./platformScope.js', () => ({
+  resolveDefaultPlatformScope: (...a: unknown[]) => resolveDefaultPlatformScope(...a),
+}));
+
 class InMemoryConfigManager {
   configs = new Map<string, AppConfigRow>();
 
@@ -24,6 +52,7 @@ const {
   __resetDbForTests,
   clearDockConfig,
   clearRegistryConfig,
+  getConfigManager,
   getPlatformDefaultScope,
   loadDockConfig,
   loadRegistryConfig,
@@ -247,5 +276,193 @@ describe('db', () => {
     expect(result.migrated).toBeGreaterThan(0);
     const target = [...cm.configs.values()].find((r) => r.appId === 'TestApp');
     expect(target).toBeDefined();
+  });
+
+  it('loadRegistryConfig prefers the global system row over per-user copies', async () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    cm.configs.set(
+      'component-registry::testapp::system',
+      row({
+        configId: 'component-registry::TestApp::system',
+        appId: 'TestApp',
+        userId: 'system',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: { version: 1, updatedAt: '', entries: [{ id: 'global' }] },
+      }),
+    );
+    cm.configs.set(
+      'component-registry',
+      row({
+        configId: 'component-registry',
+        appId: 'TestApp',
+        userId: 'dev1',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: { version: 1, updatedAt: '', entries: [{ id: 'per-user' }] },
+      }),
+    );
+    await expect(loadRegistryConfig()).resolves.toMatchObject({
+      entries: [{ id: 'global' }],
+    });
+  });
+
+  it('loadDockConfig returns null when only a legacy bare row has the wrong componentType', async () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    cm.configs.set(
+      'dock-config',
+      row({
+        configId: 'dock-config',
+        componentType: 'something-else' as never,
+      }),
+    );
+    await expect(loadDockConfig({ appId: 'system', userId: 'system' })).resolves.toBeNull();
+  });
+
+  it('uses scoped configIds when saving outside the platform default scope', async () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    await saveDockConfig(dockPayload as never, { appId: 'OtherApp', userId: 'u2' });
+    expect(cm.configs.has('dock-config::otherapp::u2')).toBe(true);
+    await expect(loadDockConfig({ appId: 'OtherApp', userId: 'u2' })).resolves.toEqual(dockPayload);
+  });
+
+  it('setPlatformDefaultScope preserves userId when only appId is passed', () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    setPlatformDefaultScope({ appId: 'NewApp' });
+    expect(getPlatformDefaultScope()).toEqual({ appId: 'NewApp', userId: 'dev1' });
+  });
+
+  it('migrateRegistryToGlobalScope is a no-op when global row already exists', async () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    cm.configs.set(
+      'component-registry::testapp::system',
+      row({
+        configId: 'component-registry::TestApp::system',
+        appId: 'TestApp',
+        userId: 'system',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: registryPayload,
+      }),
+    );
+    cm.configs.set(
+      'component-registry',
+      row({
+        configId: 'component-registry',
+        appId: 'TestApp',
+        userId: 'dev1',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: registryPayload,
+      }),
+    );
+    await expect(migrateRegistryToGlobalScope()).resolves.toEqual({ migrated: 0 });
+  });
+
+  it('migrateRegistryAppIdDrift deletes stale rows when target already exists', async () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    cm.configs.set(
+      'component-registry::testapp::system',
+      row({
+        configId: 'component-registry::TestApp::system',
+        appId: 'TestApp',
+        userId: 'system',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: registryPayload,
+      }),
+    );
+    cm.configs.set(
+      'stale-reg',
+      row({
+        configId: 'stale-reg',
+        appId: 'StaleApp',
+        userId: 'system',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: registryPayload,
+      }),
+    );
+    await expect(migrateRegistryAppIdDrift()).resolves.toEqual({ migrated: 1 });
+    expect(cm.configs.has('stale-reg')).toBe(false);
+  });
+
+  it('migrateRegistryAppIdDrift warns when delete fails', async () => {
+    setPlatformDefaultScope({ appId: 'TestApp', userId: 'dev1' });
+    cm.configs.set(
+      'stale-reg',
+      row({
+        configId: 'stale-reg',
+        appId: 'StaleApp',
+        userId: 'system',
+        componentType: COMPONENT_TYPES.COMPONENT_REGISTRY,
+        payload: registryPayload,
+      }),
+    );
+    const orig = cm.deleteConfig.bind(cm);
+    cm.deleteConfig = async (id: string) => {
+      if (id === 'stale-reg') throw new Error('locked');
+      return orig(id);
+    };
+    await migrateRegistryAppIdDrift();
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failed to delete'),
+      expect.anything(),
+    );
+    cm.deleteConfig = orig;
+  });
+});
+
+describe('getConfigManager fallback', () => {
+  let fallbackCm: InMemoryConfigManager;
+
+  beforeEach(() => {
+    __resetDbForTests();
+    fallbackCm = new InMemoryConfigManager();
+    createConfigManager.mockReset().mockReturnValue(fallbackCm);
+    getConfigServiceRestUrlFromManifest.mockReset().mockResolvedValue('http://rest');
+    resolveDeploymentIdentity.mockReset().mockResolvedValue({ appId: 'FallbackApp', userId: 'fb-user' });
+    resolveDefaultPlatformScope.mockReset().mockResolvedValue({ appId: 'FallbackApp', userId: 'fb-user' });
+    resolvePlatformBootstrapFromManifest.mockReset().mockResolvedValue({ seedConfigUrl: 'http://seed' });
+    resolvePlatformBootstrapFromJson.mockReset().mockResolvedValue({ seedConfigUrl: 'http://json-seed' });
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    __resetDbForTests();
+    vi.unstubAllGlobals();
+  });
+
+  it('creates a fallback manager from manifest bootstrap when fin is present', async () => {
+    vi.stubGlobal('fin', { me: {} });
+    const manager = await getConfigManager();
+    expect(manager).toBe(fallbackCm);
+    expect(createConfigManager).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'FallbackApp',
+        seedConfigUrl: 'http://seed',
+        configServiceRestUrl: 'http://rest',
+      }),
+    );
+    expect(resolvePlatformBootstrapFromManifest).toHaveBeenCalled();
+  });
+
+  it('creates a fallback manager from JSON bootstrap outside OpenFin', async () => {
+    vi.stubGlobal('fin', undefined);
+    await getConfigManager();
+    expect(resolvePlatformBootstrapFromJson).toHaveBeenCalledWith('/app-config.json');
+    expect(createConfigManager).toHaveBeenCalledWith(
+      expect.objectContaining({ seedConfigUrl: 'http://json-seed' }),
+    );
+  });
+
+  it('continues when bootstrap resolution throws', async () => {
+    vi.stubGlobal('fin', undefined);
+    resolvePlatformBootstrapFromJson.mockRejectedValueOnce(new Error('no bootstrap'));
+    await getConfigManager();
+    expect(createConfigManager).toHaveBeenCalledWith(
+      expect.objectContaining({ seedConfigUrl: undefined }),
+    );
+  });
+
+  it('deduplicates concurrent fallback initialisation', async () => {
+    vi.stubGlobal('fin', undefined);
+    const [a, b] = await Promise.all([getConfigManager(), getConfigManager()]);
+    expect(a).toBe(b);
+    expect(createConfigManager).toHaveBeenCalledTimes(1);
   });
 });
