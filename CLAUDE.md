@@ -53,7 +53,7 @@ architecture buckets (see
 |---|--------|------|----------|
 | 1 | UI Design System | `design-system/` | `design-system` |
 | 2 | React UI Controls | `react-ui/` | `ui` |
-| 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid`, `config-browser`, `widgets-react` |
+| 3 | React Grid | `react-grid/` | `grid` |
 | 4 | Data Utilities | `data/` | `data` |
 | 5 | OpenFin Utils | `openfin/` | `openfin` |
 | 6 | React Core | `react-core/` | `widget-sdk`, `host-wrapper-react`, `workspace-setup-react`, `host-data-react` |
@@ -190,8 +190,8 @@ use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 - Vitest 4 + jsdom 29 for unit tests. Baseline (2026-07-31): **3076 passing,
   1 skipped across 315 test files** (`npm test` — turbo across `packages/`).
-  Largest contributors: `grid` (697), `data` (355), `engine` (241),
-  `widgets-react` (218), `design-system` (193), `workspace-setup-react` (187).
+  Largest contributors: `grid` (915, incl. former `widgets-react`), `data` (355),
+  `engine` (241), `design-system` (193), `workspace-setup-react` (187).
   The per-file 70% coverage gate is a separate run — see
   [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`
   section is binding for new tests.
@@ -228,7 +228,7 @@ Enforced via convention (ESLint enforcement is a follow-up). See
 
 - Foundation packages (`shared-types`, `design-system`) must
   not import from anywhere except each other.
-- `@wellsfargo-starui/engine` must not import from framework adapters (`widgets-react`, `grid`).
+- `@wellsfargo-starui/engine` must not import from framework adapters (`grid`).
 - Only `@wellsfargo-starui/openfin` may import from `@openfin/core`.
 - Apps import from packages, never the reverse.
 

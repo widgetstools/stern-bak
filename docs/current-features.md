@@ -599,18 +599,18 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ---
 
-### 4.2 `@wellsfargo-starui/widgets-react`
+### 4.2 `@wellsfargo-starui/grid/widgets` (formerly `@wellsfargo-starui/widgets-react`)
 
 **Path:** `packages/react-grid/widgets-react`
-**Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor.
+**Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
 
 **Public exports:**
 
-- `.` — blotter components, hooks, provider, theme
-- `./markets-grid-container` — `MarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
-- `./provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
-- `./data-provider-selector` — `DataProviderSelector`
-- `./hosted` — `HostedMarketsGrid` (legacy wrapper)
+- `./widgets` — blotter components, hooks, provider, theme
+- `./widgets/markets-grid-container` — `MarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
+- `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
+- `./widgets/data-provider-selector` — `DataProviderSelector`
+- `./widgets/hosted` — `HostedMarketsGrid` (legacy wrapper)
 
 #### Blotter framework (v2)
 
@@ -730,15 +730,15 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ---
 
-### 4.5 `@wellsfargo-starui/config-browser`
+### 4.5 `@wellsfargo-starui/grid/config-browser` (formerly `@wellsfargo-starui/config-browser`)
 
 **Path:** `packages/react-grid/config-browser`
-**Purpose:** Configuration-browser dev tool — view/search/import/export configs.
+**Purpose:** Configuration-browser dev tool — view/search/import/export configs. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
 
 **Public exports:**
 
-- `.` — `ConfigBrowserPanel`, `useConfigBrowser`, types
-- `./icons` — `DynamicIcon` (Lucide id → component for config-browser chrome)
+- `./config-browser` — `ConfigBrowserPanel`, `useConfigBrowser`, types
+- `./config-browser/icons` — `DynamicIcon` (Lucide id → component for config-browser chrome)
 
 #### Panels & dialogs
 

@@ -433,9 +433,50 @@ PACKAGE_ORGANIZATION.md, ARCHITECTURE.md, current-features.md, and this
 file are updated per sub-phase). Worth a single consolidated doc sweep
 once all sub-phases land, rather than fixing piecemeal.
 
-**Next:** sub-phase 4 (`grid` bucket — `grid` + `config-browser` +
-`widgets-react`), per the roadmap in
+**Package-collapse sub-phase 4: done.** `grid` + `config-browser` +
+`widgets-react` collapsed into one `@wellsfargo-starui/grid` package (17
+tarballs, was 19) — the first sub-phase with real cross-member npm
+dependencies rather than a folder-adjacent rename. `grid`'s own `.` export
+stays the merged package's `.`; `config-browser` retires to `./config-browser`
+(+ `./config-browser/icons`), `widgets-react` to `./widgets` (+ 4 more
+subpaths). Each member kept its own tsconfig and gets built via a separate
+`tsc` invocation in dependency order (grid → config-browser → widgets-react),
+so the 17 real cross-member imports of `@wellsfargo-starui/grid` (already the
+final name) needed **no** text changes — they resolve through the normal
+npm-workspace symlink exactly as before the merge. Only the 3 files
+importing config-browser's old `.` export needed a rename, to
+`@wellsfargo-starui/grid/config-browser`.
+
+The three members had materially different vitest settings (`globals`,
+`setupFiles`, `pool`) that no single flat config could express, so
+`packages/react-grid/vitest.config.ts` uses Vitest's `test.projects` instead
+— three inline sub-configs, each with its own `root` so `setupFiles`/`include`
+resolve unchanged, coverage collected once at the top level across all three
+src trees. Verified: 328 test files / 2490 tests (240 grid + 75 widgets-react
++ 13 config-browser), matching the pre-merge per-member counts exactly.
+`eslint.config.mjs`'s stale `FRAMEWORK_ADAPTERS` entry for the retired
+`widgets-react` name is left as a dead, harmless list item — edits to that
+file are hook-blocked and this one didn't warrant an override. Per the
+design spec at
+[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md),
+the coverage-tooling gap remains accepted, not fixed here.
+
+**`stern-apps` follow-up (non-blocking):** after regenerating
+`tarball/*/package.json` via `npm run make:tarball-apps`, 4 of 6 tarball
+apps still fail to build, all confirmed genuine application source:
+`dataprovider-editor` and `markets-grid-lab` (already-known sub-phase-3
+`host-data` finding), `star-demo` (already-known sub-phase-2 `host-openfin`
+finding), and a new one — `stomp-marketsgrid-minimal/src/App.tsx` imports
+`@wellsfargo-starui/widgets-react/hosted` directly and needs updating to
+`@wellsfargo-starui/grid/widgets/hosted`. `basic` and `design-system` build
+clean, confirming `@wellsfargo-starui/grid` itself is correctly
+externally-installable.
+
+**Next:** sub-phase 5 (`react` bucket — regroup `react-ui` into
+`react-core`, then collapse 5 members), per the roadmap in
 [`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
+Unlike sub-phases 1-4, this one needs a folder regroup first (no 1:1
+folder-to-target mapping yet).
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level
 `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
