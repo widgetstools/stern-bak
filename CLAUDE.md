@@ -56,7 +56,8 @@ architecture buckets (see
 | 3 | Data Utilities | `data/` | `data` |
 | 4 | OpenFin Utils | `openfin/` | `openfin` |
 | 5 | React Core | `react-core/` | `react` (ui + widget-sdk + host-wrapper-react + workspace-setup-react + host-data-react) |
-| 6 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser`, `host-config` |
+| 6 | Types | `types/` | `types` (types + shared-types) |
+| 7 | Core | `core/` | `core` (engine + host + host-browser + host-config + widget + widget-browser) |
 
 > **The Angular buckets are deleted, not excluded.** `angular-ui`,
 > `angular-grid` and `angular-core` (`app-angular`, `widgets-angular`,
@@ -68,7 +69,8 @@ architecture buckets (see
 > installed, linked, or built) and skipped by `scripts/pack-npm.mjs` and
 > `scripts/gen-consumer-tsconfig.mjs` (`SKIP_MEMBERS` / `ANGULAR_MEMBERS`). Its
 > `tsconfig.json` used to extend the shared `angular-core/tsconfig.angular.json`;
-> those options are now inlined. `build:packages` builds 21 packages.
+> those options are now inlined. `build:packages` builds 7 packages (one per
+> bucket after the package collapse — see `docs/WORKLOG.md` item 11).
 >
 > `@wellsfargo-starui/app` (`react-core/app`) and `tools/mcp-scaffold` were also
 > deleted. `StarGridApp` is vendored into the apps repo's star-demo, which was
@@ -105,7 +107,7 @@ names in line with the symbols they export.
 | Folders | kebab-case | `data-provider-editor/` |
 | Angular files | Angular Style Guide kebab + role suffix | `class FooComponent`, `class FooService` in `*.component.ts`, `*.service.ts`, `*.module.ts`, `*.directive.ts`, `*.pipe.ts` |
 
-**Allowed in shared/ and react/ buckets**: `camelCase` and `PascalCase` only.
+**Allowed in types/, core/ and react/ buckets**: `camelCase` and `PascalCase` only.
 No kebab. No snake.
 
 **Required in `data/host-data-angular`** (the only Angular package left):
@@ -190,8 +192,8 @@ use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 - Vitest 4 + jsdom 29 for unit tests. Baseline (2026-07-31): **3076 passing,
   1 skipped across 315 test files** (`npm test` — turbo across `packages/`).
   Largest contributors: `grid` (915, incl. former `widgets-react`), `react`
-  (606, incl. former `ui`/`workspace-setup-react`), `data` (355), `engine` (241),
-  `design-system` (193).
+  (606, incl. former `ui`/`workspace-setup-react`), `data` (355), `core` (incl.
+  former `engine`, 241, plus `host*`/`widget*`), `design-system` (193).
   The per-file 70% coverage gate is a separate run — see
   [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`
   section is binding for new tests.
@@ -226,9 +228,9 @@ one instead.
 Enforced via convention (ESLint enforcement is a follow-up). See
 `docs/ARCHITECTURE.md` for the full layer diagram. Key rules:
 
-- Foundation packages (`shared-types`, `design-system`) must
+- Foundation packages (`types`, `design-system`) must
   not import from anywhere except each other.
-- `@wellsfargo-starui/engine` must not import from framework adapters (`grid`).
+- `@wellsfargo-starui/core` must not import from framework adapters (`grid`).
 - Only `@wellsfargo-starui/openfin` may import from `@openfin/core`.
 - Apps import from packages, never the reverse.
 

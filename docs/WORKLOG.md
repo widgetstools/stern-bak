@@ -512,8 +512,84 @@ the kebab-case filename carve-out) need updating to
 config-protection hook; owner will disable it and the fix lands as a
 follow-up commit. Until then `npm run lint` flags ui's shadcn wrappers.
 
-**Next:** sub-phase 6 (`types` + `core` — regroup `shared/` split into
-two published packages, 8 members total), per the roadmap in
+**Package-collapse sub-phase 6: done.** The second regroup-then-collapse
+sub-phase: `shared/` (8 members) split into `packages/types/`
+(`shared-types`, `types`) and `packages/core/` (`engine`, `host`,
+`host-browser`, `host-config`, `widget`, `widget-browser`) — git mv,
+history preserved, `shared/` bucket eliminated — then each new bucket
+collapsed to one package. `@wellsfargo-starui/types`: the `types` member keeps
+`.` (existing consumers untouched); `shared-types` retires to `./shared`
+(+`/configuration`, `/dataProvider`, `/fieldSelector`). 44 consumer files
+migrated. `@wellsfargo-starui/core`: `engine` takes `.` (ESM + CJS pair kept);
+`host` → `./host`, `host-browser` → `./host/browser`, `host-config` →
+`./host/config`, `widget` → `./widget`, `widget-browser` →
+`./widget/browser`. 385 consumer files migrated. Dependency entries
+across data, react-grid, openfin, react-core, design-system, and the
+root swap the eight retired names for `types`/`core`; `ag-grid-community`
+is core's only peer (host-config's optional engine peer became
+internal). Two- and six-project `test.projects` vitest configs; 9 + 114
+test files, matching pre-merge per-member counts. The coverage-tooling
+gap remains accepted, not fixed here (sub-phase 7).
+
+**Build-tooling landmines this sub-phase tripped, now defused:**
+
+- **`ensure-workspace-links.mjs` still required `@wellsfargo-starui/icons-svg`**
+  (retired in sub-phase 1). The fresh `npm install` that the workspace
+  regroup forces prunes the leftover symlink that had been satisfying the
+  stale entry, turning it into a hard `build:packages` failure. Entry
+  dropped (and the list now names `types`/`core` instead of
+  `shared-types`/`host-config`).
+- **engine's `vite-plugin-dts` declaration rollup needs a member-level
+  `package.json`.** The plugin walks up from the entry to the nearest
+  package.json for its types-entry path; with only the bucket manifest it
+  resolves `./engine/dist/index.d.ts` against `engine/` itself and dies
+  on `engine/engine/dist`. `packages/core/engine/package.json` therefore
+  survives as a clearly-marked non-workspace build shim (name
+  `core-engine-build-shim`, excluded from the packed tarball — bucket
+  `files` lists `engine/dist` only). It is the only member-level
+  package.json left in any collapsed bucket.
+- **Bare source aliases prefix-match subpath imports.** react-grid's
+  vitest alias `@wellsfargo-starui/types` → `types/src` mangled the new
+  `@wellsfargo-starui/types/shared/*` ids (rollup-alias string finds are prefix
+  matches). Explicit subpath aliases now sit before every bare package
+  alias in `packages/react-grid/vitest.config.ts` — a pattern any future
+  source-aliasing config must copy.
+
+**Validation (the "Done looks like" gate below, now met):** 21/21 turbo
+build+typecheck+test tasks green (7 packages); check:deps acyclic with
+all cross-package imports declared; ds-tokens at the 272 baseline;
+check:rtl and check:source-aliases pass; `pack:npm` emits exactly 7
+tarballs (dist-npm/ needed a manual `rm -rf` first — the script never
+prunes stale output, so retired-name tarballs from earlier sub-phases
+were still sitting there and the manifest listed 25 packages); a scratch
+consumer outside the workspace installs all 7 tarballs with all 16
+export subpaths resolving (ESM `import.meta.resolve`; `.` entries of
+data/openfin/design-system/types-host subpaths are import-only by
+design, so `require.resolve` is the wrong probe), all 7 retired names
+failing as module-not-found, **react absent for a data-only consumer and
+ag-grid-enterprise absent for a react-only consumer** — the sub-phase-7
+peer-isolation assertion, already holding.
+
+**eslint.config.mjs (pending, hook-blocked, grew this sub-phase):** in
+addition to the two stale `packages/react-ui/ui/**` paths from
+sub-phase 5, the foundation-package extglobs still name
+`shared-types`/`icons-svg` and `ENGINE_GLOBS` points at
+`packages/shared/engine/**` (now `packages/core/engine/**`). Same
+resolution: owner disables the config-protection hook, one follow-up
+commit fixes all of it.
+
+**README.md needs a standalone refresh:** its bucket table and package
+names are current again (fixed here), but large sections still describe
+the pre-split world — in-repo `apps/`, `e2e/`, `libs/*.tgz`,
+`npm run propagate`, `install:apps` — all deleted or moved to the apps
+repo. Out of scope for this sub-phase; worth its own docs pass.
+
+**Next:** sub-phase 7 (tooling + external verification —
+`check-package-cycles.mjs` member-level nodes + relative-import edges,
+`check-package-coverage.mjs`/`run-test-coverage.mjs` made
+collapse-aware, the scratch-app peer-isolation checks made a scripted
+gate; `pack:npm` should also prune stale `dist-npm/` output), per the
+roadmap in
 [`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level

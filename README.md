@@ -35,26 +35,27 @@ starui/                      # npm workspace root
 - **AG Grid Enterprise** 35.1.x (`themeQuartz`, module registry)
 - **OpenFin** 43.101.x (Core / Workspace / Dock-Manager)
 - **Dexie** (IndexedDB) for local config persistence; SharedWorker for live data
-- **Radix UI** + shadcn primitives via `@wellsfargo-starui/ui`
+- **Radix UI** + shadcn primitives via `@wellsfargo-starui/react`
 - **Vitest** 4 + **Playwright** 1.59
 
 ## Package buckets
 
-Ten buckets under `packages/` — npm names stay `@wellsfargo-starui/grid`, `@wellsfargo-starui/app`, etc.
-Only filesystem paths carry the bucket prefix.
+Seven buckets under `packages/`, one published package each after the
+package collapse (WORKLOG item 11) — former member packages live on as
+export subpaths of their bucket package.
 
-| # | Bucket | Path | Key packages |
-|---|--------|------|--------------|
-| 1 | Design system | `design-system/` | `@wellsfargo-starui/design-system`, `@wellsfargo-starui/icons-svg` |
-| 2 | React UI | `react-ui/` | `@wellsfargo-starui/ui` |
-| 3 | React grid | `react-grid/` | `@wellsfargo-starui/grid` — MarketsGrid + customizer |
-| 4 | Data | `data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-react`, `@wellsfargo-starui/host-config` |
-| 5 | OpenFin | `openfin/` | `@wellsfargo-starui/host-openfin`, `@wellsfargo-starui/openfin-platform` |
-| 6 | React core | `react-core/` | `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/workspace-setup-react`, `@wellsfargo-starui/host-wrapper-react` |
-| 7 | Shared | `shared/` | `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types` |
+| # | Bucket | Path | Package |
+|---|--------|------|---------|
+| 1 | Design system | `design-system/` | `@wellsfargo-starui/design-system` (design-system + icons-svg) |
+| 2 | React grid | `react-grid/` | `@wellsfargo-starui/grid` (grid + config-browser + widgets-react) — MarketsGrid + customizer |
+| 3 | Data | `data/` | `@wellsfargo-starui/data` (host-data) |
+| 4 | OpenFin | `openfin/` | `@wellsfargo-starui/openfin` (openfin-platform + host-openfin) |
+| 5 | React core | `react-core/` | `@wellsfargo-starui/react` (ui + widget-sdk + host-wrapper-react + workspace-setup-react + host-data-react) |
+| 6 | Types | `types/` | `@wellsfargo-starui/types` (types + shared-types) |
+| 7 | Core | `core/` | `@wellsfargo-starui/core` (engine + host + host-browser + host-config + widget + widget-browser) |
 
 **Import rules (summary):** foundation packages never import framework adapters;
-only `host-openfin` / `openfin-platform` may import `@openfin/core`; apps import
+only `@wellsfargo-starui/openfin` may import `@openfin/core`; apps import
 from packages, never the reverse. Full rules in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ## Apps
@@ -336,7 +337,7 @@ npm test             # test:packages
 Package-scoped:
 
 ```bash
-npm run build -w @wellsfargo-starui/engine
+npm run build -w @wellsfargo-starui/core
 npm test  -w @wellsfargo-starui/grid
 ```
 
@@ -357,7 +358,7 @@ packs them for external (Artifactory) consumers:
 
 The React reference app (`apps/markets-ui-react-reference`) hosts blotters via
 plain client-side routes. Use `<HostedMarketsGrid>` from
-`@wellsfargo-starui/widgets-react/hosted` — it replaces the older multi-layer
+`@wellsfargo-starui/grid/widgets/hosted` — it replaces the older multi-layer
 HostedComponent / BlotterGrid stack with one call site.
 
 The wrapper owns identity (`instanceId`, `appId`, `userId`), ConfigService-backed
@@ -366,7 +367,7 @@ save hooks. The route view only supplies grid-specific props.
 
 ```tsx
 // apps/markets-ui-react-reference/src/views/BlottersMarketsGrid.tsx
-import { HostedMarketsGrid } from '@wellsfargo-starui/widgets-react/hosted';
+import { HostedMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
 
 export default function BlottersMarketsGrid() {
   return (
@@ -492,11 +493,11 @@ npm test
 
 # Single package
 npm run build -w @wellsfargo-starui/grid
-npm run typecheck -w @wellsfargo-starui/engine
+npm run typecheck -w @wellsfargo-starui/core
 npm test -w @wellsfargo-starui/grid
 ```
 
-Use this loop while changing `@wellsfargo-starui/engine`, `@wellsfargo-starui/grid`, `@wellsfargo-starui/ui`, etc.
+Use this loop while changing `@wellsfargo-starui/core`, `@wellsfargo-starui/grid`, `@wellsfargo-starui/react`, etc.
 No propagate step is required until demo apps or external consumers need the change.
 
 #### 2. Demo-app / consumer developers (apps in `apps/`)
@@ -717,7 +718,7 @@ npm test
 
 # One package
 npm test -w @wellsfargo-starui/grid
-npm test -w @wellsfargo-starui/engine
+npm test -w @wellsfargo-starui/core
 
 # Watch mode (from a package directory)
 npm run test:watch -w @wellsfargo-starui/grid

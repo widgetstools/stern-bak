@@ -31,7 +31,7 @@ reaching into package internals. Visibility is determined in this order:
    — symbols re-exported here are public for that subpath. Source files that
    exist but aren't re-exported are **internal**.
 3. **Cross-package re-exports** — only list a symbol under the package that
-   actually exports it. If `@wellsfargo-starui/engine` owns `StorageAdapter`, don't imply
+   actually exports it. If `@wellsfargo-starui/core` owns `StorageAdapter`, don't imply
    it ships from `@wellsfargo-starui/grid` unless the grid barrel re-exports it.
 
 **How to tag visibility in bullets:**
@@ -65,7 +65,7 @@ module or a different package provides it.
 2. [React UI Controls](#2-react-ui-controls) — `packages/react-core/ui/` (part of `@wellsfargo-starui/react`)
 3. [React Grid](#3-react-grid) — `packages/react-grid/`
 4. [React Core](#4-react-core) — `packages/react-core/`
-5. [Shared / Core](#5-shared--core) — `packages/shared/`
+5. [Types / Core](#5-shared--core) — `packages/types/`, `packages/core/`
 6. [Data Utilities](#6-data-utilities) — `packages/data/`
 7. [OpenFin Utils](#7-openfin-utils) — `packages/openfin/`
 
@@ -240,7 +240,7 @@ Per-renderer config types (`PillRendererConfig`,
 
 ## 2. React UI Controls
 
-### 2.1 `@wellsfargo-starui/react` (formerly `@wellsfargo-starui/ui`)
+### 2.1 `@wellsfargo-starui/react` (formerly `@wellsfargo-starui/react`)
 
 **Path:** `packages/react-core/ui`
 **Purpose:** shadcn/Radix React primitives themed via `@wellsfargo-starui/design-system`. Mandatory for any React UI in the monorepo (`<input>`/`<select>`/`<textarea>` forbidden — use these instead).
@@ -355,7 +355,7 @@ Per-renderer config types (`PillRendererConfig`,
 
 - `createMarketsGridLocalStorageStorage()` — browser localStorage adapter factory
 - `isMarketsGridLocalStorageStorageFactory()` — type guard
-- `StorageAdapter` — load/save profile + grid-level data contract (type from `@wellsfargo-starui/engine`)
+- `StorageAdapter` — load/save profile + grid-level data contract (type from `@wellsfargo-starui/core`)
 - `StorageAdapterFactory` / `StorageAdapterFactoryOpts` — runtime-injectable factory pattern (exported from `@wellsfargo-starui/grid` types)
 
 #### Grid event system (public on `.` barrel)
@@ -491,7 +491,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   `processCellCallback`). Primary toolbar spreadsheet icon when enabled.
   Settings panel: **Visual Excel**. Lab: **Visual Excel** tab (`lab-visual-excel-v1`).
 - **Editing family (overview)** — five customizer modules share a cell-patch
-  journal (`EditJournal` in `@wellsfargo-starui/engine`). React wiring: `recordEdit.ts`
+  journal (`EditJournal` in `@wellsfargo-starui/core`). React wiring: `recordEdit.ts`
   (`resolveEditRecording`), `useEditJournal`, `journalUndoRedo`,
   `journalApplyGuard`, `editJournalScope`. Unified **`EditingToolbar`** row
   composes edit-history, smart-edit, and bulk-update segments plus
@@ -509,7 +509,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   toolbar **Set…** dialog, +/- keyboard increment, and K/M/B magnitude shortcuts
   via `valueParser` on editable numeric columns. Single-column guard, optional
   preview-before-apply, and cell-patch journal recording for undo (via shared
-  `EditJournal`). Framework-agnostic ops in `@wellsfargo-starui/engine`; React module +
+  `EditJournal`). Framework-agnostic ops in `@wellsfargo-starui/core`; React module +
   `SmartEditToolbarBody` in `@wellsfargo-starui/grid`. Settings panel: **Smart Edit**.
   Lab: unified **Editing** tab (`lab-editing`, 12 profiles); focused Smart Edit
   profiles under `public/lab-profiles/smart-edit/`.
@@ -592,14 +592,14 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useStarGridHost` — read host context (runtime, storage, data, config)
 - `buildGridHostContext` — compose host context from `{ runtime, storage, data, config }`
 - `defineStarGridPlugin` — plugin registration (`StarGridPlugin`: `{ id, register?({ appId }) }`; `register` runs once at app mount)
-- `GridHostContext`, `createGridHostContext` — on `@wellsfargo-starui/host` (not re-exported from `@wellsfargo-starui/app`)
+- `GridHostContext`, `createGridHostContext` — on `@wellsfargo-starui/core/host` (not re-exported from `@wellsfargo-starui/app`)
 - `StarGridAppState` — persisted app state (profile, layout, theme, toolbar, settings)
 - `StarGridAppOptions` — init config (appId, userId, host, storage, persistence mode, plugins)
 - `StarGridPersistence` + `storageFactoryForPersistence` — pluggable persistence adapters
 
 ---
 
-### 4.2 `@wellsfargo-starui/grid/widgets` (formerly `@wellsfargo-starui/widgets-react`)
+### 4.2 `@wellsfargo-starui/grid/widgets` (formerly `@wellsfargo-starui/grid/widgets`)
 
 **Path:** `packages/react-grid/widgets-react`
 **Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
@@ -629,7 +629,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useProviderDataWiring` — provider→grid hot path inside `MarketsGridContainer`; live ticks apply regardless of `document.hidden` — hidden/minimized blotters stay fully current (trading policy: window-local alerting + instant correctness on restore; the old hidden-pause + refresh-on-visible dormancy was removed; Chromium's own background timer throttling is left at platform defaults); on STOMP auto-reconnect (`error` → `ready`) clears the stale banner and triggers `provider.refresh()` so every blotter replays the hub cache without a manual Reload
 - `MarketsGridContainer` — when an active provider id is chosen but `useDataProviderConfig` is still loading, renders a lightweight placeholder (no throwaway `MarketsGrid` / AG Grid shell); the `__no_provider__` shell path is unchanged when no provider is selected or cfg is loaded but missing key/columns
 - `applyProviderToGrid` — live-tick add/update split with pending-add coalescing (`createApplyProviderToGridState`, `splitProviderRowsForGrid`, `splitProviderRowsWithResolver`); after snapshot commit, `markSnapshotLoaded` indexes row ids so live ticks avoid O(n) `getRowNode`; ticks for ids still in an async add queue retain the latest payload instead of being dropped so peer grids on the same hub provider stay row-count aligned; internal to `MarketsGridContainer` / `useBlotterDataConnection` (not on public barrel)
-- `buildColumnDefs` — maps a provider's persisted `ColumnDefinition[]` to AG Grid `ColDef[]` for `MarketsGridContainer`. Per column: a `valueGetter` DSL expression compiles once (bounded FIFO cache) to a CSP-safe `@wellsfargo-starui/engine` **compiled closure** (not per-cell AST walk); dotted `field` uses cached `getPathAccessor`; flat field stays on AG Grid's native path. Every column with no explicit `filter` defaults to the **Multi Filter** (`agMultiColumnFilter`): tab 1 is the `cellDataType`-appropriate filter (`number`→`agNumberColumnFilter`, `date`/`dateString`→`agDateColumnFilter`, else `agTextColumnFilter`), tab 2 is always `agSetColumnFilter`; a column that already declares its own `filter` is left untouched (FilterEditor / host choice wins). Expression getters never throw — parse errors fall back to the field binding, runtime errors to the field value (warn once per expression); reusable per-getter `EvaluationContext` avoids per-cell allocations under high-frequency updates. Soak: `npm run soak:value-getter` (`valueGetter.soak.test.ts`, `SOAK=1`) — sustained eval load + heap-delta guard. **Internal** — not on public barrel
+- `buildColumnDefs` — maps a provider's persisted `ColumnDefinition[]` to AG Grid `ColDef[]` for `MarketsGridContainer`. Per column: a `valueGetter` DSL expression compiles once (bounded FIFO cache) to a CSP-safe `@wellsfargo-starui/core` **compiled closure** (not per-cell AST walk); dotted `field` uses cached `getPathAccessor`; flat field stays on AG Grid's native path. Every column with no explicit `filter` defaults to the **Multi Filter** (`agMultiColumnFilter`): tab 1 is the `cellDataType`-appropriate filter (`number`→`agNumberColumnFilter`, `date`/`dateString`→`agDateColumnFilter`, else `agTextColumnFilter`), tab 2 is always `agSetColumnFilter`; a column that already declares its own `filter` is left untouched (FilterEditor / host choice wins). Expression getters never throw — parse errors fall back to the field binding, runtime errors to the field value (warn once per expression); reusable per-getter `EvaluationContext` avoids per-cell allocations under high-frequency updates. Soak: `npm run soak:value-getter` (`valueGetter.soak.test.ts`, `SOAK=1`) — sustained eval load + heap-delta guard. **Internal** — not on public barrel
 - Custom Settings panel (`toolbar-date-settings` module) — four sections: Toolbar Date (historical date → AppData config), Data Provider (live/historical pickers, mode, as-of date) when `providerGridHost` is wired, Event Callbacks (event→handler bindings) when `gridEventBindingsHost` is wired, and Row Filter (row-exclusion expression). All settings are staged and applied only on the panel's explicit Save (Reset reverts); imperative actions (refresh/reload/edit) stay immediate
 - Row exclusion — implemented in `@wellsfargo-starui/grid` `toolbar-date-settings` module (not widgets-react): multiline Monaco `ExpressionEditor` authors an EXCLUDE-when-true DSL predicate (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, e.g. `[ccy] == "INR"`, `[active] == false`); keystrokes stage into the panel draft (applied on Save). `transformGridOptions` installs it as AG Grid's external filter (`isExternalFilterPresent` / `doesExternalFilterPass`) and the module's `activate` calls `api.onFilterChanged()` on cell edits, expression edits, and first ready. Rows are hidden, not removed — they reappear when the offending value changes; parse/eval failure excludes nothing (`rowExclusionFilter.ts`, fails open)
 - `ProviderEditorDialog` — modal hosting `DataProviderEditor`
@@ -680,10 +680,10 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ---
 
-### 4.3 `@wellsfargo-starui/react/widget-sdk` (formerly `@wellsfargo-starui/widget-sdk`)
+### 4.3 `@wellsfargo-starui/react/widget-sdk` (formerly `@wellsfargo-starui/react/widget-sdk`)
 
 **Path:** `packages/react-core/widget-sdk`
-**Purpose:** Star Widget SDK — React extensibility over `@wellsfargo-starui/widget`.
+**Purpose:** Star Widget SDK — React extensibility over `@wellsfargo-starui/core/widget`.
 
 #### Widget host runtime
 
@@ -709,14 +709,14 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Config + layout persistence
 
-- `createConfigManager` — factory for `ConfigManager` (re-export from `@wellsfargo-starui/host-config`)
-- `BrowserAdapter` — re-export from `@wellsfargo-starui/widget-browser` for browser widget hosts
+- `createConfigManager` — factory for `ConfigManager` (re-export from `@wellsfargo-starui/core/host/config`)
+- `BrowserAdapter` — re-export from `@wellsfargo-starui/core/widget/browser` for browser widget hosts
 - `ConfigManager` — CRUD over app/user/role configs
 - `getLayouts`, `saveLayout`, `loadLayout`, `deleteLayout`
 
 ---
 
-### 4.4 `@wellsfargo-starui/react/host` (formerly `@wellsfargo-starui/host-wrapper-react`)
+### 4.4 `@wellsfargo-starui/react/host` (formerly `@wellsfargo-starui/react/host`)
 
 **Path:** `packages/react-core/host-wrapper-react`
 **Purpose:** React seam (Seam #2) — bridges `RuntimePort` + `ConfigManager` into React context.
@@ -730,7 +730,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ---
 
-### 4.5 `@wellsfargo-starui/grid/config-browser` (formerly `@wellsfargo-starui/config-browser`)
+### 4.5 `@wellsfargo-starui/grid/config-browser` (formerly `@wellsfargo-starui/grid/config-browser`)
 
 **Path:** `packages/react-grid/config-browser`
 **Purpose:** Configuration-browser dev tool — view/search/import/export configs. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
@@ -753,11 +753,11 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### State, helpers, theming
 
-- `useConfigBrowser` — table state, filters, mutations; `exportDeploy()` full deploy seed bundle (unfiltered `appConfig`) + validation via `@wellsfargo-starui/host-config` `buildDeployExport()`; `resetToSeed()` (delegates to `ConfigManager.resetToSeed()`, refreshes the view) and `seedConfigUrl` (gates the Reset button)
+- `useConfigBrowser` — table state, filters, mutations; `exportDeploy()` full deploy seed bundle (unfiltered `appConfig`) + validation via `@wellsfargo-starui/core/host/config` `buildDeployExport()`; `resetToSeed()` (delegates to `ConfigManager.resetToSeed()`, refreshes the view) and `seedConfigUrl` (gates the Reset button)
 - `DeployExportPreviewDialog` — pre-download validation summary; rocket download saves as `seed.json` (errors and warnings require acknowledge checkbox)
-- `buildDeployExport()`, `validateDeployExport()`, `parseSeedJson()`, `resolveActiveIdentityFromSeedUrl()` (`@wellsfargo-starui/host-config`) — deploy export includes every `appConfig` row plus `activeAppId` / `activeUserId`; normalize scope drift against those fields; reject wrong `seed.json` shapes (e.g. `kind: starui.dataProvider`); emit `DeployExportWarning` codes (`MISSING_INSTANCE_ROW`, `EMPTY_PROFILE_STATE`, `UNREFERENCED_ROWS`, …); `resolveActiveIdentityFromSeedUrl()` cross-window-caches identity (single-flight + `localStorage`) so OpenFin child views do not re-fetch the full deploy bundle; manifest `customSettings.appId` / `userId` skip the seed fetch when both are pinned
+- `buildDeployExport()`, `validateDeployExport()`, `parseSeedJson()`, `resolveActiveIdentityFromSeedUrl()` (`@wellsfargo-starui/core/host/config`) — deploy export includes every `appConfig` row plus `activeAppId` / `activeUserId`; normalize scope drift against those fields; reject wrong `seed.json` shapes (e.g. `kind: starui.dataProvider`); emit `DeployExportWarning` codes (`MISSING_INSTANCE_ROW`, `EMPTY_PROFILE_STATE`, `UNREFERENCED_ROWS`, …); `resolveActiveIdentityFromSeedUrl()` cross-window-caches identity (single-flight + `localStorage`) so OpenFin child views do not re-fetch the full deploy bundle; manifest `customSettings.appId` / `userId` skip the seed fetch when both are pinned
 - `ConfigManager.onConfigChanged()` / `ChangeNotifier.subscribeAll()` — global write/delete subscription (same-tab + cross-tab) for worker catalog sync
-- `readProfileSetPayload()` (`@wellsfargo-starui/host-config`) — storage adapter reads profile-set bytes even when row `appId` drifted, so `gridLevelData` / profile saves do not wipe `profiles: []`; re-stamps correct scope on write
+- `readProfileSetPayload()` (`@wellsfargo-starui/core/host/config`) — storage adapter reads profile-set bytes even when row `appId` drifted, so `gridLevelData` / profile saves do not wipe `profiles: []`; re-stamps correct scope on write
 - Platform scope realignment — `initWorkspace` reads manifest / `app-config.json` `appId` instead of hard-coded `TestApp`; `migrateRegistryAppIdDrift()` runs inside workspace init (not a public `@wellsfargo-starui/openfin` export); `readHostEnv()` uses the same bootstrap before dev fallback
 - `TABLES` — table enumeration
 - `createConfigBrowserAction` — wire config browser as OpenFin context-menu action
@@ -767,7 +767,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ---
 
-### 4.6 `@wellsfargo-starui/react/workspace-setup` (formerly `@wellsfargo-starui/workspace-setup-react`)
+### 4.6 `@wellsfargo-starui/react/workspace-setup` (formerly `@wellsfargo-starui/react/workspace-setup`)
 
 **Path:** `packages/react-core/workspace-setup-react`
 **Purpose:** OpenFin workspace setup UI — dock config, registry, component picker.
@@ -804,19 +804,19 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ## 5. Shared / Core
 
-### 5.1 `@wellsfargo-starui/shared-types` & `@wellsfargo-starui/types`
+### 5.1 `@wellsfargo-starui/types/shared` & `@wellsfargo-starui/types`
 
-**Paths:** `packages/shared/shared-types`, `packages/shared/types`
+**Paths:** `packages/types/shared-types`, `packages/types/types`
 **Purpose:** Shared type contracts for StarGrid host ports and runtime.
-`@wellsfargo-starui/shared-types` is the **single source of truth** for the
+`@wellsfargo-starui/types/shared` is the **single source of truth** for the
 `dataProvider`, `configuration`, and `fieldSelector` modules — exposed as
-subpath exports (`@wellsfargo-starui/shared-types/dataProvider`, `/configuration`,
+subpath exports (`@wellsfargo-starui/types/shared/dataProvider`, `/configuration`,
 `/fieldSelector`) and re-exported by `@wellsfargo-starui/types` so existing
 `@wellsfargo-starui/types` consumers keep their import paths while definitions stay
-unified. `@wellsfargo-starui/shared-types` additionally exports `configuration`
+unified. `@wellsfargo-starui/types/shared` additionally exports `configuration`
 (`COMPONENT_TYPES`, `COMPONENT_SUBTYPES`, …), `dockConfig`, `dockTreeUtils`,
 `simpleBlotter`, and `widget` modules. `@wellsfargo-starui/types` remains the slim
-runtime subset (and depends on `@wellsfargo-starui/shared-types` for the unified
+runtime subset (and depends on `@wellsfargo-starui/types/shared` for the unified
 modules).
 
 #### Runtime constants
@@ -856,9 +856,9 @@ modules).
 
 ---
 
-### 5.2 `@wellsfargo-starui/engine`
+### 5.2 `@wellsfargo-starui/core`
 
-**Path:** `packages/shared/engine`
+**Path:** `packages/core/engine`
 **Purpose:** Framework-agnostic vanilla TS grid runtime engine — store, event bus, expression engine, customizer logic.
 
 #### Platform runtime
@@ -1052,9 +1052,9 @@ modules).
 
 ---
 
-### 5.3 `@wellsfargo-starui/host`
+### 5.3 `@wellsfargo-starui/core/host`
 
-**Path:** `packages/shared/host`
+**Path:** `packages/core/host`
 **Purpose:** Host port interfaces and `GridHostContext` factory.
 
 - `RuntimePort` — theme, surface management, identity broadcast
@@ -1072,9 +1072,9 @@ modules).
 
 ---
 
-### 5.4 `@wellsfargo-starui/host-browser`
+### 5.4 `@wellsfargo-starui/core/host/browser`
 
-**Path:** `packages/shared/host-browser`
+**Path:** `packages/core/host-browser`
 **Purpose:** Browser `RuntimePort` implementation.
 
 - `BrowserRuntime` — browser-based `RuntimePort` (theme, surface, identity)
@@ -1084,9 +1084,9 @@ modules).
 
 ---
 
-### 5.5 `@wellsfargo-starui/widget`
+### 5.5 `@wellsfargo-starui/core/widget`
 
-**Path:** `packages/shared/widget`
+**Path:** `packages/core/widget`
 **Purpose:** Framework-agnostic widget contract.
 
 - `PlatformAdapter` — abstract widget platform adapter
@@ -1100,9 +1100,9 @@ modules).
 
 ---
 
-### 5.6 `@wellsfargo-starui/widget-browser`
+### 5.6 `@wellsfargo-starui/core/widget/browser`
 
-**Path:** `packages/shared/widget-browser`
+**Path:** `packages/core/widget-browser`
 **Purpose:** Browser `PlatformAdapter` implementation.
 
 - `BrowserAdapter` — DOM + localStorage + postMessage-based adapter
@@ -1111,9 +1111,9 @@ modules).
 
 ## 6. Data Utilities
 
-### 6.1 `@wellsfargo-starui/host-config`
+### 6.1 `@wellsfargo-starui/core/host/config`
 
-**Path:** `packages/shared/host-config`
+**Path:** `packages/core/host-config`
 **Purpose:** Dual-mode configuration service — Dexie/IndexedDB local store with optional REST backend sync. Backs all profile, role, permission, and app-config persistence.
 
 #### ConfigManager — the single config-service API
@@ -1403,7 +1403,7 @@ modules).
 
 ---
 
-### 6.3 `@wellsfargo-starui/react/data` (formerly `@wellsfargo-starui/host-data-react`)
+### 6.3 `@wellsfargo-starui/react/data` (formerly `@wellsfargo-starui/react/data`)
 
 **Path:** `packages/react-core/host-data-react`
 **Purpose:** React bindings for `@wellsfargo-starui/data` — provider + focused hooks for data subscriptions.
@@ -1553,7 +1553,7 @@ of importing `@openfin/*` directly (architecture boundary).
 
 - `.` — main platform API (workspace init, config, dock, launch)
 - `./config` — config-only entry (no runtime deps, browser-safe)
-- `./plugin` — `openFinPlatformPlugin` factory (OpenFin workspace plugin entry; `StarGridPlugin` contract lives in `@wellsfargo-starui/host`)
+- `./plugin` — `openFinPlatformPlugin` factory (OpenFin workspace plugin entry; `StarGridPlugin` contract lives in `@wellsfargo-starui/core/host`)
 - `./test-bridge` — test utilities
 - `./dock-editor` — icon helpers only (`ICON_OPTIONS`, `iconIdToSvgUrl`, `iconIdToThemedUrls`, `parseIconUrl`); dock editor React UI lives in `@wellsfargo-starui/react/workspace-setup`
 
@@ -1702,7 +1702,7 @@ of importing `@openfin/*` directly (architecture boundary).
 #### Plugin system
 
 - `plugin.ts` — OpenFin workspace plugin factory (`openFinPlatformPlugin`)
-- `./plugin` export — workspace lifecycle wiring; app-level `StarGridPlugin` contract is in `@wellsfargo-starui/host`
+- `./plugin` export — workspace lifecycle wiring; app-level `StarGridPlugin` contract is in `@wellsfargo-starui/core/host`
 
 ---
 
@@ -1721,14 +1721,14 @@ recover from git history if it is ever revived.
 ### Consumer documentation
 
 - `docs/MARKETSGRID_USAGE_GUIDE.md` — scenario matrix for MarketsGrid (`MarketsGrid` / `MarketsGridContainer` / `HostedMarketsGrid`), hub bootstrap, OpenFin vs browser, persistence, customizer UI (§22), troubleshooting
-- `docs/EXPRESSION_DSL.md` — authoritative reference for the `@wellsfargo-starui/engine` expression DSL (grammar, operator semantics, the full 44-function catalog, coercion/null rules, conditional sugar) plus an explicit JavaScript→DSL conversion guide written for an AI agent to translate JS expressions into DSL correctly
+- `docs/EXPRESSION_DSL.md` — authoritative reference for the `@wellsfargo-starui/core` expression DSL (grammar, operator semantics, the full 44-function catalog, coercion/null rules, conditional sugar) plus an explicit JavaScript→DSL conversion guide written for an AI agent to translate JS expressions into DSL correctly
 - `docs/OPENFIN_GRID_LINKING.md` — OpenFin grid-to-grid color linking: how to enable (`HostedMarketsGrid` `contextLink`), prerequisites, manifest notes (interop needs none; optional `fdc3InteropApi` fallback), the file map, wire format, group→leaf expansion, receiver column matching, notifications, and diagnostics
 
 ## Cross-cutting architecture notes
 
 These aren't a single feature, but they are platform invariants worth remembering when reading the inventory:
 
-- **Seam #1 — RuntimePort** (`@wellsfargo-starui/openfin/host` vs `@wellsfargo-starui/host-browser`). Only OpenFin packages may import `@openfin/core`.
+- **Seam #1 — RuntimePort** (`@wellsfargo-starui/openfin/host` vs `@wellsfargo-starui/core/host/browser`). Only OpenFin packages may import `@openfin/core`.
 - **Seam #2 — React host bridge** (`@wellsfargo-starui/react/host`). All React features consume the host via `useHost()`.
 - **Customizer pipeline** — `DEFAULT_MODULES` runs general-settings →
   column-templates → column-customization → calculated-columns → column-groups →
@@ -1741,7 +1741,7 @@ These aren't a single feature, but they are platform invariants worth rememberin
   - **Co-save on profile save** — `useGridLevelPersistence` subscribes to the grid's `profile:saved` event and flushes the current grid-level data (provider selection + caption + event-bindings) on every profile save (toolbar Save, customizer card Save, save-on-switch, external `saveAll`). Guarantees `gridLevelData.provider.liveProviderId` is always written alongside the profile — together with the storage adapter's OCC-retry RMW, this is what prevents a registered/ConfigService component from persisting a profile without its provider link (which booted the grid empty next launch).
 - **Expression engine** — CSP-safe parser/evaluator drives calculated columns, conditional rules, and filter expressions; `tryCompileToAgString()` transpiles to AG Grid `valueFormatter` strings.
 - **Theme integration** — reactive dark/light switching via `RuntimePort` + `data-theme` attribute; AG Grid theme + StarUI tokens stay in lockstep.
-- **Extensibility surfaces** — slot-based widget extensions in `@wellsfargo-starui/react/widget-sdk`; `StarGridPlugin.register` in `@wellsfargo-starui/host` / `@wellsfargo-starui/app`; OpenFin workspace plugin via `openFinPlatformPlugin` in `@wellsfargo-starui/openfin/plugin`.
+- **Extensibility surfaces** — slot-based widget extensions in `@wellsfargo-starui/react/widget-sdk`; `StarGridPlugin.register` in `@wellsfargo-starui/core/host` / `@wellsfargo-starui/app`; OpenFin workspace plugin via `openFinPlatformPlugin` in `@wellsfargo-starui/openfin/plugin`.
 - **External-consumption contract** — every package is publishable standalone to teams with no repo access, and a consumer edits **no** build config. See [`docs/EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) for the contract and [`docs/PACKAGING_CHANGELOG.md`](./PACKAGING_CHANGELOG.md) for the history behind it. The invariants:
   - **Peers only for genuine singletons** the consumer also owns — `react`/`react-dom`, `ag-grid-*` (ModuleRegistry singleton + consumer-held enterprise licence), `@tanstack/react-query` (consumer's QueryClient), `lucide-react`. Everything else is a normal dependency so nothing extra must be installed. `@stomp/stompjs` is a dependency, not a peer.
   - **`@openfin/*` are OPTIONAL peers** on `@wellsfargo-starui/openfin` — a browser-only consumer installs **zero** OpenFin packages (verified: `node_modules/@openfin` absent). `config-browser` / `host-wrapper-react` reach OpenFin only through the `@wellsfargo-starui/openfin/config` subpath, whose graph holds `import type` references alone. OpenFin apps declare the three packages themselves, as the in-repo demos already do.

@@ -1,35 +1,36 @@
 # Package organization — engineering architecture buckets
 
-Ten top-level buckets under `packages/`. Dependency flow: **Shared (10)** and
-**Design System (1)** are foundations; framework buckets (2–5, 8–9) consume
-them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
+Seven top-level buckets under `packages/`, one published package each.
+Dependency flow: **Types (6)**, **Core (7)** and **Design System (1)** are
+foundations; **React Core (5)** and **React Grid (2)** consume them;
+**Data (3)** and **OpenFin (4)** are cross-cutting services.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Apps (apps/)                                   │
+│  Apps (separate repo — docs/APPS_REPO.md)                       │
 └────────────────────────────┬────────────────────────────────────┘
                              │
-     ┌───────────────────────┼───────────────────────┐
-     │                       │                       │
-┌────▼─────┐  ┌──────▼──────┐  ┌────────▼────────┐  ┌──────▼──────┐
-│ 8 Ang    │  │ 9 React     │  │ 4 Ang Grid      │  │ 5 React Grid│
-│ Core     │  │ Core        │  │                 │  │             │
-└────┬─────┘  └──────┬──────┘  └────────┬────────┘  └──────┬──────┘
-     │               │                  │                  │
-     └───────────────┴──────────────────┴──────────────────┘
+              ┌──────────────┴──────────────┐
+              │                             │
+       ┌──────▼──────┐               ┌──────▼──────┐
+       │ 5 React     │               │ 2 React Grid│
+       │ Core        │               │             │
+       └──────┬──────┘               └──────┬──────┘
+              │                             │
+              └──────────────┬──────────────┘
                              │
               ┌──────────────┼──────────────┐
               │              │              │
-       ┌──────▼─────┐ ┌──────▼──────┐ ┌─────▼─────┐
-       │ 6 Data     │ │ 7 OpenFin   │ │ 2/3 UI    │
-       │ Utilities  │ │ Utils       │ │ Controls  │
-       └──────┬─────┘ └──────┬──────┘ └─────┬─────┘
-              │              │              │
-              └──────────────┴──────────────┘
+       ┌──────▼─────┐ ┌──────▼──────┐      │
+       │ 3 Data     │ │ 4 OpenFin   │      │
+       │            │ │             │      │
+       └──────┬─────┘ └──────┬──────┘      │
+              │              │             │
+              └──────────────┴─────────────┘
                              │
-              ┌──────────────┴──────────────┐
-              │ 10 Shared    │ 1 Design Sys │
-              └─────────────────────────────┘
+       ┌─────────────────────┴───────────────────┐
+       │ 6 Types │ 7 Core │ 1 Design Sys         │
+       └─────────────────────────────────────────┘
 ```
 
 ## Bucket map
@@ -41,17 +42,22 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 | 3 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/data` |
 | 4 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/openfin` |
 | 5 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/react` |
-| 6 | **Types** | `packages/types/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types` |
-| 7 | **Core** | `packages/core/` | `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser`, `@wellsfargo-starui/host-config` |
+| 6 | **Types** | `packages/types/` | `@wellsfargo-starui/types` — members as subpaths: `.` (former `types`), `./shared` (+`/configuration`, `/dataProvider`, `/fieldSelector`; former `shared-types`) |
+| 7 | **Core** | `packages/core/` | `@wellsfargo-starui/core` — members as subpaths: `.` (former `engine`), `./host` (former `host`), `./host/browser`, `./host/config`, `./widget`, `./widget/browser` |
 
 ## Import rules
 
-- **Shared (10)** — no imports from framework buckets.
+- **Types (6) / Core (7)** — no imports from framework buckets; `types` imports
+  nothing, `core` imports only `types` (plus its `ag-grid-community` peer).
 - **Design System (1)** — foundation only; no grid/host imports.
-- **Data (6)** — vanilla only; no React/Angular UI. (`host-config` moved to Shared; `host-data-react` moved to React Core — see the bucket-move history in `docs/WORKLOG.md` item 11.)
-- **OpenFin (7)** — only buckets here + shared may import `@openfin/core`.
-- **Grid (4/5)** — engine + host + design-system; now also carries the collapsed `config-browser` and `widgets-react` modules (`./config-browser`, `./widgets` subpaths), which have real edges to React Core (`ui`, `host-data-react`, `widget-sdk`), OpenFin, and Data — see `docs/WORKLOG.md` item 11 for why.
-- **Core (8/9)** — composes grid, data, openfin, UI for product shells and tools.
+- **Data (3)** — vanilla only; no React/Angular UI. (`host-config` moved into what
+  is now Core; `host-data-react` moved to React Core — see the bucket-move
+  history in `docs/WORKLOG.md` item 11.)
+- **OpenFin (4)** — only this bucket may import `@openfin/core`.
+- **Grid (2)** — core + design-system; also carries the collapsed
+  `config-browser` and `widgets-react` modules (`./config-browser`, `./widgets`
+  subpaths), which have real edges to React Core, OpenFin, and Data — see
+  `docs/WORKLOG.md` item 11 for why.
 - **Angular ↔ React** — never import each other.
 
 ## `@wellsfargo-starui/*` names
