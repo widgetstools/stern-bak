@@ -368,8 +368,32 @@ succeeds despite it (npm doesn't error on the unused stale line). Worth
 a `npm run make:tarball-apps` regeneration pass in that repo at some
 point, but not urgent.
 
-**Next:** sub-phase 2 (`openfin` bucket — `host-openfin` +
-`openfin-platform`), per the roadmap in
+**Package-collapse sub-phase 2: done.** `host-openfin` +
+`openfin-platform` collapsed into one `@wellsfargo-starui/openfin`
+package (19 tarballs, was 20). Both prior npm identities retired —
+`host-openfin`'s single export moved to `./host`; `openfin-platform`'s
+five subpaths kept their names under the new prefix. 28 consumer
+import sites across `grid`, `widgets-react`, `host-wrapper-react`,
+`workspace-setup-react`, and `config-browser` were migrated, including
+a dynamic `/* @vite-ignore */` import that broke every design-time
+grep pattern and a hardcoded Vite alias in `grid`'s own
+`vitest.config.ts`. Per the design spec at
+[`docs/superpowers/specs/2026-08-01-package-collapse-openfin-design.md`](./superpowers/specs/2026-08-01-package-collapse-openfin-design.md),
+the coverage-tooling gap remains accepted, not fixed here.
+
+**`stern-apps` follow-up (non-blocking):** `tarball/*/package.json`'s
+generated `overrides` block was stale (missing the new `openfin`
+package entirely, still listing the three retired names) and had to be
+regenerated via `npm run make:tarball-apps` in that repo before the
+tarball validation gate could complete — 5 of 6 apps then built clean.
+The 6th, `star-demo`, still fails: its real application source
+(`source/star-demo/src/main.tsx`, not a generated file) imports
+`@wellsfargo-starui/host-openfin` directly and needs its own update to
+`@wellsfargo-starui/openfin/host` — genuine `stern-apps` app code, out
+of this repo's scope.
+
+**Next:** sub-phase 3 (`data` bucket — `host-data` alone, the
+trivial single-member case), per the roadmap in
 [`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level

@@ -665,11 +665,11 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useColorLinking` — workspace colour-linking membership (`{ color, linked }`); flat peer group, no parent/child
 - `useGridContextLink` — grid-to-grid context linking over colored "Link" groups: publishes the selection and filters rows on peer selections. Echo suppression keys on a **per-window** source id (`makeSourceId` → OpenFin `uuid/name`), so two instances of the same view don't drop each other's broadcasts. Two modes: `'rowId'` (default) broadcasts AG-Grid `getRowId` values (`node.id` = `composeRowId` over the provider key fields) and applies them as an external filter; `'fields'` broadcasts **key columns + values** (the fields that compose `getRowId`) and applies a per-column set-filter — a selected **group expands to its `allLeafChildren`** so any mix of groups/sub-groups/rows resolves to precise leaf-row keys. Receivers apply only the columns they own (`api.getColumn`), merged with the user's manual filters. `onPublish`/`onReceive` callbacks drive notifications. `GridContextLinkConfig`: `enabled`, `mode`, `publish`, `receive`, `rowIdField` (auto-filled by `HostedMarketsGrid` from the provider `keyColumn`), `resolve`, `buildContext`, `contextType`, `notify`. Exported helpers: `buildSelectionContext`, `defaultGridLinkResolver`, `applyGridLinkContext`, `GRID_LINK_CONTEXT_TYPE`, `normalizeRowIdField`. See [`docs/OPENFIN_GRID_LINKING.md`](./OPENFIN_GRID_LINKING.md)
 - `useInteropChannel` (+ `isInteropAvailable`) — **primary** link transport: OpenFin interop facade (`fin.me.interop.setContext` / `addContextHandler`), shape-compatible with `useFdc3Channel`. Used because the dock "Link" joins **interop context groups** that `window.fdc3`'s channel tracking doesn't reliably reflect; `HostedMarketsGrid` prefers it and falls back to `useFdc3Channel` only when interop is absent
-- `useGridLinkNotifications` + `gridLinkNotifications` helpers (`buildSelectionNotification`, `buildAckNotification`, `summarizeCriteria`, `summarizeLinkContext`) — post OpenFin Notification Center messages for link traffic (a "sent" on broadcast, an "acknowledged" on receive) via `@wellsfargo-starui/host-openfin`; gated by `contextLink.notify`, no-op outside OpenFin
+- `useGridLinkNotifications` + `gridLinkNotifications` helpers (`buildSelectionNotification`, `buildAckNotification`, `summarizeCriteria`, `summarizeLinkContext`) — post OpenFin Notification Center messages for link traffic (a "sent" on broadcast, an "acknowledged" on receive) via `@wellsfargo-starui/openfin/host`; gated by `contextLink.notify`, no-op outside OpenFin
 - `useTabsHidden` — tab visibility detection
 - `useViewTabTitle` (+ `ViewTabTitle` type) — two-way binding between the grid caption and the host OpenFin view's tab name: seeds from `customData.savedTitle`, picks up external "Save Tab As…" renames via the view's `options-changed` event (1 s `getOptions` poll only as fallback for runtimes without the event API), and `setTitle` writes back `document.title` + `savedTitle`. No-op (local-only) outside OpenFin
 - `useWorkspaceSaveEvent` — workspace save callback
-- Window options — hosted hooks use `subscribeWindowOptions` from `@wellsfargo-starui/host-openfin` internally (not re-exported from `./hosted`)
+- Window options — hosted hooks use `subscribeWindowOptions` from `@wellsfargo-starui/openfin/host` internally (not re-exported from `./hosted`)
 - `useAgGridTheme` — AG Grid theme resolution
 
 #### Shared hooks
@@ -758,7 +758,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `buildDeployExport()`, `validateDeployExport()`, `parseSeedJson()`, `resolveActiveIdentityFromSeedUrl()` (`@wellsfargo-starui/host-config`) — deploy export includes every `appConfig` row plus `activeAppId` / `activeUserId`; normalize scope drift against those fields; reject wrong `seed.json` shapes (e.g. `kind: starui.dataProvider`); emit `DeployExportWarning` codes (`MISSING_INSTANCE_ROW`, `EMPTY_PROFILE_STATE`, `UNREFERENCED_ROWS`, …); `resolveActiveIdentityFromSeedUrl()` cross-window-caches identity (single-flight + `localStorage`) so OpenFin child views do not re-fetch the full deploy bundle; manifest `customSettings.appId` / `userId` skip the seed fetch when both are pinned
 - `ConfigManager.onConfigChanged()` / `ChangeNotifier.subscribeAll()` — global write/delete subscription (same-tab + cross-tab) for worker catalog sync
 - `readProfileSetPayload()` (`@wellsfargo-starui/host-config`) — storage adapter reads profile-set bytes even when row `appId` drifted, so `gridLevelData` / profile saves do not wipe `profiles: []`; re-stamps correct scope on write
-- Platform scope realignment — `initWorkspace` reads manifest / `app-config.json` `appId` instead of hard-coded `TestApp`; `migrateRegistryAppIdDrift()` runs inside workspace init (not a public `@wellsfargo-starui/openfin-platform` export); `readHostEnv()` uses the same bootstrap before dev fallback
+- Platform scope realignment — `initWorkspace` reads manifest / `app-config.json` `appId` instead of hard-coded `TestApp`; `migrateRegistryAppIdDrift()` runs inside workspace init (not a public `@wellsfargo-starui/openfin` export); `readHostEnv()` uses the same bootstrap before dev fallback
 - `TABLES` — table enumeration
 - `createConfigBrowserAction` — wire config browser as OpenFin context-menu action
 - `agGridThemeFor()` — AG Grid theme adapter (internal helper; not on package barrel)
@@ -780,7 +780,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `WorkspaceSetup` — 3-pane editor (Dock / Inspector / Components+Registry); embeds `ComponentsPane`, `DockPane`, `InspectorPane`, `IconPicker` internally (not separately importable)
 - `ImportConfig` — standalone import-config utility window
-- `ComponentsPane` — browse registered components, drag to dock; per-row hover actions: configure (test-launch), **clone**, delete. Clone (`WorkspaceSetup.handleClone`) duplicates a registry entry into a fresh draft — deep-copies all definition fields, gives it a de-duplicated `(copy)` display name and a unique `componentSubType` (`<sub>-copy`) so its derived `${type}-${subtype}` id can't collide with the source on save, resets `id`/`configId` (re-derived at save), and selects it for immediate editing in the inspector. **`cloneRegistryTemplateConfig`** (`@wellsfargo-starui/openfin-platform`) deep-clones the source template **AppConfigRow** (profiles, grid options, styling, theme via `structuredClone` on `payload`) onto the clone's derived template id immediately on clone (retried at save if the first attempt failed)
+- `ComponentsPane` — browse registered components, drag to dock; per-row hover actions: configure (test-launch), **clone**, delete. Clone (`WorkspaceSetup.handleClone`) duplicates a registry entry into a fresh draft — deep-copies all definition fields, gives it a de-duplicated `(copy)` display name and a unique `componentSubType` (`<sub>-copy`) so its derived `${type}-${subtype}` id can't collide with the source on save, resets `id`/`configId` (re-derived at save), and selects it for immediate editing in the inspector. **`cloneRegistryTemplateConfig`** (`@wellsfargo-starui/openfin`) deep-clones the source template **AppConfigRow** (profiles, grid options, styling, theme via `structuredClone` on `payload`) onto the clone's derived template id immediately on clone (retried at save if the first attempt failed)
 - `DEFAULT_ICON` — fallback icon id for dock/registry entries
 - `DockPane` — dock toolbar editor (buttons, folders, menus, icons, actions)
 - `InspectorPane` — selected dock-item property editor
@@ -1482,7 +1482,7 @@ modules).
 
 ## 7. OpenFin Utils
 
-### 7.1 `@wellsfargo-starui/host-openfin`
+### 7.1 Host runtime (`@wellsfargo-starui/openfin/host`)
 
 **Path:** `packages/openfin/host-openfin`
 **Purpose:** OpenFin `RuntimePort` plugin (Seam #1) — only this package may import `@openfin/core`.
@@ -1542,7 +1542,7 @@ of importing `@openfin/*` directly (architecture boundary).
 
 ---
 
-### 7.2 `@wellsfargo-starui/openfin-platform`
+### 7.2 `@wellsfargo-starui/openfin`
 
 **Path:** `packages/openfin/openfin-platform`
 **Purpose:** OpenFin workspace shell — dock, home, notifications, child windows, config import/export.
@@ -1728,7 +1728,7 @@ recover from git history if it is ever revived.
 
 These aren't a single feature, but they are platform invariants worth remembering when reading the inventory:
 
-- **Seam #1 — RuntimePort** (`@wellsfargo-starui/host-openfin` vs `@wellsfargo-starui/host-browser`). Only OpenFin packages may import `@openfin/core`.
+- **Seam #1 — RuntimePort** (`@wellsfargo-starui/openfin/host` vs `@wellsfargo-starui/host-browser`). Only OpenFin packages may import `@openfin/core`.
 - **Seam #2 — React host bridge** (`@wellsfargo-starui/host-wrapper-react`). All React features consume the host via `useHost()`.
 - **Customizer pipeline** — `DEFAULT_MODULES` runs general-settings →
   column-templates → column-customization → calculated-columns → column-groups →
@@ -1741,10 +1741,10 @@ These aren't a single feature, but they are platform invariants worth rememberin
   - **Co-save on profile save** — `useGridLevelPersistence` subscribes to the grid's `profile:saved` event and flushes the current grid-level data (provider selection + caption + event-bindings) on every profile save (toolbar Save, customizer card Save, save-on-switch, external `saveAll`). Guarantees `gridLevelData.provider.liveProviderId` is always written alongside the profile — together with the storage adapter's OCC-retry RMW, this is what prevents a registered/ConfigService component from persisting a profile without its provider link (which booted the grid empty next launch).
 - **Expression engine** — CSP-safe parser/evaluator drives calculated columns, conditional rules, and filter expressions; `tryCompileToAgString()` transpiles to AG Grid `valueFormatter` strings.
 - **Theme integration** — reactive dark/light switching via `RuntimePort` + `data-theme` attribute; AG Grid theme + StarUI tokens stay in lockstep.
-- **Extensibility surfaces** — slot-based widget extensions in `@wellsfargo-starui/widget-sdk`; `StarGridPlugin.register` in `@wellsfargo-starui/host` / `@wellsfargo-starui/app`; OpenFin workspace plugin via `openFinPlatformPlugin` in `@wellsfargo-starui/openfin-platform/plugin`.
+- **Extensibility surfaces** — slot-based widget extensions in `@wellsfargo-starui/widget-sdk`; `StarGridPlugin.register` in `@wellsfargo-starui/host` / `@wellsfargo-starui/app`; OpenFin workspace plugin via `openFinPlatformPlugin` in `@wellsfargo-starui/openfin/plugin`.
 - **External-consumption contract** — every package is publishable standalone to teams with no repo access, and a consumer edits **no** build config. See [`docs/EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) for the contract and [`docs/PACKAGING_CHANGELOG.md`](./PACKAGING_CHANGELOG.md) for the history behind it. The invariants:
   - **Peers only for genuine singletons** the consumer also owns — `react`/`react-dom`, `ag-grid-*` (ModuleRegistry singleton + consumer-held enterprise licence), `@tanstack/react-query` (consumer's QueryClient), `lucide-react`. Everything else is a normal dependency so nothing extra must be installed. `@stomp/stompjs` is a dependency, not a peer.
-  - **`@openfin/*` are OPTIONAL peers** on `openfin-platform` — a browser-only consumer installs **zero** OpenFin packages (verified: `node_modules/@openfin` absent). `config-browser` / `host-wrapper-react` reach OpenFin only through the `@wellsfargo-starui/openfin-platform/config` subpath, whose graph holds `import type` references alone. OpenFin apps declare the three packages themselves, as the in-repo demos already do.
+  - **`@openfin/*` are OPTIONAL peers** on `@wellsfargo-starui/openfin` — a browser-only consumer installs **zero** OpenFin packages (verified: `node_modules/@openfin` absent). `config-browser` / `host-wrapper-react` reach OpenFin only through the `@wellsfargo-starui/openfin/config` subpath, whose graph holds `import type` references alone. OpenFin apps declare the three packages themselves, as the in-repo demos already do.
   - **Every package ships compiled `dist/`** with fully-qualified relative specifiers (`./x` → `./x.js`) and co-located `.d.ts`, plus `sideEffects: ["*.css"]` and a `files` allowlist so tarballs carry no `src/`, tests, or tsconfigs.
   - **No runtime module cycles** between or within packages.
   - `npm run pack:npm` (`scripts/pack-npm.mjs`) packs each package individually under its real name, drops `private: true`, and rewrites workspace `"*"` ranges to concrete `^version` — distinct from `npm run propagate`, which packs per-bucket tarballs for the in-repo demos only.

@@ -598,7 +598,7 @@ EOF
 - Modify: `CLAUDE.md` (bucket table, `@openfin/core` import rule)
 - Modify: `docs/PACKAGE_ORGANIZATION.md` (bucket table)
 - Modify: `docs/ARCHITECTURE.md` (bucket line, two import-rule lines)
-- Modify: `docs/current-features.md` (§ 7.1 and § 7.2 headers)
+- Modify: `docs/current-features.md` (§ 7.1 and § 7.2 headers, plus 7 more genuine references found by Step 6's verification grep, scattered across §§ 4.x/6.x/9.x describing widgets-react's hosted hooks, workspace-setup-react's registry clone, and the platform-wide extensibility/external-consumption overview — this sub-phase's blast radius through this one doc file was wider than sub-phase 1's, since openfin identities are referenced from more places in the capability inventory)
 - Modify: `docs/WORKLOG.md` (item 11 progress note)
 
 **Interfaces:**

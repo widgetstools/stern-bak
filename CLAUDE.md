@@ -55,7 +55,7 @@ architecture buckets (see
 | 2 | React UI Controls | `react-ui/` | `ui` |
 | 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid`, `config-browser`, `widgets-react` |
 | 4 | Data Utilities | `data/` | `host-data`, `host-data-angular` |
-| 5 | OpenFin Utils | `openfin/` | `host-openfin`, `openfin-platform` |
+| 5 | OpenFin Utils | `openfin/` | `openfin` |
 | 6 | React Core | `react-core/` | `widget-sdk`, `host-wrapper-react`, `workspace-setup-react`, `host-data-react` |
 | 7 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser`, `host-config` |
 
@@ -229,7 +229,7 @@ Enforced via convention (ESLint enforcement is a follow-up). See
 - Foundation packages (`shared-types`, `design-system`) must
   not import from anywhere except each other.
 - `@wellsfargo-starui/engine` must not import from framework adapters (`widgets-react`, `grid`).
-- Only `host-openfin` and `openfin-platform` may import from `@openfin/core`.
+- Only `@wellsfargo-starui/openfin` may import from `@openfin/core`.
 - Apps import from packages, never the reverse.
 
 ## Pre-implementation checklist

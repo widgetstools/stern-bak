@@ -49,7 +49,7 @@ packages/design-system/   — (1) tokens, icons
 packages/react-ui/        — (3) shadcn primitives
 packages/react-grid/      — (5) @wellsfargo-starui/grid, config-browser, widgets-react
 packages/data/            — (6) host-data
-packages/openfin/         — (7) host-openfin, openfin-platform
+packages/openfin/         — (7) @wellsfargo-starui/openfin
 packages/react-core/      — (9) app, host-data-react, tools
 packages/shared/          — (10) engine, host, host-config, types, widget contract
 ```
@@ -57,8 +57,8 @@ packages/shared/          — (10) engine, host, host-config, types, widget cont
 ## Import rules
 
 - `engine` must not import from `grid`, `grid-react`, or `app`
-- `grid` must not import `@openfin/*` — OpenFin lives in `host-openfin`
-- `host-openfin` is optional; browser-only apps never import it
+- `grid` must not import `@openfin/*` — OpenFin lives in `@wellsfargo-starui/openfin`
+- `@wellsfargo-starui/openfin`'s OpenFin peer deps are optional; browser-only apps never import them
 - Framework adapters (`grid-react`, future `grid-angular`) sit above `grid`
 
 ## Phase 1 packages (shipped)
