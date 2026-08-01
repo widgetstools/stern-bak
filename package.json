@@ -9,7 +9,6 @@
     "packages/design-system/*",
     "packages/react-ui/*",
     "packages/react-grid/*",
-    "packages/data/host-config",
     "packages/data/host-data",
     "packages/data/host-data-react",
     "packages/openfin/*",

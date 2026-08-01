@@ -7,5 +7,5 @@
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts", "test/**"],
-  "references": [{ "path": "../../shared/host" }, { "path": "../../shared/engine" }]
+  "references": [{ "path": "../host" }, { "path": "../engine" }]
 }
