@@ -319,6 +319,10 @@ contradicts this table.**
 | 4 | `react` | `ui`, **`host-data-react`**, `widget-sdk`, `host-wrapper-react`, `workspace-setup-react` |
 | 5 | `grid` | `grid`, **`config-browser`**, **`widgets-react`** |
 
+*(Table names are the eventual Phase 2 published-package names. This phase's
+actual folders are* `shared`*,* `react-core`*, and* `react-grid` *respectively —
+see "Folder-move stage: done" below.)*
+
 Three moves do the work: `host-config` → `core` kills the cycle, `host-data-react`
 → `react` keeps `data` React-free (so `host-data-angular` and non-React consumers
 are unaffected), and `config-browser` + `widgets-react` → `grid` confines
@@ -335,15 +339,14 @@ location changed, per the design spec at
 **What remains** is the second stage this item originally described:
 collapsing 21 `package.json` files into 7, which still requires
 `check-package-cycles.mjs` and `check-package-coverage.mjs` to be taught to
-treat `packages/<bucket>/<member>/` as graph nodes (see "Still true" above)
+treat `packages/<bucket>/<member>/` as graph nodes (see "Still true" below)
 before it can start.
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level
 `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
 `check-package-coverage.mjs`, and the latter's "package has no real test script"
 check must be re-expressed **per member**, or a suite-less member hides inside a
-bucket its siblings carry. Land the folder moves as a separate, provably inert
-commit first.
+bucket its siblings carry.
 
 **Done looks like:** folders moved (names unchanged, tree green) → buckets
 collapsed to one `package.json` each → `check-package-cycles.mjs` taught to treat

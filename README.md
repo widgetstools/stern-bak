@@ -392,7 +392,7 @@ Wire the view as a lazy route (e.g. `/blotters/marketsgrid`). The same URL works
 in the browser, an OpenFin view (identity from `customData`), or a standalone
 OpenFin window.
 
-More detail: [`packages/react-core/widgets-react/src/hosted/README.md`](./packages/react-core/widgets-react/src/hosted/README.md).
+More detail: [`packages/react-grid/widgets-react/src/hosted/README.md`](./packages/react-grid/widgets-react/src/hosted/README.md).
 
 ### OpenFin launch contexts
 

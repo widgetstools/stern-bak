@@ -601,7 +601,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ### 4.2 `@wellsfargo-starui/widgets-react`
 
-**Path:** `packages/react-core/widgets-react`
+**Path:** `packages/react-grid/widgets-react`
 **Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor.
 
 **Public exports:**
@@ -732,7 +732,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 ### 4.5 `@wellsfargo-starui/config-browser`
 
-**Path:** `packages/react-core/config-browser`
+**Path:** `packages/react-grid/config-browser`
 **Purpose:** Configuration-browser dev tool — view/search/import/export configs.
 
 **Public exports:**
@@ -1113,7 +1113,7 @@ modules).
 
 ### 6.1 `@wellsfargo-starui/host-config`
 
-**Path:** `packages/data/host-config`
+**Path:** `packages/shared/host-config`
 **Purpose:** Dual-mode configuration service — Dexie/IndexedDB local store with optional REST backend sync. Backs all profile, role, permission, and app-config persistence.
 
 #### ConfigManager — the single config-service API
@@ -1405,7 +1405,7 @@ modules).
 
 ### 6.3 `@wellsfargo-starui/host-data-react`
 
-**Path:** `packages/data/host-data-react`
+**Path:** `packages/react-core/host-data-react`
 **Purpose:** React bindings for `@wellsfargo-starui/host-data` — provider + focused hooks for data subscriptions.
 
 - `DataHubProvider` / `PlatformProvider` (alias) — hub-first provider; `platform` from `ensurePlatformReady()` or self-bootstrap via `bootstrapConfig` + `workerScriptUrl`; optional `hubInspector` mounts **Alt+Shift+S** dev drawer (default on in development)

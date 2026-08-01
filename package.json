@@ -4,7 +4,7 @@
   "private": true,
   "description": "MarketsUI platform — modular Markets UI monorepo.",
   "packageManager": "npm@10.9.0",
-  "//workspaces-note": "The angular-* buckets were deleted. host-data-angular is the last Angular package and stays excluded — the build pipeline targets React + shared only — which is why the data members are listed individually rather than globbed.",
+  "//workspaces-note": "The angular-* buckets were deleted. host-data-angular is the last Angular package and stays excluded — the build pipeline targets React + shared only — which is why host-data is listed individually rather than globbed (it is now the only React-free member left in packages/data/).",
   "workspaces": [
     "packages/design-system/*",
     "packages/react-ui/*",

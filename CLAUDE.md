@@ -53,11 +53,11 @@ architecture buckets (see
 |---|--------|------|----------|
 | 1 | UI Design System | `design-system/` | `design-system`, `icons-svg` |
 | 2 | React UI Controls | `react-ui/` | `ui` |
-| 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid` |
-| 4 | Data Utilities | `data/` | `host-config`, `host-data`, `host-data-react`, `host-data-angular` |
+| 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid`, `config-browser`, `widgets-react` |
+| 4 | Data Utilities | `data/` | `host-data`, `host-data-angular` |
 | 5 | OpenFin Utils | `openfin/` | `host-openfin`, `openfin-platform` |
-| 6 | React Core | `react-core/` | `widgets-react`, `widget-sdk`, `host-wrapper-react`, `config-browser`, `workspace-setup-react` |
-| 7 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser` |
+| 6 | React Core | `react-core/` | `widget-sdk`, `host-wrapper-react`, `workspace-setup-react`, `host-data-react` |
+| 7 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser`, `host-config` |
 
 > **The Angular buckets are deleted, not excluded.** `angular-ui`,
 > `angular-grid` and `angular-core` (`app-angular`, `widgets-angular`,
