@@ -50,7 +50,7 @@ const CONTENT_GLOBS = [
   'packages/react-core/widgets-react/src/**/*.{ts,tsx}',
   'packages/react-core/config-browser/src/**/*.{ts,tsx}',
   'packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',
-  'packages/data/host-data-react/src/**/*.{ts,tsx}',
+  'packages/react-core/host-data-react/src/**/*.{ts,tsx}',
 ].map((g) => resolve(repoRoot, g).replace(/\\/g, '/'));
 
 // The grid package's chrome CSS, inlined so one import styles the whole

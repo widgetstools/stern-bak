@@ -21,7 +21,7 @@
         "../../react-core/widgets-react/src/**",
         "../../react-core/config-browser/src/**",
         "../../react-core/workspace-setup-react/src/**",
-        "../../data/host-data-react/src/**"
+        "../../react-core/host-data-react/src/**"
       ],
       "outputs": [
         "dist/**"
