@@ -52,12 +52,11 @@ architecture buckets (see
 | # | Bucket | Path | Packages |
 |---|--------|------|----------|
 | 1 | UI Design System | `design-system/` | `design-system` |
-| 2 | React UI Controls | `react-ui/` | `ui` |
-| 3 | React Grid | `react-grid/` | `grid` |
-| 4 | Data Utilities | `data/` | `data` |
-| 5 | OpenFin Utils | `openfin/` | `openfin` |
-| 6 | React Core | `react-core/` | `widget-sdk`, `host-wrapper-react`, `workspace-setup-react`, `host-data-react` |
-| 7 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser`, `host-config` |
+| 2 | React Grid | `react-grid/` | `grid` |
+| 3 | Data Utilities | `data/` | `data` |
+| 4 | OpenFin Utils | `openfin/` | `openfin` |
+| 5 | React Core | `react-core/` | `react` (ui + widget-sdk + host-wrapper-react + workspace-setup-react + host-data-react) |
+| 6 | Core / Shared | `shared/` | `types`, `shared-types`, `engine`, `host`, `host-browser`, `widget`, `widget-browser`, `host-config` |
 
 > **The Angular buckets are deleted, not excluded.** `angular-ui`,
 > `angular-grid` and `angular-core` (`app-angular`, `widgets-angular`,
@@ -83,7 +82,7 @@ The root `package.json` workspaces glob enumerates each bucket explicitly
 
 1. Pick the architecture bucket by role (see table above).
 2. Package name carries the framework suffix when a twin can exist; drop the
-   suffix for framework-singletons (`ui`, `widget-sdk`, `grid`).
+   suffix for framework-singletons (`grid`, `react`, `data`).
 3. `tsconfig.json` `"extends"` is `"../../../tsconfig.base.json"` (3 levels)
    from `packages/<bucket>/<package>/`.
 
@@ -114,7 +113,7 @@ kebab-case matching the Angular Style Guide. Don't switch — Angular tooling
 depends on it.
 
 **Carve-outs (kebab-case allowed despite the above)**:
-- `packages/react-ui/ui/src/components/**` — shadcn-ui CLI generates kebab
+- `packages/react-core/ui/src/components/**` — shadcn-ui CLI generates kebab
   filenames (`alert-dialog.tsx`, `dropdown-menu.tsx`); renaming would
   diverge from `npx shadcn add ...` future regenerations
 - `packages/react-grid/grid/src/customizer/ui/shadcn/**` — gc-themed
@@ -190,8 +189,9 @@ use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 - Vitest 4 + jsdom 29 for unit tests. Baseline (2026-07-31): **3076 passing,
   1 skipped across 315 test files** (`npm test` — turbo across `packages/`).
-  Largest contributors: `grid` (915, incl. former `widgets-react`), `data` (355),
-  `engine` (241), `design-system` (193), `workspace-setup-react` (187).
+  Largest contributors: `grid` (915, incl. former `widgets-react`), `react`
+  (606, incl. former `ui`/`workspace-setup-react`), `data` (355), `engine` (241),
+  `design-system` (193).
   The per-file 70% coverage gate is a separate run — see
   [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`
   section is binding for new tests.
@@ -207,7 +207,7 @@ Every UI component — new or updated — MUST:
    or the semantic exports from `@wellsfargo-starui/design-system/tokens/semantic`.
 
 2. **Use the framework-matching primitive library:**
-   - **React** → shadcn/ui (via `@wellsfargo-starui/ui` + `@wellsfargo-starui/grid` customizer
+   - **React** → shadcn/ui (via `@wellsfargo-starui/react` + `@wellsfargo-starui/grid` customizer
      primitives). **No native `<input>` / `<textarea>` / `<select>`.**
    - **Angular** → PrimeNG (themed via `@wellsfargo-starui/tokens-primeng`).
      `pInputText`, `pButton`, `pDropdown`, `pDialog`, etc.

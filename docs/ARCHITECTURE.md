@@ -46,11 +46,10 @@ Ten architecture buckets under `packages/` — see
 
 ```
 packages/design-system/   — (1) tokens, icons
-packages/react-ui/        — (3) shadcn primitives
 packages/react-grid/      — (5) @wellsfargo-starui/grid
 packages/data/            — (6) @wellsfargo-starui/data
 packages/openfin/         — (7) @wellsfargo-starui/openfin
-packages/react-core/      — (9) app, host-data-react, tools
+packages/react-core/      — (9) @wellsfargo-starui/react (shadcn primitives, widget SDK, host wrapper, workspace setup, data bindings)
 packages/shared/          — (10) engine, host, host-config, types, widget contract
 ```
 
@@ -78,4 +77,4 @@ packages/shared/          — (10) engine, host, host-config, types, widget cont
 ## Phase 4 packages (shipped)
 
 - `@wellsfargo-starui/design-system` — tokens, CSS, framework adapters
-- `@wellsfargo-starui/ui` — shadcn/Radix primitives
+- `@wellsfargo-starui/react` — shadcn/Radix primitives (formerly `@wellsfargo-starui/ui`, now the merged React core package)

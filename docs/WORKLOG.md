@@ -472,11 +472,49 @@ finding), and a new one — `stomp-marketsgrid-minimal/src/App.tsx` imports
 clean, confirming `@wellsfargo-starui/grid` itself is correctly
 externally-installable.
 
-**Next:** sub-phase 5 (`react` bucket — regroup `react-ui` into
-`react-core`, then collapse 5 members), per the roadmap in
+**Package-collapse sub-phase 5: done.** The first sub-phase needing a
+folder regroup: `react-ui/ui` moved into `react-core/` (git mv, history
+preserved, `react-ui/` bucket eliminated), then the five members — `ui`,
+`widget-sdk`, `host-wrapper-react`, `workspace-setup-react`,
+`host-data-react` — collapsed into one `@wellsfargo-starui/react` package
+(13 tarballs, was 17). `ui`'s `.` export becomes the merged package's `.`
+(plus `./chart`, `./tailwind-config`); the others retire to subpaths:
+`./widget-sdk`, `./host` (+`/test-bridge`), `./workspace-setup`, `./data`
+(+`/runtime`) — mirroring sub-phase 2's `openfin/host` pattern. 139
+consumer files migrated (bulk of them `grid`/`config-browser`/
+`widgets-react` importing `ui`). Five-project `test.projects` vitest
+config (per-member root/globals/setupFiles/timeouts); 84 test files /
+606 tests, matching pre-merge per-member counts (ui 55, host-data 12,
+workspace-setup 9, widget-sdk 7, host-wrapper 1). The coverage-tooling
+gap remains accepted, not fixed here.
+
+**Validation-gate change forced by this sub-phase:** every tarball app's
+hand-written source imports `@wellsfargo-starui/ui`, so after this rename
+0/6 apps build — the app-build gate can no longer distinguish platform
+defects from apps-repo staleness. Replaced for this sub-phase by a
+scratch consumer outside the workspace (`npm install` of the packed
+tarball + resolve checks): all 9 export subpaths resolve, all 5 retired
+names correctly fail as module-not-found. This matches the "scratch app"
+external-verification idea already planned for sub-phase 7.
+
+**`stern-apps` follow-up (upgraded from non-blocking to
+worth-doing-soon):** all 6 tarball apps now fail to build, all from
+hand-written application source importing retired names (`ui` everywhere;
+plus the previously-logged `host-data`, `host-openfin`,
+`widgets-react/hosted` cases). The apps repo needs one consolidated
+import-migration pass across `source/*/src/**` once the platform
+sub-phases settle — piecemeal fixes would churn on each sub-phase.
+
+**eslint.config.mjs (pending, hook-blocked):** two stale
+`packages/react-ui/ui/**` paths (the no-native-input `ignores` entry and
+the kebab-case filename carve-out) need updating to
+`packages/react-core/ui/**` — edits to that file are blocked by the
+config-protection hook; owner will disable it and the fix lands as a
+follow-up commit. Until then `npm run lint` flags ui's shadcn wrappers.
+
+**Next:** sub-phase 6 (`types` + `core` — regroup `shared/` split into
+two published packages, 8 members total), per the roadmap in
 [`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
-Unlike sub-phases 1-4, this one needs a folder regroup first (no 1:1
-folder-to-target mapping yet).
 
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level
 `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
