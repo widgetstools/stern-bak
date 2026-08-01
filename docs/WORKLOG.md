@@ -497,13 +497,19 @@ tarball + resolve checks): all 9 export subpaths resolve, all 5 retired
 names correctly fail as module-not-found. This matches the "scratch app"
 external-verification idea already planned for sub-phase 7.
 
-**`stern-apps` follow-up (upgraded from non-blocking to
-worth-doing-soon):** all 6 tarball apps now fail to build, all from
-hand-written application source importing retired names (`ui` everywhere;
-plus the previously-logged `host-data`, `host-openfin`,
-`widgets-react/hosted` cases). The apps repo needs one consolidated
-import-migration pass across `source/*/src/**` once the platform
-sub-phases settle — piecemeal fixes would churn on each sub-phase.
+**`stern-apps` follow-up: done.** The consolidated import-migration pass
+landed once the platform names went final (post sub-phase 6): apps-repo
+commit `bd31f83` migrates 111 files across both tracks off the 18 retired
+identities (mappings mirror the platform's), preceded by snapshot commit
+`81b6d31` preserving the apps-side coverage-70 WIP found uncommitted in
+that working tree (~150 new test files + vitest harness). The tarball
+pipeline self-corrected — `setup.mjs` re-vendored the 7 new tarballs and
+`makeTarballApp` recomputed every twin's dependency list from actual
+imports. Validated: build green on both tracks (7 source apps, 6
+regenerated tarball apps), `npm test` green (112 test files). Known
+residue from the WIP snapshot, not the migration: `tsc --noEmit` type
+defects inside the new WIP test files (81 across 5 apps) — type-level
+fixes follow as their own apps-repo commit.
 
 **eslint.config.mjs (pending, hook-blocked):** two stale
 `packages/react-ui/ui/**` paths (the no-native-input `ignores` entry and
@@ -592,31 +598,65 @@ the pre-split world — in-repo `apps/`, `e2e/`, `libs/*.tgz`,
 `npm run propagate`, `install:apps` — all deleted or moved to the apps
 repo. Out of scope for this sub-phase; worth its own docs pass.
 
-**Next:** sub-phase 7 (tooling + external verification —
-`check-package-cycles.mjs` member-level nodes + relative-import edges,
-`check-package-coverage.mjs`/`run-test-coverage.mjs` made
-collapse-aware, the scratch-app peer-isolation checks made a scripted
-gate; `pack:npm` should also prune stale `dist-npm/` output), per the
-roadmap in
-[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
+**Package-collapse sub-phase 7: done — item 11's roadmap is complete.**
+Spec:
+[`docs/superpowers/specs/2026-08-01-package-collapse-tooling-design.md`](./superpowers/specs/2026-08-01-package-collapse-tooling-design.md).
+The tooling now understands the collapsed shape and the by-hand external
+verification is a scripted gate:
 
-**Still true:** collapsing 21 vitest configs → 7 breaks the two-level
-`packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
-`check-package-coverage.mjs`, and the latter's "package has no real test script"
-check must be re-expressed **per member**, or a suite-less member hides inside a
-bucket its siblings carry.
+- **`check-package-cycles.mjs`** grew a member-level graph
+  (`<pkgName>#<memberFolder>` nodes; edges from bucket-subpath imports —
+  including same-bucket self-references, invisible to the package graph by
+  construction — plus relative imports escaping their member). Members are
+  seeded from src/-bearing subfolders **union** exports-map-named folders:
+  icons-svg keeps sources at its member root and an adversarial review
+  proved the src/-only rule dropped it (and all edges through its five
+  published subpaths) silently. The member-walk regex carries a lookbehind
+  so `@import` examples in doc comments cannot fabricate edges — review
+  manufactured a false core→design-system edge (and with a matching
+  snippet, a whole false cycle) from prose alone. Current tree: 22 member
+  nodes, 12 intra-bucket edges, acyclic; a synthetic engine→host probe
+  fails the run naming the cycle.
+- **Coverage pair, collapse-aware** (closes the accepted gap carried since
+  sub-phase 1): units discovered at bucket roots (two-level fallback only
+  for scoped stragglers; the engine build shim ignored), the
+  no-real-test-script check re-expressed per member (suite file required;
+  members with a suite must appear in their bucket's summary or it is a
+  collection failure), bucket-root LCOV scanned with stale pre-collapse
+  member LCOVs excluded from the merge. **Full serial run: 807/807 files
+  at or above 70% across all 7 buckets — PASS.** The gate immediately
+  caught one real gap on its first run (`icons-svg/react/DynamicIcon.tsx`
+  at 0% — the bucket's test include was `.ts`-only, so a React member
+  component had no discoverable test slot; fixed with an RTL suite,
+  now 100%).
+- **`pack:npm`** prunes: full pack wipes `dist-npm/`, subset pack deletes
+  retired-name tarballs + manifest entries, unknown selectors fail loudly.
+- **`npm run verify:external`** scripts the sub-phase 6 manual gate: temp
+  consumer outside the repo, all 7 tarballs installed,
+  `import.meta.resolve` over every exports key of every packed manifest
+  (derived, not hardcoded; resolved targets checked to exist) plus 18
+  retired names asserted dead, and manifest-computed peer-isolation
+  closures (`react` absent for data-only, `ag-grid-enterprise` absent for
+  react-only). 96 assertions green.
 
-**Done looks like:** folders moved (names unchanged, tree green) → buckets
-collapsed to one `package.json` each → `check-package-cycles.mjs` taught to treat
-`packages/<bucket>/<member>/` as graph nodes and to follow *relative* imports, so
-intra-bucket cycles stay caught → `pack:npm` emits 7 tarballs → a scratch app
-outside the workspace installs them with no aliases and asserts
-`ag-grid-enterprise` absent for a `react`-only consumer and `react` absent for a
-`data`-only consumer.
+Also fixed while validating: root `typecheck` raced collapsed buckets'
+own `rimraf`-first builds (same class as the sub-phase-5 test-ordering
+fix — bucket `turbo.json`s now order typecheck after their own build),
+and openfin/data finally got bucket `turbo.json`s with real output globs
+(their builds were never cached; the long-standing "no output files
+found" warnings are gone). Full matrix `turbo build typecheck test` in
+one invocation: 21/21.
 
-**Constraint that falls out:** `packages/<bucket>/<member>/src/` is load-bearing
-once buckets collapse — it is the only surface the boundary checker can stand on.
-Do not flatten members into a single `src/` per bucket.
+Process note: implemented and reviewed via parallel agent workflows; the
+4-dimension adversarial review (17 agents) confirmed 3 findings (all
+fixed above: the icons-svg member drop, the doc-comment edge fabrication,
+silent unknown pack selectors) and refuted 10.
+
+**Constraint that falls out (still binding):**
+`packages/<bucket>/<member>/src/` is load-bearing once buckets collapse —
+it is the primary surface the boundary checker stands on (exports-map
+seeding covers the icons-svg-style exception, loudly). Do not flatten
+members into a single `src/` per bucket.
 
 ---
 
