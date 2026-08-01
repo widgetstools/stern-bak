@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config';
-import { coverage } from '../../../scripts/vitestCoverage.mjs';
+import { coverage } from '../../scripts/vitestCoverage.mjs';
 
 /**
- * Vitest config for `@wellsfargo-starui/openfin-platform`.
+ * Vitest config for `@wellsfargo-starui/openfin`.
  *
  * Runs in `jsdom` so the workspace-persistence override can use a fetch-
  * style URL parser when extracting instanceIds, and so any DOM-shape test
@@ -12,10 +12,18 @@ import { coverage } from '../../../scripts/vitestCoverage.mjs';
  */
 export default defineConfig({
   test: {
-    coverage: coverage(),
+    coverage: coverage({
+      include: [
+        'host-openfin/src/**/*.{ts,tsx}',
+        'openfin-platform/src/**/*.{ts,tsx}',
+      ],
+    }),
     environment: 'jsdom',
     globals: true,
-    include: ['src/**/*.test.ts'],
+    include: [
+      'host-openfin/src/**/*.test.ts',
+      'openfin-platform/src/**/*.test.ts',
+    ],
     css: false,
   },
 });

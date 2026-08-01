@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import type { RegistryEntry } from '@wellsfargo-starui/openfin-platform/config';
+import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 
 /**
  * useRegistryEditor owns the component-catalog reducer plus the save-time id
@@ -20,8 +20,8 @@ const saveRegistryConfig = vi.fn();
 const clearRegistryConfig = vi.fn();
 const readHostEnv = vi.fn();
 
-vi.mock('@wellsfargo-starui/openfin-platform', async () => {
-  const config = await import('@wellsfargo-starui/openfin-platform/config');
+vi.mock('@wellsfargo-starui/openfin', async () => {
+  const config = await import('@wellsfargo-starui/openfin/config');
   return {
     ...config,
     loadRegistryConfig: (...a: unknown[]) => loadRegistryConfig(...a),
@@ -32,7 +32,7 @@ vi.mock('@wellsfargo-starui/openfin-platform', async () => {
 });
 
 const { useRegistryEditor } = await import('./useRegistryEditor.js');
-const { REGISTRY_CONFIG_VERSION } = await import('@wellsfargo-starui/openfin-platform/config');
+const { REGISTRY_CONFIG_VERSION } = await import('@wellsfargo-starui/openfin/config');
 
 const hostEnv = { appId: 'star-demo', configServiceUrl: 'https://cfg.example', userId: 'k123' };
 

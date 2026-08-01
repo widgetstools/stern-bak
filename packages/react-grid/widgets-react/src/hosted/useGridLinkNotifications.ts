@@ -22,7 +22,7 @@ import {
   loadOpenFinNotificationsApi,
   dispatchOpenFinNotification,
   type OpenFinNotificationsApi,
-} from '@wellsfargo-starui/host-openfin';
+} from '@wellsfargo-starui/openfin/host';
 import type { GridLinkSelectionContext } from './gridContextLink.js';
 import {
   buildSelectionNotification,

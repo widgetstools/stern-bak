@@ -23,11 +23,11 @@ import type {
   DockButtonConfig,
   DockDropdownButtonConfig,
   DockMenuItemConfig,
-} from "@wellsfargo-starui/openfin-platform/config";
+} from "@wellsfargo-starui/openfin/config";
 import {
   deriveTemplateConfigId,
   ACTION_LAUNCH_COMPONENT,
-} from "@wellsfargo-starui/openfin-platform/config";
+} from "@wellsfargo-starui/openfin/config";
 import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/ui";
 import type { EditorSelection } from "./types";
 import { IconPicker } from "../IconPicker";

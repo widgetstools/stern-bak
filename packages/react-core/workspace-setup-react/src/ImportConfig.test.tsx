@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ImportConfigBundleResult } from '@wellsfargo-starui/openfin-platform/config';
+import type { ImportConfigBundleResult } from '@wellsfargo-starui/openfin/config';
 
 /**
  * ImportConfig is the only surface that bulk-writes another machine's config
@@ -15,8 +15,8 @@ import type { ImportConfigBundleResult } from '@wellsfargo-starui/openfin-platfo
 
 const importConfigBundle = vi.fn();
 
-vi.mock('@wellsfargo-starui/openfin-platform/config', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/openfin-platform/config')>();
+vi.mock('@wellsfargo-starui/openfin/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/openfin/config')>();
   return { ...actual, importConfigBundle: (...a: unknown[]) => importConfigBundle(...a) };
 });
 

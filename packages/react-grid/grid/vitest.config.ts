@@ -28,7 +28,7 @@ export default defineConfig({
       { find: '@wellsfargo-starui/grid', replacement: resolve(__dirname, 'src/index.ts') },
       { find: '@wellsfargo-starui/engine', replacement: resolve(__dirname, '../../shared/engine/src/index.ts') },
       { find: '@wellsfargo-starui/types', replacement: resolve(__dirname, '../../shared/types/src/index.ts') },
-      { find: '@wellsfargo-starui/host-openfin', replacement: resolve(__dirname, '../../openfin/host-openfin/src/index.ts') },
+      { find: '@wellsfargo-starui/openfin/host', replacement: resolve(__dirname, '../../openfin/host-openfin/src/index.ts') },
       { find: '@wellsfargo-starui/host', replacement: resolve(__dirname, '../../shared/host/src/index.ts') },
       { find: '@wellsfargo-starui/ui', replacement: resolve(__dirname, '../../react-ui/ui/src/index.ts') },
     ],

@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import type {
   DockButtonConfig,
   RegistryEntry,
-} from '@wellsfargo-starui/openfin-platform/config';
-import { ACTION_LAUNCH_COMPONENT } from '@wellsfargo-starui/openfin-platform/config';
+} from '@wellsfargo-starui/openfin/config';
+import { ACTION_LAUNCH_COMPONENT } from '@wellsfargo-starui/openfin/config';
 import { InspectorPane } from './InspectorPane.js';
 import type { EditorSelection } from './types.js';
 

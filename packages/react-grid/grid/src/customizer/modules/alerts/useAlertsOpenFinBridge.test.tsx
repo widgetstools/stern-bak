@@ -11,7 +11,7 @@ import { alertsModule } from './index';
 const loadOpenFinNotificationsApi = vi.fn();
 const dispatchOpenFinNotification = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-openfin', () => ({
+vi.mock('@wellsfargo-starui/openfin/host', () => ({
   loadOpenFinNotificationsApi: (...args: unknown[]) => loadOpenFinNotificationsApi(...args),
   dispatchOpenFinNotification: (...args: unknown[]) => dispatchOpenFinNotification(...args),
 }));

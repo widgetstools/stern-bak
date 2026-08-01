@@ -36,7 +36,7 @@ export interface UseHostedIdentityArgs {
   /**
    * Optional ConfigManager override. When omitted and `withStorage` is
    * true, the hook attempts to resolve the host singleton via the
-   * `@wellsfargo-starui/openfin-platform/config` entry point. Pass an explicit
+   * `@wellsfargo-starui/openfin/config` entry point. Pass an explicit
    * ConfigManager in tests or in non-OpenFin runtimes.
    */
   configManager?: ConfigManager;
@@ -170,7 +170,7 @@ function toRegisteredIdentity(cd: HostCustomData | null): RegisteredComponentMet
 
 /**
  * Lazily import the host's ConfigManager singleton. Kept dynamic so
- * widgets-react does not pull `@wellsfargo-starui/openfin-platform` (and its
+ * widgets-react does not pull `@wellsfargo-starui/openfin` (and its
  * `@openfin/core` dep) into browser-only consumer bundles. Returns
  * `null` when the entry point is unavailable — the caller will then
  * surface a `null` configManager and consumers can fall back to
@@ -187,7 +187,7 @@ async function loadHostConfigManager(componentName: string): Promise<ConfigManag
     // Dynamic specifier — the package is an optional runtime peer, not
     // a build-time dep.
     const mod = (await import(
-      /* @vite-ignore */ '@wellsfargo-starui/openfin-platform/config' as string
+      /* @vite-ignore */ '@wellsfargo-starui/openfin/config' as string
     )) as {
       getConfigManager?: () => Promise<ConfigManager>;
       peekConfigManager?: () => ConfigManager | undefined;

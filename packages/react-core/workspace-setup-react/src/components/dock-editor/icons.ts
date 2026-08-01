@@ -7,4 +7,4 @@ export {
   iconIdToThemedUrls,
   parseIconUrl,
   type IconOption,
-} from '@wellsfargo-starui/openfin-platform/dock-editor';
+} from '@wellsfargo-starui/openfin/dock-editor';

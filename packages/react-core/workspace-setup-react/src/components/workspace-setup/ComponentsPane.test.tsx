@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { RegistryEntry } from '@wellsfargo-starui/openfin-platform/config';
+import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 import { ComponentsPane } from './ComponentsPane.js';
 import type { EditorSelection } from './types.js';
 

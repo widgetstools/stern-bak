@@ -13,7 +13,7 @@ import { createFakeConfigManager, type FakeConfigManager } from './test-utils/fa
 const readHostEnv = vi.fn();
 const getConfigManager = vi.fn();
 
-vi.mock('@wellsfargo-starui/openfin-platform/config', () => ({
+vi.mock('@wellsfargo-starui/openfin/config', () => ({
   readHostEnv: (...args: unknown[]) => readHostEnv(...args),
   getConfigManager: (...args: unknown[]) => getConfigManager(...args),
 }));

@@ -16,7 +16,7 @@ const saveDockConfig = vi.fn();
 const clearDockConfig = vi.fn();
 const loadRegistryConfig = vi.fn();
 
-vi.mock('@wellsfargo-starui/openfin-platform/config', () => ({
+vi.mock('@wellsfargo-starui/openfin/config', () => ({
   loadDockConfig: (...a: unknown[]) => loadDockConfig(...a),
   saveDockConfig: (...a: unknown[]) => saveDockConfig(...a),
   clearDockConfig: (...a: unknown[]) => clearDockConfig(...a),

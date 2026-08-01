@@ -26,7 +26,7 @@ import {
   loadOpenFinNotificationsApi,
   dispatchOpenFinNotification,
   type OpenFinNotificationsApi,
-} from '@wellsfargo-starui/host-openfin';
+} from '@wellsfargo-starui/openfin/host';
 import type {
   AlertNotification,
   AlertsState,

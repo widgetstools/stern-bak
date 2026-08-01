@@ -39,7 +39,7 @@
   "dependencies": {
     "@wellsfargo-starui/design-system": "*",
     "@wellsfargo-starui/engine": "*",
-    "@wellsfargo-starui/openfin-platform": "*",
+    "@wellsfargo-starui/openfin": "*",
     "@wellsfargo-starui/ui": "*",
     "lucide-react": "^0.554.0"
   },

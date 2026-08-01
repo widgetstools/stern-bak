@@ -8,7 +8,7 @@
  * reads `selection` and renders the appropriate form.
  */
 
-import type { RegistryEntry } from '@wellsfargo-starui/openfin-platform/config';
+import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 
 /** What's currently selected across the editor — drives Inspector pane content. */
 export type EditorSelection =

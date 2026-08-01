@@ -16,7 +16,7 @@ import {
   type RegistryEditorConfig,
   type RegistryEntry,
   type HostEnv,
-} from "@wellsfargo-starui/openfin-platform";
+} from "@wellsfargo-starui/openfin";
 
 /**
  * Options for `useRegistryEditor()`. `scope` is an optional

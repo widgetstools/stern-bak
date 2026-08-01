@@ -32,7 +32,7 @@ import {
   type DockButtonConfig,
   type DockDropdownButtonConfig,
   type DockMenuItemConfig,
-} from "@wellsfargo-starui/openfin-platform/config";
+} from "@wellsfargo-starui/openfin/config";
 import { useDockEditor } from "./hooks/useDockEditor";
 import { ComponentsPane } from "./components/workspace-setup/ComponentsPane";
 import { InspectorPane } from "./components/workspace-setup/InspectorPane";

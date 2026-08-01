@@ -1,4 +1,4 @@
 export {
   subscribeWindowOptions,
   __resetWindowOptionsSubscriptionForTests,
-} from '@wellsfargo-starui/host-openfin';
+} from '@wellsfargo-starui/openfin/host';

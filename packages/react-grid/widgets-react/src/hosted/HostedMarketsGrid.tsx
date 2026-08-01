@@ -77,7 +77,7 @@ export interface HostedMarketsGridProps<
   /** Passed to {@link MarketsGridContainer} — auto-select live provider when unset in storage. */
   defaultLiveProviderId?: string;
   /** Optional ConfigManager override. When omitted, the host singleton
-   *  is resolved via `@wellsfargo-starui/openfin-platform/config`. Pass an
+   *  is resolved via `@wellsfargo-starui/openfin/config`. Pass an
    *  explicit ConfigManager in tests / non-OpenFin runtimes. */
   configManager?: ConfigManager;
   /** Theme mode for the AG-Grid blotter preset. Defaults to `'auto'`

@@ -7,7 +7,7 @@ import {
   getConfigManager,
   readHostEnv,
   type HostEnv,
-} from "@wellsfargo-starui/openfin-platform/config";
+} from "@wellsfargo-starui/openfin/config";
 import {
   buildDeployExport,
   normalizeImportedAppConfigRow,

@@ -3,7 +3,7 @@ import type { GridApi } from 'ag-grid-community';
 import {
   subscribeParentWindowFocused,
   focusCurrentOpenFinHost,
-} from '@wellsfargo-starui/host-openfin';
+} from '@wellsfargo-starui/openfin/host';
 
 /**
  * Restores real DOM focus to the grid's focused cell when the window

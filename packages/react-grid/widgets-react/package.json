@@ -56,7 +56,7 @@
     "@wellsfargo-starui/host-config": "*",
     "@wellsfargo-starui/host-data": "*",
     "@wellsfargo-starui/host-data-react": "*",
-    "@wellsfargo-starui/host-openfin": "*",
+    "@wellsfargo-starui/openfin": "*",
     "@wellsfargo-starui/shared-types": "*",
     "@wellsfargo-starui/types": "*",
     "@wellsfargo-starui/ui": "*",

@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@wellsfargo-starui/host": "*",
-    "@wellsfargo-starui/openfin-platform": "*",
+    "@wellsfargo-starui/openfin": "*",
     "@wellsfargo-starui/types": "*"
   },
   "peerDependencies": {

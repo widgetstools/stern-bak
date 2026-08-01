@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { RegistryEntry } from '@wellsfargo-starui/openfin-platform/config';
+import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 
 /**
  * WorkspaceSetup is the three-pane shell. Its own logic is the wiring
@@ -36,20 +36,20 @@ const storageMocks = {
   cloneRegistryTemplateConfig: (...a: unknown[]) => cloneRegistryTemplateConfig(...a),
 };
 
-vi.mock('@wellsfargo-starui/openfin-platform/config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@wellsfargo-starui/openfin-platform/config')>()),
+vi.mock('@wellsfargo-starui/openfin/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wellsfargo-starui/openfin/config')>()),
   ...storageMocks,
 }));
 
-vi.mock('@wellsfargo-starui/openfin-platform', async () => ({
-  ...(await import('@wellsfargo-starui/openfin-platform/config')),
+vi.mock('@wellsfargo-starui/openfin', async () => ({
+  ...(await import('@wellsfargo-starui/openfin/config')),
   ...storageMocks,
 }));
 
 vi.mock('@wellsfargo-starui/engine', () => ({ injectEditorStyles: vi.fn() }));
 
 const { WorkspaceSetup } = await import('./WorkspaceSetup.js');
-const { ACTION_LAUNCH_COMPONENT } = await import('@wellsfargo-starui/openfin-platform/config');
+const { ACTION_LAUNCH_COMPONENT } = await import('@wellsfargo-starui/openfin/config');
 
 const hostEnv = { appId: 'star-demo', configServiceUrl: 'https://cfg.example', userId: 'k123' };
 

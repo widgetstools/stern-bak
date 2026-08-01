@@ -6,7 +6,7 @@ import { useGridLinkNotifications } from './useGridLinkNotifications.js';
 const dispatchOpenFinNotification = vi.fn().mockResolvedValue(undefined);
 const loadOpenFinNotificationsApi = vi.fn().mockResolvedValue({ post: vi.fn() });
 
-vi.mock('@wellsfargo-starui/host-openfin', () => ({
+vi.mock('@wellsfargo-starui/openfin/host', () => ({
   loadOpenFinNotificationsApi: (...args: unknown[]) => loadOpenFinNotificationsApi(...args),
   dispatchOpenFinNotification: (...args: unknown[]) => dispatchOpenFinNotification(...args),
 }));

@@ -8,7 +8,7 @@ import {
   IAB_RELOAD_AFTER_IMPORT,
   IAB_REGISTRY_CONFIG_UPDATE,
   type ImportConfigBundleResult,
-} from "@wellsfargo-starui/openfin-platform/config";
+} from "@wellsfargo-starui/openfin/config";
 import { UPLOAD_SVG } from "@wellsfargo-starui/design-system/icons/all-icons";
 import { spacing, typography } from "@wellsfargo-starui/design-system/tokens";
 
