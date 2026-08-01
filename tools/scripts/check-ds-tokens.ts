@@ -68,7 +68,7 @@ const ALLOW_PATHS = [
   'packages/design-system/design-system/tests/',
   'packages/react-grid/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx',
   'packages/react-grid/grid/src/customizer/ui/ExpressionEditor/language.ts',
-  'packages/react-ui/ui/src/components/chart.tsx',
+  'packages/react-core/ui/src/components/chart.tsx',
   'packages/react-grid/grid/src/customizer/ui/format-editor/FormatColorPicker.tsx',
   'packages/react-grid/grid/src/customizer/ui/format-editor/types.ts',
   'packages/react-grid/grid/src/customizer/ui/ColorPicker/CompactColorField.tsx',

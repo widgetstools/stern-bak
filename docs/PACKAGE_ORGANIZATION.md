@@ -37,12 +37,11 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 | # | Bucket | Path | npm packages |
 |---|--------|------|--------------|
 | 1 | **UI Design System** | `packages/design-system/` | `@wellsfargo-starui/design-system` |
-| 2 | **React UI Controls** | `packages/react-ui/` | `@wellsfargo-starui/ui` |
-| 3 | **React Grid** | `packages/react-grid/` | `@wellsfargo-starui/grid` |
-| 4 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/data` |
-| 5 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/openfin` |
-| 6 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/app`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/host-wrapper-react`, `@wellsfargo-starui/workspace-setup-react`, `@wellsfargo-starui/host-data-react` |
-| 7 | **Core / Shared** | `packages/shared/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser`, `@wellsfargo-starui/host-config` |
+| 2 | **React Grid** | `packages/react-grid/` | `@wellsfargo-starui/grid` |
+| 3 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/data` |
+| 4 | **OpenFin Utils** | `packages/openfin/` | `@wellsfargo-starui/openfin` |
+| 5 | **React Core** | `packages/react-core/` | `@wellsfargo-starui/ui`, `@wellsfargo-starui/app`, `@wellsfargo-starui/widget-sdk`, `@wellsfargo-starui/host-wrapper-react`, `@wellsfargo-starui/workspace-setup-react`, `@wellsfargo-starui/host-data-react` |
+| 6 | **Core / Shared** | `packages/shared/` | `@wellsfargo-starui/types`, `@wellsfargo-starui/shared-types`, `@wellsfargo-starui/engine`, `@wellsfargo-starui/host`, `@wellsfargo-starui/host-browser`, `@wellsfargo-starui/widget`, `@wellsfargo-starui/widget-browser`, `@wellsfargo-starui/host-config` |
 
 ## Import rules
 
@@ -50,7 +49,7 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 - **Design System (1)** — foundation only; no grid/host imports.
 - **Data (6)** — vanilla only; no React/Angular UI. (`host-config` moved to Shared; `host-data-react` moved to React Core — see the bucket-move history in `docs/WORKLOG.md` item 11.)
 - **OpenFin (7)** — only buckets here + shared may import `@openfin/core`.
-- **Grid (4/5)** — engine + host + design-system; now also carries the collapsed `config-browser` and `widgets-react` modules (`./config-browser`, `./widgets` subpaths), which have real edges to React Core (`host-data-react`, `widget-sdk`), React UI, OpenFin, and Data — see `docs/WORKLOG.md` item 11 for why.
+- **Grid (4/5)** — engine + host + design-system; now also carries the collapsed `config-browser` and `widgets-react` modules (`./config-browser`, `./widgets` subpaths), which have real edges to React Core (`ui`, `host-data-react`, `widget-sdk`), OpenFin, and Data — see `docs/WORKLOG.md` item 11 for why.
 - **Core (8/9)** — composes grid, data, openfin, UI for product shells and tools.
 - **Angular ↔ React** — never import each other.
 

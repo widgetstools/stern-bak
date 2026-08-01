@@ -5,7 +5,7 @@
 
 /** apps/<name>/ — e.g. demo-react, markets-ui-react-reference (3 levels to repo root) */
 export const platformAppTailwindContent = [
-  '../../packages/react-ui/ui/src/**/*.{ts,tsx}',
+  '../../packages/react-core/ui/src/**/*.{ts,tsx}',
   '../../packages/react-grid/grid/src/**/*.{ts,tsx}',
   '../../packages/react-core/host-data-react/src/**/*.{ts,tsx}',
   '../../packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',
@@ -27,7 +27,7 @@ export const platformAppTailwindContent = [
 
 /** apps/demos/<name>/ or apps/demos/<name>/ (3 levels to repo root) */
 export const demoAppTailwindContent = [
-  '../../../packages/react-ui/ui/src/**/*.{ts,tsx}',
+  '../../../packages/react-core/ui/src/**/*.{ts,tsx}',
   '../../../packages/react-grid/grid/src/**/*.{ts,tsx}',
   '../../../packages/react-core/host-data-react/src/**/*.{ts,tsx}',
   '../../../packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',

@@ -7,7 +7,6 @@
   "//workspaces-note": "The angular-* buckets were deleted. host-data-angular is the last Angular package and stays excluded — the build pipeline targets React + shared only — which is why packages/data is listed individually rather than globbed (host-data-angular is the only other entry left in packages/data/, and must stay out of the workspace).",
   "workspaces": [
     "packages/design-system",
-    "packages/react-ui/*",
     "packages/react-grid",
     "packages/data",
     "packages/openfin",

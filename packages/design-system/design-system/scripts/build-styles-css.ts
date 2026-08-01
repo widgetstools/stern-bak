@@ -45,7 +45,7 @@ const require = createRequire(import.meta.url);
 
 // Every package whose TSX carries Tailwind utility classes.
 const CONTENT_GLOBS = [
-  'packages/react-ui/ui/src/**/*.{ts,tsx}',
+  'packages/react-core/ui/src/**/*.{ts,tsx}',
   'packages/react-grid/grid/src/**/*.{ts,tsx}',
   'packages/react-grid/widgets-react/src/**/*.{ts,tsx}',
   'packages/react-grid/config-browser/src/**/*.{ts,tsx}',
