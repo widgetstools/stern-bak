@@ -25,7 +25,7 @@ import {
   Button, Collapsible, CollapsibleContent, CollapsibleTrigger,
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
   Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { ChevronDown, Download, Plus, SquareFunction, Trash2, Upload } from 'lucide-react';
 import { ExpressionEditor } from '@wellsfargo-starui/grid/customizer';
 import { ExpressionEngine } from '@wellsfargo-starui/engine';

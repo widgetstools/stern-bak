@@ -30,7 +30,7 @@ vi.mock('@wellsfargo-starui/grid', () => ({
   useMarketsGridEventBridge: vi.fn(),
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({
     client: {
       isProviderRunning: vi.fn().mockResolvedValue(false),

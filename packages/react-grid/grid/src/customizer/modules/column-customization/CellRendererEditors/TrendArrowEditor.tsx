@@ -1,7 +1,7 @@
 /**
  * TrendArrowEditor — authoring UI for `TrendArrowRendererConfig`.
  */
-import { Input, Switch } from '@wellsfargo-starui/ui';
+import { Input, Switch } from '@wellsfargo-starui/react';
 import type { TrendArrowRendererConfig } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 import { ThemeAwareColorRow } from './themeColorRow';

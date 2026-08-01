@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 
 /**
  * Compact "summary chip" used in the sticky info strip at the top of

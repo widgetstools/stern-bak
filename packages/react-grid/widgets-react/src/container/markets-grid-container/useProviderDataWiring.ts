@@ -18,7 +18,7 @@ import type { IDataProvider } from '@wellsfargo-starui/data';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import { createApplyProviderToGridState } from './applyProviderToGrid.js';
 import type { ProviderMode } from './gridLevelState.js';
-import type { useDataServices } from '@wellsfargo-starui/host-data-react/runtime';
+import type { useDataServices } from '@wellsfargo-starui/react/data/runtime';
 import type { createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
 
 /** Historical restore only — brief peer race before `restartProvider()`. Live mode connects immediately. */

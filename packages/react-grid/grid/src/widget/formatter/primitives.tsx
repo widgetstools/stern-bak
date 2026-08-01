@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
   cn,
   type ButtonProps,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { CHROME_BUTTON_RESET } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 export type Orientation = 'horizontal' | 'vertical';
@@ -589,7 +589,7 @@ export function TitleBar({
 
 // Menu / MenuItem / MenuSep primitives removed in PR #47.
 // Consumers migrated to shadcn `<DropdownMenu>` / `<DropdownMenuItem>` /
-// `<DropdownMenuSeparator>` from `@wellsfargo-starui/ui`. The custom primitives
+// `<DropdownMenuSeparator>` from `@wellsfargo-starui/react`. The custom primitives
 // duplicated radix DropdownMenu's surface + row + separator with no
 // behavioural win — radix gives us keyboard nav, focus management,
 // escape handling, and ARIA roles for free.

@@ -19,7 +19,7 @@ const save = vi.fn().mockResolvedValue({ providerId: 'saved-1' });
 const remove = vi.fn().mockResolvedValue(undefined);
 const refresh = vi.fn();
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ configStore: { save, remove } }),
   useDataProvidersList: () => ({
     configs,

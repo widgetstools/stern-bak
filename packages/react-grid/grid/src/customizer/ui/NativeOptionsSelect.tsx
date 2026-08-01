@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   cn,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { ChromeButton } from './ChromeButton';
 
 /** Radix `Select.Item` forbids `value=""` — map real `""` options through this sentinel. */
@@ -72,7 +72,7 @@ function collectOptions(children: ReactNode): Array<{ value: string; label: Reac
 }
 
 /**
- * Legacy `<option>`-children select adapter backed by `@wellsfargo-starui/ui` Radix
+ * Legacy `<option>`-children select adapter backed by `@wellsfargo-starui/react` Radix
  * Select. Not a shadcn primitive — keeps call sites on the native-select
  * event shape while forbidding native `<select>` in the UI stack.
  */

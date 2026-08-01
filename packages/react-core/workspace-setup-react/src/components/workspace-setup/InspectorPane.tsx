@@ -28,7 +28,7 @@ import {
   deriveTemplateConfigId,
   ACTION_LAUNCH_COMPONENT,
 } from "@wellsfargo-starui/openfin/config";
-import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/ui";
+import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/react";
 import type { EditorSelection } from "./types";
 import { IconPicker } from "../IconPicker";
 import { iconIdToSvgUrl } from "../dock-editor/iconUtils";

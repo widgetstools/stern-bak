@@ -1,6 +1,6 @@
 import type { ComponentProps, CSSProperties, ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { Button, cn } from '@wellsfargo-starui/ui';
+import { Button, cn } from '@wellsfargo-starui/react';
 import { CHROME_BUTTON_RESET } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
   pillClasses,

@@ -1,0 +1,150 @@
+{
+  "name": "@wellsfargo-starui/react",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarketsUI React core — shadcn/Radix primitives, widget SDK, host wrapper, workspace setup, data bindings. Consolidates ui, widget-sdk, host-wrapper-react, workspace-setup-react, host-data-react.",
+  "type": "module",
+  "main": "./ui/dist/index.js",
+  "module": "./ui/dist/index.js",
+  "types": "./ui/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./ui/dist/index.d.ts",
+      "import": "./ui/dist/index.js",
+      "require": "./ui/dist/index.js"
+    },
+    "./chart": {
+      "types": "./ui/dist/components/chart.d.ts",
+      "import": "./ui/dist/components/chart.js",
+      "require": "./ui/dist/components/chart.js"
+    },
+    "./tailwind-config": "./ui/tailwind.config.js",
+    "./widget-sdk": {
+      "types": "./widget-sdk/dist/index.d.ts",
+      "import": "./widget-sdk/dist/index.js",
+      "require": "./widget-sdk/dist/index.js"
+    },
+    "./host": {
+      "types": "./host-wrapper-react/dist/index.d.ts",
+      "import": "./host-wrapper-react/dist/index.js",
+      "require": "./host-wrapper-react/dist/index.js"
+    },
+    "./host/test-bridge": {
+      "types": "./host-wrapper-react/dist/test-bridge/index.d.ts",
+      "import": "./host-wrapper-react/dist/test-bridge/index.js",
+      "require": "./host-wrapper-react/dist/test-bridge/index.js"
+    },
+    "./workspace-setup": {
+      "types": "./workspace-setup-react/dist/index.d.ts",
+      "import": "./workspace-setup-react/dist/index.js",
+      "require": "./workspace-setup-react/dist/index.js"
+    },
+    "./data": {
+      "types": "./host-data-react/dist/index.d.ts",
+      "import": "./host-data-react/dist/index.js",
+      "require": "./host-data-react/dist/index.js"
+    },
+    "./data/runtime": {
+      "types": "./host-data-react/dist/runtime/index.d.ts",
+      "import": "./host-data-react/dist/runtime/index.js"
+    }
+  },
+  "files": [
+    "ui/dist",
+    "ui/tailwind.config.js",
+    "widget-sdk/dist",
+    "host-wrapper-react/dist",
+    "workspace-setup-react/dist",
+    "host-data-react/dist"
+  ],
+  "scripts": {
+    "build": "rimraf ui/dist ui/tsconfig.tsbuildinfo widget-sdk/dist widget-sdk/tsconfig.tsbuildinfo host-wrapper-react/dist host-wrapper-react/tsconfig.tsbuildinfo workspace-setup-react/dist workspace-setup-react/tsconfig.tsbuildinfo host-data-react/dist host-data-react/tsconfig.tsbuildinfo && tsc --project ui/tsconfig.json && node ui/scripts/copy-assets.mjs && tsc --project widget-sdk/tsconfig.json && tsc --project host-wrapper-react/tsconfig.json && tsc --project workspace-setup-react/tsconfig.build.json && node workspace-setup-react/scripts/copy-assets.mjs && tsc --project host-data-react/tsconfig.build.json && node host-data-react/scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project ui/tsconfig.json && tsc --noEmit --project widget-sdk/tsconfig.json && tsc --noEmit --project host-wrapper-react/tsconfig.json && tsc --noEmit --project workspace-setup-react/tsconfig.json && tsc --noEmit --project host-data-react/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.80.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "tailwindcss": "^3.4.1"
+  },
+  "peerDependenciesMeta": {
+    "tailwindcss": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-aspect-ratio": "^1.1.8",
+    "@radix-ui/react-avatar": "^1.1.11",
+    "@radix-ui/react-checkbox": "^1.3.3",
+    "@radix-ui/react-collapsible": "^1.1.12",
+    "@radix-ui/react-context-menu": "^2.2.16",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-hover-card": "^1.1.15",
+    "@radix-ui/react-icons": "^1.3.2",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-menubar": "^1.1.16",
+    "@radix-ui/react-navigation-menu": "^1.2.14",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-radio-group": "^1.3.8",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slider": "^1.3.6",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-toast": "^1.2.15",
+    "@radix-ui/react-toggle": "^1.1.10",
+    "@radix-ui/react-toggle-group": "^1.1.11",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@tanstack/react-virtual": "^3.13.26",
+    "@wellsfargo-starui/data": "*",
+    "@wellsfargo-starui/design-system": "*",
+    "@wellsfargo-starui/engine": "*",
+    "@wellsfargo-starui/host": "*",
+    "@wellsfargo-starui/host-config": "*",
+    "@wellsfargo-starui/openfin": "*",
+    "@wellsfargo-starui/shared-types": "*",
+    "@wellsfargo-starui/types": "*",
+    "@wellsfargo-starui/widget": "*",
+    "@wellsfargo-starui/widget-browser": "*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "embla-carousel-react": "^8.6.0",
+    "input-otp": "^1.2.4",
+    "lucide-react": "^0.554.0",
+    "next-themes": "^0.4.6",
+    "react-day-picker": "^9.11.0",
+    "react-hook-form": "^7.72.1",
+    "react-resizable-panels": "^4.9.0",
+    "recharts": "^3.6.0",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "vaul": "^1.1.2"
+  },
+  "devDependencies": {
+    "@openfin/workspace-platform": "23.0.20",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.0.2",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

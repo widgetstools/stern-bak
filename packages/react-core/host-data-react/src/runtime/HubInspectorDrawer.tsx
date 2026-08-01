@@ -18,7 +18,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { ChevronDown, ChevronRight, Loader2, RefreshCw, X } from 'lucide-react';
 import type {
   HubAppDataIntrospectRow,

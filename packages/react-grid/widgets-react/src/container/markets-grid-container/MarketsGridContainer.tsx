@@ -42,7 +42,7 @@ import {
   useAppDataStore,
   useDataProvider,
   useDataServices,
-} from '@wellsfargo-starui/host-data-react/runtime';
+} from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from './buildColumnDefs.js';
 import { useProviderDataWiring } from './useProviderDataWiring.js';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';

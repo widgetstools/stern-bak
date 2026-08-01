@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import { Button, RadioGroup, RadioGroupItem } from "@wellsfargo-starui/ui";
+import { Button, RadioGroup, RadioGroupItem } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "../icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import type { ImportPreview, ImportMode } from "../hooks/useConfigBrowser";
 

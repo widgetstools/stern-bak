@@ -7,7 +7,7 @@
 
 import { forwardRef, type CSSProperties, type HTMLAttributes, type MouseEvent } from 'react';
 import { GripVertical, Lock } from 'lucide-react';
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 import type { SelectModifiers } from './useColumnSelectorState';
 
 export interface ColumnListItemProps {

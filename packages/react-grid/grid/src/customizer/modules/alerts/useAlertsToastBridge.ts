@@ -1,6 +1,6 @@
 /**
  * Subscribes to the alerts module state and pushes each fresh notification
- * through `@wellsfargo-starui/ui`'s `toast()` when its rule asked for the `'toast'`
+ * through `@wellsfargo-starui/react`'s `toast()` when its rule asked for the `'toast'`
  * channel and `settings.enabledChannels.toast` is on.
  *
  * The bridge diffs `state.history` against a per-mount `seenIds` set so a
@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { toast } from '@wellsfargo-starui/ui';
+import { toast } from '@wellsfargo-starui/react';
 import type {
   AlertNotification,
   AlertsState,

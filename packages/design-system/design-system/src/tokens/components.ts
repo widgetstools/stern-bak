@@ -26,7 +26,7 @@ export function componentTokens(scheme: ColorScheme) {
       paddingX:      `${spacing[4]}px`,
       paddingY:      `${spacing[2]}px`,
       // Button heights (sm/default/lg/icon). Reference for
-      // the @wellsfargo-starui/ui button variants — keep in sync.
+      // the @wellsfargo-starui/react button variants — keep in sync.
       height: {
         sm:      '28px',
         default: '34px',

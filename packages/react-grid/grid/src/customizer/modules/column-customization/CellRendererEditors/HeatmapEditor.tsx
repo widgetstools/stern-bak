@@ -6,7 +6,7 @@
  * renderer falls back to [0, 100].
  */
 import { useCallback } from 'react';
-import { Input, Switch } from '@wellsfargo-starui/ui';
+import { Input, Switch } from '@wellsfargo-starui/react';
 import type { HeatmapRendererConfig } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 import { ThemeAwareColorRow } from './themeColorRow';

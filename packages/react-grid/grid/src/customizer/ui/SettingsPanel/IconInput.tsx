@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Input, cn } from '@wellsfargo-starui/ui';
+import { Input, cn } from '@wellsfargo-starui/react';
 
 /**
  * Input pill — sharp 2px corners, bg-background inset, design-system focus

@@ -8,7 +8,7 @@
  * needs the same probe state).
  */
 
-import { Button, ScrollArea } from '@wellsfargo-starui/ui';
+import { Button, ScrollArea } from '@wellsfargo-starui/react';
 import { CheckCircle2, Loader2, Plug, XCircle } from 'lucide-react';
 import type { ProviderConfig, StompProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/shared-types';
 import { StompFields } from '../transports/StompFields.js';

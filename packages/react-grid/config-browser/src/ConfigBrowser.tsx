@@ -4,7 +4,7 @@
 declare const fin: any;
 
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@wellsfargo-starui/ui";
+import { Button } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "./icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { useConfigBrowser } from "./hooks/useConfigBrowser";
 import { TableSidebar } from "./components/TableSidebar";

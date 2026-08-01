@@ -127,7 +127,7 @@ vi.mock('@wellsfargo-starui/grid', () => ({
   useMarketsGridEventBridge: vi.fn(),
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ client: dataHubClientMock }),
   useDataProvider: (id: string | null | undefined) => {
     if (id !== PROVIDER_ID) {

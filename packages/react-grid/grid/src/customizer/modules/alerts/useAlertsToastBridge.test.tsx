@@ -8,11 +8,11 @@ import type { AlertsState } from '@wellsfargo-starui/engine';
 import { useAlertsToastBridge } from './useAlertsToastBridge';
 import { alertsModule } from './index';
 
-vi.mock('@wellsfargo-starui/ui', () => ({
+vi.mock('@wellsfargo-starui/react', () => ({
   toast: vi.fn(),
 }));
 
-import { toast } from '@wellsfargo-starui/ui';
+import { toast } from '@wellsfargo-starui/react';
 
 describe('useAlertsToastBridge', () => {
   beforeEach(() => {

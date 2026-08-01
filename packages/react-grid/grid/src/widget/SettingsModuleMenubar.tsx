@@ -7,7 +7,7 @@ import {
   MenubarRadioGroup,
   MenubarRadioItem,
   MenubarTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 
 /**
  * Grouped menubar navigation for Grid Customizer modules.

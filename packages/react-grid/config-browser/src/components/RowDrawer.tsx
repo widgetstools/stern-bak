@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Textarea } from "@wellsfargo-starui/ui";
+import { Button, Textarea } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "../icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 type Mode = "edit" | "create";

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@wellsfargo-starui/ui';
+import { Popover, PopoverContent, PopoverTrigger } from '@wellsfargo-starui/react';
 import { TextSection } from './sections/TextSection';
 import { ColorSection } from './sections/ColorSection';
 import { BorderSection } from './sections/BorderSection';

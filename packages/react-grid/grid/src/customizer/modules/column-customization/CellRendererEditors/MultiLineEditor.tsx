@@ -1,7 +1,7 @@
 /**
  * MultiLineEditor — authoring UI for `MultiLineRendererConfig`.
  */
-import { Input, Slider } from '@wellsfargo-starui/ui';
+import { Input, Slider } from '@wellsfargo-starui/react';
 import type { MultiLineRendererConfig } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 import { ThemeAwareColorRow } from './themeColorRow';

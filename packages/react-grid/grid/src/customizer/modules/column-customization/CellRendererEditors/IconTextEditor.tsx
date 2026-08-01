@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from 'react';
 import { MARKET_ICON_SVGS } from '@wellsfargo-starui/design-system/icons/all-icons';
-import { Button, Input, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Label } from '@wellsfargo-starui/ui';
+import { Button, Input, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Label } from '@wellsfargo-starui/react';
 import type { IconTextRendererConfig } from '@wellsfargo-starui/design-system';
 import { ChromeButton } from '../../../ui/ChromeButton';
 import { Row } from '../editors/Row';

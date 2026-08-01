@@ -1,4 +1,4 @@
-// @wellsfargo-starui/ui — shadcn/Radix primitives; theme tokens from @wellsfargo-starui/design-system/css
+// @wellsfargo-starui/react — shadcn/Radix primitives; theme tokens from @wellsfargo-starui/design-system/css
 
 // ============================================================================
 // Utilities
@@ -67,8 +67,8 @@ export * from './components/badge.js';
 export * from './components/calendar.js';
 export * from './components/carousel.js';
 // chart.js is intentionally NOT re-exported here — it pulls in recharts
-// (a multi-MB peer) which every consumer of @wellsfargo-starui/ui would otherwise
-// inherit. Import directly from `@wellsfargo-starui/ui/chart` when needed.
+// (a multi-MB peer) which every consumer of @wellsfargo-starui/react would otherwise
+// inherit. Import directly from `@wellsfargo-starui/react/chart` when needed.
 export * from './components/progress.js';
 export * from './components/skeleton.js';
 export * from './components/table.js';

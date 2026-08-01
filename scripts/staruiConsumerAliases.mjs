@@ -437,9 +437,9 @@ export function staruiOptimizeDeps() {
       '@wellsfargo-starui/data',
       '@wellsfargo-starui/data/runtime',
       // Single React context instance — prebundling @wellsfargo-starui/grid/widgets pulls
-      // a second copy of host-data-react and breaks <DataServicesProvider>.
-      '@wellsfargo-starui/host-data-react',
-      '@wellsfargo-starui/host-data-react/runtime',
+      // a second copy of the data bindings and breaks <DataServicesProvider>.
+      '@wellsfargo-starui/react/data',
+      '@wellsfargo-starui/react/data/runtime',
     ],
   };
 }

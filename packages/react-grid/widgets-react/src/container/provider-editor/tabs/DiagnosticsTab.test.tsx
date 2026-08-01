@@ -8,7 +8,7 @@ const detach = vi.fn();
 const stop = vi.fn();
 const useProviderStats = vi.hoisted(() => vi.fn());
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({
     client: { attach, detach, stop },
   }),

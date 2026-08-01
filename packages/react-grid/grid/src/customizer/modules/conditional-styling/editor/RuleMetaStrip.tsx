@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { CircleDot, Sliders, Target } from 'lucide-react';
 import { controls, typography } from '@wellsfargo-starui/design-system/tokens';
 import { Caps, IconInput, LedBar, Mono, SummaryChip } from '../../../ui/SettingsPanel';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import type { ConditionalRule, FlashTarget } from '../state';
 

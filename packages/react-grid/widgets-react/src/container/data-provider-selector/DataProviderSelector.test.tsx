@@ -22,7 +22,7 @@ const configs = [
   },
 ];
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataProvidersList: vi.fn(() => ({
     configs,
     loading: false,
@@ -30,7 +30,7 @@ vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
   })),
 }));
 
-import { useDataProvidersList } from '@wellsfargo-starui/host-data-react/runtime';
+import { useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 
 afterEach(() => {
   cleanup();

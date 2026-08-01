@@ -33,7 +33,7 @@ import {
   Trash2,
   X as XIcon,
 } from 'lucide-react';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../ui/NativeOptionsSelect';
 import { Tooltip } from '../../ui/HoverTooltip';
 import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';

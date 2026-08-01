@@ -50,7 +50,7 @@ import {
   SummaryChip,
   type SummaryChipTone,
 } from '../../ui/SettingsPanel';
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 import { ChromeButton } from '../../ui/ChromeButton';
 import {
   FieldRenderer,

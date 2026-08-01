@@ -3,7 +3,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { DataProviderEditor } from '../provider-editor/DataProviderEditor.js';
 
 export interface ProviderEditorDialogProps {

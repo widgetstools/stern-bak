@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 
 export interface LayoutSelectorProps {
   layouts: LayoutInfo[];

@@ -20,7 +20,7 @@
  *     - Private providers store under the active userId.
  *
  * The store is intentionally framework-agnostic — React bindings
- * live in `@wellsfargo-starui/host-data-react`.
+ * live in `@wellsfargo-starui/react/data`.
  */
 
 import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/host-config';

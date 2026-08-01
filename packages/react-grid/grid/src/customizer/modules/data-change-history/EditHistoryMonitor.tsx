@@ -4,7 +4,7 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import { Badge, Button } from '@wellsfargo-starui/ui';
+import { Badge, Button } from '@wellsfargo-starui/react';
 import type { EditJournalEntry, EditSource } from '@wellsfargo-starui/engine';
 
 const MONITOR_HEIGHT_PX = 240;

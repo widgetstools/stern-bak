@@ -7,7 +7,7 @@
  */
 import { useCallback } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { Button, Input, Switch } from '@wellsfargo-starui/ui';
+import { Button, Input, Switch } from '@wellsfargo-starui/react';
 import type { AllocationBarRendererConfig, ThemeAwareColor } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 import { ThemeAwareColorRow } from './themeColorRow';

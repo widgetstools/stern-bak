@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { controls, typography } from '@wellsfargo-starui/design-system/tokens';
-import { Button, Input, cn } from '@wellsfargo-starui/ui';
+import { Button, Input, cn } from '@wellsfargo-starui/react';
 
 /**
  * Typography token key — every Caps/Mono `size` prop should reach for one of

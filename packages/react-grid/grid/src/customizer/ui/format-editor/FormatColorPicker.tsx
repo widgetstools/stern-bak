@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pipette, X } from 'lucide-react';
 import { controls, radius } from '@wellsfargo-starui/design-system/tokens';
-import { Input } from '@wellsfargo-starui/ui';
+import { Input } from '@wellsfargo-starui/react';
 import { ChromeButton } from '../ChromeButton';
 
 /**

@@ -10,7 +10,7 @@
     "packages/react-grid",
     "packages/data",
     "packages/openfin",
-    "packages/react-core/*",
+    "packages/react-core",
     "packages/shared/*"
   ],
   "scripts": {

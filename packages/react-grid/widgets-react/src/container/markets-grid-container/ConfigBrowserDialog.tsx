@@ -4,7 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { ConfigBrowserPanel } from '@wellsfargo-starui/grid/config-browser';
 
 export interface ConfigBrowserDialogProps {

@@ -1,7 +1,7 @@
 /**
  * SparklineEditor — authoring UI for `SparklineRendererConfig`.
  */
-import { ToggleGroup, ToggleGroupItem, Slider } from '@wellsfargo-starui/ui';
+import { ToggleGroup, ToggleGroupItem, Slider } from '@wellsfargo-starui/react';
 import type { SparklineRendererConfig } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 import { ThemeAwareColorRow } from './themeColorRow';

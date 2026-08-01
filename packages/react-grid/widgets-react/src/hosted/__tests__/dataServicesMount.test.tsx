@@ -11,7 +11,7 @@ import { cleanup, render, waitFor } from '@testing-library/react';
 import type { ConfigManager } from '@wellsfargo-starui/host-config';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import type { ResolvedDataServicesHubBundle } from '@wellsfargo-starui/data';
-import { useDataServices } from '@wellsfargo-starui/host-data-react/runtime';
+import { useDataServices } from '@wellsfargo-starui/react/data/runtime';
 
 let captureClient: unknown = null;
 let throwsOnRead = false;

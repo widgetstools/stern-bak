@@ -12,7 +12,7 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { Button, Input, cn } from "@wellsfargo-starui/ui";
+import { Button, Input, cn } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "../icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { EditorButton } from "./EditorButton";
 

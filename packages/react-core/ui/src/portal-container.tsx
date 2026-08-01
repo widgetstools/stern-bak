@@ -9,7 +9,7 @@ import { createContext, useContext, type ReactNode } from 'react';
  * that body — menus and popovers appear behind/in the wrong window.
  *
  * Wrap the popped-out subtree with `<PortalContainerProvider
- * container={thatWindow.document.body}>` so every `@wellsfargo-starui/ui` portal
+ * container={thatWindow.document.body}>` so every `@wellsfargo-starui/react` portal
  * receives `container={...}` and mounts into the correct document.
  */
 const PortalContainerContext = createContext<HTMLElement | null>(null);

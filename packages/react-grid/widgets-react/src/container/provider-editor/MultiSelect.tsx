@@ -2,12 +2,12 @@
  * MultiSelect — shadcn-composed multi-value picker.
  *
  * Built from `Popover` + `Command` + `Checkbox` (all already in
- * `@wellsfargo-starui/ui`). Renders a dropdown trigger that lists current
+ * `@wellsfargo-starui/react`). Renders a dropdown trigger that lists current
  * selections as inline pills; opens a searchable command list with
  * checkboxes for multi-pick.
  *
  * Lives in the provider-editor package because today's only caller is
- * the keyColumn picker. Promote to `@wellsfargo-starui/ui` when a second
+ * the keyColumn picker. Promote to `@wellsfargo-starui/react` when a second
  * consumer appears.
  *
  * Selection semantics: callers receive an ordered string array. The
@@ -31,7 +31,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   cn,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 
 export interface MultiSelectOption {
   value: string;

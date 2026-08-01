@@ -39,7 +39,7 @@ const { dataHubClientMock } = vi.hoisted(() => {
   return { dataHubClientMock: { isProviderRunning, waitForProviderRunning } };
 });
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ client: dataHubClientMock }),
   useDataProvider: () => ({
     provider: null,

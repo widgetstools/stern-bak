@@ -13,7 +13,7 @@ import {
   SharpBtn,
 } from '../../ui/SettingsPanel';
 import { Select } from '../../ui/NativeOptionsSelect';
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 import { ExpressionEngine } from '@wellsfargo-starui/engine';
 import { ChromeButton } from '../../ui/ChromeButton';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';

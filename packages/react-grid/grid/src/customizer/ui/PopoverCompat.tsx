@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Popover, PopoverContent, PopoverTrigger, cn } from '@wellsfargo-starui/ui';
+import { Popover, PopoverContent, PopoverTrigger, cn } from '@wellsfargo-starui/react';
 
 /**
  * Backward-compatible wrapper matching the old `<Popover trigger={…}>…</Popover>`
- * API. New code should use `@wellsfargo-starui/ui` Popover primitives directly.
+ * API. New code should use `@wellsfargo-starui/react` Popover primitives directly.
  */
 export function PopoverCompat({
   trigger,

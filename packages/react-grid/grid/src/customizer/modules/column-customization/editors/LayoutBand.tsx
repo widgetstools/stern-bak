@@ -1,5 +1,5 @@
 import { Band, IconInput } from '../../../ui/SettingsPanel';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import { Row } from './Row';
 import { TriStateToggle } from './TriStateToggle';

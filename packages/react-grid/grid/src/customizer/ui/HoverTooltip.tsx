@@ -4,7 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   cn,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 
 export interface HoverTooltipProps extends Omit<ComponentPropsWithoutRef<'span'>, 'content'> {
   content: ReactNode;
@@ -13,7 +13,7 @@ export interface HoverTooltipProps extends Omit<ComponentPropsWithoutRef<'span'>
 
 /**
  * Grid-customizer tooltip with the legacy `content` + `children` API.
- * Built on `@wellsfargo-starui/ui` Radix Tooltip (not a duplicate shadcn copy).
+ * Built on `@wellsfargo-starui/react` Radix Tooltip (not a duplicate shadcn copy).
  *
  * forwardRef + spread is required so the wrapper can sit inside a Radix
  * `<PopoverTrigger asChild>` — Radix clones the immediate child to attach

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { IconInput } from '../../../ui/SettingsPanel';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import type {
   ColumnFilterConfig,

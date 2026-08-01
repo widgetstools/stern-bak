@@ -10,7 +10,7 @@ import {
 } from '../../../ui/SettingsPanel';
 import { ChromeButton } from '../../../ui/ChromeButton';
 import { SettingsRow } from '../../../ui/SettingsPanel/SettingsRow';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import type {
   ConditionalRule,
   FlashColor,

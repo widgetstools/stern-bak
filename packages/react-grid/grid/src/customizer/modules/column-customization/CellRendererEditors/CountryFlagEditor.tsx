@@ -1,7 +1,7 @@
 /**
  * CountryFlagEditor — authoring UI for `CountryFlagRendererConfig`.
  */
-import { Input, Switch } from '@wellsfargo-starui/ui';
+import { Input, Switch } from '@wellsfargo-starui/react';
 import type { CountryFlagRendererConfig } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 

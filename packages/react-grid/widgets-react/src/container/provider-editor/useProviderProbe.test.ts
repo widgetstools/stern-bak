@@ -18,7 +18,7 @@ vi.mock('@wellsfargo-starui/data/runtime', () => ({
   resolveCfg: vi.fn((cfg: unknown) => cfg),
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useAppDataStore: () => ({
     store: {
       ready: vi.fn().mockResolvedValue(undefined),

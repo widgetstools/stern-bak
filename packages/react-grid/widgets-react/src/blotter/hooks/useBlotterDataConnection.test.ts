@@ -72,7 +72,7 @@ function makeGridApi(): GridApi & {
   };
 }
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataProvider: () => ({
     provider: null,
     status: 'loading' as ProviderStatus,

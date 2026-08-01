@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, cn } from '@wellsfargo-starui/ui';
+import { Button, cn } from '@wellsfargo-starui/react';
 import { DynamicIcon as Icon } from '../icons.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 type EditorButtonVariant = 'default' | 'primary' | 'danger';

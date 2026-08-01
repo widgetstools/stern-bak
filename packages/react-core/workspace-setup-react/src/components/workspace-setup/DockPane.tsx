@@ -30,7 +30,7 @@ import type {
   RegistryEntry,
 } from "@wellsfargo-starui/openfin/config";
 import { ACTION_LAUNCH_COMPONENT } from "@wellsfargo-starui/openfin/config";
-import { Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/ui";
+import { Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/react";
 import { iconIdToSvgUrl } from "../dock-editor/iconUtils";
 import type { EditorSelection } from "./types";
 

@@ -93,12 +93,10 @@
     "@wellsfargo-starui/engine": "*",
     "@wellsfargo-starui/host": "*",
     "@wellsfargo-starui/host-config": "*",
-    "@wellsfargo-starui/host-data-react": "*",
     "@wellsfargo-starui/openfin": "*",
+    "@wellsfargo-starui/react": "*",
     "@wellsfargo-starui/shared-types": "*",
     "@wellsfargo-starui/types": "*",
-    "@wellsfargo-starui/ui": "*",
-    "@wellsfargo-starui/widget-sdk": "*",
     "cmdk": "^1.1.1",
     "lucide-react": "^0.554.0"
   },

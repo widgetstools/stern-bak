@@ -24,7 +24,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { EditingToolbarSegmentProps } from '../../editing/editingToolbarLayout';
 import { resolveEditRecording } from '../../editing/recordEdit';
 import { useGridPlatform } from '../../hooks/GridProvider';

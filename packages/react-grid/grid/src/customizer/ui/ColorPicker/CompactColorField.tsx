@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Minus, Pipette } from 'lucide-react';
 import { FormatColorPicker } from '../format-editor';
-import { Popover, PopoverContent, PopoverTrigger, Input, Slider } from '@wellsfargo-starui/ui';
+import { Popover, PopoverContent, PopoverTrigger, Input, Slider } from '@wellsfargo-starui/react';
 import { ChromeButton } from '../ChromeButton';
 
 /**

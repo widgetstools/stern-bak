@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 
 export function H1({ children }: { children: ReactNode }) {
   return (

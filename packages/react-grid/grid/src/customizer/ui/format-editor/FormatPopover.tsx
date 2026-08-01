@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 import { useResolvedPortalContainer } from '../PortalContainer';
 import { clickIsInsideAnyOpenPopover, registerPopoverRoot } from './popoverStack';
 

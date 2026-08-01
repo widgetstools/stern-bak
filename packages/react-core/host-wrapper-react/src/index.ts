@@ -1,12 +1,12 @@
 /**
- * @wellsfargo-starui/host-wrapper-react — Seam #2 from docs/ARCHITECTURE.md.
+ * @wellsfargo-starui/react/host — Seam #2 from docs/ARCHITECTURE.md.
  *
  * The single component-side seam between a hosted React component and
  * the surrounding runtime / persistence / theme choices.
  *
  * Usage:
  *
- *   import { HostWrapper, useHost } from '@wellsfargo-starui/host-wrapper-react';
+ *   import { HostWrapper, useHost } from '@wellsfargo-starui/react/host';
  *   import { BrowserRuntime } from '@wellsfargo-starui/runtime-browser';
  *   import { createConfigManager } from '@wellsfargo-starui/host-config';
  *

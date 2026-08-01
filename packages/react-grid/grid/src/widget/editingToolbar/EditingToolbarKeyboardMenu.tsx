@@ -14,7 +14,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { Keyboard } from 'lucide-react';
 import { useModuleState } from '../../customizer/hooks/useModuleState';
 import {

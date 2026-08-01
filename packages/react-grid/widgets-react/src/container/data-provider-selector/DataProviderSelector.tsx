@@ -26,10 +26,10 @@ import { useMemo } from 'react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Badge, Button, ScrollArea,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { Database, Loader2, Pencil, Plus, RefreshCw } from 'lucide-react';
 import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/shared-types';
-import { useDataProvidersList } from '@wellsfargo-starui/host-data-react/runtime';
+import { useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 
 const PUBLIC_USER_ID = 'system';
 const NONE_VALUE = '__none__';

@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef } from 'react';
-import { Separator, TableBody, TableHeader } from '@wellsfargo-starui/ui';
+import { Separator, TableBody, TableHeader } from '@wellsfargo-starui/react';
 
 const MAIN_ROW_HEIGHT = 44;
 const DETAIL_ROW_HEIGHT = 288;

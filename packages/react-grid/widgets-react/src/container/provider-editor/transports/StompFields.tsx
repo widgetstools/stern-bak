@@ -7,7 +7,7 @@
  * explains the contract against the bundled stomp-server.
  */
 
-import { Input, Label } from '@wellsfargo-starui/ui';
+import { Input, Label } from '@wellsfargo-starui/react';
 import type { StompProviderConfig } from '@wellsfargo-starui/shared-types';
 
 export interface StompFieldsProps {

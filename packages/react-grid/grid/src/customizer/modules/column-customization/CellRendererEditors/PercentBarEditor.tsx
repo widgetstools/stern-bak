@@ -3,7 +3,7 @@
  *
  * `max` may be a literal number or a sibling-field reference.
  */
-import { Input, RadioGroup, RadioGroupItem, Label, Switch } from '@wellsfargo-starui/ui';
+import { Input, RadioGroup, RadioGroupItem, Label, Switch } from '@wellsfargo-starui/react';
 import type { PercentBarRendererConfig } from '@wellsfargo-starui/design-system';
 import { Row } from '../editors/Row';
 import { ThemeAwareColorRow } from './themeColorRow';

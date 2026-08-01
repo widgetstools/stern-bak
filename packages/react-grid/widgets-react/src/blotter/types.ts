@@ -1,5 +1,5 @@
 import type { GridApi } from 'ag-grid-community';
-import type { WidgetContext, SlotContent } from '@wellsfargo-starui/widget-sdk';
+import type { WidgetContext, SlotContent } from '@wellsfargo-starui/react/widget-sdk';
 
 /**
  * BlotterSlots — extension points for the SimpleBlotter.

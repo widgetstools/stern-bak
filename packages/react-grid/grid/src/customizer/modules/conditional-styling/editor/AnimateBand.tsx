@@ -8,7 +8,7 @@ import {
   PillToggleGroup,
 } from '../../../ui/SettingsPanel';
 import { SettingsRow } from '../../../ui/SettingsPanel/SettingsRow';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import type { AnimationConfig, AnimationKind, ConditionalRule } from '../state';
 
 const DEFAULT_ANIMATION_KIND: AnimationKind = 'spin';

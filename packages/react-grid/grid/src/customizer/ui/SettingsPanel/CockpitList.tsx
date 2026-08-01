@@ -19,7 +19,7 @@
  *     `data-active`, with `aria-selected` falling back to a softer
  *     hover-style highlight for keyboard navigation discoverability.
  */
-import { cn } from '@wellsfargo-starui/ui';
+import { cn } from '@wellsfargo-starui/react';
 import { Command as CommandPrimitive } from 'cmdk';
 import {
   forwardRef,

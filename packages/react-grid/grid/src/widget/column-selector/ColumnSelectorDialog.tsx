@@ -7,7 +7,7 @@
  *
  * Styled with the grid customizer's `--ds-*` design-system tokens (fully-resolved
  * `oklch()` colours that flip correctly in light/dark, including inside the
- * dialog portal). Uses only `@wellsfargo-starui/ui` shadcn primitives — no customizer-barrel
+ * dialog portal). Uses only `@wellsfargo-starui/react` shadcn primitives — no customizer-barrel
  * dependency — so the surrounding `MarketsGridHost` tests keep their light mocks.
  */
 
@@ -26,7 +26,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { GridApi } from 'ag-grid-community';
 import { ColumnList } from './ColumnList';
 import { useColumnSelectorState } from './useColumnSelectorState';

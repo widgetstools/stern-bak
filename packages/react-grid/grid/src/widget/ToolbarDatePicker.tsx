@@ -5,7 +5,7 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import { CalendarIcon } from 'lucide-react';
-import { Button, Calendar, Popover, PopoverContent, PopoverTrigger } from '@wellsfargo-starui/ui';
+import { Button, Calendar, Popover, PopoverContent, PopoverTrigger } from '@wellsfargo-starui/react';
 import { dateToIso, isSameCalendarDay, isoToDate, todayIsoDate } from './toolbarDateUtils';
 
 export interface ToolbarDatePickerProps {

@@ -3,7 +3,7 @@
  * upstream services aren't running.
  */
 
-import { Input, Label, Switch } from '@wellsfargo-starui/ui';
+import { Input, Label, Switch } from '@wellsfargo-starui/react';
 import type { MockProviderConfig } from '@wellsfargo-starui/shared-types';
 
 export interface MockFieldsProps {

@@ -1,5 +1,5 @@
 import { Caps, IconInput } from '../../../ui/SettingsPanel';
-import { Switch, Textarea } from '@wellsfargo-starui/ui';
+import { Switch, Textarea } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import { useModuleState } from '../../../hooks/useModuleState';
 import type { GeneralSettingsState } from '../../general-settings/state';

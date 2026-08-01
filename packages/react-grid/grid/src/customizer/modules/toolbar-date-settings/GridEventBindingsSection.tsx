@@ -1,5 +1,5 @@
 import { useMemo, type ReactElement } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wellsfargo-starui/ui';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wellsfargo-starui/react';
 import { SettingsRow as Row, SubLabel } from '../../ui/SettingsPanel';
 import {
   boundHandlerForEvent,

@@ -11,7 +11,7 @@
  */
 import { Check, Eraser, Trash2 } from 'lucide-react';
 import { Tooltip } from '../../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import { Button, cn } from '@wellsfargo-starui/ui';
+import { Button, cn } from '@wellsfargo-starui/react';
 import type { Orientation } from '../primitives';
 import type { FormatterActions, FormatterState } from '../state';
 

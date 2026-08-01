@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { Search, X } from 'lucide-react';
-import { Button, Input } from '@wellsfargo-starui/ui';
+import { Button, Input } from '@wellsfargo-starui/react';
 import { useOptionalGridPlatform } from '../customizer/hooks/GridProvider';
 
 /**

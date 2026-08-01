@@ -12,7 +12,7 @@ import {
   useGridPlatform,
   type PoppableHandle,
 } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import { Drawer, DrawerContent, DrawerTitle } from '@wellsfargo-starui/ui';
+import { Drawer, DrawerContent, DrawerTitle } from '@wellsfargo-starui/react';
 import { GENERAL_SETTINGS_MODULE_ID } from '../customizer/modules/general-settings';
 import {
   GripHorizontal,

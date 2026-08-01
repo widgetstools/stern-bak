@@ -1,6 +1,6 @@
 /**
  * DatePicker — shadcn-pattern composition of Popover + Button +
- * Calendar from `@wellsfargo-starui/ui`. No native `<input type="date">`
+ * Calendar from `@wellsfargo-starui/react`. No native `<input type="date">`
  * (CLAUDE.md: no native input controls).
  *
  * Value is an ISO date string `YYYY-MM-DD` for compatibility with
@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from 'react';
-import { Popover, PopoverContent, PopoverTrigger, Button, Calendar } from '@wellsfargo-starui/ui';
+import { Popover, PopoverContent, PopoverTrigger, Button, Calendar } from '@wellsfargo-starui/react';
 import { CalendarIcon } from 'lucide-react';
 
 export interface DatePickerProps {

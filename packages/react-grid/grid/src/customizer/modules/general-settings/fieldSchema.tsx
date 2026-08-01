@@ -21,7 +21,7 @@ import {
   SettingsRow,
   SubLabel,
 } from '../../ui/SettingsPanel';
-import { Switch } from '@wellsfargo-starui/ui';
+import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../ui/NativeOptionsSelect';
 import type { GeneralSettingsState } from './state';
 

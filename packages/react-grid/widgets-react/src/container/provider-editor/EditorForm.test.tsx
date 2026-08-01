@@ -10,7 +10,7 @@ const save = vi.fn(async (next: DataProviderConfig) => ({
   providerId: 'saved-1',
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ configStore: { save, remove: vi.fn() } }),
 }));
 

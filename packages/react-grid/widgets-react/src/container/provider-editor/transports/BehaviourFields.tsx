@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/shared-types';
 
 export interface BehaviourFieldsProps {

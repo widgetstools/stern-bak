@@ -20,7 +20,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { ChromeButton } from '../../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import { Input, TooltipContent, Tooltip as TooltipRoot, TooltipTrigger } from '@wellsfargo-starui/ui';
+import { Input, TooltipContent, Tooltip as TooltipRoot, TooltipTrigger } from '@wellsfargo-starui/react';
 import {
   ColumnLabel,
   Hair,

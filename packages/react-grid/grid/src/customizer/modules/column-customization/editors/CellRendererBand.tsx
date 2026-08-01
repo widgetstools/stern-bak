@@ -26,7 +26,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { Band } from '../../../ui/SettingsPanel';
 import { Row } from './Row';
 import { EDITORS_BY_ID } from '../CellRendererEditors';

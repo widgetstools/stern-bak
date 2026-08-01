@@ -122,7 +122,7 @@ export type {
   StepperProps,
 } from './ui/SettingsPanel';
 
-// ─── shadcn primitives (@wellsfargo-starui/ui) + grid-specific adapters ───────────────
+// ─── shadcn primitives (@wellsfargo-starui/react) + grid-specific adapters ───────────────
 export {
   Button,
   buttonVariants,
@@ -149,8 +149,8 @@ export {
   AlertDialogAction,
   AlertDialogCancel,
   cn,
-} from '@wellsfargo-starui/ui';
-export type { ButtonProps } from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
+export type { ButtonProps } from '@wellsfargo-starui/react';
 export { GhostIconButton } from './ui/GhostIconButton';
 export {
   ChromeButton,

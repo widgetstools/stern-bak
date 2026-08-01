@@ -1,4 +1,4 @@
-// @wellsfargo-starui/widget-sdk — React bindings for the Star Widget Framework
+// @wellsfargo-starui/react/widget-sdk — React bindings for the Star Widget Framework
 
 export type {
   WidgetConfig,

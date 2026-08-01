@@ -3,7 +3,7 @@ import {
   DATA_CHANGE_HISTORY_MODULE_ID,
   type DataChangeHistoryState,
 } from '@wellsfargo-starui/engine';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@wellsfargo-starui/ui';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@wellsfargo-starui/react';
 import { Redo2, Undo2 } from 'lucide-react';
 import type { EditingToolbarSegmentProps } from '../../editing/editingToolbarLayout';
 import { useGridPlatform } from '../../hooks/GridProvider';

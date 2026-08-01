@@ -55,7 +55,7 @@ export default defineConfig({
             { find: '@wellsfargo-starui/types', replacement: resolve(__dirname, '../shared/types/src/index.ts') },
             { find: '@wellsfargo-starui/openfin/host', replacement: resolve(__dirname, '../openfin/host-openfin/src/index.ts') },
             { find: '@wellsfargo-starui/host', replacement: resolve(__dirname, '../shared/host/src/index.ts') },
-            { find: '@wellsfargo-starui/ui', replacement: resolve(__dirname, '../react-core/ui/src/index.ts') },
+            { find: '@wellsfargo-starui/react', replacement: resolve(__dirname, '../react-core/ui/src/index.ts') },
           ],
         },
         test: {
@@ -97,7 +97,7 @@ export default defineConfig({
           include: ['src/**/*.test.{ts,tsx}'],
           css: false,
           // Each test file gets its own module graph — prevents vi.mock collisions
-          // on shared packages like `@wellsfargo-starui/host-data-react/runtime`.
+          // on shared packages like `@wellsfargo-starui/react/data/runtime`.
           pool: 'forks',
         },
       },

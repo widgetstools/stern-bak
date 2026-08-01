@@ -22,7 +22,7 @@ import {
   PopoverTrigger,
   ScrollArea,
   Separator,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { AlertsState } from '@wellsfargo-starui/engine';
 import { useOptionalGridPlatform } from '../../hooks/GridProvider';
 import { useModuleState } from '../../hooks/useModuleState';

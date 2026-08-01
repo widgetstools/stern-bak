@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('@wellsfargo-starui/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/ui')>();
+vi.mock('@wellsfargo-starui/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/react')>();
   return {
     ...actual,
     Calendar: ({ onSelect }: { onSelect?: (d: Date | undefined) => void }) => (

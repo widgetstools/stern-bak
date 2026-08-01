@@ -4,7 +4,7 @@ import {
   Button,
   Input,
   Switch,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/engine';
 import {
   defaultPlusMinusNudge,

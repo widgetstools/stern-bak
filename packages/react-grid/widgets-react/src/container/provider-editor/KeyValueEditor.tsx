@@ -6,7 +6,7 @@
  */
 
 import { useCallback } from 'react';
-import { Button, Input, Label } from '@wellsfargo-starui/ui';
+import { Button, Input, Label } from '@wellsfargo-starui/react';
 import { Plus, Trash2 } from 'lucide-react';
 
 export interface KeyValueEditorProps {

@@ -12,7 +12,7 @@
 import { useCallback, useState } from 'react';
 import { probeStomp, connectStomp, probeRest, probeMock, inferFields } from '@wellsfargo-starui/data';
 import { resolveCfg } from '@wellsfargo-starui/data/runtime';
-import { useAppDataStore } from '@wellsfargo-starui/host-data-react/runtime';
+import { useAppDataStore } from '@wellsfargo-starui/react/data/runtime';
 import type { ProviderConfig, FieldNode } from '@wellsfargo-starui/shared-types';
 
 export interface ProbeState {

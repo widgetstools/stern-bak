@@ -23,7 +23,7 @@
  * still supports a non-destructive (`onlyUnstyled`) mode for other callers.
  */
 import { Check, Wand2 } from 'lucide-react';
-import { Button } from '@wellsfargo-starui/ui';
+import { Button } from '@wellsfargo-starui/react';
 import { useAutoFormatAction } from './useAutoFormatAction';
 
 export function AutoFormatButton() {

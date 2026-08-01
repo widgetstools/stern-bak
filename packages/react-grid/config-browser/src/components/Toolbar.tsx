@@ -1,5 +1,5 @@
 import { DynamicIcon as Icon } from "../icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import { Input } from "@wellsfargo-starui/ui";
+import { Input } from "@wellsfargo-starui/react";
 import type { TableMeta } from "../types";
 import { EditorButton } from "./EditorButton";
 

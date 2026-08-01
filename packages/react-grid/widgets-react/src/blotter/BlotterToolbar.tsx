@@ -1,9 +1,9 @@
 import React from 'react';
 import type { LayoutInfo } from '@wellsfargo-starui/shared-types';
-import type { WidgetContext } from '@wellsfargo-starui/widget-sdk';
+import type { WidgetContext } from '@wellsfargo-starui/react/widget-sdk';
 import type { ToolbarButton } from './types.js';
 import { LayoutSelector } from './LayoutSelector.js';
-import { Button } from '@wellsfargo-starui/ui';
+import { Button } from '@wellsfargo-starui/react';
 
 export interface BlotterToolbarProps {
   widget: WidgetContext;

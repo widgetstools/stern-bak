@@ -1,5 +1,5 @@
 import { useMemo, type ReactElement } from 'react';
-import { Button, Calendar, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wellsfargo-starui/ui';
+import { Button, Calendar, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wellsfargo-starui/react';
 import { CalendarIcon, Pencil, RefreshCw, RotateCw } from 'lucide-react';
 import type { DataProviderConfig } from '@wellsfargo-starui/shared-types';
 import { SettingsRow as Row, SubLabel } from '../../ui/SettingsPanel';
