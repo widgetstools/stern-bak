@@ -23,8 +23,7 @@ const REQUIRED_WORKSPACE_PACKAGES = [
   '@wellsfargo-starui/icons-svg',
   '@wellsfargo-starui/host-config',
   '@wellsfargo-starui/host-data-react',
-  '@wellsfargo-starui/config-browser',
-  '@wellsfargo-starui/widgets-react',
+  '@wellsfargo-starui/grid',
 ];
 
 function workspaceLinkPath(packageName) {

@@ -390,7 +390,7 @@ export function staruiTailwindContent(appDir) {
 /** Force ESM entry — browser export resolves to UMD which breaks dynamic `import()` Client lookup. */
 export function stompJsEsmAlias(appDir) {
   const reactRootDir = findReactRoot(appDir);
-  // @stomp/stompjs is a dep of @wellsfargo-starui/widgets-react. In source mode the apps
+  // @stomp/stompjs is a dep of @wellsfargo-starui/grid (widgets-react). In source mode the apps
   // don't declare it, so it isn't hoisted into the app's node_modules — it
   // lives at the repo root. Search the app's react root, every @wellsfargo-starui install
   // root, then REPO_ROOT, and alias to the first esm6 entry that exists.
@@ -436,7 +436,7 @@ export function staruiOptimizeDeps() {
       // library. Apps must construct SharedWorkers at the call site.
       '@wellsfargo-starui/data',
       '@wellsfargo-starui/data/runtime',
-      // Single React context instance — prebundling widgets-react pulls
+      // Single React context instance — prebundling @wellsfargo-starui/grid/widgets pulls
       // a second copy of host-data-react and breaks <DataServicesProvider>.
       '@wellsfargo-starui/host-data-react',
       '@wellsfargo-starui/host-data-react/runtime',

@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfigBrowserDialog } from './ConfigBrowserDialog.js';
 
-vi.mock('@wellsfargo-starui/config-browser', () => ({
+vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
   ConfigBrowserPanel: () => <div data-testid="config-browser-panel">panel</div>,
 }));
 

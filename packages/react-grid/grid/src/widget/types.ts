@@ -35,7 +35,7 @@ export interface MarketsGridProps<TData = unknown> {
    *  For live streaming, prefer keeping this prop referentially stable
    *  (e.g. pass a module-scoped `EMPTY` array) and push deltas via
    *  `gridApi.applyTransactionAsync` — see `applyProviderToGrid` in
-   *  `@wellsfargo-starui/widgets-react` MarketsGridContainer for the reference pattern. */
+   *  `@wellsfargo-starui/grid/widgets` MarketsGridContainer for the reference pattern. */
   rowData: TData[];
   /** Base column definitions — modules can transform them. */
   columnDefs: ColDef<TData>[];

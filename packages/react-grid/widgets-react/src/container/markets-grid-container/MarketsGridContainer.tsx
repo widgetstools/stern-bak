@@ -49,7 +49,7 @@ import { useGridLevelPersistence } from './useGridLevelPersistence.js';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
   createConfigBrowserAction,
-} from '@wellsfargo-starui/config-browser';
+} from '@wellsfargo-starui/grid/config-browser';
 import type { AdminAction } from '@wellsfargo-starui/grid';
 import { ConfigBrowserDialog } from './ConfigBrowserDialog.js';
 import { ProviderEditorDialog } from './ProviderEditorDialog.js';

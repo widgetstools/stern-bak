@@ -8,7 +8,7 @@
   "workspaces": [
     "packages/design-system",
     "packages/react-ui/*",
-    "packages/react-grid/*",
+    "packages/react-grid",
     "packages/data",
     "packages/openfin",
     "packages/react-core/*",

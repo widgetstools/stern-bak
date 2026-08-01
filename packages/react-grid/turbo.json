@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": ["dist/**"]
+      "outputs": ["grid/dist/**", "config-browser/dist/**", "widgets-react/dist/**"]
     }
   }
 }

@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@wellsfargo-starui/ui';
-import { ConfigBrowserPanel } from '@wellsfargo-starui/config-browser';
+import { ConfigBrowserPanel } from '@wellsfargo-starui/grid/config-browser';
 
 export interface ConfigBrowserDialogProps {
   open: boolean;
