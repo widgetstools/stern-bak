@@ -10,6 +10,10 @@
         "workspace-setup-react/dist/**",
         "host-data-react/dist/**"
       ]
+    },
+    "test": {
+      "dependsOn": ["build", "^build"],
+      "outputs": ["junit.xml", "coverage/**"]
     }
   }
 }

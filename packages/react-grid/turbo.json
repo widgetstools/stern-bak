@@ -4,6 +4,10 @@
   "tasks": {
     "build": {
       "outputs": ["grid/dist/**", "config-browser/dist/**", "widgets-react/dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build", "^build"],
+      "outputs": ["junit.xml", "coverage/**"]
     }
   }
 }
