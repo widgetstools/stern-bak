@@ -36,7 +36,7 @@ them; **Data (6)** and **OpenFin (7)** are cross-cutting services.
 
 | # | Bucket | Path | npm packages |
 |---|--------|------|--------------|
-| 1 | **UI Design System** | `packages/design-system/` | `@wellsfargo-starui/design-system`, `@wellsfargo-starui/icons-svg` |
+| 1 | **UI Design System** | `packages/design-system/` | `@wellsfargo-starui/design-system` |
 | 2 | **React UI Controls** | `packages/react-ui/` | `@wellsfargo-starui/ui` |
 | 3 | **React Grid** | `packages/react-grid/` | `@wellsfargo-starui/grid`, `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/widgets-react` |
 | 4 | **Data Utilities** | `packages/data/` | `@wellsfargo-starui/host-data`, `@wellsfargo-starui/host-data-angular` |

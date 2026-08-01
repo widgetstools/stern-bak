@@ -342,6 +342,36 @@ collapsing 21 `package.json` files into 7, which still requires
 treat `packages/<bucket>/<member>/` as graph nodes (see "Still true" below)
 before it can start.
 
+**Package-collapse sub-phase 1: done.** `design-system` + `icons-svg`
+collapsed into one `@wellsfargo-starui/design-system` package (20
+tarballs, was 21). No source moved — only per-member `package.json`,
+`vitest.config.ts`, and `turbo.json` were removed in favor of one set
+at the bucket root. `@wellsfargo-starui/icons-svg`'s public API moved
+to new `./icons*` subpaths; 9 consumer import sites across
+`openfin-platform`, `workspace-setup-react`, and `grid` were migrated.
+Per the design spec at
+[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md),
+the coverage-tooling two-level-scan gap is an accepted interim state,
+not fixed here — but `pack-npm.mjs` and `staruiConsumerAliases.mjs`
+both needed a real fix during execution (not deferred): they hardcoded
+the same two-level scan and were silently dropping the collapsed
+package entirely from `pack:npm` output and the source-track consumer
+alias manifest. Fixed generically so future sub-phases' collapsed
+buckets are picked up automatically.
+
+**`stern-apps` follow-up (non-blocking):** the generated
+`tarball/star-demo/package.json` in the apps repo still declares a
+`file:` dependency on the now-nonexistent `wellsfargo-starui-icons-svg.tgz`
+tarball. The source template (`source/star-demo/package.json`) is
+already clean — this is a stale generated artifact, and `build:tarball`
+succeeds despite it (npm doesn't error on the unused stale line). Worth
+a `npm run make:tarball-apps` regeneration pass in that repo at some
+point, but not urgent.
+
+**Next:** sub-phase 2 (`openfin` bucket — `host-openfin` +
+`openfin-platform`), per the roadmap in
+[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md).
+
 **Still true:** collapsing 21 vitest configs → 7 breaks the two-level
 `packages/<bucket>/<pkg>/coverage/` scan in `run-test-coverage.mjs` and
 `check-package-coverage.mjs`, and the latter's "package has no real test script"

@@ -51,7 +51,7 @@ architecture buckets (see
 
 | # | Bucket | Path | Packages |
 |---|--------|------|----------|
-| 1 | UI Design System | `design-system/` | `design-system`, `icons-svg` |
+| 1 | UI Design System | `design-system/` | `design-system` |
 | 2 | React UI Controls | `react-ui/` | `ui` |
 | 3 | React Grid | `react-grid/` | `grid` → `@wellsfargo-starui/grid`, `config-browser`, `widgets-react` |
 | 4 | Data Utilities | `data/` | `host-data`, `host-data-angular` |
@@ -123,7 +123,7 @@ depends on it.
 **Public subpath exports** in `package.json` `"exports"` may use kebab
 even when they point at camelCase files (subpath name is the package's
 public API; renaming breaks consumers). Examples:
-`@wellsfargo-starui/icons-svg/all-icons` → `./allIcons.ts`,
+`@wellsfargo-starui/design-system/icons/all-icons` → `icons-svg/allIcons.ts`,
 `@wellsfargo-starui/design-system/cell-renderers` → `./dist/cellRenderers.js`.
 
 ESLint enforcement (`unicorn/filename-case` per-bucket) is a follow-up
@@ -226,7 +226,7 @@ one instead.
 Enforced via convention (ESLint enforcement is a follow-up). See
 `docs/ARCHITECTURE.md` for the full layer diagram. Key rules:
 
-- Foundation packages (`shared-types`, `design-system`, `icons-svg`) must
+- Foundation packages (`shared-types`, `design-system`) must
   not import from anywhere except each other.
 - `@wellsfargo-starui/engine` must not import from framework adapters (`widgets-react`, `grid`).
 - Only `host-openfin` and `openfin-platform` may import from `@openfin/core`.

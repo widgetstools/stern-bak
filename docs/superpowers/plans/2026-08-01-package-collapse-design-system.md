@@ -531,7 +531,7 @@ EOF
 **Files:**
 - Modify: `CLAUDE.md` (bucket table, foundation-packages import rule, subpath-export example)
 - Modify: `docs/PACKAGE_ORGANIZATION.md` (bucket table)
-- Modify: `docs/current-features.md` (§ 1.2 header and export-path list)
+- Modify: `docs/current-features.md` (§ 1.2 header and export-path list; found during execution: § 1.1's `IconTextCellRenderer` entry also referenced the old `@wellsfargo-starui/icons-svg/all-icons` import path)
 - Modify: `docs/WORKLOG.md` (item 11 progress note)
 
 **Interfaces:**

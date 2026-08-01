@@ -180,7 +180,7 @@ with auto re-paint on `data-theme` change via `MutationObserver`):
   text from a sibling field (configurable size + colour)
 - `IconTextCellRenderer` (id `icon-text`) — leading or trailing icon
   (full SVG markup resolved at write time from
-  `@wellsfargo-starui/icons-svg/all-icons`) + cell text
+  `@wellsfargo-starui/design-system/icons/all-icons`) + cell text
 - `CountryFlagCellRenderer` (id `country-flag`) — 2-letter ISO code →
   regional-indicator emoji flag + optional label
 - `RatingDeltaCellRenderer` (id `rating-delta`) — credit-rating cell
@@ -198,18 +198,18 @@ Per-renderer config types (`PillRendererConfig`,
 
 ---
 
-### 1.2 `@wellsfargo-starui/icons-svg`
+### 1.2 Icons (`@wellsfargo-starui/design-system/icons`)
 
 **Path:** `packages/design-system/icons-svg`
 **Purpose:** Framework-agnostic SVG icon catalogue (113 icons) for trading UIs.
 
 **Public exports:**
 
-- `.` — `ICON_PATHS`, `ICON_META`, helpers
-- `./react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component)
-- `./angular` — `@lucide/angular` bindings: `LucideComponent`, `provideLucideIcons`, `provideLucideConfig`, `LUCIDE_ICONS`, `LUCIDE_CONFIG`, and per-icon standalone components (aliased to friendly names, e.g. `FileText`, `Home`)
-- `./all-icons` — `MARKET_ICON_SVGS`, `svgToDataUrl`, `marketIconToDataUrl`, named SVG constants, plus full icon-id enumeration
-- `./svg/*` — direct SVG file access
+- `./icons` — `ICON_PATHS`, `ICON_META`, helpers
+- `./icons/react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component)
+- `./icons/angular` — `@lucide/angular` bindings: `LucideComponent`, `provideLucideIcons`, `provideLucideConfig`, `LUCIDE_ICONS`, `LUCIDE_CONFIG`, and per-icon standalone components (aliased to friendly names, e.g. `FileText`, `Home`)
+- `./icons/all-icons` — `MARKET_ICON_SVGS`, `svgToDataUrl`, `marketIconToDataUrl`, named SVG constants, plus full icon-id enumeration
+- `./icons/svg/*` — direct SVG file access
 
 #### Catalogue (grouped by domain)
 
