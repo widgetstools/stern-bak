@@ -15,7 +15,7 @@ export default defineConfig({
     include: [
       'design-system/tests/**/*.test.ts',
       'design-system/src/**/*.test.ts',
-      'icons-svg/**/*.test.ts',
+      'icons-svg/**/*.test.{ts,tsx}',
     ],
     exclude: ['**/node_modules/**', '**/dist/**'],
     snapshotFormat: { printBasicPrototype: false },
