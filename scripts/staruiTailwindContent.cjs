@@ -47,8 +47,8 @@ function staruiTailwindContent(appDir) {
     join(REPO_ROOT, 'packages/react-ui/ui/src/**/*.{ts,tsx}'),
     join(REPO_ROOT, 'packages/react-grid/grid/src/**/*.{ts,tsx}'),
     join(REPO_ROOT, 'packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}'),
-    join(REPO_ROOT, 'packages/react-core/widgets-react/src/**/*.{ts,tsx}'),
-    join(REPO_ROOT, 'packages/react-core/config-browser/src/**/*.{ts,tsx}'),
+    join(REPO_ROOT, 'packages/react-grid/widgets-react/src/**/*.{ts,tsx}'),
+    join(REPO_ROOT, 'packages/react-grid/config-browser/src/**/*.{ts,tsx}'),
   ];
 }
 

@@ -47,8 +47,8 @@ const require = createRequire(import.meta.url);
 const CONTENT_GLOBS = [
   'packages/react-ui/ui/src/**/*.{ts,tsx}',
   'packages/react-grid/grid/src/**/*.{ts,tsx}',
-  'packages/react-core/widgets-react/src/**/*.{ts,tsx}',
-  'packages/react-core/config-browser/src/**/*.{ts,tsx}',
+  'packages/react-grid/widgets-react/src/**/*.{ts,tsx}',
+  'packages/react-grid/config-browser/src/**/*.{ts,tsx}',
   'packages/react-core/workspace-setup-react/src/**/*.{ts,tsx}',
   'packages/react-core/host-data-react/src/**/*.{ts,tsx}',
 ].map((g) => resolve(repoRoot, g).replace(/\\/g, '/'));
