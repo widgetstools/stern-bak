@@ -6,13 +6,13 @@ import {
   Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious,
   Separator,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ShowcaseEntry } from '../types';
 
 export const dataDisplayEntries: ShowcaseEntry[] = [
   {
     id: 'table', name: 'Table', category: 'data-display',
-    importLine: "import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@wellsfargo-starui/ui';",
+    importLine: "import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@wellsfargo-starui/react';",
     code: `<Table>
   <TableHeader><TableRow><TableHead>Ticker</TableHead><TableHead>Mid</TableHead></TableRow></TableHeader>
   <TableBody>
@@ -33,7 +33,7 @@ export const dataDisplayEntries: ShowcaseEntry[] = [
   },
   {
     id: 'card', name: 'Card', category: 'data-display',
-    importLine: "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@wellsfargo-starui/ui';",
+    importLine: "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@wellsfargo-starui/react';",
     code: `<Card>
   <CardHeader><CardTitle>Total DV01</CardTitle><CardDescription>Portfolio</CardDescription></CardHeader>
   <CardContent>$284,120</CardContent>
@@ -47,7 +47,7 @@ export const dataDisplayEntries: ShowcaseEntry[] = [
   },
   {
     id: 'badge', name: 'Badge', category: 'data-display',
-    importLine: "import { Badge } from '@wellsfargo-starui/ui';",
+    importLine: "import { Badge } from '@wellsfargo-starui/react';",
     code: `<Badge>Working</Badge>
 <Badge variant="secondary">AA+</Badge>
 <Badge variant="outline">T+1</Badge>
@@ -63,7 +63,7 @@ export const dataDisplayEntries: ShowcaseEntry[] = [
   },
   {
     id: 'avatar', name: 'Avatar', category: 'data-display',
-    importLine: "import { Avatar, AvatarFallback } from '@wellsfargo-starui/ui';",
+    importLine: "import { Avatar, AvatarFallback } from '@wellsfargo-starui/react';",
     code: `<Avatar><AvatarFallback>JD</AvatarFallback></Avatar>`,
     Demo: () => (
       <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export const dataDisplayEntries: ShowcaseEntry[] = [
   },
   {
     id: 'separator', name: 'Separator', category: 'data-display',
-    importLine: "import { Separator } from '@wellsfargo-starui/ui';",
+    importLine: "import { Separator } from '@wellsfargo-starui/react';",
     code: `<div>Bid</div>
 <Separator />
 <div>Ask</div>`,
@@ -90,7 +90,7 @@ export const dataDisplayEntries: ShowcaseEntry[] = [
   },
   {
     id: 'aspect-ratio', name: 'Aspect Ratio', category: 'data-display',
-    importLine: "import { AspectRatio } from '@wellsfargo-starui/ui';",
+    importLine: "import { AspectRatio } from '@wellsfargo-starui/react';",
     code: `<AspectRatio ratio={16 / 9}>
   <div className="h-full w-full bg-[color:var(--ds-surface-secondary)]" />
 </AspectRatio>`,
@@ -104,7 +104,7 @@ export const dataDisplayEntries: ShowcaseEntry[] = [
   },
   {
     id: 'carousel', name: 'Carousel', category: 'data-display',
-    importLine: "import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@wellsfargo-starui/ui';",
+    importLine: "import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@wellsfargo-starui/react';",
     code: `<Carousel className="w-[200px]">
   <CarouselContent>
     <CarouselItem>Slide 1</CarouselItem>

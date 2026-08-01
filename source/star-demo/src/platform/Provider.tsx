@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { initWorkspace, ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG } from "@wellsfargo-starui/openfin-platform";
+import { initWorkspace, ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG } from "@wellsfargo-starui/openfin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 
 /**
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
  * tool-window route chunks so their first open is warm.
  *
  * The dock's ▾ Tools menu omits "Import Config" and "Export Config" via
- * `dock.excludeTools` — those entries are built into @wellsfargo-starui/openfin-platform
+ * `dock.excludeTools` — those entries are built into @wellsfargo-starui/openfin
  * and hidden here by their action IDs.
  */
 
@@ -22,7 +22,7 @@ const TOOL_WINDOW_CHUNK_LOADERS: Record<string, () => Promise<unknown>> = {
   DataProviders: () => import("../views/DataProviders"),
   ConfigBrowser: () => import("../views/ConfigBrowser"),
   BlottersMarketsGrid: () => import("../views/BlottersMarketsGrid"),
-  WorkspaceSetupReact: () => import("@wellsfargo-starui/workspace-setup-react"),
+  WorkspaceSetupReact: () => import("@wellsfargo-starui/react/workspace-setup"),
   RenameViewTab: () => import("../views/RenameViewTab"),
 };
 
@@ -61,7 +61,7 @@ function Provider() {
     })
       .then(() => {
         if (!isDev && !e2eBridge) return undefined;
-        return import("@wellsfargo-starui/host-wrapper-react/test-bridge").then((m) => m.installTestBridge());
+        return import("@wellsfargo-starui/react/host/test-bridge").then((m) => m.installTestBridge());
       })
       .catch((err) => {
         console.error("Failed to initialize workspace platform:", err);

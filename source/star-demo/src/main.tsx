@@ -9,11 +9,11 @@ applyTheme(getTheme());
 installBootWatchdog();
 
 import { StarGridApp } from "./starGridApp/index.js";
-import { BrowserRuntime } from "@wellsfargo-starui/host-browser";
-import { OpenFinRuntime, isOpenFin } from "@wellsfargo-starui/host-openfin";
+import { BrowserRuntime } from "@wellsfargo-starui/core/host/browser";
+import { OpenFinRuntime, isOpenFin } from "@wellsfargo-starui/openfin/host";
 import { useOpenFinThemeSync } from "./useOpenFinThemeSync";
-import { DataHubProvider } from "@wellsfargo-starui/host-data-react/runtime";
-import type { RuntimePort } from "@wellsfargo-starui/host";
+import { DataHubProvider } from "@wellsfargo-starui/react/data/runtime";
+import type { RuntimePort } from "@wellsfargo-starui/core/host";
 import {
   initConfigBootstrap,
   initPlatformBootstrap,
@@ -31,7 +31,7 @@ const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
 
 const WorkspaceSetup = React.lazy(() =>
-  import("@wellsfargo-starui/workspace-setup-react").then((m) => ({ default: m.WorkspaceSetup })),
+  import("@wellsfargo-starui/react/workspace-setup").then((m) => ({ default: m.WorkspaceSetup })),
 );
 
 /** Workspace-setup mounts outside StarGridApp/OpenFinRuntime, so it subscribes

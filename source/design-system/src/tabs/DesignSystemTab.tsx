@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ScrollArea } from '@wellsfargo-starui/ui';
+import { ScrollArea } from '@wellsfargo-starui/react';
 import { SHOWCASE_CATEGORIES } from '../showcase/types';
 import { entriesByCategory } from '../showcase/registry';
 import { ComponentDemo } from '../showcase/ComponentDemo';

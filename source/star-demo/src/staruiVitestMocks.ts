@@ -69,28 +69,28 @@ vi.mock('@wellsfargo-starui/types', () => ({
   LOGGED_IN_USER_ID: 'dev1',
 }));
 
-vi.mock('@wellsfargo-starui/host-openfin', () => ({
+vi.mock('@wellsfargo-starui/openfin/host', () => ({
   OpenFinRuntime: { create: () => mockOpenFinRuntimeCreate() },
   isOpenFin: () => mockIsOpenFin(),
   subscribeThemeBroadcast: (...args: unknown[]) => mockSubscribeThemeBroadcast(...args),
 }));
 
-vi.mock('@wellsfargo-starui/host-browser', () => ({
+vi.mock('@wellsfargo-starui/core/host/browser', () => ({
   BrowserRuntime: mockBrowserRuntime,
 }));
 
-vi.mock('@wellsfargo-starui/host', () => ({
+vi.mock('@wellsfargo-starui/core/host', () => ({
   buildGridHostContext: (...args: unknown[]) => mockBuildGridHostContext(...args),
   storageFactoryForPersistence: (...args: unknown[]) => mockStorageFactoryForPersistence(...args),
   defineStarGridPlugin: (...args: unknown[]) => mockDefineStarGridPlugin(...args),
 }));
 
-vi.mock('@wellsfargo-starui/host-config', () => ({
+vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigServiceStorage: (...args: unknown[]) => mockCreateConfigServiceStorage(...args),
   createConfigPort: (...args: unknown[]) => mockCreateConfigPort(...args),
 }));
 
-vi.mock('@wellsfargo-starui/host-data', () => ({
+vi.mock('@wellsfargo-starui/data', () => ({
   ensureConfigReady: (...args: unknown[]) => mockEnsureConfigReady(...args),
   ensurePlatformReady: (...args: unknown[]) => mockEnsurePlatformReady(...args),
   resolvePlatformBootstrapFromJson: (...args: unknown[]) =>
@@ -99,37 +99,37 @@ vi.mock('@wellsfargo-starui/host-data', () => ({
     mockResolvePlatformBootstrapFromManifest(...args),
 }));
 
-vi.mock('@wellsfargo-starui/openfin-platform/config', () => ({
+vi.mock('@wellsfargo-starui/openfin/config', () => ({
   resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>
     mockResolvePlatformBootstrapFromManifest(...args),
   setConfigManager: (...args: unknown[]) => mockSetConfigManager(...args),
 }));
 
-vi.mock('@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url', () => ({
+vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));
 
-vi.mock('@wellsfargo-starui/openfin-platform', () => ({
+vi.mock('@wellsfargo-starui/openfin', () => ({
   initWorkspace: (...args: unknown[]) => mockInitWorkspace(...args),
   ACTION_EXPORT_CONFIG: 'export-config',
   ACTION_IMPORT_CONFIG: 'import-config',
 }));
 
-vi.mock('@wellsfargo-starui/host-wrapper-react/test-bridge', () => ({
+vi.mock('@wellsfargo-starui/react/host/test-bridge', () => ({
   installTestBridge: (...args: unknown[]) => mockInstallTestBridge(...args),
 }));
 
-vi.mock('@wellsfargo-starui/config-browser', () => ({
+vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
   ConfigBrowserPanel: () =>
     React.createElement('div', { 'data-testid': 'config-browser-panel' }, 'Config Browser'),
 }));
 
-vi.mock('@wellsfargo-starui/widgets-react/hosted', () => ({
+vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   HostedMarketsGrid: (props: Record<string, unknown>) =>
     React.createElement(
       'div',
@@ -158,7 +158,7 @@ vi.mock('@wellsfargo-starui/widgets-react/hosted', () => ({
     ),
 }));
 
-vi.mock('@wellsfargo-starui/widgets-react/provider-editor', () => ({
+vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({
   DataProviderEditor: (props: Record<string, unknown>) =>
     React.createElement('div', {
       'data-testid': 'data-provider-editor',
@@ -167,7 +167,7 @@ vi.mock('@wellsfargo-starui/widgets-react/provider-editor', () => ({
     }),
 }));
 
-vi.mock('@wellsfargo-starui/workspace-setup-react', () => ({
+vi.mock('@wellsfargo-starui/react/workspace-setup', () => ({
   WorkspaceSetup: () =>
     React.createElement('div', { 'data-testid': 'workspace-setup' }, 'Workspace Setup'),
 }));

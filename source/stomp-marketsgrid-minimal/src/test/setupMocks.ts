@@ -15,24 +15,24 @@ export const staruiTestState = {
   resolvePlatformBootstrapFromJson: vi.fn(),
 };
 
-vi.mock('@wellsfargo-starui/host-data', () => ({
+vi.mock('@wellsfargo-starui/data', () => ({
   ensurePlatformReady: (...args: unknown[]) => staruiTestState.ensurePlatformReady(...args),
   resolvePlatformBootstrapFromJson: (...args: unknown[]) =>
     staruiTestState.resolvePlatformBootstrapFromJson(...args),
 }));
 
-vi.mock('@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url', () => ({
+vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ configStore: staruiTestState.configStore }),
   useUserIdFromContext: () => 'test-user',
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));
 
-vi.mock('@wellsfargo-starui/widgets-react/hosted', () => ({
+vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   HostedMarketsGrid: (props: Record<string, unknown>) =>
     React.createElement('div', {
       'data-testid': 'hosted-markets-grid',

@@ -1,4 +1,4 @@
-import { ScrollArea } from '@wellsfargo-starui/ui';
+import { ScrollArea } from '@wellsfargo-starui/react';
 import { useEffect, useState } from 'react';
 import { fmtPrice, fmtYield } from '../data/formatters';
 import { makeRng, DEALERS } from '../data/seeds';

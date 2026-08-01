@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { Button } from '@wellsfargo-starui/ui';
+import { Button } from '@wellsfargo-starui/react';
 
 export interface CodeBlockProps {
   code: string;

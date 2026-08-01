@@ -1,7 +1,7 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
 import { useMemo } from 'react';
 import { PieChart, Pie, Cell } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import { useDemoState } from '../../state/DemoStateProvider';
 
 const SECTOR_CHART_COLORS = [

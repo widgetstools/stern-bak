@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import {
   Button, Checkbox, Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage,
   Input, InputOTP, InputOTPGroup, InputOTPSlot, Label, RadioGroup, RadioGroupItem, Slider, Switch, Textarea,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ShowcaseEntry } from '../types';
 
 function FormDemo() {
@@ -34,19 +34,19 @@ function FormDemo() {
 export const inputsEntries: ShowcaseEntry[] = [
   {
     id: 'input', name: 'Input', category: 'inputs',
-    importLine: "import { Input } from '@wellsfargo-starui/ui';",
+    importLine: "import { Input } from '@wellsfargo-starui/react';",
     code: `<Input placeholder="Search instruments…" />`,
     Demo: () => <Input className="w-[260px]" placeholder="Search instruments…" />,
   },
   {
     id: 'textarea', name: 'Textarea', category: 'inputs',
-    importLine: "import { Textarea } from '@wellsfargo-starui/ui';",
+    importLine: "import { Textarea } from '@wellsfargo-starui/react';",
     code: `<Textarea placeholder="Order notes…" />`,
     Demo: () => <Textarea className="w-[260px]" placeholder="Order notes…" />,
   },
   {
     id: 'label', name: 'Label', category: 'inputs',
-    importLine: "import { Label, Input } from '@wellsfargo-starui/ui';",
+    importLine: "import { Label, Input } from '@wellsfargo-starui/react';",
     code: `<Label htmlFor="qty">Quantity</Label>
 <Input id="qty" />`,
     Demo: () => (
@@ -58,7 +58,7 @@ export const inputsEntries: ShowcaseEntry[] = [
   },
   {
     id: 'input-otp', name: 'Input OTP', category: 'inputs',
-    importLine: "import { InputOTP, InputOTPGroup, InputOTPSlot } from '@wellsfargo-starui/ui';",
+    importLine: "import { InputOTP, InputOTPGroup, InputOTPSlot } from '@wellsfargo-starui/react';",
     code: `<InputOTP maxLength={4}>
   <InputOTPGroup>
     <InputOTPSlot index={0} /><InputOTPSlot index={1} />
@@ -76,7 +76,7 @@ export const inputsEntries: ShowcaseEntry[] = [
   },
   {
     id: 'form', name: 'Form', category: 'inputs',
-    importLine: "import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@wellsfargo-starui/ui';",
+    importLine: "import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@wellsfargo-starui/react';",
     code: `const form = useForm({ defaultValues: { ticker: '' } });
 <Form {...form}>
   <FormField name="ticker" control={form.control} rules={{ required: true }}
@@ -92,13 +92,13 @@ export const inputsEntries: ShowcaseEntry[] = [
   },
   {
     id: 'slider', name: 'Slider', category: 'inputs',
-    importLine: "import { Slider } from '@wellsfargo-starui/ui';",
+    importLine: "import { Slider } from '@wellsfargo-starui/react';",
     code: `<Slider defaultValue={[50]} max={100} step={1} />`,
     Demo: () => <Slider className="w-[240px]" defaultValue={[50]} max={100} step={1} />,
   },
   {
     id: 'checkbox', name: 'Checkbox', category: 'inputs',
-    importLine: "import { Checkbox, Label } from '@wellsfargo-starui/ui';",
+    importLine: "import { Checkbox, Label } from '@wellsfargo-starui/react';",
     code: `<Checkbox id="agree" />
 <Label htmlFor="agree">Settle T+1</Label>`,
     Demo: () => (
@@ -110,7 +110,7 @@ export const inputsEntries: ShowcaseEntry[] = [
   },
   {
     id: 'switch', name: 'Switch', category: 'inputs',
-    importLine: "import { Switch, Label } from '@wellsfargo-starui/ui';",
+    importLine: "import { Switch, Label } from '@wellsfargo-starui/react';",
     code: `<Switch id="live" />
 <Label htmlFor="live">Live prices</Label>`,
     Demo: () => (
@@ -122,7 +122,7 @@ export const inputsEntries: ShowcaseEntry[] = [
   },
   {
     id: 'radio-group', name: 'Radio Group', category: 'inputs',
-    importLine: "import { RadioGroup, RadioGroupItem, Label } from '@wellsfargo-starui/ui';",
+    importLine: "import { RadioGroup, RadioGroupItem, Label } from '@wellsfargo-starui/react';",
     code: `<RadioGroup defaultValue="mid">
   <div className="flex items-center gap-2"><RadioGroupItem value="bid" id="r-bid" /><Label htmlFor="r-bid">Bid</Label></div>
   <div className="flex items-center gap-2"><RadioGroupItem value="mid" id="r-mid" /><Label htmlFor="r-mid">Mid</Label></div>

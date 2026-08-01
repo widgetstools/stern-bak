@@ -4,7 +4,7 @@ import {
   type MarketsGridLocalStorageConfig,
   type ProfileSnapshot,
   type SerializedState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import type { TabSeed } from '../seeds/types';
 
 export interface LabDemoProfileEntry {

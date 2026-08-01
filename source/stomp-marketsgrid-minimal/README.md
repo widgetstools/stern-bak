@@ -19,7 +19,7 @@ No OpenFin, no routing, no provider editor UI — full-screen `HostedMarketsGrid
 Optional for local package development:
 
 - `STARUI_DEV_SOURCE=1` is already set on the app's `dev` script. Vite resolves `@wellsfargo-starui/*` from live `packages/` source instead of `libs/*.tgz` tarballs.
-- If you change worker/hub code, rebuild the worker asset once: `npm run build --workspace=@wellsfargo-starui/host-data` (or full `npm run build` from root).
+- If you change worker/hub code, rebuild the worker asset once: `npm run build --workspace=@wellsfargo-starui/data` (or full `npm run build` from root).
 
 ### STOMP topics
 
@@ -90,7 +90,7 @@ sequenceDiagram
 1. Reads `public/app-config.json` (`appId`, `userId`, local vs REST).
 2. Calls `ensurePlatformReady(config, { workerScriptUrl })`, which:
    - Creates and **`init()`s** a **main-thread** `ConfigManager` (IndexedDB / optional REST).
-   - Spawns the **SharedWorker** (`@wellsfargo-starui/host-data` default entry).
+   - Spawns the **SharedWorker** (`@wellsfargo-starui/data` default entry).
    - In the worker: second `ConfigManager` + `hydrateCatalog()` + `hydrateAppData()` from IndexedDB.
    - Waits until AppData mirror + worker catalog are ready.
 3. Returns `platform` (`client`, `appData`, `configManager`, …).
@@ -160,7 +160,7 @@ Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-fre
 | Blank screen briefly, then grid | Normal — `App` returns `null` until catalog seed resolves |
 | Grid empty / `loading` forever | Is `npm run dev:stomp` running? WebSocket `ws://localhost:8081` reachable? |
 | Provider not in hub inspector | Open **Alt+Shift+S** after grid mounts; look for running slot + row count |
-| Stale hub code after package edits | Rebuild `@wellsfargo-starui/host-data` worker asset; restart Vite |
+| Stale hub code after package edits | Rebuild `@wellsfargo-starui/data` worker asset; restart Vite |
 | IndexedDB state from old runs | DevTools → Application → IndexedDB → `marketsui-config` → clear `appConfig` |
 
 ---

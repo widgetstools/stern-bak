@@ -12,7 +12,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import {
   Bold,
   Italic,

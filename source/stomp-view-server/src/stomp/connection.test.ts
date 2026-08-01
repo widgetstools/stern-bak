@@ -11,7 +11,10 @@ import type { WebSocket } from 'ws';
 import type { AppConfig } from '../config.js';
 import { StompConnection } from './connection.js';
 
-type MockWebSocket = WebSocket & {
+// Omit bufferedAmount so the mock's copy is writable — the real ws type
+// declares it readonly, but the backpressure tests drive it directly.
+type MockWebSocket = Omit<WebSocket, 'bufferedAmount'> & {
+  bufferedAmount: number;
   sent: string[];
   handlers: Record<string, Array<(...args: unknown[]) => void>>;
   emit: (event: string, ...args: unknown[]) => void;

@@ -12,7 +12,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import {
   BookOpen,
   Database,
@@ -129,8 +129,8 @@ function QuickStart() {
       <Section title="The workspace at a glance" icon={<Layers size={12} strokeWidth={1.75} />}>
         <ItemRow icon={<Plug size={13} strokeWidth={1.75} />} name="Grid A + Grid B (docked)" desc="Two independent <HostedMarketsGrid /> instances split horizontally. Each has its own profile bundle and picker state; both share the same DataServices client (one SharedWorker hub fans out to both)." />
         <ItemRow icon={<BookOpen size={13} strokeWidth={1.75} />} name="Live stats (bottom strip)" desc="Reads each grid's persisted picker state from localStorage and echoes the active providerId per side." />
-        <ItemRow icon={<Database size={13} strokeWidth={1.75} />} name="Provider Editor (floating, on demand)" desc="Open from View → Provider Editor. Floats as a non-dockable window — drag/resize, but can't be docked into the workspace tree. Renders <DataProviderEditor /> from @wellsfargo-starui/widgets-react." />
-        <ItemRow icon={<Database size={13} strokeWidth={1.75} />} name="Config Browser (floating, on demand)" desc="Open from View → Config Browser. Same floating semantics. Renders <ConfigBrowserPanel /> from @wellsfargo-starui/config-browser — inspects every Dexie table the platform writes to." />
+        <ItemRow icon={<Database size={13} strokeWidth={1.75} />} name="Provider Editor (floating, on demand)" desc="Open from View → Provider Editor. Floats as a non-dockable window — drag/resize, but can't be docked into the workspace tree. Renders <DataProviderEditor /> from @wellsfargo-starui/grid/widgets." />
+        <ItemRow icon={<Database size={13} strokeWidth={1.75} />} name="Config Browser (floating, on demand)" desc="Open from View → Config Browser. Same floating semantics. Renders <ConfigBrowserPanel /> from @wellsfargo-starui/grid/config-browser — inspects every Dexie table the platform writes to." />
       </Section>
 
       <Section title="Header controls" icon={<Layers size={12} strokeWidth={1.75} />}>
@@ -194,7 +194,7 @@ function EditorDocs() {
       <Section title="The component" icon={<Database size={12} strokeWidth={1.75} />}>
         <Prose>
           <Code>{`<DataProviderEditor userId={LOGGED_IN_USER_ID} initialProviderId={...} onClose={...} />`}</Code> from
-          <Code>@wellsfargo-starui/widgets-react/provider-editor</Code>. Self-contained:
+          <Code>@wellsfargo-starui/grid/widgets/provider-editor</Code>. Self-contained:
           a list sidebar (left), a tabbed form (right), create/delete dialogs.
           Requires only <Code>{`<DataHubProvider>`}</Code> in the tree —
           no other context.
@@ -244,7 +244,7 @@ function HostedGridDocs() {
       <Section title="The component" icon={<Plug size={12} strokeWidth={1.75} />}>
         <Prose>
           <Code>{`<HostedMarketsGrid />`}</Code> from
-          <Code>@wellsfargo-starui/widgets-react/hosted</Code> is a wrapping shell
+          <Code>@wellsfargo-starui/grid/widgets/hosted</Code> is a wrapping shell
           that owns identity (instanceId / appId / userId), resolves a
           ConfigManager, mounts <Code>{`<DataHubProvider>`}</Code>
           if needed, picks an AG-Grid theme, and delegates to

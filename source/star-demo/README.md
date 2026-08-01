@@ -111,8 +111,8 @@ column layouts, filters, and formatting persist per instance via
    `/blotters/marketsgrid` as a view with a freshly minted `instanceId`, so
    multiple independent blotters can coexist, each with its own saved layout.
 
-The registry is read/written by `@wellsfargo-starui/openfin-platform` and the
-`@wellsfargo-starui/workspace-setup-react` UI; this app only has to **expose the route**.
+The registry is read/written by `@wellsfargo-starui/openfin` and the
+`@wellsfargo-starui/react/workspace-setup` UI; this app only has to **expose the route**.
 No per-component wiring is needed in the app beyond the route declaration.
 
 ---
@@ -120,13 +120,13 @@ No per-component wiring is needed in the app beyond the route declaration.
 ## Dock Tools menu — no Import/Export Config
 
 The built-in Tools menu (Workspace Setup, Data Providers, Config Browser,
-Reload Dock, Developer Tools, …) is provided by `@wellsfargo-starui/openfin-platform`.
+Reload Dock, Developer Tools, …) is provided by `@wellsfargo-starui/openfin`.
 This app hides the two config-bundle items by passing their action IDs to the
 new opt-in `dock.excludeTools` option in
 [`src/platform/Provider.tsx`](src/platform/Provider.tsx):
 
 ```ts
-import { initWorkspace, ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG } from "@wellsfargo-starui/openfin-platform";
+import { initWorkspace, ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG } from "@wellsfargo-starui/openfin";
 
 initWorkspace({
   dockIcon: "http://localhost:5175/dock-provider.png",

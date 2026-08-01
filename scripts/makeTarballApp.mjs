@@ -131,7 +131,7 @@ export default defineConfig({
     // \`new URL(..., import.meta.url)\` resolution. A package cannot opt itself
     // out of the optimizer, so consumers add this one line. \`vite build\` and
     // every other bundler need nothing.
-    exclude: ['@wellsfargo-starui/host-data'],
+    exclude: ['@wellsfargo-starui/data'],
   },
 });
 `;

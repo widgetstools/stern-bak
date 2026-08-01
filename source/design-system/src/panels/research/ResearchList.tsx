@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
-import { Badge, ScrollArea } from '@wellsfargo-starui/ui';
+import { Badge, ScrollArea } from '@wellsfargo-starui/react';
 import { RESEARCH_NOTES } from '../../data/seeds';
 import type { ResearchNote } from '../../data/types';
 import { useResearchSelection } from '../../state/ResearchProvider';

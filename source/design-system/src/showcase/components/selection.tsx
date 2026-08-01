@@ -7,7 +7,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
   Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarTrigger,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ShowcaseEntry } from '../types';
 
 function CalendarDemo() {
@@ -18,7 +18,7 @@ function CalendarDemo() {
 export const selectionEntries: ShowcaseEntry[] = [
   {
     id: 'select', name: 'Select', category: 'selection',
-    importLine: "import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@wellsfargo-starui/ui';",
+    importLine: "import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@wellsfargo-starui/react';",
     code: `<Select defaultValue="t1">
   <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
   <SelectContent>
@@ -39,7 +39,7 @@ export const selectionEntries: ShowcaseEntry[] = [
   },
   {
     id: 'command', name: 'Command', category: 'selection',
-    importLine: "import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@wellsfargo-starui/ui';",
+    importLine: "import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@wellsfargo-starui/react';",
     code: `<Command className="w-[280px] border">
   <CommandInput placeholder="Search instruments…" />
   <CommandList>
@@ -66,14 +66,14 @@ export const selectionEntries: ShowcaseEntry[] = [
   },
   {
     id: 'calendar', name: 'Calendar', category: 'selection',
-    importLine: "import { Calendar } from '@wellsfargo-starui/ui';",
+    importLine: "import { Calendar } from '@wellsfargo-starui/react';",
     code: `const [date, setDate] = useState<Date>();
 <Calendar mode="single" selected={date} onSelect={setDate} />`,
     Demo: CalendarDemo,
   },
   {
     id: 'dropdown-menu', name: 'Dropdown Menu', category: 'selection',
-    importLine: "import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@wellsfargo-starui/ui';",
+    importLine: "import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@wellsfargo-starui/react';",
     code: `<DropdownMenu>
   <DropdownMenuTrigger asChild><Button variant="outline">Actions</Button></DropdownMenuTrigger>
   <DropdownMenuContent>
@@ -97,7 +97,7 @@ export const selectionEntries: ShowcaseEntry[] = [
   },
   {
     id: 'context-menu', name: 'Context Menu', category: 'selection',
-    importLine: "import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@wellsfargo-starui/ui';",
+    importLine: "import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@wellsfargo-starui/react';",
     code: `<ContextMenu>
   <ContextMenuTrigger>Right-click a row</ContextMenuTrigger>
   <ContextMenuContent>
@@ -120,7 +120,7 @@ export const selectionEntries: ShowcaseEntry[] = [
   },
   {
     id: 'menubar', name: 'Menubar', category: 'selection',
-    importLine: "import { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem } from '@wellsfargo-starui/ui';",
+    importLine: "import { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem } from '@wellsfargo-starui/react';",
     code: `<Menubar>
   <MenubarMenu>
     <MenubarTrigger>View</MenubarTrigger>

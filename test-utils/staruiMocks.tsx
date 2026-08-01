@@ -24,7 +24,7 @@ export function installStaruiMocks() {
     }),
   }));
 
-  vi.mock('@wellsfargo-starui/engine', () => ({
+  vi.mock('@wellsfargo-starui/core', () => ({
     marketsGridLocalStorageBundleKey: (id: string) => `bundle:${id}`,
     activeProfileKey: (id: string) => `active:${id}`,
   }));
@@ -36,7 +36,7 @@ export function installStaruiMocks() {
       React.createElement(React.Fragment, null, children),
   }));
 
-  vi.mock('@wellsfargo-starui/ui', () => {
+  vi.mock('@wellsfargo-starui/react', () => {
     const passthrough =
       (Tag: keyof JSX.IntrinsicElements = 'div') =>
       ({ children, ...rest }: React.PropsWithChildren<Record<string, unknown>>) =>

@@ -2,7 +2,7 @@ import type {
   ColumnAssignment,
   ColumnCustomizationState,
 } from '@wellsfargo-starui/grid/customizer';
-import type { ValueFormatterTemplate } from '@wellsfargo-starui/engine';
+import type { ValueFormatterTemplate } from '@wellsfargo-starui/core';
 
 // Helper builders so seed entries stay readable.
 function tpl(t: ValueFormatterTemplate): ValueFormatterTemplate { return t; }

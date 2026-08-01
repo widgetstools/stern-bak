@@ -15,13 +15,13 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
   getTheme: () => mockGetTheme(),
 }));
 
-vi.mock('@wellsfargo-starui/ui', () => ({
+vi.mock('@wellsfargo-starui/react', () => ({
   Alert: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
   AlertDescription: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
   AlertTitle: ({ children }: { children: React.ReactNode }) => React.createElement('h2', null, children),
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));

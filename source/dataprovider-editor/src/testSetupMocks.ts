@@ -41,7 +41,7 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('@wellsfargo-starui/ui', () => {
+vi.mock('@wellsfargo-starui/react', () => {
   const passthrough =
     (Tag: keyof JSX.IntrinsicElements = 'div') =>
     ({
@@ -97,12 +97,12 @@ vi.mock('@wellsfargo-starui/types', () => ({
   LOGGED_IN_USER_ID: 'dev1',
 }));
 
-vi.mock('@wellsfargo-starui/config-browser', () => ({
+vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
   ConfigBrowserPanel: () =>
     React.createElement('div', { 'data-testid': 'star-config-browser' }, 'Config Browser'),
 }));
 
-vi.mock('@wellsfargo-starui/widgets-react/hosted', () => ({
+vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   HostedMarketsGrid: (props: Record<string, unknown>) =>
     React.createElement(
       'div',
@@ -123,7 +123,7 @@ vi.mock('@wellsfargo-starui/widgets-react/hosted', () => ({
     ),
 }));
 
-vi.mock('@wellsfargo-starui/widgets-react/provider-editor', () => ({
+vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({
   DataProviderEditor: (props: Record<string, unknown>) =>
     React.createElement(
       'div',
@@ -140,12 +140,12 @@ vi.mock('@wellsfargo-starui/widgets-react/provider-editor', () => ({
     ),
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));
 
-vi.mock('@wellsfargo-starui/host-data', () => ({
+vi.mock('@wellsfargo-starui/data', () => ({
   ensurePlatformReady: vi.fn(async () => ({
     client: {},
     appData: {},
@@ -159,7 +159,7 @@ vi.mock('@wellsfargo-starui/host-data', () => ({
   })),
 }));
 
-vi.mock('@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url', () => ({
+vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 

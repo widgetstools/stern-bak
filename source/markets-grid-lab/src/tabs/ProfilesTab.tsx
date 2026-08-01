@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { MarketsGrid } from '@wellsfargo-starui/grid';
-import { Button } from '@wellsfargo-starui/ui';
+import { Button } from '@wellsfargo-starui/react';
 import { TabContainer } from '../components/TabContainer';
 import { defaultColDef } from '../data/columns';
 import { useLabDemoProfiles } from '../data/useLabDemoProfiles';

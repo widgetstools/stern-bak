@@ -17,7 +17,7 @@ export const SHOWCASE_CATEGORIES: { id: ShowcaseCategory; label: string }[] = [
 ];
 
 export interface ShowcaseEntry {
-  /** Matches the `@wellsfargo-starui/ui` component file basename, e.g. 'alert-dialog', 'button'. */
+  /** Matches the `@wellsfargo-starui/react` component file basename, e.g. 'alert-dialog', 'button'. */
   id: string;
   name: string;
   category: ShowcaseCategory;

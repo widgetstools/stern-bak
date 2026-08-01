@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
-import { Tabs, TabsContent, TooltipProvider } from '@wellsfargo-starui/ui';
+import { Tabs, TabsContent, TooltipProvider } from '@wellsfargo-starui/react';
 import { LabSidebarNav } from './components/LabSidebarNav';
 import { ThemeToggle } from './components/ThemeToggle';
 import { HomeTab } from './tabs/HomeTab';

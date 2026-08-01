@@ -110,7 +110,7 @@ export async function expectSelectDisplay(
   await expect(page.locator(`[data-testid="${testId}"]`)).toContainText(label);
 }
 
-/** Clicks a Radix `@wellsfargo-starui/ui` Switch wired with `data-testid`. */
+/** Clicks a Radix `@wellsfargo-starui/react` Switch wired with `data-testid`. */
 export async function clickSwitch(page: Page, testId: string): Promise<void> {
   await page.locator(`[data-testid="${testId}"]`).click();
 }

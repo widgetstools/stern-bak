@@ -1,5 +1,5 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
-import { Card, CardContent, CardHeader, CardTitle } from '@wellsfargo-starui/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@wellsfargo-starui/react';
 import { BOOK_RISK } from '../../data/seeds';
 import { fmtMoney } from '../../data/formatters';
 

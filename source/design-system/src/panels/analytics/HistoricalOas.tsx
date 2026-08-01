@@ -1,7 +1,7 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
 import { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import { makeRng } from '../../data/seeds';
 
 const CHART_CONFIG: ChartConfig = {

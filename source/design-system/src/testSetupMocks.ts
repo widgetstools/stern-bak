@@ -50,7 +50,7 @@ vi.mock('@wellsfargo-starui/design-system/adapters/ag-grid', () => ({
   agGridBlotterDarkTheme: { name: 'agGridBlotterDarkTheme' },
 }));
 
-vi.mock('@wellsfargo-starui/ui', () => {
+vi.mock('@wellsfargo-starui/react', () => {
   const Form = ({
     children,
     ...rest
@@ -331,7 +331,7 @@ vi.mock('@wellsfargo-starui/ui', () => {
   };
 });
 
-vi.mock('@wellsfargo-starui/ui/chart', () => ({
+vi.mock('@wellsfargo-starui/react/chart', () => ({
   ChartContainer: ({
     children,
     className,

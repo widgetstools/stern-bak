@@ -10,11 +10,11 @@
  * which reads it via `useSearchParams`.
  *
  * Previously this helper branched on `isOpenFin()` to call either
- * `window.open()` or `@wellsfargo-starui/openfin-platform/openDataProvidersToolWindow`.
+ * `window.open()` or `@wellsfargo-starui/openfin`.
  * That duplication is gone; the runtime port is the single seam.
  */
 
-import type { RuntimePort } from '@wellsfargo-starui/host';
+import type { RuntimePort } from '@wellsfargo-starui/core/host';
 
 const POPOUT_NAME = 'data-providers';
 const POPOUT_WIDTH = 1180;
@@ -53,7 +53,7 @@ function buildUrl(route: string, providerId?: string): string {
   // (Vite app origin = OpenFin manifest providerUrl origin), so
   // `window.location.origin` is correct in both contexts. The
   // historical `resolveProviderOrigin()` indirection in
-  // `@wellsfargo-starui/openfin-platform` exists for the platform provider
+  // `@wellsfargo-starui/openfin` exists for the platform provider
   // window, which may run in a different document context — views
   // don't have that problem.
   const origin = window.location.origin;

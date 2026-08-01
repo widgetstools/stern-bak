@@ -1,5 +1,5 @@
 import { CartesianGrid, Line, LineChart, XAxis } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import type { ShowcaseEntry } from '../types';
 
 const DATA = [
@@ -17,7 +17,7 @@ const CONFIG = {
 export const chartsEntries: ShowcaseEntry[] = [
   {
     id: 'chart', name: 'Chart', category: 'charts',
-    importLine: "import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';",
+    importLine: "import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';",
     code: `const config = { yield: { label: 'Yield %', color: 'var(--ds-chart-1)' } } satisfies ChartConfig;
 
 <ChartContainer config={config} className="h-[200px] w-full">

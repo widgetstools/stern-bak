@@ -1,1 +1,1 @@
-export { defineStarGridPlugin, type StarGridPlugin } from '@wellsfargo-starui/host';
+export { defineStarGridPlugin, type StarGridPlugin } from '@wellsfargo-starui/core/host';

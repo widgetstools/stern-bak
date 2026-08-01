@@ -1,7 +1,7 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Cell, LabelList } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import { useDemoState } from '../../state/DemoStateProvider';
 
 const CHART_CONFIG: ChartConfig = {

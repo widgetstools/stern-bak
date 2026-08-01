@@ -31,7 +31,7 @@ describe('main', () => {
   });
 
   it('renders bootstrap error UI when platform init fails', async () => {
-    const { ensurePlatformReady } = await import('@wellsfargo-starui/host-data');
+    const { ensurePlatformReady } = await import('@wellsfargo-starui/data');
     vi.mocked(ensurePlatformReady).mockRejectedValueOnce(new Error('worker down'));
 
     vi.resetModules();
@@ -45,7 +45,7 @@ describe('main', () => {
   });
 
   it('renders bootstrap error UI for non-Error rejection', async () => {
-    const { ensurePlatformReady } = await import('@wellsfargo-starui/host-data');
+    const { ensurePlatformReady } = await import('@wellsfargo-starui/data');
     vi.mocked(ensurePlatformReady).mockRejectedValueOnce('plain failure');
 
     vi.resetModules();

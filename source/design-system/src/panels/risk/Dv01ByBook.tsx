@@ -1,6 +1,6 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import { BOOK_RISK } from '../../data/seeds';
 
 // ── chart config at module scope ──────────────────────────────────────────────

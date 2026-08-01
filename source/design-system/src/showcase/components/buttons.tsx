@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Toggle, ToggleGroup, ToggleGroupItem } from '@wellsfargo-starui/ui';
+import { Button, ButtonGroup, Toggle, ToggleGroup, ToggleGroupItem } from '@wellsfargo-starui/react';
 import { Bold, Italic, Underline } from 'lucide-react';
 import type { ShowcaseEntry } from '../types';
 
@@ -7,7 +7,7 @@ export const buttonsEntries: ShowcaseEntry[] = [
     id: 'button',
     name: 'Button',
     category: 'buttons',
-    importLine: "import { Button } from '@wellsfargo-starui/ui';",
+    importLine: "import { Button } from '@wellsfargo-starui/react';",
     code: `<div className="flex gap-2">
   <Button>Default</Button>
   <Button variant="secondary">Secondary</Button>
@@ -31,7 +31,7 @@ export const buttonsEntries: ShowcaseEntry[] = [
     id: 'button-group',
     name: 'Button Group',
     category: 'buttons',
-    importLine: "import { ButtonGroup, Button } from '@wellsfargo-starui/ui';",
+    importLine: "import { ButtonGroup, Button } from '@wellsfargo-starui/react';",
     code: `<ButtonGroup>
   <Button variant="outline">Bid</Button>
   <Button variant="outline">Mid</Button>
@@ -49,7 +49,7 @@ export const buttonsEntries: ShowcaseEntry[] = [
     id: 'toggle',
     name: 'Toggle',
     category: 'buttons',
-    importLine: "import { Toggle } from '@wellsfargo-starui/ui';",
+    importLine: "import { Toggle } from '@wellsfargo-starui/react';",
     code: `<Toggle aria-label="Bold"><Bold size={14} /></Toggle>`,
     Demo: () => (
       <Toggle aria-label="Toggle bold">
@@ -61,7 +61,7 @@ export const buttonsEntries: ShowcaseEntry[] = [
     id: 'toggle-group',
     name: 'Toggle Group',
     category: 'buttons',
-    importLine: "import { ToggleGroup, ToggleGroupItem } from '@wellsfargo-starui/ui';",
+    importLine: "import { ToggleGroup, ToggleGroupItem } from '@wellsfargo-starui/react';",
     code: `<ToggleGroup type="multiple">
   <ToggleGroupItem value="bold"><Bold size={14} /></ToggleGroupItem>
   <ToggleGroupItem value="italic"><Italic size={14} /></ToggleGroupItem>

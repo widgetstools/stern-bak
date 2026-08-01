@@ -7,7 +7,7 @@ import {
 import {
   marketsGridLocalStorageBundleKey,
   activeProfileKey,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 import {
   applyTheme,
   getTheme,
@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { Sun, Moon, CircleHelp } from 'lucide-react';
 import { buildBondInventory } from './mockBonds';
 import { bondColumnDefs, bondDefaultColDef } from './bondColumns';

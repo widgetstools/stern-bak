@@ -1,9 +1,9 @@
 import type { LabDemoProfileEntry } from '../labProfileKit';
-import type { BulkUpdateSettings, BulkUpdateState } from '@wellsfargo-starui/engine';
+import type { BulkUpdateSettings, BulkUpdateState } from '@wellsfargo-starui/core';
 import {
   INITIAL_BULK_UPDATE,
   INITIAL_DATA_CHANGE_HISTORY,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 export const BULK_UPDATE_GRID_ID = 'lab-bulk-update';
 

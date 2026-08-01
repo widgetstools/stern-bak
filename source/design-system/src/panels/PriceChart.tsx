@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Area, AreaChart, XAxis, YAxis } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import type { TerminalState } from '../data/types';
 
 const CONFIG = { mid: { label: 'Mid', color: 'var(--ds-chart-1)' } } satisfies ChartConfig;

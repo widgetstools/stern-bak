@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ensurePlatformReady,
   resolvePlatformBootstrapFromJson,
-} from '@wellsfargo-starui/host-data';
+} from '@wellsfargo-starui/data';
 
 describe('platformBootstrap', () => {
   beforeEach(() => {

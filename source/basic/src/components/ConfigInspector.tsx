@@ -18,12 +18,12 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { Database, Copy, RefreshCw, Trash2, CheckCircle2 } from 'lucide-react';
 import {
   marketsGridLocalStorageBundleKey,
   type MarketsGridLocalStorageConfig,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 interface ConfigInspectorProps {
   gridId: string;

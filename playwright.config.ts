@@ -55,7 +55,7 @@ export default defineConfig({
     },
     {
       // Hosts the DataProvider editor's Columns tab, which lives in
-      // @wellsfargo-starui/widgets-react and resolves to its dist exports —
+      // @wellsfargo-starui/grid/widgets and resolves to its dist exports —
       // build packages first or the editor serves stale code.
       command: 'npm run dev -w @wellsfargo-starui/stomp-marketsgrid-minimal -- --no-open --force',
       port: 5213,

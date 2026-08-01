@@ -1,5 +1,5 @@
 import { ArrowRight, Layers, Settings2, Save, SlidersHorizontal } from 'lucide-react';
-import { Badge, Card, CardContent, ScrollArea } from '@wellsfargo-starui/ui';
+import { Badge, Card, CardContent, ScrollArea } from '@wellsfargo-starui/react';
 import { LAB_CATEGORIES } from '../guides/categories';
 import { getFeatureGuide } from '../guides/featureGuides';
 

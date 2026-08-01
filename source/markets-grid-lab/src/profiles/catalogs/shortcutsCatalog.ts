@@ -5,7 +5,7 @@ import {
   INITIAL_SHORTCUTS,
   type ShortcutDefinition,
   type ShortcutsState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 export const SHORTCUTS_GRID_ID = 'lab-shortcuts';
 

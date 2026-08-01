@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { applyTheme, getTheme } from '@wellsfargo-starui/design-system';
-import { Button } from '@wellsfargo-starui/ui';
+import { Button } from '@wellsfargo-starui/react';
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<'dark' | 'light'>(

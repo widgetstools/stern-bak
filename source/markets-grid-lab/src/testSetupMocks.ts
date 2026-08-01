@@ -72,8 +72,8 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('@wellsfargo-starui/engine', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wellsfargo-starui/engine')>();
+vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/core')>();
   return {
     ...actual,
     marketsGridLocalStorageBundleKey: (id: string) => `bundle:${id}`,
@@ -100,7 +100,7 @@ vi.mock('@wellsfargo-starui/grid', () => ({
   }),
 }));
 
-vi.mock('@wellsfargo-starui/host-data', () => ({
+vi.mock('@wellsfargo-starui/data', () => ({
   ensurePlatformReady: vi.fn(async () => ({
     client: {},
     appData: {},
@@ -114,11 +114,11 @@ vi.mock('@wellsfargo-starui/host-data', () => ({
   })),
 }));
 
-vi.mock('@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url', () => ({
+vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
-vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useProviderStream: vi.fn(
     (_providerId: string, _cfg: unknown, handlers: { onDelta?: typeof providerOnDelta }) => {
       providerOnDelta = handlers.onDelta;
@@ -139,7 +139,7 @@ vi.mock('@wellsfargo-starui/host-data-react/runtime', () => ({
     ),
 }));
 
-vi.mock('@wellsfargo-starui/ui', () => {
+vi.mock('@wellsfargo-starui/react', () => {
   const passthrough =
     (Tag: keyof React.JSX.IntrinsicElements = 'div') =>
     ({

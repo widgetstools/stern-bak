@@ -9,8 +9,8 @@ import {
   ensurePlatformReady,
   resolvePlatformBootstrapFromJson,
   type ResolvedDataServicesHubBundle,
-} from '@wellsfargo-starui/host-data';
-import workerAssetUrl from '@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url';
+} from '@wellsfargo-starui/data';
+import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
 import { appDataBootstrapHooks } from './platform/appDataBootstrap.js';
 
 /** Set by bootstrap(); read by App for HostedMarketsGrid layout persistence. */

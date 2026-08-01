@@ -6,7 +6,7 @@ import {
   Skeleton,
   Toaster,
   useToast,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ShowcaseEntry } from '../types';
 
 function ToastDemo() {
@@ -27,7 +27,7 @@ function ToastDemo() {
 export const feedbackEntries: ShowcaseEntry[] = [
   {
     id: 'alert', name: 'Alert', category: 'feedback',
-    importLine: "import { Alert, AlertTitle, AlertDescription } from '@wellsfargo-starui/ui';",
+    importLine: "import { Alert, AlertTitle, AlertDescription } from '@wellsfargo-starui/react';",
     code: `<Alert>
   <AlertTitle>Connection restored</AlertTitle>
   <AlertDescription>Live prices are streaming.</AlertDescription>
@@ -42,7 +42,7 @@ export const feedbackEntries: ShowcaseEntry[] = [
   },
   {
     id: 'toast', name: 'Toast', category: 'feedback',
-    importLine: "import { useToast, Toaster } from '@wellsfargo-starui/ui';",
+    importLine: "import { useToast, Toaster } from '@wellsfargo-starui/react';",
     code: `const { toast } = useToast();
 <Button onClick={() => toast({ title: 'Order working' })}>Show toast</Button>
 <Toaster />`,
@@ -50,7 +50,7 @@ export const feedbackEntries: ShowcaseEntry[] = [
   },
   {
     id: 'progress', name: 'Progress', category: 'feedback',
-    importLine: "import { Progress } from '@wellsfargo-starui/ui';",
+    importLine: "import { Progress } from '@wellsfargo-starui/react';",
     code: `<Progress value={64} />`,
     Demo: () => (
       <div className="flex w-[240px] flex-col gap-1">
@@ -61,7 +61,7 @@ export const feedbackEntries: ShowcaseEntry[] = [
   },
   {
     id: 'skeleton', name: 'Skeleton', category: 'feedback',
-    importLine: "import { Skeleton } from '@wellsfargo-starui/ui';",
+    importLine: "import { Skeleton } from '@wellsfargo-starui/react';",
     code: `<Skeleton className="h-4 w-[200px]" />`,
     Demo: () => (
       <div className="flex w-[240px] flex-col gap-2">

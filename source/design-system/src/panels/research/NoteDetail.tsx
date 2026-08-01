@@ -1,5 +1,5 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
-import { Badge, Card, CardContent, CardHeader, CardTitle, ScrollArea } from '@wellsfargo-starui/ui';
+import { Badge, Card, CardContent, CardHeader, CardTitle, ScrollArea } from '@wellsfargo-starui/react';
 import { RESEARCH_NOTES } from '../../data/seeds';
 import type { ResearchNote } from '../../data/types';
 import { useResearchSelection } from '../../state/ResearchProvider';

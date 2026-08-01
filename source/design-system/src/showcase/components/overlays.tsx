@@ -8,13 +8,13 @@ import {
   Popover, PopoverContent, PopoverTrigger,
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
   Tooltip, TooltipContent, TooltipTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ShowcaseEntry } from '../types';
 
 export const overlaysEntries: ShowcaseEntry[] = [
   {
     id: 'dialog', name: 'Dialog', category: 'overlays',
-    importLine: "import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@wellsfargo-starui/ui';",
+    importLine: "import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@wellsfargo-starui/react';",
     code: `<Dialog>
   <DialogTrigger asChild><Button>Open ticket</Button></DialogTrigger>
   <DialogContent>
@@ -38,7 +38,7 @@ export const overlaysEntries: ShowcaseEntry[] = [
   },
   {
     id: 'alert-dialog', name: 'Alert Dialog', category: 'overlays',
-    importLine: "import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogAction, AlertDialogCancel } from '@wellsfargo-starui/ui';",
+    importLine: "import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogAction, AlertDialogCancel } from '@wellsfargo-starui/react';",
     code: `<AlertDialog>
   <AlertDialogTrigger asChild><Button variant="destructive">Cancel all</Button></AlertDialogTrigger>
   <AlertDialogContent>
@@ -70,7 +70,7 @@ export const overlaysEntries: ShowcaseEntry[] = [
   },
   {
     id: 'sheet', name: 'Sheet', category: 'overlays',
-    importLine: "import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@wellsfargo-starui/ui';",
+    importLine: "import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@wellsfargo-starui/react';",
     code: `<Sheet>
   <SheetTrigger asChild><Button variant="outline">Details</Button></SheetTrigger>
   <SheetContent>
@@ -88,7 +88,7 @@ export const overlaysEntries: ShowcaseEntry[] = [
   },
   {
     id: 'drawer', name: 'Drawer', category: 'overlays',
-    importLine: "import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@wellsfargo-starui/ui';",
+    importLine: "import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@wellsfargo-starui/react';",
     code: `<Drawer>
   <DrawerTrigger asChild><Button variant="outline">Open drawer</Button></DrawerTrigger>
   <DrawerContent>
@@ -106,7 +106,7 @@ export const overlaysEntries: ShowcaseEntry[] = [
   },
   {
     id: 'popover', name: 'Popover', category: 'overlays',
-    importLine: "import { Popover, PopoverTrigger, PopoverContent } from '@wellsfargo-starui/ui';",
+    importLine: "import { Popover, PopoverTrigger, PopoverContent } from '@wellsfargo-starui/react';",
     code: `<Popover>
   <PopoverTrigger asChild><Button variant="outline">Filters</Button></PopoverTrigger>
   <PopoverContent>Filter controls…</PopoverContent>
@@ -120,7 +120,7 @@ export const overlaysEntries: ShowcaseEntry[] = [
   },
   {
     id: 'hover-card', name: 'Hover Card', category: 'overlays',
-    importLine: "import { HoverCard, HoverCardTrigger, HoverCardContent } from '@wellsfargo-starui/ui';",
+    importLine: "import { HoverCard, HoverCardTrigger, HoverCardContent } from '@wellsfargo-starui/react';",
     code: `<HoverCard>
   <HoverCardTrigger className="underline">AAPL</HoverCardTrigger>
   <HoverCardContent>Apple Inc — AA+ · Technology</HoverCardContent>
@@ -134,7 +134,7 @@ export const overlaysEntries: ShowcaseEntry[] = [
   },
   {
     id: 'tooltip', name: 'Tooltip', category: 'overlays',
-    importLine: "import { Tooltip, TooltipTrigger, TooltipContent } from '@wellsfargo-starui/ui';",
+    importLine: "import { Tooltip, TooltipTrigger, TooltipContent } from '@wellsfargo-starui/react';",
     code: `<Tooltip>
   <TooltipTrigger asChild><Button variant="outline">DV01</Button></TooltipTrigger>
   <TooltipContent>Dollar value of 1bp</TooltipContent>

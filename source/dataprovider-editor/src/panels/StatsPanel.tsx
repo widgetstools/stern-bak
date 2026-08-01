@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge } from '@wellsfargo-starui/ui';
+import { Badge } from '@wellsfargo-starui/react';
 import { Activity, Database } from 'lucide-react';
 
 /**

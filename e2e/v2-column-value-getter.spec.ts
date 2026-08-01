@@ -5,7 +5,7 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
  * Columns tab, persisted with the provider config, applied by MarketsGrid.
  *
  * Runs against the STOMP minimal app (port 5213), which hosts the provider
- * editor. The expression DSL is the CSP-safe `@wellsfargo-starui/engine` one: column
+ * editor. The expression DSL is the CSP-safe `@wellsfargo-starui/core` one: column
  * refs use bracket syntax with optional-chaining nested paths.
  */
 

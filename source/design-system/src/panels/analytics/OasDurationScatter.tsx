@@ -1,7 +1,7 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
 import { useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import { useDemoState } from '../../state/DemoStateProvider';
 
 const RATING_COLORS: Record<string, string> = {

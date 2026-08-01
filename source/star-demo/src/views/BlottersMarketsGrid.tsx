@@ -5,7 +5,7 @@
  */
 
 import { useCallback, type ReactNode } from 'react';
-import { HostedMarketsGrid } from '@wellsfargo-starui/widgets-react/hosted';
+import { HostedMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
 import { useStarGridApp } from '../starGridApp/index.js';
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { openProviderEditorPopout } from '../dataProvidersPopout';

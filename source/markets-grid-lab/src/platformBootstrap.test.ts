@@ -1,6 +1,6 @@
 import './testSetupMocks';
 import { describe, expect, it, vi } from 'vitest';
-import { ensurePlatformReady, resolvePlatformBootstrapFromJson } from '@wellsfargo-starui/host-data';
+import { ensurePlatformReady, resolvePlatformBootstrapFromJson } from '@wellsfargo-starui/data';
 import { initPlatformBootstrap } from './platformBootstrap';
 import { asLegacyDataServices } from './bootstrap/asLegacyDataServices';
 

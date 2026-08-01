@@ -27,7 +27,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import { Sun, Moon, CircleHelp, LayoutTemplate, Save } from 'lucide-react';
 import { Brand } from './components/Brand';
 import { HelpSheet } from './components/HelpSheet';

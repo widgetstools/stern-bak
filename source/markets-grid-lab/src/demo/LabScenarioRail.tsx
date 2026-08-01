@@ -9,7 +9,7 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
-import { Button, Label, Slider, Switch } from '@wellsfargo-starui/ui';
+import { Button, Label, Slider, Switch } from '@wellsfargo-starui/react';
 import { scenariosForTab } from './scenarios';
 import { useLabDemoRegistry } from './LabDemoContext';
 

@@ -16,7 +16,7 @@
 import { useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { DataProviderEditor } from '@wellsfargo-starui/widgets-react/provider-editor';
+import { DataProviderEditor } from '@wellsfargo-starui/grid/widgets/provider-editor';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 

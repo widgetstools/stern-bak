@@ -1,4 +1,4 @@
-import type { ThemedCellStyleOverrides } from '@wellsfargo-starui/engine';
+import type { ThemedCellStyleOverrides } from '@wellsfargo-starui/core';
 
 /** Theme-aware cell/header background + text (shared by lab seeds). */
 export function bgText(

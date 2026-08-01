@@ -1,5 +1,5 @@
 import { Sun, Moon } from 'lucide-react';
-import { Button } from '@wellsfargo-starui/ui';
+import { Button } from '@wellsfargo-starui/react';
 import { useThemeMode } from '../lib/useThemeMode';
 
 export function ThemeToggle() {

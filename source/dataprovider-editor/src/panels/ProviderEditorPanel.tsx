@@ -1,4 +1,4 @@
-import { DataProviderEditor } from '@wellsfargo-starui/widgets-react/provider-editor';
+import { DataProviderEditor } from '@wellsfargo-starui/grid/widgets/provider-editor';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 
 interface ProviderEditorPanelProps {

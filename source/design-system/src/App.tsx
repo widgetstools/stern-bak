@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger, TooltipProvider, Toaster, toast } from '@wellsfargo-starui/ui';
+import { Tabs, TabsContent, TabsList, TabsTrigger, TooltipProvider, Toaster, toast } from '@wellsfargo-starui/react';
 import { DockManagerCore } from '@widgetstools/react-dock-manager';
 import type { DockManagerState } from '@widgetstools/dock-manager-core';
 import { TopBar } from './components/TopBar';

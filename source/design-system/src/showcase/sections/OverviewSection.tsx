@@ -36,7 +36,7 @@ export function OverviewSection() {
         <p className="text-[13px] text-[color:var(--ds-text-secondary)]">
           One token set styles shadcn components and AG Grid across light and dark. This terminal
           consumes <code className="font-[var(--ds-font-mono)]">@wellsfargo-starui/design-system</code> +{' '}
-          <code className="font-[var(--ds-font-mono)]">@wellsfargo-starui/ui</code> — no bespoke styling.
+          <code className="font-[var(--ds-font-mono)]">@wellsfargo-starui/react</code> — no bespoke styling.
         </p>
       </header>
 

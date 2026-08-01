@@ -1,6 +1,6 @@
 import type { WidgetProps } from '@widgetstools/react-dock-manager';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@wellsfargo-starui/react/chart';
 import { makeRng } from '../../data/seeds';
 import { fmtMoney } from '../../data/formatters';
 

@@ -1,4 +1,4 @@
-import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from '@wellsfargo-starui/ui';
+import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from '@wellsfargo-starui/react';
 import { CodeBlock } from '../components/CodeBlock';
 import type { ShowcaseEntry } from './types';
 

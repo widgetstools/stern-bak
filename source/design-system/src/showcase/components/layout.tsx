@@ -5,7 +5,7 @@ import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
   ResizableHandle, ResizablePanel, ResizablePanelGroup,
   ScrollArea,
-} from '@wellsfargo-starui/ui';
+} from '@wellsfargo-starui/react';
 import type { ShowcaseEntry } from '../types';
 
 function CollapsibleDemo() {
@@ -28,7 +28,7 @@ function CollapsibleDemo() {
 export const layoutEntries: ShowcaseEntry[] = [
   {
     id: 'collapsible', name: 'Collapsible', category: 'layout',
-    importLine: "import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@wellsfargo-starui/ui';",
+    importLine: "import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@wellsfargo-starui/react';",
     code: `<Collapsible>
   <CollapsibleTrigger>Toggle</CollapsibleTrigger>
   <CollapsibleContent>Hidden detail…</CollapsibleContent>
@@ -37,7 +37,7 @@ export const layoutEntries: ShowcaseEntry[] = [
   },
   {
     id: 'scroll-area', name: 'Scroll Area', category: 'layout',
-    importLine: "import { ScrollArea } from '@wellsfargo-starui/ui';",
+    importLine: "import { ScrollArea } from '@wellsfargo-starui/react';",
     code: `<ScrollArea className="h-32 w-[240px]">
   …long content…
 </ScrollArea>`,
@@ -53,7 +53,7 @@ export const layoutEntries: ShowcaseEntry[] = [
   },
   {
     id: 'resizable', name: 'Resizable', category: 'layout',
-    importLine: "import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@wellsfargo-starui/ui';",
+    importLine: "import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@wellsfargo-starui/react';",
     code: `<ResizablePanelGroup orientation="horizontal">
   <ResizablePanel>Left</ResizablePanel>
   <ResizableHandle withHandle />

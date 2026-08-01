@@ -6,7 +6,7 @@ import {
   INITIAL_SMART_EDIT,
   type PlusMinusNudge,
   type PlusMinusState,
-} from '@wellsfargo-starui/engine';
+} from '@wellsfargo-starui/core';
 
 export const PLUS_MINUS_GRID_ID = 'lab-plus-minus';
 

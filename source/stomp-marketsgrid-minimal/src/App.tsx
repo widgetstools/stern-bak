@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { HostedMarketsGrid } from '@wellsfargo-starui/widgets-react/hosted';
-import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/host-data-react/runtime';
+import { HostedMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
+import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/react/data/runtime';
 import { getPlatform } from './bootstrap.js';
 import { gridEventHandlers } from './platform/gridEventHandlers.js';
 import { gridHandlerMeta } from './platform/hooksMeta.js';

@@ -1,4 +1,4 @@
-import { HostedMarketsGrid } from '@wellsfargo-starui/widgets-react/hosted';
+import { HostedMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
 import { getPlatform } from '../platformBootstrap';
 
 interface HostedGridPanelProps {
