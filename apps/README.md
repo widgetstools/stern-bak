@@ -155,6 +155,34 @@ Per-app specifics that cannot be inferred (port, `vite-plugin-svgr` for
 star-demo, `assetsInclude` for markets-grid-lab) live in the `APPS` table at the
 top of that script — add an entry there to add an app.
 
+### Refreshing the tarball track after a `packages/` change
+
+Unlike `source/` (live via aliases), `tarball/` only sees whatever was last
+vendored into `vendor/*.tgz` — it drifts stale the moment `packages/` changes
+underneath it. Bring it back in sync:
+
+```bash
+# platform repo root
+npm run build:packages && npm run pack:npm
+
+# this repo (apps/)
+npm run setup:tarball        # vendor the fresh tarballs, then install them
+npm run make:tarball-apps    # regenerate tarball/* from source/* (needs vendor/ first)
+npm run setup:tarball        # reinstall now that make:tarball-apps may have
+                              # changed a twin's package.json dependency list
+npm run typecheck:tarball    # verify
+```
+
+`setup:tarball` runs **twice** by design: the first pass vendors the tarballs
+so `make:tarball-apps` has something to read the dependency closure from; the
+second pass installs whatever that regeneration wrote to each twin's
+`package.json`. Skipping the second pass leaves `node_modules` out of sync with
+the regenerated manifest.
+
+`[setup] vendored N tarball(s) -> vendor/ (M updated, K unchanged)` in the
+output tells you whether anything actually changed — `0 updated` means the
+tarball track was already current.
+
 ### Dependencies vs overrides
 
 Each tarball app's `dependencies` lists **only the packages it actually

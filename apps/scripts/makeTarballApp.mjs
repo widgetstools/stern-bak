@@ -53,6 +53,31 @@ function log(msg) {
   process.stdout.write(`[make-tarball-app] ${msg}\n`);
 }
 
+/**
+ * Files copied verbatim from source/ can still embed the source app's own
+ * dev-server port — OpenFin manifests, dock seeds, and the OpenFin launcher
+ * script all hardcode `http://localhost:<port>/...` for want of a runtime
+ * config layer. Walk the generated app and retarget every such literal to
+ * the tarball track's own port, the same substitution already applied to
+ * package.json's scripts, generalized to the rest of the tree so the
+ * manifest/seed/launcher stay in sync with vite.config.ts automatically.
+ */
+function retargetPorts(dir, sourcePort, targetPort) {
+  if (!sourcePort || sourcePort === String(targetPort)) return;
+  const needle = `localhost:${sourcePort}`;
+  const replacement = `localhost:${targetPort}`;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP_COPY.has(entry.name)) continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      retargetPorts(full, sourcePort, targetPort);
+    } else if (/\.(json|mjs|cjs|js|jsx|ts|tsx|html)$/.test(entry.name)) {
+      const text = readFileSync(full, 'utf8');
+      if (text.includes(needle)) writeFileSync(full, text.replaceAll(needle, replacement));
+    }
+  }
+}
+
 /** Every packed member package, read from what setup.mjs vendored. */
 function vendoredPackages() {
   if (!existsSync(VENDOR_DIR)) {
@@ -171,6 +196,15 @@ export default defineConfig({
     // out of the optimizer, so consumers add this one line. \`vite build\` and
     // every other bundler need nothing.
     exclude: ['@wellsfargo-starui/data'],
+    // dexie ships dist/dexie.js as a UMD build; its own ESM entry
+    // (import-wrapper.mjs) re-imports that file by relative path, so it only
+    // gets a synthesized default export when esbuild's CJS interop runs on
+    // it via the optimizer. dexie is reachable only through the excluded
+    // @wellsfargo-starui/data -> @wellsfargo-starui/core/host-config chain,
+    // so Vite's scanner never discovers it on its own — force it in, or
+    // \`import Dexie from 'dexie'\` throws "does not provide an export named
+    // 'default'" the first time host-config's ConfigManager loads.
+    include: ['dexie'],
   },
 });
 `;
@@ -355,13 +389,6 @@ function makeApp(app) {
   }
   pkg.devDependencies = Object.fromEntries(Object.entries(dev).sort(([a], [b]) => a.localeCompare(b)));
 
-  // Retarget any script that hardcoded the source port (e.g. star-demo's OpenFin launcher).
-  if (sourcePort) {
-    for (const [k, v] of Object.entries(pkg.scripts ?? {})) {
-      if (typeof v === 'string') pkg.scripts[k] = v.replaceAll(`localhost:${sourcePort}`, `localhost:${cfg.port}`);
-    }
-  }
-
   writeFileSync(join(destDir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
 
   // ── configs ────────────────────────────────────────────────────────────
@@ -372,6 +399,8 @@ function makeApp(app) {
   patchTarballVitestConfig(destDir);
   const tsconfigs = ['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'tsconfig.test.json']
     .filter((f) => rewriteTsconfig(destDir, f));
+
+  retargetPorts(destDir, sourcePort, cfg.port);
 
   const { direct: nDirect, closure: nClosure } = cfg._counts;
   log(
