@@ -4,10 +4,8 @@ import {
   createMarketsGridLocalStorageStorage,
   type MarketsGridHandle,
 } from '@wellsfargo-starui/grid';
-import {
-  marketsGridLocalStorageBundleKey,
-  activeProfileKey,
-} from '@wellsfargo-starui/core';
+import { activeProfileKey } from '@wellsfargo-starui/core';
+import { GRID_ID, STORAGE_KEY } from './gridId';
 import {
   applyTheme,
   getTheme,
@@ -27,9 +25,6 @@ import { AppMenubar } from './components/AppMenubar';
 import { StatusStrip } from './components/StatusStrip';
 import { ConfigInspector } from './components/ConfigInspector';
 import { HelpSheet } from './components/HelpSheet';
-
-const GRID_ID = 'bond-blotter-v1';
-const STORAGE_KEY = marketsGridLocalStorageBundleKey(GRID_ID);
 
 const storage = createMarketsGridLocalStorageStorage();
 
@@ -68,6 +63,7 @@ export function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [pulse, setPulse] = useState<ProfilePulse>(() => readProfilePulse());
   const handleRef = useRef<MarketsGridHandle | null>(null);
+  const eventOffsRef = useRef<Array<() => void>>([]);
 
   // Pulse refreshes via grid events (subscribed in onReady) rather than
   // polling — the App tree was re-rendering every 800ms regardless, which
@@ -160,10 +156,19 @@ export function App() {
     // polling. Covers switch (`profile:loaded`) and explicit save
     // (`profile:saved`) — the two events users actually care about seeing
     // reflected. Create / delete / rename are reached via the inspector
-    // sheet, which re-reads on open. Listeners are auto-cleaned when the
-    // grid platform tears down on real unmount.
-    handle.platform.events.on('profile:loaded', () => setPulse(readProfilePulse()));
-    handle.platform.events.on('profile:saved', () => setPulse(readProfilePulse()));
+    // sheet, which re-reads on open. Disposers are captured and released
+    // on unmount — StrictMode double-mounts otherwise double-subscribe.
+    eventOffsRef.current.push(
+      handle.platform.events.on('profile:loaded', () => setPulse(readProfilePulse())),
+      handle.platform.events.on('profile:saved', () => setPulse(readProfilePulse())),
+    );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const off of eventOffsRef.current) off();
+      eventOffsRef.current = [];
+    };
   }, []);
 
   const tooltipLabel = useMemo(

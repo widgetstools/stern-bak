@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { STORAGE_KEY } from '../gridId';
 import {
   Sheet,
   SheetContent,
@@ -485,7 +486,7 @@ function CustomizerDocs() {
             Storage key
           </div>
           <code className="mt-1 block text-[color:var(--ds-text-primary)]">
-            markets-grid-bundle:bond-blotter-v1
+            {STORAGE_KEY}
           </code>
         </div>
         <Prose>

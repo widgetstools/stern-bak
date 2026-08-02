@@ -46,7 +46,10 @@ const LOADING = <div style={{ padding: 16 }}>Loading...</div>;
 // Warm the bootstrap tier this window's initial route needs. Routes that
 // never touch the data plane skip the SharedWorker hub entirely; the
 // gates below still upgrade on in-window navigation to a data route.
-const initialPath = typeof window !== "undefined" ? window.location.pathname : "";
+// HashRouter: the route lives in location.hash ("#/rename-view-tab"),
+// never in pathname — reading pathname here would send every window
+// down the full platform bootstrap.
+const initialPath = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
 if (initialPath.startsWith("/rename-view-tab")) {
   // pure-fin dialog — needs neither config rows nor the data plane
 } else if (initialPath.startsWith("/workspace-setup")) {
@@ -56,7 +59,7 @@ if (initialPath.startsWith("/rename-view-tab")) {
 }
 
 /** Warm AG Grid vendor chunks while bootstrap runs (no-op if route chunk already started). */
-if (typeof window !== "undefined" && window.location.pathname.includes("/blotters/marketsgrid")) {
+if (typeof window !== "undefined" && window.location.hash.includes("/blotters/marketsgrid")) {
   void Promise.all([
     import("ag-grid-community"),
     import("ag-grid-enterprise"),

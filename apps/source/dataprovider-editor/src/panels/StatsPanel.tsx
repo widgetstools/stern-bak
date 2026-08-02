@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { marketsGridLocalStorageBundleKey } from '@wellsfargo-starui/core';
 import { Badge } from '@wellsfargo-starui/react';
 import { Activity, Database } from 'lucide-react';
 
@@ -21,10 +22,9 @@ function readPickerState(instanceId: string): PickerState {
   if (typeof localStorage === 'undefined') return {};
   // MarketsGridContainer persists picker state inside its profile
   // bundle's `gridLevelData`. We read the parent bundle and pull the
-  // gridLevelData out. The key shape comes from
-  // `marketsGridLocalStorageBundleKey(instanceId)`.
+  // gridLevelData out.
   try {
-    const raw = localStorage.getItem(`markets-grid-bundle:${instanceId}`);
+    const raw = localStorage.getItem(marketsGridLocalStorageBundleKey(instanceId));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as { gridLevelData?: PickerState };
     return parsed.gridLevelData ?? {};

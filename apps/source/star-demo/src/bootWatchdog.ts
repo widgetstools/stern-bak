@@ -46,8 +46,8 @@ function showStallScreen(): void {
   if (!root || root.childElementCount > 0) return;
   root.innerHTML = `
     <div style="display:flex;height:100vh;align-items:center;justify-content:center;
-                font-family:system-ui,sans-serif;color:var(--foreground,#ddd);
-                background:var(--background,#111);">
+                font-family:var(--ds-font-sans,system-ui,sans-serif);color:var(--ds-text-primary);
+                background:var(--ds-surface-ground);">
       <div style="text-align:center;max-width:26rem;">
         <p style="font-size:0.95rem;margin-bottom:1rem;">
           Platform boot stalled twice — the data services may be unreachable.

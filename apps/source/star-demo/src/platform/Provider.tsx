@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { initWorkspace, ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG } from "@wellsfargo-starui/openfin";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wellsfargo-starui/react";
 
 /**
  * Provider — the OpenFin platform provider window.

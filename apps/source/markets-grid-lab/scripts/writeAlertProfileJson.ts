@@ -1,7 +1,7 @@
 /**
  * Writes importable gc-profile JSON files under public/alert-profiles/.
  *
- *   npx tsx apps/demos/markets-grid-lab/scripts/writeAlertProfileJson.ts
+ *   npx tsx apps/source/markets-grid-lab/scripts/writeAlertProfileJson.ts
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -63,7 +63,10 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
 
 vi.mock('@wellsfargo-starui/design-system/adapters/ag-grid', () => ({
   staruiGridTheme: { name: 'staruiGridTheme' },
-  agGridBlotterDarkTheme: { name: 'agGridBlotterDarkTheme' },
+  applyGridDensityToTheme: (theme: { name: string }, density: string) => ({
+    ...theme,
+    density,
+  }),
 }));
 
 vi.mock('@wellsfargo-starui/react', () => {

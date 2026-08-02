@@ -7,7 +7,7 @@
 
 import type { DataProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
 
-/** Must match a tag published by stomp-view-server (npm run dev:stomp). */
+/** Must match a tag published by stomp-view-server (`npm run dev` there). */
 const TAG = 'TRADER001';
 
 // ─── Live wire destinations ──────────────────────────────────────────

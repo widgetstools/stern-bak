@@ -6,7 +6,7 @@ import { getOneByTestId, getOneByText } from '../../../../test-utils/queries';
 import { ConfigInspector } from './ConfigInspector';
 
 const GRID_ID = 'bond-blotter-v1';
-const STORAGE_KEY = `bundle:${GRID_ID}`;
+const STORAGE_KEY = `markets-grid-bundle:${GRID_ID}`;
 
 describe('ConfigInspector', () => {
   beforeEach(() => {

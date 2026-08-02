@@ -86,12 +86,13 @@ const ALLOW_PATHS = [
   'packages/react-grid/widgets-react/src/hosted/__tests__/useColorLinking.test.tsx',
   'packages/react-grid/widgets-react/src/hosted/useColorLinking.ts',
   // --- Demo app profile/fixture data files ---
-  'apps/demos/demo-react/src/showcaseProfile.ts',
-  'apps/demos/demo-react/src/nestedFixtures.ts',
-  'apps/demos/demo-configservice-react/src/showcaseProfile.ts',
-  'apps/demos/demo-angular/src/app/services/trading-data.service.ts',
-  'apps/demos/demo-angular/src/app/widgets/design-system.widget.ts',
-  'apps/demos/demo-angular/src/app/app.ts',
+  // markets-grid-lab seed/preset data carries literal hex by design: the
+  // colors are profile DATA (always as {dark, light} pairs, so both themes
+  // render), and the Visual Excel path writes them into .xlsx cells where
+  // `var(--ds-*)` cannot resolve. Tokenizing the DOM-only subset is tracked
+  // in docs/WORKLOG.md.
+  'apps/source/markets-grid-lab/src/seeds/',
+  'apps/source/markets-grid-lab/src/profiles/presets.ts',
 ];
 
 function walk(dir: string, root: string, out: string[]): void {

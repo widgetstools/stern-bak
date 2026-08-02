@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   Menubar,
   MenubarContent,
@@ -81,7 +82,7 @@ function MenubarItemMenu({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <MenubarMenu>

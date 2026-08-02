@@ -642,6 +642,36 @@ members into a single `src/` per bucket.
 
 ---
 
+## 12. Demo-app follow-ups from the framework-usage audit (2026-08-02)
+
+**Area:** `apps/source/*` · **Blocked on:** nothing — mechanical, just not urgent
+
+The 2026-08-02 audit fixed the clear-cut defects (see the `feat/documentation`
+branch); these judged-riskier items remain:
+
+1. **Destructive resets should confirm via `AlertDialog`.** `basic`
+   `src/App.tsx` `handleReset` wipes storage with no confirmation (its own
+   HelpSheet advertises "with confirm"); `dataprovider-editor` `src/App.tsx`
+   uses native `window.confirm`. Both should use `AlertDialog` from
+   `@wellsfargo-starui/react`.
+2. **markets-grid-lab gridIds carry `-vN` suffixes** (`lab-alerts-v2`, …,
+   11 of 17 catalogs) — conflicts with the no-versioned-names rule and
+   orphans saved profiles on every bump; the sanctioned reseed mechanism is
+   `LAB_DEMO_PROFILES_FLAG_VERSION`. Renaming must be coordinated with
+   `apps/e2e/v2-*.spec.ts` (which pin the ids) and `src/help/*.md`.
+3. **Tokenize the DOM-only lab seed colors.** `src/seeds/renderers.ts`,
+   `profiles/presets.ts` and `conditionalStyling.ts` `indicator.color` never
+   reach the Visual Excel path, so `var(--ds-*)` values would work and
+   collapse the `{dark, light}` literal pairs; keep hex only where colors are
+   written into `.xlsx`. The seeds dir is carved out in `check:ds-tokens`
+   with this rationale.
+4. **`dataprovider-editor` `StatsPanel` polls at 1 Hz** while `basic`
+   deliberately teaches the event-driven alternative — two tutorials
+   demonstrating opposite patterns.
+5. **`check:ds-tokens` has 393 pre-existing violations in `packages/`**
+   (largest: `widgets-react` container hexes) — a separate effort from the
+   apps; the gate is not currently green anywhere.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
@@ -651,5 +681,5 @@ Not repeated here to avoid two lists drifting — see
 2. Test coverage / Sonar LCOV — none of the tooling exists yet
 3. ESLint `unicorn/filename-case` per-bucket enforcement
 
-Item 1 there refers to "in-repo demos", which now live in stern-apps — the fix
-belongs in that repo's `source/` apps.
+Item 1 there refers to "in-repo demos", which now live under `apps/source/` —
+the fix belongs in those apps.

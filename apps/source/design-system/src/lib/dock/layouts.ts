@@ -19,12 +19,13 @@ export const TAB_LAYOUTS: Record<string, () => DockManagerState> = {
   orders: () => base(
     sp('ord', 'vertical', [18, 82], [
       tg('g-okpi', ['ordersKpi']),
-      sp('ord-bot', 'horizontal', [72, 28], [tg('g-ord', ['ordersBlotter']), tg('g-odetail', ['orderDetail'])]),
+      sp('ord-bot', 'horizontal', [72, 28], [tg('g-ord', ['ordersBlotter']), tg('g-odetail', ['orderDetail', 'orderEntry'])]),
     ]),
     {
       ordersKpi: P('ordersKpi', 'Orders Summary'),
       ordersBlotter: P('ordersBlotter', 'Order Blotter'),
       orderDetail: P('orderDetail', 'Order Detail'),
+      orderEntry: P('orderEntry', 'Order Entry'),
     },
     'ordersBlotter',
   ),

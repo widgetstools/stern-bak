@@ -77,9 +77,9 @@ const SERIALIZED_LAYOUT: SerializedDockLayout = {
 
 const DEFAULT_LAYOUT: DockManagerState = deserialize(SERIALIZED_LAYOUT).state;
 
-// Stable key for dock-manager-core's localStorage helpers. Bump the
-// `v` suffix whenever the docked-panel set changes so stale blobs get
-// abandoned. v3 = editor + browser moved to floating-only.
+// Stable key for dock-manager-core's localStorage helpers. The suffix is
+// a cache-buster: change it only when the docked-panel set changes, so
+// stale persisted blobs get abandoned rather than half-restored.
 const DOCK_STORAGE_KEY = 'dataprovider-editor-starui-app:dock-layout:v3';
 
 // Panels we always require in the persisted layout. Floating-only

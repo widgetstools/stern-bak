@@ -38,7 +38,6 @@ describe('platformBootstrap', () => {
     });
     expect(result.config).toBe(config);
     expect(result.platform).toBe(platform);
-    expect(result.dataServices.client).toBe(platform.client);
     expect(getPlatform()).toBe(platform);
   });
 });

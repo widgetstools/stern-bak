@@ -1,6 +1,6 @@
 # STOMP FI View Server
 
-TypeScript sibling service to `stomp-fixed-income-server`: **synthetic fixed-income positions/trades**, **same STOMP destinations and triggers**, snapshot → **Success:** completion line → live updates **only for rows delivered in that snapshot**.
+TypeScript STOMP fixture server: **synthetic fixed-income positions/trades** over WebSocket, snapshot → **Success:** completion line → live updates **only for rows delivered in that snapshot**.
 
 Default listen: **8081** (so it can run beside the original on 8080).
 
@@ -9,9 +9,8 @@ Default listen: **8081** (so it can run beside the original on 8080).
 Use **`ws://localhost:8081`**, not `8080`. Options:
 
 - **Environment:** `WS_URL=ws://localhost:8081` before running your client.
-- **From repo root:** `npm run example:view` or `npm run test-enhanced:view` (scripts set `WS_URL` for you).
 
-If nothing listens on `8081`, the TCP connection fails (`ECONNREFUSED`). Start the view server: `cd stomp-view-server && npm run build && npm start`.
+If nothing listens on `8081`, the TCP connection fails (`ECONNREFUSED`). Start the view server: `cd apps/source/stomp-view-server && npm run build && npm start`.
 
 ### Troubleshooting
 
@@ -26,7 +25,7 @@ If nothing listens on `8081`, the TCP connection fails (`ECONNREFUSED`). Start t
 
 ## Protocol compatibility
 
-Matches `stomp-server/protocolContract.js`:
+Protocol contract (`src/protocol/contract.ts`):
 
 - `CONNECT` / `STOMP` → `CONNECTED` (`version:1.2`, `server:stomp-fixed-income/1.0.0`, `heart-beat:0,0`)
 - Subscribe: `/snapshot/positions`, `/snapshot/trades`, or `/snapshot/{type}/{clientId}`

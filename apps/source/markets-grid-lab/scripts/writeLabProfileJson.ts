@@ -1,7 +1,7 @@
 /**
  * Writes gc-profile JSON for every lab demo catalog.
  *
- *   npx tsx apps/demos/markets-grid-lab/scripts/writeLabProfileJson.ts
+ *   npx tsx apps/source/markets-grid-lab/scripts/writeLabProfileJson.ts
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -8,7 +8,9 @@ import type { ThemeOptions } from '@wellsfargo-starui/design-system';
 export const mockApplyTheme = vi.fn();
 export const mockGetTheme = vi.fn((): ThemeOptions => ({ theme: 'dark' }));
 export const mockMarketsGridEvents = {
-  on: vi.fn(),
+  // Real `events.on` returns a disposer — the mock must too, or consumers
+  // that capture and later invoke it crash with "off is not a function".
+  on: vi.fn((_event: string, _handler: () => void) => vi.fn()),
   off: vi.fn(),
   emit: vi.fn(),
 };
@@ -48,7 +50,9 @@ vi.mock('@wellsfargo-starui/grid', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/core', () => ({
-  marketsGridLocalStorageBundleKey: (id: string) => `bundle:${id}`,
+  // Mirror the real key shape — HelpSheet renders this key verbatim, so a
+  // fake shape would leak into user-visible assertions.
+  marketsGridLocalStorageBundleKey: (id: string) => `markets-grid-bundle:${id}`,
   activeProfileKey: (id: string) => `active:${id}`,
 }));
 

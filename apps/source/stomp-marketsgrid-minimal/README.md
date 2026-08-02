@@ -13,12 +13,12 @@ No OpenFin, no routing, no provider editor UI — full-screen `HostedMarketsGrid
 | Requirement | Notes |
 |-------------|--------|
 | **Monorepo install** | From repo root: `npm install` |
-| **STOMP broker** | [`stomp-view-server`](../../apps/demos/stomp-view-server) on `ws://localhost:8081` — matches `src/stompProvider.ts` |
+| **STOMP broker** | [`stomp-view-server`](../stomp-view-server) on `ws://localhost:8081` — matches `src/stompProvider.ts` |
 | **Node 20+** | Same as root `package.json` engines |
 
 Optional for local package development:
 
-- `STARUI_DEV_SOURCE=1` is already set on the app's `dev` script. Vite resolves `@wellsfargo-starui/*` from live `packages/` source instead of `libs/*.tgz` tarballs.
+- Vite resolves `@wellsfargo-starui/*` through the platform's consumer aliases — built `packages/*/dist`, falling back to `src/` when a package's `dist/` is absent.
 - If you change worker/hub code, rebuild the worker asset once: `npm run build --workspace=@wellsfargo-starui/data` (or full `npm run build` from root).
 
 ### STOMP topics
@@ -38,13 +38,13 @@ Start the broker **before** opening the app, or the grid will attach and sit in 
 Terminal 1 — STOMP broker:
 
 ```bash
-npm run dev:stomp
+cd ../stomp-view-server && npm run dev
 ```
 
 Terminal 2 — this app:
 
 ```bash
-npm run dev:stomp-marketsgrid-minimal
+npm run dev
 # → http://localhost:5213
 ```
 
@@ -129,7 +129,7 @@ First attach for that id **lazy-starts** the STOMP provider in the worker: one u
 | File | Role |
 |------|------|
 | `public/app-config.json` | Platform identity (`appId`, `userId`, `useRest`) |
-| `src/bootstrap.ts` | `ensurePlatformReady` + cached `platform` handle |
+| `src/bootstrap.ts` | `ensurePlatformReady` + cached `platform` handle (wires `appDataBootstrap`) |
 | `src/main.tsx` | Theme, boot gate, `DataHubProvider`, render `App` |
 | `src/stompProvider.ts` | STOMP transport cfg + column defs (catalog payload) |
 | `src/App.tsx` | Idempotent catalog seed + `HostedMarketsGrid` |
@@ -149,7 +149,7 @@ Supporting config only: `vite.config.ts` (port **5213**, SharedWorker bundling),
 - AppData template vars (`{{name.key}}`) — not needed for this fixed STOMP cfg
 - REST config service (`useRest: false` — local Dexie only)
 
-Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-free STOMP attach**. For authoring providers in UI, see `apps/demos/dataprovider-editor` or `apps/demos/markets-grid-lab`. For **AppData bootstrap + grid event callbacks** with mock data (no broker), see [`apps/demos/platform-hooks-demo`](../platform-hooks-demo/README.md).
+Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-free STOMP attach**. For authoring providers in UI, see [`../dataprovider-editor`](../dataprovider-editor) or [`../markets-grid-lab`](../markets-grid-lab). For **AppData bootstrap + grid event callbacks** with mock data (no broker), see the [platform-hooks guide](../../../docs/guides/platform-hooks-demo.md).
 
 ---
 
@@ -158,7 +158,7 @@ Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-fre
 | Symptom | Check |
 |---------|--------|
 | Blank screen briefly, then grid | Normal — `App` returns `null` until catalog seed resolves |
-| Grid empty / `loading` forever | Is `npm run dev:stomp` running? WebSocket `ws://localhost:8081` reachable? |
+| Grid empty / `loading` forever | Is `stomp-view-server` running (`npm run dev` in `../stomp-view-server`)? WebSocket `ws://localhost:8081` reachable? |
 | Provider not in hub inspector | Open **Alt+Shift+S** after grid mounts; look for running slot + row count |
 | Stale hub code after package edits | Rebuild `@wellsfargo-starui/data` worker asset; restart Vite |
 | IndexedDB state from old runs | DevTools → Application → IndexedDB → `marketsui-config` → clear `appConfig` |
@@ -167,5 +167,5 @@ Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-fre
 
 ## Further reading
 
-- **[MarketsGrid Usage Guide](../../docs/MARKETSGRID_USAGE_GUIDE.md)** — full scenario matrix (this app is **Scenario A**)
-- **[STOMP DataProvider guide](../../docs/STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md)** — step-by-step STOMP wiring from scratch
+- **[MarketsGrid Usage Guide](../../../docs/MARKETSGRID_USAGE_GUIDE.md)** — full scenario matrix (this app is **Scenario A**)
+- **[STOMP DataProvider guide](../../../docs/STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md)** — step-by-step STOMP wiring from scratch

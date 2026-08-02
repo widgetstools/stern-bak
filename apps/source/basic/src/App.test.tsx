@@ -9,7 +9,7 @@ import {
   mockMarketsGridEvents,
 } from './staruiVitestMocks';
 
-const STORAGE_KEY = 'bundle:bond-blotter-v1';
+const STORAGE_KEY = 'markets-grid-bundle:bond-blotter-v1';
 const ACTIVE_KEY = 'active:bond-blotter-v1';
 
 function fireShortcut(key: string, opts: { shift?: boolean; meta?: boolean } = {}) {

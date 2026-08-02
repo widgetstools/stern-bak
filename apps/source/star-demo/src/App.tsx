@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wellsfargo-starui/react";
 
 /**
  * Home route (`/`). Intentionally thin — in OpenFin the real entry points
