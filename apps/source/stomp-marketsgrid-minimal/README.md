@@ -149,7 +149,7 @@ Supporting config only: `vite.config.ts` (port **5213**, SharedWorker bundling),
 - AppData template vars (`{{name.key}}`) — not needed for this fixed STOMP cfg
 - REST config service (`useRest: false` — local Dexie only)
 
-Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-free STOMP attach**. For authoring providers in UI, see [`../dataprovider-editor`](../dataprovider-editor) or [`../markets-grid-lab`](../markets-grid-lab). For **AppData bootstrap + grid event callbacks** with mock data (no broker), see the [platform-hooks guide](../../../docs/guides/platform-hooks-demo.md).
+Use this app to verify **hub bootstrap**, **catalog persistence**, and **cfg-free STOMP attach**. For authoring providers in UI, see [`../dataprovider-editor`](../dataprovider-editor) or [`../markets-grid-lab`](../markets-grid-lab). For **AppData bootstrap + grid event callbacks** with mock data (no broker), see [`platform-bootstrap-config`](../../../docs/guides/platform-bootstrap-config.md) (AppData hooks + `runPolicy` semantics).
 
 ---
 

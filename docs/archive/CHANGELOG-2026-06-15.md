@@ -15,7 +15,7 @@ Summary of features, improvements, and bug fixes landed in git **on or after 202
 
 ### OpenFin grid-to-grid linking (`2ab25b07`)
 
-Branch: `test/openfin-linking`. See also [`OPENFIN_GRID_LINKING.md`](./OPENFIN_GRID_LINKING.md).
+Branch: `test/openfin-linking`. See also [`OPENFIN_GRID_LINKING.md`](../OPENFIN_GRID_LINKING.md).
 
 - Color-linked **MarketsGrid** instances share row selection across OpenFin views.
 - Primary transport: **`fin.me.interop`** (`useInteropChannel`); FDC3 channel fallback outside OpenFin.

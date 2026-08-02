@@ -1,6 +1,6 @@
 # Building the StarUI monorepo
 
-Step-by-step guide for a **fresh machine**. See also [README.md](../README.md#getting-started) and [LIBS.md](./LIBS.md).
+Step-by-step guide for a **fresh machine**. See also [README.md](../../README.md#getting-started) and [LIBS.md](./LIBS.md).
 
 ## Prerequisites
 
@@ -26,9 +26,9 @@ consumers. Apps build **from source** — they never depend on the tarballs.
 | **(side) Tarballs** | Architecture-bucket `.tgz` for external (Artifactory) consumers | `npm run propagate` | `libs/starui-*.tgz` (gitignored) |
 
 Apps resolve every `@wellsfargo-starui/*` import straight from `packages/` source — Vite via
-the aliases in [`scripts/staruiConsumerAliases.mjs`](../scripts/staruiConsumerAliases.mjs),
+the aliases in [`scripts/staruiConsumerAliases.mjs`](../../scripts/staruiConsumerAliases.mjs),
 `tsc` via the repo-root workspace symlinks. Apps declare **no** `@wellsfargo-starui/*` deps
-and require **no** `libs/*.tgz`. See [apps/README.md](../apps/README.md).
+and require **no** `libs/*.tgz`. See [apps/README.md](../../apps/README.md).
 
 **Install apps** (nested workspace — installs each app's own third-party deps):
 
@@ -100,7 +100,7 @@ npm run dev:demo-react          # @wellsfargo-starui/demo-react
 npm run dev:markets-grid-lab    # @wellsfargo-starui/markets-grid-lab
 ```
 
-See [apps/demos/README.md](../apps/demos/README.md).
+See [apps/demos/README.md](../../apps/demos/README.md).
 
 The Angular demo (`demo-angular`) consumes the **built** `@wellsfargo-starui/design-system`
 `dist/` through the workspace symlink, so run `build:packages` before building it.

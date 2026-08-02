@@ -180,9 +180,23 @@ Passing an explicit URL still wins, and remains right for CDN, OpenFin
 manifest, or plain `<script>` hosting where you serve the asset directly:
 
 ```ts
-import workerUrl from '@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url';
+import workerUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
 await ensurePlatformReady(config, { workerScriptUrl: workerUrl });
 ```
+
+### Troubleshooting the data plane (Vite)
+
+| Console / behaviour | Likely cause |
+|---|---|
+| `Failed to fetch a worker script` | Worker URL points at a prebundled `.vite/deps/` chunk or a `dist/` path Vite cannot serve as a worker entry — pass the packaged asset URL (`?url` import above) |
+| `SharedWorker error event` from the data package | Worker script failed to load or threw during boot |
+| Blank page / infinite loading on data routes | `appData.ready()` never resolves → `ConfigManager.init()` hangs — check the worker actually booted |
+| React context errors from the data hooks (`must be inside <…Provider>`) | Vite prebundled a duplicate copy of the data runtime — add the `optimizeDeps.exclude` line above |
+
+**Do not** use `createDataServicesClient()` in Vite apps — its
+`new URL(..., import.meta.url)` lives inside the library and breaks once
+Vite prebundles the package into `.vite/deps/`. Use `ensurePlatformReady`
+with the packaged worker asset instead.
 
 ## 5. Publishing (maintainers)
 

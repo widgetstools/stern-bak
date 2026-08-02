@@ -4,7 +4,7 @@ End-to-end audit of the **production MarketsGrid stack** — from STOMP/worker
 through container wiring, AG Grid, and customizer engine modules.
 
 Complements [`MEMORY_LEAK_AUDIT.md`](./MEMORY_LEAK_AUDIT.md) (host-data /
-SharedWorker layer) and [`blotter-performance-roadmap.md`](./blotter-performance-roadmap.md)
+SharedWorker layer) and [`blotter-performance-roadmap.md`](../blotter-performance-roadmap.md)
 (forward backlog).
 
 _Last reviewed: 2026-06-17._
@@ -70,7 +70,7 @@ See [`MEMORY_LEAK_AUDIT.md`](./MEMORY_LEAK_AUDIT.md) for full detail.
 
 **Tuning knobs (provider config):** `throttleMs`, `conflateByKey`,
 `projectFields`, `wireFormat: columnar` — see star-demo `seed.json` and
-[`STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](./STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md).
+[`STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](../STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md).
 
 ---
 
@@ -393,6 +393,6 @@ See [`MEMORY_LEAK_AUDIT.md` § Monitoring](./MEMORY_LEAK_AUDIT.md).
 
 - [`MEMORY_LEAK_AUDIT.md`](./MEMORY_LEAK_AUDIT.md) — SharedWorker / fan-out / client layer
 - [`CHANGELOG-2026-06-16.md`](./CHANGELOG-2026-06-16.md) — recent fixes
-- [`blotter-performance-roadmap.md`](./blotter-performance-roadmap.md) — forward backlog
-- [`hub-fanout-optimizations.md`](./hub-fanout-optimizations.md) — worker fan-out architecture
-- [`MARKETSGRID_USAGE_GUIDE.md`](./MARKETSGRID_USAGE_GUIDE.md) — integration layers
+- [`blotter-performance-roadmap.md`](../blotter-performance-roadmap.md) — forward backlog
+- [`hub-fanout-optimizations.md`](../hub-fanout-optimizations.md) — worker fan-out architecture
+- [`MARKETSGRID_USAGE_GUIDE.md`](../MARKETSGRID_USAGE_GUIDE.md) — integration layers

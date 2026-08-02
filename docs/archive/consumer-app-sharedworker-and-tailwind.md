@@ -42,7 +42,7 @@ export const platform = await ensurePlatformReady(config, { workerScriptUrl: wor
 Wrap the React tree in `<DataHubProvider platform={platform} userId={config.userId}>`.
 
 OpenFin apps use manifest `customSettings.appId` / `userId` instead — see
-[`platform-bootstrap-config.md`](./platform-bootstrap-config.md).
+[`platform-bootstrap-config.md`](../guides/platform-bootstrap-config.md).
 
 **Legacy:** `bootstrapDataServicesWithWorkerAsset({ appName, userId })` still works
 but is deprecated; migrate to `ensurePlatformReady`.

@@ -78,7 +78,7 @@ module or a different package provides it.
 **Path:** `packages/design-system/design-system`
 **Purpose:** Design tokens, theme runtime, CSS variable generation, and framework adapters for the MarketsUI platform.
 
-**Upgrade guide:** [`docs/guides/design-system-upgrade-and-openfin-palette.md`](../../docs/guides/design-system-upgrade-and-openfin-palette.md) — StarUI v1 OKLCH tokens, shadcn/AG Grid alignment, OpenFin palette bridge.
+**Upgrade guide:** [`docs/guides/design-system-upgrade-and-openfin-palette.md`](guides/design-system-upgrade-and-openfin-palette.md) — StarUI v1 OKLCH tokens, shadcn/AG Grid alignment, OpenFin palette bridge.
 
 **Public exports:**
 
@@ -1547,7 +1547,7 @@ of importing `@openfin/*` directly (architecture boundary).
 **Path:** `packages/openfin/openfin-platform`
 **Purpose:** OpenFin workspace shell — dock, home, notifications, child windows, config import/export.
 
-**Chrome theming:** [`docs/guides/design-system-upgrade-and-openfin-palette.md`](../../docs/guides/design-system-upgrade-and-openfin-palette.md) § OpenFin palette integration.
+**Chrome theming:** [`docs/guides/design-system-upgrade-and-openfin-palette.md`](guides/design-system-upgrade-and-openfin-palette.md) § OpenFin palette integration.
 
 **Public exports:**
 
@@ -1575,7 +1575,7 @@ of importing `@openfin/*` directly (architecture boundary).
   override does **not** stamp `processAffinity`. Per-view isolation was tried and
   reverted: a view alone in its renderer is throttled and then frozen by Chromium
   once hidden, occluded, or inactive for a while, so blotters returned blank or
-  with content lost. See [`openfin-process-isolation.md`](./openfin-process-isolation.md)
+  with content lost. See [`openfin-process-isolation.md`](archive/openfin-process-isolation.md)
   for the measurements and why the perf win did not survive contact with the
   background lifecycle
 - `workspaceGc` — cleanup stale view/window instances
@@ -1742,7 +1742,7 @@ These aren't a single feature, but they are platform invariants worth rememberin
 - **Expression engine** — CSP-safe parser/evaluator drives calculated columns, conditional rules, and filter expressions; `tryCompileToAgString()` transpiles to AG Grid `valueFormatter` strings.
 - **Theme integration** — reactive dark/light switching via `RuntimePort` + `data-theme` attribute; AG Grid theme + StarUI tokens stay in lockstep.
 - **Extensibility surfaces** — slot-based widget extensions in `@wellsfargo-starui/react/widget-sdk`; `StarGridPlugin.register` in `@wellsfargo-starui/core/host` / `@wellsfargo-starui/app`; OpenFin workspace plugin via `openFinPlatformPlugin` in `@wellsfargo-starui/openfin/plugin`.
-- **External-consumption contract** — every package is publishable standalone to teams with no repo access, and a consumer edits **no** build config. See [`docs/EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) for the contract and [`docs/PACKAGING_CHANGELOG.md`](./PACKAGING_CHANGELOG.md) for the history behind it. The invariants:
+- **External-consumption contract** — every package is publishable standalone to teams with no repo access, and a consumer edits **no** build config. See [`docs/EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) for the contract and [`docs/PACKAGING_CHANGELOG.md`](archive/PACKAGING_CHANGELOG.md) for the history behind it. The invariants:
   - **Peers only for genuine singletons** the consumer also owns — `react`/`react-dom`, `ag-grid-*` (ModuleRegistry singleton + consumer-held enterprise licence), `@tanstack/react-query` (consumer's QueryClient), `lucide-react`. Everything else is a normal dependency so nothing extra must be installed. `@stomp/stompjs` is a dependency, not a peer.
   - **`@openfin/*` are OPTIONAL peers** on `@wellsfargo-starui/openfin` — a browser-only consumer installs **zero** OpenFin packages (verified: `node_modules/@openfin` absent). `config-browser` / `host-wrapper-react` reach OpenFin only through the `@wellsfargo-starui/openfin/config` subpath, whose graph holds `import type` references alone. OpenFin apps declare the three packages themselves, as the in-repo demos already do.
   - **Every package ships compiled `dist/`** with fully-qualified relative specifiers (`./x` → `./x.js`) and co-located `.d.ts`, plus `sideEffects: ["*.css"]` and a `files` allowlist so tarballs carry no `src/`, tests, or tsconfigs.

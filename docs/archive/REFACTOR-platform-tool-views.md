@@ -202,7 +202,7 @@ const ConfigBrowser = React.lazy(() =>
 - [ ] `openDataProvidersToolWindow({ providerId })` still selects the row via `?id=`.
 - [ ] `RenameViewTabView` uses `@wellsfargo-starui/ui`, not `@wellsfargo-starui/grid/customizer`.
 - [ ] `npx turbo typecheck build test` green.
-- [ ] `docs/current-features.md` lists the new exports with correct package attribution (per [Public vs internal](./current-features.md#public-vs-internal)).
+- [ ] `docs/current-features.md` lists the new exports with correct package attribution (per [Public vs internal](../current-features.md#public-vs-internal)).
 
 ---
 
@@ -219,9 +219,9 @@ const ConfigBrowser = React.lazy(() =>
 
 ## Related docs & code
 
-- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — bucket import rules (why not react-grid / openfin-platform React)
-- [`docs/current-features.md`](./current-features.md) — `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/openfin-platform` §7.2
-- [`docs/guides/platform-bootstrap-config.md`](./guides/platform-bootstrap-config.md) — app bootstrap
+- [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — bucket import rules (why not react-grid / openfin-platform React)
+- [`docs/current-features.md`](../current-features.md) — `@wellsfargo-starui/config-browser`, `@wellsfargo-starui/widgets-react`, `@wellsfargo-starui/openfin-platform` §7.2
+- [`docs/guides/platform-bootstrap-config.md`](../guides/platform-bootstrap-config.md) — app bootstrap
 - `packages/openfin/openfin-platform/src/openChildToolWindow.ts`
 - `packages/openfin/openfin-platform/src/internal/viewTabRename.ts`
 - `packages/react-core/widgets-react/src/v2/markets-grid-container/ConfigBrowserDialog.tsx` — in-dialog pattern (orthogonal to full-page view)

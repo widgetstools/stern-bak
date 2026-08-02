@@ -18,7 +18,7 @@ deployment — and where to invest next.
 | [§8 Roadmap](#8-recommendations) | ROI-ranked backlog |
 | [§9 Headline score](#9-how-close-is-marketsgrid-to-adaptable) | Parity % and “what if we ship P0/P1” |
 
-**Sources:** MarketsGrid — [`docs/current-features.md`](./current-features.md) +
+**Sources:** MarketsGrid — [`docs/current-features.md`](../current-features.md) +
 `packages/` tree. AdapTable — doc crawl 2026-05-23. Lab parity UI — `apps/demos/markets-grid-lab`
 (last updated 2026-05-26).
 

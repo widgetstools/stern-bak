@@ -46,7 +46,7 @@ For work through 2026-06-15 see [`CHANGELOG-2026-06-15.md`](./CHANGELOG-2026-06-
 
 ## Working tree — MarketsGrid / host-data / OpenFin fixes
 
-The items below were implemented in the 2026-06-16–17 session. They are reflected in the working tree and in [`current-features.md`](./current-features.md), [`hub-fanout-optimizations.md`](./hub-fanout-optimizations.md), and [`blotter-performance-roadmap.md`](./blotter-performance-roadmap.md), but were **not yet committed** when this document was written.
+The items below were implemented in the 2026-06-16–17 session. They are reflected in the working tree and in [`current-features.md`](../current-features.md), [`hub-fanout-optimizations.md`](../hub-fanout-optimizations.md), and [`blotter-performance-roadmap.md`](../blotter-performance-roadmap.md), but were **not yet committed** when this document was written.
 
 ---
 
@@ -84,7 +84,7 @@ The items below were implemented in the 2026-06-16–17 session. They are reflec
 
 **Tests:** `FanOutWorkerPool.test.ts`, `fanOutBroadcast.test.ts`, hub fan-out pool tests in `SharedWorkerDataServicesHub.test.ts`.
 
-**Docs:** [`hub-fanout-optimizations.md` §12](./hub-fanout-optimizations.md).
+**Docs:** [`hub-fanout-optimizations.md` §12](../hub-fanout-optimizations.md).
 
 ---
 
@@ -142,7 +142,7 @@ The items below were implemented in the 2026-06-16–17 session. They are reflec
 
 **Note:** Seed changes require an empty IndexedDB or `seedConfigReload: when-changed` on existing dev databases.
 
-**Docs:** [`blotter-performance-roadmap.md`](./blotter-performance-roadmap.md) — Tier 1 items partially applied via seed; Tier 2 item 5 marked implemented.
+**Docs:** [`blotter-performance-roadmap.md`](../blotter-performance-roadmap.md) — Tier 1 items partially applied via seed; Tier 2 item 5 marked implemented.
 
 ---
 
@@ -253,9 +253,9 @@ Use this before treating the working-tree fixes as release-ready:
 
 - [`MARKETSGRID_PERF_AND_MEMORY_AUDIT.md`](./MARKETSGRID_PERF_AND_MEMORY_AUDIT.md) — full-stack MarketsGrid performance + memory audit
 - [`MEMORY_LEAK_AUDIT.md`](./MEMORY_LEAK_AUDIT.md) — proactive leak audit + monitoring playbook (host-data layer)
-- [`hub-fanout-optimizations.md`](./hub-fanout-optimizations.md) — fan-out architecture and §12 worker pool
-- [`blotter-performance-roadmap.md`](./blotter-performance-roadmap.md) — remaining performance backlog
-- [`MARKETSGRID_USAGE_GUIDE.md`](./MARKETSGRID_USAGE_GUIDE.md) — production integration layers
-- [`STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](./STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md) — STOMP + MarketsGrid wiring
-- [`PROFILE_PERSISTENCE.md`](./PROFILE_PERSISTENCE.md) — identity scoping in production
+- [`hub-fanout-optimizations.md`](../hub-fanout-optimizations.md) — fan-out architecture and §12 worker pool
+- [`blotter-performance-roadmap.md`](../blotter-performance-roadmap.md) — remaining performance backlog
+- [`MARKETSGRID_USAGE_GUIDE.md`](../MARKETSGRID_USAGE_GUIDE.md) — production integration layers
+- [`STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](../STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md) — STOMP + MarketsGrid wiring
+- [`PROFILE_PERSISTENCE.md`](../PROFILE_PERSISTENCE.md) — identity scoping in production
 - [`E2E_STATUS.md`](./E2E_STATUS.md) — Playwright inventory (`stale-data-disconnect`, `hosted-markets-grid`, OpenFin suite)

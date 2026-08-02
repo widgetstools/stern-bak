@@ -9,7 +9,7 @@ Use this guide when:
 - Fixing Tailwind / shadcn / AG Grid colors after a token change
 - Re-validating OpenFin `CustomPaletteSet` contrast (page tabs, dock dropdowns)
 
-**Related docs:** [`consumer-app-sharedworker-and-tailwind.md`](./consumer-app-sharedworker-and-tailwind.md), [`BUILD.md`](../BUILD.md), [`current-features.md`](../current-features.md) § `@wellsfargo-starui/design-system` and § `@wellsfargo-starui/openfin-platform`.
+**Related docs:** [`consumer-app-sharedworker-and-tailwind.md`](../archive/consumer-app-sharedworker-and-tailwind.md), [`BUILD.md`](../archive/BUILD.md), [`current-features.md`](../current-features.md) § `@wellsfargo-starui/design-system` and § `@wellsfargo-starui/openfin-platform`.
 
 ---
 

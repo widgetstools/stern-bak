@@ -516,6 +516,6 @@ my-stomp-app/
 
 - [README — Getting started](../README.md)
 - [MarketsGrid Usage Guide](./MARKETSGRID_USAGE_GUIDE.md) — scenarios, customizer UI, persistence
-- [Platform hooks demo guide](./guides/platform-hooks-demo.md) — AppData + grid event bindings
+- [Platform hooks demo guide](./archive/platform-hooks-demo.md) — AppData + grid event bindings
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — package layers and import rules
 - [apps/demos/stomp-view-server/README.md](../apps/demos/stomp-view-server/README.md) — STOMP protocol details

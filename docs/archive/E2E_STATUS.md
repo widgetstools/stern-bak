@@ -2,7 +2,7 @@
 
 Snapshot of the Playwright end-to-end suites: what exists, how it's wired,
 and how to capture a fresh pass/fail baseline. Referenced from
-[`CLAUDE.md`](../CLAUDE.md). Update the inventory whenever specs are added,
+[`CLAUDE.md`](../../CLAUDE.md). Update the inventory whenever specs are added,
 removed, or re-pointed, and re-capture the pass/fail counts after a full
 local run (see [Capturing a baseline](#capturing-a-baseline)).
 
@@ -12,9 +12,9 @@ _Last inventory: 2026-06-13._
 
 | Suite | Config | Collected tests | Spec files | Runner |
 |---|---|---|---|---|
-| Main | [`playwright.config.ts`](../playwright.config.ts) | **398** | 51 | `npm run e2e` |
-| Container | [`playwright.container.config.ts`](../playwright.container.config.ts) | **16** | 5 (`container-*.spec.ts`) | `npm run e2e:container` |
-| OpenFin | [`e2e-openfin/playwright.config.ts`](../e2e-openfin/playwright.config.ts) | 4 spec files | 4 | `npm run e2e:openfin` (OpenFin runtime only) |
+| Main | [`playwright.config.ts`](../../playwright.config.ts) | **398** | 51 | `npm run e2e` |
+| Container | [`playwright.container.config.ts`](../../playwright.container.config.ts) | **16** | 5 (`container-*.spec.ts`) | `npm run e2e:container` |
+| OpenFin | [`e2e-openfin/playwright.config.ts`](../../e2e-openfin/playwright.config.ts) | 4 spec files | 4 | `npm run e2e:openfin` (OpenFin runtime only) |
 
 The main config sets `testIgnore: 'container-*.spec.ts'`, so the 53 spec
 files under `e2e/` split into **48 main + 5 container**. Counts above are
@@ -114,6 +114,6 @@ npm run e2e:container -- --reporter=line
 ```
 
 Record the resulting `N passed / M failed` here and update the baseline in
-[`CLAUDE.md`](../CLAUDE.md) in the same change. Per repo policy, never commit
+[`CLAUDE.md`](../../CLAUDE.md) in the same change. Per repo policy, never commit
 `test.skip` / `test.fixme` / `.only` — fix, delete, or harden a failing spec
-instead (see [`e2e/README.md`](../e2e/README.md)).
+instead (see [`e2e/README.md`](../../e2e/README.md)).

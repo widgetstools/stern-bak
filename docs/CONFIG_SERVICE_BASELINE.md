@@ -409,6 +409,11 @@ re-optimization can be validated end-to-end.
    re-seeds.
 7. **Optimistic concurrency stays intact** (`payload.version`,
    `expectedUpdatedTime`, HTTP 412).
+8. **The main-thread `ConfigManager` stays the config source of truth — never
+   route config reads/writes through worker RPC.** Learned the hard way on
+   the abandoned `feat/worker-config-manager-client` branch (see the archived
+   `CONFIG_SERVICE_PERF_PLAN`): worker-mediated config I/O widened first
+   paint and lost the synchronous read paths the §5 flows depend on.
 
 ---
 

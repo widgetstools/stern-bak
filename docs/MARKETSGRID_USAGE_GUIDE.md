@@ -10,8 +10,8 @@
 |----------|--------|
 | [`STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](./STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md) | Step-by-step STOMP wiring |
 | [`guides/platform-bootstrap-config.md`](./guides/platform-bootstrap-config.md) | `appId` / `userId` / REST bootstrap |
-| [`guides/platform-hooks-demo.md`](./guides/platform-hooks-demo.md) | AppData bootstrap hooks + grid event callbacks |
-| [`guides/consumer-app-sharedworker-and-tailwind.md`](./guides/consumer-app-sharedworker-and-tailwind.md) | Vite + SharedWorker consumer setup |
+| [`guides/platform-hooks-demo.md`](./archive/platform-hooks-demo.md) | AppData bootstrap hooks + grid event callbacks |
+| [`guides/consumer-app-sharedworker-and-tailwind.md`](./archive/consumer-app-sharedworker-and-tailwind.md) | Vite + SharedWorker consumer setup |
 | [`PROFILE_PERSISTENCE.md`](./PROFILE_PERSISTENCE.md) | Profile keys, workspace save, storage adapters |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Monorepo layer model |
 
@@ -350,7 +350,7 @@ platform = await ensurePlatformReady(config, {
 3. **Provider** section — live/historical pickers, refresh, reload.
 4. **EVENT CALLBACKS** — one shadcn `Select` per catalog event; bindings save to `gridLevelData`.
 
-See [`guides/platform-hooks-demo.md`](./guides/platform-hooks-demo.md) for the full checklist and event catalog.
+See [`guides/platform-hooks-demo.md`](./archive/platform-hooks-demo.md) for the full checklist and event catalog.
 
 **Compare:** `apps/demos/stomp-marketsgrid-minimal` now ships optional `gridEventHandlers` + `appDataBootstrap` stubs for console logging — same APIs, STOMP data path.
 

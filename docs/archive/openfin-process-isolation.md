@@ -108,7 +108,7 @@ at reduced priority — throttling the very process doing all the work.
 
 ### 1. Unique affinity per view, stamped centrally
 
-[`viewProcessIsolation.ts`](../packages/openfin/openfin-platform/src/viewProcessIsolation.ts):
+[`viewProcessIsolation.ts`](../../packages/openfin/openfin-platform/src/viewProcessIsolation.ts):
 
 ```ts
 export function ensureViewProcessIsolation(opts) {
@@ -135,7 +135,7 @@ Design decisions:
 
 ### 2. Wired into the platform override — both creation paths
 
-[`workspacePersistence.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.ts)
+[`workspacePersistence.ts`](../../packages/openfin/openfin-platform/src/workspacePersistence.ts)
 (`MarketsUIWorkspaceProvider`, the `overrideCallback` every consumer of
 `initWorkspace()` already uses):
 
@@ -165,7 +165,7 @@ isolation with no app-side change.
 
 ### 3. Seed hardening (defense in depth)
 
-[`apps/demos/star-demo/public/seed.json`](../apps/demos/star-demo/public/seed.json):
+[`apps/demos/star-demo/public/seed.json`](../../apps/demos/star-demo/public/seed.json):
 the three `"processAffinity": "star-demo"` pins became distinct
 `view-iso-seed-1/2/3` values. The `createWindow` walker replaces them at
 restore anyway; the seed just no longer encodes the bug if some future
@@ -173,7 +173,7 @@ path bypasses the override.
 
 ### 4. EcoQoS disabled for background renderers
 
-[`apps/demos/star-demo/public/platform/manifest.fin.json`](../apps/demos/star-demo/public/platform/manifest.fin.json):
+[`apps/demos/star-demo/public/platform/manifest.fin.json`](../../apps/demos/star-demo/public/platform/manifest.fin.json):
 
 ```
 --disable-features=UseEcoQoSForBackgroundProcess
@@ -187,7 +187,7 @@ opt in by adding the same runtime argument.)
 ## What is deliberately NOT isolated
 
 **Child tool windows and popouts** (`fin.Window.create` — see
-[`popoutWindow.ts`](../packages/openfin/host-openfin/src/popoutWindow.ts))
+[`popoutWindow.ts`](../../packages/openfin/host-openfin/src/popoutWindow.ts))
 keep OpenFin's default process grouping. The React-portal popout pattern
 requires same-process DOM access (`getWebWindow()`), which default
 grouping provides and an affinity would break — that file documents the
@@ -218,7 +218,7 @@ caller instead.
 
 ## Related
 
-- [`hub-fanout-optimizations.md`](./hub-fanout-optimizations.md) — the
+- [`hub-fanout-optimizations.md`](../hub-fanout-optimizations.md) — the
   SharedWorker data-plane series this change completed (same branch):
   fan-out pool removal, bucketed replay, thin deltas, grid update-rate cap.
 - `docs/current-features.md` → OpenFin Utils → Workspace initialization —

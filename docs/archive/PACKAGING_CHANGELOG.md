@@ -7,7 +7,7 @@ Record of the work that made `@wellsfargo-starui/*` publishable to teams
 - **Standard applied:** ag-grid's — install the package, import one
   stylesheet, done. No consumer edits to `vite.config`, `tailwind.config`,
   `postcss.config`, or `tsconfig`.
-- **Reference:** [`EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) is the
+- **Reference:** [`EXTERNAL_CONSUMPTION.md`](../EXTERNAL_CONSUMPTION.md) is the
   consumer-facing contract. This file is the history behind it.
 
 ## Commits

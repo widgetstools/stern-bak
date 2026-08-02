@@ -50,7 +50,13 @@ app was deleted) and diff. Nobody has.
 
 **Also here:** `e2e-openfin/` came across pointing at `e2e-openfin-workspace`,
 which was deleted. star-demo is itself an OpenFin app with a `launch.mjs` and
-manifest, so retargeting is plausible but unverified.
+manifest, so retargeting is plausible but unverified. And
+`apps/e2e/visual-reference-capture.spec.ts` is demo-react-bound too (boots via
+the `demo-blotter-v2` selector) and its default output path
+(`process.cwd()/docs/visual-reference/v1`) is wrong now that Playwright runs
+from `apps/` — the checked-in snapshots it once produced were dropped from
+`docs/` (2026-08-02); regenerating requires retargeting this spec as part of
+the same decision.
 
 ---
 
@@ -277,7 +283,7 @@ rather than by *dependency profile*:
   zero-dependency `shared-types`; `data` would force `react` on the vanilla
   `host-data` SharedWorker layer; `react-core` would force **`ag-grid-enterprise`**,
   a licensed product, on anyone using `widget-sdk` to author a widget. That undoes
-  [`PACKAGING_CHANGELOG.md`](./PACKAGING_CHANGELOG.md) §6 and the verified promise
+  [`PACKAGING_CHANGELOG.md`](archive/PACKAGING_CHANGELOG.md) §6 and the verified promise
   in [`EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) §1.
 
 The 21-package graph itself is a clean DAG, 9 layers deep — nothing is wrong with
@@ -671,11 +677,55 @@ branch); these judged-riskier items remain:
 5. **`check:ds-tokens` has 393 pre-existing violations in `packages/`**
    (largest: `widgets-react` container hexes) — a separate effort from the
    apps; the gate is not currently green anywhere.
+6. **`star-demo` `RenameViewTab` imports `Button, Input` from
+   `@wellsfargo-starui/grid/customizer` for non-grid UI** — a layering smell
+   (should import from `@wellsfargo-starui/react`). The one surviving finding
+   from the archived `REFACTOR-platform-tool-views` plan.
+7. **Grid perf risk (from the archived June perf audit, still open):**
+   timed/header conditional-styling rules and virtual calculated columns can
+   trigger full-grid scans every tick; only partially covered by
+   `blotter-performance-roadmap` Tier 4.
+
+## 13. Stale-but-live docs need a path/name refresh pass
+
+**Area:** `docs/` · **Blocked on:** nothing — mechanical
+
+The 2026-08-02 docs audit kept these files because they document live
+features, but each carries pre-collapse names/paths. One pass, per file:
+
+- `MARKETSGRID_USAGE_GUIDE.md` — §20 cheat sheet + §21 template table are
+  fully dead (`widgets-react`, `host-data-react/runtime`, `apps/demos/*`);
+  live names: `@wellsfargo-starui/grid/widgets`, `/widgets/hosted`,
+  `@wellsfargo-starui/react/data/runtime`.
+- `STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md` — prereqs still say
+  `npm run propagate` / install from `libs/`; Step 1 uses the deleted
+  `mcp-scaffold` (`pack:mcp` is not a script). Protocol half is accurate.
+- `EXTERNAL_CONSUMPTION.md` — §1 install names are pre-collapse; closing
+  note recommends `propagate`.
+- `PROFILE_PERSISTENCE.md`, `EXPRESSION_DSL.md`,
+  `blotter-performance-roadmap.md` — `packages/shared/engine` →
+  `packages/core/engine` (+ roadmap's `react-core/widgets-react` →
+  `react-grid/...`, `apps/demos/*` → `apps/source/*`, and its "nothing
+  implemented yet" header contradicting its own ✅ items).
+- `CONFIG_SERVICE_BASELINE.md` — `apps/demos/star-demo/*` paths;
+  `host-config`/`host-data` import names → `@wellsfargo-starui/core/host/config`
+  / `@wellsfargo-starui/data`.
+- `OPENFIN_GRID_LINKING.md` — `packages/react-core/widgets-react/...` →
+  `packages/react-grid/widgets-react/...`; `apps/demos/` → `apps/source/`.
+- `MEMORY_LEAK_AUDIT.md` (archived but current-content) —
+  `--workspace=@wellsfargo-starui/host-data` → `@wellsfargo-starui/data`.
+- `package-coverage-and-sonar-lcov.md` — cites nonexistent
+  `scripts/run-unit-tests-with-report.mjs`; bucket-glob advice predates the
+  seven explicit workspace paths.
+- `guides/design-system-upgrade-and-openfin-palette.md` — `apps/demos/*`,
+  `npm run build:apps`, link to the archived `BUILD.md`.
+- `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
+  `@wellsfargo-starui/data`.
 
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
-[`PACKAGING_CHANGELOG.md` § Open items](./PACKAGING_CHANGELOG.md#open-items):
+[`PACKAGING_CHANGELOG.md` § Open items](archive/PACKAGING_CHANGELOG.md#open-items):
 
 1. Duplicate worker chunk in demo output (~249 KB; demo output only)
 2. Test coverage / Sonar LCOV — none of the tooling exists yet

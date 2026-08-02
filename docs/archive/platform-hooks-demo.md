@@ -12,7 +12,7 @@ npm run dev:platform-hooks-demo
 **Related:**
 
 - App README: [`../../apps/demos/platform-hooks-demo/README.md`](../../apps/demos/platform-hooks-demo/README.md)
-- Bootstrap config reference: [platform-bootstrap-config.md](./platform-bootstrap-config.md)
+- Bootstrap config reference: [platform-bootstrap-config.md](../guides/platform-bootstrap-config.md)
 - Minimal STOMP sample (subset of hooks): [`../../apps/demos/stomp-marketsgrid-minimal/`](../../apps/demos/stomp-marketsgrid-minimal/)
 
 ---
@@ -317,7 +317,7 @@ This demo focuses on **hooks and event bindings**, not live streaming. To try AG
 2. **DEFAULT COLDEF → CELL CONTENT** → enable **FLASH ON CHANGE**.
 3. Pick a **FLASH COLOR** swatch (maps to `--ag-value-change-value-highlight-background-color`).
 
-For a streaming lab with both native flash and style-rule flashes, run `npm run dev:markets-grid-lab` → **Live Updates** tab. See [MarketsGrid usage guide §22](../../MARKETSGRID_USAGE_GUIDE.md#22-grid-customizer-ui-settings-drawer).
+For a streaming lab with both native flash and style-rule flashes, run `npm run dev:markets-grid-lab` → **Live Updates** tab. See [MarketsGrid usage guide §22](../MARKETSGRID_USAGE_GUIDE.md#22-grid-customizer-ui-settings-drawer).
 
 ---
 
