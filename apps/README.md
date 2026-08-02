@@ -33,12 +33,14 @@ property is verified by hiding `packages/` and rebuilding.
 
 ## Setup
 
-This repo needs the platform checkout. **Its directory name is not hardcoded
+This tree needs the platform checkout. **Its location is not hardcoded
 anywhere** — `scripts/resolvePlatform.mjs` finds it at install time:
 
 1. `$STARUI_PLATFORM`, if set
-2. a sibling directory named `stern-bak` (the default layout)
-3. failing that, **any** sibling whose `package.json` is named
+2. the **parent directory** — the default layout, since this tree lives at
+   `<platform>/apps`
+3. a sibling directory named `stern-bak` (the legacy split-repo layout)
+4. failing that, **any** sibling whose `package.json` is named
    `@wellsfargo-starui/platform`
 
 So renaming or relocating the platform checkout needs no edit here. A candidate

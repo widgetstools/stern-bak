@@ -129,6 +129,22 @@ function buildPaths() {
     }
   }
 
+  // Type-identity singletons. These deps appear in the packages' public type
+  // surface AND in consumer app installs; without a mapping, tsc sees two
+  // structurally-diverged copies the moment the two install roots pick up
+  // different versions (lockfiles are regenerated per environment, so skew is
+  // routine). Mapping the bare specifier onto this repo's copy gives every
+  // consumer typecheck a single type identity. Add a dep here only when its
+  // types flow through an exported signature — app-private deps never need it.
+  const SINGLETON_TYPE_DEPS = ['react-hook-form'];
+  for (const dep of SINGLETON_TYPE_DEPS) {
+    const depPkgPath = join(REPO_ROOT, 'node_modules', dep, 'package.json');
+    if (!existsSync(depPkgPath)) continue;
+    const depTypes = JSON.parse(readFileSync(depPkgPath, 'utf8')).types;
+    if (typeof depTypes !== 'string') continue;
+    paths[dep] = [`./node_modules/${dep}/${depTypes.replace(/^\.\//, '')}`];
+  }
+
   return { paths, members };
 }
 

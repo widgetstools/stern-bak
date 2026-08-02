@@ -8,8 +8,9 @@
  *
  * Resolution order:
  *   1. $STARUI_PLATFORM              — explicit, wins outright
- *   2. ../<sibling>                  — the documented default layout
- *   3. scan sibling directories      — survives a renamed checkout
+ *   2. parent directory              — the in-repo layout (<platform>/apps)
+ *   3. ../<sibling>                  — the legacy split-repo layout
+ *   4. scan sibling directories      — survives a renamed split checkout
  *
  * A candidate only counts if its package.json actually declares
  * `name: "@wellsfargo-starui/platform"`, so a stale or unrelated directory can
@@ -89,6 +90,13 @@ export function resolvePlatform(opts = {}) {
     );
   }
 
+  // In-repo layout: this directory lives at `<platform>/apps`, so the
+  // platform checkout is simply the parent. Checked before the sibling
+  // paths so a leftover split-repo checkout beside the monorepo can
+  // never shadow the repo this apps/ tree is actually part of.
+  const parent = dirname(REPO_ROOT);
+  if (parent !== REPO_ROOT && isPlatformCheckout(parent)) return parent;
+
   const sibling = resolve(REPO_ROOT, '..', DEFAULT_SIBLING);
   if (isPlatformCheckout(sibling)) return sibling;
 
@@ -106,8 +114,9 @@ export function resolvePlatform(opts = {}) {
     `Could not locate the ${PLATFORM_PKG_NAME} checkout.\n`
       + `Tried, in order:\n`
       + `  1. STARUI_PLATFORM               (not set)\n`
-      + `  2. ${sibling}\n`
-      + `  3. every sibling directory of ${REPO_ROOT}\n\n`
+      + `  2. ${dirname(REPO_ROOT)}         (parent — in-repo layout)\n`
+      + `  3. ${sibling}\n`
+      + `  4. every sibling directory of ${REPO_ROOT}\n\n`
       + `Clone the platform repo beside this one, or point STARUI_PLATFORM at it:\n`
       + `${example}\n`,
   );

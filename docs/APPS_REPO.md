@@ -1,36 +1,42 @@
-# The apps repo — how demos consume this repo
+# The apps tree — how demos consume the packages
 
-The consumer/demo apps and the Playwright suite used to live at `apps/` and
-`e2e/` inside this repository. They now live in a sibling repo,
-`@wellsfargo-starui/apps`.
+The consumer/demo apps and the Playwright suite live at **`apps/`** in this
+repository. History: they started in-repo, moved to a sibling
+`@wellsfargo-starui/apps` repo while the packages lacked coverage (the
+enterprise pipeline demands unit-test coverage for every module it finds, and
+demo apps should not carry token tests to satisfy a gate), and were merged
+back by subtree once every package held the 70% per-file bar.
 
-**Why:** the enterprise CI/CD pipeline demands unit-test coverage for every
-module it finds. Demo apps exist only to exercise the libraries and are never
-published; adding token tests to satisfy a coverage gate is the wrong fix. Moving
-them out removes them from this repo's CI surface entirely.
+**`apps/` never enters the package CI surface.** It is its own npm install
+root — outside the root workspaces, turbo, lint, the coverage gate
+(`scripts/check-package-coverage.mjs` scans `packages/` only) and Sonar
+(`sonar.sources=packages`, plus an explicit `apps/**` exclusion).
 
 ## Layout
 
 ```
-workspace/
-  <platform>/       # this repo — @wellsfargo-starui/platform (any directory name)
-  starui-apps/      # apps repo — @wellsfargo-starui/apps
+<platform>/          # this repo — @wellsfargo-starui/platform
+  packages/          # the seven library buckets
+  apps/              # consumer/demo apps + Playwright (own install root)
+    source/*         # source-track apps (npm workspaces of apps/)
+    tarball/*        # GENERATED tarball-track twins (gitignored)
+    vendor/*.tgz     # vendored pack:npm output (gitignored)
+    e2e/ e2e-openfin/
 ```
 
-**This repo's directory name is not hardcoded in the apps repo.** Its
-`scripts/resolvePlatform.mjs` locates the checkout at install time —
-`$STARUI_PLATFORM`, else a sibling named `stern-bak`, else any sibling whose
-`package.json` is named `@wellsfargo-starui/platform` — so renaming or moving
-this checkout needs no edit over there.
+**The platform is resolved, never hardcoded.** `apps/scripts/resolvePlatform.mjs`
+locates the checkout at install time — `$STARUI_PLATFORM`, else the **parent
+directory** (the in-repo layout), else the legacy split-repo sibling paths — so
+the same apps tree also works checked out beside the platform.
 
-The apps repo materialises the link two ways:
+The apps tree materialises the link two ways:
 
 - **source track** — a `postinstall` creates
-  `node_modules/@wellsfargo-starui/platform` pointing here, which is what makes
-  `@wellsfargo-starui/platform/scripts/*` and the `tsconfig.consumer.json`
-  `extends` resolve.
-- **tarball track** — it **copies** `dist-npm/*.tgz` into its own `vendor/`,
-  stripping the version, so its pins reference nothing in this repo at all.
+  `apps/node_modules/@wellsfargo-starui/platform` pointing at the platform root,
+  which is what makes `@wellsfargo-starui/platform/scripts/*` and the
+  `tsconfig.consumer.json` `extends` resolve.
+- **tarball track** — it **copies** `dist-npm/*.tgz` into `apps/vendor/`,
+  stripping the version, so its pins reference nothing in `packages/` at all.
 
 ## Why moving them out worked
 
@@ -95,15 +101,22 @@ behaviour for one package, delete that package's `dist/`.
 ## Workflow
 
 ```bash
-# this repo
+# repo root
 npm install && npm run build:packages     # emits dist/ + tsconfig.consumer.json
 npm run pack:npm                          # only needed for the tarball track
 
-# apps repo
-npm install
+# apps/ (own install root)
+cd apps
+npm install                               # postinstall links platform -> parent
+npm run setup:tarball                     # vendor pack:npm output FIRST …
+npm run make:tarball-apps                 # … then (re)generate tarball/ twins
+npm run setup:tarball                     # … then install the twins
 npm run typecheck && npm run build        # both tracks
 ```
 
-After changing a package, rebuild here; the source track picks it up on the
-apps repo's next build. The tarball track additionally needs `pack:npm` and an
-`npm install` in the apps repo.
+(`make:tarball-apps` refuses to run before `vendor/` exists — the twins'
+dependency closure is read from what `setup.mjs` vendored.)
+
+After changing a package, rebuild at the root; the source track picks it up on
+the next app build. The tarball track additionally needs `pack:npm`, then
+`make:tarball-apps` + `setup:tarball` under `apps/`.

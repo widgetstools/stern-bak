@@ -1,22 +1,23 @@
 # Worklog — outstanding items
 
-Single index of known-open work across **both** repos:
-
-- `widgetstools/stern-bak` — this repo, the library monorepo (`@wellsfargo-starui/platform`)
-- `widgetstools/stern-apps` — the consumer/demo apps (`@wellsfargo-starui/apps`)
+Single index of known-open work in this repo — which, since 2026-08-02, again
+includes the consumer/demo apps: `widgetstools/stern-apps` was merged back
+under [`apps/`](../apps) (git subtree, history preserved) once every package
+held the 70% per-file coverage bar. Older entries that say "stern-apps" refer
+to what is now the `apps/` tree; the separate remote is historical.
 
 Each entry states what is wrong, why it was left, and what "done" looks like, so
 it can be picked up cold. Close an item by deleting its section in the same
 change that fixes it.
 
-Last updated: 2026-08-01.
+Last updated: 2026-08-02.
 
 ---
 
 ## 1. ~34 e2e specs target the deleted `demo-react`
 
-**Repo:** stern-apps · **Blocked on:** a product decision, not a fix
-**Detail:** [`E2E_STATUS.md`](https://github.com/widgetstools/stern-apps/blob/main/E2E_STATUS.md)
+**Area:** `apps/e2e` · **Blocked on:** a product decision, not a fix
+**Detail:** [`apps/E2E_STATUS.md`](../apps/E2E_STATUS.md)
 
 The app curation deleted `demo-react`, which was the suite's default `baseURL`
 target. Only 13 of the 47 remaining specs pin their own port; the rest inherited

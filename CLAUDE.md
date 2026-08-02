@@ -1,13 +1,14 @@
 # CLAUDE.md — agent instructions for `starui` (MarketsUI platform monorepo)
 
-This is the MarketsUI platform library monorepo — `packages/`, `docs/`,
-`scripts/`, `tools/`.
+This is the MarketsUI platform library monorepo — `packages/`, `apps/`,
+`docs/`, `scripts/`, `tools/`.
 
-**The consumer/demo apps and the Playwright e2e suite are NOT here.** They live
-in a sibling repository (`@wellsfargo-starui/apps`, checked out beside this one)
-because the enterprise CI/CD pipeline demands unit-test coverage for every module
-it finds, and demo apps should not carry tests to satisfy a coverage gate. Those
-apps still consume this repo's **source** — see
+**The consumer/demo apps and the Playwright e2e suite live under `apps/`** —
+merged back from the former sibling `@wellsfargo-starui/apps` repo (subtree,
+history preserved) once every package held the 70% per-file coverage bar.
+`apps/` is its **own npm install root**, deliberately outside the root
+workspaces, turbo, lint, the coverage gate and Sonar (`sonar.sources=packages`),
+so demo apps never enter the package CI surface — see
 [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 **Read before editing:**
@@ -76,8 +77,9 @@ architecture buckets (see
 > deleted. `StarGridApp` is vendored into the apps repo's star-demo, which was
 > its only consumer.
 
-**Apps** live in the sibling apps repo and consume this one through a
-`file:` link — see [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
+**Apps** live under `apps/` (own install root; a `postinstall` symlink
+resolves the platform to the parent directory) — see
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 The root `package.json` workspaces glob enumerates each bucket explicitly
 (npm 10 doesn't do `packages/**`). When adding a new package:
@@ -149,7 +151,8 @@ on the next run. Don't remove it.
 ## Install layout
 
 - **Root** `npm install` / `npm run install:all` — `packages/*` only (workspace `"*"`).
-- **Apps are a separate repo.** They consume this one two ways, both covered in
+- **`apps/` is a separate install root** (`cd apps && npm install`; not part of
+  the root workspaces). Apps consume the packages two ways, both covered in
   [`docs/APPS_REPO.md`](./docs/APPS_REPO.md):
   - **source track** — Vite through `scripts/staruiConsumerAliases.mjs`, `tsc`
     through the generated `tsconfig.consumer.json`. Both resolve to absolute
@@ -184,8 +187,9 @@ There is no longer a bucket-tarball step. `scripts/propagate.mjs`, `libs/`,
 member to `@wellsfargo-starui/<bucket>` with `./<member>` subpaths while the
 shipped `dist` files still imported each other by real name, so they only ever
 resolved through this repo's Vite alias layer — never installable externally.
-Their last consumer was the in-repo apps, which now live in their own repo and
-use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
+Their last consumer was the legacy in-repo apps layout; today's `apps/` tree
+uses `pack:npm` output for its tarball track. See
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 ## Testing
 
@@ -197,8 +201,9 @@ use `pack:npm` output. See [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
   The per-file 70% coverage gate is a separate run — see
   [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`
   section is binding for new tests.
-- **Playwright lives in the apps repo now**, along with the apps its specs
-  drive. Nothing in this repo runs e2e.
+- **Playwright lives under `apps/`** (`apps/e2e`, `apps/e2e-openfin`), along
+  with the apps its specs drive. Nothing under `packages/` runs e2e, and the
+  package test/coverage runs never enter `apps/`.
 
 ## UI stack rules (non-negotiable)
 
@@ -258,7 +263,7 @@ After every feature add / update / fix / removal:
    correspond to the capability you changed; keep granularity at one bullet
    per importable thing. Don't ask the user first; just do it.
 2. Run `npx turbo typecheck build test` and ensure green.
-3. If interaction changes, add/update the e2e spec in the apps repo.
+3. If interaction changes, add/update the e2e spec under `apps/e2e`.
 4. Commit messages: conventional prefixes (`feat(pkg):`, `fix(pkg):`,
    `chore:`, `docs:`, `test:`, `ci:`, `refactor(pkg):`).
 

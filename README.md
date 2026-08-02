@@ -744,9 +744,10 @@ npm run check:deps            # package cycle check
 
 ### Run E2E tests
 
-The Playwright suite moved to the apps repo along with the apps its specs
-drive — see [`docs/APPS_REPO.md`](./docs/APPS_REPO.md). Nothing in this repo
-runs e2e; `npm test` here is Vitest over `packages/` only.
+The Playwright suite lives under [`apps/`](./apps) (`apps/e2e`,
+`apps/e2e-openfin`) along with the apps its specs drive — see
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md). `npm test` at the root is Vitest
+over `packages/` only; e2e runs from `apps/` (`cd apps && npx playwright test`).
 
 ### Quick reference
 
