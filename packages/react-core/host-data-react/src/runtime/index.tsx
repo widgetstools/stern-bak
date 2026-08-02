@@ -174,6 +174,11 @@ export interface DataProviderConfigView {
   error?: string;
 }
 
+/** Per-attempt response deadline for {@link useDataProviderConfig}. */
+const GET_CONFIG_ATTEMPT_TIMEOUT_MS = 2_500;
+/** Total attempts before surfacing the failure as `error`. */
+const GET_CONFIG_ATTEMPTS = 3;
+
 export function useDataProviderConfig(providerId: string | null | undefined): DataProviderConfigView {
   const { client } = useDataServicesContext();
   const [view, setView] = useState<DataProviderConfigView>({ cfg: null, loading: Boolean(providerId) });
@@ -207,21 +212,55 @@ export function useDataProviderConfig(providerId: string | null | undefined): Da
       // Provider switch: the previous cfg belongs to ANOTHER provider.
       setView({ cfg: null, loading: true });
     }
-    client.getProviderConfig(providerId)
-      .then((cfg) => {
-        if (cancelled) return;
-        loadedForIdRef.current = providerId;
-        setView({ cfg, loading: false });
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setView((prev) => ({
-            cfg: prev.cfg,
-            loading: false,
-            error: err instanceof Error ? err.message : String(err),
-          }));
+    // Time-bounded with retries — a `get-config` issued in the worker's
+    // first moments can go unanswered (the worker-side catalog read stalls
+    // during boot; a re-issued request succeeds — see WORKLOG item 14).
+    // An unbounded single await turns that into a permanent
+    // "Loading provider configuration…"; bounded retries turn it into a
+    // sub-3s blip, and a real failure surfaces as `error` instead of an
+    // infinite spinner.
+    const TIMED_OUT = Symbol('get-config-timeout');
+    const run = async () => {
+      for (let attempt = 1; attempt <= GET_CONFIG_ATTEMPTS && !cancelled; attempt++) {
+        try {
+          const cfg = await Promise.race([
+            client.getProviderConfig(providerId),
+            new Promise<typeof TIMED_OUT>((resolve) => {
+              setTimeout(() => resolve(TIMED_OUT), GET_CONFIG_ATTEMPT_TIMEOUT_MS);
+            }),
+          ]);
+          if (cancelled) return;
+          if (cfg === TIMED_OUT) {
+            // No response at all — the boot-window loss. Re-issue; only
+            // after the last silent attempt does the timeout surface.
+            if (attempt === GET_CONFIG_ATTEMPTS) {
+              setView((prev) => ({
+                cfg: prev.cfg,
+                loading: false,
+                error: `get-config for "${providerId}" got no response within `
+                  + `${GET_CONFIG_ATTEMPTS} × ${GET_CONFIG_ATTEMPT_TIMEOUT_MS}ms`,
+              }));
+            }
+            continue;
+          }
+          loadedForIdRef.current = providerId;
+          setView({ cfg, loading: false });
+          return;
+        } catch (err: unknown) {
+          // An explicit rejection is an authoritative answer — surface it
+          // immediately, keeping the stale-but-known cfg.
+          if (!cancelled) {
+            setView((prev) => ({
+              cfg: prev.cfg,
+              loading: false,
+              error: err instanceof Error ? err.message : String(err),
+            }));
+          }
+          return;
         }
-      });
+      }
+    };
+    void run();
     return () => { cancelled = true; };
   }, [providerId, client, tick]);
 

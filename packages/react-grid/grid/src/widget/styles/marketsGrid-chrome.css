@@ -153,22 +153,10 @@
   flex-shrink: 0;
 }
 
-/* Collapsible profile section. By default only the Save button shows; the
-   profile selector slides in when the user hovers the cluster (the Save
-   button is the always-visible hover anchor), keyboard-focuses into it, or
-   has the layouts dropdown open. */
 .ds-primary-profile-cluster .ds-profile-selector {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
-  transition: max-width 180ms ease, opacity 150ms ease;
-}
-.ds-primary-profile-cluster:hover .ds-profile-selector,
-.ds-primary-profile-cluster:focus-within .ds-profile-selector,
-.ds-primary-profile-cluster:has(.ds-ps-trigger[data-open="true"]) .ds-profile-selector {
   max-width: 240px;
   opacity: 1;
+  overflow: hidden;
   pointer-events: auto;
 }
 

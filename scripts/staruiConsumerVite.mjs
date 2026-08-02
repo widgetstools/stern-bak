@@ -31,6 +31,13 @@ export function staruiConsumerViteConfig(appDir, opts = {}) {
         'ag-grid-community',
         'ag-grid-enterprise',
         'ag-grid-react',
+        // dexie ships dist/dexie.js as a UMD build; its own ESM entry
+        // (import-wrapper.mjs) re-imports that file by relative path, so it
+        // only gets a synthesized default export when esbuild's CJS interop
+        // runs on it via the optimizer. dexie is reachable only through
+        // @wellsfargo-starui/data (excluded above, see staruiOptimizeDeps),
+        // so the scanner never discovers it on its own — force it in.
+        'dexie',
       ],
     },
     resolve: {

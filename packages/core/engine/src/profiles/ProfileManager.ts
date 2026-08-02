@@ -791,9 +791,15 @@ export class ProfileManager {
     this.listeners.clear();
   }
 
-  // ─── Internals ───────────────────────────────────────────────────────────
-
-  private async refresh(): Promise<void> {
+  /** Re-sync the cached profile list from storage. `load()` deliberately
+   *  skips this (see its comment) because it assumes the set of profile
+   *  rows on disk is unchanged. That assumption doesn't hold for callers
+   *  that write profile rows directly through the adapter instead of
+   *  through this manager's own list-mutating methods (e.g. bulk config
+   *  import) — call `refresh()` explicitly after such a write, or the
+   *  picker keeps showing whatever list was cached at the last boot/
+   *  create/remove/rename/clone/import/save. */
+  async refresh(): Promise<void> {
     const list = await this.adapter.listProfiles(this.platform.gridId);
     this.updateState({ profiles: list.map(toMeta).sort(byName) });
   }

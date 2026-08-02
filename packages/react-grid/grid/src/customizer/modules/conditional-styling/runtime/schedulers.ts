@@ -51,11 +51,20 @@ export function createRefreshScheduler(
    * are painted by the DOM watcher in `evaluate()` directly, so
    * `refreshHeader()` would just trigger one more round of churn for
    * no benefit.
+   *
+   * `suppressFlash` is required: `force: true` makes AG-Grid skip its
+   * own old-value-vs-new-value check, so with `enableCellChangeFlash`
+   * on (the general-settings default) every cell this touches — even
+   * ones whose value never changed, like a static CUSIP column — gets
+   * treated as "changed" and animates the native value-change flash.
+   * Under a live tick this schedule fires every frame, so the whole
+   * grid reads as permanently flashing instead of individual cells
+   * flashing on genuine value changes.
    */
   const refreshGridVisuals = () => {
     const api = platform.api.api;
     if (!api) return;
-    try { api.refreshCells({ force: true }); } catch { /* grid mid-teardown */ }
+    try { api.refreshCells({ force: true, suppressFlash: true }); } catch { /* grid mid-teardown */ }
   };
 
   const scheduleRefresh = () => {
@@ -122,7 +131,9 @@ export function createTargetedRefreshScheduler(
         .map((id) => api.getRowNode?.(id))
         .filter((n): n is NonNullable<typeof n> => !!n);
       if (rowNodes.length === 0) return;
-      const params: Record<string, unknown> = { rowNodes, force: true };
+      // suppressFlash: see refreshGridVisuals() above — force:true alone
+      // would flash every touched cell natively, changed or not.
+      const params: Record<string, unknown> = { rowNodes, force: true, suppressFlash: true };
       // When at least one entry was row-scope, refresh ALL columns for
       // those rows — the row's class membership flipped, every cell
       // needs to re-evaluate. Cell-scope-only entries restrict to

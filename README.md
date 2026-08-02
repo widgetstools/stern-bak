@@ -76,10 +76,43 @@ The demo apps double as reference implementations — each has its own README:
 [`stomp-marketsgrid-minimal`](./apps/source/stomp-marketsgrid-minimal/) (:5213),
 [`stomp-view-server`](./apps/source/stomp-view-server/) (fixture broker, :8081).
 
+## Running demo apps from the root
+
+`npm run app` (`scripts/run-app.mjs`) runs any demo app — either track —
+without `cd`-ing into `apps/`. It starts the STOMP broker automatically when
+the app needs one and refuses to start if its port is already in use:
+
+```bash
+npm run app                                     # usage + app table
+npm run app -- basic                            # source track, :5194
+npm run app -- stomp-marketsgrid-minimal        # broker (stomp-view-server) starts automatically
+npm run app -- star-demo --openfin              # dev server, then the OpenFin client
+npm run app -- markets-grid-lab --tarball       # generated tarball twin, :6300
+npm run app -- stomp-marketsgrid-minimal --no-broker   # skip the auto-started broker
+```
+
+| App | Source port | Tarball port | Notes |
+|---|---|---|---|
+| `basic` | 5194 | 6194 | |
+| `dataprovider-editor` | 5193 | 6193 | |
+| `design-system` | 5310 | 6310 | |
+| `markets-grid-lab` | 5300 | 6300 | |
+| `star-demo` | 5175 | 6175 | starts the broker unless `--no-broker`; supports `--openfin` |
+| `stomp-marketsgrid-minimal` | 5213 | 6213 | requires the broker |
+| `stomp-view-server` | 8081 | — | the broker itself; source-track only (imports no `@wellsfargo-starui` packages, so no tarball twin) |
+
+`--tarball` targets the generated twin at `apps/tarball/<app>` on its own port
+(source port **+ 1000**), so both tracks can run at once. `Ctrl+C` tears down
+everything the command started, including any broker it launched. Details on
+the two consumption tracks, and how to refresh the tarball track after a
+`packages/` change, are in [`apps/README.md`](./apps/README.md#refreshing-the-tarball-track-after-a-packages-change)
+and [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
+
 ## Scripts
 
 | Script | What it does |
 |---|---|
+| `npm run app -- <name>` | run any demo app from the root — auto-starts the STOMP broker when the app needs it; `--tarball` for the generated twin, `--openfin` for the star-demo launcher |
 | `npm run build` | turbo build across the seven packages + regenerate `tsconfig.consumer.json` |
 | `npm run typecheck` | build, then turbo typecheck |
 | `npm test` | turbo Vitest across `packages/` |

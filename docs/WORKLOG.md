@@ -722,6 +722,32 @@ features, but each carries pre-collapse names/paths. One pass, per file:
 - `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
   `@wellsfargo-starui/data`.
 
+## 14. First-run catalog read stalled once — class closed, forensic cause unproven
+
+**Area:** `packages/data/host-data` (worker) · **Blocked on:** recurrence
+
+Observed once (2026-08-02, first-run cold boot of `stomp-marketsgrid-minimal`):
+the worker's first ConfigManager read (`ConfigCatalogCache.ensure` →
+`store.get` → Dexie) never settled, so `handleGetConfig` never replied and
+the client hung on a stranded promise. Instrumented browser traces of
+subsequent first-run boots (fresh profile, empty IndexedDB, real seed
+storm) could not reproduce the stall.
+
+**The failure class is closed at both layers, with tests:**
+- `useDataProviderConfig` bounds each fetch (2.5s × 3 silent re-issues on
+  no-response; explicit rejections unchanged) — `react-core` hook tests.
+- Every async catalog RPC handler now guarantees **exactly one reply** —
+  result, error, or a 10s deadline error — via `replyBounded` in
+  `hubCatalogRpc.ts`; late completions are not re-sent but keep their side
+  effects (row cached; `catalog-ready` still broadcast) —
+  `hubCatalogRpc.test.ts` "Bounded replies" suite, including the observed
+  six-invalidate seed storm interleaving.
+
+**Remaining (forensic only):** what made that one Dexie read stall. If a
+deadline error ever surfaces in the wild (`"catalog read did not settle"`),
+capture the worker console via chrome://inspect at that moment — the
+backstop now makes the event visible instead of silent.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

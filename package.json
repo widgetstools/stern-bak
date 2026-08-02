@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "install:all": "npm install && npm run build:packages",
+    "app": "node scripts/run-app.mjs",
     "build:packages": "node scripts/ensure-workspace-links.mjs && npx turbo build --concurrency=50% && node scripts/gen-consumer-tsconfig.mjs",
     "build": "npm run build:packages",
     "typecheck:packages": "npx turbo typecheck",

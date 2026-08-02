@@ -80,7 +80,14 @@ describe('calculatedColumnsModule.activate — refresh gating + coalescing', () 
     expect(refreshCells).not.toHaveBeenCalled(); // deferred to the frame
     flushFrame();
     expect(refreshCells).toHaveBeenCalledTimes(1);
-    expect(refreshCells).toHaveBeenCalledWith({ columns: ['net', 'total'], force: true });
+    // suppressFlash: true — force:true alone would flash every virtual
+    // column cell's native "value changed" animation on every recompute,
+    // even when the computed value is unchanged.
+    expect(refreshCells).toHaveBeenCalledWith({
+      columns: ['net', 'total'],
+      force: true,
+      suppressFlash: true,
+    });
     dispose();
   });
 

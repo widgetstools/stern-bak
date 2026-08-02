@@ -23,6 +23,11 @@ export interface UseProfileManagerResult {
    *  profile switch and page unload. */
   isDirty: boolean;
   loadProfile: (id: string) => Promise<void>;
+  /** Re-sync the profile list from storage. Needed after any write that
+   *  bypassed this manager's own list-mutating methods (e.g. a bulk
+   *  `setConfig` import) — `loadProfile` alone won't pick up rows added
+   *  that way. See `ProfileManager.refresh` for why. */
+  refreshProfiles: () => Promise<void>;
   saveActiveProfile: () => Promise<void>;
   /** Throw away in-memory changes and reload the active profile from
    *  disk. Used by the Discard branch of the unsaved-changes prompt. */
@@ -117,6 +122,7 @@ export function useProfileManager(opts: {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const loadProfile = useCallback((id: string) => manager.load(id), [manager]);
+  const refreshProfiles = useCallback(() => manager.refresh(), [manager]);
   const saveActiveProfile = useCallback(() => manager.save(), [manager]);
   const discardActiveProfile = useCallback(() => manager.discard(), [manager]);
   const createProfile = useCallback(
@@ -145,6 +151,7 @@ export function useProfileManager(opts: {
       isLoading: state.isLoading,
       isDirty: state.isDirty,
       loadProfile,
+      refreshProfiles,
       saveActiveProfile,
       discardActiveProfile,
       createProfile,
@@ -160,6 +167,7 @@ export function useProfileManager(opts: {
       state.isLoading,
       state.isDirty,
       loadProfile,
+      refreshProfiles,
       saveActiveProfile,
       discardActiveProfile,
       createProfile,
