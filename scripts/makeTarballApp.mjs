@@ -19,6 +19,7 @@
  * Re-running is safe: it regenerates the configs and refreshes src/, preserving
  * nothing app-specific outside the table below.
  */
+import { execFileSync } from 'node:child_process';
 import {
   cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync,
 } from 'node:fs';
@@ -62,8 +63,46 @@ function vendoredPackages() {
     .map((f) => ({
       name: `@wellsfargo-starui/${f.replace(/^wellsfargo-starui-/, '').replace(/\.tgz$/, '')}`,
       spec: `file:../../vendor/${f}`,
+      file: join(VENDOR_DIR, f),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * @wellsfargo-starui dependency names declared by a vendored tarball's own
+ * manifest (dependencies + peerDependencies) — the edges the closure walk
+ * follows.
+ */
+function vendoredStaruiDeps(tarballFile) {
+  const manifest = JSON.parse(
+    execFileSync('tar', ['-xOf', tarballFile, 'package/package.json'], { encoding: 'utf8' }),
+  );
+  return Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })
+    .filter((name) => name.startsWith('@wellsfargo-starui/'));
+}
+
+/**
+ * Expand the app's direct set to its full transitive @wellsfargo-starui closure.
+ * Every closure member becomes a direct file: dependency, which is what lets
+ * the generated manifest carry NO `overrides` block: a transitive semver range
+ * (grid -> @wellsfargo-starui/core@^0.1.0) dedupes onto the direct file: node,
+ * so npm never consults the registry for the unpublished names.
+ */
+function staruiClosure(direct, vendored) {
+  const byName = new Map(vendored.map((v) => [v.name, v]));
+  const closure = new Set(direct);
+  const queue = [...direct];
+  while (queue.length > 0) {
+    const entry = byName.get(queue.pop());
+    if (!entry) continue;
+    for (const dep of vendoredStaruiDeps(entry.file)) {
+      if (!closure.has(dep) && byName.has(dep)) {
+        closure.add(dep);
+        queue.push(dep);
+      }
+    }
+  }
+  return closure;
 }
 
 const SCANNED_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.html', '.json']);
@@ -265,23 +304,22 @@ function makeApp(app) {
     + `npm packages (vendor/*.tgz) with a plain Vite config — the path an external team takes.`;
 
   /*
-   * `dependencies` lists ONLY what the app imports, like a real consumer's
-   * manifest. `overrides` then covers the WHOLE packed set.
+   * `dependencies` lists the app's imports PLUS their transitive
+   * @wellsfargo-starui closure, every one pinned to its vendored file: tarball.
+   * The closure entries are the "no registry available" shim: the packed
+   * tarballs depend on each other by semver range and none are published, so
+   * without a local node for each name npm would 404 against the registry. In
+   * a real Artifactory setup only the imports would be listed and the
+   * registry would answer for the rest.
    *
-   * Why overrides exist: the packed tarballs depend on each other by concrete
-   * version and none are published, so every transitive one sends npm to the
-   * registry for a 404. In a real Artifactory setup the registry answers and
-   * this block would not exist — it is purely the "no registry available" shim.
-   *
-   * Two npm behaviours pin this shape down, both established by experiment:
-   *
-   *   - Overriding a package whose direct dependency uses a DIFFERENT spec
-   *     (e.g. dep "^0.1.0" vs override "file:…") fails with EOVERRIDE. Using
-   *     the identical file: spec in both places is accepted.
-   *   - Listing only the transitive remainder is NOT enough: with overrides
-   *     present, a direct file: dep stops satisfying a transitive semver range
-   *     for the same package, and npm 404s on it. So overrides must name every
-   *     package, direct ones included.
+   * This deliberately carries NO `overrides` block. An earlier shape kept
+   * imports-only deps and overrode the whole packed set to file: specs — it
+   * resolved identically, but npm logs a spurious "ERESOLVE overriding peer
+   * dependency" warning for every peer edge under an overridden subtree even
+   * when all versions are compatible, which buried real install warnings in
+   * hundreds of false ones. With the closure as plain direct deps, semver
+   * ranges dedupe onto the file: nodes and the install is warning-free
+   * (established by experiment on star-demo: dozens of warnings -> zero).
    */
   const vendored = vendoredPackages();
   const known = new Set(vendored.map((v) => v.name));
@@ -291,17 +329,16 @@ function makeApp(app) {
   // depends on it whether or not its own source mentions it.
   if (existsSync(join(srcDir, 'tailwind.config.js'))) direct.add('@wellsfargo-starui/design-system');
 
+  const closure = staruiClosure(direct, vendored);
   const deps = Object.fromEntries(
     Object.entries(pkg.dependencies ?? {}).filter(([k]) => !k.startsWith('@wellsfargo-starui/')),
   );
-  const overrides = {};
   for (const { name, spec } of vendored) {
-    overrides[name] = spec;
-    if (direct.has(name)) deps[name] = spec;
+    if (closure.has(name)) deps[name] = spec;
   }
   pkg.dependencies = Object.fromEntries(Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)));
-  pkg.overrides = Object.fromEntries(Object.entries(overrides).sort(([a], [b]) => a.localeCompare(b)));
-  cfg._counts = { direct: direct.size, overrides: vendored.length };
+  delete pkg.overrides;
+  cfg._counts = { direct: direct.size, closure: closure.size };
 
   // Isolated install — no hoisted root node_modules to borrow React types from.
   const dev = { ...(pkg.devDependencies ?? {}) };
@@ -333,12 +370,12 @@ function makeApp(app) {
     writeFileSync(join(destDir, 'tailwind.config.js'), tailwindConfig(app));
   }
   patchTarballVitestConfig(destDir);
-  const tsconfigs = ['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json']
+  const tsconfigs = ['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'tsconfig.test.json']
     .filter((f) => rewriteTsconfig(destDir, f));
 
-  const { direct: nDirect, overrides: nOver } = cfg._counts;
+  const { direct: nDirect, closure: nClosure } = cfg._counts;
   log(
-    `${app} -> tarball/${app} (port ${cfg.port}, ${nDirect} direct dep(s) of ${nOver} packed, `
+    `${app} -> tarball/${app} (port ${cfg.port}, ${nDirect} imported + ${nClosure - nDirect} closure dep(s), `
       + `${tsconfigs.length} tsconfig(s)${hadModules ? ', kept node_modules' : ''})`,
   );
 }
