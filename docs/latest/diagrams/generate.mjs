@@ -261,9 +261,13 @@ function tracks() {
   b += box(330, 158, 240, 60, 'runtime', 'packages/*/dist', ['+ tsconfig.consumer.json'], { mono: true });
   b += arrow(450, 104, 450, 156, 'turbo build (tsc)', { dx: 78 });
 
-  // Source track (left)
+  // Source track (left) — three-segment route: drop out of dist, run left
+  // through the clear band between the rows, then turn down into the box
+  // top. A two-segment elbow here skims the top borders of dist-npm and
+  // apps/source instead of entering cleanly.
   b += box(60, 288, 230, 72, 'product', 'apps/source/*', ['source track', '"did a platform change break the demos?"'], { mono: true, titleSize: 12.5 });
-  b += elbow(390, 218, 175, 286, 'vh', 'vite aliases + consumer tsconfig', { lx: 240, ly: 262 });
+  b += `<path d="M360,220 L360,252 L175,252 L175,286" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+  b += `<text x="258" y="246" text-anchor="middle" font-size="9.5" fill="${MUTED}" font-family="${MONO}">vite aliases + consumer tsconfig</text>\n`;
 
   // Tarball path (center)
   b += box(345, 288, 210, 56, 'services', 'dist-npm/*.tgz', ['npm run pack:npm — one per package'], { mono: true, titleSize: 12.5 });
