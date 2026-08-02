@@ -74,12 +74,12 @@
   isolation: isolate;
 }
 
-/* Toolbar variant — two labeled-group rows that reflow with width.
-   Row 1: scope + typography + colour.
-   Row 2: number format + editor/filter + templates + clear.
-   Each row WRAPS: when a row's groups can't all fit, whole labeled
-   groups drop to a new line (never split mid-group) instead of growing
-   a horizontal scrollbar. The toolbar grows taller, never sideways. */
+/* Toolbar variant — Excel-ribbon band. One row of labeled groups,
+   controls on top and the group caption centered underneath, separated
+   by full-height hairlines (Clipboard | Font | Alignment | … pattern).
+   The band WRAPS: when the groups can't all fit, whole labeled groups
+   drop to a new line (never split mid-group) instead of growing a
+   horizontal scrollbar. The toolbar grows taller, never sideways. */
 .fx-shell--horizontal {
   display: flex;
   flex-direction: column;
@@ -93,7 +93,8 @@
   box-sizing: border-box;
 }
 
-/* Two-row scaffold — replaces accidental flex-wrap wrapping. */
+/* Ribbon scaffold — single band; kept as a column so a future second
+   band (Excel tab switch) slots in without relayout. */
 .fx-toolbar-rows {
   display: flex;
   flex-direction: column;
@@ -104,25 +105,31 @@
 
 .fx-toolbar-row {
   display: flex;
-  align-items: center;
+  /* Stretch, not center — every group spans the band's full height so
+   * the inter-group hairline runs edge-to-edge like Excel's ribbon
+   * separators. */
+  align-items: stretch;
   /* Reflow whole groups onto new lines instead of scrolling. `row-gap`
-   * gives wrapped lines breathing room that matches the inter-row gap
-   * of the two-row scaffold, so a wrapped group reads as a natural
-   * continuation rather than a cramped overflow. */
+   * gives wrapped lines breathing room so a wrapped group reads as a
+   * natural continuation rather than a cramped overflow. Horizontal
+   * spacing comes from the groups' own padding (hairline gutters). */
   flex-wrap: wrap;
-  column-gap: 8px;
-  row-gap: 6px;
-  min-height: var(--fx-pill-h);
+  column-gap: 0;
+  row-gap: 8px;
+  min-height: calc(var(--fx-pill-h) + 15px);
   min-width: 0;
 }
 
-/* Labeled cluster — label + controls inline; no outer box chrome. */
+/* Ribbon group — controls above, caption below, no outer box chrome.
+   The caption is pinned to the band's bottom edge (margin-top: auto)
+   so every group's label sits on one shared baseline regardless of
+   how tall its controls are. */
 .fx-toolbar-group {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  min-height: var(--fx-pill-h);
-  padding: 0;
+  gap: 5px;
+  padding: 0 12px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -130,18 +137,31 @@
   max-width: 100%;
   min-width: 0;
 }
+.fx-toolbar-row > .fx-toolbar-group:first-child {
+  padding-left: 0;
+}
+
+/* Full-height hairline between adjacent groups — the Excel separator. */
+.fx-toolbar-group + .fx-toolbar-group {
+  border-left: 1px solid color-mix(in srgb, var(--ds-border-primary) 70%, transparent);
+}
 
 .fx-toolbar-group__label {
+  /* Sits below the controls (DOM keeps label-first for the aria-hidden
+     caption; flex `order` flips the visual stack). */
+  order: 1;
+  margin-top: auto;
+  align-self: center;
+  text-align: center;
   font-family: var(--ds-font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--fx-toolbar-label);
+  color: var(--ds-text-faint);
   line-height: 1;
   white-space: nowrap;
   user-select: none;
-  padding-right: 2px;
   flex-shrink: 0;
 }
 
@@ -151,16 +171,7 @@
   gap: 6px;
   min-width: 0;
   flex-wrap: nowrap;
-}
-
-/* Scope strip fills the group so undo/redo can pin to the trailing edge. */
-.fx-toolbar-group[data-testid='fmt-group-scope'] .fx-toolbar-group__body {
   flex: 1;
-  min-width: 0;
-}
-.fx-toolbar-group[data-testid='fmt-group-scope'] .fx-ctx {
-  flex: 1;
-  min-width: 0;
 }
 
 /* Destruct cluster — label tint only (no enclosing box). */
@@ -169,7 +180,7 @@
   background: transparent;
 }
 .fx-toolbar-group--destruct .fx-toolbar-group__label {
-  color: color-mix(in srgb, var(--ds-accent-negative) 72%, var(--fx-toolbar-label));
+  color: color-mix(in srgb, var(--ds-accent-negative) 72%, var(--ds-text-faint));
 }
 
 /* Inside a group, modules stay unstyled — pills provide per-control chrome. */
@@ -180,12 +191,12 @@
   gap: 6px;
 }
 
-/* Undo/redo pinned to the trailing edge of the scope strip. */
+/* Undo/redo — inline at the end of the scope cluster. (The ribbon
+   groups hug their content, so there is no trailing edge to pin to.) */
 .fx-ctx__history {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   flex-shrink: 0;
 }
 

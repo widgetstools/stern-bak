@@ -49,13 +49,13 @@ export function FormatterToolbar({
     >
       <div className="fx-toolbar-rows">
         {/*
-          Row 1 — column context + typography + colour (compact).
-          Row 2 — number format, editor/filter, templates, clear.
-          Format deliberately lives on row 2: it is the widest cluster
-          (currency / decimals / picker) and was wrapping alone when
-          packed into row 1, wasting a full line.
+          Excel-ribbon arrangement — a single band of labeled groups,
+          controls on top with the group caption centered underneath,
+          hairline separators between groups. When the grid is narrow,
+          whole groups reflow onto a new line (never split mid-group)
+          so the ribbon grows taller, never sideways.
         */}
-        <div className="fx-toolbar-row" data-fx-row="context">
+        <div className="fx-toolbar-row" data-fx-row="ribbon">
           <ToolbarGroup label="Scope" testId="fmt-group-scope">
             <ModuleContext state={state} actions={actions} />
           </ToolbarGroup>
@@ -65,9 +65,6 @@ export function FormatterToolbar({
           <ToolbarGroup label="Paint" testId="fmt-group-paint">
             <ModulePaint state={state} actions={actions} />
           </ToolbarGroup>
-        </div>
-
-        <div className="fx-toolbar-row" data-fx-row="workflows">
           <ToolbarGroup label="Format" testId="fmt-group-format">
             <ModuleFormat state={state} actions={actions} />
           </ToolbarGroup>
