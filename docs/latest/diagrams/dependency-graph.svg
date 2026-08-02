@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" font-family="-apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" role="img" aria-label="StarUI package dependency graph">
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#8a9992"/>
+  </marker>
+  <marker id="arrAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#0e8f6d"/>
+  </marker>
+</defs>
+<rect width="900" height="430" fill="#fbfcfc"/>
+<path d="M210,194 C270,194 210,89 268,89" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M210,194 C270,194 210,219 268,219" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M210,194 C270,194 210,349 268,349" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M210,194 C270,194 440,219 498,219" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M210,194 C270,194 440,349 498,349" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M210,194 C270,194 660,279 718,279" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,89 C490,89 210,219 268,219" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,89 C490,89 210,349 268,349" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,89 C490,89 440,219 498,219" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,89 C490,89 440,349 498,349" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,89 C490,89 660,279 718,279" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,219 C490,219 210,349 268,349" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,219 C490,219 440,219 498,219" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,219 C490,219 440,349 498,349" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,219 C490,219 660,279 718,279" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,349 C490,349 440,219 498,219" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M430,349 C490,349 660,279 718,279" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M660,219 C720,219 660,279 718,279" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<path d="M670,349 C730,349 660,279 718,279" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>
+<rect x="40" y="165" width="170" height="58" rx="3" fill="#eefaf5" stroke="#0e8f6d" stroke-width="1.4"/>
+<text x="125" y="191.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">grid</text>
+<text x="125" y="205.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">MarketsGrid</text>
+<rect x="270" y="60" width="160" height="58" rx="3" fill="#eef6fa" stroke="#2c6e8f" stroke-width="1.4"/>
+<text x="350" y="86.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">react</text>
+<text x="350" y="100.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">primitives · SDK</text>
+<rect x="270" y="190" width="160" height="58" rx="3" fill="#fdf6ea" stroke="#b07a1e" stroke-width="1.4"/>
+<text x="350" y="216.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">openfin</text>
+<text x="350" y="230.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">workspace shell</text>
+<rect x="270" y="320" width="160" height="58" rx="3" fill="#fdf6ea" stroke="#b07a1e" stroke-width="1.4"/>
+<text x="350" y="346.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">data</text>
+<text x="350" y="360.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">data services</text>
+<rect x="500" y="190" width="160" height="58" rx="3" fill="#f0f3fa" stroke="#4a5d8f" stroke-width="1.4"/>
+<text x="580" y="216.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">core</text>
+<text x="580" y="230.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">engine · hosts · widgets</text>
+<rect x="500" y="320" width="170" height="58" rx="3" fill="#f3f5f4" stroke="#6b7770" stroke-width="1.4"/>
+<text x="585" y="346.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">design-system</text>
+<text x="585" y="360.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">tokens · themes · icons</text>
+<rect x="720" y="250" width="150" height="58" rx="3" fill="#f3f5f4" stroke="#6b7770" stroke-width="1.4"/>
+<text x="795" y="276.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">types</text>
+<text x="795" y="290.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">contracts</text>
+<text x="28" y="24" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="#0b6e54" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">PACKAGE DEPENDENCY GRAPH · REAL DEPENDENCY EDGES</text>
+<text x="28" y="402" font-size="10.5" fill="#5d6b64" font-style="italic">types is the root — it depends on nothing. grid is the leaf — it composes everything below.</text>
+<text x="28" y="418" font-size="10.5" fill="#5d6b64" font-style="italic">Framework libraries (React, AG Grid, OpenFin) are peer dependencies owned by the consuming app.</text>
+
+</svg>

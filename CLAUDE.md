@@ -20,7 +20,9 @@ so demo apps never enter the package CI surface — see
   into sessions. **Its `## Conventions` section is binding**: React components are
   tested with React Testing Library (enforced by `npm run check:rtl`), and a failing
   assertion means checking the source before touching the test
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — layer model + import rules
+- [`docs/latest/architecture.md`](./docs/latest/architecture.md) — layer model +
+  import rules (with diagrams); [`docs/latest/`](./docs/latest/README.md) is the
+  current documentation set
 - [`docs/current-features.md`](./docs/current-features.md) — granular inventory of every implemented feature in `packages/`, grouped by bucket. Kept in lockstep with code (update on every feature add/change/remove).
 
 ## Package manager
