@@ -109,6 +109,11 @@ npm run build:tarball
 npm run typecheck && npm run build   # both tracks
 
 cd source/star-demo && npm run dev   # one app
+
+# or from the REPO ROOT — knows when to start the STOMP broker,
+# and drives the OpenFin launcher with --openfin:
+npm run app -- star-demo --openfin
+npm run app -- stomp-marketsgrid-minimal --tarball
 ```
 
 ## Apps (`source/`)

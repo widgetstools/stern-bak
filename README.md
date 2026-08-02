@@ -80,6 +80,7 @@ The demo apps double as reference implementations — each has its own README:
 
 | Script | What it does |
 |---|---|
+| `npm run app -- <name>` | run any demo app from the root — auto-starts the STOMP broker when the app needs it; `--tarball` for the generated twin, `--openfin` for the star-demo launcher |
 | `npm run build` | turbo build across the seven packages + regenerate `tsconfig.consumer.json` |
 | `npm run typecheck` | build, then turbo typecheck |
 | `npm test` | turbo Vitest across `packages/` |

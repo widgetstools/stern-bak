@@ -118,9 +118,21 @@ npm install && npm run build
 cd apps
 npm install
 npm run typecheck && npm run build     # both consumption tracks
-
-cd source/basic && npm run dev         # any single app
 ```
+
+The easiest way to run any app is the root-level runner — it knows when an
+app needs the STOMP fixture broker and starts it for you, and it drives the
+OpenFin launcher when asked:
+
+```bash
+npm run app                                   # list apps + ports
+npm run app -- basic                          # one app, source track
+npm run app -- stomp-marketsgrid-minimal      # broker starts automatically
+npm run app -- star-demo --openfin            # dev server, then OpenFin platform
+npm run app -- markets-grid-lab --tarball     # the generated twin (:6300)
+```
+
+(`cd apps/source/<app> && npm run dev` still works for any single app.)
 
 | App | Port | Purpose |
 |---|---|---|
