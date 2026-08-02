@@ -1430,7 +1430,7 @@ modules).
 
 #### DataProvider config hooks
 
-- `useDataProviderConfig(providerId)` — single provider row from worker catalog cache (`getProviderConfig` RPC); stale-while-revalidate on scoped `catalog-ready` (same `providerId` or `full` only); switching `providerId` drops the previous provider's cfg immediately (`cfg: null, loading: true`) instead of exposing it during the new fetch
+- `useDataProviderConfig(providerId)` — single provider row from worker catalog cache (`getProviderConfig` RPC); stale-while-revalidate on scoped `catalog-ready` (same `providerId` or `full` only); switching `providerId` drops the previous provider's cfg immediately (`cfg: null, loading: true`) instead of exposing it during the new fetch; each fetch is time-bounded (2.5s × 3 attempts, silent re-issue on no-response only — a worker boot-window loss becomes a sub-3s blip instead of a permanent spinner; explicit rejections surface immediately, keeping the stale cfg)
 - `useDataProvidersList(opts?)` — list platform provider rows from worker catalog cache (`listProviderConfigs` RPC); auto-refreshes on scoped `catalog-ready`; `refresh()` for manual re-pull
 
 #### DataProvider hook (preferred)

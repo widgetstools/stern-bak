@@ -722,6 +722,28 @@ features, but each carries pre-collapse names/paths. One pass, per file:
 - `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
   `@wellsfargo-starui/data`.
 
+## 14. Worker-side `get-config` can go unanswered during hub boot
+
+**Area:** `packages/data/host-data` (worker) · **Blocked on:** nothing — needs
+worker-side tracing
+
+Reproduced 2026-08-02 on `stomp-marketsgrid-minimal` (cold SharedWorker):
+the app's first `get-config` request got **no response ever** — while
+`hub-introspect` on the same port answered, and the identical request on a
+freshly-connected port resolved instantly. One forced `catalog-change`
+un-stuck the app (its hook re-issued the fetch). `handleGetConfig` replies
+in both success and error paths, so the hang is inside
+`ConfigCatalogCache.ensure` → `store.get()` — a worker-side ConfigManager
+read that stalls in the boot moment and only for the request already in
+flight.
+
+**Mitigated, not fixed:** `useDataProviderConfig` now bounds each fetch
+(2.5s × 3, silent re-issue on timeout only; explicit rejections still
+surface immediately), which converts the hang into a sub-3s blip. **Done
+looks like** instrumenting the worker's first `store.get()` (Dexie open /
+init await chain) to find and remove the stall, then reverting nothing —
+the retry stays as defense in depth.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
