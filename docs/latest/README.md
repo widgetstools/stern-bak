@@ -22,6 +22,6 @@ The current documentation set for the StarUI (MarketsUI) platform.
 **Print editions** — each document in this set also ships as a PDF under
 [`pdf/`](./pdf/), regenerated from the markdown by `pdf/build.mjs`.
 
-Historical design notes live in [`docs/superpowers/`](../superpowers/);
-one-off deep dives (packaging changelog, hub fan-out optimizations, Sonar
-LCOV notes) remain in [`docs/`](../).
+One-off deep dives (hub fan-out optimizations, Sonar LCOV notes, the
+expression DSL) remain in [`docs/`](../); superseded documentation is
+frozen in [`docs/archive/`](../archive/README.md).

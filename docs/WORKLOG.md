@@ -320,7 +320,7 @@ three separate commits, each validated with `npx turbo typecheck build
 test`, `npm run check:deps`, and a full tarball install + build in the
 sibling `starui-apps` repo. Package count is still 21 — only folder
 location changed, per the design spec at
-[`docs/superpowers/specs/2026-08-01-package-bucket-realignment-design.md`](./superpowers/specs/2026-08-01-package-bucket-realignment-design.md).
+`docs/superpowers/specs/2026-08-01-package-bucket-realignment-design.md` (deleted — git history).
 
 **What remains** is the second stage this item originally described:
 collapsing 21 `package.json` files into 7, which still requires
@@ -336,7 +336,7 @@ at the bucket root. `@wellsfargo-starui/icons-svg`'s public API moved
 to new `./icons*` subpaths; 9 consumer import sites across
 `openfin-platform`, `workspace-setup-react`, and `grid` were migrated.
 Per the design spec at
-[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md),
+`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md` (deleted — git history),
 the coverage-tooling two-level-scan gap is an accepted interim state,
 not fixed here — but `pack-npm.mjs` and `staruiConsumerAliases.mjs`
 both needed a real fix during execution (not deferred): they hardcoded
@@ -364,7 +364,7 @@ import sites across `grid`, `widgets-react`, `host-wrapper-react`,
 a dynamic `/* @vite-ignore */` import that broke every design-time
 grep pattern and a hardcoded Vite alias in `grid`'s own
 `vitest.config.ts`. Per the design spec at
-[`docs/superpowers/specs/2026-08-01-package-collapse-openfin-design.md`](./superpowers/specs/2026-08-01-package-collapse-openfin-design.md),
+`docs/superpowers/specs/2026-08-01-package-collapse-openfin-design.md` (deleted — git history),
 the coverage-tooling gap remains accepted, not fixed here.
 
 **`stern-apps` follow-up (non-blocking):** `tarball/*/package.json`'s
@@ -391,7 +391,7 @@ list) — a code region the sub-phase-1 generic two-level-scan fix didn't
 cover, since it's data-bucket-specific rather than a manifest-discovery
 concern. 19 tarballs (unchanged count from sub-phase 2 — a rename, not
 a merge). Per the design spec at
-[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md),
+`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md` (deleted — git history),
 the coverage-tooling gap remains accepted, not fixed here.
 
 **`stern-apps` follow-up (non-blocking):** after regenerating
@@ -444,7 +444,7 @@ src trees. Verified: 328 test files / 2490 tests (240 grid + 75 widgets-react
 `widgets-react` name is left as a dead, harmless list item — edits to that
 file are hook-blocked and this one didn't warrant an override. Per the
 design spec at
-[`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md`](./superpowers/specs/2026-08-01-package-collapse-design-system-design.md),
+`docs/superpowers/specs/2026-08-01-package-collapse-design-system-design.md` (deleted — git history),
 the coverage-tooling gap remains accepted, not fixed here.
 
 **`stern-apps` follow-up (non-blocking):** after regenerating
@@ -588,7 +588,7 @@ repo. Out of scope for this sub-phase; worth its own docs pass.
 
 **Package-collapse sub-phase 7: done — item 11's roadmap is complete.**
 Spec:
-[`docs/superpowers/specs/2026-08-01-package-collapse-tooling-design.md`](./superpowers/specs/2026-08-01-package-collapse-tooling-design.md).
+`docs/superpowers/specs/2026-08-01-package-collapse-tooling-design.md` (deleted — git history).
 The tooling now understands the collapsed shape and the by-hand external
 verification is a scripted gate:
 
