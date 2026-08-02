@@ -157,41 +157,38 @@ function layerModel() {
 
 // ─── D2 · Package dependency graph ─────────────────────────────────
 function depGraph() {
-  const W = 900, H = 430;
-  // columns by dependency depth (left depends on right)
-  const pos = {
-    grid:   { x: 40,  y: 165, w: 170, tier: 'product',  sub: 'MarketsGrid' },
-    react:  { x: 270, y: 60,  w: 160, tier: 'react',    sub: 'primitives · SDK' },
-    openfin:{ x: 270, y: 190, w: 160, tier: 'services', sub: 'workspace shell' },
-    data:   { x: 270, y: 320, w: 160, tier: 'services', sub: 'data services' },
-    core:   { x: 500, y: 190, w: 160, tier: 'runtime',  sub: 'engine · hosts · widgets' },
-    ds:     { x: 500, y: 320, w: 170, tier: 'found',    sub: 'tokens · themes · icons' },
-    types:  { x: 720, y: 250, w: 150, tier: 'found',    sub: 'contracts' },
-  };
-  const BH = 58;
-  const name = { grid: 'grid', react: 'react', openfin: 'openfin', data: 'data', core: 'core', ds: 'design-system', types: 'types' };
-  const edges = [
-    ['grid','react'],['grid','openfin'],['grid','data'],['grid','core'],['grid','ds'],['grid','types'],
-    ['react','openfin'],['react','data'],['react','core'],['react','ds'],['react','types'],
-    ['openfin','data'],['openfin','core'],['openfin','ds'],['openfin','types'],
-    ['data','core'],['data','types'],
-    ['core','types'],['ds','types'],
+  const W = 980, H = 380;
+  // Drawn as the TRANSITIVE REDUCTION — the dependency structure is a
+  // near-chain, so seven arrows tell the whole story where the full
+  // 19-edge direct graph reads as spaghetti. The caption states the
+  // implied-transitivity rule; per-package direct deps live in
+  // packages.md / each package.json.
+  const BH = 64, Y = 108, STEP = 158, BW = 130;
+  const chain = [
+    ['grid',    'product', 'MarketsGrid'],
+    ['react',   'react',   'primitives \u00b7 SDK'],
+    ['openfin', 'services', 'workspace shell'],
+    ['data',    'services', 'data services'],
+    ['core',    'runtime',  'engine \u00b7 hosts'],
+    ['types',   'found',    'contracts'],
   ];
   let b = '';
-  // edges first (under boxes)
-  for (const [from, to] of edges) {
-    const f = pos[from], t = pos[to];
-    const x1 = f.x + f.w, y1 = f.y + BH / 2;
-    const x2 = t.x, y2 = t.y + BH / 2;
-    const c = 60;
-    b += `<path d="M${x1},${y1} C${x1 + c},${y1} ${x2 - c},${y2} ${x2 - 2},${y2}" fill="none" stroke="#b9c4be" stroke-width="1.1" marker-end="url(#arr)"/>\n`;
-  }
-  for (const [k, p] of Object.entries(pos)) {
-    b += box(p.x, p.y, p.w, BH, p.tier, name[k], [p.sub], { mono: true, titleSize: 13 });
-  }
-  b += bandLabel(28, 24, 'Package dependency graph · real dependency edges', TIER.product.label);
-  b += caption(28, H - 28, 'types is the root — it depends on nothing. grid is the leaf — it composes everything below.');
-  b += caption(28, H - 12, 'Framework libraries (React, AG Grid, OpenFin) are peer dependencies owned by the consuming app.');
+  chain.forEach(([name, tier, sub], i) => {
+    const x = 30 + i * STEP;
+    b += box(x, Y, BW, BH, tier, name, [sub], { mono: true, titleSize: 13 });
+    if (i < chain.length - 1) {
+      b += arrow(x + BW + 2, Y + BH / 2, x + STEP - 4, Y + BH / 2);
+    }
+  });
+  // design-system branch: openfin needs the tokens; the tokens need only types.
+  b += box(475, 252, 190, 56, 'found', 'design-system', ['tokens \u00b7 themes \u00b7 icons'], { mono: true, titleSize: 13 });
+  b += `<path d="M411,${Y + BH + 2} L411,280 L473,280" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+  b += `<path d="M665,280 L885,280 L885,${Y + BH + 4}" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+
+  b += bandLabel(28, 24, 'Package dependencies \u00b7 simplified to the essential arrows', TIER.product.label);
+  b += caption(28, H - 44, 'An arrow means "depends on" \u2014 and every package also depends on everything reachable further along the');
+  b += caption(28, H - 28, 'arrows (grid really does import all six; the extra arrows are omitted because they are implied). types is the');
+  b += caption(28, H - 12, 'root: it depends on nothing. Framework libraries (React, AG Grid, OpenFin) are peers owned by the consuming app.');
   return svgDoc(W, H, b, 'StarUI package dependency graph');
 }
 

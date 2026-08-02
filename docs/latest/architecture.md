@@ -33,14 +33,19 @@ a package may import from its own layer or below, never above.
 
 ## 2. Package dependency graph
 
-The real `dependencies` edges between the seven packages (framework libraries
-such as React, AG Grid and OpenFin are peer dependencies, deliberately owned
-by the consuming application):
+The dependency structure is a near-chain, so the diagram shows the
+**essential arrows only**: an arrow means "depends on", and every package
+also depends on everything reachable further along the arrows (`grid`
+really does import all six — the extra arrows are omitted because they are
+implied). Framework libraries such as React, AG Grid and OpenFin are peer
+dependencies, deliberately owned by the consuming application.
 
 ![Package dependency graph](./diagrams/dependency-graph.svg)
 
 `types` is the root of the graph — it depends on nothing. `grid` is the leaf —
-it composes everything below into the product surface.
+it composes everything below into the product surface. Each package's full
+direct dependency list lives in its `package.json` and in
+[packages.md](./packages.md).
 
 ### Framework peers (owned by the app)
 
