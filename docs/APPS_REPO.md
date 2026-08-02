@@ -100,6 +100,15 @@ behaviour for one package, delete that package's `dist/`.
 
 ## Workflow
 
+One command from the repo root does all of the below — build the packages,
+pack them, and install both `apps/` tracks:
+
+```bash
+npm run setup:apps
+```
+
+What it runs, in order:
+
 ```bash
 # repo root
 npm install && npm run build:packages     # emits dist/ + tsconfig.consumer.json
@@ -108,15 +117,16 @@ npm run pack:npm                          # only needed for the tarball track
 # apps/ (own install root)
 cd apps
 npm install                               # postinstall links platform -> parent
-npm run setup:tarball                     # vendor pack:npm output FIRST …
-npm run make:tarball-apps                 # … then (re)generate tarball/ twins
-npm run setup:tarball                     # … then install the twins
+npm run setup:tarball                     # vendor pack:npm output, (re)generate
+                                           # tarball/ twins, then install them
 npm run typecheck && npm run build        # both tracks
 ```
 
-(`make:tarball-apps` refuses to run before `vendor/` exists — the twins'
-dependency closure is read from what `setup.mjs` vendored.)
+`setup:tarball` runs `scripts/setup.mjs` (vendor), `scripts/makeTarballApp.mjs
+--all` (regenerate) and `scripts/installTarball.mjs` (install) in sequence, so
+one call covers both a fresh `tarball/` (doesn't exist yet) and a refresh
+(already exists, contents drifted).
 
 After changing a package, rebuild at the root; the source track picks it up on
 the next app build. The tarball track additionally needs `pack:npm`, then
-`make:tarball-apps` + `setup:tarball` under `apps/`.
+`setup:tarball` under `apps/` — or `npm run setup:apps` from the root for both.

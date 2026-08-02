@@ -57,15 +57,22 @@ runtime architecture are diagrammed in
 ## Getting started
 
 ```bash
-# packages (repo root)
+# packages only
 npm install
 npm run build            # turbo build + tsconfig.consumer.json
 npm test                 # Vitest across packages/
 
-# demo apps (own install root)
-cd apps && npm install
-cd source/basic && npm run dev     # minimal MarketsGrid tutorial → :5194
+# packages + demo apps, both consumption tracks (source AND tarball) — one command
+npm run setup:apps
+npm run app -- basic     # minimal MarketsGrid tutorial → :5194
 ```
+
+`npm run setup:apps` builds the packages, packs them into tarballs, and
+installs `apps/` (its own install root — see [Monorepo layout](#monorepo-layout))
+for both tracks: `source/` (live against this checkout) and the generated
+`tarball/` twins (an honest external-consumer install, vendored from the
+packed tarballs). No `cd apps` and no separate tarball step required — see
+[Running demo apps from the root](#running-demo-apps-from-the-root).
 
 The demo apps double as reference implementations — each has its own README:
 [`basic`](./apps/source/basic/) (start here),
@@ -78,9 +85,12 @@ The demo apps double as reference implementations — each has its own README:
 
 ## Running demo apps from the root
 
-`npm run app` (`scripts/run-app.mjs`) runs any demo app — either track —
-without `cd`-ing into `apps/`. It starts the STOMP broker automatically when
-the app needs one and refuses to start if its port is already in use:
+Set up both tracks once with `npm run setup:apps` (builds `packages/`, packs
+tarballs, installs `apps/source/*` and generates + installs the `apps/tarball/*`
+twins — see [Getting started](#getting-started)). Then `npm run app`
+(`scripts/run-app.mjs`) runs any demo app — either track — without `cd`-ing
+into `apps/`. It starts the STOMP broker automatically when the app needs one
+and refuses to start if its port is already in use:
 
 ```bash
 npm run app                                     # usage + app table
@@ -112,6 +122,7 @@ and [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 | Script | What it does |
 |---|---|
+| `npm run setup:apps` | one-shot: build packages, pack tarballs, install `apps/` — both the `source/` and generated `tarball/` tracks |
 | `npm run app -- <name>` | run any demo app from the root — auto-starts the STOMP broker when the app needs it; `--tarball` for the generated twin, `--openfin` for the star-demo launcher |
 | `npm run build` | turbo build across the seven packages + regenerate `tsconfig.consumer.json` |
 | `npm run typecheck` | build, then turbo typecheck |

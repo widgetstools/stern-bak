@@ -84,9 +84,10 @@ if (!existsSync(join(appDir, 'package.json'))) {
   console.error(`${appDir} does not exist.`);
   if (track === 'tarball') {
     console.error(
-      `The tarball twins are generated. Bootstrap them once:\n` +
-      `  npm run pack:npm\n` +
-      `  cd apps && npm run setup:tarball && npm run make:tarball-apps && npm run setup:tarball`,
+      `The tarball twins are generated. Bootstrap everything with:\n` +
+      `  npm run setup:apps\n` +
+      `Or manually:\n` +
+      `  npm run pack:npm && cd apps && npm install && npm run setup:tarball`,
     );
   }
   process.exit(1);

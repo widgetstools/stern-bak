@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "install:all": "npm install && npm run build:packages",
+    "setup:apps": "npm run install:all && npm run pack:npm && (cd apps && npm install && npm run setup:tarball && cd ..)",
     "app": "node scripts/run-app.mjs",
     "build:packages": "node scripts/ensure-workspace-links.mjs && npx turbo build --concurrency=50% && node scripts/gen-consumer-tsconfig.mjs",
     "build": "npm run build:packages",

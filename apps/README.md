@@ -33,6 +33,18 @@ property is verified by hiding `packages/` and rebuilding.
 
 ## Setup
 
+**In this repo** (`apps/` lives inside the platform checkout), one command
+from the **platform repo root** builds the packages, packs them, and installs
+both tracks here — no `cd apps` needed:
+
+```bash
+npm run setup:apps
+```
+
+The rest of this section is the manual, step-by-step version of what that
+script does — useful when `apps/` is checked out as its own sibling repo (the
+legacy split-repo layout), or when you want to run a step in isolation.
+
 This tree needs the platform checkout. **Its location is not hardcoded
 anywhere** — `scripts/resolvePlatform.mjs` finds it at install time:
 
@@ -63,7 +75,8 @@ npm run pack:npm
 # 3. this repo — source track
 cd ../starui-apps && npm install
 
-# 4. this repo — tarball track (vendors the tarballs, then installs)
+# 4. this repo — tarball track (vendors the tarballs, generates the
+#    tarball/* twins from source/, then installs each one)
 npm run setup:tarball
 ```
 
@@ -140,9 +153,14 @@ nothing.
 **`tarball/` is generated — do not hand-edit it.**
 
 ```bash
-npm run make:tarball-apps    # regenerate all six from source/
-npm run setup:tarball        # vendor the tarballs, then install each app
+npm run setup:tarball    # vendor the tarballs, regenerate all six from source/, then install each app
 ```
+
+`setup:tarball` runs `scripts/setup.mjs` (vendor), `scripts/makeTarballApp.mjs
+--all` (regenerate) and `scripts/installTarball.mjs` (install), in that order,
+every time — so one call is enough whether `tarball/` doesn't exist yet or
+just needs a refresh. To regenerate the configs without reinstalling, run
+`npm run make:tarball-apps` on its own.
 
 `scripts/makeTarballApp.mjs` copies each app's `src/` **verbatim** and rewrites
 only its four config surfaces (`package.json`, `vite.config.ts`,
@@ -165,19 +183,14 @@ underneath it. Bring it back in sync:
 # platform repo root
 npm run build:packages && npm run pack:npm
 
-# this repo (apps/)
-npm run setup:tarball        # vendor the fresh tarballs, then install them
-npm run make:tarball-apps    # regenerate tarball/* from source/* (needs vendor/ first)
-npm run setup:tarball        # reinstall now that make:tarball-apps may have
-                              # changed a twin's package.json dependency list
+# this repo (apps/) — vendor the fresh tarballs, regenerate tarball/* from
+# source/*, then install each twin
+npm run setup:tarball
 npm run typecheck:tarball    # verify
 ```
 
-`setup:tarball` runs **twice** by design: the first pass vendors the tarballs
-so `make:tarball-apps` has something to read the dependency closure from; the
-second pass installs whatever that regeneration wrote to each twin's
-`package.json`. Skipping the second pass leaves `node_modules` out of sync with
-the regenerated manifest.
+Or, from the platform repo root, `npm run setup:apps` does all of the above
+(including the platform build) in one command.
 
 `[setup] vendored N tarball(s) -> vendor/ (M updated, K unchanged)` in the
 output tells you whether anything actually changed — `0 updated` means the

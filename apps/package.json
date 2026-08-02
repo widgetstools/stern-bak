@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "postinstall": "node scripts/linkPlatform.mjs",
-    "setup:tarball": "node scripts/setup.mjs && node scripts/installTarball.mjs",
+    "setup:tarball": "node scripts/setup.mjs && node scripts/makeTarballApp.mjs --all && node scripts/installTarball.mjs",
     "make:tarball-apps": "node scripts/makeTarballApp.mjs --all",
     "build": "npm run build:source && npm run build:tarball",
     "build:source": "node scripts/app-track.mjs build source",

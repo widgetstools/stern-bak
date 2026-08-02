@@ -108,15 +108,25 @@ browser profile and fans snapshots + thin deltas out to every window. See
 ## 2. Run the demo apps
 
 The demos live in this repo under `apps/` — **their own npm install root**,
-separate from the package workspaces:
+separate from the package workspaces. One command from the platform repo root
+builds the packages, packs them, and installs `apps/` for both consumption
+tracks (`source/` and the generated `tarball/` twins):
+
+```bash
+npm run setup:apps
+```
+
+Equivalent, step by step:
 
 ```bash
 # platform first — builds dist/ + the consumer tsconfig
 npm install && npm run build
+npm run pack:npm       # only needed for the tarball track
 
 # then the apps
 cd apps
 npm install
+npm run setup:tarball                  # vendor, regenerate, install the tarball twins
 npm run typecheck && npm run build     # both consumption tracks
 ```
 
@@ -148,10 +158,7 @@ Each UI app also has a generated **tarball twin** (same code, consuming
 vendored tarballs, port +1000). Regenerate the twins after package changes:
 
 ```bash
-cd apps
-npm run setup:tarball        # vendor pack:npm output first …
-npm run make:tarball-apps    # … regenerate the twins …
-npm run setup:tarball        # … and install them
+npm run pack:npm && cd apps && npm run setup:tarball   # vendor, regenerate, install
 ```
 
 ---
