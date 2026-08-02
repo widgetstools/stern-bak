@@ -260,3 +260,127 @@ describe('handleConfigInvalidate', () => {
     expect(ctx.broadcastCatalogEvent).not.toHaveBeenCalled();
   });
 });
+
+// ─── Bounded replies (WORKLOG item 14) ─────────────────────────────
+//
+// Observed live on a first-run worker boot: a ConfigManager read that never
+// settles turned `get-config` into client-side silence — the caller's pending
+// promise stranded forever with no error to react to. These tests pin the
+// structural guarantee that closed the class: every async catalog handler
+// replies EXACTLY ONCE — result, error, or deadline error — no matter what
+// the underlying read does.
+
+import { CATALOG_REPLY_DEADLINE_MS } from './hubCatalogRpc.js';
+
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+describe('replyBounded catalog handlers (WORKLOG item 14)', () => {
+  it('get-config replies a deadline error when the store read never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const never = deferred<never>();
+      const catalog = fakeCatalog({ ensure: vi.fn(() => never.promise) });
+      const { port, sent } = fakePort();
+
+      const done = handleGetConfig(fakeCtx({ catalog }), port, {
+        kind: 'get-config', reqId: 'r-stall', providerId: 'p1',
+      });
+      await vi.advanceTimersByTimeAsync(CATALOG_REPLY_DEADLINE_MS - 1);
+      expect(sent).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({
+        kind: 'config-snapshot', reqId: 'r-stall', ok: false,
+        error: expect.stringContaining('did not settle'),
+      });
+      never.resolve(undefined as never);
+      await done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a read settling AFTER the deadline does not produce a second reply', async () => {
+    vi.useFakeTimers();
+    try {
+      const late = deferred<{ providerId: string }>();
+      const catalog = fakeCatalog({ ensure: vi.fn(() => late.promise) });
+      const { port, sent } = fakePort();
+
+      const done = handleGetConfig(fakeCtx({ catalog }), port, {
+        kind: 'get-config', reqId: 'r-late', providerId: 'p1',
+      });
+      await vi.advanceTimersByTimeAsync(CATALOG_REPLY_DEADLINE_MS);
+      expect(sent).toHaveLength(1);
+
+      late.resolve({ providerId: 'p1' });
+      await done;
+      expect(sent).toHaveLength(1);   // exactly once — the late result is dropped
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('get-config still replies exactly once while an invalidation storm lands mid-read', async () => {
+    // Mirrors the app-boot choreography captured in the browser trace:
+    // the seed path fires a burst of config-invalidate requests around the
+    // grid's first get-config.
+    const read = deferred<{ providerId: string; name: string }>();
+    const catalog = fakeCatalog({ ensure: vi.fn(() => read.promise) });
+    const ctx = fakeCtx({ catalog });
+    const { port, sent } = fakePort();
+
+    const getDone = handleGetConfig(ctx, port, {
+      kind: 'get-config', reqId: 'r-race', providerId: 'p1',
+    });
+    // Six invalidates while the read is in flight (as observed live).
+    const invalidations = Promise.all(Array.from({ length: 6 }, (_v, i) =>
+      handleConfigInvalidate(ctx, port, {
+        kind: 'config-invalidate', reqId: `inv-${i}`, providerId: 'p1',
+      })));
+    await invalidations;
+    read.resolve({ providerId: 'p1', name: 'STOMP Positions' });
+    await getDone;
+
+    const getReplies = sent.filter((s) => s.reqId === 'r-race');
+    expect(getReplies).toHaveLength(1);
+    expect(getReplies[0]).toMatchObject({ ok: true, config: { providerId: 'p1' } });
+    // Every invalidate also answered exactly once.
+    for (let i = 0; i < 6; i++) {
+      expect(sent.filter((s) => s.reqId === `inv-${i}`)).toHaveLength(1);
+    }
+  });
+
+  it('config-invalidate replies a deadline error yet still broadcasts on late completion', async () => {
+    vi.useFakeTimers();
+    try {
+      const slow = deferred<void>();
+      const catalog = fakeCatalog({ invalidate: vi.fn(() => slow.promise) });
+      const broadcastCatalogEvent = vi.fn();
+      const ctx = fakeCtx({ catalog, broadcastCatalogEvent });
+      const { port, sent } = fakePort();
+
+      const done = handleConfigInvalidate(ctx, port, {
+        kind: 'config-invalidate', reqId: 'r-inv', providerId: 'p1',
+      });
+      await vi.advanceTimersByTimeAsync(CATALOG_REPLY_DEADLINE_MS);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ ok: false, error: expect.stringContaining('did not settle') });
+      expect(broadcastCatalogEvent).not.toHaveBeenCalled();
+
+      // The catalog DID eventually change — listeners must still hear it.
+      slow.resolve();
+      await done;
+      expect(sent).toHaveLength(1);   // no second reply
+      expect(broadcastCatalogEvent).toHaveBeenCalledWith({ kind: 'catalog-ready', providerId: 'p1' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

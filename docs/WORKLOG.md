@@ -722,27 +722,31 @@ features, but each carries pre-collapse names/paths. One pass, per file:
 - `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
   `@wellsfargo-starui/data`.
 
-## 14. Worker-side `get-config` can go unanswered during hub boot
+## 14. First-run catalog read stalled once — class closed, forensic cause unproven
 
-**Area:** `packages/data/host-data` (worker) · **Blocked on:** nothing — needs
-worker-side tracing
+**Area:** `packages/data/host-data` (worker) · **Blocked on:** recurrence
 
-Reproduced 2026-08-02 on `stomp-marketsgrid-minimal` (cold SharedWorker):
-the app's first `get-config` request got **no response ever** — while
-`hub-introspect` on the same port answered, and the identical request on a
-freshly-connected port resolved instantly. One forced `catalog-change`
-un-stuck the app (its hook re-issued the fetch). `handleGetConfig` replies
-in both success and error paths, so the hang is inside
-`ConfigCatalogCache.ensure` → `store.get()` — a worker-side ConfigManager
-read that stalls in the boot moment and only for the request already in
-flight.
+Observed once (2026-08-02, first-run cold boot of `stomp-marketsgrid-minimal`):
+the worker's first ConfigManager read (`ConfigCatalogCache.ensure` →
+`store.get` → Dexie) never settled, so `handleGetConfig` never replied and
+the client hung on a stranded promise. Instrumented browser traces of
+subsequent first-run boots (fresh profile, empty IndexedDB, real seed
+storm) could not reproduce the stall.
 
-**Mitigated, not fixed:** `useDataProviderConfig` now bounds each fetch
-(2.5s × 3, silent re-issue on timeout only; explicit rejections still
-surface immediately), which converts the hang into a sub-3s blip. **Done
-looks like** instrumenting the worker's first `store.get()` (Dexie open /
-init await chain) to find and remove the stall, then reverting nothing —
-the retry stays as defense in depth.
+**The failure class is closed at both layers, with tests:**
+- `useDataProviderConfig` bounds each fetch (2.5s × 3 silent re-issues on
+  no-response; explicit rejections unchanged) — `react-core` hook tests.
+- Every async catalog RPC handler now guarantees **exactly one reply** —
+  result, error, or a 10s deadline error — via `replyBounded` in
+  `hubCatalogRpc.ts`; late completions are not re-sent but keep their side
+  effects (row cached; `catalog-ready` still broadcast) —
+  `hubCatalogRpc.test.ts` "Bounded replies" suite, including the observed
+  six-invalidate seed storm interleaving.
+
+**Remaining (forensic only):** what made that one Dexie read stall. If a
+deadline error ever surfaces in the wild (`"catalog read did not settle"`),
+capture the worker console via chrome://inspect at that moment — the
+backstop now makes the event visible instead of silent.
 
 ## Pre-existing, tracked elsewhere
 
