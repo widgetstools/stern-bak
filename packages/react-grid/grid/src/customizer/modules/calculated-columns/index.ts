@@ -103,7 +103,11 @@ export const calculatedColumnsModule: Module<CalculatedColumnsState> = {
       if (!api) return;
       const ids = platform.getState().virtualColumns.map((v) => v.colId);
       if (ids.length === 0) return;
-      try { api.refreshCells({ columns: ids, force: true }); }
+      // suppressFlash: force:true alone makes AG-Grid skip its own
+      // value-equality check, so with enableCellChangeFlash on, every
+      // virtual column cell would animate the native "changed" flash
+      // on every recompute — even ones whose computed value is unchanged.
+      try { api.refreshCells({ columns: ids, force: true, suppressFlash: true }); }
       catch { /* teardown window */ }
     };
 

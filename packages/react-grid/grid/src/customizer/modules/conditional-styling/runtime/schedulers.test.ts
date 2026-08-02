@@ -31,7 +31,10 @@ describe('createRefreshScheduler', () => {
     expect(refreshCells).not.toHaveBeenCalled();
     vi.runAllTimers();
     expect(refreshCells).toHaveBeenCalledTimes(1);
-    expect(refreshCells).toHaveBeenCalledWith({ force: true });
+    // suppressFlash: true — force:true alone would flash every touched
+    // cell's native "value changed" animation regardless of whether its
+    // value actually changed (e.g. a static CUSIP column).
+    expect(refreshCells).toHaveBeenCalledWith({ force: true, suppressFlash: true });
   });
 
   it('dispose cancels pending rAF', () => {
