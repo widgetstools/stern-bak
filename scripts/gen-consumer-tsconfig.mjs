@@ -35,8 +35,8 @@ import { findMemberFolder, readManifest } from './staruiConsumerAliases.mjs';
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 const OUT_PATH = join(REPO_ROOT, 'tsconfig.consumer.json');
 
-// Angular is excluded from the build pipeline (see CLAUDE.md): its source is
-// never built, and mapping it would point tsc at unbuilt Angular source. The
+// Angular is excluded from the build pipeline: its source is never built,
+// and mapping it would point tsc at unbuilt Angular source. The
 // angular-* buckets have been deleted, so host-data-angular is all that is left.
 // Mirrors SKIP_MEMBERS in scripts/pack-npm.mjs.
 const ANGULAR_MEMBERS = new Set(['@wellsfargo-starui/host-data-angular']);

@@ -1,7 +1,7 @@
 /**
  * DatePicker — shadcn-pattern composition of Popover + Button +
  * Calendar from `@wellsfargo-starui/react`. No native `<input type="date">`
- * (CLAUDE.md: no native input controls).
+ * (no native input controls, per repo convention).
  *
  * Value is an ISO date string `YYYY-MM-DD` for compatibility with
  * the AppData entries the historical provider templates against.

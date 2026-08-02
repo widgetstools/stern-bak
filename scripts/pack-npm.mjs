@@ -42,8 +42,8 @@ const PACKAGES_ROOT = path.join(REPO_ROOT, 'packages');
 const OUT_DIR = path.join(REPO_ROOT, 'dist-npm');
 const STAGE_ROOT = path.join(REPO_ROOT, 'node_modules', '.cache', 'pack-npm');
 
-// Angular is out of the build pipeline (see CLAUDE.md) — never packed. The
-// angular-* buckets have been deleted; host-data-angular is the last one left.
+// Angular is out of the build pipeline — never packed. The angular-*
+// buckets have been deleted; host-data-angular is the last one left.
 const SKIP_BUCKETS = new Set();
 const SKIP_MEMBERS = new Set(['@wellsfargo-starui/host-data-angular']);
 const SKIP_COPY = new Set(['node_modules', '.turbo', '.git', '.angular']);

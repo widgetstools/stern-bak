@@ -7,8 +7,8 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  // angular/ is deliberately excluded — Angular is outside the build pipeline
-  // (see CLAUDE.md); the "./angular" export keeps pointing at raw source.
+  // angular/ is deliberately excluded — Angular is outside the build pipeline;
+  // the "./angular" export keeps pointing at raw source.
   "include": ["index.ts", "allIcons.ts", "react/**/*"],
   "exclude": ["dist", "node_modules", "angular"]
 }

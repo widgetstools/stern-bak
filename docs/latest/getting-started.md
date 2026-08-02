@@ -186,5 +186,4 @@ Conventions that will save you a review round-trip:
 - Never `npm ci`, never `pnpm`/`yarn`, no `--legacy-peer-deps` — plain
   `npm install` must always resolve cleanly.
 
-The full agent/contributor rulebook is [CLAUDE.md](../../CLAUDE.md); the
-architecture and layer rules are in [architecture.md](./architecture.md).
+The architecture and layer rules are in [architecture.md](./architecture.md).

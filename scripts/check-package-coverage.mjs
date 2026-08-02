@@ -50,7 +50,7 @@ const THRESHOLD = thresholdArg !== -1 ? Number(argv[thresholdArg + 1]) : 70;
 
 const METRIC_KEYS = ['lines', 'statements', 'functions', 'branches'];
 
-/** Excluded from the pipeline entirely — see CLAUDE.md. */
+/** Excluded from the pipeline entirely. */
 const SKIP_PACKAGES = new Set(['@wellsfargo-starui/host-data-angular']);
 
 /**

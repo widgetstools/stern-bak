@@ -157,7 +157,6 @@ and [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 | [`docs/MARKETSGRID_USAGE_GUIDE.md`](./docs/MARKETSGRID_USAGE_GUIDE.md) | MarketsGrid scenarios (components, hub, OpenFin, persistence) |
 | [`docs/STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](./docs/STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md) | fresh app + STOMP provider + MarketsGrid end-to-end |
 | [`docs/guides/`](./docs/guides/) | focused how-tos (platform bootstrap config, design-system upgrade + OpenFin palette bridge) |
-| [`CLAUDE.md`](./CLAUDE.md) | agent / contributor conventions |
 
 ## Copyright
 

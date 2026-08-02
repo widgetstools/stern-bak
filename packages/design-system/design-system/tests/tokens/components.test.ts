@@ -7,7 +7,7 @@ import { componentTokens } from '../../src/tokens/components';
  * `componentTokens(scheme)` is the per-component override layer both shadcn and
  * PrimeNG consume. Its contract is that values reference *semantic scheme
  * slots*, never raw primitives — that indirection is what makes a dark/light
- * flip work, and CLAUDE.md requires it ("no hardcoded hex anywhere").
+ * flip work ("no hardcoded hex anywhere" is the binding rule).
  */
 
 const darkTokens = componentTokens(dark);

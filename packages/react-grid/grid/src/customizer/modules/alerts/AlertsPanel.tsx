@@ -10,7 +10,7 @@
  * editor pane above the selected rule — not in the list rail.
  *
  * All form controls are shadcn primitives from `@wellsfargo-starui/react` — no native
- * `<input>`, `<select>`, or `<button>` (per CLAUDE.md UI stack rules).
+ * `<input>`, `<select>`, or `<button>` (per the repo's UI stack rules).
  */
 
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';

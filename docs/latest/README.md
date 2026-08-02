@@ -17,7 +17,6 @@ The current documentation set for the StarUI (MarketsUI) platform.
 | [APPS_REPO.md](../APPS_REPO.md) | the `apps/` tree: two consumption tracks, platform linking, workflows |
 | [WORKLOG.md](../WORKLOG.md) | known-open items — check before starting work |
 | [COVERAGE_PLAN.md](../COVERAGE_PLAN.md) | the 70%-per-file coverage effort and its binding conventions |
-| [CLAUDE.md](../../CLAUDE.md) | agent/contributor rulebook |
 
 **Print editions** — each document in this set also ships as a PDF under
 [`pdf/`](./pdf/), regenerated from the markdown by `pdf/build.mjs`.

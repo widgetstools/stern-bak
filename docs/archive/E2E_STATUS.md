@@ -1,10 +1,9 @@
 # E2E status
 
 Snapshot of the Playwright end-to-end suites: what exists, how it's wired,
-and how to capture a fresh pass/fail baseline. Referenced from
-[`CLAUDE.md`](../../CLAUDE.md). Update the inventory whenever specs are added,
-removed, or re-pointed, and re-capture the pass/fail counts after a full
-local run (see [Capturing a baseline](#capturing-a-baseline)).
+and how to capture a fresh pass/fail baseline. Update the inventory whenever
+specs are added, removed, or re-pointed, and re-capture the pass/fail counts
+after a full local run (see [Capturing a baseline](#capturing-a-baseline)).
 
 _Last inventory: 2026-06-13._
 
@@ -113,7 +112,6 @@ npm run e2e -- --reporter=line
 npm run e2e:container -- --reporter=line
 ```
 
-Record the resulting `N passed / M failed` here and update the baseline in
-[`CLAUDE.md`](../../CLAUDE.md) in the same change. Per repo policy, never commit
+Record the resulting `N passed / M failed` here. Per repo policy, never commit
 `test.skip` / `test.fixme` / `.only` — fix, delete, or harden a failing spec
 instead (see [`e2e/README.md`](../../e2e/README.md)).

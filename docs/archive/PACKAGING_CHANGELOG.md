@@ -290,4 +290,4 @@ What the browser checks actually established:
    `check-package-coverage.mjs`; 0/15 vitest configs have coverage blocks and
    7 packages lack real test scripts.
 3. **ESLint `unicorn/filename-case`** per-bucket enforcement remains a
-   follow-up (per `CLAUDE.md`); conventions are review-enforced today.
+   follow-up; conventions are review-enforced today.

@@ -77,8 +77,8 @@ describe('MARKET_ICON_SVGS', () => {
    * "Each SVG uses stroke=currentColor". Two consequences:
    *
    *   - `marketIconToDataUrl(key, color)` silently ignores `color` for them
-   *   - they cannot follow the light/dark theme, which CLAUDE.md requires
-   *     ("no hardcoded hex anywhere")
+   *   - they cannot follow the light/dark theme ("no hardcoded hex
+   *     anywhere" is the binding rule)
    *
    * The list is pinned so the set can only shrink. Fixing an icon means
    * deleting its entry here; adding a new hardcoded-colour icon fails.

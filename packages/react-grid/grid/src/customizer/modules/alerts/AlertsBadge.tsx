@@ -9,7 +9,7 @@
  * the active platform — safe to drop in unconditionally.
  *
  * All UI is shadcn (`Button`, `Badge`, `Popover`, `ScrollArea`,
- * `Separator`) per CLAUDE.md UI rules.
+ * `Separator`) per the repo's UI stack rules.
  */
 
 import { Fragment, useCallback, useMemo } from 'react';

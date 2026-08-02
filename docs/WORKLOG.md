@@ -88,8 +88,8 @@ colours (`stroke="#a78bfa"`) instead of `currentColor`, despite that module's ow
 doc comment claiming otherwise. Consequences:
 
 - `marketIconToDataUrl(key, color)` silently ignores `color` for them
-- they cannot follow the light/dark theme, which `CLAUDE.md` requires
-  ("no hardcoded hex anywhere")
+- they cannot follow the light/dark theme ("no hardcoded hex anywhere" is
+  the binding rule)
 
 The list is pinned in `allIcons.test.ts` as `KNOWN_HARDCODED_COLOUR`, with a test
 that fails if the set grows. **Done looks like** regenerating those SVGs with
@@ -252,8 +252,8 @@ transitively imports design-system tokens then fails to load. `widgets-react` an
 `workspace-setup-react` went down with it — three packages produced no coverage
 summary.
 
-Every library build is `rimraf dist && tsc` (required, see `CLAUDE.md` — it
-defeats a TS5055 on Turbo cache-restore). That leaves a window where `dist/`
+Every library build is `rimraf dist && tsc` (required — it defeats a TS5055
+on Turbo cache-restore). That leaves a window where `dist/`
 exists but is incomplete, and a consumer's vite transform reading it gets a
 truncated module. `--concurrency=1` does not close the window, so serialising is
 not the answer.
@@ -414,7 +414,7 @@ genuine `stern-apps` app code, out of this repo's scope.
 `docs/EXTERNAL_CONSUMPTION.md` still reference retired package
 identities (`host-openfin`, `openfin-platform`) left stale by
 sub-phase 2 and not touched here either, to keep this sub-phase's
-scope consistent with precedent (only CLAUDE.md,
+scope consistent with precedent (only
 PACKAGE_ORGANIZATION.md, ARCHITECTURE.md, current-features.md, and this
 file are updated per sub-phase). Worth a single consolidated doc sweep
 once all sub-phases land, rather than fixing piecemeal.

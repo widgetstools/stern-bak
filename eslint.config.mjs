@@ -6,7 +6,7 @@
 // noise to the platform-library guardrail this config exists to provide.
 //
 // Severity philosophy (see docs/blotter-performance-roadmap.md sibling plan):
-//   - Architecture import boundaries  -> `error` (the rules CLAUDE.md /
+//   - Architecture import boundaries  -> `error` (the rules
 //     docs/ARCHITECTURE.md describe as non-negotiable).
 //   - Style / size / `any` ceilings   -> `warn` (large pre-existing backlog;
 //     surfaced for incremental cleanup, never blocks CI on day one).
@@ -137,9 +137,9 @@ export default tseslint.config(
 
   // Native form controls in React packages must use the shadcn/Radix
   // primitives from @wellsfargo-starui/react (Input, Textarea, Select, Checkbox, Slider).
-  // See CLAUDE.md "UI stack rules". Carve-outs: hidden `type="file"` pickers
-  // and the `type="color"` eyedropper have no shadcn equivalent and are
-  // allowed; the shadcn primitive library itself (react-core/ui) is excluded.
+  // Carve-outs: hidden `type="file"` pickers and the `type="color"`
+  // eyedropper have no shadcn equivalent and are allowed; the shadcn
+  // primitive library itself (react-core/ui) is excluded.
   {
     files: [
       'packages/react-grid/**/*.tsx',
@@ -191,7 +191,7 @@ export default tseslint.config(
   },
 
   // Filename-case carve-outs: shadcn-generated kebab files and the Angular
-  // buckets (Angular Style Guide mandates kebab). See CLAUDE.md "File naming".
+  // buckets (Angular Style Guide mandates kebab).
   {
     files: [
       'packages/react-core/ui/src/components/**/*.{ts,tsx}',

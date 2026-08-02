@@ -41,5 +41,4 @@
 
 - [ ] `docs/IMPLEMENTED_FEATURES.md` (feature changes)
 - [ ] `docs/ARCHITECTURE.md` (structural / boundary changes)
-- [ ] `CLAUDE.md` (agent instructions)
 - [ ] N/A
