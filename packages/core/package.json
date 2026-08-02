@@ -43,7 +43,7 @@
     "widget-browser/dist"
   ],
   "scripts": {
-    "build": "rimraf engine/dist engine/tsconfig.tsbuildinfo host/dist host/tsconfig.tsbuildinfo host-browser/dist host-browser/tsconfig.tsbuildinfo host-config/dist host-config/tsconfig.tsbuildinfo widget/dist widget/tsconfig.tsbuildinfo widget-browser/dist widget-browser/tsconfig.tsbuildinfo && (cd engine && tsc && vite build) && tsc --project host/tsconfig.json && tsc --project host-browser/tsconfig.json && tsc --project host-config/tsconfig.json && node host-config/scripts/copy-assets.mjs && tsc --project widget/tsconfig.json && tsc --project widget-browser/tsconfig.json",
+    "build": "rimraf engine/dist engine/tsconfig.tsbuildinfo host/dist host/tsconfig.tsbuildinfo host-browser/dist host-browser/tsconfig.tsbuildinfo host-config/dist host-config/tsconfig.tsbuildinfo widget/dist widget/tsconfig.tsbuildinfo widget-browser/dist widget-browser/tsconfig.tsbuildinfo && (cd engine && tsc && vite build && cd ..) && tsc --project host/tsconfig.json && tsc --project host-browser/tsconfig.json && tsc --project host-config/tsconfig.json && node host-config/scripts/copy-assets.mjs && tsc --project widget/tsconfig.json && tsc --project widget-browser/tsconfig.json",
     "typecheck": "tsc --noEmit --project engine/tsconfig.json && tsc --noEmit --project host/tsconfig.json && tsc --noEmit --project host-browser/tsconfig.json && tsc --noEmit --project host-config/tsconfig.json && tsc --noEmit --project widget/tsconfig.json && tsc --noEmit --project widget-browser/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
