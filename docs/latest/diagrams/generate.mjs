@@ -134,7 +134,7 @@ function layerModel() {
   const H = 40 + rows.length * (ROWH + GAP) + 26;
   let b = '';
   let y = 40;
-  const centers = [];
+  const rowsMeta = [];
   for (const row of rows) {
     b += bandLabel(28, y + ROWH / 2 + 3, row.label, TIER[row.tier].label);
     const n = row.boxes.length;
@@ -143,12 +143,22 @@ function layerModel() {
       const x = X + i * (bw + 20);
       b += box(x, y, bw, ROWH - 18, row.tier, bx.t, bx.l, { mono: bx.mono, titleSize: 12.5 });
     });
-    centers.push({ y1: y, y2: y + ROWH - 18 });
+    rowsMeta.push({
+      y1: y,
+      y2: y + ROWH - 18,
+      centers: row.boxes.map((_, i) => X + i * (bw + 20) + bw / 2),
+    });
     y += ROWH + GAP - 18 + 18;
   }
-  const mid = X + BW / 2;
-  for (let i = 0; i < centers.length - 1; i++) {
-    b += arrow(mid, centers[i].y2, mid, centers[i + 1].y1 - 1);
+  // Connect real boxes, not the band centerline — on two-box rows the
+  // centerline falls in the gap between the boxes, leaving arrows that
+  // start or end in empty space. Each transition uses the multi-box
+  // row's box centers, so every arrow leaves one box edge and lands on
+  // another (a full-width single box spans all those centers).
+  for (let i = 0; i < rowsMeta.length - 1; i++) {
+    const above = rowsMeta[i], below = rowsMeta[i + 1];
+    const xs = above.centers.length >= below.centers.length ? above.centers : below.centers;
+    for (const x of xs) b += arrow(x, above.y2, x, below.y1 - 1);
   }
   b += `<text x="${W - 40}" y="${H - 16}" text-anchor="end" font-size="10.5" fill="${MUTED}" font-style="italic">imports flow downward only — a package never imports from a layer above it</text>\n`;
   b += bandLabel(28, 24, 'StarUI · layer model', TIER.product.label);
