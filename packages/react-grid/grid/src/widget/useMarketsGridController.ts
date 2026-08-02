@@ -243,6 +243,14 @@ export function useMarketsGridController(
         getConfig: () => bundleAdapter.readConfig(),
         setConfig: async (config: MarketsGridLocalStorageConfig) => {
           await bundleAdapter.applySerializedConfig(config);
+          // applySerializedConfig writes profile rows straight to the
+          // adapter, bypassing every ProfileManager method that keeps the
+          // cached list in sync. loadProfile() below activates the right
+          // profile's *content* but — by design — never refreshes the
+          // list, so without this the picker would keep showing whatever
+          // was cached at boot (typically just Default) until some other
+          // list-mutating action (e.g. clone) incidentally refreshed it.
+          await profiles.refreshProfiles();
           const nextActive = bundleAdapter.readConfig().activeProfileId;
           await profiles.loadProfile(nextActive);
         },

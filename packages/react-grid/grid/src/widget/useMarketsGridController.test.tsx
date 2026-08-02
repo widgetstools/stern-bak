@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     isDirty: false,
     saveActiveProfile: vi.fn(async () => {}),
     loadProfile: vi.fn(async () => {}),
+    refreshProfiles: vi.fn(async () => {}),
     discardActiveProfile: vi.fn(async () => {}),
   },
   api: null as any,
@@ -81,6 +82,7 @@ describe('useMarketsGridController', () => {
     mocks.profile.activeProfileId = 'a';
     mocks.profile.saveActiveProfile = vi.fn(async () => {});
     mocks.profile.loadProfile = vi.fn(async () => {});
+    mocks.profile.refreshProfiles = vi.fn(async () => {});
     mocks.profile.discardActiveProfile = vi.fn(async () => {});
     mocks.api = { setFilterModel: vi.fn() };
     mocks.sheetFocusIfPopped.mockReturnValue(false);
@@ -323,6 +325,12 @@ describe('useMarketsGridController', () => {
       await ref.current.setConfig({ activeProfileId: 'next' } as never);
     });
     expect(applySerializedConfig).toHaveBeenCalled();
+    // setConfig writes profile rows straight through the adapter, bypassing
+    // every ProfileManager method that keeps the cached list in sync — so
+    // it must refresh the list itself. Without this, the profile picker
+    // shows only whatever was cached at boot until some unrelated
+    // list-mutating action (e.g. clone) incidentally refreshes it.
+    expect(mocks.profile.refreshProfiles).toHaveBeenCalled();
     expect(mocks.profile.loadProfile).toHaveBeenCalledWith('next');
   });
 
