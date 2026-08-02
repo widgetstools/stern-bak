@@ -267,14 +267,6 @@ After every feature add / update / fix / removal:
 4. Commit messages: conventional prefixes (`feat(pkg):`, `fix(pkg):`,
    `chore:`, `docs:`, `test:`, `ci:`, `refactor(pkg):`).
 
-## Commit trailer
-
-Every commit this agent makes should end with:
-
-```
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-```
-
 ## Dep version edits
 
 Pin to the **stable line** for each major (React 19.2.x, @openfin/core

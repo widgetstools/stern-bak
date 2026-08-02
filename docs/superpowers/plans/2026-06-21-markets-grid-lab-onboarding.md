@@ -18,7 +18,6 @@
 - **File/symbol naming:** camelCase/PascalCase only in this React app (no kebab). Component files `PascalCase.tsx`, hooks `useX.ts`, plain modules `camelCase.ts`, types in `types.ts`.
 - **Complexity ceilings:** 800 LOC/file, 80 LOC/function.
 - **Config-driven framing:** all guidance copy frames features as *configure-via-the-grid's-UI, persist-as-a-profile*, not hand-written React.
-- **Commit trailer** on every commit: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 All work happens on branch `feat/markets-grid-lab-onboarding` (already created).
 
@@ -226,7 +225,6 @@ git add apps/demos/markets-grid-lab/src/guides/types.ts \
         apps/demos/markets-grid-lab/src/guides/categories.ts
 git commit -m "feat(markets-grid-lab): guide types, config serializer, category model
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -610,7 +608,6 @@ git add apps/demos/markets-grid-lab/src/guides/featureGuides.ts \
         apps/demos/markets-grid-lab/src/guides/featureGuides.test.ts
 git commit -m "feat(markets-grid-lab): feature-guide registry + shared base props
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -793,7 +790,6 @@ git add apps/demos/markets-grid-lab/src/guides/buildConfigBlocks.ts \
         apps/demos/markets-grid-lab/src/guides/featureGuides.ts
 git commit -m "feat(markets-grid-lab): derive Inspector config blocks from LabFeatureConfig
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1032,7 +1028,6 @@ Expected: no errors. (If `Badge`/`ScrollArea` are not exported, they are — ver
 git add apps/demos/markets-grid-lab/src/components/InspectorDrawer.tsx
 git commit -m "feat(markets-grid-lab): InspectorDrawer (What/Why · Try · Config · Props)
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1150,7 +1145,6 @@ Expected: no errors.
 git add apps/demos/markets-grid-lab/src/tabs/LabFeatureTab.tsx
 git commit -m "feat(markets-grid-lab): render Inspector drawer under the grid in the shell
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1304,7 +1298,6 @@ Expected: no errors.
 git add apps/demos/markets-grid-lab/src/components/LabSidebarNav.tsx
 git commit -m "feat(markets-grid-lab): grouped collapsible sidebar nav with filter
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1521,7 +1514,6 @@ Expected: no errors.
 git add apps/demos/markets-grid-lab/src/tabs/HomeTab.tsx
 git commit -m "feat(markets-grid-lab): Home landing tab (hero, mount, mental model, feature map)
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1704,7 +1696,6 @@ git add apps/demos/markets-grid-lab/src/App.tsx
 git rm --cached apps/demos/markets-grid-lab/src/components/LabTabsNav.tsx 2>/dev/null || true
 git commit -m "feat(markets-grid-lab): sidebar layout + Home default; drop horizontal tab strip
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1793,7 +1784,6 @@ Expected: no type errors; build succeeds.
 git add e2e/lab-onboarding.spec.ts docs/current-features.md
 git commit -m "test(markets-grid-lab): onboarding smoke spec; docs: feature inventory
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---

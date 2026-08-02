@@ -15,7 +15,6 @@
 - **Member `src`/root source trees do not move.** `packages/design-system/design-system/src/` and `packages/design-system/icons-svg/{index.ts,allIcons.ts,react/,angular/,svg/}` stay at their exact current paths. Only each member's `package.json`, `vitest.config.ts`, and `turbo.json` (design-system only — icons-svg's is deleted, not relocated) are removed.
 - **Package identity**: name `@wellsfargo-starui/design-system`, version `0.1.0` (design-system's existing version — the surviving identity, not bumped).
 - **Coverage-tooling gap is accepted, not patched.** `check-package-coverage.mjs`/`run-test-coverage.mjs` will scan `packages/design-system/coverage/` as a one-level path after this lands; they still expect two-level `packages/<bucket>/<member>/coverage/` elsewhere. This is documented in WORKLOG, not fixed here — sub-phase 7 makes the tooling collapse-aware once, for the final shape.
-- **Commit trailer:** ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
 - **Repo paths:** platform repo is the working directory. Apps repo is `/Users/develop/wfh/starui-apps` — a sibling checkout, referenced by absolute path, for tarball validation only (this plan never edits files there).
 
 ---
@@ -476,8 +475,8 @@ Expected: **20** tarballs (was 21 — `design-system` and `icons-svg` collapse f
 
 ```bash
 cd /Users/develop/wfh/starui-apps
-STARUI_PLATFORM=/Users/develop/wfh/stern-bak/.claude/worktrees/pkg-collapse-design-system npm run setup:tarball
-STARUI_PLATFORM=/Users/develop/wfh/stern-bak/.claude/worktrees/pkg-collapse-design-system npm run build:tarball
+STARUI_PLATFORM=<worktree-path> npm run setup:tarball
+STARUI_PLATFORM=<worktree-path> npm run build:tarball
 cd -
 ```
 
@@ -519,7 +518,6 @@ real import sites across openfin-platform, workspace-setup-react, and
 grid (a 4th candidate, config-browser, was a comment-only false
 positive during design and needed no change).
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -656,7 +654,6 @@ Updates CLAUDE.md, PACKAGE_ORGANIZATION.md, and current-features.md
 to reflect icons-svg's retirement as a separate npm identity, and
 records sub-phase 1's completion in WORKLOG item 11.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```

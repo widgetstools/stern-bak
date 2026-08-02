@@ -16,7 +16,6 @@
 - **Package identity**: name `@wellsfargo-starui/openfin` (new — neither existing name survives), version `0.1.0`.
 - **Coverage-tooling gap is accepted, not patched** — same as sub-phase 1, documented in WORKLOG, fixed once in sub-phase 7.
 - **`STARUI_PLATFORM` must be set explicitly for every tarball-validation command**, pointed at this worktree's absolute path — plain `npm run setup:tarball`/`build:tarball` in the apps repo silently resolves the platform repo as a sibling directory (the main checkout), not this worktree. This bit sub-phase 1; do not skip it here even if nothing seems wrong.
-- **Commit trailer:** ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
 - **Repo paths:** platform repo is the working directory. Apps repo is `/Users/develop/wfh/starui-apps` — a sibling checkout, referenced by absolute path, for tarball validation only (this plan never edits files there).
 
 ---
@@ -585,7 +584,6 @@ import sites across grid, widgets-react, host-wrapper-react,
 workspace-setup-react, and config-browser, plus a hardcoded Vite
 alias in grid's own vitest.config.ts.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -719,7 +717,6 @@ current-features.md to reflect host-openfin and openfin-platform's
 retirement in favor of @wellsfargo-starui/openfin, and records
 sub-phase 2's completion in WORKLOG item 11.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```

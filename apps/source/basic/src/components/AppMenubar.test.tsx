@@ -61,13 +61,6 @@ describe('AppMenubar', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     render(<AppMenubar {...handlers} />);
 
-    await user.click(getOneByText('About this demo'));
-    expect(openSpy).toHaveBeenCalledWith(
-      'https://github.com/nndrao/starui',
-      '_blank',
-      'noopener,noreferrer',
-    );
-
     await user.click(getOneByText('AG-Grid documentation'));
     expect(openSpy).toHaveBeenCalledWith(
       'https://www.ag-grid.com/javascript-data-grid/',

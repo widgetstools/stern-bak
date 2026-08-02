@@ -16,7 +16,6 @@
 - **Determinism:** data seeds + `applyTick` + `rfqReducer` must not call `Date.now()`/`Math.random()` — inject a seeded rng / pass `now`. Components own wall-clock/timers.
 - File/symbol naming camelCase/PascalCase. **Ceilings: 800 LOC/file, 80 LOC/function.**
 - Verify: `npx tsc --noEmit -p apps/demos/design-system/tsconfig.json`; `npm --prefix apps run build -w @wellsfargo-starui/design-system-demo`; unit `npx vitest run apps/demos/design-system/src/...`; e2e `npx playwright test e2e/design-system-demo.spec.ts --project=chromium` (boots :5310).
-- Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 - Branch `feat/design-system-demo-app` (deps already added to package.json + installed; commit them in Task 1).
 
 ## Dock-manager API reference (verified against installed v1.0.0)
@@ -247,7 +246,6 @@ Run: `npm --prefix apps run build -w @wellsfargo-starui/design-system-demo` → 
 git add apps/demos/design-system/package.json apps/demos/design-system/src/lib/dock apps/demos/design-system/src/App.tsx apps/demos/design-system/src/globals.css
 git commit -m "feat(design-system-demo): dock-manager foundation (helpers, registry, per-tab layouts)
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 > NOTE if the dock CSS or DockManagerCore fails to render under the consumer Vite build (e.g. a missing stylesheet, SSR guard, or ESM interop issue), STOP and report BLOCKED with the exact error — this gates every later task.

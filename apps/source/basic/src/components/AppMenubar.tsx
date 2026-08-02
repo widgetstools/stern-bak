@@ -63,18 +63,6 @@ export function AppMenubar({
           className="font-mono text-[12px]"
           onSelect={() =>
             window.open(
-              'https://github.com/nndrao/starui',
-              '_blank',
-              'noopener,noreferrer',
-            )
-          }
-        >
-          About this demo
-        </MenubarItem>
-        <MenubarItem
-          className="font-mono text-[12px]"
-          onSelect={() =>
-            window.open(
               'https://www.ag-grid.com/javascript-data-grid/',
               '_blank',
               'noopener,noreferrer',

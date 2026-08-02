@@ -45,11 +45,9 @@ describe('HelpSheet', () => {
     expect(getOneByText('markets-grid-bundle:bond-blotter-v1')).toBeInTheDocument();
   });
 
-  it('renders footer with GitHub link', () => {
+  it('renders the footer keyboard hint', () => {
     render(<HelpSheet open={true} onOpenChange={vi.fn()} />);
-    const link = getOneByText('View on GitHub').closest('a');
-    expect(link).toHaveAttribute('href', 'https://github.com/nndrao/starui');
-    expect(link).toHaveAttribute('target', '_blank');
+    expect(getOneByText('Ctrl + /')).toBeInTheDocument();
   });
 
   it('hides content when closed', () => {

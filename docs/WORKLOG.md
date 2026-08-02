@@ -1,7 +1,7 @@
 # Worklog — outstanding items
 
 Single index of known-open work in this repo — which, since 2026-08-02, again
-includes the consumer/demo apps: `widgetstools/stern-apps` was merged back
+includes the consumer/demo apps: the `stern-apps` repo was merged back
 under [`apps/`](../apps) (git subtree, history preserved) once every package
 held the 70% per-file coverage bar. Older entries that say "stern-apps" refer
 to what is now the `apps/` tree; the separate remote is historical.
@@ -559,7 +559,7 @@ ag-grid-enterprise absent for a react-only consumer** — the sub-phase-7
 peer-isolation assertion, already holding.
 
 **eslint.config.mjs: fixed.** The config-protection hook turned out to be
-already disabled (`.claude/settings.local.json` sets
+already disabled (the local agent settings set
 `ECC_DISABLED_HOOKS=pre:config-protection`; env vars from settings apply
 at session start, so the block observed in sub-phase 5 predated that
 entry taking effect). One follow-up commit landed the full backlog:

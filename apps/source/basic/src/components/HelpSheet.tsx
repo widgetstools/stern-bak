@@ -138,15 +138,6 @@ export function HelpSheet({ open, onOpenChange }: HelpSheetProps) {
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--ds-text-faint)]">
             Press <Kbd>Ctrl + /</Kbd> to toggle this panel
           </span>
-          <a
-            href="https://github.com/nndrao/starui"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--ds-text-secondary)] hover:text-[color:var(--ds-accent-info)]"
-          >
-            <ExternalLink size={11} strokeWidth={1.75} />
-            View on GitHub
-          </a>
         </div>
       </SheetContent>
     </Sheet>

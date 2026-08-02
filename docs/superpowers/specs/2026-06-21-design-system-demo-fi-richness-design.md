@@ -130,7 +130,6 @@ tabs/*     replaced by lib/dock layouts (old resizable tab files removed)
 
 Design-system tokens only (`--ds-*`; no hardcoded hex); shadcn/recharts primitives only; AG Grid via
 `staruiGridTheme`/`blotterTheme` inheriting `<html data-ag-theme-mode>`; dark+light; camelCase/PascalCase;
-800 LOC/file, 80 LOC/function; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ## Success criteria
 

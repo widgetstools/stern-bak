@@ -9,7 +9,7 @@ it finds, and demo apps that exist purely to exercise the libraries should not b
 carrying tests to satisfy a coverage gate.
 
 **Known-open items for both repos** are indexed in
-[`stern-bak/docs/WORKLOG.md`](https://github.com/widgetstools/stern-bak/blob/main/docs/WORKLOG.md)
+[`stern-bak/docs/WORKLOG.md`](../docs/WORKLOG.md)
 — check it before starting work. The e2e suite in particular has a documented
 gap (see [`E2E_STATUS.md`](./E2E_STATUS.md)).
 

@@ -15,7 +15,6 @@
 - **No bespoke tooling.** Folder moves are `git mv`, full stop — no symlinks, no re-export shims, no dual-publish window. Config edits are limited to what a step explicitly breaks (see the design spec's Convention Constraint section).
 - **Each move is its own commit**, gated by a full validation pass (typecheck+build+test, cycle check, tarball install+build) — never batch two moves into one commit.
 - **Tarball gate is mandatory per move, not optional.** In-repo `turbo` passing is necessary but not sufficient — the sibling apps repo installing the packed tarballs is the real acceptance oracle (this is exactly the check that would have caught the original `data → shared → data` cycle before it shipped).
-- **Commit trailer** (every commit, per `CLAUDE.md`): ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
 - **Commit prefix:** use `refactor(packages):` for all four commits in this plan — this is a structural move, not a feature/fix.
 - **Do not touch** `docs/current-features.md` — that file tracks capability changes; a folder move changes no capability. Do not touch `docs/ARCHITECTURE.md`'s bucket ASCII diagram — it is already stale in a larger way (still describes "Ten architecture buckets," including deleted Angular buckets) and partially patching it would misrepresent it as current; leave a note in Task 4 instead of editing it.
 - **Repo paths:** platform repo (this one) is the current working directory. Apps repo is `/Users/develop/wfh/starui-apps` — a sibling checkout, referenced by absolute path.
@@ -175,7 +174,6 @@ consolidation (WORKLOG #11). host-config peer-depends on
 @wellsfargo-starui/engine (a shared member) but sat in data — folder
 move only, package identity and exports unchanged.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -326,7 +324,6 @@ Keeps the data bucket React-free so host-data-angular and non-React
 consumers are unaffected once react-core collapses to one published
 package (WORKLOG #11). Folder move only, package identity unchanged.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -544,7 +541,6 @@ Confines the ag-grid-enterprise peer dependency to one future
 published bucket instead of leaking it into react-core (WORKLOG #11).
 Folder move only, package identity unchanged.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -619,7 +615,6 @@ cycle check, tarball install) across three prior commits. Package
 count remains 21 — the package.json collapse to 7 is a separate,
 still-open stage.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```

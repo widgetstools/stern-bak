@@ -572,7 +572,7 @@ npm run pack:mcp
 npx -y ./libs/starui-mcp-scaffold-0.1.0-<sha>.tgz
 ```
 
-**Cursor / Claude Code** (`~/.cursor/mcp.json` or project `.mcp.json`):
+**MCP-capable editors/agents** (`~/.cursor/mcp.json` or project `.mcp.json`):
 
 ```json
 {

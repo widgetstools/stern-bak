@@ -46,12 +46,10 @@ describe('HelpSheet', () => {
     expect(getOneByText('Side-by-side')).toBeInTheDocument();
   });
 
-  it('links to the GitHub repository', () => {
+  it('renders the footer keyboard hint', () => {
     render(<HelpSheet open onOpenChange={vi.fn()} />);
 
-    const link = getOneByText('View on GitHub').closest('a');
-    expect(link).toHaveAttribute('href', 'https://github.com/nndrao/starui');
-    expect(link).toHaveAttribute('target', '_blank');
+    expect(getOneByText('Ctrl + /')).toBeInTheDocument();
   });
 
   it('calls onOpenChange when the sheet requests a change', async () => {

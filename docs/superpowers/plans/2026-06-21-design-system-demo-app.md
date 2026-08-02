@@ -18,7 +18,6 @@
 - **Complexity ceilings:** 800 LOC/file, 80 LOC/function.
 - **Workspace name** `@wellsfargo-starui/design-system-demo` (folder `apps/demos/design-system`); **dev port 5310**.
 - **Lab unit tests** run from repo root: `npx vitest run apps/demos/design-system/src/...`. **Typecheck:** `npx tsc --noEmit -p apps/demos/design-system/tsconfig.json`. **Build:** `npm --prefix apps run build -w @wellsfargo-starui/design-system-demo` (after the app is in `apps/package.json`).
-- **Commit trailer** on every commit: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 All work happens on branch `feat/design-system-demo-app` (already created; spec committed at `2e414805`).
 
@@ -257,7 +256,6 @@ Expected: install succeeds; Vite build completes (the placeholder App bundles). 
 git add apps/demos/design-system apps/package.json playwright.config.ts
 git commit -m "feat(design-system-demo): scaffold app + register workspace (port 5310)
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -379,7 +377,6 @@ Expected: clean.
 git add apps/demos/design-system/src/data/types.ts apps/demos/design-system/src/data/seeds.ts apps/demos/design-system/src/data/formatters.ts
 git commit -m "feat(design-system-demo): FI data types, deterministic seeds, formatters
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -458,7 +455,6 @@ Expected: PASS (4 tests).
 git add apps/demos/design-system/src/data/applyTick.ts apps/demos/design-system/src/data/applyTick.test.ts
 git commit -m "feat(design-system-demo): pure applyTick ticking reducer + tests
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -487,7 +483,6 @@ Expected: clean.
 git add apps/demos/design-system/src/data/useTickingStore.ts
 git commit -m "feat(design-system-demo): useTickingStore interval hook
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -546,7 +541,6 @@ Expected: clean.
 git add apps/demos/design-system/src/lib apps/demos/design-system/src/components/ThemeToggle.tsx apps/demos/design-system/src/components/CodeBlock.tsx
 git commit -m "feat(design-system-demo): grid theme, theme-mode hook, ThemeToggle, CodeBlock
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -579,7 +573,6 @@ Expected: both clean (shell renders with placeholders).
 git add apps/demos/design-system/src/components/TopBar.tsx apps/demos/design-system/src/App.tsx
 git commit -m "feat(design-system-demo): app shell — TopBar + tab navigation
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -719,7 +712,6 @@ Run: `npx tsc --noEmit -p apps/demos/design-system/tsconfig.json` → clean.
 git add apps/demos/design-system/src/showcase
 git commit -m "feat(design-system-demo): showcase framework — types, ComponentDemo, registry + completeness gate
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -774,7 +766,6 @@ Expected: clean.
 git add apps/demos/design-system/src/showcase/palette.ts apps/demos/design-system/src/showcase/sections
 git commit -m "feat(design-system-demo): palette/typography/foundations/overview sections
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1022,7 +1013,6 @@ Run: `npm --prefix apps run build -w @wellsfargo-starui/design-system-demo` → 
 git add e2e/design-system-demo.spec.ts docs/current-features.md
 git commit -m "test(design-system-demo): smoke spec; docs: feature inventory
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
