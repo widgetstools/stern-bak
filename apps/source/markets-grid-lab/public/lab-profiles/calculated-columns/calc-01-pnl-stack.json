@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.210Z",
+  "profile": {
+    "name": "01 · P&L stack",
+    "gridId": "lab-calculated-v5",
+    "state": {
+      "calculated-columns": {
+        "v": 1,
+        "data": {
+          "virtualColumns": [
+            {
+              "colId": "calc_pnlTotal",
+              "headerName": "P&L Total",
+              "expression": "[dailyPnL] + [mtdPnL] + [ytdPnL]",
+              "cellDataType": "currency",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "currency",
+                "options": {
+                  "signed": true
+                }
+              },
+              "position": 100,
+              "initialWidth": 130
+            },
+            {
+              "colId": "calc_pnlPctMkt",
+              "headerName": "P&L % of Mkt",
+              "expression": "IF([marketValue] > 0, ([dailyPnL] / [marketValue]) * 100, null)",
+              "cellDataType": "number",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "position": 107,
+              "initialWidth": 120
+            }
+          ]
+        }
+      }
+    }
+  }
+}

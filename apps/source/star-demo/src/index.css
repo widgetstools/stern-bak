@@ -1,0 +1,35 @@
+@import '@wellsfargo-starui/design-system/css';
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+/* MarketsGrid toolbar + filter chrome. Consumes --bn-* / --fi-* tokens. */
+@import '@wellsfargo-starui/grid/styles.css';
+
+/* Tailwind v3 directives — utilities resolve via the shadcn-compatible
+   aliases exported by the design-system tokens. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base styles ──────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    /* TODO Phase 6: migrate --bn-* / --fi-* refs to unified token names */
+    background: var(--ds-surface-ground);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-sans);
+    font-size: var(--ds-font-size-body);
+    margin: 0;
+    padding: 10px;
+  }
+}
+
+/* ── OpenFin theme variable bridge ───────────────────────────────── */
+:root {
+  /* TODO Phase 6: migrate --bn-* / --fi-* refs to unified token names */
+  --of-bg: var(--theme-background-primary, var(--ds-surface-ground));
+  --of-fg: var(--theme-text-default, var(--ds-text-primary));
+}

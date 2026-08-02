@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.275Z",
+  "profile": {
+    "name": "03 · Row add/remove",
+    "gridId": "lab-alerts-v2",
+    "state": {
+      "alerts": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "alert-row-added",
+              "name": "New position appears",
+              "enabled": true,
+              "priority": 50,
+              "severity": "success",
+              "trigger": {
+                "kind": "rowChange",
+                "event": "ROW_ADDED"
+              },
+              "message": "New row {rowId}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ]
+            },
+            {
+              "id": "alert-row-removed",
+              "name": "Position removed",
+              "enabled": true,
+              "priority": 50,
+              "severity": "warning",
+              "trigger": {
+                "kind": "rowChange",
+                "event": "ROW_REMOVED"
+              },
+              "message": "Row {rowId} disappeared",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ]
+            }
+          ],
+          "settings": {
+            "enabled": true,
+            "defaultDebounceMs": 1500,
+            "maxNotificationsPerSecond": 10,
+            "historyLimit": 200,
+            "enabledChannels": {
+              "toast": true,
+              "badge": true,
+              "openfin": true
+            },
+            "evaluationMode": "realtime"
+          }
+        }
+      }
+    }
+  }
+}

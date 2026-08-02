@@ -1,0 +1,48 @@
+{
+  "name": "@wellsfargo-starui/star-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal OpenFin workspace demo hosting MarketsGrid via routes, registrable as a workspace component. Cloned from markets-ui-react-reference with the boilerplate stripped and Import/Export Config removed from the dock Tools menu.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary --coverage.reporter=lcov",
+    "validate:seed": "node scripts/validate-seed.mjs",
+    "preview": "vite preview",
+    "client": "node launch.mjs http://localhost:5175/platform/manifest.fin.json"
+  },
+  "dependencies": {
+    "@openfin/core": "43.101.2",
+    "@openfin/workspace": "23.0.20",
+    "@openfin/workspace-platform": "23.0.20",
+    "@tanstack/react-query": "^5.80.7",
+    "ag-grid-community": "35.1.0",
+    "ag-grid-enterprise": "35.1.0",
+    "ag-grid-react": "35.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.554.0",
+    "react": "~19.2.5",
+    "react-dom": "~19.2.5",
+    "react-router-dom": "^6.30.3",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@openfin/node-adapter": "43.101.2",
+    "@vitejs/plugin-react": "~4.5.2",
+    "autoprefixer": "^10.4.27",
+    "cross-env": "^7.0.3",
+    "postcss": "^8.5.9",
+    "tailwindcss": "3.4.1",
+    "typescript": "~5.9.3",
+    "vite": "~7.3.2",
+    "vite-plugin-svgr": "^5.0.0"
+  }
+}

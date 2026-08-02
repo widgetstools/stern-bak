@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.211Z",
+  "profile": {
+    "name": "00 · Flash storm",
+    "gridId": "lab-live-v6",
+    "state": {
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "live-tick-flash",
+              "name": "Tick flash · prices",
+              "enabled": true,
+              "priority": 5,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "bidPrice",
+                  "midPrice",
+                  "askPrice",
+                  "lastPrice"
+                ]
+              },
+              "expression": "value != null",
+              "style": {
+                "dark": {},
+                "light": {}
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "mode": "oneShot",
+                "color": "sky",
+                "durationMs": 400
+              },
+              "activeDurationMs": 400
+            },
+            {
+              "id": "live-winners",
+              "name": "Winners",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "dailyPnL",
+                  "unrealizedPnL",
+                  "mtdPnL",
+                  "ytdPnL",
+                  "priceChangePct"
+                ]
+              },
+              "expression": "value > 0",
+              "style": {
+                "dark": {
+                  "color": "#7fdf9b",
+                  "fontWeight": "600"
+                },
+                "light": {
+                  "color": "#1f7a34",
+                  "fontWeight": "600"
+                }
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "mode": "oneShot",
+                "color": "emerald",
+                "durationMs": 600
+              },
+              "indicator": {
+                "icon": "arrow-up",
+                "position": "top-left",
+                "target": "cells",
+                "color": "#7fdf9b"
+              }
+            },
+            {
+              "id": "live-losers",
+              "name": "Losers",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "dailyPnL",
+                  "unrealizedPnL",
+                  "mtdPnL",
+                  "ytdPnL",
+                  "priceChangePct"
+                ]
+              },
+              "expression": "value < 0",
+              "style": {
+                "dark": {
+                  "color": "#ee8e8e",
+                  "fontWeight": "600"
+                },
+                "light": {
+                  "color": "#a02a2a",
+                  "fontWeight": "600"
+                }
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "mode": "oneShot",
+                "color": "rose",
+                "durationMs": 600
+              },
+              "indicator": {
+                "icon": "arrow-down",
+                "position": "top-left",
+                "target": "cells",
+                "color": "#ee8e8e"
+              }
+            },
+            {
+              "id": "live-big-tick",
+              "name": "Big mid tick (|Δ| > 0.08)",
+              "enabled": true,
+              "priority": 7,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "midPrice"
+                ]
+              },
+              "expression": "ABS([midPrice.new] - [midPrice.old]) > 0.08",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#3a3010",
+                  "color": "#f0d878",
+                  "fontWeight": "700"
+                },
+                "light": {
+                  "backgroundColor": "#fbf0cf",
+                  "color": "#5d4d10",
+                  "fontWeight": "700"
+                }
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells+headers",
+                "mode": "oneShot",
+                "color": "amber",
+                "durationMs": 700
+              },
+              "activeDurationMs": 2000
+            }
+          ]
+        }
+      },
+      "general-settings": {
+        "v": 1,
+        "data": {
+          "enableCellChangeFlash": true,
+          "cellChangeFlashColor": "sky",
+          "cellFlashDuration": 350,
+          "cellFadeDuration": 800
+        }
+      }
+    }
+  }
+}

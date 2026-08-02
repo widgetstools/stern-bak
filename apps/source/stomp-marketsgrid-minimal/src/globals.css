@@ -1,0 +1,22 @@
+@import '@wellsfargo-starui/design-system/css';
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+@import '@wellsfargo-starui/grid/styles.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  * { @apply border-border; }
+  html, body, #root { height: 100%; width: 100%; margin: 0; padding: 0; }
+  html { overflow: hidden; }
+  body {
+    overflow: hidden;
+    background: var(--ds-surface-ground);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-sans), -apple-system, sans-serif;
+    font-size: var(--ds-font-size-body);
+    -webkit-font-smoothing: antialiased;
+  }
+}

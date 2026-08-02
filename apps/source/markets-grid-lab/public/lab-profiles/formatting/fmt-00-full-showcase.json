@@ -1,0 +1,354 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.210Z",
+  "profile": {
+    "name": "00 · Full showcase",
+    "gridId": "lab-formatting-v7",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "bidPrice": {
+              "colId": "bidPrice",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 3,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "initialWidth": 100,
+              "headerName": "Bid (3dp)"
+            },
+            "midPrice": {
+              "colId": "midPrice",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 3,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "initialWidth": 100,
+              "headerName": "Mid (3dp)"
+            },
+            "askPrice": {
+              "colId": "askPrice",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 4,
+                  "maximumFractionDigits": 4
+                }
+              },
+              "initialWidth": 110,
+              "headerName": "Ask (4dp)"
+            },
+            "lastPrice": {
+              "colId": "lastPrice",
+              "valueFormatterTemplate": {
+                "kind": "tick",
+                "tick": "TICK32"
+              },
+              "initialWidth": 120,
+              "headerName": "Last (32nds)"
+            },
+            "priceChange": {
+              "colId": "priceChange",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]\"▲ \"#,##0.00;[Red]\"▼ \"#,##0.00;\"—\""
+              },
+              "initialWidth": 130,
+              "headerName": "Δ Px (▲/▼)"
+            },
+            "priceChangePct": {
+              "colId": "priceChangePct",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+0.000%;[Red]-0.000%;\"·\""
+              },
+              "initialWidth": 130,
+              "headerName": "Δ % (signed)"
+            },
+            "yieldToMaturity": {
+              "colId": "yieldToMaturity",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"📊 \"0.000%"
+              },
+              "initialWidth": 130,
+              "headerName": "YTM 📊"
+            },
+            "yieldToWorst": {
+              "colId": "yieldToWorst",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"📊 \"0.000%"
+              },
+              "initialWidth": 130,
+              "headerName": "YTW 📊"
+            },
+            "currentYield": {
+              "colId": "currentYield",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"📊 \"0.000%"
+              },
+              "initialWidth": 130,
+              "headerName": "Curr Yld 📊"
+            },
+            "oas": {
+              "colId": "oas",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Yellow]\"🔥 \"0.00\" bps\""
+              },
+              "initialWidth": 120,
+              "headerName": "OAS 🔥"
+            },
+            "zSpread": {
+              "colId": "zSpread",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"⚡ \"0.00\" bps\""
+              },
+              "initialWidth": 120,
+              "headerName": "Z-spr ⚡"
+            },
+            "convexity": {
+              "colId": "convexity",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Cyan]\"~ \"0.00;[Magenta]\"~ \"-0.00;\"~\""
+              },
+              "initialWidth": 110,
+              "headerName": "Convex ~"
+            },
+            "modifiedDuration": {
+              "colId": "modifiedDuration",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              },
+              "initialWidth": 90,
+              "headerName": "Dur"
+            },
+            "dv01": {
+              "colId": "dv01",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 4,
+                  "maximumFractionDigits": 4
+                }
+              },
+              "initialWidth": 100,
+              "headerName": "DV01"
+            },
+            "marketValue": {
+              "colId": "marketValue",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[>=1000000][Green]\"💎 \"#,##0.0,,\"M\";[>=1000][Blue]#,##0.0,\"K\";#,##0"
+              },
+              "initialWidth": 150,
+              "headerName": "Mkt Val 💎"
+            },
+            "quantityFace": {
+              "colId": "quantityFace",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"💰 \"$#,##0"
+              },
+              "initialWidth": 140,
+              "headerName": "Qty 💰"
+            },
+            "avgCost": {
+              "colId": "avgCost",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 3,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "initialWidth": 110,
+              "headerName": "Avg Cost"
+            },
+            "accruedInterest": {
+              "colId": "accruedInterest",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"💵 \"$#,##0.0000"
+              },
+              "initialWidth": 130,
+              "headerName": "Accrued 💵"
+            },
+            "unrealizedPnL": {
+              "colId": "unrealizedPnL",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]\"✓ \"#,##0;[Red]\"✗ \"#,##0;\"-\""
+              },
+              "initialWidth": 150,
+              "headerName": "Unreal ✓/✗"
+            },
+            "dailyPnL": {
+              "colId": "dailyPnL",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]\"✓ \"#,##0;[Red]\"✗ \"#,##0;\"-\""
+              },
+              "initialWidth": 130,
+              "headerName": "P&L (D) ✓/✗"
+            },
+            "mtdPnL": {
+              "colId": "mtdPnL",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]\"✓ \"#,##0;[Red]\"✗ \"#,##0;\"-\""
+              },
+              "initialWidth": 140,
+              "headerName": "P&L (MTD) ✓/✗"
+            },
+            "ytdPnL": {
+              "colId": "ytdPnL",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]\"▲ \"#,##0.00;[Red]\"▼ \"#,##0.00;\"—\""
+              },
+              "initialWidth": 150,
+              "headerName": "P&L (YTD) ▲/▼"
+            },
+            "maturityDate": {
+              "colId": "maturityDate",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "\"📅 \"yyyy-mm-dd"
+              },
+              "initialWidth": 150,
+              "headerName": "Maturity 📅"
+            },
+            "issueDate": {
+              "colId": "issueDate",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "date",
+                "options": {
+                  "year": "numeric",
+                  "month": "2-digit",
+                  "day": "2-digit"
+                }
+              },
+              "initialWidth": 130,
+              "headerName": "Issued"
+            },
+            "compositeRating": {
+              "colId": "compositeRating",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#0e3046",
+                    "text": "#7cc7f9"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#dbeefd",
+                    "text": "#0f4d75"
+                  }
+                }
+              },
+              "headerStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#0e3046",
+                    "text": "#7cc7f9"
+                  },
+                  "typography": {
+                    "bold": true
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#dbeefd",
+                    "text": "#0f4d75"
+                  },
+                  "typography": {
+                    "bold": true
+                  }
+                }
+              },
+              "initialWidth": 95
+            },
+            "issuerSector": {
+              "colId": "issuerSector",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#102e22",
+                    "text": "#79d3a3"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#d8edd9",
+                    "text": "#1d5b2f"
+                  }
+                }
+              },
+              "initialWidth": 140
+            },
+            "currency": {
+              "colId": "currency",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#23123a",
+                    "text": "#b88bf0"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#ebdcf8",
+                    "text": "#4e1b86"
+                  }
+                }
+              },
+              "initialWidth": 80
+            }
+          },
+          "globalCellNumberFormatter": {
+            "kind": "preset",
+            "preset": "number",
+            "options": {
+              "minimumFractionDigits": 2,
+              "maximumFractionDigits": 2
+            }
+          },
+          "globalCellDateFormatter": {
+            "kind": "preset",
+            "preset": "date",
+            "options": {
+              "year": "numeric",
+              "month": "2-digit",
+              "day": "2-digit"
+            }
+          }
+        }
+      }
+    }
+  }
+}

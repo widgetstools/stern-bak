@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-23T00:00:00.000Z",
+  "profile": {
+    "name": "🎨 11 · Allocation Bar (Needs object/array data)",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "column-customization": {
+        "v": 10,
+        "data": {
+          "assignments": {
+            "notional": {
+              "colId": "notional",
+              "cellRendererId": "allocation-bar",
+              "cellRendererConfig": {
+                "kind": "allocation-bar",
+                "config": {
+                  "legend": true,
+                  "segmentColorMap": {
+                    "equity": { "dark": "#3b82f6", "light": "#2563eb" },
+                    "bonds": { "dark": "#22c55e", "light": "#15803d" },
+                    "fx": { "dark": "#fbbf24", "light": "#b45309" },
+                    "cash": { "dark": "#9ca3af", "light": "#4b5563" },
+                    "alts": { "dark": "#a78bfa", "light": "#6d28d9" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

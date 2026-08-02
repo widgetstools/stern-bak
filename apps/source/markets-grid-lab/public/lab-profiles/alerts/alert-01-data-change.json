@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.212Z",
+  "profile": {
+    "name": "01 · Data-change",
+    "gridId": "lab-alerts-v2",
+    "state": {
+      "alerts": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "alert-bid-spike",
+              "name": "Bid > $110",
+              "enabled": true,
+              "priority": 10,
+              "severity": "warning",
+              "trigger": {
+                "kind": "dataChange",
+                "expression": "[bidPrice] > 110",
+                "column": "bidPrice"
+              },
+              "message": "{rowId} bid hit {value}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ],
+              "debounceMs": 3000
+            },
+            {
+              "id": "alert-loss-cluster",
+              "name": "Daily P&L < −$25k",
+              "enabled": true,
+              "priority": 5,
+              "severity": "critical",
+              "trigger": {
+                "kind": "dataChange",
+                "expression": "[dailyPnL] < -25000",
+                "column": "dailyPnL"
+              },
+              "message": "{rowId} {rule}: {value}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ],
+              "debounceMs": 5000
+            }
+          ],
+          "settings": {
+            "enabled": true,
+            "defaultDebounceMs": 1500,
+            "maxNotificationsPerSecond": 8,
+            "historyLimit": 200,
+            "enabledChannels": {
+              "toast": true,
+              "badge": true,
+              "openfin": true
+            },
+            "evaluationMode": "realtime"
+          }
+        }
+      }
+    }
+  }
+}

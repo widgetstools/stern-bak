@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-05-23T00:00:00.000Z",
+  "profile": {
+    "name": "🎨 04 · Trend Arrow (Spread + Yield)",
+    "gridId": "demo-blotter-v2",
+    "state": {
+      "column-customization": {
+        "v": 10,
+        "data": {
+          "assignments": {
+            "spread": {
+              "colId": "spread",
+              "cellRendererId": "trend-arrow",
+              "cellRendererConfig": {
+                "kind": "trend-arrow",
+                "config": {
+                  "threshold": 5,
+                  "decimals": 1,
+                  "showDelta": true,
+                  "upColor": { "dark": "#22c55e", "light": "#15803d" },
+                  "downColor": { "dark": "#ef4444", "light": "#b91c1c" },
+                  "neutralColor": { "dark": "#9ca3af", "light": "#4b5563" }
+                }
+              }
+            },
+            "yield": {
+              "colId": "yield",
+              "cellRendererId": "trend-arrow",
+              "cellRendererConfig": {
+                "kind": "trend-arrow",
+                "config": {
+                  "threshold": 0.1,
+                  "decimals": 3,
+                  "showDelta": true,
+                  "upColor": { "dark": "#a3e635", "light": "#65a30d" },
+                  "downColor": { "dark": "#fb923c", "light": "#c2410c" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
