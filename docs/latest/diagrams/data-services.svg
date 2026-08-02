@@ -35,11 +35,11 @@
 <text x="835" y="282" text-anchor="middle" font-size="12" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">grid</text>
 <path d="M210,193 L268,193" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
 <text x="239" y="187" text-anchor="middle" font-size="9.5" fill="#5d6b64" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">stomp</text>
-<path d="M520,254 L588,254 L588,137" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
-<path d="M520,254 L588,254 L588,277" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
-<path d="M760,130 L788,124" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
-<path d="M760,144 L788,168" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
-<path d="M760,277 L788,278" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
+<path d="M520,254 L555,254 L555,137 L588,137" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
+<path d="M520,254 L555,254 L555,277 L588,277" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
+<path d="M760,124 L788,124" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
+<path d="M760,150 L774,150 L774,172 L788,172" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
+<path d="M760,278 L788,278" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
 <text x="28" y="360" font-size="10.5" fill="#5d6b64" font-style="italic">N grids across M windows share one upstream connection. Post-snapshot frames carry per-row</text>
 <text x="28" y="376" font-size="10.5" fill="#5d6b64" font-style="italic">field patches (thin deltas), not whole rows — see docs/hub-fanout-optimizations.md for the wire format.</text>
 

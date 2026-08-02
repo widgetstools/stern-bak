@@ -241,11 +241,14 @@ function dataFlow() {
   b += box(790, 258, 90, 40, 'product', 'grid', [], { mono: true, titleSize: 12 });
 
   b += arrow(210, 193, 268, 193, 'stomp', { dy: -6 });
-  b += elbow(520, 254, 588, 137, 'hv');
-  b += elbow(520, 254, 588, 277, 'hv');
-  b += arrow(760, 130, 788, 124);
-  b += arrow(760, 144, 788, 168);
-  b += arrow(760, 277, 788, 278);
+  // Fan-out — three-segment routes that enter each client's LEFT edge
+  // horizontally; a two-segment elbow runs its vertical leg along the
+  // boxes' borders with the head sliding on the edge.
+  b += `<path d="M520,254 L555,254 L555,137 L588,137" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+  b += `<path d="M520,254 L555,254 L555,277 L588,277" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+  b += arrow(760, 124, 788, 124);
+  b += `<path d="M760,150 L774,150 L774,172 L788,172" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+  b += arrow(760, 278, 788, 278);
   b += caption(28, H - 40, 'N grids across M windows share one upstream connection. Post-snapshot frames carry per-row');
   b += caption(28, H - 24, 'field patches (thin deltas), not whole rows — see docs/hub-fanout-optimizations.md for the wire format.');
   return svgDoc(W, H, b, 'StarUI data services flow');
