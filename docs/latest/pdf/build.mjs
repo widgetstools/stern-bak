@@ -2,7 +2,7 @@
  * build.mjs — regenerate the docs/latest PDFs.
  *
  * Prerequisites (one-time, not committed):
- *   npm i --no-save marked           # at the repo root
+ *   npm i --no-save marked pdf-lib   # at the repo root
  *   apps/ installed (`cd apps && npm install`) — supplies Playwright's chromium
  *
  * Run:  node docs/latest/pdf/build.mjs
@@ -13,6 +13,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { marked } from 'marked';
+import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -31,6 +32,8 @@ const FILES = [
   { md: 'packages.md', pdf: 'StarUI-Package-Reference.pdf', title: 'Package Reference' },
 ];
 const PDF_MAP = Object.fromEntries(FILES.map((f) => [f.md.toLowerCase(), f.pdf]));
+const TITLE_MAP = Object.fromEntries(FILES.map((f) => [f.md.toLowerCase(), f.title]));
+const PDF_SET = new Set(FILES.map((f) => f.pdf));
 
 const CSS = `
   :root {
@@ -132,10 +135,49 @@ function rewriteLinks(html) {
     const clean = href.replace(/^\.\//, '');
     const [path, _anchor] = clean.split('#');
     const key = (path || '').toLowerCase();
-    if (PDF_MAP[key]) return `<a href="${PDF_MAP[key]}"${attrs}>${text}</a>`;
+    if (PDF_MAP[key]) {
+      // Print-friendly link text: "architecture.md § x" reads as
+      // "Architecture § x" in the PDF set.
+      const printText = text.replace(/(?:\.\/)?([\w-]+\.md)/gi, (mm, file) =>
+        TITLE_MAP[file.toLowerCase()] ?? mm);
+      return `<a href="${PDF_MAP[key]}"${attrs}>${printText}</a>`;
+    }
     if (!path && _anchor !== undefined) return text;    // in-doc anchor -> plain text
     return text;                                        // out-of-set relative link -> plain text
   });
+}
+
+/**
+ * Chromium bakes absolute file:// URIs into the link annotations (resolved
+ * against the HTML page's <base>, which points at docs/latest for the
+ * diagram images — the wrong directory, and machine-specific besides).
+ * Rewrite every annotation that targets one of this set's PDFs to a bare
+ * RELATIVE URI ("StarUI-Overview.pdf"): viewers resolve those against the
+ * containing PDF's own location, so the links survive moving or sharing
+ * the pdf/ folder as a unit.
+ */
+async function relativizeLinks(pdfPath) {
+  const doc = await PDFDocument.load(readFileSync(pdfPath));
+  let rewritten = 0;
+  for (const page of doc.getPages()) {
+    const annots = page.node.Annots();
+    if (!annots) continue;
+    for (let i = 0; i < annots.size(); i++) {
+      const annot = annots.lookup(i);
+      const action = annot?.lookup?.(PDFName.of('A'));
+      if (!action?.lookup) continue;
+      const uriObj = action.lookup(PDFName.of('URI'));
+      if (!uriObj) continue;
+      const uri = decodeURIComponent(String(uriObj.asString?.() ?? uriObj.decodeText?.() ?? ''));
+      const base = uri.split('#')[0].split('/').pop();
+      if (uri.startsWith('file:') && PDF_SET.has(base)) {
+        action.set(PDFName.of('URI'), PDFString.of(base));
+        rewritten += 1;
+      }
+    }
+  }
+  writeFileSync(pdfPath, await doc.save());
+  return rewritten;
 }
 
 function figurize(html) {
@@ -186,6 +228,7 @@ for (const f of FILES) {
     margin: { top: '17mm', bottom: '19mm', left: '17mm', right: '17mm' },
   });
   rmSync(htmlPath);
-  console.log(`wrote ${f.pdf}`);
+  const links = await relativizeLinks(join(OUT, f.pdf));
+  console.log(`wrote ${f.pdf} (${links} cross-links relativized)`);
 }
 await browser.close();
