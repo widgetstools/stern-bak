@@ -50,6 +50,28 @@ npm run dev
 
 In development, press **Alt+Shift+S** to open the hub inspector (running providers, subscribers, cache row counts, loaded cfg JSON).
 
+### Perspective mode — `?perspective=1`
+
+```
+http://localhost:5213/?perspective=1
+```
+
+The same blotter, the same broker, the same columns — reading a Perspective
+Table hosted **once** in the SharedWorker instead of its own copy of the book.
+Open one tab with the flag and one without and they are a genuine A/B pair: any
+difference between them is the row engine and nothing else.
+
+The flag does two things, and both have to happen before React renders:
+
+- **it picks the worker.** Only `data-services-perspective-worker.mjs` passes
+  `loadPerspective`, so only that asset can host a Table; without it
+  `attachPerspective` refuses and the grid never leaves its pending state. The
+  default load stays on the smaller asset, because the Perspective build embeds
+  the engine's wasm as base64 and an app that never opens a blotter should not
+  pay for it.
+- **it picks the provider.** `stomp-marketsgrid-minimal:positions-perspective`
+  is a `stomp-perspective` catalog row seeded only in this mode.
+
 ---
 
 ## Implementation flow
@@ -131,7 +153,8 @@ First attach for that id **lazy-starts** the STOMP provider in the worker: one u
 | `public/app-config.json` | Platform identity (`appId`, `userId`, `useRest`) |
 | `src/bootstrap.ts` | `ensurePlatformReady` + cached `platform` handle (wires `appDataBootstrap`) |
 | `src/main.tsx` | Theme, boot gate, `DataHubProvider`, render `App` |
-| `src/stompProvider.ts` | STOMP transport cfg + column defs (catalog payload) |
+| `src/stompProvider.ts` | STOMP transport cfg + column defs (catalog payload); the `stomp-perspective` twin |
+| `src/perspectiveMode.ts` | Reads `?perspective=1` — decides the worker asset and the provider |
 | `src/App.tsx` | Idempotent catalog seed + `HostedMarketsGrid` |
 | `src/platform/appDataBootstrap.ts` | *(optional)* AppData bootstrap hooks (console demo) |
 | `src/platform/gridEventHandlers.ts` | *(optional)* Grid event handler registry (console demo) |

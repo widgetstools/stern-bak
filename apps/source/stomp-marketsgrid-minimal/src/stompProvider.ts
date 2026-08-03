@@ -5,7 +5,11 @@
  * from ConfigCatalogCache on attach; the grid never receives cfg inline.
  */
 
-import type { DataProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type {
+  DataProviderConfig,
+  StompPerspectiveProviderConfig,
+  StompProviderConfig,
+} from '@wellsfargo-starui/types';
 
 /** Must match a tag published by stomp-view-server (`npm run dev` there). */
 const TAG = 'TRADER001';
@@ -150,4 +154,45 @@ export const stompHistoricalProviderDraft: DataProviderConfig = {
   userId: 'dev1',
   public: false,
   config: stompHistorical,
+};
+
+// ─── Perspective twin ────────────────────────────────────────────────
+//
+// The SAME broker, destinations and columns as the live provider, teed into
+// a Perspective Table hosted once in the worker — so `?perspective=1` and a
+// plain load are a genuine A/B pair and any difference between them is the
+// row engine and nothing else. Selected by App.tsx only in that mode, and
+// only reachable on the Perspective worker asset (see bootstrap.ts).
+export const STOMP_PERSPECTIVE_PROVIDER_ID = 'stomp-marketsgrid-minimal:positions-perspective';
+
+const stompLivePerspective: StompPerspectiveProviderConfig = {
+  ...stompLive,
+  providerType: 'stomp-perspective',
+  // One Table per provider; windows open it by this name.
+  tableName: 'positions',
+  // Declared up front so the Table is created EMPTY and IMMEDIATELY — the
+  // blotter paints on open instead of waiting out the whole snapshot. The
+  // dotted `rating.*` columns are skipped: a Perspective schema is flat, and
+  // this transport delivers the broker's rows as-is.
+  inferredFields: stompLive.columnDefinitions!
+    .filter((c) => !c.field.includes('.'))
+    .map((c) => ({
+      path: c.field,
+      type: c.cellDataType === 'number' ? ('number' as const) : ('string' as const),
+      nullable: true,
+    })),
+  // Every numeric column stays `float`. Perspective silently truncates a float
+  // that lands in an integer column, and a float represents every integer up
+  // to 2^53 exactly, so there is nothing to gain here.
+  integerColumns: [],
+  inferDates: true,
+};
+
+export const stompPerspectiveProviderDraft: DataProviderConfig = {
+  providerId: STOMP_PERSPECTIVE_PROVIDER_ID,
+  name: 'STOMP Positions (Perspective)',
+  providerType: 'stomp-perspective',
+  userId: 'dev1',
+  public: false,
+  config: stompLivePerspective,
 };

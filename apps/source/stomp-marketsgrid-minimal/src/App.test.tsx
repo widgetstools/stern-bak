@@ -1,13 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getOneByTestId } from '../../../test-utils/queries';
 import './test/setupMocks.js';
 import { staruiTestState } from './test/setupMocks.js';
 import {
   STOMP_HISTORICAL_PROVIDER_ID,
   STOMP_LIVE_PROVIDER_ID,
+  STOMP_PERSPECTIVE_PROVIDER_ID,
   STOMP_PROVIDER_CFG_VERSION,
   stompHistoricalProviderDraft,
+  stompPerspectiveProviderDraft,
   stompProviderDraft,
 } from './stompProvider.js';
 
@@ -129,6 +131,55 @@ describe('App', () => {
       expect(getOneByTestId('hosted-markets-grid')).toBeInTheDocument();
     });
     expect(staruiTestState.configStore.remove).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `?perspective=1` runs the same blotter on the worker-held Table. The row
+   * is seeded only in that mode, because it can only be attached to on the
+   * Perspective worker asset — the one bootstrap.ts booted for the same flag.
+   */
+  describe('Perspective mode', () => {
+    beforeEach(() => {
+      window.history.replaceState({}, '', '/?perspective=1');
+    });
+
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+    });
+
+    it('seeds the Perspective provider and points the blotter at it', async () => {
+      const { App } = await import('./App.js');
+      render(<App />);
+
+      await waitFor(() => {
+        expect(staruiTestState.configStore.save).toHaveBeenCalledWith(
+          stompPerspectiveProviderDraft,
+          'test-user',
+        );
+        expect(getOneByTestId('hosted-markets-grid')).toHaveAttribute(
+          'data-live-provider',
+          STOMP_PERSPECTIVE_PROVIDER_ID,
+        );
+      });
+    });
+
+    it('leaves the classic path untouched without the flag', async () => {
+      window.history.replaceState({}, '', '/');
+
+      const { App } = await import('./App.js');
+      render(<App />);
+
+      await waitFor(() => {
+        expect(getOneByTestId('hosted-markets-grid')).toHaveAttribute(
+          'data-live-provider',
+          STOMP_LIVE_PROVIDER_ID,
+        );
+      });
+      expect(staruiTestState.configStore.save).not.toHaveBeenCalledWith(
+        stompPerspectiveProviderDraft,
+        'test-user',
+      );
+    });
   });
 
   it('does not update state after unmount', async () => {

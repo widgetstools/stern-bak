@@ -32,4 +32,26 @@ describe('bootstrap', () => {
     expect(result).toEqual({ config, platform: staruiTestState.platform });
     expect(getPlatform()).toBe(staruiTestState.platform);
   });
+
+  // Only the Perspective entry hosts a Table, and only it embeds the engine's
+  // wasm — so the flag has to reach the worker construction, and a plain load
+  // has to stay on the light asset.
+  it('boots the Perspective worker asset in Perspective mode', async () => {
+    window.history.replaceState({}, '', '/?perspective=1');
+    staruiTestState.resolvePlatformBootstrapFromJson.mockResolvedValue({
+      appId: 'stomp-minimal',
+      userId: 'dev1',
+      useRest: false,
+    });
+    staruiTestState.ensurePlatformReady.mockResolvedValue(staruiTestState.platform);
+
+    const { bootstrap } = await import('./bootstrap.js');
+    await bootstrap();
+
+    expect(staruiTestState.ensurePlatformReady).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ workerScriptUrl: '/mock-perspective-worker.mjs' }),
+    );
+    window.history.replaceState({}, '', '/');
+  });
 });

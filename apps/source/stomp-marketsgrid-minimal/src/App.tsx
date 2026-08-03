@@ -6,11 +6,14 @@ import { gridEventHandlers } from './platform/gridEventHandlers.js';
 import { gridHandlerMeta } from './platform/hooksMeta.js';
 import {
   stompHistoricalProviderDraft,
+  stompPerspectiveProviderDraft,
   stompProviderDraft,
   STOMP_PROVIDER_CFG_VERSION,
   STOMP_LIVE_PROVIDER_ID,
   STOMP_HISTORICAL_PROVIDER_ID,
+  STOMP_PERSPECTIVE_PROVIDER_ID,
 } from './stompProvider.js';
+import { isPerspectiveMode } from './perspectiveMode.js';
 
 /**
  * Phase 3 — seed catalog row (programmatic, no provider editor UI).
@@ -28,6 +31,11 @@ export function App() {
 
   const [providerId, setProviderId] = useState<string | null>(null);
   const [historicalProviderId, setHistoricalProviderId] = useState<string | null>(null);
+
+  // `?perspective=1` — the same blotter reading a worker-held Perspective
+  // Table instead of its own copy of the book. Read once: it also decided
+  // which SharedWorker asset booted, back in bootstrap.ts.
+  const perspective = isPerspectiveMode();
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +60,19 @@ export function App() {
       if (shouldRefresh || !liveExists) await configStore.save(stompProviderDraft, userId);
       if (shouldRefresh || !histExists) await configStore.save(stompHistoricalProviderDraft, userId);
 
+      // Seeded only in Perspective mode: it can only be attached to on the
+      // Perspective worker asset, and that choice was already made in
+      // bootstrap.ts. Its own subtype, so the `stomp` list above never sees it.
+      if (perspective) {
+        const perspectiveRows = await configStore.list(userId, { subtype: 'stomp-perspective' });
+        const exists = perspectiveRows.some(
+          (p) => p.providerId === STOMP_PERSPECTIVE_PROVIDER_ID,
+        );
+        if (shouldRefresh || !exists) {
+          await configStore.save(stompPerspectiveProviderDraft, userId);
+        }
+      }
+
       // Self-heal: remove any same-name rows left by the old random-id
       // seeding (the duplicate "STOMP Positions" / "(Historical)" rows that
       // accumulated before deterministic ids). Anything sharing a draft name
@@ -75,14 +96,14 @@ export function App() {
       }
 
       if (!cancelled) {
-        setProviderId(STOMP_LIVE_PROVIDER_ID);
+        setProviderId(perspective ? STOMP_PERSPECTIVE_PROVIDER_ID : STOMP_LIVE_PROVIDER_ID);
         setHistoricalProviderId(STOMP_HISTORICAL_PROVIDER_ID);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [configStore, userId]);
+  }, [configStore, userId, perspective]);
 
   // Wait until catalog rows exist and worker cache has been invalidated.
   if (!providerId || !historicalProviderId) return null;

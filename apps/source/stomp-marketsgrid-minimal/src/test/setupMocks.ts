@@ -25,6 +25,10 @@ vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
+vi.mock('@wellsfargo-starui/data/assets/data-services-perspective-worker.mjs?url', () => ({
+  default: '/mock-perspective-worker.mjs',
+}));
+
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ configStore: staruiTestState.configStore }),
   useUserIdFromContext: () => 'test-user',
