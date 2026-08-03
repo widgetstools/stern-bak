@@ -2,6 +2,10 @@ import type { ColDef, GridApi, SideBarDef, StatusPanelDef, Theme } from 'ag-grid
 import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
 import type { GridHostContext } from '@wellsfargo-starui/core/host';
 import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import type { PerspectiveTableLike } from '@wellsfargo-starui/grid/perspective';
+import type { MarketsGridRowModel, PerspectiveGridQueries } from '../engine/types.js';
+
+export type { MarketsGridRowModel, PerspectiveGridQueries } from '../engine/types.js';
 
 export type { ProviderGridHostApi, ProviderGridHostMode, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 export type { MarketsGridLocalStorageConfig, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
@@ -60,6 +64,34 @@ export interface MarketsGridProps<TData = unknown> {
    * components map unless column defs reference date filters. Default `true`.
    */
   includeAllStreamSafeFilters?: boolean;
+
+  /**
+   * Which engine supplies the rows. Defaults to `'client'`, where this window
+   * materializes the whole book.
+   *
+   * `'perspective'` reads a Table held once in a SharedWorker, so the window
+   * only ever holds the blocks its viewport asks for. It requires
+   * `perspectiveTable` — and until that has attached, MarketsGrid mounts NO
+   * grid at all rather than a stand-in, because a stand-in would destroy the
+   * platform on its way out. See `engine/resolveGridSurface.ts`.
+   */
+  rowModel?: MarketsGridRowModel;
+  /**
+   * The worker-held Table, from `usePerspectiveTable`. `null` while attaching.
+   * Only read when `rowModel` is `'perspective'`.
+   */
+  perspectiveTable?: PerspectiveTableLike | null;
+  /** Index column of that Table. Defaults to `'id'`. */
+  perspectiveKeyColumn?: string;
+  /**
+   * Whole-book questions — saved-filter counts, header-paint matches, set
+   * filter values — answered once in the worker for every window that asked.
+   * Build with `createPerspectiveWorkerQueries`.
+   */
+  perspectiveQueries?: PerspectiveGridQueries | null;
+  /** Tree hierarchy fields, outermost first. */
+  perspectiveTreeFields?: readonly string[];
+
   /**
    * Field(s) on each row that uniquely identify it. Defaults to `'id'`.
    * A single column name keys rows by that field; an array of column

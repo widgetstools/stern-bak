@@ -65,3 +65,34 @@ export {
 export { useMarketsGridEventBridge } from './events/useMarketsGridEventBridge.js';
 
 export { isOpenFin, openFinWindowOpener } from './runtime/openFin.js';
+
+// Row-engine layer — the `'client' | 'perspective'` choice and the seams the
+// module pipeline reaches a worker-held book through.
+export {
+  GridSurfaceSlot,
+  resolveGridSurface,
+  isPerspectiveRowModel,
+  PerspectiveMarketsGridSurface,
+  PerspectiveStatusPanel,
+  createPerspectiveEngineHolder,
+  createPerspectiveWorkerQueries,
+  withPerspectiveSetFilterValues,
+  usePerspectiveCalcColumns,
+  planCalcColumn,
+  planCalcColumns,
+  useCalcColumnsSnapshot,
+  asPerspectiveContext,
+  readPerspectiveContext,
+  type GridSurfaceChoice,
+  type GridSurfaceSlotProps,
+  type MarketsGridRowModel,
+  type PerspectiveCalcColumn,
+  type PerspectiveCalcColumnPlan,
+  type PerspectiveCalcColumnTier,
+  type PerspectiveEngineHolder,
+  type PerspectiveGridContext,
+  type PerspectiveGridQueries,
+  type PerspectiveMarketsGridSurfaceHandle,
+  type PerspectiveMarketsGridSurfaceProps,
+  type PerspectiveWorkerQueriesOpts,
+} from './engine/index.js';

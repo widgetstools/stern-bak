@@ -32,6 +32,7 @@ import {
   useModuleState,
   type SavedFiltersState,
 } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { readPerspectiveContext } from '../engine/types.js';
 import {
   doesRowMatchFilterModel,
   generateLabel,
@@ -263,6 +264,40 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
     const disposers: Array<() => void> = [];
     disposers.push(
       platform.api.onReady((liveApi) => {
+        /**
+         * Under Perspective the node walk below is not merely slow, it is
+         * WRONG: this window holds the loaded blocks, not the book, so
+         * `forEachNode` counts a few hundred rows and the pill presents that
+         * as "matches N rows" over a 50,000-row book. The worker answers the
+         * same question over the whole Table, once for every window that
+         * asked, and pushes the result.
+         *
+         * A count the worker cannot express EXACTLY comes back null, and the
+         * key is deleted rather than set to a number — `FiltersToolbar`
+         * renders no badge for a missing key, which is the honest output.
+         */
+        const queries = readPerspectiveContext(liveApi)?.perspectiveQueries;
+        if (queries) {
+          if (filters.length === 0) {
+            filterCountsRef.current = {};
+            setFilterCounts({});
+            return;
+          }
+          for (const f of filters) {
+            disposers.push(
+              queries.watchCount(f.filterModel, (count) => {
+                const next = { ...filterCountsRef.current };
+                if (count === null) delete next[f.id];
+                else next[f.id] = count;
+                if (filterCountsEqual(filterCountsRef.current, next)) return;
+                filterCountsRef.current = next;
+                setFilterCounts(next);
+              }),
+            );
+          }
+          return;
+        }
+
         const clearCounts = () => {
           if (Object.keys(filterCountsRef.current).length === 0) return;
           matchSetsRef.current = new Map();

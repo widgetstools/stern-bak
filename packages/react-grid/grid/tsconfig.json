@@ -5,13 +5,23 @@
     "paths": {
       "@wellsfargo-starui/grid": ["./src/index.ts"],
       "@wellsfargo-starui/grid/customizer": ["./src/customizer/index.ts"],
+      // A sibling FOLDER in this bucket, not a self-reference: the engine
+      // layer reads the row engine the same way `widgets-react` reads this
+      // package. `tsconfig.build.json` clears `paths` so the emitted build
+      // resolves it through node_modules to `perspective-grid/dist` — which
+      // is why the build script builds that folder first.
+      "@wellsfargo-starui/grid/perspective": ["../perspective-grid/src/index.ts"],
       "@wellsfargo-starui/core": ["../../core/engine/src/index.ts"],
       "@wellsfargo-starui/types": ["../../types/types/src/index.ts"],
       "@wellsfargo-starui/core/host": ["../../core/host/src/index.ts"]
     },
     "noEmit": true
   },
-  "include": ["src"],
+  // The sibling ambient decl comes along explicitly: the `paths` mapping
+  // above pulls `perspective-grid/src` into the program, but an ambient
+  // `.d.ts` is only picked up when it is included, and without it the row
+  // engine's `?url` wasm import has no declaration here.
+  "include": ["src", "../perspective-grid/src/assets.d.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
   "references": [
     { "path": "../../types/types" },

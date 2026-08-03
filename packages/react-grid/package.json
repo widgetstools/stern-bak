@@ -67,8 +67,8 @@
     "perspective-grid/dist"
   ],
   "scripts": {
-    "build": "rimraf grid/dist grid/tsconfig.tsbuildinfo config-browser/dist config-browser/tsconfig.tsbuildinfo widgets-react/dist widgets-react/tsconfig.tsbuildinfo perspective-grid/dist perspective-grid/tsconfig.tsbuildinfo && tsc --project grid/tsconfig.build.json && node grid/scripts/copy-assets.mjs && tsc --project config-browser/tsconfig.build.json && node config-browser/scripts/copy-assets.mjs && tsc --project widgets-react/tsconfig.json && tsc --project perspective-grid/tsconfig.json",
-    "typecheck": "tsc --noEmit --project grid/tsconfig.json && tsc --noEmit --project config-browser/tsconfig.json && tsc --noEmit --project widgets-react/tsconfig.json && tsc --noEmit --project perspective-grid/tsconfig.json",
+    "build": "rimraf grid/dist grid/tsconfig.tsbuildinfo config-browser/dist config-browser/tsconfig.tsbuildinfo widgets-react/dist widgets-react/tsconfig.tsbuildinfo perspective-grid/dist perspective-grid/tsconfig.tsbuildinfo && tsc --project perspective-grid/tsconfig.json && tsc --project grid/tsconfig.build.json && node grid/scripts/copy-assets.mjs && tsc --project config-browser/tsconfig.build.json && node config-browser/scripts/copy-assets.mjs && tsc --project widgets-react/tsconfig.json",
+    "typecheck": "tsc --noEmit --project perspective-grid/tsconfig.json && tsc --noEmit --project grid/tsconfig.json && tsc --noEmit --project config-browser/tsconfig.json && tsc --noEmit --project widgets-react/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "soak:value-getter": "npx cross-env SOAK=1 NODE_OPTIONS=--expose-gc vitest run widgets-react/src/container/markets-grid-container/valueGetter.soak.test.ts --no-file-parallelism"

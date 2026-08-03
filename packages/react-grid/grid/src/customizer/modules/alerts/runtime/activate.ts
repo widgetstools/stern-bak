@@ -38,6 +38,8 @@ import {
   partitionEnabledRules,
 } from './evaluateCellDelta';
 import { createPreviousValuesStore } from './previousValues';
+import { createPerspectiveAlertsBridge } from './perspectiveAlertsBridge';
+import { readPerspectiveContext } from '../../../../engine/types';
 
 type PartitionedRules = ReturnType<typeof partitionEnabledRules>;
 
@@ -251,9 +253,41 @@ export function activateAlerts(
     });
   };
 
+  /**
+   * Worker-push alerts, opened when the grid's context carries a Perspective
+   * query bridge and re-opened whenever the rule list changes.
+   *
+   * Declared ABOVE the `onReady` registration below, not beside the row
+   * subscriber it disables: `ApiHub.onReady` invokes its handler
+   * SYNCHRONOUSLY when the api already exists (a profile switch re-activates
+   * modules against a live grid), so a `const` declared later would be read
+   * from its temporal dead zone and throw during activation.
+   */
+  let perspectiveBridgeActive = false;
+  let releaseBridge: (() => void) | null = null;
+  const syncPerspectiveBridge = (api: GridApi): void => {
+    const queries = readPerspectiveContext(api)?.perspectiveQueries;
+    releaseBridge?.();
+    releaseBridge = null;
+    perspectiveBridgeActive = Boolean(queries);
+    if (!queries) return;
+    releaseBridge = createPerspectiveAlertsBridge({
+      queries,
+      rules: platform.getState().rules,
+      dispatch: (rule, hit) => dispatcher.dispatch(rule, hit),
+      onUnsupported: (ruleId, reason) => {
+        // eslint-disable-next-line no-console
+        console.warn(`[alerts] rule ${ruleId} is not served on the Perspective engine: ${reason}`);
+      },
+    });
+  };
+
   // Initial seeding + listener attachment, deferred until the grid is ready.
   disposers.push(
     platform.api.onReady((api) => {
+      // Before the client-side seeding below: on the Perspective path there
+      // are no client rows to seed baselines from, and the worker holds them.
+      syncPerspectiveBridge(api);
       knownRowIds = snapshotRowIds(api);
       // Seed prev-value baselines so the FIRST cellValueChanged after activation
       // isn't treated as a first observation — but ONLY for the columns alert
@@ -292,10 +326,19 @@ export function activateAlerts(
     }),
   );
 
-  // The shared, rAF-coalesced row-change signal replaces the per-tick
-  // `modelUpdated` + `forEachNode` scan. GATE: no enabled rules → no work.
+  /**
+   * The shared, rAF-coalesced row-change signal replaces the per-tick
+   * `modelUpdated` + `forEachNode` scan. GATE: no enabled rules → no work.
+   *
+   * Under Perspective this signal describes only the blocks this window
+   * holds, so it is not merely a slower answer — it is the wrong one, and
+   * every alert on the rest of the book would never fire. `perspectiveBridge`
+   * below takes over there; this subscriber then bows out rather than firing
+   * viewport-scoped duplicates alongside it.
+   */
   disposers.push(
     platform.rows.subscribe((change) => {
+      if (perspectiveBridgeActive) return;
       if (!isEvaluationActive()) return;
       const rules = platform.getState().rules;
       if (!rules.some((r) => r.enabled)) return;
@@ -304,6 +347,11 @@ export function activateAlerts(
     }),
   );
 
+  disposers.push(() => {
+    releaseBridge?.();
+    releaseBridge = null;
+  });
+
   // Reset dispatcher debounce timers when the rule list mutates (profile
   // switch, in-place edit). The previous-values store is preserved across
   // rule edits — relativeChange baselines are about the data stream, not
@@ -311,6 +359,10 @@ export function activateAlerts(
   disposers.push(
     platform.subscribe(() => {
       dispatcher.reset();
+      // Re-open the worker subscriptions against the new rule list. A rule
+      // edit is a user action, so re-creating beats diffing.
+      const api = platform.api.api;
+      if (api && perspectiveBridgeActive) syncPerspectiveBridge(api);
     }),
   );
 

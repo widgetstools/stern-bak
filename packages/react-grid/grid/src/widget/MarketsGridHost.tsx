@@ -40,7 +40,7 @@ import { useToolbarDateSettingsBridge } from '../customizer/modules/toolbar-date
 import { PrimaryToolbar } from './PrimaryToolbar';
 import { ColumnSelectorDialog } from './column-selector';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog';
-import { MarketsGridSurface } from './MarketsGridSurface';
+import { GridSurfaceSlot } from '../engine/GridSurfaceSlot';
 import { buildGridContextMenuItems } from './gridContextMenu';
 import { StaleDataBanner } from './StaleDataBanner';
 import { HistoricalViewBanner } from './HistoricalViewBanner';
@@ -102,6 +102,13 @@ export interface MarketsGridHostProps<TData> {
   toolbarDateHistoryEnabled: boolean | undefined;
   toolbarActionsLayout: 'inline' | 'overflow';
   includeAllStreamSafeFilters: boolean;
+  /** Row-engine selection, forwarded to {@link GridSurfaceSlot}. */
+  rowModel?: MarketsGridProps<TData>['rowModel'];
+  perspectiveTable?: MarketsGridProps<TData>['perspectiveTable'];
+  perspectiveKeyColumn?: string;
+  perspectiveQueries?: MarketsGridProps<TData>['perspectiveQueries'];
+  perspectiveCalcExpressions?: Record<string, string>;
+  perspectiveTreeFields?: readonly string[];
 }
 
 function MarketsGridHostInner<TData>({
@@ -158,6 +165,12 @@ function MarketsGridHostInner<TData>({
   toolbarDateHistoryEnabled,
   toolbarActionsLayout,
   includeAllStreamSafeFilters,
+  rowModel,
+  perspectiveTable,
+  perspectiveKeyColumn,
+  perspectiveQueries,
+  perspectiveCalcExpressions,
+  perspectiveTreeFields,
 }: MarketsGridHostProps<TData>) {
   const generalSettings = useGeneralSettingsFromContext();
   const headerCaseAttr = generalSettings?.headerCaseUppercase ? 'upper' : undefined;
@@ -354,7 +367,17 @@ function MarketsGridHostInner<TData>({
         </div>
       )}
 
-      <MarketsGridSurface
+      {/* Never a surface directly: the slot is the ONE place the row engine
+          is chosen, so no path in this host can mount a client grid while a
+          Perspective attach is still in flight — which would destroy the
+          platform on its way out. See `engine/resolveGridSurface.ts`. */}
+      <GridSurfaceSlot
+        rowModel={rowModel}
+        perspectiveTable={perspectiveTable}
+        perspectiveKeyColumn={perspectiveKeyColumn}
+        perspectiveQueries={perspectiveQueries}
+        perspectiveCalcExpressions={perspectiveCalcExpressions}
+        perspectiveTreeFields={perspectiveTreeFields}
         gridRef={gridRef}
         gridOptions={gridOptions}
         hostOverrideKeys={hostOverrideKeys}

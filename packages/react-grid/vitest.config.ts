@@ -51,6 +51,7 @@ export default defineConfig({
               find: '@wellsfargo-starui/design-system',
               replacement: resolve(__dirname, '../design-system/design-system/dist/index.js'),
             },
+            { find: '@wellsfargo-starui/grid/perspective', replacement: resolve(__dirname, 'perspective-grid/src/index.ts') },
             { find: '@wellsfargo-starui/grid/customizer', replacement: resolve(__dirname, 'grid/src/customizer/index.ts') },
             { find: '@wellsfargo-starui/grid', replacement: resolve(__dirname, 'grid/src/index.ts') },
             { find: '@wellsfargo-starui/core/host/config', replacement: resolve(__dirname, '../core/host-config/src/index.ts') },

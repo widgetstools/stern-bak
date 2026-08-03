@@ -38,7 +38,9 @@ import { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
 import { ensureAgGridModules } from './ensureAgGridModules';
 import { mergeDefaultColDef } from './mergeDefaultColDef';
 import { GeneralSettingsProvider } from './GeneralSettingsContext';
-import { MarketsGridSurface } from './MarketsGridSurface';
+import { GridSurfaceSlot } from '../engine/GridSurfaceSlot';
+import { useCalcColumnsSnapshot } from '../engine/useCalcColumnsSnapshot';
+import { usePerspectiveCalcColumns } from '../engine/usePerspectiveCalcColumns';
 
 export { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
 
@@ -122,6 +124,13 @@ function useMarketsGridShell<TData>(
 
   const internalTheme = useGridTheme();
   const generalSettings = useGeneralSettingsSnapshot(platform);
+
+  // Calculated columns compiled to Perspective expression source. Computed
+  // unconditionally rather than behind `rowModel === 'perspective'`: it is a
+  // pure parse of state the customizer already holds, and branching a hook on
+  // a prop is how a row-model switch turns into a hook-order violation.
+  const calcColumnsState = useCalcColumnsSnapshot(platform);
+  const perspectiveCalcPlan = usePerspectiveCalcColumns(calcColumnsState?.virtualColumns);
   const gridDensity = resolveGridDensity(generalSettings);
   const effRowHeight = hostOverrideKeys.has('rowHeight')
     ? rowHeight
@@ -226,6 +235,8 @@ function useMarketsGridShell<TData>(
     resolvedUserId,
     resolvedInstanceId,
     includeAllStreamSafeFilters,
+    perspectiveCalcExpressions: perspectiveCalcPlan.expressions,
+    perspectiveCalcPlan,
   };
 }
 
@@ -281,6 +292,11 @@ function MarketsGridInner<TData = unknown>(
     storageAdapter,
     host,
     includeAllStreamSafeFilters,
+    rowModel,
+    perspectiveTable,
+    perspectiveKeyColumn,
+    perspectiveQueries,
+    perspectiveTreeFields,
   } = props;
 
   const [internalToolbarDate, setInternalToolbarDate] = useState(todayIsoDate);
@@ -398,6 +414,12 @@ function MarketsGridInner<TData = unknown>(
         toolbarDateHistoryEnabled={toolbarDateHistoryEnabled}
         toolbarActionsLayout={toolbarActionsLayout}
         includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
+        rowModel={rowModel}
+        perspectiveTable={perspectiveTable}
+        perspectiveKeyColumn={perspectiveKeyColumn}
+        perspectiveQueries={perspectiveQueries}
+        perspectiveCalcExpressions={shell.perspectiveCalcExpressions}
+        perspectiveTreeFields={perspectiveTreeFields}
       />
       </GeneralSettingsProvider>
     </GridProvider>
@@ -424,6 +446,11 @@ function MarketsGridCoreInner<TData = unknown>(
     gridId,
     className,
     includeAllStreamSafeFilters,
+    rowModel,
+    perspectiveTable,
+    perspectiveKeyColumn,
+    perspectiveQueries,
+    perspectiveTreeFields,
   } = props;
 
   const gridRef = useRef<AgGridReact<TData>>(null);
@@ -433,7 +460,15 @@ function MarketsGridCoreInner<TData = unknown>(
     <GridProvider platform={shell.platform}>
       <GeneralSettingsProvider value={shell.generalSettings}>
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
-          <MarketsGridSurface
+          {/* Same slot as the full shell — the chrome-less variant must not
+              be a second place the engine gets chosen. */}
+          <GridSurfaceSlot
+            rowModel={rowModel}
+            perspectiveTable={perspectiveTable}
+            perspectiveKeyColumn={perspectiveKeyColumn}
+            perspectiveQueries={perspectiveQueries}
+            perspectiveCalcExpressions={shell.perspectiveCalcExpressions}
+            perspectiveTreeFields={perspectiveTreeFields}
             gridRef={gridRef}
             gridOptions={shell.gridOptions}
             hostOverrideKeys={shell.hostOverrideKeys}
