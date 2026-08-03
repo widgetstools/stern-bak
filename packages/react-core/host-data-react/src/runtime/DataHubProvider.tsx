@@ -66,6 +66,11 @@ export interface DataHubProviderWithBootstrapProps extends DataHubProviderCommon
   bootstrapConfig: PlatformBootstrapConfig;
   /** Optional — omit to use the library's own bundled worker entry. */
   workerScriptUrl?: string;
+  /**
+   * Boot the Perspective worker entry. Set it in any app that opens a
+   * `*-perspective` blotter — see `EnsurePlatformReadyOpts.perspective`.
+   */
+  perspective?: boolean;
 }
 
 export type DataHubProviderProps =
@@ -94,12 +99,13 @@ function DataHubProviderInner({
 function DataHubProviderBootstrap({
   bootstrapConfig,
   workerScriptUrl,
+  perspective,
   mode = 'lazy',
   userId,
   children,
 }: DataHubProviderWithBootstrapProps): ReactNode {
   const bootstrapPromise = useMemo(
-    () => ensurePlatformReady(bootstrapConfig, { workerScriptUrl }),
+    () => ensurePlatformReady(bootstrapConfig, { workerScriptUrl, perspective }),
     [
       bootstrapConfig.appId,
       bootstrapConfig.userId,
@@ -107,6 +113,7 @@ function DataHubProviderBootstrap({
       bootstrapConfig.configServiceRestUrl,
       bootstrapConfig.seedConfigUrl,
       workerScriptUrl,
+      perspective,
     ],
   );
 
