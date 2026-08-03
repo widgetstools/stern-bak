@@ -43,8 +43,17 @@ export type {
   AppDataEvent,
   CatalogChangeDetail,
   CatalogReadyEvent,
+  PerspectiveAttachRequest,
+  PerspectiveAttachResultEvent,
+  PerspectiveEvent,
 } from './protocol.js';
-export { isRequest, isEvent, isAppDataRequest, isAppDataEvent } from './protocol.js';
+export {
+  isRequest,
+  isEvent,
+  isAppDataRequest,
+  isAppDataEvent,
+  isPerspectiveEvent,
+} from './protocol.js';
 
 // Wire codecs — typed-array columnar frames + thin-delta row diffing.
 export { tryEncodeColumnar, decodeColumnar } from './wire/columnarCodec.js';

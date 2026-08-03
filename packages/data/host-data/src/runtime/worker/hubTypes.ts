@@ -69,7 +69,14 @@ export const APPDATA_RESYNC_MIN_INTERVAL_MS = 5_000;
  * clone — reusing one envelope there mis-delivers or drops ticks.
  */
 export interface PortLike {
-  postMessage(message: unknown): void;
+  /**
+   * `transfer` exists for exactly one message: the Perspective attach
+   * reply, which hands the window its end of a freshly minted
+   * `MessageChannel`. Every other post leaves it undefined, and a
+   * `PortLike` that ignores the argument entirely still satisfies every
+   * other path.
+   */
+  postMessage(message: unknown, transfer?: readonly Transferable[]): void;
   /**
    * Optional teardown for raw `MessagePort` listeners. Called from
    * {@link SharedWorkerDataServicesHub.onPortClosed}.

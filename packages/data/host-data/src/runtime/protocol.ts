@@ -346,6 +346,29 @@ export type AppDataRequest =
   | AppDataUpsertRequest
   | AppDataRemoveRequest;
 
+// ─── Client → Worker Perspective requests ──────────────────────────
+//
+// Perspective control traffic rides the SAME port as everything else,
+// alongside the provider and AppData families. Perspective's own
+// protocol frames do NOT: they get a dedicated `MessageChannel` minted
+// by the request below, because the engine's transport owns that
+// channel's `onmessage` outright and cannot share it.
+
+/**
+ * Bind a fresh MessagePort to a ProxySession on the worker's Perspective
+ * engine, so this window can `open_table(name)` against a Table it did
+ * not create.
+ *
+ * This is an RPC (`reqId`), not a `subId`-routed subscription, because
+ * the reply TRANSFERS the window's end of the new channel — a payload an
+ * ordinary fan-out event has no way to carry.
+ */
+export interface PerspectiveAttachRequest {
+  kind: 'perspective-attach';
+  reqId: string;
+  providerId: string;
+}
+
 /** Deployment fields the SharedWorker's ConfigManager is constructed from. */
 export interface WorkerBootstrapPayload {
   appId: string;
@@ -381,7 +404,8 @@ export type Request =
   | ConfigInvalidateRequest
   | RefreshProviderRequest
   | HubIntrospectRequest
-  | ProviderRunningRequest;
+  | ProviderRunningRequest
+  | PerspectiveAttachRequest;
 
 // ─── Worker → Client events ────────────────────────────────────────
 
@@ -606,6 +630,31 @@ export type AppDataEvent =
   | AppDataDeltaEvent
   | AppDataAckEvent;
 
+// ─── Worker → Client Perspective events ────────────────────────────
+
+/**
+ * Answer to {@link PerspectiveAttachRequest}. On `ok` the hub posts this
+ * WITH the window's end of the new frame channel in the transfer list,
+ * and `tableName` is what the window passes to `open_table`.
+ *
+ * A refusal is always a `reason`, never silence: a window that never
+ * hears back sits behind a spinner with nothing to report, and the three
+ * ways this can fail (no engine on this worker, provider hosts no Table,
+ * composite `keyColumn`) are all permanent conditions the caller should
+ * surface rather than retry blindly.
+ */
+export interface PerspectiveAttachResultEvent {
+  kind: 'perspective-attach-result';
+  reqId: string;
+  ok: boolean;
+  /** Present when `ok`. */
+  tableName?: string;
+  /** Present when not `ok`. */
+  reason?: string;
+}
+
+export type PerspectiveEvent = PerspectiveAttachResultEvent;
+
 // ─── Type guards ───────────────────────────────────────────────────
 
 /**
@@ -642,7 +691,8 @@ export function isRequest(value: unknown): value is Request {
     k === 'config-invalidate' ||
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
-    k === 'provider-running'
+    k === 'provider-running' ||
+    k === 'perspective-attach'
   );
 }
 
@@ -678,6 +728,16 @@ export function isAppDataRequest(value: unknown): value is AppDataRequest {
     k === 'appdata-upsert' ||
     k === 'appdata-remove'
   );
+}
+
+/**
+ * Perspective events are routed by `reqId`/`subId` on their own family,
+ * BEFORE {@link isEvent} — which keys every event to a provider
+ * subscription the client holds in `subs`, and would drop these.
+ */
+export function isPerspectiveEvent(value: unknown): value is PerspectiveEvent {
+  if (!value || typeof value !== 'object') return false;
+  return (value as { kind?: string }).kind === 'perspective-attach-result';
 }
 
 export function isAppDataEvent(value: unknown): value is AppDataEvent {

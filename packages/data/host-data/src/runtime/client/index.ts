@@ -14,4 +14,5 @@ export {
   type SharedWorkerDataServicesClientOpts,
   type SubId,
   type InPageWiring,
+  type PerspectiveAttachOutcome,
 } from './SharedWorkerDataServicesClient.js';

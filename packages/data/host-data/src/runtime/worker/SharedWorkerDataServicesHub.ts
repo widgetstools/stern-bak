@@ -67,6 +67,7 @@ import {
 import { HubAppDataService } from './HubAppDataService.js';
 import { SubscriberRegistry } from './SubscriberRegistry.js';
 import { createPerspectiveHost, type PerspectiveHost } from '../perspective/index.js';
+import { handlePerspectiveAttach, type PerspectiveRpcContext } from './hubPerspectiveRpc.js';
 
 // Re-exported for back-compat with `worker/index.ts` consumers.
 export type { PortLike, SharedWorkerDataServicesHubOpts } from './hubTypes.js';
@@ -93,6 +94,7 @@ export class SharedWorkerDataServicesHub {
 
   private readonly emitCtx: ProviderEmitContext;
   private readonly catalogRpcCtx: CatalogRpcContext;
+  private readonly perspectiveRpcCtx: PerspectiveRpcContext;
 
   /**
    * One engine, one Table per `stomp-perspective` / `mock-perspective`
@@ -139,6 +141,12 @@ export class SharedWorkerDataServicesHub {
       buildIntrospect: () => this.buildIntrospectSnapshot(),
       isProviderRunning: (providerId) => this.providers.has(providerId),
     };
+    this.perspectiveRpcCtx = {
+      host: this.perspectiveHost,
+      getSlot: (providerId) => this.providers.get(providerId),
+      getCatalogConfig: (providerId) =>
+        this.configCatalog?.getProviderConfig(providerId) ?? null,
+    };
   }
 
   // ─── Public surface ────────────────────────────────────────────
@@ -161,6 +169,9 @@ export class SharedWorkerDataServicesHub {
       case 'refresh-provider': this.handleRefreshProvider(req); return;
       case 'hub-introspect': handleHubIntrospect(this.catalogRpcCtx, port, req); return;
       case 'provider-running': handleProviderRunning(this.catalogRpcCtx, port, req); return;
+      case 'perspective-attach':
+        void handlePerspectiveAttach(this.perspectiveRpcCtx, port, req);
+        return;
     }
   }
 

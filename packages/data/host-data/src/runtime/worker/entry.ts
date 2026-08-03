@@ -36,7 +36,7 @@ interface SharedWorkerLike {
 
 interface DedicatedWorkerLike {
   onmessage: ((ev: MessageEvent) => void) | null;
-  postMessage(message: unknown): void;
+  postMessage(message: unknown, transfer?: Transferable[]): void;
 }
 
 /**
@@ -99,7 +99,13 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
     const onMessage = (ev: MessageEvent) => dispatch(portLike, ev.data);
     const onError = () => hub.onPortClosed(portLike);
     const portLike: PortLike = {
-      postMessage: (m) => port.postMessage(m),
+      // Two overloads rather than always passing the list: `postMessage(m,
+      // [])` is legal but `postMessage(m, undefined)` is not, and every
+      // caller except the Perspective attach reply omits it.
+      postMessage: (m, transfer) =>
+        transfer && transfer.length > 0
+          ? port.postMessage(m, transfer as Transferable[])
+          : port.postMessage(m),
       dispose: () => {
         try {
           port.removeEventListener('message', onMessage);
@@ -152,7 +158,12 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   // Dedicated Worker path — the worker's own message channel.
   if ('onmessage' in globalRef && 'postMessage' in globalRef) {
     const dw = globalRef as DedicatedWorkerLike;
-    const fakePort: PortLike = { postMessage: (m) => dw.postMessage(m) };
+    const fakePort: PortLike = {
+      postMessage: (m, transfer) =>
+        transfer && transfer.length > 0
+          ? dw.postMessage(m, transfer as Transferable[])
+          : dw.postMessage(m),
+    };
     dw.onmessage = (ev: MessageEvent) => {
       if (isRequest(ev.data)) hub.handleRequest(fakePort, ev.data);
       else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(fakePort, ev.data);

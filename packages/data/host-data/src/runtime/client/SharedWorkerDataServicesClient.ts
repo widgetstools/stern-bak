@@ -38,6 +38,8 @@ import type {
   HubIntrospectSnapshot,
   HubReadyRequest,
   ListConfigsRequest,
+  PerspectiveAttachResultEvent,
+  PerspectiveEvent,
   ProviderRunningRequest,
   ProviderStats,
   ProviderStatus,
@@ -47,7 +49,7 @@ import type {
   SubscriberMeta,
 } from '../protocol.js';
 import { SUBSCRIBER_PING_INTERVAL_MS } from '../worker/hubTypes.js';
-import { isCatalogEvent, isEvent, isAppDataEvent } from '../protocol.js';
+import { isCatalogEvent, isEvent, isAppDataEvent, isPerspectiveEvent } from '../protocol.js';
 import { composeRowId, type DataProviderConfig, type ProviderConfig } from '@wellsfargo-starui/types';
 import { decodeColumnar } from '../wire/columnarCodec.js';
 import type { ListOptions } from '../config/store.js';
@@ -165,6 +167,18 @@ interface ThinSubState {
   rows: Map<string, unknown>;
 }
 
+/**
+ * Answer to {@link SharedWorkerDataServicesClient.attachPerspective}.
+ *
+ * Structurally identical to `PerspectiveAttachOutcome` in
+ * `@wellsfargo-starui/grid`'s `usePerspectiveTable` — which declares its own
+ * copy on purpose, so the grid bucket never imports the data bucket. The two
+ * must be changed together.
+ */
+export type PerspectiveAttachOutcome =
+  | { ok: true; port: MessagePort; tableName: string }
+  | { ok: false; reason: string };
+
 export interface SharedWorkerDataServicesClientOpts {
   /** Inject for tests. Default: `() => crypto.randomUUID()`. */
   generateSubId?: () => string;
@@ -188,6 +202,10 @@ export class SharedWorkerDataServicesClient {
   private readonly catalogPending = new Map<
     string,
     { resolve: (event: ConfigSnapshotEvent) => void; reject: (err: Error) => void }
+  >();
+  private readonly perspectivePending = new Map<
+    string,
+    (outcome: PerspectiveAttachOutcome) => void
   >();
   private readonly catalogReadyWaiters: Array<() => void> = [];
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
@@ -621,6 +639,34 @@ export class SharedWorkerDataServicesClient {
     await this.rpcCatalog({ kind: 'config-invalidate', providerId });
   }
 
+  /**
+   * Bind this window to the worker-hosted Perspective engine for one
+   * provider, and get back the MessagePort its Perspective `Client` speaks
+   * over plus the name of the Table to `open_table`.
+   *
+   * NEVER rejects. Every failure — no engine on this worker, provider hosts
+   * no Table, composite `keyColumn`, a closed client — comes back as
+   * `{ ok: false, reason }`, because the caller's only useful response to
+   * any of them is to show the reason and fall back to the push path. A
+   * rejection would make that an exception path in every consumer.
+   *
+   * The returned port is the caller's to close; the hub keeps its own end
+   * bound to a ProxySession for the life of the worker.
+   */
+  attachPerspective(providerId: string): Promise<PerspectiveAttachOutcome> {
+    if (this.closed) {
+      return Promise.resolve({
+        ok: false,
+        reason: '[SharedWorkerDataServicesClient] client is closed',
+      });
+    }
+    const reqId = crypto.randomUUID();
+    return new Promise<PerspectiveAttachOutcome>((resolve) => {
+      this.perspectivePending.set(reqId, resolve);
+      this.send({ kind: 'perspective-attach', reqId, providerId });
+    });
+  }
+
   /** Live SharedWorker hub diagnostics (providers, subscribers, cache sizes). */
   async getHubIntrospect(): Promise<HubIntrospectSnapshot> {
     const snap = await this.rpcCatalog({ kind: 'hub-introspect' });
@@ -716,6 +762,12 @@ export class SharedWorkerDataServicesClient {
       pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
     }
     this.catalogPending.clear();
+    // Settled, not rejected — `attachPerspective` never rejects, and an
+    // awaiter left hanging here is a window stuck behind a spinner.
+    for (const [, resolve] of this.perspectivePending) {
+      resolve({ ok: false, reason: '[SharedWorkerDataServicesClient] client closed' });
+    }
+    this.perspectivePending.clear();
     for (const resolve of this.catalogReadyWaiters) resolve();
     this.catalogReadyWaiters.length = 0;
     this.catalogChangeListeners.clear();
@@ -850,6 +902,12 @@ export class SharedWorkerDataServicesClient {
       this.routeCatalogEvent(ev.data);
       return;
     }
+    if (isPerspectiveEvent(ev.data)) {
+      // The frame port rides the transfer list, not the payload — read it
+      // off the event before anything else can consume `ev`.
+      this.routePerspectiveEvent(ev.data, ev.ports?.[0] ?? null);
+      return;
+    }
     if (isAppDataEvent(ev.data)) {
       this.routeAppDataEvent(ev.data);
       return;
@@ -966,6 +1024,36 @@ export class SharedWorkerDataServicesClient {
       out.push(next);
     }
     return out;
+  }
+
+  private routePerspectiveEvent(event: PerspectiveEvent, port: MessagePort | null): void {
+    const resolve = this.perspectivePending.get(event.reqId);
+    if (!resolve) {
+      // Nobody is waiting (the caller gave up, or the client closed). The
+      // port would otherwise stay bound to a live ProxySession in the worker
+      // with no reader for the life of the SharedWorker.
+      try { port?.close(); } catch { /* idempotent */ }
+      return;
+    }
+    this.perspectivePending.delete(event.reqId);
+    resolve(this.toAttachOutcome(event, port));
+  }
+
+  private toAttachOutcome(
+    event: PerspectiveAttachResultEvent,
+    port: MessagePort | null,
+  ): PerspectiveAttachOutcome {
+    if (!event.ok) {
+      return { ok: false, reason: event.reason ?? 'Perspective attach refused' };
+    }
+    if (!port || typeof event.tableName !== 'string') {
+      // An `ok` reply that lost its port or its table name cannot be used,
+      // and reporting it as success would strand the caller on an
+      // `open_table` that never resolves.
+      try { port?.close(); } catch { /* idempotent */ }
+      return { ok: false, reason: 'Perspective attach replied ok without a port or table name' };
+    }
+    return { ok: true, port, tableName: event.tableName };
   }
 
   private routeCatalogEvent(event: CatalogEvent): void {
