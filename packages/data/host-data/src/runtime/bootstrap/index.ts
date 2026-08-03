@@ -20,6 +20,7 @@ export {
 export {
   createDataServicesWorker,
   DATA_SERVICES_WORKER_ASSET,
+  DATA_SERVICES_PERSPECTIVE_WORKER_ASSET,
   type CreateDataServicesWorkerOpts,
 } from './createDataServicesWorker.js';
 

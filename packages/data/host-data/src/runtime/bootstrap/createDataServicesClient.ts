@@ -14,14 +14,15 @@
  * generic — only `appName`, `userId`, and `restUrl` vary per app.
  *
  * This factory:
- *   1. Constructs the `SharedWorker` with an INLINE
- *      `new URL('../../assets/data-services-worker.mjs', import.meta.url)`
- *      (the pre-built, self-contained worker bundle that ships inside this
- *      package) and `{ type: 'module', name: ... }`. The literal must stay
- *      inline for bundlers to emit the worker.
- *   3. Constructs the main-thread `ConfigManager` (shared across
+ *   1. Constructs the `SharedWorker` through `createDataServicesWorker`,
+ *      which owns the inline `new URL(...)` literals for both prebuilt
+ *      worker assets (default and Perspective) and sends the bootstrap
+ *      handshake. This file used to carry a second copy of the default
+ *      literal; with two assets to choose between, one copy of the choice
+ *      is the only way the two entry points cannot drift.
+ *   2. Constructs the main-thread `ConfigManager` (shared across
  *      editor flows).
- *   4. Calls `bootstrapDataServices(...)` and returns the bundle.
+ *   3. Calls `bootstrapDataServices(...)` and returns the bundle.
  *
  * Worker URL constraint (Vite + tarball consumers):
  *   Prefer the bundled worker asset + `bootstrapDataServicesWithWorkerAsset`:
@@ -45,7 +46,7 @@
 
 import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { bootstrapDataServices, type DataServices } from './bootstrap.js';
-import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
+import { createDataServicesWorker } from './createDataServicesWorker.js';
 
 export interface CreateDataServicesClientOpts {
   /**
@@ -92,45 +93,29 @@ export interface CreateDataServicesClientOpts {
    * thread and the worker stay aligned automatically.
    */
   mainThreadConfigManager?: ConfigManager;
+
+  /**
+   * Boot the Perspective worker entry — the only one that hosts a Table, so
+   * the only one on which `client.attachPerspective(...)` can succeed.
+   *
+   * Opt-in, and it must stay that way: that asset embeds the engine's wasm as
+   * base64, so booting it by default would charge every app megabytes for a
+   * blotter it may never open. See `CreateDataServicesWorkerOpts.perspective`.
+   */
+  perspective?: boolean;
 }
 
 export function createDataServicesClient(
   opts: CreateDataServicesClientOpts,
 ): DataServices {
-  // The `new URL(...)` MUST stay inline here: Vite, webpack, Rollup and
-  // Parcel only recognise a worker when the URL literal sits directly in
-  // the constructor call. This previously hoisted it to a variable and
-  // mutated `searchParams` to stamp the REST URL — which defeated every
-  // bundler's static analysis (so the worker was emitted as an unbundled
-  // static asset and failed on its bare import specifiers) AND was dead
-  // code: nothing reads `self.location.search` anywhere. The worker gets
-  // its bootstrap from the `worker-bootstrap` handshake sent below.
-  //
-  // It must also point at the PREBUILT asset rather than the `../worker/
-  // defaultEntry.js` source entry: the source graph reaches a lazy
-  // `import('@stomp/stompjs')`, and a code-splitting worker is rejected
-  // outright by Vite's default `worker.format: 'iife'`, failing the
-  // consumer's build. See createDataServicesWorker.ts for the full note.
-  const worker = new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), {
-    type: 'module',
-    name: `mkt-data-services:${opts.appName}`,
-  });
-
-  worker.addEventListener('error', (ev) => {
-    // eslint-disable-next-line no-console
-    console.error('[@wellsfargo-starui/data] SharedWorker error event', ev);
-  });
-
-  // This path previously sent NOTHING — the comment above claimed the worker
-  // got its bootstrap from `writeWorkerBootstrapPayload`, but nothing here
-  // ever called it, so the worker never saw appId/userId/REST URL even once
-  // the storage transport is set aside.
-  sendWorkerBootstrap(worker.port, {
-    appId: opts.appId ?? opts.appName,
+  const worker = createDataServicesWorker(undefined, {
+    appName: opts.appName,
+    appId: opts.appId,
     userId: opts.userId,
     seedConfigUrl: opts.seedConfigUrl,
     seedConfigReload: opts.seedConfigReload,
     configServiceRestUrl: opts.configServiceRestUrl,
+    perspective: opts.perspective,
   });
 
   const configManager =

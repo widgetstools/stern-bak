@@ -43,6 +43,18 @@
  * `@wellsfargo-starui/data/assets/data-services-worker.mjs` is served
  * directly.
  *
+ * Two assets, not one:
+ *   `perspective: true` selects `data-services-perspective-worker.mjs`, the
+ *   entry that passes `loadPerspective` and is therefore the only worker able
+ *   to host a Table. It is OPT-IN, and must stay opt-in: that build embeds its
+ *   wasm as base64, so defaulting to it would charge every app megabytes it
+ *   never uses — the reason there are two entries at all. An app that never
+ *   opens a blotter keeps loading the smaller default asset unchanged.
+ *
+ *   Both URLs are written out as their own inline literal below rather than
+ *   computed, for the same static-analysis reason as above: a bundler only
+ *   emits a worker it can see the URL of at build time.
+ *
  * Bootstrap fields (appId, userId, seed URL, REST URL) are sent as a
  * `worker-bootstrap` message on the worker's port — not as query params,
  * because Vite's dev `@fs/` handler breaks when extra search params are
@@ -70,11 +82,26 @@ export interface CreateDataServicesWorkerOpts {
    */
   seedConfigUrl?: string;
   seedConfigReload?: 'empty-only' | 'when-changed';
+  /**
+   * Boot the Perspective worker entry instead of the default one.
+   *
+   * Required by any app that opens a `stomp-perspective` / `mock-perspective`
+   * blotter: only that entry passes `loadPerspective`, so on the default
+   * worker `client.attachPerspective(...)` answers
+   * `{ ok: false, reason: 'This SharedWorker hosts no Perspective engine…' }`
+   * and the pull path is unreachable. Ignored when `workerScriptUrl` is given
+   * — an explicit URL already names the asset.
+   */
+  perspective?: boolean;
 }
 
 /** Package export path for the bundled worker (after `npm run build`). */
 export const DATA_SERVICES_WORKER_ASSET =
   '@wellsfargo-starui/data/assets/data-services-worker.mjs';
+
+/** Package export path for the Perspective-hosting worker — see `perspective`. */
+export const DATA_SERVICES_PERSPECTIVE_WORKER_ASSET =
+  '@wellsfargo-starui/data/assets/data-services-perspective-worker.mjs';
 
 function resolveWorkerScriptUrl(scriptUrl: string): string {
   try {
@@ -103,15 +130,20 @@ export function createDataServicesWorker(
   const name = `mkt-data-services:${opts.appName}`;
 
   // Explicit URL wins (CDN / OpenFin manifest / <script> hosting).
-  // Otherwise fall through to the inline form below — which MUST stay
-  // written out literally, with no intervening variable, or no bundler
-  // will recognise it as a worker. See the module doc comment.
+  // Otherwise fall through to one of the two inline forms — each of which
+  // MUST stay written out literally, with no intervening variable, or no
+  // bundler will recognise it as a worker. See the module doc comment.
   const worker = workerScriptUrl
     ? new SharedWorker(resolveWorkerScriptUrl(workerScriptUrl), { type: 'module', name })
-    : new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), {
-        type: 'module',
-        name,
-      });
+    : opts.perspective
+      ? new SharedWorker(
+          new URL('../../assets/data-services-perspective-worker.mjs', import.meta.url),
+          { type: 'module', name },
+        )
+      : new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), {
+          type: 'module',
+          name,
+        });
 
   worker.addEventListener('error', (ev) => {
     // eslint-disable-next-line no-console

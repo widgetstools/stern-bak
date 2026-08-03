@@ -30,6 +30,12 @@ export interface EnsureHubOpts extends PlatformBootstrapConfig {
    * URL only for CDN / OpenFin-manifest / plain-<script> hosting.
    */
   workerScriptUrl?: string;
+  /**
+   * Boot the Perspective worker entry. Required for `*-perspective`
+   * providers — see `CreateDataServicesWorkerOpts.perspective` for why this
+   * is opt-in rather than the default.
+   */
+  perspective?: boolean;
   /** Main-thread ConfigManager (initialized before hub connect). */
   mainThreadConfigManager: ConfigManager;
 }
@@ -44,6 +50,13 @@ export interface HubConnection {
 export type WarmHubConnectionOpts = PlatformBootstrapConfig & {
   /** Optional — see EnsureHubOpts.workerScriptUrl. */
   workerScriptUrl?: string;
+  /**
+   * Optional — see EnsureHubOpts.perspective. It must be passed HERE too,
+   * not only to `ensureDataServicesHub`: the connection is cached per
+   * `appId`, so whichever call constructs the worker first decides which of
+   * the two assets this window runs for the rest of its life.
+   */
+  perspective?: boolean;
 };
 
 const hubPromises = new Map<string, Promise<ResolvedDataServicesHubBundle>>();
@@ -66,6 +79,7 @@ function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
     userId: opts.userId,
     seedConfigUrl: opts.seedConfigUrl,
     seedConfigReload: opts.seedConfigReload,
+    perspective: opts.perspective,
   });
   const connection: HubConnection = {
     worker,

@@ -31,6 +31,16 @@ export interface EnsurePlatformReadyOpts {
    * URL only for CDN / OpenFin-manifest / plain-<script> hosting.
    */
   workerScriptUrl?: string;
+  /**
+   * Boot the Perspective SharedWorker entry rather than the default one.
+   *
+   * An app that opens a `stomp-perspective` / `mock-perspective` blotter must
+   * set this: only that entry passes `loadPerspective`, so without it
+   * `attachPerspective` refuses and the grid never leaves its pending state.
+   * Opt-in because the Perspective asset embeds the engine's wasm as base64 —
+   * see `CreateDataServicesWorkerOpts.perspective`.
+   */
+  perspective?: boolean;
   /** App-authored hook registry keyed by stable ids from app-config.json. */
   appDataBootstrapHooks?: AppDataBootstrapHookRegistry;
 }
@@ -157,13 +167,18 @@ async function bootstrapPlatformOnce(
   // spawns (and seeds, on cold start) while the main-thread ConfigManager
   // opens IndexedDB. The same connection is reused by the hub below —
   // one port per window, no throwaway probe connection.
-  warmHubConnection({ ...config, workerScriptUrl: opts.workerScriptUrl });
+  warmHubConnection({
+    ...config,
+    workerScriptUrl: opts.workerScriptUrl,
+    perspective: opts.perspective,
+  });
 
   const { configManager } = await ensureConfigReady(config);
 
   const bundle = await ensureDataServicesHub({
     ...config,
     workerScriptUrl: opts.workerScriptUrl,
+    perspective: opts.perspective,
     mainThreadConfigManager: configManager,
   });
 

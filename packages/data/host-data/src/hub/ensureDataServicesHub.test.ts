@@ -108,7 +108,25 @@ describe('ensureDataServicesHub', () => {
       userId: 'dev1',
       seedConfigUrl: undefined,
       seedConfigReload: undefined,
+      perspective: undefined,
     });
+  });
+
+  // The Perspective asset embeds the engine's wasm, so it is opt-in — but the
+  // opt-in has to travel, or `attachPerspective` refuses on a hub that booted
+  // the light entry.
+  it('forwards the Perspective worker opt-in to the worker factory', async () => {
+    await ensureDataServicesHub({
+      ...DEV_PLATFORM_BOOTSTRAP,
+      appId: 'PerspectiveApp',
+      perspective: true,
+      mainThreadConfigManager: fakeCm,
+    });
+
+    expect(createDataServicesWorkerMock).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ perspective: true }),
+    );
   });
 
   it('getProvider returns a ProviderClientAdapter bound to the hub client', async () => {

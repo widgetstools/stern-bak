@@ -104,6 +104,27 @@ describe('createDataServicesClient', () => {
     consoleError.mockRestore();
   });
 
+  // Gap this closed: the factory hardcoded the default asset, so a client it
+  // built could never answer `attachPerspective` with anything but a refusal.
+  it('boots the light default worker unless Perspective is asked for', async () => {
+    const { createDataServicesClient } = await import('./createDataServicesClient.js');
+
+    createDataServicesClient({ appName: 'demo', userId: 'dev1' });
+
+    const worker = bootstrapDataServices.mock.calls[0][0].worker as MockSharedWorker;
+    expect(String(worker.url)).toContain('data-services-worker.mjs');
+    expect(String(worker.url)).not.toContain('perspective');
+  });
+
+  it('boots the Perspective worker when asked', async () => {
+    const { createDataServicesClient } = await import('./createDataServicesClient.js');
+
+    createDataServicesClient({ appName: 'demo', userId: 'dev1', perspective: true });
+
+    const worker = bootstrapDataServices.mock.calls[0][0].worker as MockSharedWorker;
+    expect(String(worker.url)).toContain('data-services-perspective-worker.mjs');
+  });
+
   it('uses a supplied mainThreadConfigManager instead of creating one', async () => {
     const hostConfig = await import('@wellsfargo-starui/core/host/config');
     const createConfigManager = vi.mocked(hostConfig.createConfigManager);

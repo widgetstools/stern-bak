@@ -14,6 +14,7 @@
  * no engine at all.
  */
 
+import { describePerspectiveKeyColumnRefusal } from '@wellsfargo-starui/types';
 import type {
   PerspectiveAttachRequest,
   PerspectiveAttachResultEvent,
@@ -132,16 +133,13 @@ export function resolvePerspectiveTable(
   // Perspective indexes by a single scalar column, so a composite key has no
   // Table equivalent — the tee transports skip Table creation entirely for
   // one rather than silently indexing on the first column and letting rows
-  // collide. Same refusal, stated where the window can read it.
+  // collide. Same refusal, stated where the window can read it — and, since
+  // the wording lives in the foundation layer, the same one the provider
+  // editor shows before the config is ever saved.
   const keyColumn = (cfg as { keyColumn?: string | readonly string[] }).keyColumn;
-  if (typeof keyColumn !== 'string' || keyColumn.length === 0) {
-    return {
-      ok: false,
-      reason: Array.isArray(keyColumn)
-        ? `Provider '${providerId}' has a composite keyColumn `
-          + `[${keyColumn.join(', ')}], which cannot index a Perspective Table.`
-        : `Provider '${providerId}' has no keyColumn, which a Perspective Table needs to index on.`,
-    };
+  const keyRefusal = describePerspectiveKeyColumnRefusal(providerId, keyColumn);
+  if (keyRefusal) {
+    return { ok: false, reason: keyRefusal };
   }
 
   if (!slot) {
