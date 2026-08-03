@@ -31,6 +31,11 @@
       "types": "./shared-types/dist/fieldSelector.d.ts",
       "import": "./shared-types/dist/fieldSelector.js",
       "require": "./shared-types/dist/fieldSelector.js"
+    },
+    "./shared/perspectiveQuery": {
+      "types": "./shared-types/dist/perspectiveQuery.d.ts",
+      "import": "./shared-types/dist/perspectiveQuery.js",
+      "require": "./shared-types/dist/perspectiveQuery.js"
     }
   },
   "files": [

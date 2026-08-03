@@ -77,3 +77,4 @@ export {
 export * from './dataProvider.js';
 export * from './fieldSelector.js';
 export * from './configuration.js';
+export * from './perspectiveQuery.js';

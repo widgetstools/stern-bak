@@ -62,6 +62,7 @@ export default defineConfig({
             { find: '@wellsfargo-starui/types/shared/configuration', replacement: resolve(__dirname, '../types/shared-types/src/configuration.ts') },
             { find: '@wellsfargo-starui/types/shared/dataProvider', replacement: resolve(__dirname, '../types/shared-types/src/dataProvider.ts') },
             { find: '@wellsfargo-starui/types/shared/fieldSelector', replacement: resolve(__dirname, '../types/shared-types/src/fieldSelector.ts') },
+            { find: '@wellsfargo-starui/types/shared/perspectiveQuery', replacement: resolve(__dirname, '../types/shared-types/src/perspectiveQuery.ts') },
             { find: '@wellsfargo-starui/types/shared', replacement: resolve(__dirname, '../types/shared-types/src/index.ts') },
             { find: '@wellsfargo-starui/types', replacement: resolve(__dirname, '../types/types/src/index.ts') },
             { find: '@wellsfargo-starui/openfin/host', replacement: resolve(__dirname, '../openfin/host-openfin/src/index.ts') },
