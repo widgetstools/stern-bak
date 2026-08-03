@@ -17,6 +17,16 @@ vi.mock('../transports/MockFields.js', () => ({
 vi.mock('../transports/AppDataFields.js', () => ({
   AppDataFields: () => <div data-testid="appdata-fields">appdata</div>,
 }));
+vi.mock('../transports/StompPerspectiveFields.js', () => ({
+  StompPerspectiveFields: ({ providerLabel, providerId }: { providerLabel: string; providerId?: string | null }) => (
+    <div data-testid="stomp-perspective-fields">{`${providerLabel}|${providerId}`}</div>
+  ),
+}));
+vi.mock('../transports/MockPerspectiveFields.js', () => ({
+  MockPerspectiveFields: ({ providerLabel, providerId }: { providerLabel: string; providerId?: string | null }) => (
+    <div data-testid="mock-perspective-fields">{`${providerLabel}|${providerId}`}</div>
+  ),
+}));
 
 const probe = {
   testing: false,
@@ -92,5 +102,58 @@ describe('ConnectionTab', () => {
       />,
     );
     expect(screen.getByText(/No editor for "custom"/)).toBeInTheDocument();
+  });
+
+  // Both types used to land on that fallback. They have a form now, and this
+  // is what makes the type offerable at all — an unrendered provider type is
+  // worse than an unoffered one.
+  it.each([
+    ['stomp-perspective', 'stomp-perspective-fields'] as const,
+    ['mock-perspective', 'mock-perspective-fields'] as const,
+  ])('renders the %s editor rather than the no-editor fallback', (providerType, testId) => {
+    render(
+      <ConnectionTab
+        cfg={{ providerType, keyColumn: 'id' } as never}
+        onCfgChange={vi.fn()}
+        probe={probe}
+        providerLabel="positions-live"
+        providerId="dp-1"
+      />,
+    );
+
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
+    expect(screen.queryByText(/No editor for/)).toBeNull();
+  });
+
+  // Same broker, same destinations, same snapshot handshake — so the same probe.
+  it('offers Test Connection for stomp-perspective', async () => {
+    const user = userEvent.setup();
+    probe.test.mockClear();
+    render(
+      <ConnectionTab
+        cfg={{ providerType: 'stomp-perspective', websocketUrl: 'ws://x' } as never}
+        onCfgChange={vi.fn()}
+        probe={probe}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Test Connection/i }));
+    expect(probe.test).toHaveBeenCalled();
+  });
+
+  it('names the provider so the fields component can quote the worker’s refusal', () => {
+    render(
+      <ConnectionTab
+        cfg={{ providerType: 'stomp-perspective' } as never}
+        onCfgChange={vi.fn()}
+        probe={probe}
+        providerLabel="positions-live"
+        providerId="dp-1"
+      />,
+    );
+
+    expect(screen.getByTestId('stomp-perspective-fields')).toHaveTextContent(
+      'positions-live|dp-1',
+    );
   });
 });

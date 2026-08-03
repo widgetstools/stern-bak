@@ -28,10 +28,13 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   }),
 }));
 
+const lastDraft: { current: any } = { current: null };
+
 vi.mock('./EditorForm.js', () => ({
-  EditorForm: (props: { initial: { name: string }; onCancel?: () => void }) => (
-    <div data-testid="editor-form">{props.initial.name}</div>
-  ),
+  EditorForm: (props: { initial: { name: string }; onCancel?: () => void }) => {
+    lastDraft.current = props.initial;
+    return <div data-testid="editor-form">{props.initial.name}</div>;
+  },
 }));
 
 vi.mock('./providerConfigIo.js', () => ({
@@ -101,6 +104,50 @@ describe('DataProviderEditor', () => {
     await user.click(screen.getByTitle('Delete'));
     await user.click(await screen.findByRole('button', { name: /^Delete$/i }));
     await waitFor(() => expect(screen.getByText(/locked/i)).toBeInTheDocument());
+  });
+
+  /**
+   * Both types held meta but were held OUT of the create list while no
+   * transport-fields component existed. They have one now, so they are
+   * offerable — and a draft has to arrive usable, because these two carry
+   * settings whose defaults are not merely convenient but load-bearing.
+   */
+  describe('creating a Perspective provider', () => {
+    const create = async (label: RegExp) => {
+      const user = userEvent.setup();
+      render(<DataProviderEditor userId="dev" />);
+      await user.click(screen.getByRole('button', { name: /^New$/i }));
+      await user.click(await screen.findByRole('combobox'));
+      await user.click(await screen.findByRole('option', { name: label }));
+      await user.click(screen.getByRole('button', { name: /^Create$/i }));
+      return lastDraft.current;
+    };
+
+    it('offers stomp-perspective and seeds a working draft', async () => {
+      const draft = await create(/^STOMP \(Perspective\)$/);
+
+      expect(draft.providerType).toBe('stomp-perspective');
+      expect(draft.config).toMatchObject({
+        providerType: 'stomp-perspective',
+        inferDates: true,
+        integerColumns: [],
+        snapshotEndToken: 'Success',
+      });
+    });
+
+    it('offers mock-perspective and seeds a draft whose rows can reach a Table', async () => {
+      const draft = await create(/^Mock \(Perspective\)$/);
+
+      expect(draft.providerType).toBe('mock-perspective');
+      // Flat is not a nicety here: a Perspective schema is a flat map of typed
+      // columns, so a nested row populates nothing.
+      expect(draft.config).toMatchObject({
+        providerType: 'mock-perspective',
+        rowShape: 'flat',
+        inferDates: true,
+        integerColumns: [],
+      });
+    });
   });
 
   it('cancels delete confirmation without removing the provider', async () => {

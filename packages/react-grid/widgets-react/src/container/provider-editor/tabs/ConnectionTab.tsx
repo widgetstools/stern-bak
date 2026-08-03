@@ -10,10 +10,20 @@
 
 import { Button, ScrollArea } from '@wellsfargo-starui/react';
 import { CheckCircle2, Loader2, Plug, XCircle } from 'lucide-react';
-import type { ProviderConfig, StompProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
+import type {
+  ProviderConfig,
+  StompProviderConfig,
+  StompPerspectiveProviderConfig,
+  RestProviderConfig,
+  MockProviderConfig,
+  MockPerspectiveProviderConfig,
+  AppDataProviderConfig,
+} from '@wellsfargo-starui/types/shared';
 import { StompFields } from '../transports/StompFields.js';
+import { StompPerspectiveFields } from '../transports/StompPerspectiveFields.js';
 import { RestFields } from '../transports/RestFields.js';
 import { MockFields } from '../transports/MockFields.js';
+import { MockPerspectiveFields } from '../transports/MockPerspectiveFields.js';
 import { AppDataFields } from '../transports/AppDataFields.js';
 import type { ProbeState } from '../useProviderProbe.js';
 
@@ -21,10 +31,27 @@ export interface ConnectionTabProps {
   cfg: ProviderConfig;
   onCfgChange(next: Partial<ProviderConfig>): void;
   probe: ProbeState;
+  /**
+   * How to name this provider in a diagnostic. Only the Perspective types use
+   * it, to say what the worker would say about an unusable `keyColumn`.
+   */
+  providerLabel?: string;
+  /** Shown as the Table-name placeholder — what a blank name resolves to. */
+  providerId?: string | null;
 }
 
-export function ConnectionTab({ cfg, onCfgChange, probe }: ConnectionTabProps) {
-  const showTest = cfg.providerType === 'stomp' || cfg.providerType === 'rest';
+export function ConnectionTab({
+  cfg,
+  onCfgChange,
+  probe,
+  providerLabel,
+  providerId,
+}: ConnectionTabProps) {
+  // Same wire settings as their twins, so the same probe applies.
+  const showTest =
+    cfg.providerType === 'stomp'
+    || cfg.providerType === 'stomp-perspective'
+    || cfg.providerType === 'rest';
   // AppData owns its own internal layout (form + AG-Grid that fills height),
   // so it must not be wrapped in a ScrollArea — that collapses the grid to 0.
   const isAppData = cfg.providerType === 'appdata';
@@ -33,12 +60,22 @@ export function ConnectionTab({ cfg, onCfgChange, probe }: ConnectionTabProps) {
     <div className="flex flex-col h-full min-h-0">
       {isAppData ? (
         <div className="flex-1 min-h-0">
-          <Fields cfg={cfg} onChange={onCfgChange} />
+          <Fields
+            cfg={cfg}
+            onChange={onCfgChange}
+            providerLabel={providerLabel}
+            providerId={providerId}
+          />
         </div>
       ) : (
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-4 space-y-4">
-            <Fields cfg={cfg} onChange={onCfgChange} />
+            <Fields
+              cfg={cfg}
+              onChange={onCfgChange}
+              providerLabel={providerLabel}
+              providerId={providerId}
+            />
           </div>
         </ScrollArea>
       )}
@@ -56,14 +93,43 @@ export function ConnectionTab({ cfg, onCfgChange, probe }: ConnectionTabProps) {
   );
 }
 
-function Fields({ cfg, onChange }: { cfg: ProviderConfig; onChange(next: Partial<ProviderConfig>): void }) {
+function Fields({
+  cfg,
+  onChange,
+  providerLabel,
+  providerId,
+}: {
+  cfg: ProviderConfig;
+  onChange(next: Partial<ProviderConfig>): void;
+  providerLabel?: string;
+  providerId?: string | null;
+}) {
+  const label = providerLabel ?? providerId ?? 'this provider';
   switch (cfg.providerType) {
     case 'stomp':
       return <StompFields cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
+    case 'stomp-perspective':
+      return (
+        <StompPerspectiveFields
+          cfg={cfg as StompPerspectiveProviderConfig}
+          onChange={onChange as (n: Partial<StompPerspectiveProviderConfig>) => void}
+          providerLabel={label}
+          providerId={providerId}
+        />
+      );
     case 'rest':
       return <RestFields cfg={cfg as RestProviderConfig} onChange={onChange as (n: Partial<RestProviderConfig>) => void} />;
     case 'mock':
       return <MockFields cfg={cfg as MockProviderConfig} onChange={onChange as (n: Partial<MockProviderConfig>) => void} />;
+    case 'mock-perspective':
+      return (
+        <MockPerspectiveFields
+          cfg={cfg as MockPerspectiveProviderConfig}
+          onChange={onChange as (n: Partial<MockPerspectiveProviderConfig>) => void}
+          providerLabel={label}
+          providerId={providerId}
+        />
+      );
     case 'appdata':
       return <AppDataFields cfg={cfg as AppDataProviderConfig} onChange={onChange as (n: Partial<AppDataProviderConfig>) => void} />;
     default:

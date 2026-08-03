@@ -197,7 +197,13 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
 
       {isAppData ? (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <ConnectionTab cfg={provider.config} onCfgChange={updateCfg} probe={probe} />
+          <ConnectionTab
+            cfg={provider.config}
+            onCfgChange={updateCfg}
+            probe={probe}
+            providerLabel={provider.name || provider.providerId || 'this provider'}
+            providerId={provider.providerId ?? null}
+          />
         </div>
       ) : (
         <Tabs defaultValue="connection" className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -210,7 +216,13 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
           </TabsList>
 
           <TabsContent value="connection" className="flex-1 min-h-0 overflow-hidden m-0 mt-3">
-            <ConnectionTab cfg={provider.config} onCfgChange={updateCfg} probe={probe} />
+            <ConnectionTab
+            cfg={provider.config}
+            onCfgChange={updateCfg}
+            probe={probe}
+            providerLabel={provider.name || provider.providerId || 'this provider'}
+            providerId={provider.providerId ?? null}
+          />
           </TabsContent>
 
           <TabsContent value="fields" className="flex-1 min-h-0 overflow-hidden m-0 mt-3">

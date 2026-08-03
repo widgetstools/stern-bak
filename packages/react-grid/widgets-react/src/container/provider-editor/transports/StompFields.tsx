@@ -10,9 +10,15 @@
 import { Input, Label } from '@wellsfargo-starui/react';
 import type { StompProviderConfig } from '@wellsfargo-starui/types/shared';
 
+/**
+ * `providerType` is omitted deliberately: nothing here reads the discriminant,
+ * and `stomp-perspective` extends this same config by exactly that omission —
+ * so leaving it out is what lets `StompPerspectiveFields` compose this form
+ * instead of restating it.
+ */
 export interface StompFieldsProps {
-  cfg: StompProviderConfig;
-  onChange(next: Partial<StompProviderConfig>): void;
+  cfg: Omit<StompProviderConfig, 'providerType'>;
+  onChange(next: Partial<Omit<StompProviderConfig, 'providerType'>>): void;
 }
 
 export function StompFields({ cfg, onChange }: StompFieldsProps) {

@@ -24,7 +24,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@wellsfargo-starui/react';
 import { Database, Copy, Globe, Plus, Radio, Search, Trash2, TestTube2, Upload } from 'lucide-react';
-import type { DataProviderConfig, ProviderConfig, ProviderType } from '@wellsfargo-starui/types/shared';
+import {
+  getDefaultProviderConfig,
+  type DataProviderConfig,
+  type ProviderConfig,
+  type ProviderType,
+} from '@wellsfargo-starui/types/shared';
 import { useDataServices, useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 import { cloneProviderConfig } from './cloneProviderConfig.js';
 import { parseProviderConfigImport, type PortableProviderConfig } from './providerConfigIo.js';
@@ -45,11 +50,14 @@ const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: str
   appdata: { label: 'AppData', description: 'Key/value store referenced by other providers via {{name.key}}.', icon: Database },
 };
 
-// The `*-perspective` types are deliberately absent: they have meta so an
-// existing config renders with a name and an icon, but no transport fields
-// component yet, and offering a type the form cannot edit is worse than not
-// offering it.
-const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'rest', 'mock', 'appdata'];
+const SUPPORTED_TYPES: ProviderType[] = [
+  'stomp',
+  'stomp-perspective',
+  'rest',
+  'mock',
+  'mock-perspective',
+  'appdata',
+];
 
 export interface DataProviderEditorProps {
   userId: string;
@@ -110,7 +118,12 @@ export function DataProviderEditor({ userId, initialProviderId = null, onClose }
       providerId: undefined,
       name: 'untitled',
       providerType: type,
-      config: { providerType: type } as ProviderConfig,
+      // Seeded from the type's own defaults rather than `{ providerType }`
+      // alone. A `mock-perspective` draft in particular is not merely
+      // under-filled without them but wrong: its rows must be flat before they
+      // can reach a Table, and leaving `rowShape` unset relies on a transport
+      // default the saved config never records.
+      config: { ...getDefaultProviderConfig(type), providerType: type } as ProviderConfig,
       userId,
       public: false,
     };

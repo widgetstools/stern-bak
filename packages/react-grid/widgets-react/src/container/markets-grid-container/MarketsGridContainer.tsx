@@ -45,6 +45,10 @@ import {
 } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from './buildColumnDefs.js';
 import { useProviderDataWiring } from './useProviderDataWiring.js';
+import {
+  usePerspectiveGridBridge,
+  type PerspectiveHubClientLike,
+} from './usePerspectiveGridBridge.js';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
@@ -54,6 +58,7 @@ import type { AdminAction } from '@wellsfargo-starui/grid';
 import { ConfigBrowserDialog } from './ConfigBrowserDialog.js';
 import { ProviderEditorDialog } from './ProviderEditorDialog.js';
 import { MarketsGridLoadingOverlay } from './LoadingOverlay.js';
+import { PerspectiveRefusalPanel } from './PerspectiveRefusalPanel.js';
 import { isOpenFinRuntime } from './openFinRuntime.js';
 import {
   type ProviderMode,
@@ -514,6 +519,27 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     restart: restartProvider,
   } = useDataProvider<TData>(providerReady ? activeId : null, { autoStart: false });
 
+  // ── Row engine ────────────────────────────────────────────────────
+  //
+  // A `*-perspective` provider's book lives once in the SharedWorker; this
+  // window opens a View onto it instead of receiving a copy. The bridge owns
+  // that whole seam — starting the provider, attaching to the Table, and the
+  // worker-query client — and answers `rowModel: undefined` for every other
+  // provider type, so a classic provider still reaches MarketsGrid with
+  // exactly the props it did before.
+  const perspective = usePerspectiveGridBridge({
+    cfg: activeCfg ?? null,
+    providerId: activeId,
+    provider,
+    client: dataHubClient as unknown as PerspectiveHubClientLike,
+  });
+  const isPerspective = perspective.rowModel === 'perspective';
+  /** A refusal is a rendered sentence, never an indefinite spinner. */
+  const perspectiveRefusal =
+    isPerspective && (perspective.status === 'unavailable' || perspective.status === 'error')
+      ? perspective.reason ?? 'The worker refused this provider’s Perspective Table.'
+      : null;
+
   // Loading-overlay state — derived synchronously from a "subscription
   // key" so the overlay appears on the SAME render that mounts the
   // grid. If we used a useState+useEffect pair, AG-Grid would briefly
@@ -540,7 +566,13 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // disables cell editing until status returns to ready.
   const [providerDisconnected, setProviderDisconnected] = useState(false);
   const [disconnectDetail, setDisconnectDetail] = useState<string | undefined>();
-  const isLoadingSnapshot = subscriptionKey !== null && subscriptionKey !== resolvedSubKey;
+  // On the Perspective path no snapshot is ever committed into this window's
+  // grid, so the subscription-key comparison would leave the overlay up
+  // forever. The attach IS the load there, and it settles into a Table or a
+  // rendered refusal — never an open-ended wait.
+  const isLoadingSnapshot = isPerspective
+    ? perspective.status === 'attaching'
+    : subscriptionKey !== null && subscriptionKey !== resolvedSubKey;
   const showLoadingOverlay = isLoadingSnapshot || isRefetching || isSavingProfile;
 
   const dataStaleMessage = disconnectDetail
@@ -598,7 +630,11 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
 
   useProviderDataWiring<TData>({
     liveApi,
-    provider,
+    // Null on the Perspective path, which is what keeps `applyProviderToGrid`
+    // off it entirely: its `applyTransactionAsync` tick classification is a
+    // client-side row model's write path and has no meaning under a
+    // server-side one. The bridge starts the provider instead.
+    provider: isPerspective ? null : provider,
     activeId,
     subscriptionKey,
     rowIdField,
@@ -920,6 +956,10 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
             rowData={EMPTY as TData[]}
             rowIdField={rowIdField}
             columnDefs={columnDefs}
+            rowModel={perspective.rowModel}
+            perspectiveTable={perspective.table}
+            perspectiveKeyColumn={perspective.keyColumn}
+            perspectiveQueries={perspective.queries}
             appData={appDataLookup}
             onReady={onReady}
             providerGridHost={providerGridHost}
@@ -936,7 +976,13 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
             onToolbarDateChange={handleToolbarDateChange}
             toolbarDateHistoryEnabled={toolbarDateHistoryEnabled}
           />
-          {showLoadingOverlay && (
+          {perspectiveRefusal && (
+            <PerspectiveRefusalPanel
+              providerName={activeProviderName}
+              reason={perspectiveRefusal}
+            />
+          )}
+          {showLoadingOverlay && !perspectiveRefusal && (
             <MarketsGridLoadingOverlay
               title={
                 isSavingProfile

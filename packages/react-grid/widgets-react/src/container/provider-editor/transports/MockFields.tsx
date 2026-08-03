@@ -6,9 +6,10 @@
 import { Input, Label, Switch } from '@wellsfargo-starui/react';
 import type { MockProviderConfig } from '@wellsfargo-starui/types/shared';
 
+/** `providerType` omitted so `MockPerspectiveFields` composes this — see StompFields. */
 export interface MockFieldsProps {
-  cfg: MockProviderConfig;
-  onChange(next: Partial<MockProviderConfig>): void;
+  cfg: Omit<MockProviderConfig, 'providerType'>;
+  onChange(next: Partial<Omit<MockProviderConfig, 'providerType'>>): void;
 }
 
 export function MockFields({ cfg, onChange }: MockFieldsProps) {
