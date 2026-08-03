@@ -55,6 +55,11 @@ class FakeRuntime implements RuntimePort {
     for (const fn of this.shownListeners) fn();
   }
 
+  /** Test seam — subscription is registered in a useEffect, after first paint. */
+  get shownListenerCount(): number {
+    return this.shownListeners.size;
+  }
+
   onThemeChanged(fn: (t: Theme) => void): Unsubscribe {
     this.themeListeners.add(fn);
     return () => this.themeListeners.delete(fn);
@@ -200,6 +205,9 @@ describe('HostWrapper / useHost', () => {
       </HostWrapper>,
     );
     await waitFor(() => expect(screen.getByTestId('listener-mounted')).toBeDefined());
+    // DOM can appear one tick before the Listener useEffect subscribes —
+    // under full-suite CPU pressure waitFor alone was enough to flake with [].
+    await waitFor(() => expect(runtime.shownListenerCount).toBe(1));
     act(() => {
       runtime.emitWindowShown();
       runtime.emitWindowShown();
