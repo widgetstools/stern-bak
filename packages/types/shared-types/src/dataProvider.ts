@@ -407,7 +407,7 @@ export interface MockProviderConfig {
    */
   keyColumn?: string | readonly string[];
   /**
-   * AG Grid column defs — required for `rowShape: 'ssrm'`, whose flatten
+   * AG Grid column defs — required for `rowShape: 'flat'`, whose flatten
    * derives its paths from `columnDefinitions[].field` plus `keyColumn`.
    * Without them the flatten has nothing to lift and rows pass through
    * nested and unchanged.
@@ -416,16 +416,16 @@ export interface MockProviderConfig {
   /**
    * Row delivery shape.
    *
-   * `'csrm'` (default) emits the generator's rows as authored — the positions
+   * `'nested'` (default) emits the generator's rows as authored — the positions
    * row is deeply nested (ratings, key-rate durations, exposure breakdowns),
    * which AG Grid's client-side row model reads through dotted `field` paths.
    *
-   * `'ssrm'` lifts each `columnDefinitions[].field` path onto a literal
+   * `'flat'` lifts each `columnDefinitions[].field` path onto a literal
    * top-level scalar key before emit, so `rating.moody` arrives as the flat
    * key `"rating.moody"`. Consumers that cannot hold nested values — a
    * Perspective Table's schema is a flat map of typed columns — need this.
    */
-  rowShape?: 'csrm' | 'ssrm';
+  rowShape?: 'nested' | 'flat';
 }
 
 /**
@@ -442,8 +442,8 @@ export interface MockProviderConfig {
  *
  * **Rows reaching a Table must be FLAT**, because a Perspective schema is a
  * flat map of typed columns. The mock positions row is deeply nested, so
- * `rowShape: 'ssrm'` and `columnDefinitions` are effectively required here —
- * the transport defaults `rowShape` to `'ssrm'` for exactly this reason.
+ * `rowShape: 'flat'` and `columnDefinitions` are effectively required here —
+ * the transport defaults `rowShape` to `'flat'` for exactly this reason.
  */
 export interface MockPerspectiveProviderConfig
   extends Omit<MockProviderConfig, 'providerType'> {
@@ -693,7 +693,7 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     // A Perspective schema is a flat map of typed columns and the mock
     // positions row is deeply nested, so the flatten is not optional here —
     // see the interface docs. `columnDefinitions` must be supplied for it.
-    rowShape: 'ssrm',
+    rowShape: 'flat',
     columnDefinitions: [],
     inferredFields: [],
     // Numeric columns are float unless named here; inference must not choose

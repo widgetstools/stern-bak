@@ -30,7 +30,7 @@
 
 import type { MockProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../Provider.js';
-import { createSsrmRowFlattener, type SsrmRowFlattener } from '../ssrmRowFlatten.js';
+import { createFlatRowFlattener, type FlatRowFlattener } from '../flatRowShape.js';
 import { getUniverse } from './mockUniverse.js';
 import { buildPosition, tickPosition, type PositionRow } from './mockPosition.js';
 import { buildTrade, tickTrade, pickTradingCusip, type TradeRow } from './mockTrade.js';
@@ -47,15 +47,15 @@ export interface MockProviderOpts {
  * and `columnDefinitions` on the live `cfg`, and a flattener captured at
  * start would keep flattening to the old column set.
  */
-function ssrmFlattenerFor(cfg: MockProviderConfig): SsrmRowFlattener | null {
-  if (cfg.rowShape !== 'ssrm') return null;
-  return createSsrmRowFlattener(cfg.columnDefinitions, cfg.keyColumn);
+function flattenerFor(cfg: MockProviderConfig): FlatRowFlattener | null {
+  if (cfg.rowShape !== 'flat') return null;
+  return createFlatRowFlattener(cfg.columnDefinitions, cfg.keyColumn);
 }
 
 function emitRows(
   emit: ProviderEmit,
   rows: unknown[],
-  flatten: SsrmRowFlattener | null,
+  flatten: FlatRowFlattener | null,
   replace?: boolean,
 ): void {
   const out = flatten ? rows.map((row) => flatten(row)) : rows;
@@ -115,7 +115,7 @@ function startPositions(
         snapshot[idx] = ticked;
         batch.push(ticked);
       }
-      emitRows(emit, batch, ssrmFlattenerFor(cfg));
+      emitRows(emit, batch, flattenerFor(cfg));
     }, interval);
   };
 
@@ -125,7 +125,7 @@ function startPositions(
 
   const fireSnapshot = () => {
     snapshot = build();
-    emitRows(emit, snapshot, ssrmFlattenerFor(cfg), true);
+    emitRows(emit, snapshot, flattenerFor(cfg), true);
     emit({ status: 'ready' });
     startTicker();
   };
@@ -215,7 +215,7 @@ function startTrades(
         batch.push(ticked);
       }
 
-      if (batch.length > 0) emitRows(emit, batch, ssrmFlattenerFor(cfg));
+      if (batch.length > 0) emitRows(emit, batch, flattenerFor(cfg));
     }, interval);
   };
 
@@ -226,7 +226,7 @@ function startTrades(
   const fireSnapshot = () => {
     book = build();
     rebuildIndex();
-    emitRows(emit, book, ssrmFlattenerFor(cfg), true);
+    emitRows(emit, book, flattenerFor(cfg), true);
     emit({ status: 'ready' });
     startTicker();
   };
@@ -305,13 +305,13 @@ function startLegacy(
         timestamp: Date.now(),
       };
       snapshot[idx] = updated;
-      emitRows(emit, [updated], ssrmFlattenerFor(cfg));
+      emitRows(emit, [updated], flattenerFor(cfg));
     }, interval);
   };
   const stopT = () => { if (ticker !== null) { clearTicker(ticker); ticker = null; } };
   const fire = () => {
     snapshot = buildSnap();
-    emitRows(emit, snapshot, ssrmFlattenerFor(cfg), true);
+    emitRows(emit, snapshot, flattenerFor(cfg), true);
     emit({ status: 'ready' });
     startT();
   };
@@ -358,7 +358,7 @@ function applyOverlay(cfg: MockProviderConfig, extra: unknown): MockProviderConf
     updateIntervalMs: typeof o.updateIntervalMs === 'number' ? o.updateIntervalMs : cfg.updateIntervalMs,
     enableUpdates: typeof o.enableUpdates === 'boolean' ? o.enableUpdates : cfg.enableUpdates,
     dataType: (typeof o.dataType === 'string' ? o.dataType : cfg.dataType) as MockProviderConfig['dataType'],
-    rowShape: o.rowShape === 'ssrm' || o.rowShape === 'csrm' ? o.rowShape : cfg.rowShape,
+    rowShape: o.rowShape === 'flat' || o.rowShape === 'nested' ? o.rowShape : cfg.rowShape,
   };
 }
 
@@ -370,8 +370,8 @@ function isSoftRuntimePatch(extra: unknown, cfg: MockProviderConfig): boolean {
   if (typeof o.dataType === 'string' && o.dataType !== cfg.dataType) return false;
   if (typeof o.rowCount === 'number' && o.rowCount !== cfg.rowCount) return false;
   // A changed delivery shape needs the whole book re-emitted, not a ticker bounce.
-  if (o.rowShape === 'ssrm' || o.rowShape === 'csrm') {
-    if (o.rowShape !== (cfg.rowShape ?? 'csrm')) return false;
+  if (o.rowShape === 'flat' || o.rowShape === 'nested') {
+    if (o.rowShape !== (cfg.rowShape ?? 'nested')) return false;
   }
   return typeof o.updateIntervalMs === 'number' || typeof o.enableUpdates === 'boolean';
 }

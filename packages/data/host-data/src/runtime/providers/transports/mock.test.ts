@@ -481,8 +481,8 @@ describe('probeMock', () => {
 });
 
 /**
- * `rowShape` is the delivery shape, not a different generator. `'csrm'` (the
- * default) emits the authored nested row; `'ssrm'` lifts each declared column
+ * `rowShape` is the delivery shape, not a different generator. `'nested'` (the
+ * default) emits the authored nested row; `'flat'` lifts each declared column
  * path onto a literal top-level key, which is what a consumer that cannot hold
  * nested values — a Perspective Table's schema is flat — needs.
  */
@@ -508,9 +508,9 @@ describe('startMock — rowShape', () => {
     expect(row['ratings.moodys.rating']).toBeUndefined();
   });
 
-  it("flattens declared paths onto literal keys under 'ssrm'", async () => {
+  it("flattens declared paths onto literal keys under 'flat'", async () => {
     const { h, emit, setTicker, clearTicker } = harness();
-    startMock(flatCfg({ rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    startMock(flatCfg({ rowShape: 'flat' }), emit, { setTicker, clearTicker });
     await flush();
 
     const row = h.rowEvents()[0]!.rows[0] as Record<string, unknown>;
@@ -520,7 +520,7 @@ describe('startMock — rowShape', () => {
 
   it('flattens live ticks the same way as the snapshot', async () => {
     const { h, emit, setTicker, clearTicker } = harness();
-    startMock(flatCfg({ rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    startMock(flatCfg({ rowShape: 'flat' }), emit, { setTicker, clearTicker });
     await flush();
     h.tick();
 
@@ -531,7 +531,7 @@ describe('startMock — rowShape', () => {
 
   it('passes rows through untouched when nothing declares a path', async () => {
     const { h, emit, setTicker, clearTicker } = harness();
-    startMock(cfg({ rowCount: 2, rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    startMock(cfg({ rowCount: 2, rowShape: 'flat' }), emit, { setTicker, clearTicker });
     await flush();
 
     // An empty flattener would emit `{}` per row; passthrough is the only
@@ -547,7 +547,7 @@ describe('startMock — rowShape', () => {
     await flush();
     h.events.length = 0;
 
-    await handle.restart({ rowShape: 'ssrm', enableUpdates: true });
+    await handle.restart({ rowShape: 'flat', enableUpdates: true });
     await flush();
 
     expect(h.statuses()).toContain('loading');
@@ -557,11 +557,11 @@ describe('startMock — rowShape', () => {
 
   it('leaves a soft patch soft when the rowShape is unchanged', async () => {
     const { h, emit, setTicker, clearTicker } = harness();
-    const handle = startMock(flatCfg({ rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    const handle = startMock(flatCfg({ rowShape: 'flat' }), emit, { setTicker, clearTicker });
     await flush();
     h.events.length = 0;
 
-    await handle.restart({ rowShape: 'ssrm', updateIntervalMs: 100 });
+    await handle.restart({ rowShape: 'flat', updateIntervalMs: 100 });
     await flush();
 
     expect(h.statuses()).not.toContain('loading');

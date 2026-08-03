@@ -124,7 +124,7 @@ export interface SchemaOptions {
    * Which one a dot means depends entirely on how the provider shapes its
    * rows, and the two shapes are indistinguishable from the declaration
    * alone. `projectFields` PRESERVES subtrees, so `rating.moody` is nested
-   * there and cannot be a Perspective column. The `rowShape: 'ssrm'` flatten
+   * there and cannot be a Perspective column. The `rowShape: 'flat'` flatten
    * LIFTS the same path onto the literal key `"rating.moody"`, so dropping it
    * would leave every nested-sourced column out of the schema — a Table with
    * a fraction of its columns, silently, because `update()` ignores columns

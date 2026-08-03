@@ -16,7 +16,7 @@
  * `stomp-perspective`, which brings its own dataset and makes every comparison
  * ambiguous between the engine and the data.
  *
- * **`rowShape` defaults to `'ssrm'` here, unlike `mock`.** A Perspective schema
+ * **`rowShape` defaults to `'flat'` here, unlike `mock`.** A Perspective schema
  * is a flat map of typed columns, and the mock positions row is deeply nested
  * (ratings, key-rate durations, exposure breakdowns). Emitting it unflattened
  * would hand the feed nested objects, which `observeRows` reports as `nested`
@@ -57,8 +57,8 @@ export function startMockPerspective(
 
   // Flat rows or no Table. See the module note — nested columns are dropped by
   // the schema observer, so serving them would mean a quietly narrow Table.
-  const rowShape = cfg.rowShape ?? 'ssrm';
-  const canFlatten = rowShape === 'ssrm' && (cfg.columnDefinitions?.length ?? 0) > 0;
+  const rowShape = cfg.rowShape ?? 'flat';
+  const canFlatten = rowShape === 'flat' && (cfg.columnDefinitions?.length ?? 0) > 0;
 
   let feed: PerspectiveTableFeed | null = null;
   let taps: ProviderEmit = emit;
@@ -76,7 +76,7 @@ export function startMockPerspective(
       ? toPerspectiveSchemaFromFields(declared as DeclaredField[], {
           integerColumns: cfg.integerColumns,
           inferDates: cfg.inferDates,
-          // The `ssrm` flatten this transport requires lifts `rating.moody`
+          // The flat row shape this transport requires lifts `rating.moody`
           // onto the literal key `"rating.moody"`, so a dotted declaration
           // names a real flat column here rather than a nested value.
           flatDottedPaths: true,
@@ -104,7 +104,7 @@ export function startMockPerspective(
         ? Array.isArray(cfg.keyColumn)
           ? `composite keyColumn [${cfg.keyColumn.join(', ')}] cannot index a Perspective Table`
           : 'keyColumn is required to index a Perspective Table'
-        : `mock-perspective needs flat rows: set rowShape 'ssrm' and supply `
+        : `mock-perspective needs flat rows: set rowShape 'flat' and supply `
           + `columnDefinitions (rowShape='${rowShape}', `
           + `${cfg.columnDefinitions?.length ?? 0} columnDefinitions)`,
     });
@@ -112,7 +112,7 @@ export function startMockPerspective(
 
   // `providerType` is narrowed away: to `startMock` this is a mock config,
   // which is exactly what it is. `rowShape` is resolved here rather than left
-  // to `startMock`'s default, which is `'csrm'` — i.e. nested.
+  // to `startMock`'s default, which is `'nested'`.
   const inner = startMock({ ...cfg, providerType: 'mock', rowShape }, taps, opts);
 
   return {

@@ -1,6 +1,6 @@
 /**
  * Lift dotted `columnDefinitions` / `keyColumn` paths onto literal top-level
- * scalar keys — the `rowShape: 'ssrm'` delivery shape.
+ * scalar keys — the `rowShape: 'flat'` delivery shape.
  *
  * Unlike {@link createFieldProjector}, which prunes a row while PRESERVING its
  * nested subtrees, this writes `rating.moody` as a flat key so a consumer that
@@ -16,7 +16,7 @@
 import type { ColumnDefinition } from '@wellsfargo-starui/types';
 import { getValueByPath } from '@wellsfargo-starui/types';
 
-export type SsrmRowFlattener = (row: unknown) => Record<string, unknown>;
+export type FlatRowFlattener = (row: unknown) => Record<string, unknown>;
 
 function isFlatScalar(value: unknown): boolean {
   if (value === null) return true;
@@ -26,7 +26,7 @@ function isFlatScalar(value: unknown): boolean {
 }
 
 /** Union of column field paths + keyColumn parts. */
-export function collectSsrmFlattenPaths(
+export function collectFlatRowPaths(
   columnDefinitions: readonly ColumnDefinition[] | undefined,
   keyColumn: string | readonly string[] | undefined,
 ): string[] {
@@ -47,11 +47,11 @@ export function collectSsrmFlattenPaths(
  * Returns `null` when there are no paths to lift — callers must then pass rows
  * through untouched, because a flattener with no paths emits empty objects.
  */
-export function createSsrmRowFlattener(
+export function createFlatRowFlattener(
   columnDefinitions: readonly ColumnDefinition[] | undefined,
   keyColumn: string | readonly string[] | undefined,
-): SsrmRowFlattener | null {
-  const paths = collectSsrmFlattenPaths(columnDefinitions, keyColumn);
+): FlatRowFlattener | null {
+  const paths = collectFlatRowPaths(columnDefinitions, keyColumn);
   if (paths.length === 0) return null;
 
   return (row: unknown): Record<string, unknown> => {

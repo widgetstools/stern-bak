@@ -72,7 +72,7 @@ function makeHost() {
   return { host, tables };
 }
 
-/** A nested path is deliberately included — that is what `ssrm` flatten is for. */
+/** A nested path is deliberately included — that is what the flat shape is for. */
 const COLS: ColumnDefinition[] = [
   { field: 'id', headerName: 'Id' },
   { field: 'cusip', headerName: 'CUSIP' },
@@ -135,7 +135,7 @@ describe('startMockPerspective', () => {
    * positions row is deeply nested, and `observeRows` reports nested columns
    * and drops them — a Table with a fraction of its columns and no error.
    */
-  it("defaults rowShape to 'ssrm' so rows reach the Table flat", async () => {
+  it("defaults rowShape to 'flat' so rows reach the Table flat", async () => {
     reset();
     const { host } = makeHost();
     const rows: Record<string, unknown>[] = [];
@@ -144,7 +144,7 @@ describe('startMockPerspective', () => {
     }, { perspectiveHost: host, ...makeTicker().opts });
     await settle();
 
-    expect(spy.cfgs[0]!.rowShape).toBe('ssrm');
+    expect(spy.cfgs[0]!.rowShape).toBe('flat');
     // The nested path arrived as a literal flat key, not as an object.
     expect(Object.keys(rows[0]!).sort()).toEqual(['cusip', 'id', 'ratings.moodys.rating']);
     expect(typeof rows[0]!['ratings.moodys.rating']).toBe('string');
@@ -192,17 +192,17 @@ describe('startMockPerspective', () => {
     }
   });
 
-  it('lets a config ask for csrm explicitly, and then builds no Table', () => {
+  it('lets a config ask for the nested shape explicitly, and then builds no Table', () => {
     reset();
     const { host } = makeHost();
     const onDiagnostic = vi.fn();
-    const handle = startMockPerspective(baseCfg({ rowShape: 'csrm' }), () => {}, {
+    const handle = startMockPerspective(baseCfg({ rowShape: 'nested' }), () => {}, {
       perspectiveHost: host,
       onDiagnostic,
       ...makeTicker().opts,
     });
 
-    expect(spy.cfgs[0]!.rowShape).toBe('csrm');
+    expect(spy.cfgs[0]!.rowShape).toBe('nested');
     // Refused loudly rather than served short.
     expect(handle.feed).toBeNull();
     expect(onDiagnostic).toHaveBeenCalledWith(
