@@ -4,13 +4,14 @@ import react from '@vitejs/plugin-react';
 import { coverage } from '../../scripts/vitestCoverage.mjs';
 
 /**
- * Vitest config for `@wellsfargo-starui/grid` (grid + config-browser + widgets-react).
+ * Vitest config for `@wellsfargo-starui/grid` (grid + config-browser +
+ * widgets-react + perspective-grid).
  *
- * Each former member kept a materially different test setup (globals, setupFiles,
+ * Each subfolder keeps a materially different test setup (globals, setupFiles,
  * pool), so this uses `test.projects` instead of one flat config — each project
  * gets its own `root`, which is what setupFiles/include below resolve against.
  * Coverage is collected once for the whole run from the top-level `coverage` block
- * (Vitest ignores per-project coverage overrides), spanning all three src trees.
+ * (Vitest ignores per-project coverage overrides), spanning every src tree.
  */
 export default defineConfig({
   test: {
@@ -20,6 +21,7 @@ export default defineConfig({
           'grid/src/**/*.{ts,tsx}',
           'config-browser/src/**/*.{ts,tsx}',
           'widgets-react/src/**/*.{ts,tsx}',
+          'perspective-grid/src/**/*.{ts,tsx}',
         ],
         exclude: ['grid/src/**/test/**'],
       }),
@@ -107,6 +109,22 @@ export default defineConfig({
           // Each test file gets its own module graph — prevents vi.mock collisions
           // on shared packages like `@wellsfargo-starui/react/data/runtime`.
           pool: 'forks',
+        },
+      },
+      {
+        extends: true,
+        // The engine modules are pure logic and run fine under node, but
+        // `usePerspectiveTable` is a React hook — it needs a DOM to render into
+        // and the React plugin to transform its `.tsx` test.
+        plugins: [react()],
+        resolve: { dedupe: ['react', 'react-dom'] },
+        test: {
+          name: 'perspective-grid',
+          root: './perspective-grid',
+          environment: 'jsdom',
+          globals: true,
+          include: ['src/**/*.test.{ts,tsx}'],
+          css: false,
         },
       },
     ],

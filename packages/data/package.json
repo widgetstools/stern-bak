@@ -42,7 +42,7 @@
     "typecheck": "tsc --noEmit --project host-data/tsconfig.json",
     "test": "vitest run"
   },
-  "//dependencies-registry-notes": "@perspective-dev/client pinned to 4.5.2 (not latest): every worker-side invariant in perspective/*.ts and the perspective-grid package's ARCHITECTURE.md (view-lifecycle crashes, expression-language quirks, schema-coercion behaviour) was measured against 4.5.2 specifically. Bump only after re-running that measurement pass against the new version.",
+  "//dependencies-registry-notes": "@perspective-dev/client pinned to 4.5.2 (not latest): every invariant recorded in host-data/src/runtime/perspective/*.ts and in the window-side row engine (packages/react-grid/perspective-grid/src — view-lifecycle crashes, expression-language quirks, schema-coercion behaviour) was measured against 4.5.2 specifically. The two packages must move together, and only after re-running that measurement pass against the new version.",
   "dependencies": {
     "@perspective-dev/client": "4.5.2",
     "@stomp/stompjs": "^7.3.0",

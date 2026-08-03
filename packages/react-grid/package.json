@@ -53,16 +53,22 @@
     "./widgets/hosted": {
       "types": "./widgets-react/dist/hosted/index.d.ts",
       "import": "./widgets-react/dist/hosted/index.js"
+    },
+    "./perspective": {
+      "types": "./perspective-grid/dist/index.d.ts",
+      "import": "./perspective-grid/dist/index.js",
+      "require": "./perspective-grid/dist/index.js"
     }
   },
   "files": [
     "grid/dist",
     "config-browser/dist",
-    "widgets-react/dist"
+    "widgets-react/dist",
+    "perspective-grid/dist"
   ],
   "scripts": {
-    "build": "rimraf grid/dist grid/tsconfig.tsbuildinfo config-browser/dist config-browser/tsconfig.tsbuildinfo widgets-react/dist widgets-react/tsconfig.tsbuildinfo && tsc --project grid/tsconfig.build.json && node grid/scripts/copy-assets.mjs && tsc --project config-browser/tsconfig.build.json && node config-browser/scripts/copy-assets.mjs && tsc --project widgets-react/tsconfig.json",
-    "typecheck": "tsc --noEmit --project grid/tsconfig.json && tsc --noEmit --project config-browser/tsconfig.json && tsc --noEmit --project widgets-react/tsconfig.json",
+    "build": "rimraf grid/dist grid/tsconfig.tsbuildinfo config-browser/dist config-browser/tsconfig.tsbuildinfo widgets-react/dist widgets-react/tsconfig.tsbuildinfo perspective-grid/dist perspective-grid/tsconfig.tsbuildinfo && tsc --project grid/tsconfig.build.json && node grid/scripts/copy-assets.mjs && tsc --project config-browser/tsconfig.build.json && node config-browser/scripts/copy-assets.mjs && tsc --project widgets-react/tsconfig.json && tsc --project perspective-grid/tsconfig.json",
+    "typecheck": "tsc --noEmit --project grid/tsconfig.json && tsc --noEmit --project config-browser/tsconfig.json && tsc --noEmit --project widgets-react/tsconfig.json && tsc --noEmit --project perspective-grid/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "soak:value-getter": "npx cross-env SOAK=1 NODE_OPTIONS=--expose-gc vitest run widgets-react/src/container/markets-grid-container/valueGetter.soak.test.ts --no-file-parallelism"
@@ -76,8 +82,10 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
+  "//dependencies-registry-notes": "@perspective-dev/client pinned to 4.5.2 (not latest), the same pin @wellsfargo-starui/data carries: the window-side row engine in perspective-grid/ encodes behaviour measured against 4.5.2 specifically — the uncatchable wasm borrow error on deleting a View mid-read, `table.update()` coercing rather than rejecting a mistyped value, `not()` compiling clean but evaluating wrong inside and/or/if, and row 0 of a grouped View being the level total. Both packages must move together, and only after re-running that measurement pass.",
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
+    "@perspective-dev/client": "4.5.2",
     "@codemirror/commands": "^6.10.4",
     "@codemirror/language": "^6.12.4",
     "@codemirror/lint": "^6.9.7",
@@ -98,6 +106,7 @@
     "lucide-react": "^0.554.0"
   },
   "devDependencies": {
+    "@perspective-dev/client": "4.5.2",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
