@@ -714,6 +714,35 @@ export function getDefaultProviderConfig(type: ProviderType): Partial<ProviderCo
   return { ...DEFAULT_PROVIDER_CONFIGS[type] };
 }
 
+/** True for the provider types whose book is hosted as a Perspective Table. */
+export function isPerspectiveProviderType(type: string | undefined): boolean {
+  return type === PROVIDER_TYPES.STOMP_PERSPECTIVE || type === PROVIDER_TYPES.MOCK_PERSPECTIVE;
+}
+
+/**
+ * Why this `keyColumn` cannot index a Perspective Table — or `null` when it can.
+ *
+ * A Perspective Table is indexed by ONE scalar column. Anything else has no
+ * Table equivalent, so the transports skip Table creation entirely rather than
+ * index on the first column and let rows collide, and the worker refuses the
+ * attach. Both of those are discovered at RUNTIME, by which point the provider
+ * is silently push-only and the blotter shows a refusal.
+ *
+ * This lives in the foundation layer so the provider editor can say the same
+ * sentence at authoring time that the worker would say at attach time. Two
+ * phrasings of one rule is how a user learns to distrust both.
+ */
+export function describePerspectiveKeyColumnRefusal(
+  providerLabel: string,
+  keyColumn: string | readonly string[] | undefined,
+): string | null {
+  if (typeof keyColumn === 'string' && keyColumn.length > 0) return null;
+  return Array.isArray(keyColumn)
+    ? `Provider '${providerLabel}' has a composite keyColumn `
+      + `[${keyColumn.join(', ')}], which cannot index a Perspective Table.`
+    : `Provider '${providerLabel}' has no keyColumn, which a Perspective Table needs to index on.`;
+}
+
 /**
  * Validate provider configuration
  */

@@ -8,7 +8,9 @@ import {
   PROVIDER_TYPE_TO_COMPONENT_SUBTYPE,
   __resetPathAccessorCaches,
   composeRowId,
+  describePerspectiveKeyColumnRefusal,
   getDefaultProviderConfig,
+  isPerspectiveProviderType,
   getPathAccessor,
   getPathSetter,
   getValueByPath,
@@ -367,5 +369,40 @@ describe('composeRowId', () => {
 
   it('collapses to the single-column path once blanks are trimmed away', () => {
     expect(composeRowId({ a: 'A' }, ['a', '  '])).toBe('A');
+  });
+});
+
+/**
+ * The wording lives here, in the foundation layer, so the provider editor can
+ * say at authoring time exactly what the worker would say at attach time. Two
+ * phrasings of one rule teaches a user to distrust both, so these strings are
+ * pinned.
+ */
+describe('describePerspectiveKeyColumnRefusal', () => {
+  it('accepts a single scalar key column', () => {
+    expect(describePerspectiveKeyColumnRefusal('p1', 'positionId')).toBeNull();
+  });
+
+  it('names the columns of a composite key', () => {
+    expect(describePerspectiveKeyColumnRefusal('p1', ['book', 'positionId'])).toBe(
+      "Provider 'p1' has a composite keyColumn [book, positionId], which cannot index a Perspective Table.",
+    );
+  });
+
+  it('refuses a missing or empty key column', () => {
+    const expected =
+      "Provider 'p1' has no keyColumn, which a Perspective Table needs to index on.";
+    expect(describePerspectiveKeyColumnRefusal('p1', undefined)).toBe(expected);
+    expect(describePerspectiveKeyColumnRefusal('p1', '')).toBe(expected);
+  });
+});
+
+describe('isPerspectiveProviderType', () => {
+  it('is true for exactly the two Table-hosted types', () => {
+    expect(isPerspectiveProviderType('stomp-perspective')).toBe(true);
+    expect(isPerspectiveProviderType('mock-perspective')).toBe(true);
+    expect(isPerspectiveProviderType('stomp')).toBe(false);
+    expect(isPerspectiveProviderType('mock')).toBe(false);
+    expect(isPerspectiveProviderType(undefined)).toBe(false);
   });
 });
