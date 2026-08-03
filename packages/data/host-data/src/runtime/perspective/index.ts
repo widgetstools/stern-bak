@@ -27,6 +27,22 @@ export {
   createPerspectiveTableFeed,
   type PerspectiveTableFeed,
   type PerspectiveTableFeedOpts,
+  type PerspectiveFieldShadow,
   type FeedTable,
   type FeedDiagnostic,
 } from './perspectiveTableFeed.js';
+
+export {
+  createPerspectiveQueryEngine,
+  queryRegistryKey,
+  toQueryViewConfig,
+  DEFAULT_RECOMPUTE_THROTTLE_MS,
+  DEFAULT_DISTINCT_VALUES_LIMIT,
+  DEFAULT_MATCH_SET_SNAPSHOT_CAP,
+  type PerspectiveQueryEngine,
+  type PerspectiveQueryEngineOpts,
+  type PerspectiveQuerySource,
+  type PerspectiveQuerySubscription,
+  type PerspectiveChangeSource,
+  type QueryTableLike,
+} from './perspectiveQueryEngine.js';

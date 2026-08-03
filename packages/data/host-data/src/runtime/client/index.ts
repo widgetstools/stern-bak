@@ -15,4 +15,5 @@ export {
   type SubId,
   type InPageWiring,
   type PerspectiveAttachOutcome,
+  type PerspectiveQueryHandle,
 } from './SharedWorkerDataServicesClient.js';

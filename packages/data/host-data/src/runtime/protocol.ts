@@ -11,7 +11,14 @@
  * late-joiner race that v1 needed cache replay to patch over.
  */
 
-import type { DataProviderConfig, ProviderConfig, ProviderStatus, ProviderType } from '@wellsfargo-starui/types';
+import type {
+  DataProviderConfig,
+  PerspectiveQueryResult,
+  PerspectiveQuerySpec,
+  ProviderConfig,
+  ProviderStatus,
+  ProviderType,
+} from '@wellsfargo-starui/types';
 
 // ─── AppData row shape (mirrors AppDataConfig from probes/appdata) ─
 
@@ -369,6 +376,29 @@ export interface PerspectiveAttachRequest {
   providerId: string;
 }
 
+/**
+ * Standing subscription to a whole-book question, answered by the worker's
+ * query engine and pushed back as `perspective-query-result`.
+ *
+ * ONE message family serves saved-filter badges, header-paint match counts,
+ * set-filter values and alert rules, because they are the same thing: a
+ * question over a Table, re-evaluated when the Table changes. The engine
+ * keys its registry on what the query TRANSLATES to, so two windows asking
+ * the same thing share one View — which is the reason this rides the worker
+ * at all rather than each window scanning for itself.
+ */
+export interface PerspectiveQuerySubscribeRequest {
+  kind: 'perspective-query-subscribe';
+  subId: string;
+  providerId: string;
+  query: PerspectiveQuerySpec;
+}
+
+export interface PerspectiveQueryUnsubscribeRequest {
+  kind: 'perspective-query-unsubscribe';
+  subId: string;
+}
+
 /** Deployment fields the SharedWorker's ConfigManager is constructed from. */
 export interface WorkerBootstrapPayload {
   appId: string;
@@ -405,7 +435,9 @@ export type Request =
   | RefreshProviderRequest
   | HubIntrospectRequest
   | ProviderRunningRequest
-  | PerspectiveAttachRequest;
+  | PerspectiveAttachRequest
+  | PerspectiveQuerySubscribeRequest
+  | PerspectiveQueryUnsubscribeRequest;
 
 // ─── Worker → Client events ────────────────────────────────────────
 
@@ -653,7 +685,18 @@ export interface PerspectiveAttachResultEvent {
   reason?: string;
 }
 
-export type PerspectiveEvent = PerspectiveAttachResultEvent;
+/**
+ * One answer to a standing query subscription. Pushed — the window never
+ * asks again after subscribing, which is the whole point: the six answers
+ * this protocol carries used to cost a per-window poll each.
+ */
+export interface PerspectiveQueryResultEvent {
+  kind: 'perspective-query-result';
+  subId: string;
+  result: PerspectiveQueryResult;
+}
+
+export type PerspectiveEvent = PerspectiveAttachResultEvent | PerspectiveQueryResultEvent;
 
 // ─── Type guards ───────────────────────────────────────────────────
 
@@ -692,7 +735,9 @@ export function isRequest(value: unknown): value is Request {
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
     k === 'provider-running' ||
-    k === 'perspective-attach'
+    k === 'perspective-attach' ||
+    k === 'perspective-query-subscribe' ||
+    k === 'perspective-query-unsubscribe'
   );
 }
 
@@ -737,7 +782,8 @@ export function isAppDataRequest(value: unknown): value is AppDataRequest {
  */
 export function isPerspectiveEvent(value: unknown): value is PerspectiveEvent {
   if (!value || typeof value !== 'object') return false;
-  return (value as { kind?: string }).kind === 'perspective-attach-result';
+  const k = (value as { kind?: string }).kind;
+  return k === 'perspective-attach-result' || k === 'perspective-query-result';
 }
 
 export function isAppDataEvent(value: unknown): value is AppDataEvent {

@@ -4,7 +4,7 @@
  * One engine and one Table per provider serve every blotter window: a window
  * opens a View against a Table it did not create and reads only the rows its
  * viewport asks for, instead of being sent the whole book. That is the entire
- * point of the pull path — see `packages/react-grid/perspective-grid/ARCHITECTURE.md`.
+ * point of the pull path.
  *
  * Roles, forced by the runtime:
  *
@@ -31,7 +31,7 @@ export interface HostClientLike {
   table(
     schema: unknown,
     options: { index?: string; name?: string },
-  ): Promise<HostTableLike & { clear?(): Promise<void> }>;
+  ): Promise<HostTableLike & { clear?(): Promise<void>; view?(config: unknown): Promise<unknown> }>;
   new_proxy_session(onResponse: (response: Uint8Array) => void): ProxySessionLike;
   get_hosted_table_names?(): Promise<string[]>;
 }
@@ -46,6 +46,12 @@ export interface HostTableLike {
    * on the wrapper in `tableFactoryFor`.
    */
   clear?(): Promise<void>;
+  /**
+   * Build a View on the host side, for the worker's own query engine.
+   * Optional: a Table that only ever serves attached windows never needs it,
+   * and every test fake would otherwise have to implement it.
+   */
+  view?(config: unknown): Promise<unknown>;
 }
 
 export interface ProxySessionLike {
@@ -91,6 +97,19 @@ export interface PerspectiveHost {
    */
   attach(port: FramePortLike | MessagePort): Promise<void>;
   hostedTableNames(): Promise<string[]>;
+  /** The hosted Table, for the worker's own query engine. Null if not built. */
+  getTable(name: string): HostTableLike | null;
+  /**
+   * Fire whenever rows land in the named Table. Returns an unsubscribe.
+   *
+   * Taken from the host's own `update()` wrapper rather than from a
+   * `Table.on_update` callback: the wrapper is code we own and is exact by
+   * construction, where the engine's own update callbacks live on VIEWS in
+   * 4.5.2 and would mean building a throwaway View just to learn that the
+   * book changed. Registering before the Table exists is legal — the
+   * listener simply fires from the first update onward.
+   */
+  onTableUpdate(name: string, listener: () => void): () => void;
   readonly attachedPorts: number;
   stop(): Promise<void>;
 }
@@ -121,7 +140,22 @@ export function createPerspectiveHost(opts: PerspectiveHostOpts): PerspectiveHos
   let clientPromise: Promise<HostClientLike> | null = null;
   const sessions: ProxySessionLike[] = [];
   const tables = new Map<string, HostTableLike>();
+  /** Per-table-name update listeners — see `onTableUpdate`. */
+  const updateListeners = new Map<string, Set<() => void>>();
   let stopped = false;
+
+  function notifyUpdate(name: string): void {
+    const listeners = updateListeners.get(name);
+    if (!listeners) return;
+    for (const listener of [...listeners]) {
+      try {
+        listener();
+      } catch (err) {
+        // One subscriber's throw must not stop the rest from being told.
+        onError('table', err);
+      }
+    }
+  }
 
   function hostClient(): Promise<HostClientLike> {
     if (clientPromise === null) {
@@ -157,8 +191,14 @@ export function createPerspectiveHost(opts: PerspectiveHostOpts): PerspectiveHos
         // whoever calls first wins.
         let deleted = false;
         const owned: HostTableLike = {
-          update: (rows: unknown) => table.update(rows),
+          update: async (rows: unknown) => {
+            await table.update(rows);
+            // AFTER the write lands, so a query engine recompute triggered
+            // here reads the book that includes it.
+            notifyUpdate(name);
+          },
           size: table.size ? () => table.size!() : undefined,
+          view: table.view ? (config: unknown) => table.view!(config) : undefined,
           // MEASURED: omitting this is not a missing convenience, it silently
           // changes the restart path. The feed asks `typeof table.clear ===
           // 'function'` to decide whether a declared-schema Table can survive
@@ -228,6 +268,25 @@ export function createPerspectiveHost(opts: PerspectiveHostOpts): PerspectiveHos
       return (await client.get_hosted_table_names?.()) ?? [...tables.keys()];
     },
 
+    getTable(name: string): HostTableLike | null {
+      return tables.get(name) ?? null;
+    },
+
+    onTableUpdate(name: string, listener: () => void): () => void {
+      let listeners = updateListeners.get(name);
+      if (!listeners) {
+        listeners = new Set();
+        updateListeners.set(name, listeners);
+      }
+      listeners.add(listener);
+      return () => {
+        const set = updateListeners.get(name);
+        if (!set) return;
+        set.delete(listener);
+        if (set.size === 0) updateListeners.delete(name);
+      };
+    },
+
     get attachedPorts() {
       return sessions.length;
     },
@@ -242,6 +301,7 @@ export function createPerspectiveHost(opts: PerspectiveHostOpts): PerspectiveHos
         await table.delete().catch(() => {});
       }
       tables.clear();
+      updateListeners.clear();
     },
   };
 }

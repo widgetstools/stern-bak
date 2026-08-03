@@ -236,4 +236,16 @@ export interface SharedWorkerDataServicesHubOpts {
    * shared by every attached window.
    */
   loadPerspective?: () => Promise<import('../perspective/perspectiveHost.js').PerspectiveModuleLike>;
+
+  /**
+   * Tuning for the worker-side query engine — recompute throttle, set-filter
+   * value ceiling, `matchSet` snapshot cap, and the expression engine
+   * `dataChange` alert rules need. Only consulted when `loadPerspective` is
+   * present; without an engine there is nothing to query. `onError` is
+   * supplied by the hub and cannot be overridden here.
+   */
+  perspectiveQueries?: Omit<
+    import('../perspective/perspectiveQueryEngine.js').PerspectiveQueryEngineOpts,
+    'onError'
+  >;
 }

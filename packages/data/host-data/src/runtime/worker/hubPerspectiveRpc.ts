@@ -17,9 +17,20 @@
 import type {
   PerspectiveAttachRequest,
   PerspectiveAttachResultEvent,
+  PerspectiveQueryResultEvent,
+  PerspectiveQuerySubscribeRequest,
+  PerspectiveQueryUnsubscribeRequest,
   ProviderConfig,
 } from '../protocol.js';
-import type { PerspectiveHost } from '../perspective/index.js';
+import {
+  createPerspectiveHost,
+  createPerspectiveQueryEngine,
+  type PerspectiveHost,
+  type PerspectiveQueryEngine,
+  type PerspectiveQuerySource,
+  type QueryTableLike,
+} from '../perspective/index.js';
+import type { SharedWorkerDataServicesHubOpts } from './hubTypes.js';
 import type { PerspectiveTeeHandle } from '../providers/transports/perspectiveTee.js';
 import type { PortLike, ProviderSlot } from './hubTypes.js';
 
@@ -42,6 +53,38 @@ export interface PerspectiveRpcContext {
   getSlot(providerId: string): ProviderSlot | undefined;
   /** Catalog row for a provider, used when no slot is running yet. */
   getCatalogConfig(providerId: string): ProviderConfig | null;
+  /** Null alongside a null `host` — no engine, no queries to run. */
+  queries: PerspectiveQueryEngine | null;
+}
+
+/**
+ * Build the worker's Perspective subsystem, or nothing at all.
+ *
+ * Both halves stand or fall together: with no engine there is no Table to
+ * open and no book to query, so `queries` is non-null exactly when `host`
+ * is. Constructing neither is the default — the standard worker entry passes
+ * no `loadPerspective`, and the inline build's wasm is megabytes an app that
+ * never opens a blotter should not pay for.
+ *
+ * Lives here rather than in the hub constructor because the hub's own header
+ * says it is orchestration and its subsystems live in sibling modules.
+ */
+export function createPerspectiveSubsystem(opts: SharedWorkerDataServicesHubOpts): {
+  host: PerspectiveHost | null;
+  queries: PerspectiveQueryEngine | null;
+} {
+  if (!opts.loadPerspective) return { host: null, queries: null };
+  const report = (label: string) => (stage: string, err: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error(`[hub] perspective ${label}${stage} error`, err);
+  };
+  return {
+    host: createPerspectiveHost({ loadPerspective: opts.loadPerspective, onError: report('') }),
+    queries: createPerspectiveQueryEngine({
+      ...opts.perspectiveQueries,
+      onError: report('query '),
+    }),
+  };
 }
 
 type FeedLike = NonNullable<PerspectiveTeeHandle['feed']>;
@@ -192,4 +235,85 @@ export async function handlePerspectiveAttach(
     } satisfies PerspectiveAttachResultEvent,
     [channel.port2],
   );
+}
+
+// ─── Query subscriptions ────────────────────────────────────────────
+
+function pushResult(port: PortLike, subId: string, result: PerspectiveQueryResultEvent['result']): void {
+  try {
+    port.postMessage({ kind: 'perspective-query-result', subId, result } satisfies PerspectiveQueryResultEvent);
+  } catch {
+    // Dead port — `releaseOwner` on disconnect is what actually cleans up;
+    // failing here must not take down the engine's publish loop for the
+    // windows that are still listening.
+  }
+}
+
+/**
+ * Resolve everything the query engine needs to serve one provider: the
+ * hosted Table, its index column, the update signal, and — only when the
+ * provider actually has one — the feed's field-change shadow.
+ */
+export function resolveQuerySource(
+  ctx: PerspectiveRpcContext,
+  providerId: string,
+): PerspectiveQuerySource | { error: string } {
+  const resolved = resolvePerspectiveTable(ctx, providerId);
+  if (!resolved.ok) return { error: resolved.reason };
+  const host = ctx.host;
+  if (!host) return { error: 'This SharedWorker hosts no Perspective engine.' };
+
+  const table = host.getTable(resolved.tableName);
+  if (!table || typeof table.view !== 'function') {
+    return {
+      error: `Table '${resolved.tableName}' cannot build Views in this worker, so `
+        + 'whole-book queries cannot be answered here.',
+    };
+  }
+
+  const keyColumn = (ctx.getSlot(providerId)?.cfg as { keyColumn?: string }).keyColumn!;
+  return {
+    tableName: resolved.tableName,
+    // The optional `view` was just narrowed; the engine's contract requires it.
+    table: table as unknown as QueryTableLike,
+    keyColumn,
+    onUpdate: (cb) => host.onTableUpdate(resolved.tableName, cb),
+    changes: resolved.feed.changes,
+  };
+}
+
+export function handlePerspectiveQuerySubscribe(
+  ctx: PerspectiveRpcContext,
+  port: PortLike,
+  req: PerspectiveQuerySubscribeRequest,
+): void {
+  if (!ctx.queries) {
+    pushResult(port, req.subId, {
+      kind: 'refused',
+      reason: 'This SharedWorker hosts no Perspective engine, so it can answer no '
+        + 'whole-book queries.',
+    });
+    return;
+  }
+  const source = resolveQuerySource(ctx, req.providerId);
+  if ('error' in source) {
+    pushResult(port, req.subId, { kind: 'refused', reason: source.error });
+    return;
+  }
+  ctx.queries.subscribe({
+    subId: req.subId,
+    // The port IS the window, so a disconnect can drop every subscription it
+    // owned without the hub keeping a second index of them.
+    owner: port,
+    source,
+    query: req.query,
+    onResult: (result) => pushResult(port, req.subId, result),
+  });
+}
+
+export function handlePerspectiveQueryUnsubscribe(
+  ctx: PerspectiveRpcContext,
+  req: PerspectiveQueryUnsubscribeRequest,
+): void {
+  ctx.queries?.unsubscribe(req.subId);
 }

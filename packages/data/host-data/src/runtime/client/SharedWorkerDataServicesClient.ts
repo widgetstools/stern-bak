@@ -50,7 +50,13 @@ import type {
 } from '../protocol.js';
 import { SUBSCRIBER_PING_INTERVAL_MS } from '../worker/hubTypes.js';
 import { isCatalogEvent, isEvent, isAppDataEvent, isPerspectiveEvent } from '../protocol.js';
-import { composeRowId, type DataProviderConfig, type ProviderConfig } from '@wellsfargo-starui/types';
+import {
+  composeRowId,
+  type DataProviderConfig,
+  type PerspectiveQueryResult,
+  type PerspectiveQuerySpec,
+  type ProviderConfig,
+} from '@wellsfargo-starui/types';
 import { decodeColumnar } from '../wire/columnarCodec.js';
 import type { ListOptions } from '../config/store.js';
 import { AppDataMirror } from '../mirror/AppDataMirror.js';
@@ -179,6 +185,12 @@ export type PerspectiveAttachOutcome =
   | { ok: true; port: MessagePort; tableName: string }
   | { ok: false; reason: string };
 
+/** Handle for one standing whole-book query subscription. */
+export interface PerspectiveQueryHandle {
+  subId: SubId;
+  unsubscribe(): void;
+}
+
 export interface SharedWorkerDataServicesClientOpts {
   /** Inject for tests. Default: `() => crypto.randomUUID()`. */
   generateSubId?: () => string;
@@ -206,6 +218,10 @@ export class SharedWorkerDataServicesClient {
   private readonly perspectivePending = new Map<
     string,
     (outcome: PerspectiveAttachOutcome) => void
+  >();
+  private readonly perspectiveQuerySinks = new Map<
+    SubId,
+    (result: PerspectiveQueryResult) => void
   >();
   private readonly catalogReadyWaiters: Array<() => void> = [];
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
@@ -667,6 +683,41 @@ export class SharedWorkerDataServicesClient {
     });
   }
 
+  /**
+   * Subscribe to a whole-book question answered in the worker — how many
+   * rows match a filter, a column's distinct values, which rows just tripped
+   * an alert. Results are PUSHED; the window never polls.
+   *
+   * Two windows asking the same question share one View in the worker, so
+   * the cost of a second blotter watching the same saved filter is a
+   * callback, not a second full-book scan.
+   *
+   * A question the engine cannot answer arrives as
+   * `{ kind: 'refused', reason }` on the same callback rather than throwing
+   * — every one of them is a condition the caller has to render anyway.
+   */
+  subscribePerspectiveQuery(
+    providerId: string,
+    query: PerspectiveQuerySpec,
+    onResult: (result: PerspectiveQueryResult) => void,
+  ): PerspectiveQueryHandle {
+    const subId = this.generateSubId();
+    if (this.closed) {
+      onResult({ kind: 'refused', reason: '[SharedWorkerDataServicesClient] client is closed' });
+      return { subId, unsubscribe: () => {} };
+    }
+    this.perspectiveQuerySinks.set(subId, onResult);
+    this.send({ kind: 'perspective-query-subscribe', subId, providerId, query });
+    return {
+      subId,
+      unsubscribe: () => {
+        if (!this.perspectiveQuerySinks.delete(subId)) return;
+        if (this.closed) return;
+        this.send({ kind: 'perspective-query-unsubscribe', subId });
+      },
+    };
+  }
+
   /** Live SharedWorker hub diagnostics (providers, subscribers, cache sizes). */
   async getHubIntrospect(): Promise<HubIntrospectSnapshot> {
     const snap = await this.rpcCatalog({ kind: 'hub-introspect' });
@@ -768,6 +819,7 @@ export class SharedWorkerDataServicesClient {
       resolve({ ok: false, reason: '[SharedWorkerDataServicesClient] client closed' });
     }
     this.perspectivePending.clear();
+    this.perspectiveQuerySinks.clear();
     for (const resolve of this.catalogReadyWaiters) resolve();
     this.catalogReadyWaiters.length = 0;
     this.catalogChangeListeners.clear();
@@ -1027,6 +1079,12 @@ export class SharedWorkerDataServicesClient {
   }
 
   private routePerspectiveEvent(event: PerspectiveEvent, port: MessagePort | null): void {
+    if (event.kind === 'perspective-query-result') {
+      // A result for a subscription this window already dropped: the
+      // unsubscribe and the push crossed on the wire. Nothing to do.
+      this.perspectiveQuerySinks.get(event.subId)?.(event.result);
+      return;
+    }
     const resolve = this.perspectivePending.get(event.reqId);
     if (!resolve) {
       // Nobody is waiting (the caller gave up, or the client closed). The

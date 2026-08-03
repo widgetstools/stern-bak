@@ -22,6 +22,7 @@
  * outlier row can flip a column's inferred type). So snapshot rows are
  * buffered, and the Table is built when the provider says `ready`.
  */
+import type { PerspectiveRowFieldChange } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderEmitEvent } from '../providers/Provider.js';
 import {
   observeRows,
@@ -77,9 +78,40 @@ export interface PerspectiveTableFeedOpts {
   onDiagnostic?(diagnostic: FeedDiagnostic): void;
 }
 
+/**
+ * Before/after values for the fields something is actually watching.
+ *
+ * This exists because an upsert Table cannot answer "what did this cell
+ * used to be" — `update()` REPLACES the row, so by the time any View could
+ * be read the previous value is gone. Alert rules of the `dataChange` /
+ * `relativeChange` families need exactly that, so the feed keeps a shadow
+ * of the values as they arrive and diffs against it before each write.
+ *
+ * Scoped to WATCHED FIELDS ONLY, deliberately: shadowing whole rows would
+ * double the worker's memory for the book to serve a handful of rules, and
+ * nothing here needs the columns nobody asked about. With no watchers the
+ * map stays empty and the diff is one early return per batch.
+ */
+export interface PerspectiveFieldShadow {
+  /**
+   * Start shadowing these fields. Refcounted — two rules watching `price`
+   * keep one shadow, and releasing one does not blind the other. The
+   * returned function drops this watcher's claim.
+   */
+  watch(fields: readonly string[]): () => void;
+  /** Field changes, batched per ingest. Returns an unsubscribe. */
+  onChanges(cb: (changes: readonly PerspectiveRowFieldChange[]) => void): () => void;
+  /** Fields currently shadowed — for diagnostics and tests. */
+  readonly watchedFields: readonly string[];
+  /** Rows currently shadowed — for diagnostics and tests. */
+  readonly shadowedRows: number;
+}
+
 export interface PerspectiveTableFeed {
   /** Wrap a `ProviderEmit`. The returned emit forwards everything untouched. */
   tap(emit: ProviderEmit): ProviderEmit;
+  /** Previous-value tracking for change rules — see {@link PerspectiveFieldShadow}. */
+  readonly changes: PerspectiveFieldShadow;
   /** The Table once built, else null. */
   readonly table: FeedTable | null;
   /** The schema the Table was built with, else null. */
@@ -119,6 +151,62 @@ export function createPerspectiveTableFeed(
   const ready = new Promise<FeedTable>((resolve) => {
     resolveReady = resolve;
   });
+
+  /** Field -> number of watchers. Empty means the shadow costs nothing. */
+  const watchCounts = new Map<string, number>();
+  /** key -> watched field -> last seen value. */
+  let shadow = new Map<string, Map<string, unknown>>();
+  const changeListeners = new Set<(changes: readonly PerspectiveRowFieldChange[]) => void>();
+
+  /**
+   * Diff the incoming rows against the shadow, then advance it.
+   *
+   * Runs BEFORE the rows are handed to `table.update()` — after the write
+   * the old value is unrecoverable, which is the entire reason this map
+   * exists. A key seen for the FIRST time only seeds: a row appearing is
+   * not a row changing, and treating it as one would fire every enabled
+   * rule against the whole book on load.
+   */
+  function trackChanges(rows: readonly unknown[]): void {
+    // `watch()` alone decides what is retained, not whether anyone is
+    // listening yet: a listener registering after the first rows landed
+    // would otherwise see its first tick as a fresh row rather than a change.
+    if (watchCounts.size === 0) return;
+    const batch: PerspectiveRowFieldChange[] = [];
+    for (const raw of rows) {
+      if (raw === null || typeof raw !== 'object') continue;
+      const row = raw as Record<string, unknown>;
+      const keyValue = row[keyColumn];
+      if (keyValue === null || keyValue === undefined) continue;
+      const key = String(keyValue);
+      let previous = shadow.get(key);
+      if (previous === undefined) {
+        previous = new Map();
+        shadow.set(key, previous);
+      }
+      for (const field of watchCounts.keys()) {
+        if (!(field in row)) continue;
+        const newValue = row[field];
+        const had = previous.has(field);
+        const oldValue = previous.get(field);
+        previous.set(field, newValue);
+        if (!had || Object.is(oldValue, newValue)) continue;
+        batch.push({ key, field, oldValue, newValue, row });
+      }
+    }
+    if (batch.length === 0 || changeListeners.size === 0) return;
+    for (const listener of [...changeListeners]) {
+      try {
+        listener(batch);
+      } catch (err) {
+        onDiagnostic({
+          kind: 'error',
+          stage: 'update',
+          message: String((err as Error)?.message ?? err),
+        });
+      }
+    }
+  }
 
   const enqueue = (work: () => Promise<void>): void => {
     queue = queue.then(work).catch((err) => {
@@ -268,6 +356,10 @@ export function createPerspectiveTableFeed(
       // rows into the new book is silent corruption.
       buffer = [];
       observations = new Map();
+      // A fresh book has no history: diffing the new snapshot against the
+      // old one would report every row as changed, which is the opposite of
+      // what a change rule means.
+      shadow = new Map();
 
       if (table !== null && declaredSchema && typeof table.clear === 'function') {
         // The schema is known independently of the data, so the Table itself
@@ -295,6 +387,10 @@ export function createPerspectiveTableFeed(
     }
 
     if (rows.length === 0) return;
+
+    // Before anything is buffered or written. `enqueue` defers the actual
+    // `table.update()`, so doing this later would race the write.
+    trackChanges(rows);
 
     if (table === null) {
       // Everything before the Table exists is buffered, whether it was
@@ -335,6 +431,46 @@ export function createPerspectiveTableFeed(
     },
     whenReady: () => ready,
 
+    changes: {
+      get watchedFields() {
+        return [...watchCounts.keys()];
+      },
+      get shadowedRows() {
+        return shadow.size;
+      },
+      watch(fields: readonly string[]): () => void {
+        const claimed = [...new Set(fields)];
+        for (const field of claimed) {
+          watchCounts.set(field, (watchCounts.get(field) ?? 0) + 1);
+        }
+        let released = false;
+        return () => {
+          if (released) return;
+          released = true;
+          for (const field of claimed) {
+            const next = (watchCounts.get(field) ?? 1) - 1;
+            if (next > 0) {
+              watchCounts.set(field, next);
+              continue;
+            }
+            watchCounts.delete(field);
+            // Drop the column from every shadowed row, so an unwatched
+            // field stops costing memory the moment nothing reads it.
+            for (const [key, values] of shadow) {
+              values.delete(field);
+              if (values.size === 0) shadow.delete(key);
+            }
+          }
+        };
+      },
+      onChanges(cb): () => void {
+        changeListeners.add(cb);
+        return () => {
+          changeListeners.delete(cb);
+        };
+      },
+    },
+
     tap(emit: ProviderEmit): ProviderEmit {
       return (event: ProviderEmitEvent) => {
         // Forward FIRST and synchronously — the push path must not wait on,
@@ -361,6 +497,9 @@ export function createPerspectiveTableFeed(
       table = null;
       schema = null;
       buffer = [];
+      shadow = new Map();
+      changeListeners.clear();
+      watchCounts.clear();
       await queue;
       await old?.delete?.();
     },

@@ -45,6 +45,9 @@ export type {
   CatalogReadyEvent,
   PerspectiveAttachRequest,
   PerspectiveAttachResultEvent,
+  PerspectiveQuerySubscribeRequest,
+  PerspectiveQueryUnsubscribeRequest,
+  PerspectiveQueryResultEvent,
   PerspectiveEvent,
 } from './protocol.js';
 export {

@@ -66,8 +66,14 @@ import {
 } from './hubCatalogRpc.js';
 import { HubAppDataService } from './HubAppDataService.js';
 import { SubscriberRegistry } from './SubscriberRegistry.js';
-import { createPerspectiveHost, type PerspectiveHost } from '../perspective/index.js';
-import { handlePerspectiveAttach, type PerspectiveRpcContext } from './hubPerspectiveRpc.js';
+import type { PerspectiveHost, PerspectiveQueryEngine } from '../perspective/index.js';
+import {
+  createPerspectiveSubsystem,
+  handlePerspectiveAttach,
+  handlePerspectiveQuerySubscribe,
+  handlePerspectiveQueryUnsubscribe,
+  type PerspectiveRpcContext,
+} from './hubPerspectiveRpc.js';
 
 // Re-exported for back-compat with `worker/index.ts` consumers.
 export type { PortLike, SharedWorkerDataServicesHubOpts } from './hubTypes.js';
@@ -106,20 +112,22 @@ export class SharedWorkerDataServicesHub {
    */
   private readonly perspectiveHost: PerspectiveHost | null;
 
+  /**
+   * Whole-book questions — saved-filter counts, header-paint matches, set
+   * filter values, alert rules — answered once for every window that asked,
+   * instead of once per window per question. Null exactly when
+   * {@link perspectiveHost} is: with no engine there is no Table to query.
+   */
+  private readonly perspectiveQueries: PerspectiveQueryEngine | null;
+
   constructor(opts: SharedWorkerDataServicesHubOpts = {}) {
     this.statsIntervalMs = opts.statsIntervalMs ?? 1000;
     this.setTimer = opts.setTimer ?? ((cb, ms) => setInterval(cb, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     this.appDataSvc = new HubAppDataService(opts.configManager);
-    this.perspectiveHost = opts.loadPerspective
-      ? createPerspectiveHost({
-          loadPerspective: opts.loadPerspective,
-          onError: (stage, err) => {
-            // eslint-disable-next-line no-console
-            console.error(`[hub] perspective ${stage} error`, err);
-          },
-        })
-      : null;
+    const perspective = createPerspectiveSubsystem(opts);
+    this.perspectiveHost = perspective.host;
+    this.perspectiveQueries = perspective.queries;
     if (opts.configCatalog) {
       this.configCatalog = opts.configCatalog;
     } else if (opts.configManager) {
@@ -143,6 +151,7 @@ export class SharedWorkerDataServicesHub {
     };
     this.perspectiveRpcCtx = {
       host: this.perspectiveHost,
+      queries: this.perspectiveQueries,
       getSlot: (providerId) => this.providers.get(providerId),
       getCatalogConfig: (providerId) =>
         this.configCatalog?.getProviderConfig(providerId) ?? null,
@@ -171,6 +180,12 @@ export class SharedWorkerDataServicesHub {
       case 'provider-running': handleProviderRunning(this.catalogRpcCtx, port, req); return;
       case 'perspective-attach':
         void handlePerspectiveAttach(this.perspectiveRpcCtx, port, req);
+        return;
+      case 'perspective-query-subscribe':
+        handlePerspectiveQuerySubscribe(this.perspectiveRpcCtx, port, req);
+        return;
+      case 'perspective-query-unsubscribe':
+        handlePerspectiveQueryUnsubscribe(this.perspectiveRpcCtx, req);
         return;
     }
   }
@@ -246,6 +261,10 @@ export class SharedWorkerDataServicesHub {
       /* port already torn down */
     }
     this.connectedPorts.delete(port);
+    // Query subscriptions are owned by the port, not by the subscriber
+    // registry — a window that closes mid-recompute would otherwise leave
+    // its entries (and their Views) alive with nobody reading them.
+    this.perspectiveQueries?.releaseOwner(port);
     const { idleCandidates, statsEmptied } = this.subscribers.removeByPort(port);
     if (statsEmptied) this.maybeStopStatsSampler();
     this.appDataSvc.onPortClosed(port);
@@ -261,6 +280,10 @@ export class SharedWorkerDataServicesHub {
     this.subscribers.clear();
     this.appDataSvc.clear();
     this.connectedPorts.clear();
+    // Queries first: their Views are built on tables the host is about to
+    // delete, and a View outliving its Table is the crash this whole path
+    // is arranged to avoid.
+    await this.perspectiveQueries?.stop();
     await this.perspectiveHost?.stop();
     if (this.subscriberSweepTimer !== null) {
       this.clearTimer(this.subscriberSweepTimer);
