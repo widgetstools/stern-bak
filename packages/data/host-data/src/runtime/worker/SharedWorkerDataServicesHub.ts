@@ -66,6 +66,7 @@ import {
 } from './hubCatalogRpc.js';
 import { HubAppDataService } from './HubAppDataService.js';
 import { SubscriberRegistry } from './SubscriberRegistry.js';
+import { createPerspectiveHost, type PerspectiveHost } from '../perspective/index.js';
 
 // Re-exported for back-compat with `worker/index.ts` consumers.
 export type { PortLike, SharedWorkerDataServicesHubOpts } from './hubTypes.js';
@@ -93,11 +94,30 @@ export class SharedWorkerDataServicesHub {
   private readonly emitCtx: ProviderEmitContext;
   private readonly catalogRpcCtx: CatalogRpcContext;
 
+  /**
+   * One engine, one Table per `stomp-perspective` / `mock-perspective`
+   * provider, shared by every attached window — null on the default worker
+   * entry, which never passes `loadPerspective` (see `hubTypes.ts`). Built
+   * lazily by `createPerspectiveHost` itself: constructing this object does
+   * not load the wasm module, only the first `attach()`/`tableFactoryFor()`
+   * call does.
+   */
+  private readonly perspectiveHost: PerspectiveHost | null;
+
   constructor(opts: SharedWorkerDataServicesHubOpts = {}) {
     this.statsIntervalMs = opts.statsIntervalMs ?? 1000;
     this.setTimer = opts.setTimer ?? ((cb, ms) => setInterval(cb, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     this.appDataSvc = new HubAppDataService(opts.configManager);
+    this.perspectiveHost = opts.loadPerspective
+      ? createPerspectiveHost({
+          loadPerspective: opts.loadPerspective,
+          onError: (stage, err) => {
+            // eslint-disable-next-line no-console
+            console.error(`[hub] perspective ${stage} error`, err);
+          },
+        })
+      : null;
     if (opts.configCatalog) {
       this.configCatalog = opts.configCatalog;
     } else if (opts.configManager) {
@@ -179,6 +199,11 @@ export class SharedWorkerDataServicesHub {
     return this.configCatalog;
   }
 
+  /** Null on the default worker entry — see the field's doc comment. */
+  getPerspectiveHost(): PerspectiveHost | null {
+    return this.perspectiveHost;
+  }
+
   /** Live hub diagnostics for operator / dev tooling. */
   buildIntrospectSnapshot(): HubIntrospectSnapshot {
     const sources: IntrospectSources = {
@@ -225,6 +250,7 @@ export class SharedWorkerDataServicesHub {
     this.subscribers.clear();
     this.appDataSvc.clear();
     this.connectedPorts.clear();
+    await this.perspectiveHost?.stop();
     if (this.subscriberSweepTimer !== null) {
       this.clearTimer(this.subscriberSweepTimer);
       this.subscriberSweepTimer = null;
@@ -531,6 +557,9 @@ export class SharedWorkerDataServicesHub {
     try {
       slot.handle = startProvider(cfg, emit, {
         appDataLookup: (name, key) => this.appDataSvc.get(name, key),
+        // Null on a worker built without `loadPerspective`; the
+        // `*-perspective` providers then serve the push path only.
+        perspectiveHost: this.perspectiveHost ?? undefined,
       });
     } catch (err) {
       this.providers.delete(providerId);

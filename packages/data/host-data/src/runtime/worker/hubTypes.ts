@@ -216,4 +216,17 @@ export interface SharedWorkerDataServicesHubOpts {
   setTimer?: (cb: () => void, ms: number) => unknown;
   /** Inject the timer cancel for tests. Default: clearInterval. */
   clearTimer?: (handle: unknown) => void;
+
+  /**
+   * Resolve the Perspective client module — usually
+   * `() => import('@perspective-dev/client/inline')`. Omitted by the default
+   * worker entry (see `defaultEntry.ts`); supplied only by
+   * `perspectiveEntry.ts`, which is a separate worker asset for exactly this
+   * reason: the inline build embeds its wasm as base64, so importing it
+   * unconditionally would cost every app megabytes even when it never opens a
+   * blotter. When present, the hub lazily builds one `PerspectiveHost` (one
+   * engine, one Table per `stomp-perspective` / `mock-perspective` provider)
+   * shared by every attached window.
+   */
+  loadPerspective?: () => Promise<import('../perspective/perspectiveHost.js').PerspectiveModuleLike>;
 }

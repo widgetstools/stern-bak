@@ -1,10 +1,16 @@
 /**
- * Bundle the default SharedWorker entry into a single ESM asset.
+ * Bundle the SharedWorker entries into single ESM assets.
  *
- * tsc emits `defaultEntry.js` with bare `@wellsfargo-starui/*` imports that the
- * browser cannot resolve when loaded as a standalone worker script.
- * esbuild inlines host-data, host-config, dexie, and optional stomp
- * into `dist/assets/data-services-worker.mjs` for Vite `?url` imports.
+ * tsc emits bare `@wellsfargo-starui/*` imports that the browser cannot
+ * resolve when loaded as a standalone worker script. esbuild inlines
+ * host-data, host-config, dexie, and optional stomp into
+ * `dist/assets/data-services-worker.mjs` for Vite `?url` imports.
+ *
+ * `perspectiveEntry.ts` is a SEPARATE entry point, not a flag on the default
+ * one: `@perspective-dev/client/inline` embeds its wasm as base64, so
+ * bundling it into the asset every app loads would cost every app megabytes
+ * even when it never opens a blotter. Only an app that imports the
+ * perspective asset's URL pays for it.
  */
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
@@ -18,7 +24,10 @@ const outDir = path.join(pkgRoot, 'dist', 'assets');
 fs.mkdirSync(outDir, { recursive: true });
 
 await esbuild.build({
-  entryPoints: [path.join(pkgRoot, 'src/runtime/worker/defaultEntry.ts')],
+  entryPoints: [
+    path.join(pkgRoot, 'src/runtime/worker/defaultEntry.ts'),
+    path.join(pkgRoot, 'src/runtime/worker/perspectiveEntry.ts'),
+  ],
   outdir: outDir,
   entryNames: '[name]',
   bundle: true,
@@ -37,7 +46,10 @@ await esbuild.build({
 });
 
 // Stable public names for Vite ?url imports.
-const RENAMES = [['defaultEntry.js', 'data-services-worker.mjs']];
+const RENAMES = [
+  ['defaultEntry.js', 'data-services-worker.mjs'],
+  ['perspectiveEntry.js', 'data-services-perspective-worker.mjs'],
+];
 
 for (const [srcName, destName] of RENAMES) {
   publishWorkerAsset(outDir, srcName, destName);
