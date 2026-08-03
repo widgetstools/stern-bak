@@ -3,7 +3,11 @@ import type { ExpressionEngineInstance } from '../types/common';
 import { tokenize } from './tokenizer';
 import { parse } from './parser';
 import { Evaluator } from './evaluator';
-import { tryCompileToAgString } from './compiler';
+import {
+  tryCompileToAgString,
+  tryCompileToPerspectiveExpression,
+  type PerspectiveCompileResult,
+} from './compiler';
 import { compileToFunction, type CompiledExpression } from './compileToFunction';
 import { createFunctionRegistry, getAllFunctions } from './functions';
 import { validateCallSites } from './validateCalls';
@@ -84,6 +88,10 @@ export class ExpressionEngine implements ExpressionEngineInstance {
     return tryCompileToAgString(node);
   }
 
+  tryCompileToPerspectiveExpression(node: ExpressionNode): PerspectiveCompileResult {
+    return tryCompileToPerspectiveExpression(node);
+  }
+
   validate(expression: string): ValidationResult {
     try {
       const tokens = tokenize(expression);
@@ -126,7 +134,8 @@ export type { ExpressionNode, EvaluationContext, ValidationResult, FunctionDefin
 export { tokenize } from './tokenizer';
 export { parse } from './parser';
 export { Evaluator } from './evaluator';
-export { tryCompileToAgString } from './compiler';
+export { tryCompileToAgString, tryCompileToPerspectiveExpression } from './compiler';
+export type { PerspectiveCompileResult, PerspectiveExpressionType } from './compiler';
 export { compileToFunction, type CompiledExpression } from './compileToFunction';
 export { createFunctionRegistry, getAllFunctions } from './functions';
 export { astUsesAggregateFunctions, getAggregateFunctionNames } from './usesAggregates';

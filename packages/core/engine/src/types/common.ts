@@ -1,4 +1,5 @@
 import type { ExpressionNode, EvaluationContext } from '../expression/types';
+import type { PerspectiveCompileResult } from '../expression/compiler';
 
 // ─── Expression Engine ───────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export interface ExpressionEngineInstance {
   /** Compile once to a reusable closure — prefer on per-cell/per-row hot paths. */
   compile(expression: string): CompiledExpression;
   tryCompileToAgString(node: ExpressionNode): string | null;
+  tryCompileToPerspectiveExpression(node: ExpressionNode): PerspectiveCompileResult;
   validate(expression: string): ValidationResult;
 }
 

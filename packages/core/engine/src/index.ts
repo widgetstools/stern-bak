@@ -112,6 +112,7 @@ export {
   parse,
   Evaluator,
   tryCompileToAgString,
+  tryCompileToPerspectiveExpression,
   astUsesAggregateFunctions,
   getAggregateFunctionNames,
 } from './expression';
@@ -120,8 +121,34 @@ export type {
   EvaluationContext,
   ValidationResult,
   FunctionDefinition,
+  PerspectiveCompileResult,
+  PerspectiveExpressionType,
 } from './expression';
 export { migrateExpressionSyntax, migrateExpressionsInObject } from './expression/migrate';
+
+// ─── Perspective translation (pure; shared by the window-side view config and
+// the worker-side query engine, so a filter means the same thing in both) ────
+export {
+  QUICK_FILTER_COLUMN,
+  sanitizeQuickFilterTerm,
+  toQuickFilterExpression,
+  toPerspectiveSort,
+  toPerspectiveAggregate,
+  toPerspectiveFilterClauses,
+  isFilterModelMappable,
+  toPerspectiveFilter,
+  toPerspectiveViewConfig,
+  toPerspectiveGroupLevel,
+} from './perspective/filterTranslate';
+export type {
+  AgFilterItem,
+  AgGroupLevelState,
+  AgRequestState,
+  AgSortItem,
+  PerspectiveAggregate,
+  PerspectiveGroupLevel,
+  PerspectiveViewConfig,
+} from './perspective/filterTranslate';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type { CellStyleProperties, ThemeAwareStyle } from './types/common';
