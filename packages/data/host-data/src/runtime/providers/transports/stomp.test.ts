@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { startStomp, probeStomp, connectStomp, resolveStompClientCtor, resolveStompDestinations, resolveEffectiveStompCfg, validateStompWireReady } from './stomp';
+import { startStomp, probeStomp, connectStomp, resolveStompClientCtor, resolveStompDestinations, resolveEffectiveStompCfg, sanitizeRequestHeaders, validateStompWireReady } from './stomp';
 import type { ProviderEmitEvent } from '../Provider';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
 
@@ -59,7 +59,7 @@ interface FakeClient {
   onWebSocketError?: () => void;
   onStompError?: (frame: { headers: Record<string, string> }) => void;
   onDisconnect?: () => void;
-  publish(p: { destination: string; body?: string }): void;
+  publish(p: { destination: string; body?: string; headers?: Record<string, string> }): void;
   subscribe(d: string, cb: (msg: { body: string; headers: Record<string, string> }) => void): { unsubscribe(): void };
   activate(): void;
   deactivate(options?: { force?: boolean }): Promise<void> | void;
@@ -74,7 +74,7 @@ interface FakeController {
   fireError(message?: string): void;
   fireWsError(): void;
   /** Captured publish calls (the trigger frame). */
-  publishLog: Array<{ destination: string; body: string }>;
+  publishLog: Array<{ destination: string; body: string; headers?: Record<string, string> }>;
   /** Whether deactivate() has been called. */
   deactivated: boolean;
   /** Whether deactivate({ force: true }) was used. */
@@ -109,7 +109,13 @@ function makeFakeClient(): FakeController {
   ctrl.client = {
     connected: false,
     reconnectDelay: ctrl.reconnectDelay,
-    publish: (p) => { ctrl.publishLog.push({ destination: p.destination, body: p.body ?? '' }); },
+    publish: (p) => {
+      ctrl.publishLog.push({
+        destination: p.destination,
+        body: p.body ?? '',
+        ...(p.headers ? { headers: p.headers } : {}),
+      });
+    },
     subscribe: (d, cb) => {
       ctrl.subscribedTopic = d;
       onMessage = cb;
@@ -916,5 +922,125 @@ describe('connectStomp', () => {
     });
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Unresolved or missing WebSocket URL/);
+  });
+});
+
+describe('request headers on the trigger frame', () => {
+  /**
+   * Without these a provider can only ever get whatever the broker does by
+   * default. The in-repo fixture (`apps/source/stomp-view-server`) already
+   * reads `snapshot-rows` and `live-mode: sparse` off the SEND frame; until
+   * now nothing could send them.
+   */
+  it('sends configured headers with the publish', async () => {
+    const ctrl = makeFakeClient();
+    startStomp(
+      cfg({ requestHeaders: { 'live-mode': 'sparse', 'snapshot-rows': '4000' } }),
+      () => {},
+      { createClient: () => ctrl.client },
+    );
+    await Promise.resolve();
+    ctrl.fireConnect();
+
+    expect(ctrl.publishLog).toEqual([
+      {
+        destination: '/app/test/1000',
+        body: '',
+        headers: { 'live-mode': 'sparse', 'snapshot-rows': '4000' },
+      },
+    ]);
+  });
+
+  /**
+   * A provider that sets no headers must produce a BYTE-IDENTICAL frame to
+   * the one it produced before this existed — hence omitted entirely rather
+   * than passed as `{}`.
+   */
+  it('omits headers entirely when none are configured', async () => {
+    const ctrl = makeFakeClient();
+    startStomp(cfg(), () => {}, { createClient: () => ctrl.client });
+    await Promise.resolve();
+    ctrl.fireConnect();
+
+    expect(ctrl.publishLog).toEqual([{ destination: '/app/test/1000', body: '' }]);
+    expect(ctrl.publishLog[0]).not.toHaveProperty('headers');
+  });
+
+  it('omits headers when the map is present but empty', async () => {
+    const ctrl = makeFakeClient();
+    startStomp(cfg({ requestHeaders: {} }), () => {}, { createClient: () => ctrl.client });
+    await Promise.resolve();
+    ctrl.fireConnect();
+
+    expect(ctrl.publishLog[0]).not.toHaveProperty('headers');
+  });
+
+  /**
+   * Supplying a reserved header is not a customization, it is a corruption:
+   * `destination` would redirect the frame and `content-length` would truncate
+   * or overrun the body. Dropped rather than rejected — one bad header should
+   * not cost a provider its whole subscription.
+   */
+  it('drops reserved headers but keeps the rest', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ctrl = makeFakeClient();
+    startStomp(
+      cfg({
+        requestHeaders: {
+          destination: '/app/evil',
+          'content-length': '99999',
+          receipt: 'r-1',
+          'live-mode': 'sparse',
+        },
+      }),
+      () => {},
+      { createClient: () => ctrl.client },
+    );
+    await Promise.resolve();
+    ctrl.fireConnect();
+
+    expect(ctrl.publishLog[0]!.destination).toBe('/app/test/1000');
+    expect(ctrl.publishLog[0]!.headers).toEqual({ 'live-mode': 'sparse' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('sanitizeRequestHeaders', () => {
+  it('passes ordinary headers through verbatim', () => {
+    expect(
+      sanitizeRequestHeaders({ 'live-mode': 'sparse', 'X-Trace': 'abc' }),
+    ).toEqual({ 'live-mode': 'sparse', 'X-Trace': 'abc' });
+  });
+
+  it('answers an empty map for undefined', () => {
+    expect(sanitizeRequestHeaders(undefined)).toEqual({});
+  });
+
+  /** Case-insensitively reserved — a broker sees `Destination` and
+   *  `destination` as the same header. */
+  it('drops reserved names whatever their case', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(
+      sanitizeRequestHeaders({
+        Destination: '/x',
+        'Content-Length': '1',
+        RECEIPT: 'r',
+        keep: 'yes',
+      }),
+    ).toEqual({ keep: 'yes' });
+    warn.mockRestore();
+  });
+
+  it('ignores blank names and stringifies non-string values', () => {
+    expect(
+      sanitizeRequestHeaders({ '': 'x', '  ': 'y', n: 100 as unknown as string }),
+    ).toEqual({ n: '100' });
+  });
+
+  it('trims whitespace around a name', () => {
+    expect(sanitizeRequestHeaders({ '  live-mode  ': 'sparse' })).toEqual({
+      'live-mode': 'sparse',
+    });
   });
 });

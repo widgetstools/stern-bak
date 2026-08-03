@@ -479,3 +479,92 @@ describe('probeMock', () => {
     setInterval.mockRestore();
   });
 });
+
+/**
+ * `rowShape` is the delivery shape, not a different generator. `'csrm'` (the
+ * default) emits the authored nested row; `'ssrm'` lifts each declared column
+ * path onto a literal top-level key, which is what a consumer that cannot hold
+ * nested values — a Perspective Table's schema is flat — needs.
+ */
+describe('startMock — rowShape', () => {
+  const flatCfg = (over: Partial<MockProviderConfig> = {}) =>
+    cfg({
+      rowCount: 3,
+      keyColumn: 'id',
+      columnDefinitions: [
+        { field: 'id', headerName: 'Id' },
+        { field: 'ratings.moodys.rating', headerName: "Moody's" },
+      ],
+      ...over,
+    });
+
+  it('emits the authored nested row by default', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(flatCfg(), emit, { setTicker, clearTicker });
+    await flush();
+
+    const row = h.rowEvents()[0]!.rows[0] as Record<string, unknown>;
+    expect(row.ratings).toBeTypeOf('object');
+    expect(row['ratings.moodys.rating']).toBeUndefined();
+  });
+
+  it("flattens declared paths onto literal keys under 'ssrm'", async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(flatCfg({ rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    await flush();
+
+    const row = h.rowEvents()[0]!.rows[0] as Record<string, unknown>;
+    expect(Object.keys(row).sort()).toEqual(['id', 'ratings.moodys.rating']);
+    expect(typeof row['ratings.moodys.rating']).toBe('string');
+  });
+
+  it('flattens live ticks the same way as the snapshot', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(flatCfg({ rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    await flush();
+    h.tick();
+
+    const tickRows = h.rowEvents().at(-1)!.rows as Record<string, unknown>[];
+    expect(tickRows.length).toBeGreaterThan(0);
+    expect(Object.keys(tickRows[0]!).sort()).toEqual(['id', 'ratings.moodys.rating']);
+  });
+
+  it('passes rows through untouched when nothing declares a path', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(cfg({ rowCount: 2, rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    await flush();
+
+    // An empty flattener would emit `{}` per row; passthrough is the only
+    // safe answer.
+    const row = h.rowEvents()[0]!.rows[0] as Record<string, unknown>;
+    expect(row.ratings).toBeTypeOf('object');
+  });
+
+  /** A changed delivery shape needs the whole book re-emitted, not a ticker bounce. */
+  it('treats a rowShape change as a hard restart', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    const handle = startMock(flatCfg(), emit, { setTicker, clearTicker });
+    await flush();
+    h.events.length = 0;
+
+    await handle.restart({ rowShape: 'ssrm', enableUpdates: true });
+    await flush();
+
+    expect(h.statuses()).toContain('loading');
+    const row = h.rowEvents().at(-1)!.rows[0] as Record<string, unknown>;
+    expect(Object.keys(row).sort()).toEqual(['id', 'ratings.moodys.rating']);
+  });
+
+  it('leaves a soft patch soft when the rowShape is unchanged', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    const handle = startMock(flatCfg({ rowShape: 'ssrm' }), emit, { setTicker, clearTicker });
+    await flush();
+    h.events.length = 0;
+
+    await handle.restart({ rowShape: 'ssrm', updateIntervalMs: 100 });
+    await flush();
+
+    expect(h.statuses()).not.toContain('loading');
+    expect(h.interval()).toBe(100);
+  });
+});

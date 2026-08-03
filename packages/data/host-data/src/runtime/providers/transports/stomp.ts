@@ -100,7 +100,13 @@ interface StompClient {
     destination: string,
     cb: (msg: { body: string; headers: Record<string, string> }) => void,
   ): { unsubscribe(): void };
-  publish(params: { destination: string; body?: string }): void;
+  publish(params: {
+    destination: string;
+    body?: string;
+    /** STOMP headers on the SEND frame — how a provider asks the broker for a
+     *  profile other than its default. */
+    headers?: Record<string, string>;
+  }): void;
   activate(): void;
   deactivate(options?: { force?: boolean }): Promise<void> | void;
 }
@@ -185,6 +191,50 @@ export interface StompOpts {
   /** Clock injection for the live-phase throttle. Defaults to setTimeout/clearTimeout. */
   setTimer?: (cb: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+}
+
+/**
+ * Headers stompjs owns on a SEND frame. Supplying any of them is not a
+ * customization, it is a corruption: `destination` would redirect the frame,
+ * `content-length` would truncate or overrun the body, and `receipt` turns on
+ * an acknowledgement handshake nothing here is listening for.
+ *
+ * Dropped with a warning rather than rejected, because one bad header should
+ * not cost a provider its whole subscription.
+ */
+const RESERVED_STOMP_HEADERS: ReadonlySet<string> = new Set([
+  'destination',
+  'content-length',
+  'receipt',
+]);
+
+/**
+ * Filter user-supplied request headers down to what is safe to send.
+ *
+ * Values go over the wire verbatim otherwise — a broker's vocabulary is its
+ * own, and guessing at it here would mean an app could only ask for the
+ * profiles this file happened to know about.
+ */
+export function sanitizeRequestHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> {
+  if (!headers) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const name = key.trim();
+    if (!name) continue;
+    if (RESERVED_STOMP_HEADERS.has(name.toLowerCase())) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[v2/stomp] dropping reserved request header "${name}" — stompjs owns it on a SEND frame`,
+      );
+      continue;
+    }
+    // A non-string would be stringified by stompjs anyway; doing it here keeps
+    // the logged frame and the sent frame identical.
+    out[name] = typeof value === 'string' ? value : String(value);
+  }
+  return out;
 }
 
 /** Keys commonly used for historical as-of dates in STOMP destination templates. */
@@ -645,6 +695,12 @@ export function startStomp(
         // (chrome://inspect → Shared workers, or the worker's own
         // DevTools). `JSON.stringify(body)` keeps whitespace/quoting
         // visible so an empty or padded body is unambiguous.
+        // Headers the app asked for. Without these a provider can only ever
+        // get whatever the broker does by default — the fixture broker serves
+        // full sweeps unless asked for `live-mode: sparse`.
+        const headers = sanitizeRequestHeaders(resolvedCfg.requestHeaders);
+        const hasHeaders = Object.keys(headers).length > 0;
+
         timing.publishAt = Date.now();
         // eslint-disable-next-line no-console
         console.log('[v2/stomp] publish → broker', {
@@ -652,6 +708,9 @@ export function startStomp(
           body,
           bodyJson: JSON.stringify(body),
           bodyLength: body.length,
+          // Logged so the frame in the console is the frame on the wire — the
+          // sparse-vs-sweep difference is invisible in the body alone.
+          headers: hasHeaders ? headers : undefined,
           sinceConnect: since(timing.connectAt, timing.publishAt),
           sinceClick: sinceClick(timing.publishAt),
         });
@@ -661,7 +720,14 @@ export function startStomp(
           emit({ timing: { requestSentMs: timing.publishAt - timing.clickAt } });
         }
         try {
-          client.publish({ destination: destinations.requestMessage, body });
+          client.publish({
+            destination: destinations.requestMessage,
+            body,
+            // Omitted entirely when empty rather than passed as `{}`: a
+            // provider that sets no headers must produce a byte-identical
+            // frame to the one it produced before this existed.
+            ...(hasHeaders ? { headers } : {}),
+          });
         } catch (err) {
           emit({ status: 'error', error: err instanceof Error ? err.message : String(err) });
         }

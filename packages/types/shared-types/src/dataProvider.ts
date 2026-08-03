@@ -6,10 +6,24 @@
  */
 export const PROVIDER_TYPES = {
   STOMP: 'stomp',
+  /**
+   * STOMP delivered through a Perspective Table held once in the worker.
+   * Same wire settings as `stomp`; the difference is where the book LIVES —
+   * every window opens a View against the one Table instead of receiving its
+   * own copy of the rows.
+   */
+  STOMP_PERSPECTIVE: 'stomp-perspective',
   REST: 'rest',
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
   MOCK: 'mock',
+  /**
+   * The generated mock book delivered through a Perspective Table, standing to
+   * `mock` as `stomp-perspective` stands to `stomp`. Lets the Perspective row
+   * engine be driven with no broker, so an app and its client-side twin can run
+   * the same columns and profiles over the same data.
+   */
+  MOCK_PERSPECTIVE: 'mock-perspective',
   APPDATA: 'appdata'
 } as const;
 
@@ -20,10 +34,12 @@ export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
  */
 export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = {
   [PROVIDER_TYPES.STOMP]: 'stomp',
+  [PROVIDER_TYPES.STOMP_PERSPECTIVE]: 'stomp-perspective',
   [PROVIDER_TYPES.REST]: 'rest',
   [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
   [PROVIDER_TYPES.SOCKETIO]: 'socketio',
   [PROVIDER_TYPES.MOCK]: 'mock',
+  [PROVIDER_TYPES.MOCK_PERSPECTIVE]: 'mock-perspective',
   [PROVIDER_TYPES.APPDATA]: 'appdata'
 };
 
@@ -32,10 +48,12 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
  */
 export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = {
   'stomp': PROVIDER_TYPES.STOMP,
+  'stomp-perspective': PROVIDER_TYPES.STOMP_PERSPECTIVE,
   'rest': PROVIDER_TYPES.REST,
   'websocket': PROVIDER_TYPES.WEBSOCKET,
   'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
+  'mock-perspective': PROVIDER_TYPES.MOCK_PERSPECTIVE,
   'appdata': PROVIDER_TYPES.APPDATA,
   // Capitalized (backward compatibility)
   'Stomp': PROVIDER_TYPES.STOMP,
@@ -108,6 +126,23 @@ export interface StompProviderConfig {
   listenerTopic: string;
   requestMessage?: string;
   requestBody?: string;
+  /**
+   * STOMP headers sent with the request (trigger) frame.
+   *
+   * Without these a provider can only ever ask for whatever the broker does by
+   * default. The in-repo fixture broker (`apps/source/stomp-view-server`)
+   * already reads `snapshot-rows` to size the snapshot and `live-mode: sparse`
+   * to switch live frames from full rows to partial-row deltas — both of which
+   * were unreachable from an app, because `startStomp` published
+   * `{ destination, body }` only.
+   *
+   * Values are sent verbatim; a broker's vocabulary is its own and guessing at
+   * it here would limit apps to the headers this package happened to know
+   * about. Reserved STOMP headers (`destination`, `content-length`, `receipt`)
+   * are dropped rather than allowed to corrupt the frame — see
+   * `sanitizeRequestHeaders`.
+   */
+  requestHeaders?: Record<string, string>;
   snapshotEndToken?: string;
   /**
    * Unique-row identity. A SINGLE column name keys rows by that one
@@ -227,6 +262,50 @@ export interface StompProviderConfig {
 }
 
 /**
+ * STOMP-over-Perspective Provider Configuration
+ *
+ * Every wire setting is inherited from {@link StompProviderConfig} — same
+ * broker, same destinations, same snapshot handshake. What changes is where
+ * the book lives: the worker loads it into a Perspective Table once, and each
+ * window opens a View against that Table instead of receiving its own copy of
+ * the rows. A second and third blotter therefore cost a View, not a replay.
+ *
+ * The fanout/conflation settings (`throttleMs`, `conflateByKey`) still apply
+ * to the classic push path when something subscribes to it; the Table is fed
+ * from the same emit stream regardless.
+ */
+export interface StompPerspectiveProviderConfig
+  extends Omit<StompProviderConfig, 'providerType'> {
+  providerType: 'stomp-perspective';
+  /**
+   * Name the Table is hosted under; windows open it by this id. Defaults to
+   * the provider id, which is what makes one Table per provider.
+   */
+  tableName?: string;
+  /**
+   * Columns to declare `integer` rather than the default `float`.
+   *
+   * OPT-IN ONLY, and rarely worth it. Perspective silently TRUNCATES a float
+   * that lands in an integer column, and one outlier row is enough to make a
+   * sampled type wrong. A double represents every integer up to 2^53 exactly,
+   * so `float` costs nothing and is the safe default.
+   */
+  integerColumns?: string[];
+  /**
+   * Map ISO date / datetime strings onto Perspective `date` / `datetime`
+   * instead of `string`. Default true — leaving them as strings loses
+   * server-side date sorting and range filtering.
+   */
+  inferDates?: boolean;
+  /**
+   * Build the Table after this many buffered rows even if the snapshot never
+   * completes. Only applies to feeds with no end token, where every frame
+   * arrives as a delta and `ready` never comes.
+   */
+  buildAfterRows?: number;
+}
+
+/**
  * REST Provider Configuration
  */
 export interface RestProviderConfig {
@@ -327,6 +406,70 @@ export interface MockProviderConfig {
    * `'tradeId'` for trades, `'id'` for orders.
    */
   keyColumn?: string | readonly string[];
+  /**
+   * AG Grid column defs — required for `rowShape: 'ssrm'`, whose flatten
+   * derives its paths from `columnDefinitions[].field` plus `keyColumn`.
+   * Without them the flatten has nothing to lift and rows pass through
+   * nested and unchanged.
+   */
+  columnDefinitions?: ColumnDefinition[];
+  /**
+   * Row delivery shape.
+   *
+   * `'csrm'` (default) emits the generator's rows as authored — the positions
+   * row is deeply nested (ratings, key-rate durations, exposure breakdowns),
+   * which AG Grid's client-side row model reads through dotted `field` paths.
+   *
+   * `'ssrm'` lifts each `columnDefinitions[].field` path onto a literal
+   * top-level scalar key before emit, so `rating.moody` arrives as the flat
+   * key `"rating.moody"`. Consumers that cannot hold nested values — a
+   * Perspective Table's schema is a flat map of typed columns — need this.
+   */
+  rowShape?: 'csrm' | 'ssrm';
+}
+
+/**
+ * Mock-over-Perspective Provider Configuration
+ *
+ * The same generated book as {@link MockProviderConfig} — same universe, same
+ * tick behaviour — teed into a Perspective Table that lives once in the
+ * worker. Stands to `mock` exactly as `stomp-perspective` stands to `stomp`.
+ *
+ * It exists so the Perspective row engine can be exercised against a book the
+ * app already understands, without a broker. That makes a Perspective app and
+ * its client-side twin a genuine A/B pair: same columns, same profiles, same
+ * scenarios, so any difference between them is the engine and nothing else.
+ *
+ * **Rows reaching a Table must be FLAT**, because a Perspective schema is a
+ * flat map of typed columns. The mock positions row is deeply nested, so
+ * `rowShape: 'ssrm'` and `columnDefinitions` are effectively required here —
+ * the transport defaults `rowShape` to `'ssrm'` for exactly this reason.
+ */
+export interface MockPerspectiveProviderConfig
+  extends Omit<MockProviderConfig, 'providerType'> {
+  providerType: 'mock-perspective';
+  /**
+   * Name the Table is hosted under; windows open it by this id. Defaults to
+   * the provider id, which is what makes one Table per provider.
+   */
+  tableName?: string;
+  /** Columns to declare `integer` rather than `float` — see the STOMP twin. */
+  integerColumns?: string[];
+  /** Map ISO date/datetime strings onto Perspective date types. Default true. */
+  inferDates?: boolean;
+  /**
+   * Declared column types, preferred over `columnDefinitions` when present:
+   * a `FieldInfo` carries a real type where a column def carries a renderer
+   * hint. With it the Table is created EMPTY and immediately, so a blotter
+   * paints on open instead of waiting for the first snapshot.
+   */
+  inferredFields?: FieldInfo[];
+  /**
+   * Build the Table after this many buffered rows even if no snapshot end
+   * token arrives. The mock provider always sends one, so this is only a
+   * backstop.
+   */
+  buildAfterRows?: number;
 }
 
 /**
@@ -369,10 +512,12 @@ export interface AppDataProviderConfig {
  */
 export type ProviderConfig =
   | StompProviderConfig
+  | StompPerspectiveProviderConfig
   | RestProviderConfig
   | WebSocketProviderConfig
   | SocketIOProviderConfig
   | MockProviderConfig
+  | MockPerspectiveProviderConfig
   | AppDataProviderConfig;
 
 /**
@@ -486,6 +631,28 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     inferredFields: [],
     columnDefinitions: []
   },
+  'stomp-perspective': {
+    providerType: 'stomp-perspective',
+    listenerTopic: '',
+    websocketUrl: '',
+    snapshotEndToken: 'Success',
+    requestBody: 'START',
+    snapshotTimeoutMs: 60000,
+    manualTopics: false,
+    dataType: 'positions',
+    messageRate: 1000,
+    autoStart: false,
+    heartbeat: {
+      outgoing: 4000,
+      incoming: 4000
+    },
+    inferredFields: [],
+    columnDefinitions: [],
+    // Numeric columns are float unless a column is named here; see the
+    // interface docs for why inference must not choose `integer`.
+    integerColumns: [],
+    inferDates: true
+  },
   rest: {
     providerType: 'rest',
     baseUrl: '',
@@ -517,6 +684,23 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     rowCount: 20,
     enableUpdates: true
   },
+  'mock-perspective': {
+    providerType: 'mock-perspective',
+    dataType: 'positions',
+    updateInterval: 2000,
+    rowCount: 20,
+    enableUpdates: true,
+    // A Perspective schema is a flat map of typed columns and the mock
+    // positions row is deeply nested, so the flatten is not optional here —
+    // see the interface docs. `columnDefinitions` must be supplied for it.
+    rowShape: 'ssrm',
+    columnDefinitions: [],
+    inferredFields: [],
+    // Numeric columns are float unless named here; inference must not choose
+    // `integer`, which silently truncates.
+    integerColumns: [],
+    inferDates: true
+  },
   appdata: {
     providerType: 'appdata',
     variables: {}
@@ -542,6 +726,9 @@ export function validateProviderConfig(config: ProviderConfig): ProviderValidati
   }
 
   switch (config.providerType) {
+    // Same wire settings, so the same checks apply — see
+    // StompPerspectiveProviderConfig.
+    case 'stomp-perspective':
     case 'stomp': {
       const stompConfig = config as StompProviderConfig;
       if (stompConfig.websocketUrl && !stompConfig.websocketUrl.startsWith('ws://') && !stompConfig.websocketUrl.startsWith('wss://')) {

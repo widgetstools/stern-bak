@@ -7,13 +7,21 @@
  * it — descriptors pay off at 8+).
  */
 
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type {
+  MockPerspectiveProviderConfig,
+  ProviderConfig,
+  StompPerspectiveProviderConfig,
+  StompProviderConfig,
+} from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from './Provider.js';
 import { resolveBracketCfg, type BracketCache } from '../template/bracketResolver.js';
 import { assertAppDataResolved, resolveCfg, type AppDataLookup } from '../template/resolver.js';
 import { startMock } from './transports/mock.js';
 import { startStomp } from './transports/stomp.js';
 import { startRest } from './transports/rest.js';
+import { startStompPerspective } from './transports/stompPerspective.js';
+import { startMockPerspective } from './transports/mockPerspective.js';
+import type { PerspectiveHost } from '../perspective/perspectiveHost.js';
 
 export type ProviderFactory<T extends ProviderConfig = ProviderConfig> = (
   cfg: T,
@@ -24,6 +32,8 @@ const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>
   mock: startMock as ProviderFactory,
   stomp: startStomp as ProviderFactory,
   rest: startRest as ProviderFactory,
+  'stomp-perspective': startStompPerspective as ProviderFactory,
+  'mock-perspective': startMockPerspective as ProviderFactory,
 };
 
 /**
@@ -43,6 +53,13 @@ const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>
  */
 export interface StartProviderOpts {
   appDataLookup?: AppDataLookup;
+  /**
+   * The worker's Perspective host, used by the `*-perspective` providers.
+   * Injected so a worker that never opens a blotter does not pull in the
+   * engine's wasm. Without it those providers still run — they just serve the
+   * push path only.
+   */
+  perspectiveHost?: PerspectiveHost;
 }
 
 export function startProvider(
@@ -56,6 +73,32 @@ export function startProvider(
   }
   const bracketCache: BracketCache = new Map();
   const bracketResolved = resolveBracketCfg(cfg, bracketCache);
+
+  if (cfg.providerType === 'stomp-perspective') {
+    // Same AppData/bracket treatment as `stomp` — it IS a STOMP config —
+    // plus the host the Table is created on.
+    return startStompPerspective(bracketResolved as StompPerspectiveProviderConfig, emit, {
+      appDataLookup: opts?.appDataLookup,
+      perspectiveHost: opts?.perspectiveHost,
+    });
+  }
+
+  if (cfg.providerType === 'mock-perspective') {
+    // An override registered through `registerProvider` must still win, or
+    // this branch would silently make that documented escape hatch a no-op
+    // for this type — which is exactly how a test that installs its own
+    // factory ends up asserting against the built-in one.
+    const registered = factories['mock-perspective'];
+    if (registered && registered !== (startMockPerspective as ProviderFactory)) {
+      return registered(bracketResolved, emit);
+    }
+    // Same treatment as `mock` — it IS a mock config — plus the host the
+    // Table is created on. No AppData resolution: the generator takes no
+    // connection settings, so there is nothing for a token to appear in.
+    return startMockPerspective(bracketResolved as MockPerspectiveProviderConfig, emit, {
+      perspectiveHost: opts?.perspectiveHost,
+    });
+  }
 
   if (cfg.providerType === 'stomp') {
     return startStomp(bracketResolved as StompProviderConfig, emit, {
