@@ -36,13 +36,19 @@ import { EditorForm } from './EditorForm.js';
 
 const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: string; icon: typeof Database }> = {
   stomp: { label: 'STOMP', description: 'WebSocket streaming with snapshot + delta semantics.', icon: Radio },
+  'stomp-perspective': { label: 'STOMP (Perspective)', description: 'STOMP served from one worker-held Perspective Table — windows open a View instead of a copy.', icon: Radio },
   rest: { label: 'REST', description: 'One-shot HTTP fetch — no live updates.', icon: Globe },
   websocket: { label: 'WebSocket', description: 'Raw WebSocket, framed by you.', icon: Radio },
   socketio: { label: 'Socket.IO', description: 'Socket.IO event-driven channel.', icon: Radio },
   mock: { label: 'Mock', description: 'In-memory dummy stream — for dev/tests.', icon: TestTube2 },
+  'mock-perspective': { label: 'Mock (Perspective)', description: 'The mock book served from a worker-held Perspective Table — the broker-free A/B twin.', icon: TestTube2 },
   appdata: { label: 'AppData', description: 'Key/value store referenced by other providers via {{name.key}}.', icon: Database },
 };
 
+// The `*-perspective` types are deliberately absent: they have meta so an
+// existing config renders with a name and an icon, but no transport fields
+// component yet, and offering a type the form cannot edit is worse than not
+// offering it.
 const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'rest', 'mock', 'appdata'];
 
 export interface DataProviderEditorProps {
