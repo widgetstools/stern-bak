@@ -149,6 +149,16 @@ export type {
   PerspectiveGroupLevel,
   PerspectiveViewConfig,
 } from './perspective/filterTranslate';
+export { viewConfigKey } from './perspective/viewConfigKey';
+// Deleting a View with a read in flight throws an uncatchable wasm borrow
+// error. Both sides of the worker port build and drop Views, so the
+// refcounted close lives here rather than in either of them.
+export { createSafeView } from './perspective/safeView';
+export type {
+  DeletableView,
+  PerspectiveViewLike,
+  SafeView,
+} from './perspective/safeView';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type { CellStyleProperties, ThemeAwareStyle } from './types/common';

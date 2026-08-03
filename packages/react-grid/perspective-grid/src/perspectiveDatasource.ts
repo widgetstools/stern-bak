@@ -17,14 +17,15 @@
  * without a grid and without a DOM.
  */
 
-/** Minimal shape of the Perspective View methods this datasource needs. */
-export interface PerspectiveViewLike {
-  to_columns(window?: {
-    start_row?: number;
-    end_row?: number;
-  }): Promise<Record<string, unknown[]>>;
-  num_rows(): Promise<number>;
-}
+/**
+ * Minimal shape of the Perspective View methods this datasource needs.
+ * Declared in `@wellsfargo-starui/core` alongside `createSafeView`, which is
+ * what enforces the read/delete discipline over it, and re-exported here so
+ * every consumer in this folder keeps one import site for it.
+ */
+import type { PerspectiveViewLike } from '@wellsfargo-starui/core';
+
+export type { PerspectiveViewLike };
 
 /** The slice of AG Grid's `IServerSideGetRowsRequest` we consume. */
 export interface ServerSideRequestLike {

@@ -21,8 +21,28 @@
  * attempted after close resolve to `null` so the datasource can settle the
  * block EMPTY rather than leaking an AG Grid request (see
  * `createPerspectiveDatasource`, rule 1).
+ *
+ * This lives in `@wellsfargo-starui/core` rather than beside the row engine
+ * because BOTH sides of the port need it and neither may import the other:
+ * the window swaps Views on every sort and filter change, and the worker's
+ * query engine builds and drops one per subscription. It is the same defect
+ * in the same engine, so it is the same refcount — a second copy would be
+ * two places to get the discipline exactly right, in a failure mode that
+ * takes the whole SharedWorker down when it is not.
  */
-import type { PerspectiveViewLike } from './perspectiveDatasource.js';
+
+/**
+ * The slice of a Perspective View a safe read needs. Declared structurally:
+ * core is a foundation layer and neither the window's AG Grid types nor the
+ * engine's own are available here.
+ */
+export interface PerspectiveViewLike {
+  to_columns(window?: {
+    start_row?: number;
+    end_row?: number;
+  }): Promise<Record<string, unknown[]>>;
+  num_rows(): Promise<number>;
+}
 
 export interface DeletableView extends PerspectiveViewLike {
   delete(): Promise<void>;

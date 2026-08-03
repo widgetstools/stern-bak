@@ -146,26 +146,9 @@ export function toTreeColumns(
 }
 
 /**
- * Stable identity for a View config, so a block request that changes nothing
- * reuses the live View instead of rebuilding it (a rebuild costs a full
- * recompute AND a delete, and delete is the dangerous operation here).
- * Key order is normalized because AG rebuilds these objects per request.
+ * Stable identity for a View config — moved to `@wellsfargo-starui/core`
+ * because the worker's query engine keys its subscription registry on it,
+ * and the data bucket cannot import from here. Re-exported so this module
+ * stays the one place the row engine reads View identity from.
  */
-export function viewConfigKey(config: PerspectiveViewConfig): string {
-  return JSON.stringify({
-    sort: config.sort ?? null,
-    filter: config.filter ?? null,
-    group_by: config.group_by ?? null,
-    aggregates: config.aggregates
-      ? Object.keys(config.aggregates)
-          .sort()
-          .map((k) => [k, config.aggregates![k]])
-      : null,
-    expressions: config.expressions
-      ? Object.keys(config.expressions)
-          .sort()
-          .map((k) => [k, config.expressions![k]])
-      : null,
-    columns: config.columns ?? null,
-  });
-}
+export { viewConfigKey } from '@wellsfargo-starui/core';

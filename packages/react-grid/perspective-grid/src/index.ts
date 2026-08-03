@@ -15,7 +15,10 @@
  *
  * Views MUST be closed through `createSafeView` — deleting one while a
  * read is in flight throws an uncatchable wasm borrow error that can take
- * the whole SharedWorker down. See `safeView.ts`.
+ * the whole SharedWorker down. It lives in `@wellsfargo-starui/core` because
+ * the worker's query engine builds and drops Views under the same rule and
+ * cannot import from this bucket; re-exported here so a window-side consumer
+ * still finds it on the engine's own surface.
  */
 export {
   createPerspectiveDatasource,
@@ -27,12 +30,19 @@ export {
   type ServerSideRequestLike,
   type ServerSideGetRowsParamsLike,
 } from './perspectiveDatasource.js';
-export { createSafeView, type SafeView, type DeletableView } from './safeView.js';
+export { createSafeView, type SafeView, type DeletableView } from '@wellsfargo-starui/core';
 export {
   coerceEditedValue,
   type CoercedValue,
   type PerspectiveColumnType,
 } from './cellEdits.js';
+export {
+  createPerspectiveQueryClient,
+  type PerspectiveQueryClient,
+  type PerspectiveQueryClientLike,
+  type PerspectiveQueryListener,
+  type PerspectiveQuerySubscriptionLike,
+} from './perspectiveQueryClient.js';
 export {
   createPerspectiveRowEngine,
   GRAND_TOTAL_ROW_ID,

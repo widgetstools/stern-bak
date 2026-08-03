@@ -31,16 +31,18 @@
  * window: `readAllRows` (this window's export) and `readMatchingRows` (the
  * children of a master row this window expanded).
  */
-import { createSafeView, type DeletableView, type SafeView } from './safeView.js';
 import {
   columnsToRows,
   type PerspectiveViewLike,
   type ServerSideRequestLike,
 } from './perspectiveDatasource.js';
 import {
+  createSafeView,
   toPerspectiveGroupLevel,
   type AgFilterItem,
+  type DeletableView,
   type PerspectiveViewConfig,
+  type SafeView,
 } from '@wellsfargo-starui/core';
 import {
   blankUnaggregatedNonNumeric,
