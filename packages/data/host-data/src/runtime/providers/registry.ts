@@ -60,6 +60,18 @@ export interface StartProviderOpts {
    * push path only.
    */
   perspectiveHost?: PerspectiveHost;
+  /**
+   * Name the Table is hosted under, for the `*-perspective` providers.
+   *
+   * Supplied by the hub as the provider id — the contract
+   * `StompPerspectiveProviderConfig.tableName` documents ("defaults to the
+   * provider id, which is what makes one Table per provider") but which no
+   * transport can implement, because a transport is handed a cfg and never an
+   * id. Its own fallback is the literal `'positions'`, so without this every
+   * Table-hosting provider in a worker names its Table the same thing.
+   * `cfg.tableName` still wins over it.
+   */
+  tableName?: string;
 }
 
 export function startProvider(
@@ -77,9 +89,11 @@ export function startProvider(
   if (cfg.providerType === 'stomp-perspective') {
     // Same AppData/bracket treatment as `stomp` — it IS a STOMP config —
     // plus the host the Table is created on.
-    return startStompPerspective(bracketResolved as StompPerspectiveProviderConfig, emit, {
+    const stompPerspectiveCfg = bracketResolved as StompPerspectiveProviderConfig;
+    return startStompPerspective(stompPerspectiveCfg, emit, {
       appDataLookup: opts?.appDataLookup,
       perspectiveHost: opts?.perspectiveHost,
+      tableName: stompPerspectiveCfg.tableName ?? opts?.tableName,
     });
   }
 
@@ -95,8 +109,10 @@ export function startProvider(
     // Same treatment as `mock` — it IS a mock config — plus the host the
     // Table is created on. No AppData resolution: the generator takes no
     // connection settings, so there is nothing for a token to appear in.
-    return startMockPerspective(bracketResolved as MockPerspectiveProviderConfig, emit, {
+    const mockPerspectiveCfg = bracketResolved as MockPerspectiveProviderConfig;
+    return startMockPerspective(mockPerspectiveCfg, emit, {
       perspectiveHost: opts?.perspectiveHost,
+      tableName: mockPerspectiveCfg.tableName ?? opts?.tableName,
     });
   }
 

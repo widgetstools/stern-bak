@@ -594,6 +594,13 @@ export class SharedWorkerDataServicesHub {
         // Null on a worker built without `loadPerspective`; the
         // `*-perspective` providers then serve the push path only.
         perspectiveHost: this.perspectiveHost ?? undefined,
+        // One Table per provider, which is what the config type has always
+        // promised. The transports cannot honour it themselves — they receive
+        // a cfg and never the id — so their own fallback is the literal
+        // `'positions'`, and a second Table-hosting provider in the same
+        // worker silently collides with the first. This is the only place
+        // that knows the id. An explicit `cfg.tableName` still wins.
+        tableName: providerId,
       });
     } catch (err) {
       this.providers.delete(providerId);
