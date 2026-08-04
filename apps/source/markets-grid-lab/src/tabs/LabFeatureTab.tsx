@@ -1,39 +1,54 @@
-import { useMemo } from 'react';
-import { MarketsGrid } from '@wellsfargo-starui/grid';
+import { useMemo, useState, type ReactNode } from 'react';
 import { TabContainer } from '../components/TabContainer';
 import { InspectorDrawer } from '../components/InspectorDrawer';
-import { defaultColDef } from '../data/columns';
 import { useLabDemoProfiles } from '../data/useLabDemoProfiles';
-import { labStorage } from '../data/storage';
-import { useLabRows } from '../demo/useLabRows';
+import { useLabDemoRegistry } from '../demo/LabDemoContext';
 import { getFeatureGuide } from '../guides/featureGuides';
 import { buildConfigBlocks } from '../guides/buildConfigBlocks';
+import { LabClientGrid } from './LabClientGrid';
+import { LabPerspectiveGrid } from './LabPerspectiveGrid';
+import {
+  isLabRowEngine,
+  LAB_ROW_ENGINE_VARIANTS,
+  type LabRowEngine,
+} from './labRowEngine';
 import type { LabFeatureConfig } from './labFeatureConfigs';
 
 export interface LabFeatureTabProps {
   config: LabFeatureConfig;
+  /** Extra toolbar controls, right-aligned (the stress tab's row-count picker). */
+  actions?: ReactNode;
+  /** Rows to ask the provider for — overrides `config.stream.rowCount`. */
+  rowCount?: number;
 }
 
 /**
- * Shared shell for feature tabs — wires the mock stream, demo profiles, and
- * MarketsGrid from a declarative config, then renders the guidance Inspector
- * drawer (What/Why · Try · Config · Props) sourced from the feature guide.
+ * Shared shell for feature tabs — the row-engine picker, demo profiles, and the
+ * guidance Inspector drawer, around whichever engine's grid is selected.
+ *
+ * The picker is `TabContainer`'s own `variants` slot, which has been here and
+ * unused since the container was written. Every tab funnels through this one
+ * shell, so wiring it here is what gives all sixteen a Perspective variant
+ * without a per-tab edit — and the two engines run the same profiles against
+ * the same columns, which is what makes switching a controlled experiment.
+ *
+ * Each engine is a separate component so only one set of hooks is ever live.
+ * Switching remounts the grid, and it has to: a row model is chosen when
+ * AG Grid is created, not changed underneath it.
  */
-export function LabFeatureTab({ config }: LabFeatureTabProps) {
+export function LabFeatureTab({ config, actions, rowCount }: LabFeatureTabProps) {
+  const [engine, setEngine] = useState<LabRowEngine>('client');
   const onProfilesReady = useLabDemoProfiles(
     config.gridId,
     config.profiles,
     config.activeProfileId,
   );
-  const { rowData, onReady, tickMs } = useLabRows(
-    config.tabId,
-    config.providerId,
-    config.stream ?? { rowCount: 500, updateIntervalMs: 500 },
-    onProfilesReady,
-  );
 
-  const columnDefs = useMemo(() => config.getColumnDefs(), [config]);
-  const colDefBase = config.defaultColDef ?? defaultColDef;
+  // The live tick rate belongs to whichever engine is mounted, and both
+  // register it with the demo console — so the subtitle reads it back from
+  // there rather than the shell holding a second copy that could disagree.
+  const { handle } = useLabDemoRegistry();
+  const tickMs = handle?.tickMs ?? config.stream?.updateIntervalMs ?? 500;
 
   const guide = getFeatureGuide(config.tabId);
   const configBlocks = useMemo(
@@ -45,34 +60,27 @@ export function LabFeatureTab({ config }: LabFeatureTabProps) {
     ? `${config.subtitle} · ${tickMs} ms tick · use Demo console for scenarios`
     : config.subtitle;
 
-  const grid = config.grid ?? {};
+  const Grid = engine === 'perspective' ? LabPerspectiveGrid : LabClientGrid;
 
   return (
-    <TabContainer title={config.title} subtitle={subtitle} help={config.help}>
+    <TabContainer
+      title={config.title}
+      subtitle={subtitle}
+      help={config.help}
+      variants={LAB_ROW_ENGINE_VARIANTS}
+      activeVariant={engine}
+      onVariantChange={(id) => {
+        if (isLabRowEngine(id)) setEngine(id);
+      }}
+      actions={actions}
+    >
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col">
-          <MarketsGrid
-            gridId={config.gridId}
-            componentName={config.componentName}
-            rowData={rowData}
-            columnDefs={columnDefs}
-            defaultColDef={colDefBase}
-            rowIdField="id"
-            storage={labStorage}
-            onReady={onReady}
-            showProfileSelector={grid.showProfileSelector ?? true}
-            showSaveButton={grid.showSaveButton ?? true}
-            showSettingsButton={grid.showSettingsButton ?? true}
-            showFiltersToolbar={grid.showFiltersToolbar}
-            showFormattingToolbar={grid.showFormattingToolbar}
-            showEditingToolbar={grid.showEditingToolbar}
-            showSmartEditToolbar={grid.showSmartEditToolbar}
-            showBulkUpdateToolbar={grid.showBulkUpdateToolbar}
-            showEditHistoryToolbar={grid.showEditHistoryToolbar}
-            showVisualExcelExport={grid.showVisualExcelExport}
-            sideBar={grid.sideBar}
-            statusBar={grid.statusBar}
-            rowHeight={grid.rowHeight}
+          <Grid
+            key={engine}
+            config={config}
+            onProfilesReady={onProfilesReady}
+            rowCount={rowCount}
           />
         </div>
         {guide && (

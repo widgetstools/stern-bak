@@ -5,7 +5,8 @@ export type LabCategoryId =
   | 'columns-layout'
   | 'filtering-data'
   | 'editing'
-  | 'profiles';
+  | 'profiles'
+  | 'performance';
 
 /** One numbered step in the Inspector "Try this" tab. */
 export interface FeatureGuideTryStep {

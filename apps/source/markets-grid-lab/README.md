@@ -1,10 +1,10 @@
 # MarketsGrid Feature Lab (`markets-grid-lab`)
 
-A 17-tab developer-onboarding lab for **MarketsGrid**. Its thesis: mount one
+An 18-tab developer-onboarding lab for **MarketsGrid**. Its thesis: mount one
 component, configure everything through the grid's own UI, and ship behavior
 as **profile data** rather than bespoke React. Every feature tab is a single
-`LabFeatureConfig` object rendered by one shared shell — 16 of the 17 tab
-modules are six-line files.
+`LabFeatureConfig` object rendered by one shared shell — most tab modules are
+six-line files.
 
 ```bash
 npm run dev        # http://localhost:5300
@@ -22,11 +22,47 @@ npm test           # vitest (70% per-file coverage gate)
 | Data | Live Updates (high-frequency stream through the SharedWorker hub) |
 | Editing | Editing (unified family), Bulk Update, Plus/Minus (keyboard nudge), Shortcuts (letter-key arithmetic), Alerts (triggers, channels, rate-limits) |
 | Profiles | Profiles (preset gallery → per-preset grid lens) |
+| Performance | Stress Test (1k–200k rows × ~120 columns, second window, both row engines) |
 
 Toolbar flags exercised across tabs: `showFiltersToolbar`,
 `showFormattingToolbar`, `showEditingToolbar`, `showSmartEditToolbar`,
 `showBulkUpdateToolbar`, `showEditHistoryToolbar`, `showVisualExcelExport`,
 `showProfileSelector`, `showSaveButton`, `showSettingsButton`.
+
+## Row engines
+
+Every feature tab carries a **Client row model | Perspective (worker-held
+Table)** picker, wired once into the shared `LabFeatureTab` shell. Both mount
+the same `gridId`, the same columns and the same profiles, so switching is an
+A/B of the row engine and nothing else — whatever changes, the engine changed
+it.
+
+- **Client** — this window materializes the whole book. Unchanged from before
+  the picker existed; it is the control.
+- **Perspective** — the book lives once in the SharedWorker and this window
+  reads the blocks its viewport asks for. A second window opens a View onto the
+  Table that already exists rather than paying for a second copy.
+
+Two consequences worth knowing before you use it:
+
+- The lab boots the **Perspective** worker asset unconditionally. Which worker
+  a window runs is settled at `new SharedWorker()`, and only that asset hosts a
+  Table — on the default one every Perspective variant would refuse and the
+  picker would be decoration. It costs the engine's inline wasm, which is the
+  trade a lab whose purpose is running both engines should make (a product app
+  that never opens a blotter still gets the smaller default).
+- **Scenarios are unavailable under Perspective**, and the demo console says so
+  rather than offering buttons that do nothing. Each one patches rows through
+  `gridApi.applyTransactionAsync` — a client-side row model's write path — and
+  under Perspective the book is in the worker, so the patch has nowhere to land.
+
+The **Stress Test** tab is where the difference is actually visible: the other
+tabs run 500 rows over 20–40 columns, where both engines are comfortable and an
+A/B that both sides win tells you nothing.
+
+The `Profiles` preset gallery is the one tab without the picker — it mounts its
+own grid per preset rather than going through the shared shell, and its subject
+is profile persistence, not the row engine.
 
 ## How it works
 

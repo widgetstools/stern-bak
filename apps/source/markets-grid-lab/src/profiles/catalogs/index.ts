@@ -78,3 +78,8 @@ export {
   VISUAL_EXCEL_DEMO_PROFILES,
   VISUAL_EXCEL_ACTIVE_PROFILE_ID,
 } from './visualExcelCatalog';
+export {
+  STRESS_GRID_ID,
+  STRESS_DEMO_PROFILES,
+  STRESS_ACTIVE_PROFILE_ID,
+} from './stressCatalog';

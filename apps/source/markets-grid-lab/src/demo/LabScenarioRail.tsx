@@ -178,7 +178,18 @@ export function LabScenarioRail({ activeTab }: { activeTab: string }) {
               </Button>
             )}
           </div>
-          {scenarios.length === 0 ? (
+          {handle && handle.scenariosSupported === false ? (
+            <p
+              className="text-[11px] leading-relaxed text-[color:var(--ds-text-muted)]"
+              data-testid="lab-scenarios-unsupported"
+            >
+              Not available on the Perspective engine. A scenario patches rows through
+              the grid&rsquo;s own transaction API, which is a client-side row model&rsquo;s
+              write path — under Perspective the book lives in the worker, so the patch
+              would have nowhere to land. Switch the row engine back to Client to use
+              them.
+            </p>
+          ) : scenarios.length === 0 ? (
             <p className="text-[11px] text-[color:var(--ds-text-muted)]">
               No scripted scenarios for this tab yet.
             </p>

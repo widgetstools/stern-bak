@@ -1,6 +1,6 @@
 import '../testSetupMocks';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { getOneByTestId, getOneByText } from '../../../../test-utils/queries';
 import { LabDemoProvider } from '../demo/LabDemoContext';
 import { LabFeatureTab } from './LabFeatureTab';
@@ -21,6 +21,7 @@ import { PlusMinusTab } from './PlusMinusTab';
 import { ShortcutsTab } from './ShortcutsTab';
 import { SmartEditTab } from './SmartEditTab';
 import { VisualExcelTab } from './VisualExcelTab';
+import { StressTestTab } from './StressTestTab';
 import { ProfilesTab } from './ProfilesTab';
 import { HomeTab } from './HomeTab';
 
@@ -41,6 +42,7 @@ const TAB_COMPONENTS = [
   ['ShortcutsTab', ShortcutsTab],
   ['SmartEditTab', SmartEditTab],
   ['VisualExcelTab', VisualExcelTab],
+  ['StressTestTab', StressTestTab],
 ] as const;
 
 function renderWithDemo(ui: React.ReactElement) {
@@ -52,6 +54,27 @@ describe('feature tabs', () => {
     renderWithDemo(<Tab />);
     await waitFor(() => expect(getOneByTestId('markets-grid')).toBeInTheDocument());
   });
+
+  /**
+   * The row-engine picker lives in the one shell every feature tab funnels
+   * through, so this is the assertion that all of them got a Perspective
+   * variant from a single edit — not sixteen separate wirings that could each
+   * be missing.
+   */
+  it.each(TAB_COMPONENTS)('%s switches to the Perspective engine', async (_name, Tab) => {
+    renderWithDemo(<Tab />);
+    await waitFor(() => expect(getOneByTestId('markets-grid')).toBeInTheDocument());
+
+    // The mocked shadcn Select renders as a native `<select>`; the engine
+    // picker is the first one every tab renders.
+    const engineSelect = document.querySelectorAll('select')[0] as HTMLSelectElement;
+    expect([...engineSelect.options].map((o) => o.value)).toEqual(['client', 'perspective']);
+    fireEvent.change(engineSelect, { target: { value: 'perspective' } });
+
+    await waitFor(() =>
+      expect(getOneByTestId('markets-grid')).toHaveAttribute('data-row-model', 'perspective'),
+    );
+  }, 20_000);
 
   it('LabFeatureTab renders inspector when guide exists', async () => {
     renderWithDemo(<LabFeatureTab config={OVERVIEW_FEATURE} />);

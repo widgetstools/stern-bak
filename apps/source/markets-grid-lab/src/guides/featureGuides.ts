@@ -295,6 +295,28 @@ export const FEATURE_GUIDES: Record<string, FeatureGuide> = {
       { name: 'appId / userId / instanceId', type: 'string', note: 'Scope keys when persisting via a ConfigService instead of localStorage.' },
     ],
   },
+
+  stress: {
+    id: 'stress',
+    category: 'performance',
+    summary: 'A big, wide book on both row engines — and a second window on the same one.',
+    whatWhy:
+      'Every other tab runs 500 rows over 20–40 columns, where both row engines are comfortable and therefore indistinguishable. This one varies the book instead of the feature: **1,000 to 200,000 rows** over ~120 columns, with the same row-engine picker every tab has.\n\nUnder the **client row model** each window materializes the whole book, so a second window costs a second full copy sent over the wire. Under **Perspective** the book lives once in the SharedWorker and each window opens a View onto it, so the second window attaches to what is already there. That is the entire reason the engine exists, and it is invisible until there is enough data for the copies to matter and more than one window to hold them.\n\nThe wide columns are **derived from real fields**, not invented — `Risk krd5Y · s2` reads the same number as `krd5Y`. Inert padding columns would let an engine shortcut exactly the work this tab is trying to measure.\n\nTreat it as a shape, not a benchmark: it is synthetic data in a demo app. Real figures need a real book and a profiler.',
+    trySteps: [
+      { text: 'Leave the engine on Client, set Rows to 50,000, and scroll.', hint: 'Note first paint and how the window feels at depth.' },
+      { text: 'Click "Second window" and watch it load the whole book again.' },
+      { text: 'Switch both windows to Perspective. The second one attaches to the Table the first built.' },
+      { text: 'Sort a column under Perspective — the sort runs in the worker over the whole book, not over what this window holds.' },
+      { text: 'Push Rows to 200,000 and repeat. This is where the two stop being comparable.' },
+    ],
+    props: [
+      { name: 'rowModel', type: "'client' | 'perspective'", default: "'client'", note: 'Which engine supplies rows. Absent means client — unchanged behaviour.' },
+      { name: 'perspectiveTable', type: 'PerspectiveTableLike | null', note: 'The worker-held Table. Null while attaching — the grid mounts nothing rather than a stand-in.' },
+      { name: 'perspectiveKeyColumn', type: 'string', note: 'The Table index column. One scalar column only.' },
+      { name: 'perspectiveQueries', type: 'PerspectiveGridQueries | null', note: 'Whole-book questions answered in the worker and pushed back.' },
+      showProfileSelector, showSaveButton, showSettingsButton,
+    ],
+  },
 };
 
 export function getFeatureGuide(id: string): FeatureGuide | undefined {

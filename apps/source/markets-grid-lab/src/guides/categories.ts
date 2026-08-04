@@ -22,4 +22,5 @@ export const LAB_CATEGORIES: LabCategory[] = [
   { id: 'filtering-data', label: 'Filtering & Live Data', tabIds: ['filters', 'live', 'alerts'] },
   { id: 'editing', label: 'Editing', tabIds: ['editing', 'bulk-update', 'plus-minus', 'shortcuts'] },
   { id: 'profiles', label: 'Profiles & Persistence', tabIds: ['profiles'] },
+  { id: 'performance', label: 'Performance', tabIds: ['stress'] },
 ];

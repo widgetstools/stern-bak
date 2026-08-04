@@ -23,6 +23,7 @@ const ALL_TAB_IDS = [
   'plus-minus',
   'shortcuts',
   'profiles',
+  'stress',
 ];
 
 describe('App', () => {
@@ -51,7 +52,12 @@ describe('App', () => {
   it('returns to home from sidebar', async () => {
     render(<App />);
     await userEvent.click(getOneByTestId('lab-tab-overview'));
-    await waitFor(() => expect(getOneByTestId('markets-grid')).toBeInTheDocument());
+    // Same 3s the navigation test above allows: every tab is a lazy chunk, and
+    // the default 1s is thin once the whole suite runs in parallel under
+    // coverage instrumentation.
+    await waitFor(() => expect(getOneByTestId('markets-grid')).toBeInTheDocument(), {
+      timeout: 3000,
+    });
     await userEvent.click(getOneByTestId('lab-tab-home'));
     expect(getOneByTestId('lab-home')).toBeInTheDocument();
   });

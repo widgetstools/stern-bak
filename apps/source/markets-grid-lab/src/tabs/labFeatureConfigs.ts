@@ -52,6 +52,9 @@ import {
   VISUAL_EXCEL_ACTIVE_PROFILE_ID,
   VISUAL_EXCEL_DEMO_PROFILES,
   VISUAL_EXCEL_GRID_ID,
+  STRESS_ACTIVE_PROFILE_ID,
+  STRESS_DEMO_PROFILES,
+  STRESS_GRID_ID,
 } from '../profiles/catalogs';
 import type { LabStreamOptions } from '../demo/types';
 
@@ -587,5 +590,39 @@ export const EDITING_FEATURE: LabFeatureConfig = {
     showProfileSelector: true,
     showSaveButton: true,
     showSettingsButton: true,
+  },
+};
+
+/**
+ * Stress test — the only tab whose columns and row count are not fixed here.
+ * `StressTestTab` overrides `getColumnDefs` with the wide generated set and
+ * drives `rowCount` from its own picker, because varying both live is the
+ * point of the tab.
+ */
+export const STRESS_FEATURE: LabFeatureConfig = {
+  tabId: 'stress',
+  providerId: 'mock-positions-stress',
+  title: 'Stress test — big book, two engines',
+  subtitle: 'Wide columns at depth · switch the row engine and open a second window',
+  help: HELP.stressTest,
+  gridId: STRESS_GRID_ID,
+  componentName: 'Stress',
+  profiles: STRESS_DEMO_PROFILES,
+  activeProfileId: STRESS_ACTIVE_PROFILE_ID,
+  stream: { rowCount: 10_000, updateIntervalMs: 500 },
+  getColumnDefs: () => OVERVIEW_COLUMNS,
+  subtitleIncludesTickMs: true,
+  grid: {
+    showProfileSelector: true,
+    showSaveButton: true,
+    showSettingsButton: true,
+    sideBar: { toolPanels: ['columns', 'filters'] },
+    statusBar: {
+      statusPanels: [
+        { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
+        { statusPanel: 'agFilteredRowCountComponent', align: 'left' },
+        { statusPanel: 'agAggregationComponent', align: 'right' },
+      ],
+    },
   },
 };

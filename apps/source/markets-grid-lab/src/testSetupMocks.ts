@@ -31,7 +31,33 @@ export const mockProviderStream = {
   status: 'ready' as const,
 };
 
+/**
+ * Perspective attach outcome the `usePerspectiveTable` mock replays. Tests flip
+ * it to drive the refusal path — `attachPerspective` never rejects, so a
+ * refusal is a value, not an exception.
+ */
+export const mockPerspectiveAttach: {
+  table: unknown;
+  status: 'attaching' | 'ready' | 'unavailable';
+  reason?: string;
+} = { table: { fake: 'table' }, status: 'ready' };
+
+export const mockPerspectiveQueryClient = {
+  subscribe: vi.fn(() => () => {}),
+  close: vi.fn(),
+  openSubscriptions: 0,
+};
+
 let providerOnDelta: ((rows: unknown[], replace: boolean) => void) | undefined;
+
+const hubClient = {
+  attachPerspective: vi.fn(async () => ({
+    ok: true as const,
+    port: {} as MessagePort,
+    tableName: 'positions',
+  })),
+  subscribePerspectiveQuery: vi.fn(() => ({ subId: 's1', unsubscribe: vi.fn() })),
+};
 
 export const mockStreamControls = {
   emitDelta(rows: unknown[], replace = false) {
@@ -42,6 +68,11 @@ export const mockStreamControls = {
     mockGridApi.setGridOption.mockClear();
     mockMarketsGridHandle.setConfig.mockClear().mockResolvedValue(undefined);
     mockProviderStream.refresh.mockClear();
+    mockPerspectiveQueryClient.subscribe.mockClear();
+    mockPerspectiveQueryClient.close.mockClear();
+    mockPerspectiveAttach.table = { fake: 'table' };
+    mockPerspectiveAttach.status = 'ready';
+    mockPerspectiveAttach.reason = undefined;
     providerOnDelta = undefined;
   },
 };
@@ -94,8 +125,14 @@ vi.mock('@wellsfargo-starui/grid', () => ({
       'data-testid': 'markets-grid',
       'data-grid-id': props.gridId,
       'data-component-name': props.componentName,
+      // Absent on the client path — the row-engine props must not appear at
+      // all there, which is the invariant the variant tests assert.
+      'data-row-model': props.rowModel ?? '',
+      'data-has-perspective-table': String(Boolean(props.perspectiveTable)),
+      'data-perspective-key-column': props.perspectiveKeyColumn ?? '',
     });
   },
+  createPerspectiveWorkerQueries: vi.fn(() => ({ watchCount: vi.fn(() => () => {}) })),
   // The real helper returns a StorageAdapterFactory FUNCTION (per-grid
   // adapter factory), not an adapter object — mirror that shape honestly.
   createMarketsGridLocalStorageStorage: (): StorageAdapterFactory => () => ({
@@ -124,7 +161,26 @@ vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
+vi.mock('@wellsfargo-starui/data/assets/data-services-perspective-worker.mjs?url', () => ({
+  default: '/mock-perspective-worker.mjs',
+}));
+
+vi.mock('@wellsfargo-starui/grid/perspective', () => ({
+  usePerspectiveTable: () => ({
+    table: mockPerspectiveAttach.status === 'ready' ? mockPerspectiveAttach.table : null,
+    tableName: 'positions',
+    status: mockPerspectiveAttach.status,
+    reason: mockPerspectiveAttach.reason,
+  }),
+  createPerspectiveQueryClient: () => mockPerspectiveQueryClient,
+}));
+
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+  useDataServices: () => ({
+    // ONE object, reused: the attach refcount and the query-client effect both
+    // key on this identity, and a fresh literal per render defeats both.
+    client: hubClient,
+  }),
   useProviderStream: vi.fn(
     (_providerId: string, _cfg: unknown, handlers: { onDelta?: typeof providerOnDelta }) => {
       providerOnDelta = handlers.onDelta;
@@ -214,10 +270,18 @@ vi.mock('@wellsfargo-starui/react', () => {
     Label: passthrough('label'),
     ScrollArea: passthrough('div'),
     Select: passthrough('select'),
-    SelectContent: passthrough(),
+    // A Fragment, not a div: a real Select's items belong to the select, and
+    // wrapping them in an element makes them non-options to the DOM — the
+    // value never changes and a test driving the picker silently asserts
+    // nothing.
+    SelectContent: ({ children }: React.PropsWithChildren) =>
+      React.createElement(React.Fragment, null, children),
     SelectItem: passthrough('option'),
-    SelectTrigger: passthrough('button'),
-    SelectValue: passthrough('span'),
+    // Also a Fragment: `<button>`/`<span>` inside a `<select>` are invalid and
+    // jsdom drops them, taking any option that follows with them.
+    SelectTrigger: ({ children }: React.PropsWithChildren) =>
+      React.createElement(React.Fragment, null, children),
+    SelectValue: () => null,
     Separator: passthrough('hr'),
     Sheet: ({
       open = false,

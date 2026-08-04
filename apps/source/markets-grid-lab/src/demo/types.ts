@@ -29,4 +29,12 @@ export interface LabStreamHandle {
   activeScenarioId: string | null;
   applyScenario: (id: string) => void;
   clearScenario: () => void;
+  /**
+   * False on the Perspective engine. Every scenario lands its patch through
+   * `gridApi.applyTransactionAsync`, which is a client-side row model's write
+   * path and means nothing under a server-side one — so the console says the
+   * buttons are unavailable rather than offering ones that do nothing.
+   * Defaults to true when a stream omits it.
+   */
+  scenariosSupported?: boolean;
 }
