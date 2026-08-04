@@ -85,6 +85,11 @@ export function usePerspectiveRows(
     () => ({
       providerType: 'mock-perspective',
       dataType: 'positions',
+      // No `tableName`: the hub names each provider's Table after the provider,
+      // which is what the config type has always promised. Two lab tabs on
+      // Perspective is exactly the case that needs it — before the hub supplied
+      // it, both hosted a Table called `'positions'` and the second tab broke
+      // the first.
       rowCount,
       updateIntervalMs: opts.updateIntervalMs ?? 500,
       enableUpdates: opts.enableUpdates ?? true,
@@ -101,8 +106,29 @@ export function usePerspectiveRows(
           cellDataType: toCellDataType(c),
         }))
         .filter((c) => c.field.length > 0),
-      // Declared up front so the Table is created EMPTY and IMMEDIATELY —
-      // the grid paints on open instead of waiting out the first snapshot.
+      // Declared up front so the Table is created EMPTY and IMMEDIATELY, and
+      // the KEY COLUMN is declared with them. Both halves matter:
+      //
+      //   - a declaration the index column is missing from is discarded by the
+      //     feed (it will not build a Table it cannot index), which silently
+      //     drops back to inferring the schema from observed rows;
+      //   - and an INFERRED schema makes every provider restart DELETE the
+      //     Table rather than clear it, because the next book may not have the
+      //     same shape. Attached windows then watch their table vanish.
+      //
+      // The lab's columns are what a blotter shows — `cusip`, not the
+      // synthetic `id` it keys rows by — so the key column has to be added
+      // back here or neither property holds.
+      inferredFields: [
+        { path: 'id', type: 'string' as const, nullable: false },
+        ...columnDefs
+          .filter((c) => c.field && c.field !== 'id')
+          .map((c) => ({
+            path: String(c.field),
+            type: toFieldType(c),
+            nullable: true,
+          })),
+      ],
       inferDates: true,
       // Every numeric column stays float; `integer` silently truncates.
       integerColumns: [],
@@ -151,8 +177,25 @@ export function usePerspectiveRows(
   // Same debounce the client variant uses — each slider step would otherwise
   // restart the provider, and a restart re-sends the whole book.
   const debouncedTickMs = useDebouncedValue(tickMs, 300);
+
+  // Only on an actual CHANGE, never on first ready. The cfg this provider
+  // attached with already carries the tick rate, the row count and whether
+  // updates run, so a restart at that moment asks for what it already has —
+  // and it is not free here the way it is on the client variant: a restart
+  // opens a fresh book, and the window's attach can land in the gap where the
+  // Table has been dropped and the next one is still streaming. The grid then
+  // shows the worker's "has not built its Perspective Table yet" refusal for a
+  // provider that was working a moment earlier.
+  const lastRequested = useRef<string | null>(null);
   useEffect(() => {
     if (providerStatus !== 'ready') return;
+    const requested = `${debouncedTickMs}:${paused}:${rowCount}`;
+    if (lastRequested.current === null) {
+      lastRequested.current = requested;
+      return;
+    }
+    if (lastRequested.current === requested) return;
+    lastRequested.current = requested;
     refresh({ updateIntervalMs: debouncedTickMs, enableUpdates: !paused, rowCount });
   }, [providerStatus, debouncedTickMs, paused, rowCount, refresh]);
 
@@ -210,4 +253,10 @@ function toCellDataType(col: ColDef<LabRow>): 'text' | 'number' | 'boolean' | 'd
   if (col.filter === 'agNumberColumnFilter') return 'number';
   if (col.filter === 'agDateColumnFilter') return 'date';
   return 'text';
+}
+
+/** The same read, in `FieldInfo`'s vocabulary rather than a column def's. */
+function toFieldType(col: ColDef<LabRow>): 'string' | 'number' | 'boolean' | 'date' {
+  const cellType = toCellDataType(col);
+  return cellType === 'text' ? 'string' : cellType;
 }
