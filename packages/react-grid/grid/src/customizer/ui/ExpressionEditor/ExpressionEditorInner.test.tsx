@@ -122,6 +122,54 @@ describe('ExpressionEditorInner', () => {
     await waitFor(() => expect(screen.getByLabelText('Expression editor help')).toBeTruthy());
   });
 
+  /**
+   * The completion popup was being cut off by the editor's own
+   * `overflow: hidden` — CodeMirror renders tooltips inside `.cm-editor` by
+   * default, and a single-line editor is ~24px tall. `escapeTooltipClipping`
+   * moves the layer to the document body so nothing above it can clip it.
+   */
+  describe('tooltip layer', () => {
+    it('mounts outside the editor, in the document body', async () => {
+      render(
+        <ExpressionEditorInner
+          value="1"
+          onCommit={() => {}}
+          columnsProvider={() => COLUMNS}
+          data-testid="expr"
+        />,
+      );
+      const view = await waitForView();
+
+      // CodeMirror copies its generated theme classes onto the container it
+      // creates in the configured parent — that is the tooltip layer.
+      const layers = [...document.body.children].filter(
+        (el) =>
+          el !== screen.getByTestId('expr').parentElement &&
+          el.className &&
+          view.themeClasses.split(' ').every((c) => el.classList.contains(c)),
+      );
+
+      expect(layers).toHaveLength(1);
+      expect(screen.getByTestId('expr').contains(layers[0]!)).toBe(false);
+    });
+
+    it('does not leave the layer behind when the editor unmounts', async () => {
+      const { unmount } = render(
+        <ExpressionEditorInner value="1" onCommit={() => {}} data-testid="expr" />,
+      );
+      const view = await waitForView();
+      const classes = view.themeClasses.split(' ');
+      const layerCount = () =>
+        [...document.body.children].filter(
+          (el) => el.className && classes.every((c) => el.classList.contains(c)),
+        ).length;
+
+      expect(layerCount()).toBe(1);
+      unmount();
+      expect(layerCount()).toBe(0);
+    });
+  });
+
   it('focuses via imperative handle and respects readOnly', async () => {
     const ref = { current: null as import('./types').ExpressionEditorHandle | null };
     render(

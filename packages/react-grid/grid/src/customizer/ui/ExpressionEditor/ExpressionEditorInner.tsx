@@ -7,6 +7,7 @@ import {
   drawSelection,
   rectangularSelection,
   highlightSpecialChars,
+  tooltips,
 } from '@codemirror/view';
 import {
   defaultKeymap,
@@ -56,10 +57,41 @@ import { HelpOverlay } from './HelpOverlay';
  *     because Monaco has none. CodeMirror ships `placeholder()`.
  *   - The overflow-widget host + `monaco-overflow.css` — Monaco needs a
  *     DOM node outside the editor for popups to escape `overflow:hidden`.
- *     CodeMirror's tooltips handle this natively.
+ *     CodeMirror needs the same thing, contrary to what this note used to
+ *     claim, but asks for it in one line rather than a stylesheet and a host
+ *     component: see `escapeTooltipClipping`.
  *   - A `MutationObserver` on `data-theme` calling `monaco.editor.setTheme`.
  *     Our highlight style is CSS custom properties, so theming is free.
  */
+
+/**
+ * Put the tooltip layer in the editor's own document body, not in `.cm-editor`.
+ *
+ * CodeMirror's default is to render tooltips inside the editor element and
+ * position them `fixed`, which normally escapes any ancestor's `overflow`. Two
+ * things defeat that here, in sequence:
+ *
+ *   1. The settings sheet is a vaul drawer, and vaul puts
+ *      `will-change: transform` on the drawer panel — which makes that panel a
+ *      containing block for its fixed descendants.
+ *   2. CodeMirror measures that its fixed tooltip is mispositioned and falls
+ *      back to `position: absolute` (its `madeAbsolute` path). Absolute inside
+ *      `.cm-editor` is then clipped by this component's own `overflow: hidden`,
+ *      and a single-line editor is ~24px tall — so the completion list was cut
+ *      off a line or two in.
+ *
+ * Hoisting the layer out of that subtree fixes it at the source: nothing above
+ * the tooltip can clip it, whichever positioning mode CodeMirror settles on.
+ * It has to clear the drawer's stacking context too — see the z-index rule in
+ * `expressionEditor.css`.
+ *
+ * `ownerDocument` rather than the global `document`: this editor also runs in
+ * popped-out windows, where those are different documents and the global one
+ * belongs to the opener.
+ */
+function escapeTooltipClipping(host: HTMLElement): Extension {
+  return tooltips({ parent: host.ownerDocument.body });
+}
 
 /** Palette chords + commit/close behaviour, above the default keymaps. */
 function appKeymap(opts: {
@@ -155,6 +187,7 @@ export default function ExpressionEditorInner(
         () => providersRef.current.columnsProvider?.() ?? [],
         () => providersRef.current.functionsProvider?.() ?? defaultFunctionsProvider(),
       ),
+      escapeTooltipClipping(hostRef.current),
       EditorView.editable.of(!readOnly),
       EditorState.readOnly.of(!!readOnly),
       EditorView.theme({
