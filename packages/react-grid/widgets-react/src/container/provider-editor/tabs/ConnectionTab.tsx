@@ -74,6 +74,7 @@ function Fields({ cfg, onChange }: { cfg: ProviderConfig; onChange(next: Partial
     case 'rest':
       return <RestFields cfg={cfg as RestProviderConfig} onChange={onChange as (n: Partial<RestProviderConfig>) => void} />;
     case 'mock':
+    case 'mock-ssrm':
       return <MockFields cfg={cfg as MockProviderConfig} onChange={onChange as (n: Partial<MockProviderConfig>) => void} />;
     case 'appdata':
       return <AppDataFields cfg={cfg as AppDataProviderConfig} onChange={onChange as (n: Partial<AppDataProviderConfig>) => void} />;

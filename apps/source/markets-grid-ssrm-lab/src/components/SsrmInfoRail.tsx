@@ -1,6 +1,6 @@
 /**
  * Right-rail stand-in for the CSRM LabScenarioRail — SSRM ticks come from
- * the STOMP broker, not the client demo console.
+ * the SharedWorker mock-ssrm plane (same LabRow fields as markets-grid-lab).
  */
 export function SsrmInfoRail({ activeTab }: { activeTab: string }) {
   return (
@@ -17,13 +17,14 @@ export function SsrmInfoRail({ activeTab }: { activeTab: string }) {
         </p>
       </div>
       <p className="text-[12px] leading-relaxed text-[color:var(--ds-text-secondary)]">
-        Rows stream through the SharedWorker <code className="text-[11px]">stomp-ssrm</code> plane
-        (broker <code className="text-[11px]">ws://localhost:8081</code>). Feature tabs keep the same
-        MarketsGrid chrome and profile seeding as the CSRM lab — only the row model is server-side.
+        Rows stream through the SharedWorker <code className="text-[11px]">mock-ssrm</code> plane
+        with the same field names as markets-grid-lab (<code className="text-[11px]">id</code>,{' '}
+        <code className="text-[11px]">cusip</code>, <code className="text-[11px]">bidPrice</code>, …).
+        Feature tabs keep MarketsGrid chrome and profile seeding — only the row model is server-side.
       </p>
       <p className="text-[11px] leading-relaxed text-[color:var(--ds-text-secondary)]">
-        The CSRM demo console (pause / tick / scenarios) is omitted here because the worker owns the
-        data plane.
+        No STOMP broker required. The CSRM demo console (pause / tick / scenarios) is omitted because
+        the worker owns the data plane.
       </p>
     </aside>
   );

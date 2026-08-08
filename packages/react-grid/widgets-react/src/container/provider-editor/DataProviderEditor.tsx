@@ -46,10 +46,15 @@ const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: str
   websocket: { label: 'WebSocket', description: 'Raw WebSocket, framed by you.', icon: Radio },
   socketio: { label: 'Socket.IO', description: 'Socket.IO event-driven channel.', icon: Radio },
   mock: { label: 'Mock', description: 'In-memory dummy stream — for dev/tests.', icon: TestTube2 },
+  'mock-ssrm': {
+    label: 'Mock SSRM',
+    description: 'Mock feed with server-side row model (filter/sort/group in the SharedWorker).',
+    icon: TestTube2,
+  },
   appdata: { label: 'AppData', description: 'Key/value store referenced by other providers via {{name.key}}.', icon: Database },
 };
 
-const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'stomp-ssrm', 'rest', 'mock', 'appdata'];
+const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'stomp-ssrm', 'rest', 'mock', 'mock-ssrm', 'appdata'];
 
 export interface DataProviderEditorProps {
   userId: string;

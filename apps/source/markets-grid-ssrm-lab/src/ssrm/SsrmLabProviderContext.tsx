@@ -9,11 +9,11 @@ import {
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/react/data/runtime';
 import {
+  MOCK_SSRM_CFG_VERSION,
+  MOCK_SSRM_PROVIDER_ID,
+  mockSsrmProviderDraft,
   SSRM_CFG_VERSION_KEY,
-  STOMP_SSRM_CFG_VERSION,
-  STOMP_SSRM_PROVIDER_ID,
-  stompSsrmProviderDraft,
-} from '../stompSsrmProvider.js';
+} from '../mockSsrmProvider.js';
 
 export interface SsrmLabProviderValue {
   providerId: string;
@@ -23,7 +23,7 @@ export interface SsrmLabProviderValue {
 
 const SsrmLabProviderContext = createContext<SsrmLabProviderValue | null>(null);
 
-/** Seeds the `stomp-ssrm` catalog row once and exposes it to feature tabs. */
+/** Seeds the `mock-ssrm` catalog row once and exposes it to feature tabs. */
 export function SsrmLabProvider({ children }: { children: ReactNode }) {
   const { configStore } = useDataServices();
   const userId = useUserIdFromContext();
@@ -32,15 +32,15 @@ export function SsrmLabProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const rows = await configStore.list(userId, { subtype: 'stomp-ssrm' });
-      const exists = rows.some((p) => p.providerId === STOMP_SSRM_PROVIDER_ID);
+      const rows = await configStore.list(userId, { subtype: 'mock-ssrm' });
+      const exists = rows.some((p) => p.providerId === MOCK_SSRM_PROVIDER_ID);
       const storedVersion = localStorage.getItem(SSRM_CFG_VERSION_KEY);
-      const shouldRefresh = storedVersion !== String(STOMP_SSRM_CFG_VERSION);
+      const shouldRefresh = storedVersion !== String(MOCK_SSRM_CFG_VERSION);
       if (shouldRefresh || !exists) {
-        await configStore.save(stompSsrmProviderDraft, userId);
+        await configStore.save(mockSsrmProviderDraft, userId);
       }
       if (shouldRefresh) {
-        localStorage.setItem(SSRM_CFG_VERSION_KEY, String(STOMP_SSRM_CFG_VERSION));
+        localStorage.setItem(SSRM_CFG_VERSION_KEY, String(MOCK_SSRM_CFG_VERSION));
       }
       if (!cancelled) setReady(true);
     })();
@@ -51,8 +51,8 @@ export function SsrmLabProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<SsrmLabProviderValue>(
     () => ({
-      providerId: STOMP_SSRM_PROVIDER_ID,
-      inlineCfg: stompSsrmProviderDraft.config as ProviderConfig,
+      providerId: MOCK_SSRM_PROVIDER_ID,
+      inlineCfg: mockSsrmProviderDraft.config as ProviderConfig,
       seeding: !ready,
     }),
     [ready],

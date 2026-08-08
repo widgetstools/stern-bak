@@ -22,6 +22,8 @@ export type ProviderFactory<T extends ProviderConfig = ProviderConfig> = (
 
 const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>> = {
   mock: startMock as ProviderFactory,
+  /** Same mock generator; hub attaches an SSRM query plane separately. */
+  'mock-ssrm': startMock as ProviderFactory,
   stomp: startStomp as ProviderFactory,
   /** Same STOMP transport; hub attaches an SSRM query plane separately. */
   'stomp-ssrm': startStomp as ProviderFactory,

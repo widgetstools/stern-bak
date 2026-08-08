@@ -79,6 +79,22 @@ describe('startProvider', () => {
     expect(startMock).not.toHaveBeenCalled();
   });
 
+  it('dispatches mock-ssrm through the same startMock factory', () => {
+    const cfg: ProviderConfig = {
+      providerType: 'mock-ssrm',
+      dataType: 'positions',
+      keyColumn: 'id',
+      rowCount: 50,
+      enableUpdates: true,
+      blockSize: 100,
+    };
+
+    startProvider(cfg, emit);
+
+    expect(startMock).toHaveBeenCalledWith(cfg, emit);
+    expect(startStomp).not.toHaveBeenCalled();
+  });
+
   it('throws when appData tokens remain unresolved for mock/rest providers', () => {
     const cfg: ProviderConfig = {
       providerType: 'mock',

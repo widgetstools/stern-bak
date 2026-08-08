@@ -131,7 +131,9 @@ async function testConnectionOnce(
     case 'stomp-ssrm':
       return connectStomp(cfg as never, { timeoutMs: opts.timeoutMs });
     case 'rest':  return probeRest(cfg);
-    case 'mock':  return probeMock(cfg, { maxRows: opts.maxRows });
+    case 'mock':
+    case 'mock-ssrm':
+      return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
     default:      return { ok: false, error: `Test not implemented for ${cfg.providerType}` };
   }
@@ -151,7 +153,9 @@ async function probeOnce(
     case 'stomp-ssrm':
       return probeStomp(cfg as never, opts);
     case 'rest':  return probeRest(cfg);
-    case 'mock':  return probeMock(cfg, { maxRows: opts.maxRows });
+    case 'mock':
+    case 'mock-ssrm':
+      return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
     default:      return { ok: false, error: `Probe not implemented for ${cfg.providerType}` };
   }

@@ -34,7 +34,7 @@ export function LabFeatureTab({ config }: LabFeatureTabProps) {
   );
 
   const subtitle = config.subtitleIncludesTickMs
-    ? `${config.subtitle} · SSRM live ticks from STOMP broker`
+    ? `${config.subtitle} · SSRM live ticks from mock-ssrm`
     : `${config.subtitle} · SSRM`;
 
   const grid = config.grid ?? {};

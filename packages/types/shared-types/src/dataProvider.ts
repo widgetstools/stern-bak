@@ -12,6 +12,8 @@ export const PROVIDER_TYPES = {
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
   MOCK: 'mock',
+  /** Mock feed + SharedWorker SSRM query plane (lab / offline SSRM). */
+  MOCK_SSRM: 'mock-ssrm',
   APPDATA: 'appdata'
 } as const;
 
@@ -27,6 +29,7 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
   [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
   [PROVIDER_TYPES.SOCKETIO]: 'socketio',
   [PROVIDER_TYPES.MOCK]: 'mock',
+  [PROVIDER_TYPES.MOCK_SSRM]: 'mock-ssrm',
   [PROVIDER_TYPES.APPDATA]: 'appdata'
 };
 
@@ -40,6 +43,7 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'websocket': PROVIDER_TYPES.WEBSOCKET,
   'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
+  'mock-ssrm': PROVIDER_TYPES.MOCK_SSRM,
   'appdata': PROVIDER_TYPES.APPDATA,
   // Capitalized (backward compatibility)
   'Stomp': PROVIDER_TYPES.STOMP,
@@ -48,6 +52,7 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'WebSocket': PROVIDER_TYPES.WEBSOCKET,
   'SocketIO': PROVIDER_TYPES.SOCKETIO,
   'Mock': PROVIDER_TYPES.MOCK,
+  'MockSsrm': PROVIDER_TYPES.MOCK_SSRM,
   'AppData': PROVIDER_TYPES.APPDATA
 };
 
@@ -348,6 +353,22 @@ export interface MockProviderConfig {
 }
 
 /**
+ * Mock + SSRM Provider Configuration.
+ *
+ * Same row generator as {@link MockProviderConfig}; the SharedWorker
+ * attaches an SSRM query plane so grids use `rowModelType: 'serverSide'`
+ * with lab-parity field names (`id`, `cusip`, `bidPrice`, …).
+ */
+export interface MockSsrmProviderConfig
+  extends Omit<MockProviderConfig, 'providerType'> {
+  providerType: 'mock-ssrm';
+  /** Hint for AG Grid `cacheBlockSize` (client); worker pages by request. */
+  blockSize?: number;
+  /** Optional persisted column schema for SSRM grids / editors. */
+  columnDefinitions?: ColumnDefinition[];
+}
+
+/**
  * AppData Variable
  */
 export interface AppDataVariable {
@@ -392,6 +413,7 @@ export type ProviderConfig =
   | WebSocketProviderConfig
   | SocketIOProviderConfig
   | MockProviderConfig
+  | MockSsrmProviderConfig
   | AppDataProviderConfig;
 
 /**
@@ -554,6 +576,17 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     updateInterval: 2000,
     rowCount: 20,
     enableUpdates: true
+  },
+  'mock-ssrm': {
+    providerType: 'mock-ssrm',
+    dataType: 'positions',
+    updateInterval: 500,
+    updateIntervalMs: 500,
+    rowCount: 500,
+    enableUpdates: true,
+    keyColumn: 'id',
+    blockSize: 100,
+    columnDefinitions: []
   },
   appdata: {
     providerType: 'appdata',

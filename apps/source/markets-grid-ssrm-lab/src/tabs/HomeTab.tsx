@@ -20,7 +20,7 @@ const storage = createMarketsGridLocalStorageStorage();
 // SSRM lab: same MarketsGrid chrome — swap rowData for ssrm
 <MarketsGrid
   gridId="positions"
-  ssrm={{ provider, keyColumn: 'positionId' }}
+  ssrm={{ provider, keyColumn: 'id' }}
   columnDefs={columns}
   storage={storage}
   showProfileSelector

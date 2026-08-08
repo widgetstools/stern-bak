@@ -26,18 +26,20 @@ type GridChrome = Pick<
 export interface SsrmLabGridProps extends GridChrome {
   gridId: string;
   componentName: string;
-  /** Ignored for data fields — STOMP SSRM columns come from the provider. Kept for lab API parity. */
+  /** Lab column defs (same field names as CSRM markets-grid-lab). */
   columnDefs?: ColDef[];
   defaultColDef?: ColDef;
   onReady?: MarketsGridProps['onReady'];
 }
 
 /**
- * MarketsGrid + SSRM for lab feature tabs — lab chrome/profiles, STOMP columns + data.
+ * MarketsGrid + SSRM for lab feature tabs — lab chrome/profiles/columns,
+ * mock-ssrm SharedWorker data plane.
  */
 export function SsrmLabGrid({
   gridId,
   componentName,
+  columnDefs: columnDefsProp,
   defaultColDef,
   onReady,
   showProfileSelector = true,
@@ -65,19 +67,20 @@ export function SsrmLabGrid({
   const { ready } = useSsrmProviderDataWiring({ provider });
 
   const keyColumn = useMemo(() => {
-    if (!provider || !ready) return 'positionId';
+    if (!provider || !ready) return 'id';
     try {
       const cfg = provider.getConfig() as { keyColumn?: string | readonly string[] };
       if (Array.isArray(cfg.keyColumn)) return '__ssrmRowId';
       return cfg.keyColumn && String(cfg.keyColumn).trim()
         ? String(cfg.keyColumn)
-        : 'positionId';
+        : 'id';
     } catch {
-      return 'positionId';
+      return 'id';
     }
   }, [provider, ready]);
 
   const columnDefs = useMemo<ColDef[]>(() => {
+    if (columnDefsProp && columnDefsProp.length > 0) return columnDefsProp;
     if (!provider || !ready) return [];
     try {
       const defs = provider.getColumnDefs();
@@ -96,7 +99,7 @@ export function SsrmLabGrid({
     } catch {
       return [];
     }
-  }, [provider, ready]);
+  }, [columnDefsProp, provider, ready]);
 
   const cacheBlockSize = useMemo(() => {
     if (!provider || !ready) return undefined;

@@ -21,8 +21,8 @@ function BootstrapError({ error }: { error: Error }) {
         <AlertTitle>MarketsGrid SSRM Lab — data services unavailable</AlertTitle>
         <AlertDescription className="space-y-3 text-[color:var(--ds-text-secondary)]">
           <p>
-            The SharedWorker hub failed to start. SSRM tabs need the hub plus STOMP on{' '}
-            <code>ws://localhost:8081</code>.
+            The SharedWorker hub failed to start. SSRM tabs need the hub for the{' '}
+            <code>mock-ssrm</code> data plane.
           </p>
           <pre className="overflow-x-auto rounded-md border border-[color:var(--ds-border-primary)] bg-[color:var(--ds-surface-secondary)] px-3 py-2 text-[12px] text-[color:var(--ds-accent-negative)]">
             {error.message}

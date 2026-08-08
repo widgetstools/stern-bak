@@ -18,7 +18,7 @@ import type { StatusBarRequest, StatusBarSummary } from './statusBar.js';
 const COMPOSITE_KEY_FIELD = '__ssrmRowId';
 
 export function isSsrmProviderType(type: string | undefined): boolean {
-  return type === 'stomp-ssrm';
+  return type === 'stomp-ssrm' || type === 'mock-ssrm';
 }
 
 export function resolveSsrmKeyColumn(
