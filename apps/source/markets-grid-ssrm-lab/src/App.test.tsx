@@ -1,78 +1,77 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import './testSetupMocks';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getOneByTestId } from '../../../test-utils/queries';
-import './test/setupMocks.js';
-import { staruiTestState } from './test/setupMocks.js';
-import {
-  SSRM_CFG_VERSION_KEY,
-  STOMP_SSRM_CFG_VERSION,
-  STOMP_SSRM_PROVIDER_ID,
-  stompSsrmProviderDraft,
-} from './stompSsrmProvider.js';
+import { render, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { getOneByTestId, getOneByText } from '../../../test-utils/queries';
+import { App } from './App';
+import { mockApplyTheme, mockGetTheme } from './testSetupMocks';
 
-vi.mock('./bootstrap.js', () => ({
-  getPlatform: () => staruiTestState.platform,
-}));
+const ALL_TAB_IDS = [
+  'overview',
+  'formatting',
+  'visual-excel',
+  'renderers',
+  'toolbar',
+  'groups',
+  'calc',
+  'conditional',
+  'filters',
+  'live',
+  'alerts',
+  'editing',
+  'bulk-update',
+  'plus-minus',
+  'shortcuts',
+  'profiles',
+];
 
 describe('App', () => {
   beforeEach(() => {
-    localStorage.clear();
-    staruiTestState.configStore.list.mockReset();
-    staruiTestState.configStore.save.mockReset();
-    staruiTestState.configStore.list.mockResolvedValue([]);
-    staruiTestState.configStore.save.mockResolvedValue(undefined);
+    mockApplyTheme.mockClear();
+    mockGetTheme.mockReturnValue({ theme: 'dark' });
   });
 
-  it('seeds the stomp-ssrm catalog row and mounts HostedSsrmMarketsGrid', async () => {
-    const { App } = await import('./App.js');
+  it('renders home tab by default', () => {
     render(<App />);
+    expect(getOneByText('MarketsGrid Feature Lab')).toBeInTheDocument();
+    expect(getOneByTestId('lab-home')).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(staruiTestState.configStore.save).toHaveBeenCalledWith(
-        stompSsrmProviderDraft,
-        'test-user',
+  it('navigates to every feature tab', async () => {
+    render(<App />);
+    for (const tabId of ALL_TAB_IDS) {
+      await userEvent.click(getOneByTestId(`lab-tab-${tabId}`));
+      await waitFor(
+        () => expect(getOneByTestId(`tab-panel-${tabId}`)).toBeInTheDocument(),
+        { timeout: 3000 },
       );
-      expect(getOneByTestId('hosted-ssrm-markets-grid')).toBeInTheDocument();
-    });
+    }
+  }, 60_000);
 
-    const grid = getOneByTestId('hosted-ssrm-markets-grid');
-    expect(grid).toHaveAttribute('data-provider-id', STOMP_SSRM_PROVIDER_ID);
-    expect(grid).toHaveAttribute('data-has-inline-cfg', 'true');
-    expect(grid).toHaveAttribute('data-with-storage', 'true');
-    expect(grid).toHaveAttribute('data-has-config-manager', 'true');
-    expect(screen.getByText('MarketsGrid SSRM Lab')).toBeInTheDocument();
+  it('returns to home from sidebar', async () => {
+    render(<App />);
+    await userEvent.click(getOneByTestId('lab-tab-overview'));
+    await waitFor(() => expect(getOneByTestId('markets-grid')).toBeInTheDocument());
+    await userEvent.click(getOneByTestId('lab-tab-home'));
+    expect(getOneByTestId('lab-home')).toBeInTheDocument();
   });
 
-  it('skips save when provider exists at current cfg version', async () => {
-    localStorage.setItem(SSRM_CFG_VERSION_KEY, String(STOMP_SSRM_CFG_VERSION));
-    staruiTestState.configStore.list.mockResolvedValue([
-      { providerId: STOMP_SSRM_PROVIDER_ID, name: stompSsrmProviderDraft.name },
-    ]);
-
-    const { App } = await import('./App.js');
+  it('toggles theme from header', async () => {
     render(<App />);
-
-    await waitFor(() => {
-      expect(getOneByTestId('hosted-ssrm-markets-grid')).toBeInTheDocument();
-    });
-    expect(staruiTestState.configStore.save).not.toHaveBeenCalled();
+    await userEvent.click(getOneByTestId('theme-toggle'));
+    expect(mockApplyTheme).toHaveBeenCalledWith({ theme: 'light' });
   });
 
-  it('refreshes catalog when cfg version is stale', async () => {
-    localStorage.setItem(SSRM_CFG_VERSION_KEY, '0');
-    staruiTestState.configStore.list.mockResolvedValue([
-      { providerId: STOMP_SSRM_PROVIDER_ID, name: stompSsrmProviderDraft.name },
-    ]);
-
-    const { App } = await import('./App.js');
+  it('filters sidebar tabs and clears filter', async () => {
     render(<App />);
+    await userEvent.type(getOneByTestId('lab-sidebar-filter'), 'format');
+    expect(getOneByTestId('lab-tab-formatting')).toBeInTheDocument();
+    await userEvent.clear(getOneByTestId('lab-sidebar-filter'));
+  });
 
-    await waitFor(() => {
-      expect(staruiTestState.configStore.save).toHaveBeenCalledWith(
-        stompSsrmProviderDraft,
-        'test-user',
-      );
-      expect(localStorage.getItem(SSRM_CFG_VERSION_KEY)).toBe(String(STOMP_SSRM_CFG_VERSION));
-    });
+  it('shows tab hint in header for active tab', async () => {
+    render(<App />);
+    await userEvent.click(getOneByTestId('lab-tab-live'));
+    await waitFor(() => expect(getOneByText(/High-frequency stream/)).toBeInTheDocument());
   });
 });

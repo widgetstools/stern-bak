@@ -11,9 +11,7 @@
   *::after {
     box-sizing: border-box;
   }
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
   html,
   body,
   #root {
@@ -22,9 +20,7 @@
     margin: 0;
     padding: 0;
   }
-  html {
-    overflow: hidden;
-  }
+  html { overflow: hidden; }
   body {
     overflow: hidden;
     background: var(--ds-surface-ground);
@@ -33,4 +29,120 @@
     font-size: var(--ds-font-size-body);
     -webkit-font-smoothing: antialiased;
   }
+}
+
+/* Markdown surface used by the in-app help drawer. Scoped so the app's
+   global font/heading rules don't override documentation formatting. */
+.lab-markdown {
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans), -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.lab-markdown > * + * { margin-top: 0.85em; }
+.lab-markdown h1,
+.lab-markdown h2,
+.lab-markdown h3,
+.lab-markdown h4 {
+  color: var(--ds-text-primary);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.lab-markdown h1 { font-size: 18px; margin-top: 0; }
+.lab-markdown h2 { font-size: 15px; margin-top: 1.4em; padding-bottom: 4px; border-bottom: 1px solid var(--ds-border-primary); }
+.lab-markdown h3 { font-size: 13px; margin-top: 1.2em; color: var(--ds-text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
+.lab-markdown p { color: var(--ds-text-primary); }
+.lab-markdown strong { color: var(--ds-text-primary); font-weight: 600; }
+.lab-markdown em { color: var(--ds-text-secondary); }
+.lab-markdown ul,
+.lab-markdown ol {
+  padding-left: 1.3em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+.lab-markdown ul { list-style: disc; }
+.lab-markdown ol { list-style: decimal; }
+.lab-markdown li { color: var(--ds-text-primary); }
+.lab-markdown li::marker { color: var(--ds-text-secondary); }
+.lab-markdown a {
+  color: var(--ds-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.lab-markdown code {
+  font-family: var(--ds-font-mono), 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ds-surface-secondary);
+  border: 1px solid var(--ds-border-primary);
+  color: var(--ds-text-primary);
+}
+.lab-markdown pre {
+  margin: 0.4em 0;
+  padding: 12px 14px;
+  background: var(--ds-surface-secondary);
+  border: 1px solid var(--ds-border-primary);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: var(--ds-font-mono), 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.lab-markdown pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: var(--ds-text-primary);
+}
+.lab-markdown blockquote {
+  margin: 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--ds-border-primary);
+  background: color-mix(in srgb, var(--ds-surface-secondary) 60%, transparent);
+  color: var(--ds-text-secondary);
+  border-radius: 0 4px 4px 0;
+}
+.lab-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--ds-border-primary);
+  margin: 1.4em 0;
+}
+.lab-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.lab-markdown th,
+.lab-markdown td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--ds-border-primary);
+}
+.lab-markdown thead th {
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+/* Preset gallery cell-class rules (Profiles tab). */
+.lab-cell-loser {
+  color: var(--ds-accent-negative) !important;
+  font-weight: 600;
+}
+.lab-cell-winner {
+  color: var(--ds-accent-positive) !important;
+  font-weight: 600;
+}
+.lab-cell-warn {
+  background: color-mix(in srgb, var(--ds-overlay-warning-soft) 65%, transparent) !important;
+}
+.lab-cell-junk {
+  background: color-mix(in srgb, var(--ds-overlay-negative-soft) 50%, transparent) !important;
+  font-weight: 600;
 }

@@ -1,10 +1,10 @@
-import { StrictMode } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { applyTheme, getTheme } from '@wellsfargo-starui/design-system';
 import { Alert, AlertDescription, AlertTitle } from '@wellsfargo-starui/react';
 import { DataHubProvider } from '@wellsfargo-starui/react/data/runtime';
-import { App } from './App.js';
-import { bootstrap } from './bootstrap.js';
+import { App } from './App';
+import { initPlatformBootstrap } from './platformBootstrap';
 import './globals.css';
 
 applyTheme(getTheme());
@@ -21,8 +21,8 @@ function BootstrapError({ error }: { error: Error }) {
         <AlertTitle>MarketsGrid SSRM Lab — data services unavailable</AlertTitle>
         <AlertDescription className="space-y-3 text-[color:var(--ds-text-secondary)]">
           <p>
-            The SharedWorker hub failed to start. Ensure packages are built and the STOMP broker
-            is available on <code>ws://localhost:8081</code> for row data.
+            The SharedWorker hub failed to start. SSRM tabs need the hub plus STOMP on{' '}
+            <code>ws://localhost:8081</code>.
           </p>
           <pre className="overflow-x-auto rounded-md border border-[color:var(--ds-border-primary)] bg-[color:var(--ds-surface-secondary)] px-3 py-2 text-[12px] text-[color:var(--ds-accent-negative)]">
             {error.message}
@@ -33,21 +33,21 @@ function BootstrapError({ error }: { error: Error }) {
   );
 }
 
-void bootstrap()
+void initPlatformBootstrap()
   .then(({ config, platform }) => {
     createRoot(rootElement).render(
-      <StrictMode>
+      <React.StrictMode>
         <DataHubProvider platform={platform} userId={config.userId}>
           <App />
         </DataHubProvider>
-      </StrictMode>,
+      </React.StrictMode>,
     );
   })
   .catch((err: unknown) => {
     const error = err instanceof Error ? err : new Error(String(err));
     createRoot(rootElement).render(
-      <StrictMode>
+      <React.StrictMode>
         <BootstrapError error={error} />
-      </StrictMode>,
+      </React.StrictMode>,
     );
   });

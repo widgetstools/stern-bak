@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.210Z",
+  "profile": {
+    "name": "04 · Themed overrides",
+    "gridId": "lab-formatting-v7",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "compositeRating": {
+              "colId": "compositeRating",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#0e3046",
+                    "text": "#7cc7f9"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#dbeefd",
+                    "text": "#0f4d75"
+                  }
+                }
+              },
+              "headerStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#0e3046",
+                    "text": "#7cc7f9"
+                  },
+                  "typography": {
+                    "bold": true
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#dbeefd",
+                    "text": "#0f4d75"
+                  },
+                  "typography": {
+                    "bold": true
+                  }
+                }
+              },
+              "initialWidth": 95
+            },
+            "issuerSector": {
+              "colId": "issuerSector",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#102e22",
+                    "text": "#79d3a3"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#d8edd9",
+                    "text": "#1d5b2f"
+                  }
+                }
+              },
+              "initialWidth": 140
+            },
+            "currency": {
+              "colId": "currency",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#23123a",
+                    "text": "#b88bf0"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#ebdcf8",
+                    "text": "#4e1b86"
+                  }
+                }
+              },
+              "initialWidth": 80
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,19 +1,26 @@
+import react from '@vitejs/plugin-react';
 import { defineConfig, mergeConfig } from 'vitest/config';
-import viteConfig from './vite.config.js';
+import viteConfig from './vite.config';
 
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    plugins: [react()],
     test: {
       environment: 'jsdom',
       globals: false,
       css: false,
-      setupFiles: ['../../test-utils/setup.ts', 'src/test/setupMocks.ts'],
-      include: ['src/**/*.test.{ts,tsx}'],
+      setupFiles: ['../../test-utils/setup.ts', 'src/testSetupMocks.ts'],
+      include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
       coverage: {
         provider: 'v8',
-        include: ['src/**/*.{ts,tsx}'],
-        exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/vite-env.d.ts'],
+        include: ['src/**/*.{ts,tsx,js,jsx}', 'scripts/**/*.{ts,js}'],
+        exclude: [
+          'src/**/*.test.{ts,tsx}',
+          'scripts/**/*.test.ts',
+          'src/vite-env.d.ts',
+          'src/testSetupMocks.ts',
+        ],
         reporter: ['text', 'json-summary', 'lcov'],
         reportOnFailure: true,
         thresholds: { lines: 70, statements: 70, functions: 70, branches: 70 },

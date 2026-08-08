@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.216Z",
+  "profile": {
+    "name": "04 · Energy sector",
+    "gridId": "lab-quick-filters-v1",
+    "state": {
+      "saved-filters": {
+        "v": 1,
+        "data": {
+          "filters": [
+            {
+              "id": "qf-energy",
+              "label": "Energy",
+              "active": true,
+              "filterModel": {
+                "issuerSector": {
+                  "filterType": "set",
+                  "values": [
+                    "Energy"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
