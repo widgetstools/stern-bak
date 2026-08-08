@@ -39,8 +39,20 @@ import { ensureAgGridModules } from './ensureAgGridModules';
 import { mergeDefaultColDef } from './mergeDefaultColDef';
 import { GeneralSettingsProvider } from './GeneralSettingsContext';
 import { MarketsGridSurface } from './MarketsGridSurface';
+import { useSsrmExpressionBridge } from './useSsrmExpressionBridge.js';
+import type { MarketsGridSsrmProps } from './types';
 
 export { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
+
+/** Inside {@link GridProvider} so {@link useModuleState} resolves. */
+function MarketsGridSsrmExpressionBridge({
+  ssrm,
+}: {
+  ssrm?: MarketsGridSsrmProps;
+}): null {
+  useSsrmExpressionBridge(ssrm?.provider, Boolean(ssrm?.provider));
+  return null;
+}
 
 // One-shot dev-only warning when the host forgets to pass `storage`
 // (or the legacy `storageAdapter`). Module-scoped so the message fires
@@ -346,6 +358,7 @@ function MarketsGridInner<TData = unknown>(
     <GridEventBindingsHostProvider value={gridEventBindingsHost ?? null}>
       <GridProvider platform={shell.platform}>
       <GeneralSettingsProvider value={shell.generalSettings}>
+      <MarketsGridSsrmExpressionBridge ssrm={shell.ssrm} />
       <MarketsGridHost
         rowData={rowData ?? []}
         ssrm={shell.ssrm}
@@ -435,6 +448,7 @@ function MarketsGridCoreInner<TData = unknown>(
   return (
     <GridProvider platform={shell.platform}>
       <GeneralSettingsProvider value={shell.generalSettings}>
+        <MarketsGridSsrmExpressionBridge ssrm={shell.ssrm} />
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
           <MarketsGridSurface
             gridRef={gridRef}
