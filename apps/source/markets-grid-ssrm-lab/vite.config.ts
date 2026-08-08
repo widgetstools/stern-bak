@@ -5,6 +5,6 @@ import { staruiConsumerViteConfig, appDirFromConfig } from '@wellsfargo-starui/p
 export default defineConfig(
   mergeConfig(staruiConsumerViteConfig(appDirFromConfig(import.meta.url), { worker: true }), {
     plugins: [react()],
-    server: { port: 5320, open: true },
+    server: { port: 5320, host: '127.0.0.1', open: true, strictPort: true },
   }),
 );
