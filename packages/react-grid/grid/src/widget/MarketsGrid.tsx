@@ -54,6 +54,7 @@ function useMarketsGridShell<TData>(
 ) {
   const {
     rowData,
+    ssrm,
     columnDefs: baseColumnDefs,
     theme: themeProp,
     gridId,
@@ -226,6 +227,7 @@ function useMarketsGridShell<TData>(
     resolvedUserId,
     resolvedInstanceId,
     includeAllStreamSafeFilters,
+    ssrm,
   };
 }
 
@@ -345,7 +347,8 @@ function MarketsGridInner<TData = unknown>(
       <GridProvider platform={shell.platform}>
       <GeneralSettingsProvider value={shell.generalSettings}>
       <MarketsGridHost
-        rowData={rowData}
+        rowData={rowData ?? []}
+        ssrm={shell.ssrm}
         columnDefs={shell.columnDefs}
         gridOptions={shell.gridOptions}
         hostOverrideKeys={shell.hostOverrideKeys}

@@ -88,6 +88,10 @@ vi.mock('./MarketsGridSurface', () => ({
   },
 }));
 
+vi.mock('./MarketsGridSsrmSurface', () => ({
+  MarketsGridSsrmSurface: () => <div data-testid="ssrm-surface" />,
+}));
+
 const preloadSettingsSheet = vi.fn();
 
 vi.mock('./LazySettingsSheet', () => ({
