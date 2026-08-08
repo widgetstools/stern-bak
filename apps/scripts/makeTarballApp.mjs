@@ -41,6 +41,7 @@ const APPS = {
   'dataprovider-editor': { port: 6193 },
   'design-system': { port: 6310 },
   'markets-grid-lab': { port: 6300, assetsInclude: ['**/*.md'] },
+  'markets-grid-ssrm-lab': { port: 6320 },
   'star-demo': { port: 6175, svgr: true },
   'stomp-marketsgrid-minimal': { port: 6213 },
   // stomp-view-server is intentionally absent: it imports zero
