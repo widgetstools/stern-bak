@@ -29,10 +29,12 @@ function buildExpressionSnapshot(
       field: col.colId,
       expression: col.expression,
     })),
-    styleRules: styling.rules.map((rule) => ({
-      id: rule.id,
-      expression: rule.expression,
-    })),
+    styleRules: styling.rules
+      .filter((rule) => rule.enabled)
+      .map((rule) => ({
+        id: rule.id,
+        expression: rule.expression,
+      })),
     alertRules: alerts.rules
       .filter(
         (rule): rule is typeof rule & { trigger: { kind: 'dataChange'; expression: string } } =>
