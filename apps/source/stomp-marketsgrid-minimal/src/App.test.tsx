@@ -152,10 +152,11 @@ describe('App', () => {
     expect(staruiTestState.configStore.list).toHaveBeenCalledWith('test-user', {
       subtype: 'stomp-ssrm',
     });
-    expect(getOneByTestId('hosted-ssrm-markets-grid')).toHaveAttribute(
-      'data-has-inline-cfg',
-      'true',
-    );
+    const grid = getOneByTestId('hosted-ssrm-markets-grid');
+    expect(grid).toHaveAttribute('data-has-inline-cfg', 'true');
+    expect(grid).toHaveAttribute('data-default-instance-id', 'stomp-ssrm-blotter');
+    expect(grid).toHaveAttribute('data-with-storage', 'true');
+    expect(grid).toHaveAttribute('data-has-config-manager', 'true');
   });
 
   it('does not update state after unmount', async () => {

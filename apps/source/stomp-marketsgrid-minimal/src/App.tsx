@@ -128,6 +128,10 @@ export function App() {
         providerId={ssrmProviderId}
         inlineCfg={stompSsrmProviderDraft.config}
         title="STOMP Positions (SSRM)"
+        componentName="STOMP Positions (SSRM)"
+        defaultInstanceId="stomp-ssrm-blotter"
+        withStorage
+        configManager={getPlatform().configManager}
         showProviderEditor={false}
       />
     );
