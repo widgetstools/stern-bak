@@ -100,7 +100,9 @@ export function createDataServicesWorker(
     );
   }
 
-  const name = `mkt-data-services:${opts.appName}`;
+  // `:ssrm2` — bump when hub protocol changes so browsers don't keep a
+  // stale named SharedWorker from before the rebuild.
+  const name = `mkt-data-services:${opts.appName}:ssrm2`;
 
   // Explicit URL wins (CDN / OpenFin manifest / <script> hosting).
   // Otherwise fall through to the inline form below — which MUST stay

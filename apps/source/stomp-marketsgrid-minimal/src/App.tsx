@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
-import { HostedMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  HostedMarketsGrid,
+  HostedSsrmMarketsGrid,
+} from '@wellsfargo-starui/grid/widgets/hosted';
 import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/react/data/runtime';
 import { getPlatform } from './bootstrap.js';
 import { gridEventHandlers } from './platform/gridEventHandlers.js';
@@ -7,18 +10,31 @@ import { gridHandlerMeta } from './platform/hooksMeta.js';
 import {
   stompHistoricalProviderDraft,
   stompProviderDraft,
+  stompSsrmProviderDraft,
   STOMP_PROVIDER_CFG_VERSION,
   STOMP_LIVE_PROVIDER_ID,
   STOMP_HISTORICAL_PROVIDER_ID,
+  STOMP_SSRM_PROVIDER_ID,
 } from './stompProvider.js';
+
+function useSsrmMode(): boolean {
+  return useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('ssrm') === '1';
+  }, []);
+}
 
 /**
  * Phase 3 — seed catalog row (programmatic, no provider editor UI).
  * Phase 4 — cfg-free grid attach via defaultLiveProviderId.
  *
  * Requires DataHubProvider ancestor (main.tsx) so useDataServices resolves.
+ *
+ * SSRM smoke: open with `?ssrm=1` to mount {@link HostedSsrmMarketsGrid}
+ * against a seeded `stomp-ssrm` catalog row.
  */
 export function App() {
+  const ssrmMode = useSsrmMode();
   // useDataServices — React context from DataHubProvider → DataServicesProvider.
   // configStore wraps main-thread ConfigManager (IndexedDB writes for provider rows).
   const { configStore } = useDataServices();
@@ -28,10 +44,31 @@ export function App() {
 
   const [providerId, setProviderId] = useState<string | null>(null);
   const [historicalProviderId, setHistoricalProviderId] = useState<string | null>(null);
+  const [ssrmProviderId, setSsrmProviderId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      if (ssrmMode) {
+        const rows = await configStore.list(userId, { subtype: 'stomp-ssrm' });
+        const exists = rows.some((p) => p.providerId === STOMP_SSRM_PROVIDER_ID);
+        const storedVersion = localStorage.getItem(
+          'stomp-marketsgrid-minimal.stomp-ssrm-cfg-version',
+        );
+        const shouldRefresh = storedVersion !== String(STOMP_PROVIDER_CFG_VERSION);
+        if (shouldRefresh || !exists) {
+          await configStore.save(stompSsrmProviderDraft, userId);
+        }
+        if (shouldRefresh) {
+          localStorage.setItem(
+            'stomp-marketsgrid-minimal.stomp-ssrm-cfg-version',
+            String(STOMP_PROVIDER_CFG_VERSION),
+          );
+        }
+        if (!cancelled) setSsrmProviderId(STOMP_SSRM_PROVIDER_ID);
+        return;
+      }
+
       // We seed TWO catalog rows: the live provider and a separate
       // historical provider (date-templated destinations — see
       // stompProvider.ts). Both are needed so the grid can switch
@@ -82,7 +119,19 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [configStore, userId]);
+  }, [configStore, userId, ssrmMode]);
+
+  if (ssrmMode) {
+    if (!ssrmProviderId) return null;
+    return (
+      <HostedSsrmMarketsGrid
+        providerId={ssrmProviderId}
+        inlineCfg={stompSsrmProviderDraft.config}
+        title="STOMP Positions (SSRM)"
+        showProviderEditor={false}
+      />
+    );
+  }
 
   // Wait until catalog rows exist and worker cache has been invalidated.
   if (!providerId || !historicalProviderId) return null;

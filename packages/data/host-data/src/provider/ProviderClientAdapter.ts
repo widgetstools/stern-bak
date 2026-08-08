@@ -14,6 +14,7 @@ export interface ProviderClientAdapterOpts {
 export function resolveProviderCapabilities(providerType: ProviderType): ProviderCapabilities {
   switch (providerType) {
     case 'stomp':
+    case 'stomp-ssrm':
     case 'mock':
       return {
         providerType,

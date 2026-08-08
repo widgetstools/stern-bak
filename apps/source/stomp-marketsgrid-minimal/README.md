@@ -48,6 +48,14 @@ npm run dev
 # → http://localhost:5213
 ```
 
+**SSRM smoke path** (SharedWorker query plane + `HostedSsrmMarketsGrid`):
+
+```bash
+# → http://localhost:5213/?ssrm=1
+```
+
+Same STOMP broker / `TRADER001` topics; the app seeds a `stomp-ssrm` catalog row and mounts the SSRM grid instead of CSRM `HostedMarketsGrid`.
+
 In development, press **Alt+Shift+S** to open the hub inspector (running providers, subscribers, cache row counts, loaded cfg JSON).
 
 ---

@@ -40,6 +40,13 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
       'data-live-provider': props.defaultLiveProviderId,
       'data-historical-provider': props.defaultHistoricalProviderId,
     }),
+  HostedSsrmMarketsGrid: (props: Record<string, unknown>) =>
+    React.createElement('div', {
+      'data-testid': 'hosted-ssrm-markets-grid',
+      'data-provider-id': props.providerId,
+      'data-title': props.title,
+      'data-has-inline-cfg': props.inlineCfg ? 'true' : 'false',
+    }),
 }));
 
 vi.mock('@wellsfargo-starui/design-system', () => ({

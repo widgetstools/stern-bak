@@ -113,3 +113,24 @@ export {
   type SubscribeHandle,
   type SharedWorkerDataServicesClientOpts,
 } from './client/SharedWorkerDataServicesClient.js';
+
+// SSRM query plane — types + helpers for server-side row model grids.
+export {
+  SsrmPlane,
+  type Row,
+  type EnrichedRow,
+  type ExpressionRule,
+  type SsrmGetRowsRequest,
+  type SsrmGetRowsResult,
+  type SetFilterValuesRequest,
+  type TickEvent,
+  type StatusBarRequest,
+  type StatusBarSummary,
+  type StatusBarAggSpec,
+  parseQuickFilter,
+  buildQuickFilterText,
+  rowPassesQuickFilter,
+  rowPassesFilter,
+  resolveSsrmKeyColumn,
+  isSsrmProviderType,
+} from './ssrm/index.js';

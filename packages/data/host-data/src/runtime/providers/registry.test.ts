@@ -60,6 +60,25 @@ describe('startProvider', () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
+  it('dispatches stomp-ssrm through the same startStomp factory', () => {
+    const cfg: ProviderConfig = {
+      providerType: 'stomp-ssrm',
+      keyColumn: 'id',
+      columnDefinitions: [{ field: 'id', headerName: 'ID' }],
+      websocketUrl: 'ws://localhost',
+      listenerTopic: '/topic/x',
+    } as ProviderConfig;
+
+    startProvider(cfg, emit);
+
+    expect(startStomp).toHaveBeenCalledWith(
+      cfg,
+      emit,
+      expect.objectContaining({ appDataLookup: undefined }),
+    );
+    expect(startMock).not.toHaveBeenCalled();
+  });
+
   it('throws when appData tokens remain unresolved for mock/rest providers', () => {
     const cfg: ProviderConfig = {
       providerType: 'mock',

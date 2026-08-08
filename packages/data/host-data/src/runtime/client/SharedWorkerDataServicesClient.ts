@@ -33,6 +33,7 @@ import type {
   DeltaPatchEvent,
   DetachRequest,
   Event,
+  ExpressionRule,
   GetConfigRequest,
   HubIntrospectRequest,
   HubIntrospectSnapshot,
@@ -43,6 +44,13 @@ import type {
   ProviderStatus,
   Request,
   RowPatch,
+  SetFilterValuesRequest,
+  SsrmGetRowsRequest,
+  SsrmGetRowsResult,
+  SsrmRpcEvent,
+  SsrmTickEvent,
+  StatusBarRequest,
+  StatusBarSummary,
   StopRequest,
   SubscriberMeta,
 } from '../protocol.js';
@@ -188,6 +196,14 @@ export class SharedWorkerDataServicesClient {
   private readonly catalogPending = new Map<
     string,
     { resolve: (event: ConfigSnapshotEvent) => void; reject: (err: Error) => void }
+  >();
+  private readonly ssrmPending = new Map<
+    string,
+    { resolve: (event: SsrmRpcEvent) => void; reject: (err: Error) => void }
+  >();
+  private readonly ssrmTickListeners = new Map<
+    string,
+    Set<(payload: { event: SsrmTickEvent['event']; interestedKeys: string[] }) => void>
   >();
   private readonly catalogReadyWaiters: Array<() => void> = [];
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
@@ -630,6 +646,104 @@ export class SharedWorkerDataServicesClient {
     return snap.introspect;
   }
 
+  // ─── SSRM query plane RPCs ─────────────────────────────────────
+
+  async ssrmGetRows(
+    providerId: string,
+    sessionId: string,
+    request: SsrmGetRowsRequest,
+  ): Promise<SsrmGetRowsResult> {
+    const event = await this.rpcSsrm({
+      kind: 'ssrm-get-rows',
+      providerId,
+      sessionId,
+      request,
+    });
+    if (!event.ok || !event.getRows) {
+      throw new Error(event.error ?? '[SharedWorkerDataServicesClient] ssrm-get-rows failed');
+    }
+    return event.getRows;
+  }
+
+  async ssrmSetViewport(
+    providerId: string,
+    sessionId: string,
+    keys: string[],
+  ): Promise<void> {
+    if (this.closed) {
+      return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
+    }
+    this.send({ kind: 'ssrm-set-viewport', providerId, sessionId, keys });
+  }
+
+  async ssrmConfigureExpressions(
+    providerId: string,
+    rules: ExpressionRule[],
+  ): Promise<void> {
+    const event = await this.rpcSsrm({
+      kind: 'ssrm-configure-expressions',
+      providerId,
+      rules,
+    });
+    if (!event.ok) {
+      throw new Error(
+        event.error ?? '[SharedWorkerDataServicesClient] ssrm-configure-expressions failed',
+      );
+    }
+  }
+
+  async ssrmGetStatusBar(
+    providerId: string,
+    request?: StatusBarRequest,
+  ): Promise<StatusBarSummary> {
+    const event = await this.rpcSsrm({
+      kind: 'ssrm-status-bar',
+      providerId,
+      request,
+    });
+    if (!event.ok || !event.statusBar) {
+      throw new Error(event.error ?? '[SharedWorkerDataServicesClient] ssrm-status-bar failed');
+    }
+    return event.statusBar;
+  }
+
+  async ssrmGetSetFilterValues(
+    providerId: string,
+    request: SetFilterValuesRequest,
+  ): Promise<string[]> {
+    const event = await this.rpcSsrm({
+      kind: 'ssrm-set-filter-values',
+      providerId,
+      request,
+    });
+    if (!event.ok || !Array.isArray(event.setFilterValues)) {
+      throw new Error(
+        event.error ?? '[SharedWorkerDataServicesClient] ssrm-set-filter-values failed',
+      );
+    }
+    return event.setFilterValues;
+  }
+
+  /**
+   * Subscribe to viewport-filtered SSRM ticks for a data attach session
+   * (`subId` / sessionId).
+   */
+  onSsrmTick(
+    sessionId: string,
+    handler: (payload: { event: SsrmTickEvent['event']; interestedKeys: string[] }) => void,
+  ): () => void {
+    let set = this.ssrmTickListeners.get(sessionId);
+    if (!set) {
+      set = new Set();
+      this.ssrmTickListeners.set(sessionId, set);
+    }
+    set.add(handler);
+    return () => {
+      set!.delete(handler);
+      if (set!.size === 0) this.ssrmTickListeners.delete(sessionId);
+    };
+  }
+
   /**
    * Attach a fresh `AppDataMirror` to the hub. The mirror is a
    * pure RPC client — it sends operations to the hub and receives
@@ -716,6 +830,11 @@ export class SharedWorkerDataServicesClient {
       pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
     }
     this.catalogPending.clear();
+    for (const [, pending] of this.ssrmPending) {
+      pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
+    }
+    this.ssrmPending.clear();
+    this.ssrmTickListeners.clear();
     for (const resolve of this.catalogReadyWaiters) resolve();
     this.catalogReadyWaiters.length = 0;
     this.catalogChangeListeners.clear();
@@ -845,6 +964,23 @@ export class SharedWorkerDataServicesClient {
     });
   }
 
+  private rpcSsrm(
+    req:
+      | Omit<import('../protocol.js').SsrmGetRowsRpcRequest, 'reqId'>
+      | Omit<import('../protocol.js').SsrmConfigureExpressionsRequest, 'reqId'>
+      | Omit<import('../protocol.js').SsrmStatusBarRpcRequest, 'reqId'>
+      | Omit<import('../protocol.js').SsrmSetFilterValuesRpcRequest, 'reqId'>,
+  ): Promise<SsrmRpcEvent> {
+    if (this.closed) {
+      return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
+    }
+    const reqId = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      this.ssrmPending.set(reqId, { resolve, reject });
+      this.send({ ...req, reqId } as Request);
+    });
+  }
+
   private handleMessage = (ev: MessageEvent): void => {
     if (isCatalogEvent(ev.data)) {
       this.routeCatalogEvent(ev.data);
@@ -856,6 +992,31 @@ export class SharedWorkerDataServicesClient {
     }
     if (!isEvent(ev.data)) return;
     const event: Event = ev.data;
+    if (event.kind === 'ssrm-rpc') {
+      const pending = this.ssrmPending.get(event.reqId);
+      if (!pending) return;
+      this.ssrmPending.delete(event.reqId);
+      // Always resolve — callers inspect `ok` / payload (same as success path).
+      pending.resolve(event);
+      return;
+    }
+    if (event.kind === 'ssrm-tick') {
+      const listeners = this.ssrmTickListeners.get(event.subId);
+      if (!listeners) return;
+      const payload = {
+        event: event.event,
+        interestedKeys: event.interestedKeys,
+      };
+      for (const handler of listeners) {
+        try {
+          handler(payload);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[SharedWorkerDataServicesClient] ssrm-tick listener threw', err);
+        }
+      }
+      return;
+    }
     const sub = this.subs.get(event.subId);
     if (!sub) return; // listener detached before this event landed; drop.
     switch (event.kind) {

@@ -57,7 +57,10 @@
  * never use STOMP don't pay for the dep.
  */
 
-import type { StompProviderConfig } from '@wellsfargo-starui/types';
+import type { StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
+
+/** STOMP wire config — CSRM `stomp` or SSRM `stomp-ssrm` share the same transport. */
+export type StompTransportConfig = StompProviderConfig | StompSsrmProviderConfig;
 import { createFieldProjector } from '../fieldProjection.js';
 import { composeRowId } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../Provider.js';
@@ -245,11 +248,11 @@ export function validateStompWireReady(destinations: StompWireDestinations): str
 
 /** Resolve catalog cfg + overlay into broker wire destinations (deterministic order). */
 export function resolveEffectiveStompCfg(
-  templateCfg: StompProviderConfig,
+  templateCfg: StompTransportConfig,
   lookup: AppDataLookup | undefined,
   overlay: Record<string, unknown> | undefined,
 ): {
-  cfg: StompProviderConfig;
+  cfg: StompTransportConfig;
   destinations: ReturnType<typeof resolveStompDestinations>;
 } {
   const mergedLookup = lookupWithRestartOverlay(lookup, overlay);
@@ -290,7 +293,7 @@ async function teardownStompConnection(
 // ─── start() — long-running provider ───────────────────────────────
 
 export function startStomp(
-  cfg: StompProviderConfig,
+  cfg: StompTransportConfig,
   emit: ProviderEmit,
   opts: StompOpts = {},
 ): ProviderHandle {
@@ -784,7 +787,7 @@ export interface ProbeOpts {
 }
 
 export async function probeStomp(
-  cfg: StompProviderConfig,
+  cfg: StompTransportConfig,
   opts: ProbeOpts = {},
 ): Promise<ProbeResult> {
   // Resolve [bracket] tokens before probing — same as startProvider does
@@ -855,7 +858,7 @@ export async function probeStomp(
  * The Test button uses `connectStomp`; Infer Fields uses `probeStomp`.
  */
 export async function connectStomp(
-  cfg: StompProviderConfig,
+  cfg: StompTransportConfig,
   opts: ProbeOpts = {},
 ): Promise<ProbeResult> {
   // Resolve [bracket] tokens before connecting — same as the live path,

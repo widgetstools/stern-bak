@@ -96,3 +96,6 @@ export type { GridLinkNotificationContent } from './gridLinkNotifications.js';
 
 export { HostedMarketsGrid } from './HostedMarketsGrid.js';
 export type { HostedMarketsGridProps } from './HostedMarketsGrid.js';
+
+export { HostedSsrmMarketsGrid } from './HostedSsrmMarketsGrid.js';
+export type { HostedSsrmMarketsGridProps } from './HostedSsrmMarketsGrid.js';

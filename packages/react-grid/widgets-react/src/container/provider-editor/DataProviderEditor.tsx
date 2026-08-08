@@ -25,6 +25,7 @@ import {
 } from '@wellsfargo-starui/react';
 import { Database, Copy, Globe, Plus, Radio, Search, Trash2, TestTube2, Upload } from 'lucide-react';
 import type { DataProviderConfig, ProviderConfig, ProviderType } from '@wellsfargo-starui/types/shared';
+import { getDefaultProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataServices, useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 import { cloneProviderConfig } from './cloneProviderConfig.js';
 import { parseProviderConfigImport, type PortableProviderConfig } from './providerConfigIo.js';
@@ -36,6 +37,11 @@ import { EditorForm } from './EditorForm.js';
 
 const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: string; icon: typeof Database }> = {
   stomp: { label: 'STOMP', description: 'WebSocket streaming with snapshot + delta semantics.', icon: Radio },
+  'stomp-ssrm': {
+    label: 'STOMP SSRM',
+    description: 'STOMP feed with server-side row model (filter/sort/group in the SharedWorker).',
+    icon: Radio,
+  },
   rest: { label: 'REST', description: 'One-shot HTTP fetch — no live updates.', icon: Globe },
   websocket: { label: 'WebSocket', description: 'Raw WebSocket, framed by you.', icon: Radio },
   socketio: { label: 'Socket.IO', description: 'Socket.IO event-driven channel.', icon: Radio },
@@ -43,7 +49,7 @@ const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: str
   appdata: { label: 'AppData', description: 'Key/value store referenced by other providers via {{name.key}}.', icon: Database },
 };
 
-const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'rest', 'mock', 'appdata'];
+const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'stomp-ssrm', 'rest', 'mock', 'appdata'];
 
 export interface DataProviderEditorProps {
   userId: string;
@@ -104,7 +110,7 @@ export function DataProviderEditor({ userId, initialProviderId = null, onClose }
       providerId: undefined,
       name: 'untitled',
       providerType: type,
-      config: { providerType: type } as ProviderConfig,
+      config: getDefaultProviderConfig(type) as ProviderConfig,
       userId,
       public: false,
     };

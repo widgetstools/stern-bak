@@ -1,0 +1,115 @@
+import { useEffect, useRef, useState } from 'react';
+import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
+import type { ExpressionRule } from '@wellsfargo-starui/data';
+
+export interface UseSsrmProviderDataWiringParams {
+  provider: ISsrmDataProvider | null;
+  /** Worker expression rules (from MarketsGrid customizer bridge). */
+  expressionRules?: readonly ExpressionRule[];
+  onStatus?: (text: string) => void;
+  onError?: (error: Error) => void;
+  setLoadRowCount?: (count: number | undefined) => void;
+}
+
+export interface UseSsrmProviderDataWiringResult {
+  /** True after `provider.start()` resolves (snapshot received / plane seeded). */
+  ready: boolean;
+}
+
+/** Pending StrictMode-safe delayed stops, keyed by provider instance. */
+const delayedStops = new WeakMap<ISsrmDataProvider, ReturnType<typeof setTimeout>>();
+
+/**
+ * SSRM data plane — start provider, push expressions, surface status.
+ * Never touches `rowData` / `applyTransactionAsync`.
+ *
+ * StrictMode-safe: cleanup schedules a macrotask `stop()` that the next
+ * effect clears, so a remount reuses the in-flight STOMP snapshot.
+ */
+export function useSsrmProviderDataWiring(
+  params: UseSsrmProviderDataWiringParams,
+): UseSsrmProviderDataWiringResult {
+  const {
+    provider,
+    expressionRules,
+    onStatus,
+    onError,
+    setLoadRowCount,
+  } = params;
+
+  const [ready, setReady] = useState(false);
+  const rulesRef = useRef(expressionRules);
+  rulesRef.current = expressionRules;
+
+  useEffect(() => {
+    if (!provider) {
+      setReady(false);
+      return;
+    }
+
+    // Cancel a stop scheduled by StrictMode's previous effect cleanup.
+    const pendingStop = delayedStops.get(provider);
+    if (pendingStop !== undefined) {
+      clearTimeout(pendingStop);
+      delayedStops.delete(provider);
+    }
+
+    let cancelled = false;
+    setReady(false);
+
+    const offStatus = provider.onStatus((status: string, error?: string) => {
+      if (cancelled) return;
+      if (status === 'ready') onStatus?.('Live');
+      else if (status === 'loading') onStatus?.('Loading…');
+      else if (status === 'error') onStatus?.(error ?? 'Error');
+    });
+    const offError = provider.onError((err: Error) => {
+      if (!cancelled) onError?.(err);
+    });
+    const offRows = provider.onRowsReceived((count: number) => {
+      if (!cancelled) setLoadRowCount?.(count);
+    });
+
+    void (async () => {
+      try {
+        onStatus?.('Connecting…');
+        await provider.start();
+        if (cancelled) return;
+        const rules = rulesRef.current;
+        if (rules?.length) await provider.configureExpressions([...rules]);
+        if (cancelled) return;
+        onStatus?.('Ready');
+        setReady(true);
+      } catch (err) {
+        if (cancelled) return;
+        setReady(false);
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (error.message.includes('Subscription cancelled')) return;
+        onStatus?.(error.message);
+        onError?.(error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      setReady(false);
+      offStatus();
+      offError();
+      offRows();
+      // Macrotask (not microtask): StrictMode re-runs this effect in the
+      // same turn and clears the timer before stop() can detach.
+      const timer = setTimeout(() => {
+        delayedStops.delete(provider);
+        void provider.stop();
+      }, 0);
+      delayedStops.set(provider, timer);
+    };
+  }, [provider, onStatus, onError, setLoadRowCount]);
+
+  useEffect(() => {
+    if (!provider || !expressionRules || !ready) return;
+    void provider.configureExpressions([...expressionRules]);
+  }, [provider, expressionRules, ready]);
+
+  return { ready };
+}
