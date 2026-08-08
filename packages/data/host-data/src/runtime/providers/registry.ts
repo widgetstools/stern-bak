@@ -7,7 +7,7 @@
  * it — descriptors pay off at 8+).
  */
 
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from './Provider.js';
 import { resolveBracketCfg, type BracketCache } from '../template/bracketResolver.js';
 import { assertAppDataResolved, resolveCfg, type AppDataLookup } from '../template/resolver.js';
@@ -22,7 +22,11 @@ export type ProviderFactory<T extends ProviderConfig = ProviderConfig> = (
 
 const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>> = {
   mock: startMock as ProviderFactory,
+  /** Same mock generator; hub attaches an SSRM query plane separately. */
+  'mock-ssrm': startMock as ProviderFactory,
   stomp: startStomp as ProviderFactory,
+  /** Same STOMP transport; hub attaches an SSRM query plane separately. */
+  'stomp-ssrm': startStomp as ProviderFactory,
   rest: startRest as ProviderFactory,
 };
 
@@ -57,8 +61,8 @@ export function startProvider(
   const bracketCache: BracketCache = new Map();
   const bracketResolved = resolveBracketCfg(cfg, bracketCache);
 
-  if (cfg.providerType === 'stomp') {
-    return startStomp(bracketResolved as StompProviderConfig, emit, {
+  if (cfg.providerType === 'stomp' || cfg.providerType === 'stomp-ssrm') {
+    return startStomp(bracketResolved as StompProviderConfig | StompSsrmProviderConfig, emit, {
       appDataLookup: opts?.appDataLookup,
     });
   }

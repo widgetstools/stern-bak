@@ -12,6 +12,14 @@
  */
 
 import type { DataProviderConfig, ProviderConfig, ProviderStatus, ProviderType } from '@wellsfargo-starui/types';
+import type {
+  ExpressionRule,
+  SetFilterValuesRequest,
+  SsrmGetRowsRequest,
+  SsrmGetRowsResult,
+  TickEvent,
+} from './ssrm/types.js';
+import type { StatusBarRequest, StatusBarSummary } from './ssrm/statusBar.js';
 
 // ─── AppData row shape (mirrors AppDataConfig from probes/appdata) ─
 
@@ -369,6 +377,84 @@ export interface WorkerBootstrapRequest {
   payload: WorkerBootstrapPayload;
 }
 
+// ─── SSRM query RPCs (stomp-ssrm plane) ─────────────────────────────
+
+export type {
+  ExpressionRule,
+  SetFilterValuesRequest,
+  SsrmGetRowsRequest,
+  SsrmGetRowsResult,
+  TickEvent,
+  StatusBarRequest,
+  StatusBarSummary,
+};
+
+/** SSRM getRows against the provider's query plane. */
+export interface SsrmGetRowsRpcRequest {
+  kind: 'ssrm-get-rows';
+  reqId: string;
+  providerId: string;
+  /** Viewport / session id — usually the data attach subId. */
+  sessionId: string;
+  request: SsrmGetRowsRequest;
+}
+
+export interface SsrmSetViewportRequest {
+  kind: 'ssrm-set-viewport';
+  providerId: string;
+  sessionId: string;
+  keys: string[];
+}
+
+export interface SsrmConfigureExpressionsRequest {
+  kind: 'ssrm-configure-expressions';
+  reqId: string;
+  providerId: string;
+  rules: ExpressionRule[];
+}
+
+export interface SsrmStatusBarRpcRequest {
+  kind: 'ssrm-status-bar';
+  reqId: string;
+  providerId: string;
+  request?: StatusBarRequest;
+}
+
+export interface SsrmSetFilterValuesRpcRequest {
+  kind: 'ssrm-set-filter-values';
+  reqId: string;
+  providerId: string;
+  request: SetFilterValuesRequest;
+}
+
+export type SsrmRequest =
+  | SsrmGetRowsRpcRequest
+  | SsrmSetViewportRequest
+  | SsrmConfigureExpressionsRequest
+  | SsrmStatusBarRpcRequest
+  | SsrmSetFilterValuesRpcRequest;
+
+/** Correlated RPC response for SSRM plane calls. */
+export interface SsrmRpcEvent {
+  kind: 'ssrm-rpc';
+  reqId: string;
+  ok: boolean;
+  error?: string;
+  getRows?: SsrmGetRowsResult;
+  statusBar?: StatusBarSummary;
+  setFilterValues?: string[];
+}
+
+/** Viewport-filtered live tick from the SSRM plane. */
+export interface SsrmTickEvent {
+  kind: 'ssrm-tick';
+  /** Data attach subId / session. */
+  subId: string;
+  providerId: string;
+  event: TickEvent;
+  interestedKeys: string[];
+}
+
 export type Request =
   | AttachRequest
   | DetachRequest
@@ -381,7 +467,8 @@ export type Request =
   | ConfigInvalidateRequest
   | RefreshProviderRequest
   | HubIntrospectRequest
-  | ProviderRunningRequest;
+  | ProviderRunningRequest
+  | SsrmRequest;
 
 // ─── Worker → Client events ────────────────────────────────────────
 
@@ -530,7 +617,9 @@ export type Event =
   | StatusEvent
   | StatsEvent
   | RowsReceivedEvent
-  | SubscriptionLostEvent;
+  | SubscriptionLostEvent
+  | SsrmTickEvent
+  | SsrmRpcEvent;
 
 /** Detail payload for {@link CatalogReadyEvent} broadcasts. */
 export interface CatalogChangeDetail {
@@ -642,13 +731,19 @@ export function isRequest(value: unknown): value is Request {
     k === 'config-invalidate' ||
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
-    k === 'provider-running'
+    k === 'provider-running' ||
+    k === 'ssrm-get-rows' ||
+    k === 'ssrm-set-viewport' ||
+    k === 'ssrm-configure-expressions' ||
+    k === 'ssrm-status-bar' ||
+    k === 'ssrm-set-filter-values'
   );
 }
 
 export function isEvent(value: unknown): value is Event {
   if (!value || typeof value !== 'object') return false;
-  const v = value as { kind?: string; subId?: unknown };
+  const v = value as { kind?: string; subId?: unknown; reqId?: unknown };
+  if (v.kind === 'ssrm-rpc' && typeof v.reqId === 'string') return true;
   if (typeof v.subId !== 'string') return false;
   return (
     v.kind === 'delta' ||
@@ -658,7 +753,8 @@ export function isEvent(value: unknown): value is Event {
     v.kind === 'status' ||
     v.kind === 'stats' ||
     v.kind === 'rows-received' ||
-    v.kind === 'subscription-lost'
+    v.kind === 'subscription-lost' ||
+    v.kind === 'ssrm-tick'
   );
 }
 

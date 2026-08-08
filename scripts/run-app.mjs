@@ -34,6 +34,7 @@ const APPS = {
   'dataprovider-editor':       { port: 5193, broker: 'none' },
   'design-system':             { port: 5310, broker: 'none' },
   'markets-grid-lab':          { port: 5300, broker: 'none' },
+  'markets-grid-ssrm-lab':     { port: 5320, broker: 'none' },
   'star-demo':                 { port: 5175, broker: 'auto', openfin: true },
   'stomp-marketsgrid-minimal': { port: 5213, broker: 'required' },
   'stomp-view-server':         { port: 8081, broker: 'self' },

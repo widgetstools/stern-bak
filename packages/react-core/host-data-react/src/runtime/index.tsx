@@ -382,6 +382,12 @@ export {
   type UseDataProviderResult,
 } from './useDataProvider.js';
 
+export {
+  useSsrmDataProvider,
+  type UseSsrmDataProviderOpts,
+  type UseSsrmDataProviderResult,
+} from './useSsrmDataProvider.js';
+
 // ─── Hook 5: provider data subscription (legacy) ───────────────
 //
 // Hides the manual subId tracking + detach-on-unmount. Listener

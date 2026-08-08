@@ -48,6 +48,16 @@ npm run dev
 # → http://localhost:5213
 ```
 
+**SSRM smoke path** (SharedWorker query plane + full MarketsGrid chrome):
+
+```bash
+# → http://localhost:5213/?ssrm=1
+```
+
+Same STOMP broker / `TRADER001` topics; the app seeds a `stomp-ssrm` catalog row and mounts `HostedSsrmMarketsGrid`, which renders **`MarketsGrid` with the `ssrm` prop** (not the legacy thin `SsrmMarketsGrid` stack). Expect the same host chrome as CSRM: primary toolbar, settings/customizer drawer, formatter toggle, edit toolbar toggle, and profile/save when `withStorage` is set. Hard-refresh after SharedWorker protocol bumps if the hub name is unchanged.
+
+CSRM default (no query flag) is unchanged: `http://localhost:5213/` still mounts `HostedMarketsGrid`.
+
 In development, press **Alt+Shift+S** to open the hub inspector (running providers, subscribers, cache row counts, loaded cfg JSON).
 
 ---
@@ -132,7 +142,7 @@ First attach for that id **lazy-starts** the STOMP provider in the worker: one u
 | `src/bootstrap.ts` | `ensurePlatformReady` + cached `platform` handle (wires `appDataBootstrap`) |
 | `src/main.tsx` | Theme, boot gate, `DataHubProvider`, render `App` |
 | `src/stompProvider.ts` | STOMP transport cfg + column defs (catalog payload) |
-| `src/App.tsx` | Idempotent catalog seed + `HostedMarketsGrid` |
+| `src/App.tsx` | Idempotent catalog seed; `HostedMarketsGrid` (CSRM) or `HostedSsrmMarketsGrid` when `?ssrm=1` |
 | `src/platform/appDataBootstrap.ts` | *(optional)* AppData bootstrap hooks (console demo) |
 | `src/platform/gridEventHandlers.ts` | *(optional)* Grid event handler registry (console demo) |
 | `src/platform/hooksMeta.ts` | Labels if wiring `handlerMeta` on the grid container |

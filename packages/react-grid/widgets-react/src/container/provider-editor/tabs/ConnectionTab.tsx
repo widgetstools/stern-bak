@@ -10,8 +10,9 @@
 
 import { Button, ScrollArea } from '@wellsfargo-starui/react';
 import { CheckCircle2, Loader2, Plug, XCircle } from 'lucide-react';
-import type { ProviderConfig, StompProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { StompFields } from '../transports/StompFields.js';
+import { StompSsrmFields } from '../transports/StompSsrmFields.js';
 import { RestFields } from '../transports/RestFields.js';
 import { MockFields } from '../transports/MockFields.js';
 import { AppDataFields } from '../transports/AppDataFields.js';
@@ -24,7 +25,10 @@ export interface ConnectionTabProps {
 }
 
 export function ConnectionTab({ cfg, onCfgChange, probe }: ConnectionTabProps) {
-  const showTest = cfg.providerType === 'stomp' || cfg.providerType === 'rest';
+  const showTest =
+    cfg.providerType === 'stomp'
+    || cfg.providerType === 'stomp-ssrm'
+    || cfg.providerType === 'rest';
   // AppData owns its own internal layout (form + AG-Grid that fills height),
   // so it must not be wrapped in a ScrollArea — that collapses the grid to 0.
   const isAppData = cfg.providerType === 'appdata';
@@ -60,9 +64,17 @@ function Fields({ cfg, onChange }: { cfg: ProviderConfig; onChange(next: Partial
   switch (cfg.providerType) {
     case 'stomp':
       return <StompFields cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
+    case 'stomp-ssrm':
+      return (
+        <StompSsrmFields
+          cfg={cfg as StompSsrmProviderConfig}
+          onChange={onChange as (n: Partial<StompSsrmProviderConfig>) => void}
+        />
+      );
     case 'rest':
       return <RestFields cfg={cfg as RestProviderConfig} onChange={onChange as (n: Partial<RestProviderConfig>) => void} />;
     case 'mock':
+    case 'mock-ssrm':
       return <MockFields cfg={cfg as MockProviderConfig} onChange={onChange as (n: Partial<MockProviderConfig>) => void} />;
     case 'appdata':
       return <AppDataFields cfg={cfg as AppDataProviderConfig} onChange={onChange as (n: Partial<AppDataProviderConfig>) => void} />;

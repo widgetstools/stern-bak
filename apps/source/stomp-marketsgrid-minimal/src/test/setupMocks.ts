@@ -39,6 +39,18 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
       'data-grid-id': props.gridId,
       'data-live-provider': props.defaultLiveProviderId,
       'data-historical-provider': props.defaultHistoricalProviderId,
+      'data-with-storage': props.withStorage ? 'true' : 'false',
+      'data-has-config-manager': props.configManager ? 'true' : 'false',
+    }),
+  HostedSsrmMarketsGrid: (props: Record<string, unknown>) =>
+    React.createElement('div', {
+      'data-testid': 'hosted-ssrm-markets-grid',
+      'data-provider-id': props.providerId,
+      'data-title': props.title,
+      'data-has-inline-cfg': props.inlineCfg ? 'true' : 'false',
+      'data-default-instance-id': props.defaultInstanceId,
+      'data-with-storage': props.withStorage ? 'true' : 'false',
+      'data-has-config-manager': props.configManager ? 'true' : 'false',
     }),
 }));
 

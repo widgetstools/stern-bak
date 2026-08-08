@@ -25,10 +25,14 @@ export type {
   ProviderCapabilities,
   Unsubscribe,
   ProviderClientAdapterOpts,
+  ISsrmDataProvider,
+  SsrmTickPayload,
+  SsrmProviderClientAdapterOpts,
 } from './provider/index.js';
 export {
   ProviderClientAdapter,
   resolveProviderCapabilities,
+  SsrmProviderClientAdapter,
 } from './provider/index.js';
 
 // Platform bootstrap (Phase 0.5).

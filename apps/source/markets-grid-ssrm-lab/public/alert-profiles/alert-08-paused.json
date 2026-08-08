@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.275Z",
+  "profile": {
+    "name": "08 · Paused",
+    "gridId": "lab-alerts-v2",
+    "state": {
+      "alerts": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "alert-bid-spike",
+              "name": "Bid > $110",
+              "enabled": true,
+              "priority": 10,
+              "severity": "warning",
+              "trigger": {
+                "kind": "dataChange",
+                "expression": "[bidPrice] > 110",
+                "column": "bidPrice"
+              },
+              "message": "{rowId} bid hit {value}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ],
+              "debounceMs": 3000
+            },
+            {
+              "id": "alert-mid-move",
+              "name": "Mid moves > 0.5%",
+              "enabled": true,
+              "priority": 30,
+              "severity": "info",
+              "trigger": {
+                "kind": "relativeChange",
+                "column": "midPrice",
+                "mode": "PERCENT_CHANGE",
+                "threshold": 0.5,
+                "direction": "both"
+              },
+              "message": "{rowId} mid {prev} → {value}",
+              "channels": [
+                "toast",
+                "badge"
+              ],
+              "debounceMs": 2000
+            }
+          ],
+          "settings": {
+            "enabled": true,
+            "defaultDebounceMs": 1500,
+            "maxNotificationsPerSecond": 5,
+            "historyLimit": 200,
+            "enabledChannels": {
+              "toast": true,
+              "badge": true,
+              "openfin": true
+            },
+            "evaluationMode": "paused"
+          }
+        }
+      }
+    }
+  }
+}

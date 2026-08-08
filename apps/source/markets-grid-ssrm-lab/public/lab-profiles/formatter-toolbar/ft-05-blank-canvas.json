@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.215Z",
+  "profile": {
+    "name": "05 · Blank canvas",
+    "gridId": "lab-formatter-toolbar-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {}
+        }
+      }
+    }
+  }
+}

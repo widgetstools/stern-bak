@@ -13,6 +13,10 @@
       "import": "./grid/dist/index.js",
       "require": "./grid/dist/index.js"
     },
+    "./ssrm": {
+      "types": "./grid/dist/ssrm/index.d.ts",
+      "import": "./grid/dist/ssrm/index.js"
+    },
     "./customizer": {
       "types": "./grid/dist/customizer/index.d.ts",
       "import": "./grid/dist/customizer/index.js"
@@ -42,6 +46,10 @@
       "types": "./widgets-react/dist/container/markets-grid-container/index.d.ts",
       "import": "./widgets-react/dist/container/markets-grid-container/index.js"
     },
+    "./widgets/ssrm-markets-grid-container": {
+      "types": "./widgets-react/dist/container/ssrm-markets-grid-container/index.d.ts",
+      "import": "./widgets-react/dist/container/ssrm-markets-grid-container/index.js"
+    },
     "./widgets/provider-editor": {
       "types": "./widgets-react/dist/container/provider-editor/index.d.ts",
       "import": "./widgets-react/dist/container/provider-editor/index.js"
@@ -70,9 +78,9 @@
   "peerDependencies": {
     "@tanstack/react-query": "^5.80.0",
     "@wellsfargo-starui/design-system": "*",
-    "ag-grid-community": "^35.1.0",
-    "ag-grid-enterprise": "^35.1.0",
-    "ag-grid-react": "^35.1.0",
+    "ag-grid-community": "^36.1.0",
+    "ag-grid-enterprise": "^36.1.0",
+    "ag-grid-react": "^36.1.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
@@ -106,9 +114,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "~4.5.2",
     "@wellsfargo-starui/design-system": "*",
-    "ag-grid-community": "35.1.0",
-    "ag-grid-enterprise": "35.1.0",
-    "ag-grid-react": "35.1.0",
+    "ag-grid-community": "^36.1.0",
+    "ag-grid-enterprise": "^36.1.0",
+    "ag-grid-react": "^36.1.0",
     "jsdom": "^29.0.2",
     "react": "~19.2.5",
     "react-dom": "~19.2.5",

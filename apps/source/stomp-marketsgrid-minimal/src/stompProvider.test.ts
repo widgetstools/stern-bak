@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type {
+  ProviderConfig,
+  StompProviderConfig,
+  StompSsrmProviderConfig,
+} from '@wellsfargo-starui/types';
 import {
   STOMP_HISTORICAL_PROVIDER_ID,
   STOMP_LIVE_PROVIDER_ID,
   STOMP_PROVIDER_CFG_VERSION,
+  STOMP_SSRM_PROVIDER_ID,
   stompHistoricalProviderDraft,
   stompProviderDraft,
+  stompSsrmProviderDraft,
 } from './stompProvider.js';
 
 /** Narrows the catalog row's ProviderConfig union to the stomp shape. */
@@ -61,5 +67,17 @@ describe('stompProvider', () => {
     expect(historicalConfig.throttleMs).toBe(100);
     expect(historicalConfig.snapshotChunkSize).toBe(1000);
     expect(liveConfig.columnDefinitions?.length).toBeGreaterThan(20);
+  });
+
+  it('defines stomp-ssrm draft with same live wire and blockSize', () => {
+    expect(stompSsrmProviderDraft).toMatchObject({
+      providerId: STOMP_SSRM_PROVIDER_ID,
+      name: 'STOMP Positions (SSRM)',
+      providerType: 'stomp-ssrm',
+    });
+    const ssrm = stompSsrmProviderDraft.config as StompSsrmProviderConfig;
+    expect(ssrm.providerType).toBe('stomp-ssrm');
+    expect(ssrm.listenerTopic).toBe(liveConfig.listenerTopic);
+    expect(ssrm.blockSize).toBe(100);
   });
 });

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.215Z",
+  "profile": {
+    "name": "02 · Bid/ask borders",
+    "gridId": "lab-formatter-toolbar-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "bidPrice": {
+              "colId": "bidPrice",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#3a1818",
+                    "text": "#ee8e8e"
+                  },
+                  "borders": {
+                    "bottom": {
+                      "width": 2,
+                      "color": "#ee8e8e",
+                      "style": "solid"
+                    }
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#fcdada",
+                    "text": "#7a1f1f"
+                  },
+                  "borders": {
+                    "bottom": {
+                      "width": 2,
+                      "color": "#a02a2a",
+                      "style": "solid"
+                    }
+                  }
+                }
+              }
+            },
+            "midPrice": {
+              "colId": "midPrice",
+              "cellStyleOverrides": {
+                "dark": {
+                  "borders": {
+                    "bottom": {
+                      "width": 2,
+                      "color": "#7cc7f9",
+                      "style": "solid"
+                    }
+                  }
+                },
+                "light": {
+                  "borders": {
+                    "bottom": {
+                      "width": 2,
+                      "color": "#1e6fb8",
+                      "style": "solid"
+                    }
+                  }
+                }
+              }
+            },
+            "askPrice": {
+              "colId": "askPrice",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#0f2b1c",
+                    "text": "#7fdf9b"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#e8f4ec",
+                    "text": "#1f7a34"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

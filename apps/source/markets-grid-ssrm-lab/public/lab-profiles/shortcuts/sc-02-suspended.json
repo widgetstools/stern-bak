@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.218Z",
+  "profile": {
+    "name": "02 · Module off",
+    "gridId": "lab-shortcuts",
+    "state": {
+      "general-settings": {
+        "v": 1,
+        "data": {
+          "cellSelection": true
+        }
+      },
+      "shortcuts": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": false,
+            "recordHistory": true
+          },
+          "shortcuts": [
+            {
+              "id": "sc-ms9q4lyg-y97p",
+              "name": "H ×100 qty",
+              "enabled": true,
+              "shortcutKey": "h",
+              "operation": "multiply",
+              "shortcutValue": 100,
+              "scope": {
+                "columnIds": [
+                  "quantityFace"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "data-change-history": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "maxEntries": 50,
+            "suspended": false,
+            "unifyUndo": true,
+            "recordSources": {
+              "smartEdit": true,
+              "bulkUpdate": true,
+              "plusMinus": true,
+              "shortcuts": true,
+              "cellEditor": true,
+              "stream": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

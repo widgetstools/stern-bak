@@ -32,9 +32,13 @@ import type {
   CatalogEvent,
   RefreshProviderRequest,
   HubIntrospectSnapshot,
+  SsrmRequest,
+  SsrmRpcEvent,
+  SsrmTickEvent,
 } from '../protocol.js';
 import { startProvider } from '../providers/registry.js';
 import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider.js';
+import { isSsrmProviderType, SsrmPlane } from '../ssrm/index.js';
 import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import {
   traceStompProviderCfg,
@@ -79,6 +83,11 @@ const DEBUG = false;
 
 export class SharedWorkerDataServicesHub {
   private readonly providers = new Map<string, ProviderSlot>();
+  /** SSRM query planes for `stomp-ssrm` providers (keyed by providerId). */
+  private readonly ssrmPlanes = new Map<
+    string,
+    { plane: SsrmPlane; offTick: () => void }
+  >();
   private readonly subscribers = new SubscriberRegistry();
   private readonly appDataSvc: HubAppDataService;
   private readonly configCatalog: ConfigCatalogCache | null;
@@ -141,6 +150,13 @@ export class SharedWorkerDataServicesHub {
       case 'refresh-provider': this.handleRefreshProvider(req); return;
       case 'hub-introspect': handleHubIntrospect(this.catalogRpcCtx, port, req); return;
       case 'provider-running': handleProviderRunning(this.catalogRpcCtx, port, req); return;
+      case 'ssrm-get-rows':
+      case 'ssrm-set-viewport':
+      case 'ssrm-configure-expressions':
+      case 'ssrm-status-bar':
+      case 'ssrm-set-filter-values':
+        this.handleSsrmRequest(port, req);
+        return;
     }
   }
 
@@ -222,6 +238,8 @@ export class SharedWorkerDataServicesHub {
   async dispose(): Promise<void> {
     for (const [, slot] of this.providers) await slot.handle.stop();
     this.providers.clear();
+    for (const [, entry] of this.ssrmPlanes) entry.offTick();
+    this.ssrmPlanes.clear();
     this.subscribers.clear();
     this.appDataSvc.clear();
     this.connectedPorts.clear();
@@ -408,6 +426,153 @@ export class SharedWorkerDataServicesHub {
     this.replayCacheToPort(req.subId, listener.port, slot, 'refresh');
   }
 
+  private disposeSsrmPlane(providerId: string): void {
+    const entry = this.ssrmPlanes.get(providerId);
+    if (!entry) return;
+    entry.offTick();
+    this.ssrmPlanes.delete(providerId);
+  }
+
+  private ensureSsrmPlane(providerId: string, cfg: ProviderConfig): SsrmPlane | null {
+    if (!isSsrmProviderType(cfg.providerType)) return null;
+    const existing = this.ssrmPlanes.get(providerId);
+    if (existing) return existing.plane;
+    const plane = new SsrmPlane(cfg);
+    const offTick = plane.onTick((event) => {
+      this.fanSsrmTick(providerId, plane, event);
+    });
+    this.ssrmPlanes.set(providerId, { plane, offTick });
+    return plane;
+  }
+
+  private syncSsrmFromEmit(
+    providerId: string,
+    slot: ProviderSlot,
+    event: ProviderEmitEvent,
+  ): void {
+    if (!('rows' in event)) return;
+    const plane =
+      this.ssrmPlanes.get(providerId)?.plane ??
+      this.ensureSsrmPlane(providerId, slot.cfg);
+    if (!plane) return;
+    if (event.replace) {
+      plane.syncFromCache(slot.cache);
+    } else {
+      plane.upsertRows(event.rows);
+    }
+  }
+
+  private fanSsrmTick(
+    providerId: string,
+    plane: SsrmPlane,
+    event: import('../ssrm/types.js').TickEvent,
+  ): void {
+    const listeners = this.subscribers.dataListeners(providerId);
+    if (!listeners?.size) return;
+    for (const [subId, listener] of listeners) {
+      const interestedKeys = plane.interestedKeys(subId, event.keys);
+      let rows = event.rows;
+      if (event.type === 'rows' && rows?.length && interestedKeys.length) {
+        const want = new Set(interestedKeys);
+        const keyCol = plane.keyColumn;
+        rows = plane.enrichRows(
+          rows.filter((r) => want.has(String(r[keyCol] ?? ''))),
+        );
+      } else if (event.type === 'rows' && rows?.length) {
+        rows = plane.enrichRows(rows);
+      }
+      const msg: SsrmTickEvent = {
+        kind: 'ssrm-tick',
+        subId,
+        providerId,
+        event: { ...event, rows },
+        interestedKeys,
+      };
+      try {
+        listener.port.postMessage(msg);
+      } catch {
+        /* port dead */
+      }
+    }
+  }
+
+  private handleSsrmRequest(port: PortLike, req: SsrmRequest): void {
+    const reply = (event: SsrmRpcEvent): void => {
+      try {
+        port.postMessage(event);
+      } catch {
+        /* port dead */
+      }
+    };
+
+    if (req.kind === 'ssrm-set-viewport') {
+      const plane = this.ssrmPlanes.get(req.providerId)?.plane;
+      plane?.setViewportInterest(req.sessionId, req.keys);
+      return;
+    }
+
+    const reqId = 'reqId' in req ? req.reqId : '';
+    try {
+      let slot = this.providers.get(req.providerId);
+      const cfg =
+        slot?.cfg ??
+        this.configCatalog?.getProviderConfig(req.providerId) ??
+        undefined;
+      if (!cfg || !isSsrmProviderType(cfg.providerType)) {
+        reply({
+          kind: 'ssrm-rpc',
+          reqId,
+          ok: false,
+          error: `No SSRM plane for provider '${req.providerId}'`,
+        });
+        return;
+      }
+      const plane =
+        this.ssrmPlanes.get(req.providerId)?.plane ??
+        this.ensureSsrmPlane(req.providerId, cfg);
+      if (!plane) {
+        reply({
+          kind: 'ssrm-rpc',
+          reqId,
+          ok: false,
+          error: `Failed to create SSRM plane for '${req.providerId}'`,
+        });
+        return;
+      }
+      // Late RPC before first emit — seed from hub cache if present.
+      if (slot && slot.cache.size > 0 && plane.getStats().rowCount === 0) {
+        plane.syncFromCache(slot.cache);
+      }
+
+      if (req.kind === 'ssrm-get-rows') {
+        const getRows = plane.getRows(req.request);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true, getRows });
+        return;
+      }
+      if (req.kind === 'ssrm-configure-expressions') {
+        plane.configureExpressions(req.rules);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true });
+        return;
+      }
+      if (req.kind === 'ssrm-status-bar') {
+        const statusBar = plane.getStatusBar(req.request);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true, statusBar });
+        return;
+      }
+      if (req.kind === 'ssrm-set-filter-values') {
+        const setFilterValues = plane.getSetFilterValues(req.request);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true, setFilterValues });
+      }
+    } catch (err) {
+      reply({
+        kind: 'ssrm-rpc',
+        reqId,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   private async stopProvider(providerId: string): Promise<void> {
     const slot = this.providers.get(providerId);
     if (!slot) return;
@@ -415,6 +580,7 @@ export class SharedWorkerDataServicesHub {
     // Drop from the registry first so late STOMP frames cannot fan-out
     // while deactivate() is still in flight.
     this.providers.delete(providerId);
+    this.disposeSsrmPlane(providerId);
 
     for (const l of this.subscribers.removeDataListenersOf(providerId)) {
       try {
@@ -518,6 +684,7 @@ export class SharedWorkerDataServicesHub {
       // new cache.
       if (this.providers.get(providerId) !== slot) return;
       applyProviderEmit(this.emitCtx, providerId, slot, event);
+      this.syncSsrmFromEmit(providerId, slot, event);
     };
 
     // Register BEFORE starting the provider: transports emit
@@ -528,6 +695,8 @@ export class SharedWorkerDataServicesHub {
     // this by re-emitting loading post-registration; the adopt-in-
     // flight restart path doesn't).
     this.providers.set(providerId, slot);
+    // Attach SSRM plane early so getRows can land during snapshot load.
+    this.ensureSsrmPlane(providerId, cfg);
     try {
       slot.handle = startProvider(cfg, emit, {
         appDataLookup: (name, key) => this.appDataSvc.get(name, key),
@@ -553,6 +722,7 @@ export class SharedWorkerDataServicesHub {
     // the currently-registered slot, so any in-flight frames from the
     // old connection are ignored the moment it stops being that slot.
     this.providers.delete(providerId);
+    this.disposeSsrmPlane(providerId);
     if (old) void old.handle.stop();
     // createProvider registers the fresh slot before starting it, so its
     // synchronous `loading` emission reaches every existing listener.

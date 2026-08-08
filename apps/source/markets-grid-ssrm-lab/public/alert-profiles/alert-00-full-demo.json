@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.274Z",
+  "profile": {
+    "name": "00 · Full demo",
+    "gridId": "lab-alerts-v2",
+    "state": {
+      "alerts": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "alert-bid-spike",
+              "name": "Bid > $110",
+              "enabled": true,
+              "priority": 10,
+              "severity": "warning",
+              "trigger": {
+                "kind": "dataChange",
+                "expression": "[bidPrice] > 110",
+                "column": "bidPrice"
+              },
+              "message": "{rowId} bid hit {value}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ],
+              "debounceMs": 3000
+            },
+            {
+              "id": "alert-loss-cluster",
+              "name": "Daily P&L < −$25k",
+              "enabled": true,
+              "priority": 5,
+              "severity": "critical",
+              "trigger": {
+                "kind": "dataChange",
+                "expression": "[dailyPnL] < -25000",
+                "column": "dailyPnL"
+              },
+              "message": "{rowId} {rule}: {value}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ],
+              "debounceMs": 5000
+            },
+            {
+              "id": "alert-yield-watch",
+              "name": "YTW > 9%",
+              "enabled": false,
+              "priority": 20,
+              "severity": "info",
+              "trigger": {
+                "kind": "dataChange",
+                "expression": "[yieldToWorst] > 9",
+                "column": "yieldToWorst"
+              },
+              "message": "{rowId} yield {value}",
+              "channels": [
+                "badge"
+              ],
+              "debounceMs": 10000
+            },
+            {
+              "id": "alert-mid-move",
+              "name": "Mid moves > 0.5%",
+              "enabled": true,
+              "priority": 30,
+              "severity": "info",
+              "trigger": {
+                "kind": "relativeChange",
+                "column": "midPrice",
+                "mode": "PERCENT_CHANGE",
+                "threshold": 0.5,
+                "direction": "both"
+              },
+              "message": "{rowId} mid {prev} → {value}",
+              "channels": [
+                "toast",
+                "badge"
+              ],
+              "debounceMs": 2000
+            },
+            {
+              "id": "alert-price-tick",
+              "name": "Any change on last",
+              "enabled": false,
+              "priority": 40,
+              "severity": "info",
+              "trigger": {
+                "kind": "relativeChange",
+                "column": "bidPrice",
+                "mode": "ANY_CHANGE",
+                "direction": "both"
+              },
+              "message": "{rowId} bid → {value}",
+              "channels": [
+                "badge"
+              ]
+            },
+            {
+              "id": "alert-row-added",
+              "name": "New position appears",
+              "enabled": false,
+              "priority": 50,
+              "severity": "success",
+              "trigger": {
+                "kind": "rowChange",
+                "event": "ROW_ADDED"
+              },
+              "message": "New row {rowId}",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ]
+            },
+            {
+              "id": "alert-row-removed",
+              "name": "Position removed",
+              "enabled": false,
+              "priority": 50,
+              "severity": "warning",
+              "trigger": {
+                "kind": "rowChange",
+                "event": "ROW_REMOVED"
+              },
+              "message": "Row {rowId} disappeared",
+              "channels": [
+                "toast",
+                "badge",
+                "openfin"
+              ]
+            }
+          ],
+          "settings": {
+            "enabled": true,
+            "defaultDebounceMs": 1500,
+            "maxNotificationsPerSecond": 5,
+            "historyLimit": 200,
+            "enabledChannels": {
+              "toast": true,
+              "badge": true,
+              "openfin": true
+            },
+            "evaluationMode": "realtime"
+          }
+        }
+      }
+    }
+  }
+}
