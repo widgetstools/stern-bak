@@ -1,13 +1,34 @@
 import { useMemo, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
-import { SsrmMarketsGrid, toSsrmExpressionRules } from '@wellsfargo-starui/grid';
+import {
+  MarketsGrid,
+  toSsrmExpressionRules,
+  type MarketsGridProps,
+} from '@wellsfargo-starui/grid';
 import { useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from '../markets-grid-container/buildColumnDefs.js';
 import { useSsrmProviderDataWiring } from './useSsrmProviderDataWiring.js';
 import { ProviderEditorDialog } from '../markets-grid-container/ProviderEditorDialog.js';
 
-export interface SsrmMarketsGridContainerProps {
+export interface SsrmMarketsGridContainerProps extends Partial<
+  Pick<
+    MarketsGridProps,
+    | 'storage'
+    | 'instanceId'
+    | 'appId'
+    | 'userId'
+    | 'host'
+    | 'showToolbar'
+    | 'showFormattingToolbar'
+    | 'showEditingToolbar'
+    | 'showFiltersToolbar'
+    | 'showSaveButton'
+    | 'showSettingsButton'
+    | 'showProfileSelector'
+    | 'theme'
+  >
+> {
   /** Catalog provider id (`stomp-ssrm`). */
   providerId: string;
   /**
@@ -22,12 +43,12 @@ export interface SsrmMarketsGridContainerProps {
   style?: React.CSSProperties;
   /** Show inline provider editor entry. */
   showProviderEditor?: boolean;
-  userId?: string;
 }
 
 /**
  * SSRM MarketsGrid container — selects a `stomp-ssrm` provider, wires
- * expressions into the SharedWorker plane, and renders {@link SsrmMarketsGrid}.
+ * expressions into the SharedWorker plane, and renders full {@link MarketsGrid}
+ * chrome with `ssrm={{ provider, keyColumn }}`.
  */
 export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const {
@@ -39,11 +60,21 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     style,
     showProviderEditor = true,
     userId = LOGGED_IN_USER_ID,
+    storage,
+    instanceId,
+    appId,
+    host,
+    theme,
+    showToolbar = true,
+    showFormattingToolbar = true,
+    showEditingToolbar = true,
+    showFiltersToolbar = true,
+    showSaveButton = true,
+    showSettingsButton = true,
+    showProfileSelector = true,
   } = props;
 
   const [editorOpen, setEditorOpen] = useState(false);
-  const [status, setStatus] = useState('…');
-  const [loadCount, setLoadCount] = useState<number | undefined>();
 
   // Lifecycle is owned by useSsrmProviderDataWiring — do not autoStart /
   // stop here (avoids fighting stop() on the status-subscription effect).
@@ -64,8 +95,6 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const { ready } = useSsrmProviderDataWiring({
     provider,
     expressionRules,
-    onStatus: setStatus,
-    setLoadRowCount: setLoadCount,
   });
 
   // Column / key resolution must run *after* start() — getConfig() throws before that.
@@ -104,6 +133,17 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     }
   }, [provider, ready]);
 
+  const cacheBlockSize = useMemo(() => {
+    if (!provider || !ready) return undefined;
+    try {
+      const cfg = provider.getConfig() as { blockSize?: number };
+      const n = cfg.blockSize;
+      return typeof n === 'number' && n >= 20 ? n : undefined;
+    } catch {
+      return undefined;
+    }
+  }, [provider, ready]);
+
   return (
     <div
       className={className}
@@ -115,38 +155,49 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         ...style,
       }}
     >
-      <div
-        style={{
-          flex: '0 0 auto',
-          display: 'flex',
-          gap: 12,
-          alignItems: 'center',
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--border, #333)',
-        }}
-      >
-        <strong style={{ fontSize: 14 }}>{title}</strong>
-        <span style={{ fontSize: 12, opacity: 0.7, fontFamily: 'monospace' }}>
-          {error ?? status}
-          {loadCount != null ? ` · ${loadCount.toLocaleString()} rows` : ''}
-          {ready ? '' : provider ? ' · starting…' : ''}
-        </span>
-        {showProviderEditor ? (
-          <button
-            type="button"
-            style={{ marginLeft: 'auto' }}
-            onClick={() => setEditorOpen(true)}
-          >
+      {showProviderEditor ? (
+        <div
+          style={{
+            flex: '0 0 auto',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '4px 12px',
+            borderBottom: '1px solid var(--border, #333)',
+          }}
+        >
+          <button type="button" onClick={() => setEditorOpen(true)}>
             Edit provider
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div style={{ flex: 1, minHeight: 0 }}>
         {provider && ready ? (
-          <SsrmMarketsGrid
-            provider={provider}
-            columnDefs={columnDefs}
-            keyColumn={keyColumn}
+          <MarketsGrid
+            gridId={providerId}
+            ssrm={{
+              provider,
+              keyColumn,
+              ...(cacheBlockSize != null ? { cacheBlockSize } : {}),
+            }}
+            rowIdField={keyColumn}
+            columnDefs={columnDefs ?? []}
+            rowData={[]}
+            caption={title}
+            showToolbar={showToolbar}
+            showSettingsButton={showSettingsButton}
+            showFormattingToolbar={showFormattingToolbar}
+            showEditingToolbar={showEditingToolbar}
+            showFiltersToolbar={showFiltersToolbar}
+            showSaveButton={showSaveButton}
+            showProfileSelector={showProfileSelector}
+            showColumnSelector
+            storage={storage}
+            instanceId={instanceId}
+            appId={appId}
+            userId={userId}
+            host={host}
+            theme={theme}
+            style={{ height: '100%', width: '100%' }}
           />
         ) : (
           <p style={{ padding: 16, opacity: 0.7 }}>
