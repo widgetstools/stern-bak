@@ -21,6 +21,7 @@ import { bindSsrmTicks } from './bindSsrmTicks.js';
 import { createSsrmDatasource } from './createSsrmDatasource.js';
 import { createSsrmStatusBar } from './createSsrmStatusBar.js';
 import { ssrmAlertRowClass, ssrmGetChildCount } from './expressionBindings.js';
+import { ssrmGetRowId } from './ssrmGetRowId.js';
 
 /** AG Grid 35+: pass modules to the grid instance (plus global registry). */
 const SSRM_AG_GRID_MODULES: Module[] = [AllEnterpriseModule];
@@ -137,13 +138,7 @@ function SsrmAgGridInner<TData extends Record<string, unknown>>(
         maxBlocksInCache={20}
         getChildCount={ssrmGetChildCount}
         getRowClass={ssrmAlertRowClass}
-        getRowId={(p) =>
-          String(
-            (p.data as Record<string, unknown> | undefined)?.[keyColumn]
-              ?? (p.data as { __ssrmGroupKey?: string } | undefined)?.__ssrmGroupKey
-              ?? Math.random(),
-          )
-        }
+        getRowId={(p) => ssrmGetRowId(p.data, keyColumn)}
         sideBar={sideBar}
         statusBar={statusPack.statusBar}
         context={{ ...statusPack.context, ...(gridOptions?.context as object) }}

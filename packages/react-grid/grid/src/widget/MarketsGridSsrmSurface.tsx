@@ -37,6 +37,7 @@ import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
 import { createSsrmStatusBar } from '../ssrm/createSsrmStatusBar.js';
 import { ssrmAlertRowClass, ssrmGetChildCount } from '../ssrm/expressionBindings.js';
+import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
 
 /** AG Grid 35+: pass modules to the grid instance (plus global registry). */
 const SSRM_AG_GRID_MODULES: Module[] = [AllEnterpriseModule];
@@ -230,12 +231,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   }, [unbindTicks]);
 
   const getRowId = useCallback(
-    (p: { data?: unknown }) =>
-      String(
-        (p.data as Record<string, unknown> | undefined)?.[keyColumn]
-          ?? (p.data as { __ssrmGroupKey?: string } | undefined)?.__ssrmGroupKey
-          ?? Math.random(),
-      ),
+    (p: { data?: unknown }) => resolveSsrmRowId(p.data, keyColumn),
     [keyColumn],
   );
 

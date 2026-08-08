@@ -51,8 +51,8 @@ function buildExpressionSnapshot(
  * Live bridge from MarketsGrid customizer expression modules → SSRM worker plane.
  * Worker owns calc/style/alerts evaluation; this hook only pushes rule config.
  *
- * SSRM: client module `activate()` still runs for authoring UI — follow-up if
- * double-eval appears against worker enrichment.
+ * SSRM: client module `activate()` still runs for authoring UI — follow-up:
+ * gate client-side row mutation when `platform.ssrmMode` is set (see final-branch-review #2).
  */
 export function useSsrmExpressionBridge(
   provider: ISsrmDataProvider | null | undefined,

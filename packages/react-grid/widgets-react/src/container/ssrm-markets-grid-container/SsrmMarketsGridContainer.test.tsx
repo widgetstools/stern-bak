@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 
 const { mockProvider } = vi.hoisted(() => ({
@@ -38,7 +38,16 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
 }));
 
 vi.mock('./useSsrmProviderDataWiring.js', () => ({
-  useSsrmProviderDataWiring: () => ({ ready: true }),
+  useSsrmProviderDataWiring: (params: {
+    onStatus?: (text: string) => void;
+    setLoadRowCount?: (count: number | undefined) => void;
+  }) => {
+    React.useEffect(() => {
+      params.onStatus?.('Ready');
+      params.setLoadRowCount?.(20000);
+    }, [params.onStatus, params.setLoadRowCount]);
+    return { ready: true };
+  },
 }));
 
 vi.mock('../markets-grid-container/ProviderEditorDialog.js', () => ({
@@ -63,5 +72,20 @@ describe('SsrmMarketsGridContainer', () => {
     expect(screen.getByTestId('markets-grid')).toHaveAttribute('data-show-formatting', 'true');
     expect(screen.getByTestId('markets-grid')).toHaveAttribute('data-show-editing', 'true');
     expect(screen.queryByTestId('legacy-ssrm')).not.toBeInTheDocument();
+  });
+
+  it('shows provider status strip with row count', async () => {
+    render(
+      <SsrmMarketsGridContainer
+        providerId="stomp-ssrm-1"
+        showProviderEditor={false}
+      />,
+    );
+
+    const strip = screen.getByTestId('ssrm-provider-status');
+    await waitFor(() => {
+      expect(strip.textContent).toContain('Ready');
+      expect(strip.textContent).toContain('20,000');
+    });
   });
 });

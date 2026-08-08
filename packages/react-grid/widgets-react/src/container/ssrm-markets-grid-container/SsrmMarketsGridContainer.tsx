@@ -75,6 +75,8 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   } = props;
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [statusText, setStatusText] = useState('Connecting…');
+  const [loadRowCount, setLoadRowCount] = useState<number | undefined>();
 
   // Lifecycle is owned by useSsrmProviderDataWiring — do not autoStart /
   // stop here (avoids fighting stop() on the status-subscription effect).
@@ -95,6 +97,8 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const { ready } = useSsrmProviderDataWiring({
     provider,
     expressionRules,
+    onStatus: setStatusText,
+    setLoadRowCount,
   });
 
   // Column / key resolution must run *after* start() — getConfig() throws before that.
@@ -170,7 +174,22 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
           </button>
         </div>
       ) : null}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {provider ? (
+          <div
+            data-testid="ssrm-provider-status"
+            style={{
+              flex: '0 0 auto',
+              padding: '2px 12px',
+              fontSize: 12,
+              opacity: 0.85,
+              borderBottom: '1px solid var(--border, #333)',
+            }}
+          >
+            {statusText}
+            {loadRowCount != null ? ` · ${loadRowCount.toLocaleString('en-US')}` : ''}
+          </div>
+        ) : null}
         {provider && ready ? (
           <MarketsGrid
             gridId={providerId}
