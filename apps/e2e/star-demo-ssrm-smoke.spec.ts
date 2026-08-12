@@ -76,6 +76,44 @@ test.describe('star-demo-ssrm smoke', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
+  test('grids repopulate after a STOMP server restart without a page reload', async ({ page }) => {
+    test.skip(!(await stompServerUp()), 'stomp-view-server (:8081) is not running');
+
+    const { execSync, spawn } = await import('node:child_process');
+
+    await page.goto(BLOTTER);
+    const rows = page.locator('.ag-grid-scrolling-container .ag-row');
+    await expect(rows.first()).toBeVisible({ timeout: 45_000 });
+
+    // Kill the feed. The transport marks disconnected and starts redialling.
+    execSync('lsof -ti :8081 | xargs kill', { shell: '/bin/zsh' });
+    await expect.poll(() => stompServerUp(), { timeout: 10_000 }).toBe(false);
+
+    // Bring it back (fresh process, fresh snapshot on the server side).
+    const server = spawn('npm', ['run', 'dev', '-w', '@wellsfargo-starui/stomp-view-server'], {
+      cwd: `${process.cwd()}`,
+      detached: true,
+      stdio: 'ignore',
+    });
+    server.unref();
+    await expect.poll(() => stompServerUp(), { timeout: 30_000 }).toBe(true);
+
+    // No page.reload(): the transport reconnects (~5s redial), re-snapshots,
+    // and the ready transition purges every grid via bindSsrmTicks. Assert
+    // rows are present AND ticking again.
+    const cellSnap = () =>
+      page
+        .locator('.ag-grid-scrolling-container .ag-row')
+        .evaluateAll((rs) =>
+          rs.map((r) => `${r.getAttribute('row-id')}=${r.textContent}`).sort().join('|'),
+        );
+    await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+    const afterRestart = await cellSnap();
+    await expect
+      .poll(async () => (await cellSnap()) !== afterRestart, { timeout: 30_000 })
+      .toBe(true);
+  });
+
   test('app shell serves and routes without the feed', async ({ page }) => {
     // Runs regardless of the STOMP server: the shell itself must boot.
     const errors: string[] = [];

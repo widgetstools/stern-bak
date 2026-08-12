@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
@@ -204,12 +204,49 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     onProviderReady?.(provider);
   }, [onProviderReady, provider, ready]);
 
+  // Grid api for the "Refresh view" admin action (chained, not stolen —
+  // the caller's onReady still fires).
+  const gridApiRef = useRef<{ refreshServerSide?: (p?: { purge?: boolean }) => void } | null>(null);
+  const handleReady = useCallback(
+    (handle: { gridApi?: unknown }) => {
+      gridApiRef.current = (handle.gridApi ?? null) as typeof gridApiRef.current;
+      (onReady as ((h: unknown) => void) | undefined)?.(handle);
+    },
+    [onReady],
+  );
+
   // Exactly MarketsGridContainer's data-infrastructure menu: the
   // "Data Provider Editor" action (host popout when onEditProvider is
   // supplied, inline dialog otherwise) and, when a host wires it,
   // "Config Browser" — same ids, labels, icons and order as CSRM.
   const adminActions = useMemo(
     () => [
+      // CSRM parity: MarketsGridContainer's refresh/reload pair, same ids,
+      // labels, icons and order, ahead of the data-infra actions.
+      {
+        id: 'refresh-view',
+        label: 'Refresh view',
+        description: 'Replay cached rows from the worker plane without reconnecting',
+        icon: 'lucide:refresh-cw',
+        onClick: () => {
+          try {
+            gridApiRef.current?.refreshServerSide?.({ purge: true });
+          } catch {
+            /* grid mid-teardown */
+          }
+        },
+      },
+      {
+        id: 'reload-from-source',
+        label: 'Reload from source',
+        description: 'Restart the provider and re-fetch the snapshot — refreshes every subscribed grid',
+        icon: 'lucide:rotate-cw',
+        onClick: () => {
+          void provider?.restart({ __refresh: Date.now() }).catch(() => {
+            /* status events surface the failure */
+          });
+        },
+      },
       {
         id: DATA_PROVIDER_EDITOR_ACTION_ID,
         label: 'Data Provider Editor',
@@ -222,7 +259,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         ? [createConfigBrowserAction({ launch: onOpenConfigBrowser })]
         : []),
     ],
-    [onEditProvider, onOpenConfigBrowser, providerId],
+    [onEditProvider, onOpenConfigBrowser, providerId, provider],
   );
 
   return (
@@ -281,7 +318,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
           <MarketsGrid
             gridId={gridIdProp ?? providerId}
             defaultColDef={defaultColDef}
-            onReady={onReady}
+            onReady={handleReady}
             adminActions={adminActions}
             ssrm={{
               provider,

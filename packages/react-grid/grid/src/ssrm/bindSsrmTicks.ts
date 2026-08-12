@@ -163,6 +163,29 @@ export function bindSsrmTicks(
     }
   };
 
+  // Recovery purge: the transport rebuilds its snapshot after a broker
+  // restart, but the snapshot flush fires on the FIRST streamed chunk
+  // (partial cache) and later chunks are interest-gated — so every
+  // transition INTO 'ready' re-queries all blocks. Status events fan to
+  // every session, so a restart/refresh/reconnect refreshes ALL grids.
+  let lastStatusReady = false;
+  const offStatus = provider.onStatus?.((status: string) => {
+    if (status !== 'ready') {
+      lastStatusReady = false;
+      return;
+    }
+    if (lastStatusReady) return; // repeated ready without interruption
+    lastStatusReady = true;
+    scheduleRefresh(true);
+    if (alive()) {
+      try {
+        refreshAllSetFilterValues(api);
+      } catch {
+        /* destroyed */
+      }
+    }
+  });
+
   const offTick = provider.onSsrmTick(({ event, interestedKeys }) => {
     if (!alive()) return;
 
@@ -274,5 +297,6 @@ export function bindSsrmTicks(
     }
     pendingPurge = false;
     offTick();
+    offStatus?.();
   };
 }

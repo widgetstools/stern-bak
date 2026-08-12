@@ -68,10 +68,13 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     await waitFor(() => expect(captured.props.gridId).toBe('p1'));
   });
 
-  it('forwards onReady to MarketsGrid', async () => {
+  it('chains onReady to the caller (grid api captured for Refresh view first)', async () => {
     const onReady = vi.fn();
     render(<SsrmMarketsGridContainer providerId="p1" onReady={onReady} />);
-    await waitFor(() => expect(captured.props.onReady).toBe(onReady));
+    await waitFor(() => expect(captured.props.onReady).toBeDefined());
+    const handle = { gridApi: { refreshServerSide: vi.fn() } };
+    act(() => (captured.props.onReady as (h: unknown) => void)(handle));
+    expect(onReady).toHaveBeenCalledWith(handle);
   });
 
   it('reports the resolved keyColumn through onRowIdFieldChange', async () => {
@@ -120,6 +123,40 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     expect(await screen.findByTestId('inline-editor')).toBeTruthy();
   });
 
+  it('prepends CSRM\'s refresh pair: Refresh view (cache) and Reload from source (restart)', async () => {
+    const restart = vi.fn(async () => {});
+    (fakeProvider as Record<string, unknown>).restart = restart;
+    const refreshServerSide = vi.fn();
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    const actions = captured.props.adminActions as Array<{
+      id: string;
+      onClick: () => void;
+    }>;
+    // Same ids and order as MarketsGridContainer's refresh/reload pair.
+    expect(actions.map((a) => a.id).slice(0, 2)).toEqual([
+      'refresh-view',
+      'reload-from-source',
+    ]);
+
+    // Refresh view: purge blocks against the worker cache — no upstream I/O.
+    act(() => {
+      (captured.props.onReady as (h: unknown) => void)?.({
+        gridApi: { refreshServerSide },
+      });
+    });
+    act(() => actions[0].onClick());
+    expect(refreshServerSide).toHaveBeenCalledWith({ purge: true });
+    expect(restart).not.toHaveBeenCalled();
+
+    // Reload from source: restart the provider; the ready transition then
+    // auto-purges every subscribed grid via bindSsrmTicks.
+    act(() => actions[1].onClick());
+    expect(restart).toHaveBeenCalledWith(
+      expect.objectContaining({ __refresh: expect.any(Number) }),
+    );
+  });
+
   it('carries CSRM\'s exact menu pair when both callbacks are wired', async () => {
     const onOpenConfigBrowser = vi.fn();
     render(
@@ -136,11 +173,11 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
       onClick: () => void;
     }>;
     // Same ids, labels and order as MarketsGridContainer's data-infra menu.
-    expect(actions.map((a) => [a.id, a.label])).toEqual([
+    expect(actions.map((a) => [a.id, a.label]).slice(2)).toEqual([
       ['data-provider-editor', 'Data Provider Editor'],
       ['config-browser', 'Config Browser'],
     ]);
-    actions[1].onClick();
+    actions[3].onClick();
     expect(onOpenConfigBrowser).toHaveBeenCalledTimes(1);
   });
 });
