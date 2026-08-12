@@ -367,7 +367,7 @@ function MarketsGridHostInner<TData>({
 
       {kind === 'ssrm' && ssrm ? (
         <MarketsGridSsrmSurface
-          key={`ssrm:${ssrm.provider.id}`}
+          key={`ssrm:${ssrm.provider.id}:${ssrm.keyColumn ?? 'id'}`}
           gridRef={gridRef}
           gridOptions={gridOptions}
           hostOverrideKeys={hostOverrideKeys}

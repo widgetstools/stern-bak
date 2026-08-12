@@ -478,7 +478,7 @@ function MarketsGridCoreInner<TData = unknown>(
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
           {surfaceKind === 'ssrm' && ssrm ? (
             <MarketsGridSsrmSurface
-              key={`ssrm:${ssrm.provider.id}`}
+              key={`ssrm:${ssrm.provider.id}:${ssrm.keyColumn ?? 'id'}`}
               gridRef={gridRef}
               gridOptions={shell.gridOptions}
               hostOverrideKeys={shell.hostOverrideKeys}

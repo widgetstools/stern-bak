@@ -56,8 +56,22 @@ test.describe('star-demo-ssrm smoke', () => {
     await expect(page.getByTestId('ssrm-provider-status')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /edit provider/i })).toHaveCount(0);
 
-    // Steady state: observe long enough for the first live ticks to land.
-    await page.waitForTimeout(10_000);
+    // Live ticks must actually repaint cells. This is the app-level guard
+    // for the whole chain (provider -> worker plane -> tick fan -> grid):
+    // the lab spec covers the surface, but only this app exercises the
+    // hosted container path where a pre-ready mount once bound the
+    // datasource and tick filter to the fallback key column and froze
+    // every cell while ticks kept arriving.
+    const cellSnap = () =>
+      page
+        .locator('.ag-grid-scrolling-container .ag-row')
+        .evaluateAll((rows) =>
+          rows.map((r) => `${r.getAttribute('row-id')}=${r.textContent}`).sort().join('|'),
+        );
+    const beforeTicks = await cellSnap();
+    await expect
+      .poll(async () => (await cellSnap()) !== beforeTicks, { timeout: 20_000 })
+      .toBe(true);
 
     expect(errors, errors.join('\n')).toEqual([]);
   });
