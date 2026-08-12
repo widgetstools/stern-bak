@@ -26,6 +26,33 @@ import { ssrmGetRowId } from './ssrmGetRowId.js';
 /** AG Grid 35+: pass modules to the grid instance (plus global registry). */
 const SSRM_AG_GRID_MODULES: Module[] = [AllEnterpriseModule];
 
+/**
+ * Grid options SSRM owns. `gridOptions` is spread onto the grid, so a caller
+ * key here would silently break the data path rather than customise it:
+ * `onGridReady` installs the datasource and the tick subscription, `getRowId`
+ * is the identity `applyServerSideTransaction` matches ticks on, and
+ * `rowModelType` / `serverSideDatasource` define the model itself.
+ *
+ * `onGridReady` is chained rather than dropped — callers still get their call.
+ */
+const SSRM_OWNED_GRID_OPTIONS = [
+  'rowModelType',
+  'serverSideDatasource',
+  'getRowId',
+  'onGridReady',
+  'context',
+  'modules',
+] as const;
+
+function withoutOwnedOptions<TData>(
+  gridOptions: Partial<GridOptions<TData>> | undefined,
+): Partial<GridOptions<TData>> | undefined {
+  if (!gridOptions) return undefined;
+  const rest: Record<string, unknown> = { ...gridOptions };
+  for (const key of SSRM_OWNED_GRID_OPTIONS) delete rest[key];
+  return rest as Partial<GridOptions<TData>>;
+}
+
 export interface SsrmAgGridProps<TData = Record<string, unknown>> {
   provider: ISsrmDataProvider;
   columnDefs: ColDef<TData>[];
@@ -115,8 +142,14 @@ function SsrmAgGridInner<TData extends Record<string, unknown>>(
         getQuickFilterText,
       });
       onGridReadyProp?.(e);
+      gridOptions?.onGridReady?.(e);
     },
-    [provider, keyColumn, getQuickFilterText, onGridReadyProp],
+    [provider, keyColumn, getQuickFilterText, onGridReadyProp, gridOptions],
+  );
+
+  const callerGridOptions = useMemo(
+    () => withoutOwnedOptions(gridOptions),
+    [gridOptions],
   );
 
   useEffect(() => {
@@ -144,7 +177,9 @@ function SsrmAgGridInner<TData extends Record<string, unknown>>(
         context={{ ...statusPack.context, ...(gridOptions?.context as object) }}
         rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }}
         onGridReady={onGridReady}
-        {...gridOptions}
+        // SSRM-owned keys are stripped (see SSRM_OWNED_GRID_OPTIONS) so a
+        // caller cannot silently detach the datasource or the tick binding.
+        {...callerGridOptions}
         // After gridOptions so callers cannot strip SSRM enterprise modules.
         // https://www.ag-grid.com/react-data-grid/modules/
         modules={SSRM_AG_GRID_MODULES}

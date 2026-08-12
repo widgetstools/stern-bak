@@ -51,6 +51,7 @@
  */
 
 import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
+import { dataServicesWorkerName } from './workerName.js';
 
 export interface CreateDataServicesWorkerOpts {
   /** Idempotency key — also used as SharedWorker `name` suffix. */
@@ -100,9 +101,7 @@ export function createDataServicesWorker(
     );
   }
 
-  // `:ssrm2` — bump when hub protocol changes so browsers don't keep a
-  // stale named SharedWorker from before the rebuild.
-  const name = `mkt-data-services:${opts.appName}:ssrm2`;
+  const name = dataServicesWorkerName(opts.appName);
 
   // Explicit URL wins (CDN / OpenFin manifest / <script> hosting).
   // Otherwise fall through to the inline form below — which MUST stay

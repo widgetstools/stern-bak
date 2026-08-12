@@ -21,6 +21,45 @@ export interface SsrmServerOptions {
   keyColumn: string;
   projectFields?: string[];
   tree?: TreeDataConfig | null;
+  /**
+   * How many loaded blocks of viewport interest to retain per session.
+   * Mirrors the grid's `maxBlocksInCache`: AG Grid keeps that many blocks
+   * rendered, so the worker must keep ticking all of them.
+   */
+  maxInterestBlocks?: number;
+}
+
+/**
+ * Identifies which block of which query a `setViewportInterest` call covers.
+ * Same `queryId` → interest accumulates across blocks; a new `queryId`
+ * (filter/sort/group changed) → prior blocks are discarded.
+ */
+export interface ViewportInterestScope {
+  blockKey: string;
+  queryId: string;
+  /**
+   * Whether the session has an active filter (column filter or quick filter).
+   * A filtered session needs *every* changed row, even ones outside its
+   * viewport, because a row that starts matching the filter is only
+   * discoverable by inspecting it. An unfiltered session needs nothing
+   * beyond its viewport.
+   */
+  hasFilter?: boolean;
+}
+
+/** Matches `maxBlocksInCache={20}` on the SSRM grid surfaces. */
+const DEFAULT_MAX_INTEREST_BLOCKS = 20;
+
+/** Bucket used when a caller identifies no block (whole-viewport replace). */
+const UNSCOPED_BLOCK = '__unscoped__';
+
+interface SessionInterest {
+  queryId: string | null;
+  /** Insertion-ordered, oldest first — doubles as the LRU list. */
+  blocks: Map<string, Set<string>>;
+  /** Flattened union of every block, kept for O(1) tick lookups. */
+  union: Set<string>;
+  hasFilter: boolean;
 }
 
 /**
@@ -30,9 +69,14 @@ export interface SsrmServerOptions {
 export class SsrmServer implements ICacheIngest {
   readonly store: RowStore;
   readonly query: QueryEngine;
-  private viewportInterest = new Map<string, Set<string>>();
+  private viewportInterest = new Map<string, SessionInterest>();
+  private readonly maxInterestBlocks: number;
 
   constructor(options: SsrmServerOptions) {
+    this.maxInterestBlocks = Math.max(
+      1,
+      options.maxInterestBlocks ?? DEFAULT_MAX_INTEREST_BLOCKS,
+    );
     this.store = new RowStore({
       keyColumn: options.keyColumn,
       projectFields: options.projectFields,
@@ -112,8 +156,50 @@ export class SsrmServer implements ICacheIngest {
   }
 
   // ── Tick interest (viewport keys per session) ───────────────────────
-  setViewportInterest(sessionId: string, keys: string[]): void {
-    this.viewportInterest.set(sessionId, new Set(keys));
+  /**
+   * Records the rows a session currently has loaded.
+   *
+   * With a {@link ViewportInterestScope}, interest accumulates across the
+   * blocks of one query and is bounded by `maxInterestBlocks` (LRU). Without
+   * one, the call replaces the session's interest wholesale.
+   */
+  setViewportInterest(
+    sessionId: string,
+    keys: string[],
+    scope?: ViewportInterestScope,
+  ): void {
+    const blockKey = scope?.blockKey ?? UNSCOPED_BLOCK;
+    const queryId = scope?.queryId ?? null;
+
+    const previous = this.viewportInterest.get(sessionId);
+    // A different query (or an unscoped replace) invalidates prior blocks.
+    const entry =
+      previous && scope && previous.queryId === queryId
+        ? previous
+        : {
+            queryId,
+            blocks: new Map<string, Set<string>>(),
+            union: new Set<string>(),
+            hasFilter: false,
+          };
+    entry.hasFilter = scope?.hasFilter ?? false;
+
+    // Re-inserting moves the block to the most-recently-used end.
+    entry.blocks.delete(blockKey);
+    entry.blocks.set(blockKey, new Set(keys));
+
+    while (entry.blocks.size > this.maxInterestBlocks) {
+      const oldest = entry.blocks.keys().next().value;
+      if (oldest === undefined) break;
+      entry.blocks.delete(oldest);
+    }
+
+    entry.union = new Set<string>();
+    for (const block of entry.blocks.values()) {
+      for (const key of block) entry.union.add(key);
+    }
+
+    this.viewportInterest.set(sessionId, entry);
   }
 
   clearViewportInterest(sessionId: string): void {
@@ -130,8 +216,21 @@ export class SsrmServer implements ICacheIngest {
     if (!changedKeys) return [];
     const interest = this.viewportInterest.get(sessionId);
     if (!interest) return changedKeys;
-    if (interest.size === 0) return [];
-    return changedKeys.filter((k) => interest.has(k));
+    if (interest.union.size === 0) return [];
+    return changedKeys.filter((k) => interest.union.has(k));
+  }
+
+  /**
+   * Whether a session still needs rows that fall outside its viewport.
+   *
+   * Only filtered sessions do: a row that changes into matching their filter
+   * is invisible to them otherwise. For an unfiltered session, rows outside
+   * the viewport are pure waste — enriched and posted for nothing.
+   * A session that has not reported a viewport yet gets everything.
+   */
+  wantsUnmatchedRows(sessionId: string): boolean {
+    const interest = this.viewportInterest.get(sessionId);
+    return interest ? interest.hasFilter : true;
   }
 
   onTick(listener: TickListener): () => void {

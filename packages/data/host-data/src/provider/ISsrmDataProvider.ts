@@ -9,6 +9,7 @@ import type {
   TickEvent,
   StatusBarRequest,
   StatusBarSummary,
+  ViewportInterestScope,
 } from '../runtime/ssrm/index.js';
 
 export interface SsrmTickPayload {
@@ -25,7 +26,7 @@ export interface ISsrmDataProvider {
   getConfig(): ProviderConfig;
   getColumnDefs(): readonly ColumnDefinition[];
   getRows(req: SsrmGetRowsRequest): Promise<SsrmGetRowsResult>;
-  setViewport(keys: string[]): Promise<void>;
+  setViewport(keys: string[], scope?: ViewportInterestScope): Promise<void>;
   configureExpressions(rules: ExpressionRule[]): Promise<void>;
   getSetFilterValues(req: SetFilterValuesRequest): Promise<string[]>;
   getStatusBar(req?: StatusBarRequest): Promise<StatusBarSummary>;

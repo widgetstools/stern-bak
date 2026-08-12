@@ -15,7 +15,7 @@ export type {
 } from './types.js';
 export { RowStore } from './RowStore.js';
 export { QueryEngine } from './QueryEngine.js';
-export { SsrmServer } from './SsrmServer.js';
+export { SsrmServer, type ViewportInterestScope } from './SsrmServer.js';
 export {
   computeStatusBar,
   type StatusBarRequest,

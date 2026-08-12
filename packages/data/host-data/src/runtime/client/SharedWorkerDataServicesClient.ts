@@ -178,7 +178,18 @@ export interface SharedWorkerDataServicesClientOpts {
   generateSubId?: () => string;
   /** Disable window `pagehide` → `close()` wiring (tests). Default false. */
   disablePageHideClose?: boolean;
+  /**
+   * How long an SSRM RPC waits for its hub reply before rejecting.
+   * Without a deadline a lost reply leaves the AG Grid block on "Loading…"
+   * forever — the datasource never gets to call `params.fail()`, and AG Grid
+   * will not re-request a block it believes is still in flight.
+   * Default {@link DEFAULT_SSRM_RPC_TIMEOUT_MS}. Set `0` to disable.
+   */
+  ssrmRpcTimeoutMs?: number;
 }
+
+/** Generous enough for a cold worker start + a large block query. */
+export const DEFAULT_SSRM_RPC_TIMEOUT_MS = 30_000;
 
 export class SharedWorkerDataServicesClient {
   private readonly port: MessagePort;
@@ -199,8 +210,13 @@ export class SharedWorkerDataServicesClient {
   >();
   private readonly ssrmPending = new Map<
     string,
-    { resolve: (event: SsrmRpcEvent) => void; reject: (err: Error) => void }
+    {
+      resolve: (event: SsrmRpcEvent) => void;
+      reject: (err: Error) => void;
+      timer?: ReturnType<typeof setTimeout>;
+    }
   >();
+  private readonly ssrmRpcTimeoutMs: number;
   private readonly ssrmTickListeners = new Map<
     string,
     Set<(payload: { event: SsrmTickEvent['event']; interestedKeys: string[] }) => void>
@@ -215,6 +231,8 @@ export class SharedWorkerDataServicesClient {
   constructor(port: MessagePort, opts: SharedWorkerDataServicesClientOpts = {}) {
     this.port = port;
     this.generateSubId = opts.generateSubId ?? (() => crypto.randomUUID());
+    this.ssrmRpcTimeoutMs =
+      opts.ssrmRpcTimeoutMs ?? DEFAULT_SSRM_RPC_TIMEOUT_MS;
     this.port.addEventListener('message', this.handleMessage);
     this.port.start();
     if (!opts.disablePageHideClose && typeof globalThis.addEventListener === 'function') {
@@ -669,11 +687,18 @@ export class SharedWorkerDataServicesClient {
     providerId: string,
     sessionId: string,
     keys: string[],
+    scope?: { blockKey: string; queryId: string; hasFilter?: boolean },
   ): Promise<void> {
     if (this.closed) {
       return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
     }
-    this.send({ kind: 'ssrm-set-viewport', providerId, sessionId, keys });
+    this.send({
+      kind: 'ssrm-set-viewport',
+      providerId,
+      sessionId,
+      keys,
+      ...(scope ? { scope } : {}),
+    });
   }
 
   async ssrmConfigureExpressions(
@@ -831,6 +856,7 @@ export class SharedWorkerDataServicesClient {
     }
     this.catalogPending.clear();
     for (const [, pending] of this.ssrmPending) {
+      if (pending.timer !== undefined) clearTimeout(pending.timer);
       pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
     }
     this.ssrmPending.clear();
@@ -976,7 +1002,19 @@ export class SharedWorkerDataServicesClient {
     }
     const reqId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      this.ssrmPending.set(reqId, { resolve, reject });
+      const timer =
+        this.ssrmRpcTimeoutMs > 0
+          ? setTimeout(() => {
+              this.ssrmPending.delete(reqId);
+              reject(
+                new Error(
+                  `[SharedWorkerDataServicesClient] ${req.kind} timed out after `
+                    + `${this.ssrmRpcTimeoutMs}ms`,
+                ),
+              );
+            }, this.ssrmRpcTimeoutMs)
+          : undefined;
+      this.ssrmPending.set(reqId, { resolve, reject, timer });
       this.send({ ...req, reqId } as Request);
     });
   }
@@ -996,6 +1034,7 @@ export class SharedWorkerDataServicesClient {
       const pending = this.ssrmPending.get(event.reqId);
       if (!pending) return;
       this.ssrmPending.delete(event.reqId);
+      if (pending.timer !== undefined) clearTimeout(pending.timer);
       // Always resolve — callers inspect `ok` / payload (same as success path).
       pending.resolve(event);
       return;

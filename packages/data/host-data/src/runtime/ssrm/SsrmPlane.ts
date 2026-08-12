@@ -5,6 +5,7 @@
 import { composeRowId } from '@wellsfargo-starui/types';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { SsrmServer } from './SsrmServer.js';
+import type { ViewportInterestScope } from './SsrmServer.js';
 import type {
   ExpressionRule,
   Row,
@@ -115,12 +116,20 @@ export class SsrmPlane {
     this.server.configureExpressions(rules);
   }
 
-  setViewportInterest(sessionId: string, keys: string[]): void {
-    this.server.setViewportInterest(sessionId, keys);
+  setViewportInterest(
+    sessionId: string,
+    keys: string[],
+    scope?: ViewportInterestScope,
+  ): void {
+    this.server.setViewportInterest(sessionId, keys, scope);
   }
 
   clearViewportInterest(sessionId: string): void {
     this.server.clearViewportInterest(sessionId);
+  }
+
+  wantsUnmatchedRows(sessionId: string): boolean {
+    return this.server.wantsUnmatchedRows(sessionId);
   }
 
   interestedKeys(sessionId: string, changedKeys: string[] | undefined): string[] {

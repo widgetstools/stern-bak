@@ -226,8 +226,12 @@ export class SharedWorkerDataServicesHub {
       /* port already torn down */
     }
     this.connectedPorts.delete(port);
-    const { idleCandidates, statsEmptied } = this.subscribers.removeByPort(port);
+    const { idleCandidates, statsEmptied, released } =
+      this.subscribers.removeByPort(port);
     if (statsEmptied) this.maybeStopStatsSampler();
+    for (const { providerId, subId } of released) {
+      this.releaseSsrmSession(providerId, subId);
+    }
     this.appDataSvc.onPortClosed(port);
     for (const providerId of idleCandidates) {
       this.maybeStopProviderIfIdle(providerId);
@@ -353,7 +357,20 @@ export class SharedWorkerDataServicesHub {
   private handleDetach(req: DetachRequest): void {
     const removed = this.subscribers.remove(req.subId);
     if (removed.statsEmptied) this.maybeStopStatsSampler();
-    if (removed.providerId) this.maybeStopProviderIfIdle(removed.providerId);
+    if (removed.providerId) {
+      this.releaseSsrmSession(removed.providerId, req.subId);
+      this.maybeStopProviderIfIdle(removed.providerId);
+    }
+  }
+
+  /**
+   * Release a session's SSRM viewport keys. Disposing the plane covers the
+   * last-subscriber case, but a plane shared with other grids survives and
+   * would otherwise retain this session's keys — and keep walking them on
+   * every tick — forever.
+   */
+  private releaseSsrmSession(providerId: string, subId: string): void {
+    this.ssrmPlanes.get(providerId)?.plane.clearViewportInterest(subId);
   }
 
   private maybeStopProviderIfIdle(providerId: string): void {
@@ -410,6 +427,7 @@ export class SharedWorkerDataServicesHub {
     }
     const removed = this.subscribers.remove(subId);
     if (removed.statsEmptied) this.maybeStopStatsSampler();
+    if (removed.providerId) this.releaseSsrmSession(removed.providerId, subId);
     return removed.providerId;
   }
 
@@ -479,7 +497,12 @@ export class SharedWorkerDataServicesHub {
           rows.filter((r) => want.has(String(r[keyCol] ?? ''))),
         );
       } else if (event.type === 'rows' && rows?.length) {
-        rows = plane.enrichRows(rows);
+        // Nothing in this session's viewport changed. A *filtered* session
+        // still needs the full set — a row that changes into matching its
+        // filter is undiscoverable otherwise (bindSsrmTicks re-tests them).
+        // An unfiltered session would only pay to enrich and post rows it
+        // then discards, so send it nothing.
+        rows = plane.wantsUnmatchedRows(subId) ? plane.enrichRows(rows) : [];
       }
       const msg: SsrmTickEvent = {
         kind: 'ssrm-tick',
@@ -507,7 +530,7 @@ export class SharedWorkerDataServicesHub {
 
     if (req.kind === 'ssrm-set-viewport') {
       const plane = this.ssrmPlanes.get(req.providerId)?.plane;
-      plane?.setViewportInterest(req.sessionId, req.keys);
+      plane?.setViewportInterest(req.sessionId, req.keys, req.scope);
       return;
     }
 

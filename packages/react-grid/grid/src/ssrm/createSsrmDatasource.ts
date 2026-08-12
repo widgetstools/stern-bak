@@ -20,6 +20,39 @@ export interface CreateSsrmDatasourceOptions {
 }
 
 /**
+ * Identity of the query behind a block request. Everything that changes which
+ * rows a block contains belongs here; `startRow`/`endRow` deliberately do not,
+ * so paging through one query keeps a stable id.
+ */
+function queryIdOf(req: SsrmGetRowsRequest): string {
+  return JSON.stringify([
+    req.filterModel ?? null,
+    req.sortModel ?? null,
+    req.rowGroupCols ?? null,
+    req.valueCols ?? null,
+    req.pivotCols ?? null,
+    req.pivotMode ?? false,
+    req.quickFilterText ?? '',
+  ]);
+}
+
+/** Identity of one block within a query — its group path plus its row range. */
+function blockKeyOf(req: SsrmGetRowsRequest): string {
+  return `${JSON.stringify(req.groupKeys ?? [])}:${req.startRow ?? 0}`;
+}
+
+/**
+ * Whether any filter is narrowing this query. The worker uses it to decide
+ * whether the session needs changed rows from outside its viewport — only a
+ * filtered view can have rows *enter* it on a tick.
+ */
+function hasFilterOf(req: SsrmGetRowsRequest): boolean {
+  const model = req.filterModel as Record<string, unknown> | null | undefined;
+  const filterCount = model ? Object.keys(model).length : 0;
+  return filterCount > 0 || Boolean(req.quickFilterText);
+}
+
+/**
  * AG Grid server-side datasource backed by {@link ISsrmDataProvider}.
  */
 export function createSsrmDatasource(
@@ -45,7 +78,13 @@ export function createSsrmDatasource(
             .map((r) => r[keyColumn] ?? r.__ssrmGroupKey)
             .filter((k) => k != null)
             .map(String);
-          void provider.setViewport(keys);
+          // Scoped so the worker accumulates interest across the blocks AG
+          // Grid keeps cached, and resets it when the query itself changes.
+          void provider.setViewport(keys, {
+            blockKey: blockKeyOf(req),
+            queryId: queryIdOf(req),
+            hasFilter: hasFilterOf(req),
+          });
 
           params.success({
             rowData: result.rowData,

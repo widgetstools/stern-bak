@@ -46,6 +46,7 @@
 import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { bootstrapDataServices, type DataServices } from './bootstrap.js';
 import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
+import { dataServicesWorkerName } from './workerName.js';
 
 export interface CreateDataServicesClientOpts {
   /**
@@ -111,12 +112,9 @@ export function createDataServicesClient(
   // `import('@stomp/stompjs')`, and a code-splitting worker is rejected
   // outright by Vite's default `worker.format: 'iife'`, failing the
   // consumer's build. See createDataServicesWorker.ts for the full note.
-  // `:ssrm3` forces a fresh SharedWorker when the hub protocol gains features
-  // (e.g. mock-ssrm / stomp-ssrm). Browsers pin the first script for a given
-  // `name` until every tab closes — without a bump, rebuilds leave a stale hub.
   const worker = new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), {
     type: 'module',
-    name: `mkt-data-services:${opts.appName}:ssrm3`,
+    name: dataServicesWorkerName(opts.appName),
   });
 
   worker.addEventListener('error', (ev) => {

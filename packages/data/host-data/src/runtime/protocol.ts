@@ -404,6 +404,11 @@ export interface SsrmSetViewportRequest {
   providerId: string;
   sessionId: string;
   keys: string[];
+  /**
+   * Which block of which query `keys` came from. Optional so an older client
+   * still gets the previous replace-wholesale behaviour.
+   */
+  scope?: { blockKey: string; queryId: string; hasFilter?: boolean };
 }
 
 export interface SsrmConfigureExpressionsRequest {

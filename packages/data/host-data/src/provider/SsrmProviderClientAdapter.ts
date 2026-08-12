@@ -11,6 +11,7 @@ import type {
   SsrmGetRowsResult,
   StatusBarRequest,
   StatusBarSummary,
+  ViewportInterestScope,
 } from '../runtime/ssrm/index.js';
 import type { Unsubscribe } from './IDataProvider.js';
 import type { ISsrmDataProvider, SsrmTickPayload } from './ISsrmDataProvider.js';
@@ -56,6 +57,11 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
       );
     }
     return this.handle.subId;
+  }
+
+  /** Session id, or `null` before `start()` / after `stop()`. */
+  private get sessionIdOrNull(): string | null {
+    return this.handle?.subId ?? null;
   }
 
   async start(): Promise<void> {
@@ -133,12 +139,24 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
     return config.columnDefinitions ?? [];
   }
 
-  getRows(req: SsrmGetRowsRequest): Promise<SsrmGetRowsResult> {
+  /**
+   * `async` so a not-started provider *rejects* rather than throwing
+   * synchronously: the datasource attaches its `.catch` (which calls
+   * `params.fail()`) after the call, so a sync throw would escape it.
+   */
+  async getRows(req: SsrmGetRowsRequest): Promise<SsrmGetRowsResult> {
     return this.client.ssrmGetRows(this.id, this.sessionId, req);
   }
 
-  async setViewport(keys: string[]): Promise<void> {
-    this.client.ssrmSetViewport(this.id, this.sessionId, keys);
+  async setViewport(
+    keys: string[],
+    scope?: ViewportInterestScope,
+  ): Promise<void> {
+    // Fired-and-forgotten by the datasource, so it must never reject:
+    // a viewport update racing teardown is a no-op, not an error.
+    const sessionId = this.sessionIdOrNull;
+    if (!sessionId) return;
+    this.client.ssrmSetViewport(this.id, sessionId, keys, scope);
   }
 
   configureExpressions(rules: ExpressionRule[]): Promise<void> {

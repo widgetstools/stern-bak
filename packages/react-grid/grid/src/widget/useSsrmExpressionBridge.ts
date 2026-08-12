@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { AlertsState } from '@wellsfargo-starui/core';
 import { useModuleState } from '../customizer/hooks/useModuleState.js';
@@ -81,13 +81,56 @@ export function useSsrmExpressionBridge(
   const providerRef = useRef(provider);
   providerRef.current = provider;
 
+  /**
+   * The worker's expression plane is keyed by `providerId`, so grids sharing a
+   * provider share one rule set. A grid that has never contributed a rule must
+   * stay silent rather than announce `[]` — otherwise mounting a second grid
+   * wipes the first one's calculated columns, styling and alerts.
+   * Once this bridge has pushed real rules, an empty push is a genuine
+   * "user deleted them" and must go through.
+   */
+  const hasPushedRules = useRef(false);
+
+  /** Latest rules, for re-pushing on events that carry no dependency change. */
+  const rulesRef = useRef(rules);
+  rulesRef.current = rules;
+
+  const push = useCallback(() => {
+    const target = providerRef.current;
+    if (!target) return;
+    const next = rulesRef.current;
+    if (next.length === 0 && !hasPushedRules.current) return;
+    if (next.length > 0) hasPushedRules.current = true;
+    void target.configureExpressions([...next]);
+  }, []);
+
   useEffect(() => {
     if (!enabled || !provider) return;
 
-    const timer = setTimeout(() => {
-      void providerRef.current?.configureExpressions([...rules]);
-    }, PUSH_DEBOUNCE_MS);
-
+    const timer = setTimeout(push, PUSH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [enabled, provider, rules]);
+  }, [enabled, provider, rules, push]);
+
+  /**
+   * A provider restart disposes the worker plane along with its rules, and
+   * nothing above re-runs (the deps are unchanged across a restart). Re-push
+   * when the provider reports itself ready again, or the features silently
+   * stop working after every reconnect.
+   */
+  useEffect(() => {
+    if (!enabled || !provider?.onStatus) return;
+
+    let wasInterrupted = false;
+    const off = provider.onStatus((status) => {
+      if (status === 'loading' || status === 'error') {
+        wasInterrupted = true;
+        return;
+      }
+      if (status === 'ready' && wasInterrupted) {
+        wasInterrupted = false;
+        push();
+      }
+    });
+    return off;
+  }, [enabled, provider, push]);
 }

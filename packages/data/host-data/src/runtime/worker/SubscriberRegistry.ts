@@ -115,8 +115,14 @@ export class SubscriberRegistry {
    * @returns provider ids that may now be idle, and whether any stats
    * listener map was emptied (caller may stop the sampler).
    */
-  removeByPort(port: PortLike): { idleCandidates: Set<string>; statsEmptied: boolean } {
+  removeByPort(port: PortLike): {
+    idleCandidates: Set<string>;
+    statsEmptied: boolean;
+    /** (providerId, subId) pairs dropped — callers release per-session state. */
+    released: Array<{ providerId: string; subId: string }>;
+  } {
     const idleCandidates = new Set<string>();
+    const released: Array<{ providerId: string; subId: string }> = [];
     let statsEmptied = false;
     for (const [providerId, listeners] of this.dataByProvider) {
       for (const [subId, l] of listeners) {
@@ -124,6 +130,7 @@ export class SubscriberRegistry {
         listeners.delete(subId);
         this.subIndex.delete(subId);
         idleCandidates.add(providerId);
+        released.push({ providerId, subId });
       }
       if (listeners.size === 0) this.dataByProvider.delete(providerId);
     }
@@ -139,7 +146,7 @@ export class SubscriberRegistry {
         statsEmptied = true;
       }
     }
-    return { idleCandidates, statsEmptied };
+    return { idleCandidates, statsEmptied, released };
   }
 
   /**

@@ -137,16 +137,21 @@ export class AggregationEngine {
   }
 }
 
-function finalize(s: AggState, fn: AggFunc): number {
+/**
+ * `null` (blank) rather than `0` when nothing contributed a value: in a
+ * markets grid a 0 price or 0 spread reads as data, not as "no values here".
+ * `count` legitimately counts to 0, and `sum` keeps its additive identity.
+ */
+function finalize(s: AggState, fn: AggFunc): number | null {
   switch (fn) {
     case "count":
       return s.count;
     case "min":
-      return s.nonNull ? s.min : 0;
+      return s.nonNull ? s.min : null;
     case "max":
-      return s.nonNull ? s.max : 0;
+      return s.nonNull ? s.max : null;
     case "avg":
-      return s.nonNull ? s.sum / s.nonNull : 0;
+      return s.nonNull ? s.sum / s.nonNull : null;
     case "sum":
     default:
       return s.sum;
