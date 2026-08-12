@@ -7,6 +7,15 @@ function clock(start: number, stepMs: number): () => number {
   return () => (t += stepMs);
 }
 
+/** Deterministic LCG so skew/burst assertions are reproducible. */
+function lcg(seed = 42): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
+}
+
 function batcher(
   overrides: Partial<Parameters<typeof createRateBudgetBatcher<number>>[0]> = {},
 ) {
@@ -15,79 +24,162 @@ function batcher(
     rowsPerSec: 10_000,
     maxRowsPerFrame: 2_000,
     tickRow: (i) => i,
+    random: lcg(),
     ...overrides,
   });
 }
 
-describe('createRateBudgetBatcher', () => {
+/** Sum of generated updates across n ticks. */
+function generatedOver(next: () => { updatesGenerated: number }, n: number): number {
+  let total = 0;
+  for (let i = 0; i < n; i++) total += next().updatesGenerated;
+  return total;
+}
+
+describe('createRateBudgetBatcher — rate contract (rate = GENERATED updates/sec)', () => {
   it('honours the requested aggregate rate exactly across ticks', () => {
-    // 10 000 rows/sec at 40 ms ticks → 400 rows per tick.
+    // 10 000 updates/sec at 40 ms ticks over 1 s. Bursts move updates
+    // between ticks but the budget only mints rate x elapsed, so the
+    // 1 s total is exact.
     const next = batcher({ now: clock(0, 40) });
-    let total = 0;
-    for (let tick = 0; tick < 25; tick++) total += next().length; // 1 second
-    expect(total).toBe(10_000);
+    // Bursts may hold back at most ~one tick's worth at the window edge.
+    const total = generatedOver(next, 25);
+    expect(total).toBeGreaterThan(9_400);
+    expect(total).toBeLessThanOrEqual(10_000);
   });
 
   it('carries fractional budget instead of dropping it', () => {
-    // 30 rows/sec at 40 ms ticks → 1.2 rows/tick: 1,1,1,1,2 repeating.
     const next = batcher({ rowsPerSec: 30, now: clock(0, 40) });
-    const sizes = Array.from({ length: 25 }, () => next().length);
-    expect(sizes.reduce((a, b) => a + b, 0)).toBe(30);
-    expect(Math.max(...sizes)).toBeLessThanOrEqual(2);
+    const total = generatedOver(next, 25);
+    expect(total).toBeGreaterThanOrEqual(27);
+    expect(total).toBeLessThanOrEqual(30);
   });
 
-  it('emits nothing until the budget reaches one row', () => {
-    // 5 rows/sec at 40 ms ticks → a row roughly every 5 ticks.
-    const next = batcher({ rowsPerSec: 5, now: clock(0, 40) });
-    const sizes = Array.from({ length: 25 }, () => next().length);
-    expect(sizes.reduce((a, b) => a + b, 0)).toBe(5);
-    expect(sizes.filter((n) => n === 0).length).toBe(20);
+  it('ships at most as many rows as updates generated (conflation)', () => {
+    const next = batcher({ now: clock(0, 40) });
+    for (let tick = 0; tick < 25; tick++) {
+      const { payloads, updatesGenerated } = next();
+      expect(payloads.length).toBeLessThanOrEqual(updatesGenerated);
+    }
   });
 
-  it('caps a single frame at maxRowsPerFrame and carries the remainder', () => {
-    // One 1 s gap owes 10 000 rows; frames cap at 2 000.
+  it('caps a single frame at maxRowsPerFrame of GENERATED updates and carries the rest', () => {
     const next = batcher({ now: clock(0, 1000) });
-    expect(next().length).toBe(2_000);
-    // The carried 8 000 plus the next second's accrual is still frame-capped.
-    expect(next().length).toBe(2_000);
+    expect(next().updatesGenerated).toBe(2_000);
+    expect(next().updatesGenerated).toBe(2_000);
   });
 
   it('caps catch-up after a stall at one second of updates', () => {
-    // 10 s gap must NOT replay 100 000 rows — budget caps at rowsPerSec.
     const next = batcher({
       maxRowsPerFrame: 50_000,
       rowsPerSec: 3_000,
       now: clock(0, 10_000),
     });
-    expect(next().length).toBe(3_000);
+    // The 1 s budget clamp bounds the replay; the burst factor floors it.
+    const first = next().updatesGenerated;
+    expect(first).toBeLessThanOrEqual(3_000);
+    expect(first).toBeGreaterThanOrEqual(750);
   });
 
-  it('spreads updates randomly across the whole row set', () => {
-    const seen = new Set<number>();
+  it('returns empty for an empty record set or zero rate', () => {
+    expect(batcher({ rowCount: 0 })().payloads).toEqual([]);
+    expect(batcher({ rowsPerSec: 0 })().payloads).toEqual([]);
+  });
+});
+
+describe('createRateBudgetBatcher — bursty, skewed arrivals', () => {
+  it('tick sizes vary around the nominal per-tick rate (bursts), not a flat line', () => {
+    const next = batcher({ now: clock(0, 40) });
+    const sizes = Array.from({ length: 100 }, () => next().updatesGenerated);
+    // Nominal is 400/tick. A real burst profile has meaningfully quiet
+    // AND heavy ticks; the old batcher produced exactly 400 every time.
+    expect(Math.min(...sizes)).toBeLessThan(320);
+    expect(Math.max(...sizes)).toBeGreaterThan(480);
+    // Long-run average still the requested rate (budget-preserving).
+    const total = sizes.reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(39_000); // 100 ticks = 4 s => 40 000
+    expect(total).toBeLessThanOrEqual(40_000);
+  });
+
+  it('concentrates updates on hot rows (skew), while the tail still ticks', () => {
+    const counts = new Map<number, number>();
     const next = batcher({
-      rowCount: 1_000,
-      rowsPerSec: 5_000,
-      maxRowsPerFrame: 5_000,
-      tickRow: (i) => i,
+      rowCount: 10_000,
+      rowsPerSec: 10_000,
+      maxRowsPerFrame: 10_000,
       now: clock(0, 200),
+      // Count GENERATED updates: shipped payloads are conflated per frame,
+      // which caps a hot row at one count per tick and hides the skew.
+      tickRow: (i) => {
+        counts.set(i, (counts.get(i) ?? 0) + 1);
+        return i;
+      },
     });
-    for (let tick = 0; tick < 10; tick++) {
-      for (const i of next()) seen.add(i);
-    }
-    // 10 000 random draws over 1 000 rows — near-full coverage, and
-    // both halves of the index space are hit.
-    expect(seen.size).toBeGreaterThan(900);
-    expect([...seen].some((i) => i < 500)).toBe(true);
-    expect([...seen].some((i) => i >= 500)).toBe(true);
+    for (let tick = 0; tick < 50; tick++) next();
+    // ~100k draws over 10k rows. Top 1% of rows by hits should carry a
+    // wildly disproportionate share; uniform would give them ~1%.
+    const sorted = [...counts.values()].sort((a, b) => b - a);
+    const total = sorted.reduce((a, b) => a + b, 0);
+    const top1pct = sorted.slice(0, 100).reduce((a, b) => a + b, 0);
+    expect(top1pct / total).toBeGreaterThan(0.2);
+    // But it is a skew, not a lockout: a majority of rows still ticked.
+    expect(counts.size).toBeGreaterThan(3_000);
   });
 
-  it('never emits more distinct rows than exist', () => {
+  it('hot rows are a stable random subset, not simply the first indices', () => {
     const next = batcher({
-      rowCount: 3,
-      rowsPerSec: 1_000,
+      rowCount: 10_000,
+      rowsPerSec: 10_000,
+      maxRowsPerFrame: 10_000,
+      now: clock(0, 500),
+    });
+    const seen = new Set<number>();
+    for (let tick = 0; tick < 20; tick++) {
+      for (const i of next().payloads) seen.add(i);
+    }
+    // If skew simply favoured low indices, high indices would be absent.
+    expect([...seen].some((i) => i >= 5_000)).toBe(true);
+    expect([...seen].some((i) => i < 5_000)).toBe(true);
+  });
+});
+
+describe('createRateBudgetBatcher — key conflation within a frame', () => {
+  it('collapses duplicate draws of one row into one shipped payload, last tick applied', () => {
+    // One row: every generated update hits it; exactly one payload ships.
+    let ticks = 0;
+    const next = createRateBudgetBatcher<number>({
+      rowCount: 1,
+      rowsPerSec: 500,
+      maxRowsPerFrame: 2_000,
+      tickRow: () => ++ticks,
+      random: () => 0.632120558, // -ln(1-u) = 1 -> spend exactly nominal
       now: clock(0, 1000),
     });
-    expect(next().length).toBeLessThanOrEqual(3);
+    const { payloads, updatesGenerated } = next();
+    expect(updatesGenerated).toBe(500);
+    expect(ticks).toBe(500); // every generated update mutated the row
+    expect(payloads).toEqual([500]); // last payload won
+  });
+
+  it('merges duplicate payloads with mergePayloads when supplied (sparse deltas)', () => {
+    const next = createRateBudgetBatcher<Record<string, number>>({
+      rowCount: 1,
+      rowsPerSec: 3,
+      maxRowsPerFrame: 10,
+      tickRow: (() => {
+        let n = 0;
+        return () => {
+          n += 1;
+          return { [`f${n}`]: n };
+        };
+      })(),
+      mergePayloads: (prev, nextP) => ({ ...prev, ...nextP }),
+      random: () => 0.632120558,
+      now: clock(0, 1000),
+    });
+    const { payloads } = next();
+    // Three updates to the same row in one window: fields union, one row.
+    expect(payloads).toEqual([{ f1: 1, f2: 2, f3: 3 }]);
   });
 
   it('skips rows whose tickRow returns null without failing the frame', () => {
@@ -97,12 +189,7 @@ describe('createRateBudgetBatcher', () => {
       tickRow: (i) => (i % 2 === 0 ? i : null),
       now: clock(0, 1000),
     });
-    const frame = next();
-    expect(frame.every((i) => i % 2 === 0)).toBe(true);
-  });
-
-  it('returns empty for an empty record set or zero rate', () => {
-    expect(batcher({ rowCount: 0 })()).toEqual([]);
-    expect(batcher({ rowsPerSec: 0 })()).toEqual([]);
+    const { payloads } = next();
+    expect(payloads.every((i) => i % 2 === 0)).toBe(true);
   });
 });
