@@ -1,6 +1,6 @@
 # MarketsGrid SSRM — Implementation Inventory
 
-**Branch:** `feat/marketsgrid-ssrm-chrome`  
+**Branch:** `feature/ssrm`  
 **Date:** 2026-08-07  
 **Repo / worktree:** `stern-bak` (`.worktrees/marketsgrid-ssrm-chrome`)
 

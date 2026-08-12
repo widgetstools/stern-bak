@@ -1,7 +1,7 @@
 # MarketsGrid SSRM chrome parity
 
 **Date:** 2026-08-07  
-**Status:** Implemented (Tasks 1–8 on `feat/marketsgrid-ssrm-chrome`; demo smoke: `stomp-marketsgrid-minimal/?ssrm=1`)  
+**Status:** Implemented (Tasks 1–8 on `feature/ssrm`; demo smoke: `stomp-marketsgrid-minimal/?ssrm=1`)  
 **Scope:** `stern-bak` — `@wellsfargo-starui/grid` + widgets-react hosted/containers  
 **Goal:** SSRM MarketsGrid behaves like CSRM MarketsGrid: customizer drawer, formatter toolbar, edit toolbar, filters toolbar, profiles/save, and the rest of the MarketsGrid host chrome.
 
