@@ -145,17 +145,28 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const { ready } = useSsrmProviderDataWiring({
     provider,
     expressionRules,
-    onStatus: (status: string) => {
-      setStatusText(status);
+    // Must stay a stable reference: the wiring effect re-runs (and restarts
+    // the provider) whenever onStatus identity changes.
+    onStatus: setStatusText,
+    setLoadRowCount,
+  });
+
+  // Stale tracking subscribes to the provider's RAW status stream — the
+  // wiring hook's onStatus receives display text ('Live'), never 'ready'.
+  useEffect(() => {
+    if (!provider) return;
+    everReadyRef.current = false;
+    setDataStale(false);
+    const offStatus = provider.onStatus((status) => {
       if (status === 'ready') {
         everReadyRef.current = true;
         setDataStale(false);
       } else if (status === 'error' && everReadyRef.current) {
         setDataStale(true);
       }
-    },
-    setLoadRowCount,
-  });
+    });
+    return () => offStatus();
+  }, [provider]);
 
   // Column / key resolution must run *after* start() — getConfig() throws before that.
   const keyColumn = useMemo(() => {

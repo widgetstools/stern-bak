@@ -11,11 +11,24 @@ import React from 'react';
 
 const captured = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
 
-const fakeProvider = vi.hoisted(() => ({
-  getConfig: () => ({ keyColumn: 'positionId' }),
-  getColumnDefs: () => [{ field: 'positionId' }],
-  getSetFilterValues: vi.fn(async () => []),
-}));
+const fakeProvider = vi.hoisted(() => {
+  const statusHandlers: Array<(s: string) => void> = [];
+  return {
+    getConfig: () => ({ keyColumn: 'positionId' }),
+    getColumnDefs: () => [{ field: 'positionId' }],
+    getSetFilterValues: vi.fn(async () => []),
+    // Raw provider status stream — what the container's stale tracking
+    // subscribes to (NOT the wiring hook's display-text onStatus).
+    onStatus: (h: (s: string) => void) => {
+      statusHandlers.push(h);
+      return () => {
+        const i = statusHandlers.indexOf(h);
+        if (i >= 0) statusHandlers.splice(i, 1);
+      };
+    },
+    emitStatus: (s: string) => [...statusHandlers].forEach((h) => h(s)),
+  };
+});
 
 vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
@@ -34,11 +47,13 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
 
 const wiring = vi.hoisted(() => ({
   onStatus: null as ((s: string) => void) | null,
+  params: [] as unknown[],
 }));
 
 vi.mock('./useSsrmProviderDataWiring.js', () => ({
   useSsrmProviderDataWiring: (params: { onStatus?: (s: string) => void }) => {
     wiring.onStatus = params.onStatus ?? null;
+    wiring.params.push(params);
     return { ready: true };
   },
 }));
@@ -52,6 +67,7 @@ import { SsrmMarketsGridContainer } from './SsrmMarketsGridContainer.js';
 
 beforeEach(() => {
   captured.props = {};
+  wiring.params.length = 0;
 });
 
 describe('SsrmMarketsGridContainer prop forwarding', () => {
@@ -169,14 +185,14 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     await waitFor(() => expect(captured.props.dataStale).toBe(false));
 
     act(() => {
-      wiring.onStatus?.('ready');
-      wiring.onStatus?.('error');
+      fakeProvider.emitStatus('ready');
+      fakeProvider.emitStatus('error');
     });
     await waitFor(() => expect(captured.props.dataStale).toBe(true));
 
     act(() => {
-      wiring.onStatus?.('loading');
-      wiring.onStatus?.('ready');
+      fakeProvider.emitStatus('loading');
+      fakeProvider.emitStatus('ready');
     });
     await waitFor(() => expect(captured.props.dataStale).toBe(false));
   });
@@ -185,9 +201,18 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     render(<SsrmMarketsGridContainer providerId="p1" />);
     await waitFor(() => expect(captured.props.dataStale).toBe(false));
     act(() => {
-      wiring.onStatus?.('error');
+      fakeProvider.emitStatus('error');
     });
     expect(captured.props.dataStale).toBe(false);
+  });
+
+  it('keeps onStatus a stable reference across renders (unstable identity restarts the provider)', async () => {
+    const { rerender } = render(<SsrmMarketsGridContainer providerId="p1" />);
+    rerender(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(wiring.params.length).toBeGreaterThanOrEqual(2));
+    const first = wiring.params[0] as { onStatus?: unknown };
+    const last = wiring.params[wiring.params.length - 1] as { onStatus?: unknown };
+    expect(first.onStatus).toBe(last.onStatus);
   });
 
   it('carries CSRM\'s exact menu pair when both callbacks are wired', async () => {
