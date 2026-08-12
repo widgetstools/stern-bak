@@ -272,7 +272,12 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             {loadRowCount != null ? ` · ${loadRowCount.toLocaleString('en-US')}` : ''}
           </div>
         ) : null}
-        {provider && ready ? (
+        {/* Mounted as soon as the provider adapter exists — before start()
+            completes. The grid chrome is visible immediately; when the
+            provider's snapshot lands, bindSsrmTicks purges and rows load.
+            keyColumn / columnDefs / cacheBlockSize refine from their
+            pre-ready defaults once getConfig() stops throwing. */}
+        {provider ? (
           <MarketsGrid
             gridId={gridIdProp ?? providerId}
             defaultColDef={defaultColDef}
@@ -304,9 +309,9 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             style={{ height: '100%', width: '100%' }}
           />
         ) : (
-          <p style={{ padding: 16, opacity: 0.7 }}>
-            {error ?? (provider ? 'Starting STOMP SSRM provider…' : 'Connecting…')}
-          </p>
+          // Only before the adapter exists at all (or a hard resolve error);
+          // a created-but-starting provider renders the grid above instead.
+          <p style={{ padding: 16, opacity: 0.7 }}>{error ?? 'Connecting…'}</p>
         )}
       </div>
       {/* Reachable from the Data Provider Editor admin action even when the
