@@ -36,7 +36,7 @@ export interface QueryEngineOptions {
  * query shapes". The row arrays hold references, not copies: at 100k rows an
  * order entry is ~800 KB, so the whole cache stays in the low tens of MB.
  */
-const DEFAULT_ORDER_CACHE_SIZE = 24;
+export const DEFAULT_ORDER_CACHE_SIZE = 24;
 
 /**
  * A materialised query order, valid only for the store revision it was built

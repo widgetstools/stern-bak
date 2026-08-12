@@ -1,4 +1,4 @@
-import { QueryEngine } from "./QueryEngine.js";
+import { DEFAULT_ORDER_CACHE_SIZE, QueryEngine } from "./QueryEngine.js";
 import { RowStore, type TickListener } from "./RowStore.js";
 import {
   computeStatusBar,
@@ -87,8 +87,11 @@ const DEFAULT_MAX_INTEREST_BLOCKS = 20;
 /**
  * Floor for the query memo: {@link QueryEngine}'s own default, so a lone
  * session (or none yet) never regresses below today's single-grid behaviour.
+ * Aliased from {@link DEFAULT_ORDER_CACHE_SIZE} rather than restated as a
+ * literal, so retuning the engine's default can't silently drift from the
+ * floor applied here.
  */
-const MIN_ORDER_CACHE_SIZE = 24;
+const MIN_ORDER_CACHE_SIZE = DEFAULT_ORDER_CACHE_SIZE;
 
 /**
  * Per-session memo headroom: one blotter contributes up to ~4 memo kinds
