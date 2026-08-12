@@ -54,6 +54,15 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
+      // SSRM lab — drives the server-side row model against the SharedWorker
+      // query plane (ssrm-viewport-ticks.spec.ts). Its Vite server pins
+      // 127.0.0.1 with strictPort, so the spec addresses it by full URL.
+      command: 'npm run dev -w @wellsfargo-starui/markets-grid-ssrm-lab -- --no-open --force',
+      port: 5320,
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+    {
       // Hosts the DataProvider editor's Columns tab, which lives in
       // @wellsfargo-starui/grid/widgets and resolves to its dist exports —
       // build packages first or the editor serves stale code.
