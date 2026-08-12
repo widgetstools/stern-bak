@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
+import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
   MarketsGrid,
   toSsrmExpressionRules,
   type MarketsGridProps,
 } from '@wellsfargo-starui/grid';
+import { createConfigBrowserAction } from '@wellsfargo-starui/grid/config-browser';
 import { useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from '../markets-grid-container/buildColumnDefs.js';
 import { useSsrmProviderDataWiring } from './useSsrmProviderDataWiring.js';
@@ -27,6 +29,9 @@ export interface SsrmMarketsGridContainerProps extends Partial<
     | 'showSettingsButton'
     | 'showProfileSelector'
     | 'theme'
+    | 'gridId'
+    | 'defaultColDef'
+    | 'onReady'
   >
 > {
   /** Catalog provider id (`stomp-ssrm`). */
@@ -43,6 +48,26 @@ export interface SsrmMarketsGridContainerProps extends Partial<
   style?: React.CSSProperties;
   /** Show inline provider editor entry. */
   showProviderEditor?: boolean;
+  /**
+   * Route the provider-editor entry to a host callback (e.g. a popout)
+   * instead of the inline dialog.
+   */
+  onEditProvider?(providerId: string | null): void;
+  /**
+   * Adds a "Config Browser" admin action invoking this callback — the same
+   * seam `MarketsGridContainer` gives OpenFin hosts for their popout.
+   */
+  onOpenConfigBrowser?(): void;
+  /**
+   * Reports the provider's resolved key column (drives getRowId). Hosted
+   * wrappers feed this into the colour-link config.
+   */
+  onRowIdFieldChange?(rowIdField: string | null): void;
+  /**
+   * Reports the live `ISsrmDataProvider` once created — hosted wrappers use
+   * it to resolve group / select-all colour-link selections via the worker.
+   */
+  onProviderReady?(provider: ISsrmDataProvider): void;
 }
 
 /**
@@ -59,6 +84,13 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     className,
     style,
     showProviderEditor = true,
+    onEditProvider,
+    onOpenConfigBrowser,
+    onRowIdFieldChange,
+    onProviderReady,
+    gridId: gridIdProp,
+    defaultColDef,
+    onReady,
     userId = LOGGED_IN_USER_ID,
     storage,
     instanceId,
@@ -148,6 +180,27 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     }
   }, [provider, ready]);
 
+  // Hosted wrappers need the resolved key column (link rowIdField) and the
+  // live provider (worker-resolved group / select-all link selections).
+  useEffect(() => {
+    if (!ready) return;
+    onRowIdFieldChange?.(keyColumn ?? null);
+  }, [onRowIdFieldChange, keyColumn, ready]);
+
+  useEffect(() => {
+    if (!provider || !ready) return;
+    onProviderReady?.(provider);
+  }, [onProviderReady, provider, ready]);
+
+  // Same admin-action seam MarketsGridContainer gives OpenFin hosts.
+  const adminActions = useMemo(
+    () =>
+      onOpenConfigBrowser
+        ? [createConfigBrowserAction({ launch: onOpenConfigBrowser })]
+        : undefined,
+    [onOpenConfigBrowser],
+  );
+
   return (
     <div
       className={className}
@@ -169,7 +222,12 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             borderBottom: '1px solid var(--border, #333)',
           }}
         >
-          <button type="button" onClick={() => setEditorOpen(true)}>
+          <button
+            type="button"
+            onClick={() =>
+              onEditProvider ? onEditProvider(providerId) : setEditorOpen(true)
+            }
+          >
             Edit provider
           </button>
         </div>
@@ -192,7 +250,10 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         ) : null}
         {provider && ready ? (
           <MarketsGrid
-            gridId={providerId}
+            gridId={gridIdProp ?? providerId}
+            defaultColDef={defaultColDef}
+            onReady={onReady}
+            adminActions={adminActions}
             ssrm={{
               provider,
               keyColumn,
