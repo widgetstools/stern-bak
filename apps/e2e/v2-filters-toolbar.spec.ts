@@ -20,7 +20,7 @@ import { openViewMenu } from './helpers/viewMenu';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function waitForGrid(page: Page) {
-  await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+  await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
   await page.waitForTimeout(500);
 }
 
@@ -428,7 +428,7 @@ test.describe('v2 FiltersToolbar', () => {
     await page.waitForTimeout(200);
     await page.reload();
     await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
     await expect(
       page.locator('[data-testid="filters-toolbar"]'),
     ).toHaveAttribute('data-expanded', 'false');

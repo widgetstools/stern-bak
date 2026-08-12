@@ -28,7 +28,7 @@ import { openViewMenu } from './helpers/viewMenu';
 
 async function waitForGrid(page: Page) {
   await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-  await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+  await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
   await page.waitForTimeout(500);
 }
 
@@ -64,7 +64,7 @@ async function openFormattingToolbar(page: Page) {
 
 async function getFirstDataColId(page: Page): Promise<string> {
   const colId = await page.evaluate(() => {
-    const cell = document.querySelector('.ag-center-cols-container .ag-cell');
+    const cell = document.querySelector('.ag-grid-scrolling-cells .ag-cell');
     return cell?.getAttribute('col-id') ?? '';
   });
   expect(colId).toBeTruthy();

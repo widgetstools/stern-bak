@@ -61,7 +61,7 @@ export async function bootLabTab(page: Page, options: BootLabTabOptions): Promis
   await clearLabStorage(page, gridId);
   await page.reload();
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('[role="tab"]', { timeout: 15_000 });
+  await page.waitForSelector('[data-testid^="lab-tab-"]', { timeout: 15_000 });
   await page.locator(`[data-testid="lab-tab-${tabTestId}"]`).click();
   await page.waitForSelector(`[data-grid-id="${gridId}"]`, { timeout: 15_000 });
   await page.waitForFunction(
@@ -69,7 +69,7 @@ export async function bootLabTab(page: Page, options: BootLabTabOptions): Promis
     flagKey,
     { timeout: 20_000 },
   );
-  await page.waitForSelector(`[data-grid-id="${gridId}"] .ag-body-viewport .ag-row`, {
+  await page.waitForSelector(`[data-grid-id="${gridId}"] .ag-grid-viewport .ag-row`, {
     timeout: 15_000,
   });
 

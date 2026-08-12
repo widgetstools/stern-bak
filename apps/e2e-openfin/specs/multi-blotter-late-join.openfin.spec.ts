@@ -10,7 +10,7 @@
 import { test, expect } from '../fixtures/launchOpenFin';
 import type { Page } from '@playwright/test';
 
-const ROW_SELECTOR = '.ag-center-cols-container .ag-row';
+const ROW_SELECTOR = '.ag-grid-scrolling-rows .ag-row';
 // Phase 5 — warm fast-attach budget. A second blotter joining an already-warm
 // hub + seeded ConfigManager reaches rows in ~10-11s across the Phase 2-4 runs.
 // 25s is a tight regression guard (~2.3x the observed warm time) that still

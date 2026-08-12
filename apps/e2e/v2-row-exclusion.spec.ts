@@ -27,7 +27,7 @@ const GRID = '[data-grid-id="demo-blotter-v2"]';
 const ROW_FILTER_EDITOR = 'tds-row-filter-editor';
 
 function gridRows(page: Page): Locator {
-  return page.locator(`${GRID} .ag-center-cols-container .ag-row`);
+  return page.locator(`${GRID} .ag-grid-scrolling-rows .ag-row`);
 }
 
 /**

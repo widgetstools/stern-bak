@@ -59,7 +59,7 @@ export async function bootFixture(page: Page, name: FixtureName): Promise<string
   await page.goto(`/?view=fixture&f=${name}`);
   await page.waitForSelector(`[data-testid="fixture-banner"][data-fixture-name="${name}"]`, { timeout: 10_000 });
   await page.waitForSelector(`[data-grid-id="${FIXTURE_GRID_ID(name)}"]`, { timeout: 10_000 });
-  await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+  await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
   // Settle: profile load + transform pipeline + AG-Grid first paint.
   await page.waitForTimeout(500);
   await forceGridRedraw(page);

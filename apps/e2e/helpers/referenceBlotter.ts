@@ -141,7 +141,7 @@ export async function selectLiveProvider(page: Page, providerName: string): Prom
 
 export async function waitForProviderRows(page: Page): Promise<void> {
   await expect(
-    page.locator(`[data-grid-id="${REFERENCE_GRID_ID}"] .ag-center-cols-container .ag-row`),
+    page.locator(`[data-grid-id="${REFERENCE_GRID_ID}"] .ag-grid-scrolling-rows .ag-row`),
   ).not.toHaveCount(0, { timeout: 20_000 });
 }
 
@@ -222,7 +222,7 @@ export async function waitForFlashingCells(page: Page, timeoutMs = 20_000): Prom
     .poll(
       () =>
         page.locator(
-          `[data-grid-id="${REFERENCE_GRID_ID}"] .ag-center-cols-container .ag-cell-data-changed`,
+          `[data-grid-id="${REFERENCE_GRID_ID}"] .ag-grid-scrolling-cells .ag-cell-data-changed`,
         ).count(),
       { timeout: timeoutMs, intervals: [20, 50, 100, 200] },
     )

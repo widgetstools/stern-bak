@@ -84,7 +84,7 @@ test.describe('v2 — general-settings (Grid Options) panel', () => {
     // AG-Grid sets `height` as an inline style on each `.ag-row`. The
     // number of body rows may vary with viewport; we check the first.
     const rowHeight = await page.evaluate(() => {
-      const row = document.querySelector('.ag-center-cols-container .ag-row') as HTMLElement | null;
+      const row = document.querySelector('.ag-grid-scrolling-rows .ag-row') as HTMLElement | null;
       return row?.style.height ?? '';
     });
     expect(rowHeight).toBe('48px');
@@ -132,7 +132,7 @@ test.describe('v2 — general-settings (Grid Options) panel', () => {
     // body rows. AG-Grid may still render the row container shell but
     // no `.ag-row` children.
     await expect(
-      page.locator('.ag-center-cols-container .ag-row'),
+      page.locator('.ag-grid-scrolling-rows .ag-row'),
     ).toHaveCount(0, { timeout: 3000 });
   });
 
@@ -169,12 +169,12 @@ test.describe('v2 — general-settings (Grid Options) panel', () => {
     await page.waitForTimeout(200);
     await page.reload();
     await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
 
     // Pagination panel still visible + row heights reflect 40.
     await expect(page.locator('.ag-paging-panel').first()).toBeVisible({ timeout: 3000 });
     const rowHeight = await page.evaluate(() => {
-      const row = document.querySelector('.ag-center-cols-container .ag-row') as HTMLElement | null;
+      const row = document.querySelector('.ag-grid-scrolling-rows .ag-row') as HTMLElement | null;
       return row?.style.height ?? '';
     });
     expect(rowHeight).toBe('40px');

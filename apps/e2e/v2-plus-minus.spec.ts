@@ -71,11 +71,11 @@ async function bootPlusMinusTab(page: Page, profileId?: string): Promise<void> {
   await clearLabStorage(page);
   await page.reload();
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('[role="tab"]', { timeout: 15_000 });
+  await page.waitForSelector('[data-testid^="lab-tab-"]', { timeout: 15_000 });
   await page.locator('[data-testid="lab-tab-plus-minus"]').click();
   await page.waitForSelector(`[data-grid-id="${GRID_ID}"]`, { timeout: 15_000 });
   await openEditingToolbar(page);
-  await page.waitForSelector(`[data-grid-id="${GRID_ID}"] .ag-body-viewport .ag-row`, {
+  await page.waitForSelector(`[data-grid-id="${GRID_ID}"] .ag-grid-viewport .ag-row`, {
     timeout: 15_000,
   });
   await page.waitForFunction(

@@ -80,7 +80,7 @@ import { test, expect } from '../fixtures/launchOpenFin';
 
 test('something useful', async ({ platform }) => {
   const page = await platform.openBlotter('my-instance');
-  await expect(page.locator('.ag-center-cols-container .ag-row').first()).toBeVisible();
+  await expect(page.locator('.ag-grid-scrolling-rows .ag-row').first()).toBeVisible();
 });
 ```
 

@@ -78,16 +78,16 @@ async function bootAlertsTab(page: Page): Promise<void> {
   // so the page's own bootstrap doesn't navigate us out from under the eval.
   await page.goto(LAB_URL);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('[role="tab"]', { timeout: 15_000 });
+  await page.waitForSelector('[data-testid^="lab-tab-"]', { timeout: 15_000 });
   await clearLabStorage(page);
   // Reload to apply the cleared state from a known-empty baseline.
   await page.reload();
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('[role="tab"]', { timeout: 15_000 });
+  await page.waitForSelector('[data-testid^="lab-tab-"]', { timeout: 15_000 });
   await page.locator('[data-testid="lab-tab-alerts"]').click();
   // Wait for the grid to render rows.
   await page.waitForSelector(`[data-grid-id="${GRID_ID}"]`, { timeout: 15_000 });
-  await page.waitForSelector(`[data-grid-id="${GRID_ID}"] .ag-body-viewport .ag-row`, {
+  await page.waitForSelector(`[data-grid-id="${GRID_ID}"] .ag-grid-viewport .ag-row`, {
     timeout: 15_000,
   });
   // Wait for demo profiles to land — useLabDemoProfiles writes via setConfig.

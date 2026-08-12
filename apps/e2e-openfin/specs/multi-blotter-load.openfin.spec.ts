@@ -9,7 +9,7 @@
 import { test, expect, type BridgeReply } from '../fixtures/launchOpenFin';
 import type { Page } from '@playwright/test';
 
-const ROW_SELECTOR = '.ag-center-cols-container .ag-row';
+const ROW_SELECTOR = '.ag-grid-scrolling-rows .ag-row';
 const INSTANCE_IDS = ['multi-1', 'multi-2', 'multi-3'];
 
 async function expectInteractiveWithRows(page: Page): Promise<number> {
