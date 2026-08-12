@@ -84,6 +84,19 @@ export interface ViewportInterestScope {
 /** Matches `maxBlocksInCache={20}` on the SSRM grid surfaces. */
 const DEFAULT_MAX_INTEREST_BLOCKS = 20;
 
+/**
+ * Floor for the query memo: {@link QueryEngine}'s own default, so a lone
+ * session (or none yet) never regresses below today's single-grid behaviour.
+ */
+const MIN_ORDER_CACHE_SIZE = 24;
+
+/**
+ * Per-session memo headroom: one blotter contributes up to ~4 memo kinds
+ * (filtered set, leaf/group order, grand total, pivot fields) plus room for
+ * a couple of in-flight sort/filter variants during interaction.
+ */
+const ORDER_CACHE_SIZE_PER_SESSION = 8;
+
 /** Bucket used when a caller identifies no block (whole-viewport replace). */
 const UNSCOPED_BLOCK = '__unscoped__';
 
@@ -250,10 +263,27 @@ export class SsrmServer implements ICacheIngest {
     }
 
     this.viewportInterest.set(sessionId, entry);
+    this.resizeOrderCache();
   }
 
   clearViewportInterest(sessionId: string): void {
     this.viewportInterest.delete(sessionId);
+    this.resizeOrderCache();
+  }
+
+  /**
+   * Sizes the query memo off the live session count so ten blotters, each
+   * with their own sort/group/filter shape, don't thrash one static-size
+   * LRU. Floor matches {@link QueryEngine}'s own default so a lone session
+   * (or none yet) doesn't regress below today's single-grid behaviour.
+   */
+  private resizeOrderCache(): void {
+    this.query.setOrderCacheSize(
+      Math.max(
+        MIN_ORDER_CACHE_SIZE,
+        this.viewportInterest.size * ORDER_CACHE_SIZE_PER_SESSION,
+      ),
+    );
   }
 
   /**

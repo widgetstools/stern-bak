@@ -8,9 +8,10 @@
  * These are the tests that would catch a broken cache, so they matter more
  * than the speed-up they protect.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { QueryEngine } from './QueryEngine.js';
 import { RowStore } from './RowStore.js';
+import { SsrmServer } from './SsrmServer.js';
 
 function seeded(n = 50) {
   const store = new RowStore({ keyColumn: 'id' });
@@ -212,5 +213,36 @@ describe('QueryEngine cache invalidation', () => {
     expect(read()).toBe(45);
     store.upsert([{ id: 'r5', px: 4_242 }]);
     expect(read()).toBe(4_242);
+  });
+});
+
+describe('QueryEngine memo sizing (10+ blotters)', () => {
+  it('ten sorts of one filter share a single filtered-set scan', () => {
+    const { store, engine } = seeded(50);
+    const filterModel = { book: { filterType: 'text', type: 'equals', filter: 'A' } };
+    const spy = vi.spyOn(store, 'iterate');
+    for (let s = 0; s < 10; s++) {
+      engine.getRows({ ...base, filterModel, sortModel: [{ colId: 'px', sort: s % 2 ? 'asc' : 'desc' }], startRow: 0, endRow: 5 });
+    }
+    // One store scan for the shared filtered set; sorts memoise independently.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(1);
+  });
+
+  it('grows the memo with session count so 10 blotters do not thrash', () => {
+    const s = new SsrmServer({ keyColumn: 'id' });
+    for (let i = 0; i < 10; i++) {
+      s.setViewportInterest(`sess${i}`, ['a'], { blockKey: 'b0', queryId: `q${i}` });
+    }
+    // 10 sessions × 8 = 80 — verify via distinct query shapes all staying warm:
+    s.replaceSnapshot(Array.from({ length: 100 }, (_, i) => ({ id: `r${i}`, px: i })));
+    const spy = vi.spyOn(s.store, 'iterate');
+    for (let q = 0; q < 30; q++) {
+      s.getRows({ ...base, filterModel: { px: { filterType: 'number', type: 'greaterThan', filter: q } }, startRow: 0, endRow: 5 });
+    }
+    spy.mockClear();
+    for (let q = 0; q < 30; q++) {
+      s.getRows({ ...base, filterModel: { px: { filterType: 'number', type: 'greaterThan', filter: q } }, startRow: 0, endRow: 5 });
+    }
+    expect(spy).not.toHaveBeenCalled(); // all 30 shapes still memoised
   });
 });

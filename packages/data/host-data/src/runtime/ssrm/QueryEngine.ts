@@ -60,13 +60,31 @@ export class QueryEngine {
   private tree: TreeDataConfig | null = null;
   /** Insertion-ordered = LRU. Keyed by query shape, never by row window. */
   private readonly orderCache = new Map<string, CachedEntry>();
-  private readonly orderCacheSize: number;
+  private orderCacheSize: number;
 
   constructor(options: QueryEngineOptions) {
     this.store = options.store;
     this.expr = options.expressionEngine ?? new ExpressionEngine();
     this.tree = options.tree ?? null;
     this.orderCacheSize = options.orderCacheSize ?? DEFAULT_ORDER_CACHE_SIZE;
+  }
+
+  /**
+   * Resizes the memo. One live session (blotter) contributes up to a
+   * handful of concurrent entries (filtered set, leaf/group order, grand
+   * total, pivot fields) across its sort/group/filter variants, so callers
+   * size this off the live session count rather than a fixed constant —
+   * see {@link SsrmServer}, which recomputes this on every viewport-interest
+   * change. Shrinking evicts the oldest entries down to the new size
+   * immediately; growing takes effect on the next `memo()` call.
+   */
+  setOrderCacheSize(n: number): void {
+    this.orderCacheSize = n;
+    while (this.orderCache.size > this.orderCacheSize) {
+      const oldest = this.orderCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.orderCache.delete(oldest);
+    }
   }
 
   /**
