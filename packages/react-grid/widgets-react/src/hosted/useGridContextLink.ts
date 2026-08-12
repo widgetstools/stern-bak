@@ -182,7 +182,11 @@ export function useGridContextLink({
       if (isEcho) return;
       applyingRemoteRef.current = true;
       try {
-        if (mode === 'rowId') {
+        // In rowId mode a caller-supplied resolver (e.g. SSRM's set-filter
+        // translation — SSRM never invokes doesExternalFilterPass) routes
+        // through the merging filter path; without one, the external-filter
+        // default is byte-for-byte the pre-existing behaviour.
+        if (mode === 'rowId' && resolve === defaultGridLinkResolver) {
           applyRowIdExternalFilter(gridApi, context);
         } else {
           linkFieldsRef.current = applyGridLinkContext(

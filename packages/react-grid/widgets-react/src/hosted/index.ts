@@ -71,6 +71,7 @@ export {
   GRID_LINK_CONTEXT_TYPE,
   buildSelectionContext,
   defaultGridLinkResolver,
+  createRowIdSetFilterResolver,
   applyGridLinkContext,
   normalizeRowIdField,
 } from './gridContextLink.js';

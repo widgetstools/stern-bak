@@ -194,6 +194,22 @@ export const defaultGridLinkResolver: GridLinkResolver = (context) => {
 };
 
 /**
+ * Receive `mode: 'rowId'` contexts as a set-filter on the key column.
+ * SSRM never calls `doesExternalFilterPass`, so the external-filter
+ * default cannot work there; this resolver routes the same broadcast
+ * through {@link applyGridLinkContext}, merging with manual filters the
+ * way `'fields'` mode does. `null` for an empty id set clears the link
+ * filter, matching the external-filter behaviour.
+ */
+export function createRowIdSetFilterResolver(keyColumn: string): GridLinkResolver {
+  return (context) => {
+    const ids = context.rowIds ?? [];
+    if (ids.length === 0) return null;
+    return { [keyColumn]: { filterType: 'set', values: [...ids] } };
+  };
+}
+
+/**
  * Apply an incoming context to the grid as a filter, merging with any
  * filters the user set by hand: only the fields this link previously
  * owned are cleared/replaced, so manual column filters survive. Returns
