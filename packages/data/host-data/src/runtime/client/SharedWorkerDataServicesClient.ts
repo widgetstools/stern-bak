@@ -704,11 +704,13 @@ export class SharedWorkerDataServicesClient {
   async ssrmConfigureExpressions(
     providerId: string,
     rules: ExpressionRule[],
+    sessionId?: string,
   ): Promise<void> {
     const event = await this.rpcSsrm({
       kind: 'ssrm-configure-expressions',
       providerId,
       rules,
+      ...(sessionId !== undefined ? { sessionId } : {}),
     });
     if (!event.ok) {
       throw new Error(

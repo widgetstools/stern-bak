@@ -160,7 +160,11 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   }
 
   configureExpressions(rules: ExpressionRule[]): Promise<void> {
-    return this.client.ssrmConfigureExpressions(this.id, rules);
+    return this.client.ssrmConfigureExpressions(
+      this.id,
+      rules,
+      this.sessionIdOrNull ?? undefined,
+    );
   }
 
   getSetFilterValues(req: SetFilterValuesRequest): Promise<string[]> {

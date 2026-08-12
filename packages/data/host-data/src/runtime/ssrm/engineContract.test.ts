@@ -183,3 +183,26 @@ describe('windowed flush', () => {
     expect(t.armed).toBe(false);
   });
 });
+
+describe('per-session expression rules', () => {
+  it('two sessions with different calculated columns never see each other\'s', () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot([{ id: 'a', px: 10 }]);
+    engine.configureExpressions([{ id: 'c1', kind: 'calculated', field: 'twice', expression: '[px] * 2' }], 'sessA');
+    engine.configureExpressions([{ id: 'c2', kind: 'calculated', field: 'half', expression: '[px] / 2' }], 'sessB');
+
+    const rowA = engine.getRows({ ...BASE }, 'sessA').rowData[0];
+    const rowB = engine.getRows({ ...BASE }, 'sessB').rowData[0];
+    expect(rowA.twice).toBe(20);
+    expect(rowA.half).toBeUndefined();
+    expect(rowB.half).toBe(5);
+    expect(rowB.twice).toBeUndefined();
+  });
+
+  it('sessionless configure keeps today\'s global behaviour', () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot([{ id: 'a', px: 10 }]);
+    engine.configureExpressions([{ id: 'g', kind: 'calculated', field: 'g', expression: '[px] + 1' }]);
+    expect(engine.getRows({ ...BASE }, 'anybody').rowData[0].g).toBe(11);
+  });
+});

@@ -1,4 +1,5 @@
 import { aggregateRows, normalizeAgg, type AggSpec } from "./aggregations.js";
+import { ExpressionRuleStore } from "./expressionRules.js";
 import { compareValues, rowPassesFilter } from "./filter.js";
 import {
   parseQuickFilter,
@@ -54,9 +55,7 @@ interface CachedEntry {
  */
 export class QueryEngine {
   private readonly store: RowStore;
-  private readonly expr: ExpressionEngine;
-  private rules: ExpressionRule[] = [];
-  private compiled = new Map<string, (ctx: { data: Row; columns: Row; value: unknown; x: unknown }) => unknown>();
+  private readonly exprRules: ExpressionRuleStore;
   private tree: TreeDataConfig | null = null;
   /** Insertion-ordered = LRU. Keyed by query shape, never by row window. */
   private readonly orderCache = new Map<string, CachedEntry>();
@@ -64,7 +63,7 @@ export class QueryEngine {
 
   constructor(options: QueryEngineOptions) {
     this.store = options.store;
-    this.expr = options.expressionEngine ?? new ExpressionEngine();
+    this.exprRules = new ExpressionRuleStore(options.expressionEngine);
     this.tree = options.tree ?? null;
     this.orderCacheSize = options.orderCacheSize ?? DEFAULT_ORDER_CACHE_SIZE;
   }
@@ -147,22 +146,24 @@ export class QueryEngine {
     this.invalidateOrderCache();
   }
 
-  configureExpressions(rules: ExpressionRule[]): void {
-    this.rules = rules;
+  /**
+   * `sessionId` omitted = configures the GLOBAL rule set (today's behaviour,
+   * keyed internally under `''`) — every session that hasn't configured its
+   * own rules resolves to it. See {@link ExpressionRuleStore}.
+   */
+  configureExpressions(rules: ExpressionRule[], sessionId?: string): void {
+    this.exprRules.configure(rules, sessionId);
     this.invalidateOrderCache();
-    this.compiled.clear();
-    for (const rule of rules) {
-      try {
-        this.compiled.set(rule.id, this.expr.compile(rule.expression));
-      } catch {
-        // Invalid expressions are skipped at configure time.
-      }
-    }
   }
 
-  getRows(request: SsrmGetRowsRequest): SsrmGetRowsResult {
+  /** Drops one session's own rules (called on session detach). Global rules are untouched. */
+  clearSessionExpressions(sessionId: string): void {
+    this.exprRules.clearSession(sessionId);
+  }
+
+  getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
     if (this.tree?.enabled) {
-      return this.treeBlock(request);
+      return this.treeBlock(request, sessionId);
     }
 
     const groupCols = request.rowGroupCols ?? [];
@@ -207,7 +208,7 @@ export class QueryEngine {
 
     // Leaf level: all group keys provided.
     if (groupKeys.length >= groupCols.length) {
-      const leaf = this.leafBlock(filtered, request, groupCols, groupKeys);
+      const leaf = this.leafBlock(filtered, request, groupCols, groupKeys, sessionId);
       return {
         ...leaf,
         grandTotalData,
@@ -268,7 +269,7 @@ export class QueryEngine {
 
     const start = request.startRow ?? 0;
     const end = request.endRow ?? groups.length;
-    const slice = groups.slice(start, end).map((g) => this.enrich(g));
+    const slice = groups.slice(start, end).map((g) => this.enrich(g, sessionId));
 
     return {
       rowData: slice,
@@ -324,15 +325,13 @@ export class QueryEngine {
    * Used by `getRows` and by live tick fan-out so `applyServerSideTransaction`
    * patches carry the same enriched fields as SSRM blocks.
    */
-  enrichRows(rows: Row[]): EnrichedRow[] {
-    return rows.map((r) => this.enrich(r));
+  enrichRows(rows: Row[], sessionId?: string): EnrichedRow[] {
+    return rows.map((r) => this.enrich(r, sessionId));
   }
 
   /** Field names produced by configured `calculated` expression rules. */
-  calculatedFields(): string[] {
-    return this.rules
-      .filter((r) => r.kind === "calculated" && r.field)
-      .map((r) => r.field!);
+  calculatedFields(sessionId?: string): string[] {
+    return this.exprRules.calculatedFields(sessionId);
   }
 
   /**
@@ -364,7 +363,7 @@ export class QueryEngine {
     return this.tree?.keyField ?? this.store.keyColumn;
   }
 
-  private treeBlock(request: SsrmGetRowsRequest): SsrmGetRowsResult {
+  private treeBlock(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
     const filtered = this.collectFilteredCached(
       request.filterModel,
       request.quickFilterText,
@@ -390,7 +389,7 @@ export class QueryEngine {
       const childCount = (index.childrenOf.get(key) ?? []).length;
       const hasDetail = this.rowHasDetail(r);
       const out: EnrichedRow = {
-        ...this.enrich(r),
+        ...this.enrich(r, sessionId),
         __ssrmTreeGroup: childCount > 0,
         group: childCount > 0,
         __ssrmChildCount: childCount,
@@ -663,6 +662,7 @@ export class QueryEngine {
     request: SsrmGetRowsRequest,
     groupCols: NonNullable<SsrmGetRowsRequest["rowGroupCols"]>,
     groupKeys: string[],
+    sessionId?: string,
   ): SsrmGetRowsResult {
     // Scoping + sorting depend only on the query shape, never on the row
     // window — so every block of one query reuses this single ordered array.
@@ -682,7 +682,7 @@ export class QueryEngine {
     );
     const start = request.startRow ?? 0;
     const end = request.endRow ?? rows.length;
-    const slice = rows.slice(start, end).map((r) => this.enrich(r));
+    const slice = rows.slice(start, end).map((r) => this.enrich(r, sessionId));
     const groupData =
       (request.valueCols?.length ?? 0) > 0
         ? this.memo(
@@ -803,48 +803,22 @@ export class QueryEngine {
     });
   }
 
-  private enrich(row: Row): EnrichedRow {
-    if (this.rules.length === 0) return row;
-    const out: EnrichedRow = { ...row };
-    const ctxBase = { data: out, columns: out, value: null as unknown, x: null as unknown };
-    const editable: Record<string, boolean> = {};
-    let style: Record<string, string | number | undefined> | undefined;
-    let alert: boolean | string | undefined;
-
-    for (const rule of this.rules) {
-      const fn = this.compiled.get(rule.id);
-      if (!fn) continue;
-      try {
-        if (rule.kind === "calculated" && rule.field) {
-          const value = fn({ ...ctxBase, value: out[rule.field], x: out[rule.field] });
-          out[rule.field] = value;
-        } else if (rule.kind === "style") {
-          const value = fn(ctxBase);
-          if (value && typeof value === "object") {
-            style = { ...(style ?? {}), ...(value as Record<string, string | number | undefined>) };
-          } else if (typeof value === "string" && value) {
-            style = { ...(style ?? {}), backgroundColor: value };
-          }
-        } else if (rule.kind === "alert") {
-          const value = fn(ctxBase);
-          if (value) alert = typeof value === "string" ? value : true;
-        } else if (rule.kind === "editable") {
-          const value = !!fn(ctxBase);
-          if (rule.field) editable[rule.field] = value;
-          else out.__ssrmEditable = value;
-        }
-      } catch {
-        // swallow per-row expression errors
-      }
-    }
-    if (style) out.__ssrmStyle = style;
-    if (alert !== undefined) out.__ssrmAlert = alert;
-    if (Object.keys(editable).length) {
-      out.__ssrmEditable =
-        typeof out.__ssrmEditable === "boolean"
-          ? out.__ssrmEditable
-          : { ...(typeof out.__ssrmEditable === "object" ? out.__ssrmEditable : {}), ...editable };
-    }
-    return out;
+  /**
+   * Apply configured expression rules (calculated / style / alert / editable)
+   * to one row. `sessionId` resolves to that session's own rules if it has
+   * configured any, else the global (sessionless-configured) set — see
+   * {@link ExpressionRuleStore}.
+   *
+   * Memoised order-cache entries (see {@link memo} / {@link cachedOrder})
+   * always hold RAW, pre-enrichment rows: every call site enriches the
+   * *sliced* page after retrieving from cache
+   * (`groups.slice(...).map((g) => this.enrich(g, sessionId))`,
+   * `rows.slice(...).map((r) => this.enrich(r, sessionId))`), never before
+   * caching. So sharing one memo entry across sessions is safe — no
+   * session's calculated columns are ever baked into a cached value another
+   * session could read back.
+   */
+  private enrich(row: Row, sessionId?: string): EnrichedRow {
+    return this.exprRules.enrich(row, sessionId);
   }
 }

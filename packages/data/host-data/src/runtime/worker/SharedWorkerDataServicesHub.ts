@@ -513,7 +513,7 @@ export class SharedWorkerDataServicesHub {
       const interestedKeys = plane.interestedKeys(subId, flush.keys);
       let rows: Row[] = [];
       if (flush.type === 'rows' && interestedKeys.length) {
-        rows = plane.enrichRows(plane.rowsForKeys(interestedKeys));
+        rows = plane.enrichRows(plane.rowsForKeys(interestedKeys), subId);
       } else if (flush.type === 'rows' && flush.keys.length) {
         // Nothing in this session's viewport changed. A *filtered* session
         // still needs the full set — a row that changes into matching its
@@ -521,7 +521,7 @@ export class SharedWorkerDataServicesHub {
         // An unfiltered session would only pay to enrich and post rows it
         // then discards, so send it nothing.
         rows = plane.wantsUnmatchedRows(subId)
-          ? plane.enrichRows(plane.rowsForKeys(flush.keys))
+          ? plane.enrichRows(plane.rowsForKeys(flush.keys), subId)
           : [];
       }
       const msg: SsrmTickEvent = {
@@ -594,12 +594,12 @@ export class SharedWorkerDataServicesHub {
       }
 
       if (req.kind === 'ssrm-get-rows') {
-        const getRows = plane.getRows(req.request);
+        const getRows = plane.getRows(req.request, req.sessionId);
         reply({ kind: 'ssrm-rpc', reqId, ok: true, getRows });
         return;
       }
       if (req.kind === 'ssrm-configure-expressions') {
-        plane.configureExpressions(req.rules);
+        plane.configureExpressions(req.rules, req.sessionId);
         reply({ kind: 'ssrm-rpc', reqId, ok: true });
         return;
       }

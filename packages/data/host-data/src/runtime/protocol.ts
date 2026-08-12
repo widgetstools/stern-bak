@@ -416,6 +416,8 @@ export interface SsrmConfigureExpressionsRequest {
   reqId: string;
   providerId: string;
   rules: ExpressionRule[];
+  /** Viewport / session id — omitted configures the GLOBAL rule set (today's behaviour). */
+  sessionId?: string;
 }
 
 export interface SsrmStatusBarRpcRequest {

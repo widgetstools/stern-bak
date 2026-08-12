@@ -136,8 +136,8 @@ export class SsrmPlane {
     this.server.replaceSnapshot(rows);
   }
 
-  getRows(request: SsrmGetRowsRequest): SsrmGetRowsResult {
-    return this.server.getRows(request);
+  getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
+    return this.server.getRows(request, sessionId);
   }
 
   getSetFilterValues(req: SetFilterValuesRequest): string[] {
@@ -148,8 +148,8 @@ export class SsrmPlane {
     return this.server.getStatusBar(request);
   }
 
-  configureExpressions(rules: ExpressionRule[]): void {
-    this.server.configureExpressions(rules);
+  configureExpressions(rules: ExpressionRule[], sessionId?: string): void {
+    this.server.configureExpressions(rules, sessionId);
   }
 
   setViewportInterest(
@@ -172,12 +172,12 @@ export class SsrmPlane {
     return this.server.interestedKeys(sessionId, changedKeys);
   }
 
-  enrichRows(rows: Row[]) {
-    return this.server.enrichRows(rows);
+  enrichRows(rows: Row[], sessionId?: string) {
+    return this.server.enrichRows(rows, sessionId);
   }
 
-  calculatedFields(): string[] {
-    return this.server.calculatedFields();
+  calculatedFields(sessionId?: string): string[] {
+    return this.server.calculatedFields(sessionId);
   }
 
   onTick(listener: (event: TickEvent) => void): () => void {

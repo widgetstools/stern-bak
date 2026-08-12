@@ -171,8 +171,8 @@ export class SsrmServer implements ICacheIngest {
   }
 
   // ── Query ───────────────────────────────────────────────────────────
-  getRows(request: SsrmGetRowsRequest): SsrmGetRowsResult {
-    return this.query.getRows(request);
+  getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
+    return this.query.getRows(request, sessionId);
   }
 
   getSetFilterValues(req: SetFilterValuesRequest): string[] {
@@ -192,8 +192,9 @@ export class SsrmServer implements ICacheIngest {
     return computeStatusBar(this.store, request);
   }
 
-  configureExpressions(rules: ExpressionRule[]): void {
-    this.query.configureExpressions(rules);
+  /** `sessionId` omitted = today's global-rules behaviour. See {@link QueryEngine.configureExpressions}. */
+  configureExpressions(rules: ExpressionRule[], sessionId?: string): void {
+    this.query.configureExpressions(rules, sessionId);
   }
 
   configureTree(config: TreeDataConfig | null): void {
@@ -208,13 +209,13 @@ export class SsrmServer implements ICacheIngest {
    * Re-run expression enrichment on rows (e.g. tick payloads before
    * `applyServerSideTransaction` so calculated columns stay populated).
    */
-  enrichRows(rows: Row[]) {
-    return this.query.enrichRows(rows);
+  enrichRows(rows: Row[], sessionId?: string) {
+    return this.query.enrichRows(rows, sessionId);
   }
 
   /** Calculated expression output fields (for cell-flash column targeting). */
-  calculatedFields(): string[] {
-    return this.query.calculatedFields();
+  calculatedFields(sessionId?: string): string[] {
+    return this.query.calculatedFields(sessionId);
   }
 
   getStats() {
@@ -271,6 +272,7 @@ export class SsrmServer implements ICacheIngest {
 
   clearViewportInterest(sessionId: string): void {
     this.viewportInterest.delete(sessionId);
+    this.query.clearSessionExpressions(sessionId);
     this.resizeOrderCache();
   }
 

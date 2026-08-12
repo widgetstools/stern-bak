@@ -226,6 +226,57 @@ describe('hub SSRM live delta suppression', () => {
   });
 });
 
+describe('hub SSRM per-session expression rules', () => {
+  it('session A calculated column never reaches session B rows', () => {
+    const hub = new SharedWorkerDataServicesHub();
+    const portA = makePort();
+    const portB = makePort();
+
+    hub.handleRequest(portA, {
+      kind: 'attach', subId: 'sessA', providerId: 'p1', mode: 'data', cfg: ssrmCfg(),
+    });
+    hub.handleRequest(portB, {
+      kind: 'attach', subId: 'sessB', providerId: 'p1', mode: 'data', cfg: ssrmCfg(),
+    });
+    emitRef?.({ rows: [{ id: 'a', px: 10 }], replace: true });
+
+    // Session A configures a calculated column via the RPC, carrying its
+    // sessionId. Session B never configures anything.
+    hub.handleRequest(portA, {
+      kind: 'ssrm-configure-expressions',
+      reqId: 'cfg-a',
+      providerId: 'p1',
+      sessionId: 'sessA',
+      rules: [{ id: 'c1', kind: 'calculated', field: 'twice', expression: '[px] * 2' }],
+    });
+
+    hub.handleRequest(portA, {
+      kind: 'ssrm-get-rows',
+      reqId: 'rows-a',
+      providerId: 'p1',
+      sessionId: 'sessA',
+      request: { startRow: 0, endRow: 10 },
+    });
+    hub.handleRequest(portB, {
+      kind: 'ssrm-get-rows',
+      reqId: 'rows-b',
+      providerId: 'p1',
+      sessionId: 'sessB',
+      request: { startRow: 0, endRow: 10 },
+    });
+
+    const replyA = portA.messages.find(
+      (m) => (m as { kind?: string }).kind === 'ssrm-rpc' && (m as { reqId?: string }).reqId === 'rows-a',
+    ) as unknown as { getRows: { rowData: Array<{ twice?: number }> } };
+    const replyB = portB.messages.find(
+      (m) => (m as { kind?: string }).kind === 'ssrm-rpc' && (m as { reqId?: string }).reqId === 'rows-b',
+    ) as unknown as { getRows: { rowData: Array<{ twice?: number }> } };
+
+    expect(replyA.getRows.rowData[0]?.twice).toBe(20);
+    expect(replyB.getRows.rowData[0]?.twice).toBeUndefined();
+  });
+});
+
 describe('hub windowed fan-out', () => {
   it('publishes ONE conflated tick per window with flush-fresh rows', () => {
     const timers = makeFakeTimers();
