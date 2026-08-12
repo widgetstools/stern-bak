@@ -1,0 +1,49 @@
+{
+  "licenseKey": "openfin-demo-license-key",
+  "$comment-background": "Hidden/minimized/inactive-tab blotters must never freeze (trading views). Measured evidence chain, all via CDP on the live platform: (1) Chromium freezes a hidden VIEW's WebContents regardless of process sharing — all blotter views stopped answering Runtime.evaluate while backgrounded, with clean shared affinities; (2) backgroundThrottling:false is INERT in OpenFin 43.142 at every level — manifest defaults did not reach views, platform-override stamping did not reach views, and runtime updateOptions({backgroundThrottling:false}) succeeds but getOptions still reports true; (3) freeze onset is minutes-fast. Therefore the runtime args below disable the background scheduler features process-wide (last working lever), AND every data window holds a Web Lock freeze-exemption (host-data acquireBackgroundFreezeExemption) as the scoped belt-and-braces. The defaultViewOptions/defaultWindowOptions backgroundThrottling:false entries are kept as statement-of-intent for a future runtime where the option works.",
+  "$comment-scrollbars": "Native scrollbars use the platform default (Win11 Fluent: thin rounded thumb that expands on hover) — fully composited, and AG Grid gutters self-size via the grid's runtime scrollbarWidth probe either way. To switch to the classic always-thick square style instead, append FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar to the ONE comma-separated --disable-features flag (repeated flags don't merge). Arbitrary widths would require ::-webkit-scrollbar styling, which forces main-thread painted scrollbars — deliberately ruled out (see design-system styles/scrollbar.css AG exemption).",
+  "runtime": {
+    "arguments": "--enable-mesh --security-realm=star-demo --remote-debugging-port=9091 --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --disable-features=IntensiveWakeUpThrottling,Freezing",
+    "version": "43.142.101.2"
+  },
+  "$comment-devtools": "devtools_port + --remote-debugging-port together expose the OpenFin runtime to Chrome DevTools. Open chrome://inspect#devices in a separate Chrome window and click 'Configure...' → add 'localhost:9091', then SharedWorkers (data-services) appear under 'Other'.",
+  "devtools_port": 9091,
+  "platform": {
+    "uuid": "star-demo-ssrm",
+    "icon": "http://localhost:5176/dock-provider.png",
+    "autoShow": false,
+    "providerUrl": "http://localhost:5176/#/platform/provider",
+    "preventQuitOnLastWindowClosed": true,
+    "$comment-fdc3": "Enable the FDC3 API (window.fdc3) for EVERY view/window the platform creates. Without this window.fdc3 is undefined, so the grid color-link transport (useFdc3Channel → useGridContextLink) silently no-ops and color-linked grids never exchange selection context. The dock 'Link' button joins windows to interop context groups; fdc3 broadcast/addContextListener wrap interop.setContext/addContextHandler over that group.",
+    "defaultViewOptions": {
+      "fdc3InteropApi": "2.0",
+      "backgroundThrottling": false
+    },
+    "defaultWindowOptions": {
+      "fdc3InteropApi": "2.0",
+      "backgroundThrottling": false
+    }
+  },
+  "shortcut": {
+    "company": "StarUI",
+    "description": "Minimal MarketsGrid workspace demo.",
+    "icon": "http://localhost:5176/favicon.ico",
+    "name": "Star Demo",
+    "target": ["desktop", "start-menu"]
+  },
+  "supportInformation": {
+    "company": "StarUI",
+    "product": "Star Demo - MarketsGrid Workspace",
+    "email": "support@example.com",
+    "forwardErrorReports": true
+  },
+  "customSettings": {
+    "appId": "Star-Demo-Ssrm",
+    "userId": "k151344",
+    "seedConfigUrl": "/seed.json",
+    "$comment-useRest": "Master switch for REST mode. true + non-empty configServiceRestUrl → every ConfigManager in the platform writes to the REST server first, mirrors to Dexie, queues pendingSync on transient failures. false (or unset) → local Dexie only. Flip this single boolean to switch the whole platform between local and REST.",
+    "useRest": false,
+    "configServiceRestUrl": "http://localhost:3001/api/v1",
+    "apps": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "@wellsfargo-starui/platform/tsconfig.consumer.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "./src/types/fin",
+      "./src/types/svg"
+    ]
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/staruiVitestMocks.ts",
+    "../../test-utils/queries.ts",
+    "../../test-utils/vitePort.ts"
+  ]
+}

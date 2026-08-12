@@ -142,3 +142,17 @@ describe('HostedSsrmMarketsGrid colour-link wiring', () => {
     expect(captured.link?.config).toBeUndefined();
   });
 });
+
+describe('HostedSsrmMarketsGrid documentTitle', () => {
+  it('sets document.title while mounted and restores it on unmount', async () => {
+    const prev = document.title;
+    document.title = 'before';
+    const { unmount } = render(
+      <HostedSsrmMarketsGrid {...BASE} documentTitle="MarketsGrid · SSRM Blotter" />,
+    );
+    await waitFor(() => expect(document.title).toBe('MarketsGrid · SSRM Blotter'));
+    unmount();
+    expect(document.title).toBe('before');
+    document.title = prev;
+  });
+});

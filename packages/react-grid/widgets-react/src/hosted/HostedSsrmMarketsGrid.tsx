@@ -2,7 +2,7 @@
  * HostedSsrmMarketsGrid — smoke / hosted entry for SSRM MarketsGrid.
  * Mirrors HostedMarketsGrid identity/storage/theme bootstrap with the SSRM container.
  */
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import type {
@@ -79,6 +79,8 @@ export interface HostedSsrmMarketsGridProps
    * `buildContext` / `resolve` win over the defaults.
    */
   contextLink?: GridContextLinkConfig;
+  /** Document (browser tab) title while mounted; restored on unmount. */
+  documentTitle?: string;
   children?: ReactNode;
 }
 
@@ -98,9 +100,20 @@ export function HostedSsrmMarketsGrid(props: HostedSsrmMarketsGridProps) {
     platform,
     dataServicesMode = 'lazy',
     contextLink,
+    documentTitle,
     children,
     ...containerProps
   } = props;
+
+  // Document title — restored on unmount (mirrors HostedMarketsGrid).
+  useEffect(() => {
+    if (!documentTitle) return;
+    const prev = document.title;
+    document.title = documentTitle;
+    return () => {
+      document.title = prev;
+    };
+  }, [documentTitle]);
 
   const { identity, ready, agTheme, linking } = useHostedView({
     defaultInstanceId,
