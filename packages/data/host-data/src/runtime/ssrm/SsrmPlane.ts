@@ -5,7 +5,7 @@
 import { composeRowId } from '@wellsfargo-starui/types';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { SsrmServer } from './SsrmServer.js';
-import type { ViewportInterestScope } from './SsrmServer.js';
+import type { SsrmFlushEvent, ViewportInterestScope } from './SsrmServer.js';
 import type {
   ExpressionRule,
   Row,
@@ -17,6 +17,20 @@ import type {
 import type { StatusBarRequest, StatusBarSummary } from './statusBar.js';
 
 const COMPOSITE_KEY_FIELD = '__ssrmRowId';
+
+export interface SsrmPlaneOpts {
+  /**
+   * Trailing-edge flush window (ms), forwarded to {@link SsrmServer}.
+   * Defaults to `(cfg as { publishWindowMs?: number }).publishWindowMs ?? 0`
+   * — the ProviderConfig is the normal source; this only exists so callers
+   * that don't shape a full cfg (tests) can override directly.
+   */
+  publishWindowMs?: number;
+  /** Injectable timer (hub pattern) — defaults to `setTimeout`. */
+  setTimer?: (cb: () => void, ms: number) => unknown;
+  /** Injectable timer clear (hub pattern) — defaults to `clearTimeout`. */
+  clearTimer?: (handle: unknown) => void;
+}
 
 export function isSsrmProviderType(type: string | undefined): boolean {
   return type === 'stomp-ssrm' || type === 'mock-ssrm';
@@ -45,14 +59,23 @@ export class SsrmPlane {
   readonly keyColumn: string;
   private readonly cfgKeyColumn: string | readonly string[] | undefined;
 
-  constructor(cfg: ProviderConfig) {
+  constructor(cfg: ProviderConfig, opts: SsrmPlaneOpts = {}) {
     const keyCol =
       'keyColumn' in cfg
         ? (cfg as { keyColumn?: string | readonly string[] }).keyColumn
         : undefined;
     this.cfgKeyColumn = keyCol;
     this.keyColumn = resolveSsrmKeyColumn(keyCol);
-    this.server = new SsrmServer({ keyColumn: this.keyColumn });
+    const publishWindowMs =
+      opts.publishWindowMs ??
+      (cfg as { publishWindowMs?: number }).publishWindowMs ??
+      0;
+    this.server = new SsrmServer({
+      keyColumn: this.keyColumn,
+      publishWindowMs,
+      setTimer: opts.setTimer,
+      clearTimer: opts.clearTimer,
+    });
   }
 
   /** Replace plane from hub cache Map (keys already composed). */
@@ -148,7 +171,31 @@ export class SsrmPlane {
     return this.server.onTick(listener);
   }
 
+  /** Subscribe to revision-stamped, windowed flush notifications. See {@link SsrmServer.onFlush}. */
+  onFlush(listener: (event: SsrmFlushEvent) => void): () => void {
+    return this.server.onFlush(listener);
+  }
+
+  /**
+   * Reads fresh rows straight from the store for the given keys — the
+   * flush-time payload builder. Missing keys (deleted since the flush
+   * accumulated them) are dropped rather than surfaced as holes.
+   */
+  rowsForKeys(keys: string[]): Row[] {
+    const rows: Row[] = [];
+    for (const key of keys) {
+      const row = this.server.store.getRow(key);
+      if (row !== undefined) rows.push(row);
+    }
+    return rows;
+  }
+
   getStats() {
     return this.server.getStats();
+  }
+
+  /** Unsubscribes from the store and clears any pending flush timer. */
+  dispose(): void {
+    this.server.dispose();
   }
 }

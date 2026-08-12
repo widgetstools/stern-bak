@@ -17,6 +17,34 @@ interface CapturedPort extends PortLike {
   messages: Event[];
 }
 
+interface FakeTimers {
+  set: (cb: () => void, ms: number) => unknown;
+  clear: (h: unknown) => void;
+  /** Step time forward one tick. */
+  tick(): void;
+  /** True when an interval is currently armed. */
+  armed: boolean;
+}
+
+function makeFakeTimers(): FakeTimers {
+  const callbacks = new Map<number, () => void>();
+  let nextId = 1;
+  return {
+    set(callback) {
+      const id = nextId++;
+      callbacks.set(id, callback);
+      return id;
+    },
+    clear(handle) {
+      callbacks.delete(handle as number);
+    },
+    tick() {
+      for (const cb of [...callbacks.values()]) cb();
+    },
+    get armed() { return callbacks.size > 0; },
+  };
+}
+
 function makePort(): CapturedPort {
   const messages: Event[] = [];
   return {
@@ -195,5 +223,40 @@ describe('hub SSRM live delta suppression', () => {
     ).length;
     expect(deltasAfterLive).toBe(deltasBeforeLive); // no NEW delta
     expect(ssrmTicks(port).length).toBeGreaterThan(0); // tick fan still works
+  });
+});
+
+describe('hub windowed fan-out', () => {
+  it('publishes ONE conflated tick per window with flush-fresh rows', () => {
+    const timers = makeFakeTimers();
+    const hub = new SharedWorkerDataServicesHub({
+      setTimer: timers.set, clearTimer: timers.clear,
+    });
+    const port = makePort();
+    hub.handleRequest(port, {
+      kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data',
+      cfg: { ...ssrmCfg(), publishWindowMs: 200 } as never,
+    });
+    emitRef?.({ status: 'loading' });
+    emitRef?.({ rows: [{ id: 'a', px: 1 }, { id: 'b', px: 1 }], replace: true });
+    emitRef?.({ status: 'ready' });
+    hub.handleRequest(port, {
+      kind: 'ssrm-set-viewport', providerId: 'p1', sessionId: 's1',
+      keys: ['a', 'b'], scope: { blockKey: 'b0', queryId: 'q1', hasFilter: false },
+    });
+    const before = ssrmTicks(port).length;
+
+    emitRef?.({ rows: [{ id: 'a', px: 2 }] });
+    emitRef?.({ rows: [{ id: 'a', px: 3 }] }); // same key twice in window
+    emitRef?.({ rows: [{ id: 'b', px: 2 }] });
+    expect(ssrmTicks(port).length).toBe(before); // window open
+
+    timers.tick();
+    const delivered = ssrmTicks(port).slice(before);
+    expect(delivered).toHaveLength(1);
+    const rows = (delivered[0] as never as { event: { rows: Array<{ id: string; px: number }> } }).event.rows;
+    // Conflated: 'a' once, carrying the LAST value.
+    expect(rows.find((r) => r.id === 'a')?.px).toBe(3);
+    expect(rows).toHaveLength(2);
   });
 });

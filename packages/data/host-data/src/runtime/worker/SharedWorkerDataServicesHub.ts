@@ -39,6 +39,7 @@ import type {
 import { startProvider } from '../providers/registry.js';
 import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider.js';
 import { isSsrmProviderType, SsrmPlane } from '../ssrm/index.js';
+import type { Row, SsrmFlushEvent } from '../ssrm/index.js';
 import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import {
   traceStompProviderCfg,
@@ -86,7 +87,7 @@ export class SharedWorkerDataServicesHub {
   /** SSRM query planes for `stomp-ssrm` providers (keyed by providerId). */
   private readonly ssrmPlanes = new Map<
     string,
-    { plane: SsrmPlane; offTick: () => void }
+    { plane: SsrmPlane; offFlush: () => void }
   >();
   private readonly subscribers = new SubscriberRegistry();
   private readonly appDataSvc: HubAppDataService;
@@ -242,7 +243,10 @@ export class SharedWorkerDataServicesHub {
   async dispose(): Promise<void> {
     for (const [, slot] of this.providers) await slot.handle.stop();
     this.providers.clear();
-    for (const [, entry] of this.ssrmPlanes) entry.offTick();
+    for (const [, entry] of this.ssrmPlanes) {
+      entry.offFlush();
+      entry.plane.dispose();
+    }
     this.ssrmPlanes.clear();
     this.subscribers.clear();
     this.appDataSvc.clear();
@@ -447,7 +451,8 @@ export class SharedWorkerDataServicesHub {
   private disposeSsrmPlane(providerId: string): void {
     const entry = this.ssrmPlanes.get(providerId);
     if (!entry) return;
-    entry.offTick();
+    entry.offFlush();
+    entry.plane.dispose();
     this.ssrmPlanes.delete(providerId);
   }
 
@@ -455,11 +460,17 @@ export class SharedWorkerDataServicesHub {
     if (!isSsrmProviderType(cfg.providerType)) return null;
     const existing = this.ssrmPlanes.get(providerId);
     if (existing) return existing.plane;
-    const plane = new SsrmPlane(cfg);
-    const offTick = plane.onTick((event) => {
-      this.fanSsrmTick(providerId, plane, event);
+    // Thread the hub's own injectable timers through so tests that fake
+    // them (subscriber sweeper, stats sampler) control the SSRM flush
+    // window too — production still defaults to real setTimeout/clearTimeout.
+    const plane = new SsrmPlane(cfg, {
+      setTimer: this.setTimer,
+      clearTimer: this.clearTimer,
     });
-    this.ssrmPlanes.set(providerId, { plane, offTick });
+    const offFlush = plane.onFlush((flush) => {
+      this.fanSsrmFlush(providerId, plane, flush);
+    });
+    this.ssrmPlanes.set(providerId, { plane, offFlush });
     return plane;
   }
 
@@ -480,35 +491,47 @@ export class SharedWorkerDataServicesHub {
     }
   }
 
-  private fanSsrmTick(
+  /**
+   * Fan a windowed {@link SsrmFlushEvent} out to every data subscriber of a
+   * provider. Unlike the old per-tick fan-out, a flush carries no rows of
+   * its own — it's a settled, conflated notice of which keys changed since
+   * the last flush. Rows are sourced fresh from the store per session
+   * (`plane.rowsForKeys`), which is what makes conflation "free": the
+   * payload built at flush time is automatically last-value-wins.
+   */
+  private fanSsrmFlush(
     providerId: string,
     plane: SsrmPlane,
-    event: import('../ssrm/types.js').TickEvent,
+    flush: SsrmFlushEvent,
   ): void {
     const listeners = this.subscribers.dataListeners(providerId);
     if (!listeners?.size) return;
     for (const [subId, listener] of listeners) {
-      const interestedKeys = plane.interestedKeys(subId, event.keys);
-      let rows = event.rows;
-      if (event.type === 'rows' && rows?.length && interestedKeys.length) {
-        const want = new Set(interestedKeys);
-        const keyCol = plane.keyColumn;
-        rows = plane.enrichRows(
-          rows.filter((r) => want.has(String(r[keyCol] ?? ''))),
-        );
-      } else if (event.type === 'rows' && rows?.length) {
+      const interestedKeys = plane.interestedKeys(subId, flush.keys);
+      let rows: Row[] = [];
+      if (flush.type === 'rows' && interestedKeys.length) {
+        rows = plane.enrichRows(plane.rowsForKeys(interestedKeys));
+      } else if (flush.type === 'rows' && flush.keys.length) {
         // Nothing in this session's viewport changed. A *filtered* session
         // still needs the full set — a row that changes into matching its
         // filter is undiscoverable otherwise (bindSsrmTicks re-tests them).
         // An unfiltered session would only pay to enrich and post rows it
         // then discards, so send it nothing.
-        rows = plane.wantsUnmatchedRows(subId) ? plane.enrichRows(rows) : [];
+        rows = plane.wantsUnmatchedRows(subId)
+          ? plane.enrichRows(plane.rowsForKeys(flush.keys))
+          : [];
       }
       const msg: SsrmTickEvent = {
         kind: 'ssrm-tick',
         subId,
         providerId,
-        event: { ...event, rows },
+        event: {
+          type: flush.type,
+          keys: flush.keys,
+          columns: flush.columns,
+          revision: flush.revision,
+          rows,
+        },
         interestedKeys,
       };
       try {
