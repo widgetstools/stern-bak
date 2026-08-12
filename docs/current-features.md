@@ -351,6 +351,19 @@ Per-renderer config types (`PillRendererConfig`,
 - `useGridTheme` — resolves AG Grid theme from `data-theme`
 - `grid-chrome.css` — container/toolbar layout
 
+#### Server-side row model (SSRM)
+
+- `MarketsGrid` `ssrm` prop (`{ provider, keyColumn?, cacheBlockSize? }`) — switches the inner surface to `rowModelType: 'serverSide'` while the host chrome (customizer, toolbars, profiles, settings) stays CSRM-identical. When `ssrm` is set, `rowData` is ignored. Its `MarketsGridSsrmProps` interface is **not** on the public barrel — consumers must inline the shape
+- `MarketsGridSsrmSurface` — SSRM inner surface; composes datasource, tick binding and status bar. **Internal** — mounted by `MarketsGrid`, not on the public barrel
+- `SsrmMarketsGrid` — **Deprecated.** thin wrapper that mounts `MarketsGrid` + `ssrm`; use the `ssrm` prop directly
+- `SsrmAgGrid` — low-level SSRM AgGrid mount for hosts that don't want MarketsGrid chrome
+- `createSsrmDatasource()` — AG Grid `IServerSideDatasource` over an `ISsrmDataProvider` (`CreateSsrmDatasourceOptions`)
+- `bindSsrmTicks()` — routes provider tick events to `applyServerSideTransaction` (`BindSsrmTicksOptions`)
+- `createSsrmStatusBar()` / `SsrmRowsStatusPanel` / `SSRM_STATUS_CONTEXT_KEY` — worker-computed row/selection status panels (`SsrmStatusBarConfig`, `SsrmStatusBarContext`)
+- `toSsrmExpressionRules()` — maps customizer calculated-column / conditional-style / alert expressions to worker rule payloads
+- `ssrmGetChildCount`, `ssrmCellStyle`, `ssrmAlertRowClass`, `ssrmEditable` — grid-option bindings backed by worker-evaluated expressions
+- Quick filter routes into SSRM query state rather than AG Grid's client-side filter; the toolbar push triggers `refreshServerSide({ purge: true })`
+
 #### Storage & persistence
 
 - `createMarketsGridLocalStorageStorage()` — browser localStorage adapter factory
@@ -654,6 +667,13 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `AppDataFields` — read from `@wellsfargo-starui/data` AppData
 - `BehaviourFields` — per-transport behaviour knobs; STOMP: reconnect initial delay, realtime throttle (on/off switch + ms) + conflation (on/off switch + conflate-by-key), "Thin field-level deltas" switch (`thinDeltas`), snapshot chunk size, "Wire format" select (`wireFormat`: JSON / Columnar), "Keep only column fields" projection switch (`projectFields`) (all written to `cfg`, also settable in code)
 
+#### SSRM container & hosted
+
+- `SsrmMarketsGridContainer` — full `MarketsGrid` chrome wired to an SSRM provider (`SsrmMarketsGridContainerProps`); the SSRM counterpart of `MarketsGridContainer`
+- `useSsrmProviderDataWiring` — provider start/ready wiring behind `SsrmMarketsGridContainer` (`UseSsrmProviderDataWiringParams`)
+- `HostedSsrmMarketsGrid` — hosted SSRM grid with storage/identity parity with `HostedMarketsGrid` (`HostedSsrmMarketsGridProps`)
+- `StompSsrmFields` — provider-editor connection fields for `stomp-ssrm`. **Internal** to `DataProviderEditor`
+
 #### Hosted integration (legacy)
 
 - `HostedMarketsGrid` — hosted wrapper; accepts `platform` (hub bundle) or legacy `dataServices`; composes `MarketsGridContainer`. Flushes grid state on `workspace-saving`, `beforeunload` / `pagehide`, OpenFin view `destroyed`, and React unmount (covers workspace drag/move without a workspace save). Opt-in `contextLink` prop wires grid-to-grid linking (interop transport preferred; `rowIdField` auto-derived from the provider `keyColumn` via the container's `onRowIdFieldChange`; `notify` posts Notification Center messages). See `useGridContextLink` + [`docs/OPENFIN_GRID_LINKING.md`](./OPENFIN_GRID_LINKING.md)
@@ -847,6 +867,12 @@ modules).
 - `getValueByPath()` — extract value by dotted path
 - `normalizeKeyColumns()` — standardise key column defs
 - `__resetPathAccessorCaches()` — test reset
+
+#### SSRM provider types
+
+- `PROVIDER_TYPES.STOMP_SSRM` (`'stomp-ssrm'`) + `StompSsrmProviderConfig` — STOMP feed with a SharedWorker SSRM query plane
+- `PROVIDER_TYPES.MOCK_SSRM` (`'mock-ssrm'`) + `MockSsrmProviderConfig` — in-worker mock feed with an SSRM query plane (lab / offline); optional persisted `columns` schema for SSRM grids and editors
+- Both carry `keyColumn` and participate in the `ProviderConfig` union, the subtype maps and the per-type config defaults
 
 #### Re-exports
 
@@ -1297,6 +1323,15 @@ modules).
   - Synthetic data with tunable row count + emit rate
   - `probeMock()` — one-shot probe
 
+#### SSRM query plane
+
+- `ISsrmDataProvider` — client contract for server-side row model grids (`getRows`, `configureExpressions`, tick subscription, lifecycle); `SsrmTickPayload` for live fan-out
+- `SsrmProviderClientAdapter` — client-side `ISsrmDataProvider` over the SharedWorker SSRM RPCs (`SsrmProviderClientAdapterOpts`)
+- `SsrmPlane` — per-provider query plane attached in the hub for `stomp-ssrm` / `mock-ssrm`; owns filter, sort, group, aggregation, quick-filter, set-filter-value and status-bar evaluation so the client ships only block requests
+- `isSsrmProviderType()` — whether a `providerType` gets a plane; `resolveSsrmKeyColumn()` — key column → stable row id field
+- `SsrmGetRowsRequest` / `SsrmGetRowsResult` — block request/result types
+- RPC kinds: `ssrm-get-rows`, `ssrm-set-viewport`, `ssrm-configure-expressions`, `ssrm-status-bar`, `ssrm-set-filter-values`; live ticks fan out as `ssrm-tick` events keyed by viewport interest
+
 #### Stream subscription
 
 - Two-phase: snapshot promise + `onUpdate`/`onReset`/`onStatus`/`onRowsReceived`/`onSnapshotCommit`
@@ -1440,6 +1475,7 @@ modules).
   - `UseDataProviderOpts`: `inlineCfg` (unsaved editor draft), `autoStart` (default `true`), `trackStatus` (default `true`; `false` skips status/error state mirroring for callers that consume provider events directly)
   - `UseDataProviderResult`: `provider`, `status`, `error`, `start()`, `refresh()`, `restart(extra?)`
   - Subscribes to `onStatus` and `onError` from the adapter
+- `useSsrmDataProvider(providerId, opts?)` — hub-backed `ISsrmDataProvider` (`SsrmProviderClientAdapter`) for `stomp-ssrm` / `mock-ssrm` grids (`UseSsrmDataProviderOpts`, `UseSsrmDataProviderResult`); feed the result to `MarketsGrid`'s `ssrm` prop
 
 #### Stream & template hooks
 
