@@ -12,6 +12,7 @@ import type {
   HubProviderIntrospectRow,
 } from '../protocol.js';
 import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
+import type { SsrmStats } from '../ssrm/SsrmServer.js';
 import type { ProviderSlot } from './hubTypes.js';
 import type { SubscriberRegistry } from './SubscriberRegistry.js';
 import { snapshotProviderStats } from './hubStats.js';
@@ -23,6 +24,12 @@ export interface IntrospectSources {
   connectedPortCount: number;
   appDataListenerCount: number;
   appDataRows: readonly AppDataRow[];
+  /**
+   * SSRM query planes keyed by providerId (`stomp-ssrm`/`mock-ssrm`
+   * providers only) — narrowed to just the `getStats()` surface the row
+   * builder needs, so this stays satisfiable without importing `SsrmPlane`.
+   */
+  ssrmPlanes?: ReadonlyMap<string, { plane: { getStats(): SsrmStats } }>;
 }
 
 export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSnapshot {
@@ -59,6 +66,7 @@ export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSn
       keyDropCount: slot.keyDropCount,
       cfg: slot.cfg,
       subscribers: subscribers.introspectRows(providerId),
+      ssrm: src.ssrmPlanes?.get(providerId)?.plane.getStats(),
     });
   }
 

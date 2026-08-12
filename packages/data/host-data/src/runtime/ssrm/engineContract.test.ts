@@ -184,6 +184,19 @@ describe('windowed flush', () => {
   });
 });
 
+describe('observability stats', () => {
+  it('counts memo hits/misses and flush conflation', () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot([{ id: 'a', px: 1 }]);
+    engine.getRows(BASE); engine.getRows(BASE);
+    const s = engine.getStats();
+    expect(s.memoMisses).toBeGreaterThanOrEqual(1);
+    expect(s.memoHits).toBeGreaterThanOrEqual(1);
+    expect(s.sessions).toBe(0);
+    expect(s.flushes).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('per-session expression rules', () => {
   it('two sessions with different calculated columns never see each other\'s', () => {
     const engine = new SsrmServer({ keyColumn: 'id' });

@@ -205,6 +205,7 @@ export class SharedWorkerDataServicesHub {
       connectedPortCount: this.connectedPorts.size,
       appDataListenerCount: this.appDataSvc.listenerCount,
       appDataRows: this.appDataSvc.snapshotRows(),
+      ssrmPlanes: this.ssrmPlanes,
     };
     return buildIntrospectSnapshot(sources);
   }

@@ -6,6 +6,7 @@ import {
   type StatusBarSummary,
 } from "./statusBar.js";
 import type {
+  CacheStats,
   DetailRowsRequest,
   ExpressionRule,
   ICacheIngest,
@@ -16,6 +17,26 @@ import type {
   TickEvent,
   TreeDataConfig,
 } from "./types.js";
+
+/**
+ * {@link SsrmServer.getStats} return shape: store stats plus plane-level
+ * observability. Additive over `CacheStats` — every existing consumer that
+ * reads `rowCount`/`revision`/`keyColumn`/`columns` keeps working unchanged.
+ */
+export interface SsrmStats extends CacheStats {
+  /** Live viewport-interest sessions (grids) attached to this plane. */
+  sessions: number;
+  /** Cumulative {@link QueryEngine} order-memo hits. */
+  memoHits: number;
+  /** Cumulative {@link QueryEngine} order-memo misses. */
+  memoMisses: number;
+  /** Cumulative flush events emitted (passthrough + windowed + snapshot). */
+  flushes: number;
+  /** Cumulative pre-dedup key updates accumulated across all flushes. */
+  updatesAccumulated: number;
+  /** Cumulative post-dedup keys shipped across all flushes. */
+  keysFlushed: number;
+}
 
 export interface SsrmServerOptions {
   keyColumn: string;
@@ -133,6 +154,11 @@ export class SsrmServer implements ICacheIngest {
   private windowTimer: unknown | null = null;
   private readonly unsubscribeTick: () => void;
 
+  // ── Observability — see {@link getStats} ────────────────────────────
+  private flushes = 0;
+  private updatesAccumulatedTotal = 0;
+  private keysFlushedTotal = 0;
+
   constructor(options: SsrmServerOptions) {
     this.maxInterestBlocks = Math.max(
       1,
@@ -218,8 +244,23 @@ export class SsrmServer implements ICacheIngest {
     return this.query.calculatedFields(sessionId);
   }
 
-  getStats() {
-    return this.store.getStats();
+  /**
+   * Store stats plus plane-level observability: live session count, order-
+   * memo hit/miss counts (see {@link QueryEngine.getMemoStats}), and
+   * cumulative flush-conflation counters (see {@link emitFlush}) — a
+   * conflation ratio is `updatesAccumulated / keysFlushed`.
+   */
+  getStats(): SsrmStats {
+    const memo = this.query.getMemoStats();
+    return {
+      ...this.store.getStats(),
+      sessions: this.viewportInterest.size,
+      memoHits: memo.memoHits,
+      memoMisses: memo.memoMisses,
+      flushes: this.flushes,
+      updatesAccumulated: this.updatesAccumulatedTotal,
+      keysFlushed: this.keysFlushedTotal,
+    };
   }
 
   // ── Tick interest (viewport keys per session) ───────────────────────
@@ -434,9 +475,14 @@ export class SsrmServer implements ICacheIngest {
    * can't propagate back through `RowStore.emit()` and surface out of the
    * `upsert()`/`replaceSnapshot()` call that triggered ingest (matches the
    * hub's own fan-out convention — see `postDataEvent` in
-   * `SharedWorkerDataServicesHub.ts`).
+   * `SharedWorkerDataServicesHub.ts`). Also the single point every flush
+   * path (passthrough, windowed, snapshot) funnels through, so it's where
+   * the {@link getStats} flush-conflation counters are tallied.
    */
   private emitFlush(event: SsrmFlushEvent): void {
+    this.flushes++;
+    this.updatesAccumulatedTotal += event.updatesAccumulated;
+    this.keysFlushedTotal += event.keys.length;
     for (const l of this.flushListeners) {
       try {
         l(event);

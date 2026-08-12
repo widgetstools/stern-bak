@@ -60,6 +60,9 @@ export class QueryEngine {
   /** Insertion-ordered = LRU. Keyed by query shape, never by row window. */
   private readonly orderCache = new Map<string, CachedEntry>();
   private orderCacheSize: number;
+  /** Observability — see {@link getMemoStats}. */
+  private memoHits = 0;
+  private memoMisses = 0;
 
   constructor(options: QueryEngineOptions) {
     this.store = options.store;
@@ -99,11 +102,13 @@ export class QueryEngine {
     const revision = this.store.getRevision();
     const hit = this.orderCache.get(key);
     if (hit && hit.revision === revision) {
+      this.memoHits++;
       // Refresh LRU position.
       this.orderCache.delete(key);
       this.orderCache.set(key, hit);
       return hit.value as T;
     }
+    this.memoMisses++;
     const value = build();
     this.orderCache.delete(key);
     this.orderCache.set(key, { revision, value });
@@ -332,6 +337,11 @@ export class QueryEngine {
   /** Field names produced by configured `calculated` expression rules. */
   calculatedFields(sessionId?: string): string[] {
     return this.exprRules.calculatedFields(sessionId);
+  }
+
+  /** Cumulative order-cache (`memo()`) hit/miss counts, for {@link SsrmServer.getStats}. */
+  getMemoStats(): { memoHits: number; memoMisses: number } {
+    return { memoHits: this.memoHits, memoMisses: this.memoMisses };
   }
 
   /**

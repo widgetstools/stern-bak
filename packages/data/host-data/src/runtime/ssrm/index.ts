@@ -19,6 +19,7 @@ export {
   SsrmServer,
   type ViewportInterestScope,
   type SsrmFlushEvent,
+  type SsrmStats,
 } from './SsrmServer.js';
 export {
   computeStatusBar,

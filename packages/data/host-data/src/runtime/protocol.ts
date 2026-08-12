@@ -20,6 +20,7 @@ import type {
   TickEvent,
 } from './ssrm/types.js';
 import type { StatusBarRequest, StatusBarSummary } from './ssrm/statusBar.js';
+import type { SsrmStats } from './ssrm/SsrmServer.js';
 
 // ─── AppData row shape (mirrors AppDataConfig from probes/appdata) ─
 
@@ -250,6 +251,8 @@ export interface HubProviderIntrospectRow {
   cfg?: ProviderConfig;
   /** Live subscriber registry for this provider (empty when not running). */
   subscribers?: readonly HubSubscriberIntrospectRow[];
+  /** SSRM query-plane stats (`stomp-ssrm`/`mock-ssrm` providers only). */
+  ssrm?: SsrmStats;
 }
 
 export interface HubAppDataIntrospectRow {
