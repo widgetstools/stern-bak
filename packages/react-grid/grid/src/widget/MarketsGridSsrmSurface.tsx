@@ -38,6 +38,7 @@ import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
 import { createSsrmStatusBar } from '../ssrm/createSsrmStatusBar.js';
 import { ssrmAlertRowClass, ssrmGetChildCount } from '../ssrm/expressionBindings.js';
 import { withSsrmSetFilterValues } from '../ssrm/ssrmSetFilterValues.js';
+import { BlankLoadingCellRenderer } from '../ssrm/BlankLoadingCellRenderer.js';
 import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
 
 /** AG Grid 35+: pass modules to the grid instance (plus global registry). */
@@ -261,6 +262,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         getChildCount={ssrmGetChildCount}
         getRowClass={ssrmAlertRowClass}
         getRowId={getRowId}
+        loadingCellRenderer={BlankLoadingCellRenderer}
         statusBar={mergedStatusBar}
         context={mergedContext}
         maintainColumnOrder

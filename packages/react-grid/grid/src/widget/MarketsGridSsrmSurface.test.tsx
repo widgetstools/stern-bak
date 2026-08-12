@@ -13,6 +13,7 @@ const { setGridOption, api, createSsrmDatasource, bindSsrmTicks } = vi.hoisted((
 
 vi.mock('ag-grid-react', () => ({
   AgGridReact: (props: { onGridReady?: (e: { api: typeof api }) => void }) => {
+    (globalThis as Record<string, unknown>).__ssrmSurfaceProps = props;
     React.useEffect(() => {
       props.onGridReady?.({ api });
     }, [props]);
@@ -89,4 +90,12 @@ describe('MarketsGridSsrmSurface', () => {
       expect(onReady).toHaveBeenCalled();
     });
   });
+});
+
+it('replaces the "Loading..." block renderer with a blank one (fast thumb scrolls)', () => {
+  const props = (globalThis as Record<string, unknown>).__ssrmSurfaceProps as {
+    loadingCellRenderer?: () => unknown;
+  };
+  expect(props.loadingCellRenderer).toBeDefined();
+  expect(props.loadingCellRenderer!()).toBeNull();
 });
