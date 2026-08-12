@@ -99,3 +99,6 @@ export type { HostedMarketsGridProps } from './HostedMarketsGrid.js';
 
 export { HostedSsrmMarketsGrid } from './HostedSsrmMarketsGrid.js';
 export type { HostedSsrmMarketsGridProps } from './HostedSsrmMarketsGrid.js';
+
+export { createSsrmSelectionContextBuilder } from './ssrmGridContextLink.js';
+export type { SsrmSelectionBuilderDeps } from './ssrmGridContextLink.js';
