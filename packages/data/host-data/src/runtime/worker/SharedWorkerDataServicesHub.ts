@@ -900,6 +900,22 @@ export class SharedWorkerDataServicesHub {
   private broadcastData(providerId: string, slot: ProviderSlot, eventTemplate: Event): void {
     const listeners = this.subscribers.dataListeners(providerId);
     if (!listeners) return;
+    // SSRM providers: once ready, rows reach every session through the
+    // interest-filtered ssrm-tick fan instead. Broadcasting the raw live
+    // delta as well would structured-clone the full frame to N sessions
+    // that never render from it — at 20k rows/sec x 4 grids that is ~80k
+    // wasted row-clones/sec in this worker plus the same again in window
+    // deserialisation. Snapshot-phase deltas still flow (they resolve the
+    // adapter's handle.snapshot); status events are unaffected.
+    if (
+      slot.snapshotReady
+      && this.ssrmPlanes.has(providerId)
+      && (eventTemplate.kind === 'delta'
+        || eventTemplate.kind === 'delta-bin'
+        || eventTemplate.kind === 'delta-patch')
+    ) {
+      return;
+    }
     const countPublish =
       slot.snapshotReady
       && (

@@ -171,3 +171,29 @@ describe('hub SSRM tick fan-out when nothing in view changed', () => {
     expect(delivered[0]).toMatchObject({ id: 'b' });
   });
 });
+
+describe('hub SSRM live delta suppression', () => {
+  it('stops broadcasting live deltas once ready — rows travel only as ssrm-ticks', () => {
+    const hub = new SharedWorkerDataServicesHub();
+    const port = makePort();
+    hub.handleRequest(port, {
+      kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: ssrmCfg(),
+    });
+    emitRef?.({ status: 'loading' });
+    emitRef?.({ rows: [{ id: 'a' }, { id: 'b' }], replace: true });
+    emitRef?.({ status: 'ready' });
+    const deltasBeforeLive = port.messages.filter(
+      (m) => m.kind === 'delta' || m.kind === 'delta-bin',
+    ).length;
+    // Snapshot delivery itself must still flow (seeds handle.snapshot).
+    expect(deltasBeforeLive).toBeGreaterThan(0);
+
+    emitRef?.({ rows: [{ id: 'a', v: 2 }] }); // live tick after ready
+
+    const deltasAfterLive = port.messages.filter(
+      (m) => m.kind === 'delta' || m.kind === 'delta-bin',
+    ).length;
+    expect(deltasAfterLive).toBe(deltasBeforeLive); // no NEW delta
+    expect(ssrmTicks(port).length).toBeGreaterThan(0); // tick fan still works
+  });
+});
