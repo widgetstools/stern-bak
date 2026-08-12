@@ -462,7 +462,10 @@ export class SharedWorkerDataServicesHub {
     if (existing) return existing.plane;
     // Thread the hub's own injectable timers through so tests that fake
     // them (subscriber sweeper, stats sampler) control the SSRM flush
-    // window too — production still defaults to real setTimeout/clearTimeout.
+    // window too. NOTE: the hub's own default is setInterval/clearInterval
+    // (see constructor above), not setTimeout — SsrmServer.flushWindow()
+    // unconditionally clears its timer on every fire specifically so a
+    // single-shot flush window is correct under either primitive.
     const plane = new SsrmPlane(cfg, {
       setTimer: this.setTimer,
       clearTimer: this.clearTimer,

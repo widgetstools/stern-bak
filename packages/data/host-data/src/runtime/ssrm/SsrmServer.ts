@@ -365,7 +365,18 @@ export class SsrmServer implements ICacheIngest {
   }
 
   private flushWindow(): void {
-    this.windowTimer = null;
+    // Unconditionally clear — correct under both one-shot (setTimeout) and
+    // interval (setInterval) injected timer semantics. The hub's DEFAULT
+    // timer is setInterval/clearInterval (see SharedWorkerDataServicesHub
+    // constructor), so skipping this when the interval already "fired
+    // itself into" null left the underlying interval running forever: every
+    // subsequent window armed ANOTHER setTimer without ever clearing the
+    // previous one, compounding leaked intervals and firing flushes faster
+    // than `publishWindowMs` configured.
+    if (this.windowTimer != null) {
+      this.clearTimer(this.windowTimer);
+      this.windowTimer = null;
+    }
     const keys = [...this.pendingKeys];
     const columns = [...this.pendingColumns];
     const updatesAccumulated = this.pendingCount;

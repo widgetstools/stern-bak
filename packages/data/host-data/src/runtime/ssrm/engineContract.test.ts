@@ -13,6 +13,29 @@ function fakeTimers() {
   };
 }
 
+/**
+ * Models `setInterval`/`clearInterval` semantics (the hub's own DEFAULT —
+ * see `SharedWorkerDataServicesHub` constructor): a callback stays live and
+ * keeps firing on every `fireLive()` until `clear()` removes it explicitly.
+ * Contrast with `fakeTimers()` above, which is one-shot (`fire()` drains
+ * the whole map), matching `setTimeout` — that shape can't catch a
+ * consumer that forgets to call `clearTimer` on a normal (non-cancelled)
+ * fire, because the one-shot fake already "clears itself".
+ */
+function intervalFakeTimers() {
+  const live = new Map<number, () => void>();
+  let id = 0;
+  let clearCount = 0;
+  return {
+    set: (cb: () => void) => { const h = ++id; live.set(h, cb); return h; },
+    clear: (h: unknown) => { if (live.delete(h as number)) clearCount++; },
+    /** Invoke every still-live callback once (one tick of every armed interval). */
+    fireLive: () => { for (const cb of [...live.values()]) cb(); },
+    get liveCount() { return live.size; },
+    get clearCount() { return clearCount; },
+  };
+}
+
 /** Any transport is just something that calls ICacheIngest. */
 function fakeTransport(sink: ICacheIngest) {
   return {
@@ -111,6 +134,40 @@ describe('windowed flush', () => {
     expect(() => engine.upsert([{ id: 'a', px: 1 }])).not.toThrow();
     expect(flushes).toHaveLength(1);
     expect(flushes[0].type).toBe('rows');
+  });
+
+  it('clears the window timer on every flush under interval-semantics injected timers (regression: timer leak)', () => {
+    // Regression for a leak where `flushWindow()` only did `windowTimer =
+    // null` and never called `clearTimer`. That's correct for a one-shot
+    // `setTimeout`, but the hub's own DEFAULT timer is
+    // `setInterval`/`clearInterval` — under interval semantics, skipping
+    // the clear leaves the just-fired interval live forever, and the next
+    // window arms ANOTHER one on top of it: N windows compound into N live
+    // intervals, none ever cleared, all firing (empty, harmless-looking,
+    // but leaked) on every subsequent tick.
+    const t = intervalFakeTimers();
+    const engine = new SsrmServer({
+      keyColumn: 'id', publishWindowMs: 200, setTimer: t.set, clearTimer: t.clear,
+    });
+    const flushes: SsrmFlushEvent[] = [];
+    engine.onFlush((e) => flushes.push(e));
+
+    // Window 1: upsert arms exactly one interval.
+    engine.upsert([{ id: 'a', px: 1 }]);
+    expect(t.liveCount).toBe(1);
+    t.fireLive();
+    expect(flushes).toHaveLength(1);
+    expect(t.clearCount).toBe(1); // window 1's timer was cleared on flush
+    expect(t.liveCount).toBe(0);  // nothing pending → nothing re-armed, no leak
+
+    // Window 2: a fresh upsert must arm exactly one NEW interval — not a
+    // second one stacked on a leaked window-1 interval.
+    engine.upsert([{ id: 'b', px: 2 }]);
+    expect(t.liveCount).toBe(1);
+    t.fireLive();
+    expect(flushes).toHaveLength(2);
+    expect(t.clearCount).toBe(2); // one clear per completed window
+    expect(t.liveCount).toBe(0);  // no live timers remain, no changes pending
   });
 
   it('dispose() quiesces flush notification: a later upsert() flushes nothing and arms no timer', () => {

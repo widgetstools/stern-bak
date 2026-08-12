@@ -21,9 +21,10 @@ const COMPOSITE_KEY_FIELD = '__ssrmRowId';
 export interface SsrmPlaneOpts {
   /**
    * Trailing-edge flush window (ms), forwarded to {@link SsrmServer}.
-   * Defaults to `(cfg as { publishWindowMs?: number }).publishWindowMs ?? 0`
-   * — the ProviderConfig is the normal source; this only exists so callers
-   * that don't shape a full cfg (tests) can override directly.
+   * Defaults to the `publishWindowMs` declared on the SSRM `ProviderConfig`
+   * variant (`StompSsrmProviderConfig` / `MockSsrmProviderConfig`), or `0`
+   * when absent. This only exists so callers that don't shape a full cfg
+   * (tests) can override directly.
    */
   publishWindowMs?: number;
   /** Injectable timer (hub pattern) — defaults to `setTimeout`. */
@@ -34,6 +35,20 @@ export interface SsrmPlaneOpts {
 
 export function isSsrmProviderType(type: string | undefined): boolean {
   return type === 'stomp-ssrm' || type === 'mock-ssrm';
+}
+
+/**
+ * Reads `publishWindowMs` off a `ProviderConfig` via honest discriminated-
+ * union narrowing — the field only exists on the two SSRM cfg variants, so
+ * a blind structural cast would silently type-check for non-SSRM configs
+ * too. `undefined` for every other providerType (including SSRM types the
+ * union hasn't been narrowed to, defensively).
+ */
+function readPublishWindowMs(cfg: ProviderConfig): number | undefined {
+  if (cfg.providerType === 'stomp-ssrm' || cfg.providerType === 'mock-ssrm') {
+    return cfg.publishWindowMs;
+  }
+  return undefined;
 }
 
 export function resolveSsrmKeyColumn(
@@ -67,9 +82,7 @@ export class SsrmPlane {
     this.cfgKeyColumn = keyCol;
     this.keyColumn = resolveSsrmKeyColumn(keyCol);
     const publishWindowMs =
-      opts.publishWindowMs ??
-      (cfg as { publishWindowMs?: number }).publishWindowMs ??
-      0;
+      opts.publishWindowMs ?? readPublishWindowMs(cfg) ?? 0;
     this.server = new SsrmServer({
       keyColumn: this.keyColumn,
       publishWindowMs,

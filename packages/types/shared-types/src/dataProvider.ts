@@ -247,6 +247,13 @@ export interface StompSsrmProviderConfig
   providerType: 'stomp-ssrm';
   /** Hint for AG Grid `cacheBlockSize` (client); worker pages by request. */
   blockSize?: number;
+  /**
+   * Trailing-edge SSRM flush window in ms; 0/omitted = per-frame
+   * passthrough. Accumulates and key-conflates changed rows across the
+   * window before the worker fans a single `ssrm-tick` — see
+   * `SsrmServer`/`SsrmPlane` in `@wellsfargo-starui/data`.
+   */
+  publishWindowMs?: number;
 }
 
 /**
@@ -366,6 +373,13 @@ export interface MockSsrmProviderConfig
   blockSize?: number;
   /** Optional persisted column schema for SSRM grids / editors. */
   columnDefinitions?: ColumnDefinition[];
+  /**
+   * Trailing-edge SSRM flush window in ms; 0/omitted = per-frame
+   * passthrough. Accumulates and key-conflates changed rows across the
+   * window before the worker fans a single `ssrm-tick` — see
+   * `SsrmServer`/`SsrmPlane` in `@wellsfargo-starui/data`.
+   */
+  publishWindowMs?: number;
 }
 
 /**
