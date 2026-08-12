@@ -24,8 +24,6 @@ export class RowStore implements ICacheIngest {
   private readonly projectFields: string[] | null;
   private readonly quickFilterColumns: string[] | null;
   private readonly rows = new Map<string, Row>();
-  /** column → value → set of keys */
-  private readonly uniques = new Map<string, Map<string, Set<string>>>();
   /** key → precomputed lowercase quick-filter aggregate (CSRM cacheQuickFilter). */
   private readonly quickFilterCache = new Map<string, string>();
   private revision = 0;
@@ -59,34 +57,19 @@ export class RowStore implements ICacheIngest {
     return out;
   }
 
-  private indexRemove(key: string, row: Row): void {
-    for (const [col, val] of Object.entries(row)) {
-      const colMap = this.uniques.get(col);
-      if (!colMap) continue;
-      const vs = val == null ? "" : String(val);
-      const set = colMap.get(vs);
-      if (!set) continue;
-      set.delete(key);
-      if (set.size === 0) colMap.delete(vs);
-    }
-  }
-
-  private indexAdd(key: string, row: Row): void {
-    for (const [col, val] of Object.entries(row)) {
-      this.columns.add(col);
-      let colMap = this.uniques.get(col);
-      if (!colMap) {
-        colMap = new Map();
-        this.uniques.set(col, colMap);
-      }
-      const vs = val == null ? "" : String(val);
-      let set = colMap.get(vs);
-      if (!set) {
-        set = new Set();
-        colMap.set(vs, set);
-      }
-      set.add(key);
-    }
+  /**
+   * Track which columns exist, for `getStats`.
+   *
+   * This replaced a full `column → value → Set<key>` inverted index that was
+   * maintained on every snapshot row and every tick. Its only reader,
+   * `getUniqueValues`, had no callers — set-filter values go through
+   * `getUniqueValuesFiltered`, which scans the live row map because the index
+   * could be stale mid-snapshot. At 100k rows x 130 columns the index cost
+   * ~1.7 GB of heap, ~3.8x on snapshot ingest and ~4x on every tick, and
+   * nothing ever read it. See `npm run bench:ssrm`.
+   */
+  private trackColumns(row: Row): void {
+    for (const col in row) this.columns.add(col);
   }
 
   get size(): number {
@@ -142,7 +125,6 @@ export class RowStore implements ICacheIngest {
 
   clear(): void {
     this.rows.clear();
-    this.uniques.clear();
     this.quickFilterCache.clear();
     this.columns.clear();
     this.revision++;
@@ -151,7 +133,6 @@ export class RowStore implements ICacheIngest {
 
   replaceSnapshot(rows: Row[]): void {
     this.rows.clear();
-    this.uniques.clear();
     this.quickFilterCache.clear();
     this.columns.clear();
     for (const raw of rows) {
@@ -160,7 +141,7 @@ export class RowStore implements ICacheIngest {
       if (key == null) continue;
       const ks = String(key);
       this.rows.set(ks, row);
-      this.indexAdd(ks, row);
+      this.trackColumns(row);
       this.setQuickFilterCache(ks, row);
     }
     this.revision++;
@@ -188,13 +169,12 @@ export class RowStore implements ICacheIngest {
             changedCols.add(k);
           }
         }
-        this.indexRemove(key, prev);
       } else {
         next = incoming;
         for (const k of Object.keys(next)) changedCols.add(k);
       }
       this.rows.set(key, next);
-      this.indexAdd(key, next);
+      this.trackColumns(next);
       this.setQuickFilterCache(key, next);
       changed.push(key);
       changedRows.push(next);
@@ -214,7 +194,6 @@ export class RowStore implements ICacheIngest {
     for (const key of keys) {
       const prev = this.rows.get(key);
       if (!prev) continue;
-      this.indexRemove(key, prev);
       this.rows.delete(key);
       this.quickFilterCache.delete(key);
       removed.push(key);
@@ -224,11 +203,17 @@ export class RowStore implements ICacheIngest {
     this.emit({ type: "rows", keys: removed });
   }
 
-  /** Unique values for a column (for AG Grid set filter). */
+  /**
+   * Unique values for a column (for AG Grid set filter).
+   * Scans the live row map — same source of truth as
+   * {@link getUniqueValuesFiltered}, which is what the query engine calls.
+   */
   getUniqueValues(column: string): string[] {
-    const colMap = this.uniques.get(column);
-    if (!colMap) return [];
-    return [...colMap.keys()].sort((a, b) => a.localeCompare(b));
+    // An unknown column yields `[]`, not `['']`. Scanning would map every
+    // row's `undefined` to the empty string; the index this replaced simply
+    // had no entry for the column.
+    if (!this.columns.has(column)) return [];
+    return this.getUniqueValuesFiltered(column);
   }
 
   /**

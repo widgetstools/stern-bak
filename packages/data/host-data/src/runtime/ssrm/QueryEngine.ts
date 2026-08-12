@@ -21,6 +21,31 @@ export interface QueryEngineOptions {
   store: RowStore;
   expressionEngine?: ExpressionEngine;
   tree?: TreeDataConfig | null;
+  /**
+   * How many distinct query orders to retain. One plane serves every grid on
+   * the provider, so this is sized for "a few grids each scrolling their own
+   * view", not for one. `0` disables caching.
+   */
+  orderCacheSize?: number;
+}
+
+/**
+ * Memo entries kept per plane. One query shape contributes up to four
+ * (filtered set, leaf/group order, grand total, pivot fields), and one plane
+ * serves every grid on the provider — so this is roughly "six concurrent
+ * query shapes". The row arrays hold references, not copies: at 100k rows an
+ * order entry is ~800 KB, so the whole cache stays in the low tens of MB.
+ */
+const DEFAULT_ORDER_CACHE_SIZE = 24;
+
+/**
+ * A materialised query order, valid only for the store revision it was built
+ * from. Any ingest (snapshot, tick, removal) bumps the revision and strands
+ * every entry, which is what keeps the cache from ever serving stale rows.
+ */
+interface CachedEntry {
+  revision: number;
+  value: unknown;
 }
 
 /**
@@ -33,19 +58,80 @@ export class QueryEngine {
   private rules: ExpressionRule[] = [];
   private compiled = new Map<string, (ctx: { data: Row; columns: Row; value: unknown; x: unknown }) => unknown>();
   private tree: TreeDataConfig | null = null;
+  /** Insertion-ordered = LRU. Keyed by query shape, never by row window. */
+  private readonly orderCache = new Map<string, CachedEntry>();
+  private readonly orderCacheSize: number;
 
   constructor(options: QueryEngineOptions) {
     this.store = options.store;
     this.expr = options.expressionEngine ?? new ExpressionEngine();
     this.tree = options.tree ?? null;
+    this.orderCacheSize = options.orderCacheSize ?? DEFAULT_ORDER_CACHE_SIZE;
+  }
+
+  /**
+   * Memoises a materialised row order for one query shape.
+   *
+   * `startRow` / `endRow` are deliberately absent from every cache key: the
+   * whole point is that paging through a query reuses one order. Entries are
+   * bound to `store.getRevision()`, so a tick invalidates them rather than
+   * being papered over.
+   */
+  private memo<T>(key: string, build: () => T): T {
+    if (this.orderCacheSize <= 0) return build();
+    const revision = this.store.getRevision();
+    const hit = this.orderCache.get(key);
+    if (hit && hit.revision === revision) {
+      // Refresh LRU position.
+      this.orderCache.delete(key);
+      this.orderCache.set(key, hit);
+      return hit.value as T;
+    }
+    const value = build();
+    this.orderCache.delete(key);
+    this.orderCache.set(key, { revision, value });
+    while (this.orderCache.size > this.orderCacheSize) {
+      const oldest = this.orderCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.orderCache.delete(oldest);
+    }
+    return value;
+  }
+
+  private cachedOrder(key: string, build: () => Row[]): Row[] {
+    return this.memo(key, build);
+  }
+
+  /** Everything that changes *which* rows match, and in what order. */
+  private static queryKey(
+    request: SsrmGetRowsRequest,
+    kind: string,
+    extra?: unknown,
+  ): string {
+    return JSON.stringify([
+      kind,
+      request.filterModel ?? null,
+      request.quickFilterText ?? '',
+      request.sortModel ?? null,
+      request.groupKeys ?? null,
+      request.rowGroupCols?.map((c) => c.field) ?? null,
+      extra ?? null,
+    ]);
+  }
+
+  /** Drops every memoised order. Called when expression rules change. */
+  private invalidateOrderCache(): void {
+    this.orderCache.clear();
   }
 
   configureTree(config: TreeDataConfig | null): void {
     this.tree = config;
+    this.invalidateOrderCache();
   }
 
   configureExpressions(rules: ExpressionRule[]): void {
     this.rules = rules;
+    this.invalidateOrderCache();
     this.compiled.clear();
     for (const rule of rules) {
       try {
@@ -66,20 +152,39 @@ export class QueryEngine {
     const pivotCols = request.pivotCols ?? [];
     const pivoting = Boolean(request.pivotMode) || pivotCols.length > 0;
     const sep = request.pivotResultFieldSeparator ?? "_";
-    const filtered = this.collectFiltered(
+    const filtered = this.collectFilteredCached(
       request.filterModel,
       request.quickFilterText,
     );
 
+    // Both scan the whole filtered set and neither depends on the row window,
+    // so without memoising they would re-run per block and cancel out the
+    // order cache entirely whenever value columns are configured.
     const pivotResultFields = pivoting
-      ? this.collectPivotResultFields(filtered, pivotCols, request, sep)
+      ? this.memo(
+          QueryEngine.queryKey(request, "pivotFields", [
+            pivotCols.map((c) => c.field),
+            request.valueCols ?? null,
+            sep,
+          ]),
+          () => this.collectPivotResultFields(filtered, pivotCols, request, sep),
+        )
       : undefined;
 
     const grandTotalData =
       groupKeys.length === 0 && (request.valueCols?.length ?? 0) > 0
-        ? pivoting
-          ? this.pivotAggregate(filtered, pivotCols, request, sep)
-          : this.valueAgg(filtered, request)
+        ? this.memo(
+            QueryEngine.queryKey(request, "grandTotal", [
+              request.valueCols ?? null,
+              pivotCols.map((c) => c.field),
+              pivoting,
+              sep,
+            ]),
+            () =>
+              pivoting
+                ? this.pivotAggregate(filtered, pivotCols, request, sep)
+                : this.valueAgg(filtered, request),
+          )
         : undefined;
 
     // Leaf level: all group keys provided.
@@ -99,35 +204,49 @@ export class QueryEngine {
       groupKeys.every((gk, i) => String(row[groupCols[i]!.field] ?? "") === gk),
     );
 
-    const buckets = new Map<string, Row[]>();
-    for (const row of scoped) {
-      const key = String(row[field] ?? "");
-      let list = buckets.get(key);
-      if (!list) {
-        list = [];
-        buckets.set(key, list);
-      }
-      list.push(row);
-    }
+    // Bucketing + per-group aggregation + sort is the expensive part and is
+    // window-independent; the key carries the aggregation inputs because they
+    // change the group rows themselves.
+    const groups = this.cachedOrder(
+      QueryEngine.queryKey(request, "groups", [
+        field,
+        request.valueCols ?? null,
+        pivotCols.map((c) => c.field),
+        pivoting,
+        sep,
+      ]),
+      () => {
+        const buckets = new Map<string, Row[]>();
+        for (const row of scoped) {
+          const key = String(row[field] ?? "");
+          let list = buckets.get(key);
+          if (!list) {
+            list = [];
+            buckets.set(key, list);
+          }
+          list.push(row);
+        }
 
-    let groups = [...buckets.entries()].map(([key, rows]) => {
-      const agg = pivoting
-        ? this.pivotAggregate(rows, pivotCols, request, sep)
-        : this.valueAgg(rows, request);
-      return {
-        ...agg,
-        [field]: key,
-        __ssrmGroupKey: key,
-        // Distinct child groups at next level, or leaf count when next is leaf.
-        __ssrmChildCount: this.childCountForGroup(
-          rows,
-          groupCols,
-          groupKeys.length + 1,
-        ),
-      } as Row;
-    });
+        const built = [...buckets.entries()].map(([key, rows]) => {
+          const agg = pivoting
+            ? this.pivotAggregate(rows, pivotCols, request, sep)
+            : this.valueAgg(rows, request);
+          return {
+            ...agg,
+            [field]: key,
+            __ssrmGroupKey: key,
+            // Distinct child groups at next level, or leaf count when next is leaf.
+            __ssrmChildCount: this.childCountForGroup(
+              rows,
+              groupCols,
+              groupKeys.length + 1,
+            ),
+          } as Row;
+        });
 
-    groups = this.sortRows(groups, request.sortModel, field);
+        return this.sortRows(built, request.sortModel, field);
+      },
+    );
 
     const start = request.startRow ?? 0;
     const end = request.endRow ?? groups.length;
@@ -174,7 +293,7 @@ export class QueryEngine {
       "filterModel" | "valueCols" | "quickFilterText"
     >,
   ): Row {
-    const filtered = this.collectFiltered(
+    const filtered = this.collectFilteredCached(
       request.filterModel,
       request.quickFilterText,
     );
@@ -227,7 +346,7 @@ export class QueryEngine {
   }
 
   private treeBlock(request: SsrmGetRowsRequest): SsrmGetRowsResult {
-    const filtered = this.collectFiltered(
+    const filtered = this.collectFilteredCached(
       request.filterModel,
       request.quickFilterText,
     );
@@ -478,6 +597,25 @@ export class QueryEngine {
     return { roots, childrenOf };
   }
 
+  /**
+   * Filtered rows for a query, memoised per store revision. Every block of a
+   * query — plus its grand total and pivot field collection — reuses one scan
+   * instead of walking the whole store again.
+   */
+  private collectFilteredCached(
+    filterModel: SsrmGetRowsRequest["filterModel"],
+    quickFilterText?: string | null,
+  ): Row[] {
+    const key = JSON.stringify([
+      "filtered",
+      filterModel ?? null,
+      quickFilterText ?? "",
+    ]);
+    return this.cachedOrder(key, () =>
+      this.collectFiltered(filterModel, quickFilterText),
+    );
+  }
+
   private collectFiltered(
     filterModel: SsrmGetRowsRequest["filterModel"],
     quickFilterText?: string | null,
@@ -507,19 +645,31 @@ export class QueryEngine {
     groupCols: NonNullable<SsrmGetRowsRequest["rowGroupCols"]>,
     groupKeys: string[],
   ): SsrmGetRowsResult {
-    let rows = filtered;
-    if (groupKeys.length > 0) {
-      rows = filtered.filter((row) =>
-        groupKeys.every((gk, i) => String(row[groupCols[i]!.field] ?? "") === gk),
-      );
-    }
-    rows = this.sortRows(rows, request.sortModel);
+    // Scoping + sorting depend only on the query shape, never on the row
+    // window — so every block of one query reuses this single ordered array.
+    const rows = this.cachedOrder(
+      QueryEngine.queryKey(request, "leaf"),
+      () => {
+        let scoped = filtered;
+        if (groupKeys.length > 0) {
+          scoped = filtered.filter((row) =>
+            groupKeys.every(
+              (gk, i) => String(row[groupCols[i]!.field] ?? "") === gk,
+            ),
+          );
+        }
+        return this.sortRows(scoped, request.sortModel);
+      },
+    );
     const start = request.startRow ?? 0;
     const end = request.endRow ?? rows.length;
     const slice = rows.slice(start, end).map((r) => this.enrich(r));
     const groupData =
       (request.valueCols?.length ?? 0) > 0
-        ? this.valueAgg(rows, request)
+        ? this.memo(
+            QueryEngine.queryKey(request, "leafAgg", request.valueCols ?? null),
+            () => this.valueAgg(rows, request),
+          )
         : undefined;
     return {
       rowData: slice,
