@@ -68,12 +68,15 @@ export type GridLinkResolver = (
 
 /**
  * Publish-side mapping: turn the grid's current selection into a context
- * to broadcast, or `null` to broadcast nothing.
+ * to broadcast, or `null` to broadcast nothing. May be async — SSRM
+ * builders resolve group / select-all selections through the worker. The
+ * publish path awaits the result behind a staleness guard, so a build
+ * that resolves after a newer selection fired is discarded.
  */
 export type GridLinkSelectionBuilder = (
   api: GridApi,
   opts: { instanceId: string; rowIdField: readonly string[] },
-) => GridLinkSelectionContext | null;
+) => GridLinkSelectionContext | null | Promise<GridLinkSelectionContext | null>;
 
 /** Normalize a `rowIdField` prop into an always-array form (defaults to `['id']`). */
 export function normalizeRowIdField(
