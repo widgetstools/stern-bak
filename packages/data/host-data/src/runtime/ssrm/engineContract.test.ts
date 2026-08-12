@@ -100,4 +100,29 @@ describe('windowed flush', () => {
     engine.replaceSnapshot([{ id: 'z', px: 0 }]); // must not wait
     expect(flushes.at(-1)?.type).toBe('snapshot');
   });
+
+  it('isolates a throwing onFlush listener from later listeners and from upsert()', () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    const flushes: SsrmFlushEvent[] = [];
+    engine.onFlush(() => {
+      throw new Error('boom');
+    });
+    engine.onFlush((e) => flushes.push(e));
+    expect(() => engine.upsert([{ id: 'a', px: 1 }])).not.toThrow();
+    expect(flushes).toHaveLength(1);
+    expect(flushes[0].type).toBe('rows');
+  });
+
+  it('dispose() quiesces flush notification: a later upsert() flushes nothing and arms no timer', () => {
+    const t = fakeTimers();
+    const engine = new SsrmServer({
+      keyColumn: 'id', publishWindowMs: 200, setTimer: t.set, clearTimer: t.clear,
+    });
+    const flushes: SsrmFlushEvent[] = [];
+    engine.onFlush((e) => flushes.push(e));
+    engine.dispose();
+    engine.upsert([{ id: 'a', px: 1 }]);
+    expect(flushes).toEqual([]);
+    expect(t.armed).toBe(false);
+  });
 });

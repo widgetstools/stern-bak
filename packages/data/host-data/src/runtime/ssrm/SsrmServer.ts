@@ -115,6 +115,7 @@ export class SsrmServer implements ICacheIngest {
   private pendingColumns = new Set<string>();
   private pendingCount = 0;
   private windowTimer: unknown | null = null;
+  private readonly unsubscribeTick: () => void;
 
   constructor(options: SsrmServerOptions) {
     this.maxInterestBlocks = Math.max(
@@ -133,7 +134,7 @@ export class SsrmServer implements ICacheIngest {
       store: this.store,
       tree: options.tree,
     });
-    this.store.onTick((event) => this.handleTick(event));
+    this.unsubscribeTick = this.store.onTick((event) => this.handleTick(event));
   }
 
   // ── Ingest ──────────────────────────────────────────────────────────
@@ -297,8 +298,16 @@ export class SsrmServer implements ICacheIngest {
     return () => this.flushListeners.delete(listener);
   }
 
-  /** Clears any pending window timer. Safe to call with nothing armed. */
+  /**
+   * Quiesces flush notification: clears any pending window timer and
+   * unsubscribes from the store's raw tick stream, so ingest arriving
+   * after `dispose()` no longer re-enters `handleTick` and resumes
+   * flushing/re-arming timers. Ingest itself stays ungated — cache writes
+   * after `dispose()` still succeed, they just produce no flush. Safe to
+   * call with nothing armed (and safe to call more than once).
+   */
   dispose(): void {
+    this.unsubscribeTick();
     if (this.windowTimer != null) {
       this.clearTimer(this.windowTimer);
       this.windowTimer = null;
@@ -373,8 +382,23 @@ export class SsrmServer implements ICacheIngest {
     });
   }
 
+  /**
+   * Fan out to every flush listener, isolating each call so one throwing
+   * listener can't block delivery to listeners after it in the loop, and
+   * can't propagate back through `RowStore.emit()` and surface out of the
+   * `upsert()`/`replaceSnapshot()` call that triggered ingest (matches the
+   * hub's own fan-out convention — see `postDataEvent` in
+   * `SharedWorkerDataServicesHub.ts`).
+   */
   private emitFlush(event: SsrmFlushEvent): void {
-    for (const l of this.flushListeners) l(event);
+    for (const l of this.flushListeners) {
+      try {
+        l(event);
+      } catch {
+        // Swallow — a misbehaving listener must not break delivery to
+        // other listeners or to the unrelated raw onTick pass-through.
+      }
+    }
   }
 }
 
