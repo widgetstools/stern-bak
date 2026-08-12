@@ -261,30 +261,31 @@ export class QueryEngine {
   }
 
   getSetFilterValues(req: SetFilterValuesRequest): string[] {
-    // Always scan matching rows so the list reflects the full current cache
-    // (index alone can be stale if values were first requested mid-snapshot).
     const fm = { ...(req.filterModel ?? {}) } as Record<string, unknown>;
     delete fm[req.column];
-    const parts = parseQuickFilter(req.quickFilterText);
-    const hasOtherFilters = Object.keys(fm).length > 0;
-    if (!hasOtherFilters && parts.length === 0) {
-      return this.store.getUniqueValuesFiltered(req.column);
+
+    const groupKeys = req.groupKeys;
+    const groupCols = req.rowGroupCols ?? [];
+    const inGroupPath = (row: Row): boolean => {
+      if (!groupKeys) return true;
+      return groupKeys.every(
+        (gk, i) => String(row[groupCols[i]?.field ?? ""] ?? "") === gk,
+      );
+    };
+
+    // Reuses the per-query memo (revision-bound), then narrows by group path
+    // — a colour-link publish right after a block load pays no fresh scan.
+    const filtered = this.collectFilteredCached(
+      Object.keys(fm).length > 0 ? fm : null,
+      req.quickFilterText,
+    );
+    const seen = new Set<string>();
+    for (const row of filtered) {
+      if (!inGroupPath(row)) continue;
+      const v = row[req.column];
+      seen.add(v == null ? "" : String(v));
     }
-    return this.store.getUniqueValuesFiltered(req.column, (row) => {
-      if (parts.length) {
-        const key = row[this.store.keyColumn];
-        if (key == null) return false;
-        if (
-          !rowPassesQuickFilter(
-            this.store.getQuickFilterText(String(key)),
-            parts,
-          )
-        ) {
-          return false;
-        }
-      }
-      return !hasOtherFilters || rowPassesFilter(row, fm);
-    });
+    return [...seen].sort((a, b) => a.localeCompare(b));
   }
 
   getGrandTotal(

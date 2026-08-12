@@ -76,6 +76,15 @@ export interface SetFilterValuesRequest {
   filterModel?: Record<string, unknown> | null;
   /** Active quick-filter text (scopes uniques like CSRM). */
   quickFilterText?: string | null;
+  /**
+   * Optional group path to scope values to (colour-link publishing for a
+   * selected group row whose descendants are not loaded client-side).
+   * `groupKeys[i]` is the group value at `rowGroupCols[i].field`.
+   * An empty array with `rowGroupCols` set means "the whole current query"
+   * (select-all).
+   */
+  groupKeys?: string[];
+  rowGroupCols?: Array<{ field: string }>;
 }
 
 export interface ExpressionRule {
