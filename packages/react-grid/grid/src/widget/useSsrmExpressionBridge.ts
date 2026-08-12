@@ -18,24 +18,30 @@ import {
 
 const PUSH_DEBOUNCE_MS = 25;
 
+/**
+ * Slices are `undefined` whenever their module isn't registered — the store
+ * seeds `moduleStates` from the module list alone, so presets like
+ * `MINIMAL_MODULES` legitimately omit all three. Treat a missing module as
+ * "contributes no rules" rather than throwing through the host's render.
+ */
 function buildExpressionSnapshot(
-  calculated: CalculatedColumnsState,
-  styling: ConditionalStylingState,
-  alerts: AlertsState,
+  calculated: CalculatedColumnsState | undefined,
+  styling: ConditionalStylingState | undefined,
+  alerts: AlertsState | undefined,
 ): MarketsGridExpressionSnapshot {
   return {
-    calculatedColumns: calculated.virtualColumns.map((col) => ({
+    calculatedColumns: (calculated?.virtualColumns ?? []).map((col) => ({
       id: col.colId,
       field: col.colId,
       expression: col.expression,
     })),
-    styleRules: styling.rules
+    styleRules: (styling?.rules ?? [])
       .filter((rule) => rule.enabled)
       .map((rule) => ({
         id: rule.id,
         expression: rule.expression,
       })),
-    alertRules: alerts.rules
+    alertRules: (alerts?.rules ?? [])
       .filter(
         (rule): rule is typeof rule & { trigger: { kind: 'dataChange'; expression: string } } =>
           rule.enabled && rule.trigger.kind === 'dataChange',
@@ -58,9 +64,13 @@ export function useSsrmExpressionBridge(
   provider: ISsrmDataProvider | null | undefined,
   enabled: boolean,
 ): void {
-  const [calculated] = useModuleState<CalculatedColumnsState>(CALCULATED_COLUMNS_MODULE_ID);
-  const [styling] = useModuleState<ConditionalStylingState>(CONDITIONAL_STYLING_MODULE_ID);
-  const [alerts] = useModuleState<AlertsState>(ALERTS_MODULE_ID);
+  const [calculated] = useModuleState<CalculatedColumnsState | undefined>(
+    CALCULATED_COLUMNS_MODULE_ID,
+  );
+  const [styling] = useModuleState<ConditionalStylingState | undefined>(
+    CONDITIONAL_STYLING_MODULE_ID,
+  );
+  const [alerts] = useModuleState<AlertsState | undefined>(ALERTS_MODULE_ID);
 
   const snapshot = useMemo(
     () => buildExpressionSnapshot(calculated, styling, alerts),
