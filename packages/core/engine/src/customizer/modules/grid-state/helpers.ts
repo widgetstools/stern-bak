@@ -292,7 +292,8 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
       if (leftColId && api.getColumn(leftColId)) {
         api.ensureColumnVisible(leftColId, 'start');
       } else if (horizontalPixel > 0) {
-        const body = document.querySelector<HTMLElement>('.ag-body-viewport');
+        // AG Grid 36 renamed `.ag-body-viewport` -> `.ag-grid-viewport`.
+        const body = document.querySelector<HTMLElement>('.ag-grid-viewport');
         if (body) body.scrollLeft = horizontalPixel;
       }
     } catch {
