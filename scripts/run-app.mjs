@@ -36,6 +36,7 @@ const APPS = {
   'markets-grid-lab':          { port: 5300, broker: 'none' },
   'markets-grid-ssrm-lab':     { port: 5320, broker: 'none' },
   'star-demo':                 { port: 5175, broker: 'auto', openfin: true },
+  'star-demo-ssrm':            { port: 5176, broker: 'auto', openfin: true },
   'stomp-marketsgrid-minimal': { port: 5213, broker: 'required' },
   'stomp-view-server':         { port: 8081, broker: 'self' },
 };

@@ -134,7 +134,9 @@ npm run app -- stomp-marketsgrid-minimal --tarball
 | App | Port | Purpose |
 |---|---|---|
 | `star-demo` | 5175 | OpenFin workspace demo; primary e2e target |
+| `star-demo-ssrm` | 5176 | star-demo's SSRM twin (`stomp-ssrm` provider, worker query plane) |
 | `markets-grid-lab` | 5300 | MarketsGrid editing / profiles lab |
+| `markets-grid-ssrm-lab` | 5320 | SSRM feature lab (mock-ssrm provider) |
 | `design-system` | 5310 | Design-system showcase |
 | `stomp-marketsgrid-minimal` | 5213 | Smallest STOMP → grid path |
 | `basic` | 5194 | Tutorial — minimal grid host |
