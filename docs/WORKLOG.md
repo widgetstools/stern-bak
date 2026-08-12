@@ -748,6 +748,24 @@ deadline error ever surfaces in the wild (`"catalog read did not settle"`),
 capture the worker console via chrome://inspect at that moment — the
 backstop now makes the event visible instead of silent.
 
+---
+
+## 15. SSRM engine follow-ups from the hardening pass (2026-08-12)
+
+**Area:** `packages/data/host-data/src/runtime/ssrm/` · **Blocked on:** nothing — technical debt only
+
+Deferred, non-blocking items from the ssrm-engine-hardening plan's final review; none affect correctness:
+
+- `packages/data/host-data/src/runtime/ssrm/QueryEngine.ts` is 834 LOC vs the repo's 800 ceiling (pre-existing; improved from 850 by the ExpressionRuleStore extraction) — split candidate: tree-data block builders.
+- Snapshot arriving mid-window drops pendingCount from updatesAccumulated totals (SsrmServer.ts:396-415) — cosmetic counter drift under snapshot churn.
+- Any session's configureExpressions clears the whole shared order cache (QueryEngine.ts:161) — transient memo warm-up cost when many blotters push rules at mount; correctness unaffected.
+- engineBoundary.test.ts only matches static import specifiers; dynamic import('../worker/...') would slip through.
+- fanSsrmFlush rebuilds+enriches the full changed-key row set per filtered session per flush — N-sessions × changed-set work; window cadence bounds it.
+- RowStore.emit() has no per-listener try/catch (pre-existing; flush path is isolated, raw onTick is opt-in).
+- SsrmStats is exported from @wellsfargo-starui/data/ssrm-engine but not the ./runtime barrel.
+- createSsrmStatusBar: mount load doesn't stamp lastLoadAt (one duplicate RPC possible per panel mount); burst-trailing and unmount-pending-timer paths untested; 2s fallback poll runs even for tick-capable providers.
+- docs/latest/ssrm-engine.md: ICacheIngest listing omits clear(); pseudocode uses illustrative type names not in the codebase.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
