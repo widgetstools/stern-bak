@@ -63,6 +63,15 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
+      // star-demo's SSRM twin (star-demo-ssrm-smoke.spec.ts). Data comes from
+      // stomp-view-server (:8081), which this config deliberately does NOT
+      // start — the spec probes the socket and skips itself when it's down.
+      command: 'npm run dev -w @wellsfargo-starui/star-demo-ssrm -- --no-open --force',
+      port: 5176,
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+    {
       // Hosts the DataProvider editor's Columns tab, which lives in
       // @wellsfargo-starui/grid/widgets and resolves to its dist exports —
       // build packages first or the editor serves stale code.

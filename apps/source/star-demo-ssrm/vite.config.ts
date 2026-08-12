@@ -9,6 +9,6 @@ const staruiPartial = staruiConsumerViteConfig(appDir, { worker: true });
 export default defineConfig(
   mergeConfig(staruiPartial, {
     plugins: [react(), svgr()],
-    server: { port: 5176 },
+    server: { port: 5176, host: '127.0.0.1', strictPort: true },
   }),
 );
