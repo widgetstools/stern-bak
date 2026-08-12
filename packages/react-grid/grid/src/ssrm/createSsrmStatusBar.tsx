@@ -99,10 +99,41 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
     };
 
     load();
-    const id = setInterval(load, refreshThrottleMs);
+
+    // Tick-driven refresh, throttled to `refreshThrottleMs` (leading edge +
+    // at most one trailing call per window) — replaces the old free-running
+    // `setInterval(load, refreshThrottleMs)`. A burst of ticks inside one
+    // window collapses to <= 2 loads; an isolated tick produces exactly 1.
+    let lastLoadAt = 0;
+    let trailingTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleLoad = () => {
+      const now = Date.now();
+      const elapsed = now - lastLoadAt;
+      if (elapsed >= refreshThrottleMs) {
+        lastLoadAt = now;
+        load();
+        return;
+      }
+      if (trailingTimer != null) return;
+      trailingTimer = setTimeout(() => {
+        trailingTimer = null;
+        lastLoadAt = Date.now();
+        load();
+      }, refreshThrottleMs - elapsed);
+    };
+
+    const unsubscribeTick = provider.onSsrmTick?.(scheduleLoad);
+
+    // Slow idle fallback for providers without ticks (or a missed edge) —
+    // no longer the primary refresh path, so a long fixed period is fine.
+    const fallbackId = setInterval(load, 2_000);
+
     return () => {
       cancelled = true;
-      clearInterval(id);
+      unsubscribeTick?.();
+      if (trailingTimer != null) clearTimeout(trailingTimer);
+      clearInterval(fallbackId);
     };
   }, [provider, props.api, refreshThrottleMs, getQuickFilterText]);
 

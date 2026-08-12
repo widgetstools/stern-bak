@@ -56,4 +56,29 @@ describe('createSsrmStatusBar default parity', () => {
     expect(screen.getByText('Filtered Rows')).toBeInTheDocument();
     expect(document.querySelector('.ag-status-panel-filtered-row-count')).toBeTruthy();
   });
+
+  it('reloads on tick arrival instead of free-running polling', async () => {
+    vi.useFakeTimers();
+    const tickHandlers: Array<() => void> = [];
+    const p = {
+      getStatusBar: vi.fn(async () => ({
+        totalRows: 1, filteredRows: 1, selectedRows: 0, aggregations: [], revision: 1,
+      })),
+      onSsrmTick: (h: () => void) => { tickHandlers.push(h); return () => {}; },
+    } as never;
+    render(<SsrmTotalRowsStatusPanel api={api} provider={p} refreshThrottleMs={100} />);
+    await vi.advanceTimersByTimeAsync(0);
+    const initial = (p as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length;
+
+    tickHandlers.forEach((h) => h());
+    await vi.advanceTimersByTimeAsync(100);
+    expect((p as never as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length)
+      .toBe(initial + 1);
+
+    // No ticks: only the slow 2s fallback may fire, not a 150ms free-run.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect((p as never as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length)
+      .toBe(initial + 1);
+    vi.useRealTimers();
+  });
 });
