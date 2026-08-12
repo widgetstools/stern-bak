@@ -5246,6 +5246,7 @@
           }
         ],
         "keyColumn": "positionId",
+        "publishWindowMs": 200,
         "throttleEnabled": true,
         "throttleMs": 100,
         "conflateEnabled": true,

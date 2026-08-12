@@ -219,3 +219,40 @@ describe('per-session expression rules', () => {
     expect(engine.getRows({ ...BASE }, 'anybody').rowData[0].g).toBe(11);
   });
 });
+
+describe('cross-grid consistency acceptance', () => {
+  const CRITERIA = {
+    ...BASE,
+    filterModel: { book: { filterType: 'text', type: 'equals', filter: 'A' } },
+    sortModel: [{ colId: 'px', sort: 'desc' as const }],
+    valueCols: [{ field: 'px', aggFunc: 'sum' }],
+  };
+
+  it('two sessions with identical criteria get the IDENTICAL result at one revision', () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot(Array.from({ length: 1000 }, (_, i) => ({
+      id: `r${i}`, book: i % 2 ? 'A' : 'B', px: i,
+    })));
+    const a = engine.getRows(CRITERIA, 'gridA');
+    const b = engine.getRows(CRITERIA, 'gridB');
+    expect(b.grandTotalData).toBe(a.grandTotalData); // same memo object — bit-identical
+    expect(b.rowData).toEqual(a.rowData);
+  });
+
+  it('a spike that retreats within one window leaves only the final value, for every grid', () => {
+    const t = fakeTimers();
+    const engine = new SsrmServer({
+      keyColumn: 'id', publishWindowMs: 200, setTimer: t.set, clearTimer: t.clear,
+    });
+    engine.replaceSnapshot([{ id: 'a', book: 'A', px: 10 }, { id: 'b', book: 'A', px: 20 }]);
+    const sumBefore = engine.getRows(CRITERIA).grandTotalData?.px;
+    engine.upsert([{ id: 'a', px: 1_000_000 }]); // spike…
+    engine.upsert([{ id: 'a', px: 12 }]);        // …and retreat, same window
+    t.fire();
+    const sumA = engine.getRows(CRITERIA, 'gridA').grandTotalData?.px;
+    const sumB = engine.getRows(CRITERIA, 'gridB').grandTotalData?.px;
+    expect(sumA).toBe(32);          // only the final value — never the spike
+    expect(sumB).toBe(sumA);
+    expect(sumBefore).toBe(30);
+  });
+});

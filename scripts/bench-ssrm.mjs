@@ -31,8 +31,9 @@ const dist = path.join(
 
 let RowStore;
 let QueryEngine;
+let SsrmServer;
 try {
-  ({ RowStore, QueryEngine } = await import(dist));
+  ({ RowStore, QueryEngine, SsrmServer } = await import(dist));
 } catch {
   console.error(
     `\nCannot load ${path.relative(process.cwd(), dist)}\n` +
@@ -167,5 +168,61 @@ const tick = (n) => {
 tick(100);
 tick(500);
 tick(2000);
+
+console.log('\nWindowed publish (25 frames of an 800-row tick: passthrough vs 200ms window)');
+
+/** One-shot `setTimeout` fake, matching `engineContract.test.ts`'s `fakeTimers()`. */
+function fakeTimers() {
+  const cbs = new Map();
+  let id = 0;
+  return {
+    set: (cb) => (cbs.set(++id, cb), id),
+    clear: (h) => void cbs.delete(h),
+    fire: () => { const all = [...cbs.values()]; cbs.clear(); all.forEach((f) => f()); },
+  };
+}
+
+const frame = (i) =>
+  rows.slice(0, 800).map((r) => ({ ...r, [numericCols[0]]: i * 1000 + Math.random() }));
+
+// Passthrough: publishWindowMs 0 (default) — one flush per store tick.
+const passthrough = new SsrmServer({ keyColumn: 'id', publishWindowMs: 0 });
+passthrough.replaceSnapshot(rows.slice(0, 2000));
+for (let i = 0; i < 25; i++) passthrough.upsert(frame(i));
+const passthroughStats = passthrough.getStats();
+const passthroughFlushes = passthroughStats.flushes - 1; // exclude the snapshot flush
+const passthroughUpdates = passthroughStats.updatesAccumulated;
+const passthroughKeys = passthroughStats.keysFlushed;
+
+// Windowed: publishWindowMs 200 with an injected fake timer — one conflated
+// flush for all 25 frames once the trailing-edge window fires.
+const t = fakeTimers();
+const windowed = new SsrmServer({
+  keyColumn: 'id', publishWindowMs: 200, setTimer: t.set, clearTimer: t.clear,
+});
+windowed.replaceSnapshot(rows.slice(0, 2000));
+for (let i = 0; i < 25; i++) windowed.upsert(frame(i));
+t.fire();
+const windowedStats = windowed.getStats();
+const windowedFlushes = windowedStats.flushes - 1; // exclude the snapshot flush
+const windowedUpdates = windowedStats.updatesAccumulated;
+const windowedKeys = windowedStats.keysFlushed;
+
+row('passthrough (0ms): flushes for 25 frames', passthroughFlushes, 'flushes');
+row('passthrough (0ms): updatesAccumulated', passthroughUpdates, 'updates');
+row('passthrough (0ms): keysFlushed', passthroughKeys, 'keys');
+row('windowed (200ms): flushes for 25 frames', windowedFlushes, 'flushes');
+row('windowed (200ms): updatesAccumulated', windowedUpdates, 'updates');
+row('windowed (200ms): keysFlushed', windowedKeys, 'keys');
+row(
+  'conflation ratio (passthrough:windowed flushes)',
+  `${(passthroughFlushes / Math.max(1, windowedFlushes)).toFixed(0)}:1`,
+  '',
+);
+row(
+  'conflation ratio (updatesAccumulated:keysFlushed, windowed)',
+  (windowedUpdates / Math.max(1, windowedKeys)).toFixed(2),
+  'x',
+);
 
 console.log(`\n  total heap ${heapMB().toFixed(0)} MB\n`);
