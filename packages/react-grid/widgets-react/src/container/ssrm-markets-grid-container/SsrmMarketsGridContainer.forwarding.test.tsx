@@ -32,8 +32,15 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useSsrmDataProvider: () => ({ provider: fakeProvider, error: null }),
 }));
 
+const wiring = vi.hoisted(() => ({
+  onStatus: null as ((s: string) => void) | null,
+}));
+
 vi.mock('./useSsrmProviderDataWiring.js', () => ({
-  useSsrmProviderDataWiring: () => ({ ready: true }),
+  useSsrmProviderDataWiring: (params: { onStatus?: (s: string) => void }) => {
+    wiring.onStatus = params.onStatus ?? null;
+    return { ready: true };
+  },
 }));
 
 vi.mock('../markets-grid-container/ProviderEditorDialog.js', () => ({
@@ -155,6 +162,32 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     expect(restart).toHaveBeenCalledWith(
       expect.objectContaining({ __refresh: expect.any(Number) }),
     );
+  });
+
+  it('drives the CSRM stale-data banner: error after ready sets dataStale, recovery clears it', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.dataStale).toBe(false));
+
+    act(() => {
+      wiring.onStatus?.('ready');
+      wiring.onStatus?.('error');
+    });
+    await waitFor(() => expect(captured.props.dataStale).toBe(true));
+
+    act(() => {
+      wiring.onStatus?.('loading');
+      wiring.onStatus?.('ready');
+    });
+    await waitFor(() => expect(captured.props.dataStale).toBe(false));
+  });
+
+  it('does not flag stale for errors before the first ready (cold connect retries)', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.dataStale).toBe(false));
+    act(() => {
+      wiring.onStatus?.('error');
+    });
+    expect(captured.props.dataStale).toBe(false);
   });
 
   it('carries CSRM\'s exact menu pair when both callbacks are wired', async () => {

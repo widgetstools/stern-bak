@@ -120,6 +120,10 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [statusText, setStatusText] = useState('Connecting…');
+  // CSRM-parity stale banner: error AFTER first ready = disconnected/stale
+  // (cold-connect retries stay silent); any recovery to ready clears.
+  const [dataStale, setDataStale] = useState(false);
+  const everReadyRef = useRef(false);
   const [loadRowCount, setLoadRowCount] = useState<number | undefined>();
 
   // Lifecycle is owned by useSsrmProviderDataWiring — do not autoStart /
@@ -141,7 +145,15 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const { ready } = useSsrmProviderDataWiring({
     provider,
     expressionRules,
-    onStatus: setStatusText,
+    onStatus: (status: string) => {
+      setStatusText(status);
+      if (status === 'ready') {
+        everReadyRef.current = true;
+        setDataStale(false);
+      } else if (status === 'error' && everReadyRef.current) {
+        setDataStale(true);
+      }
+    },
     setLoadRowCount,
   });
 
@@ -319,6 +331,8 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             gridId={gridIdProp ?? providerId}
             defaultColDef={defaultColDef}
             onReady={handleReady}
+            dataStale={dataStale}
+            dataStaleMessage="Live SSRM feed disconnected — values may be stale"
             adminActions={adminActions}
             ssrm={{
               provider,
