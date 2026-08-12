@@ -27,7 +27,41 @@ export interface SsrmServerOptions {
    * rendered, so the worker must keep ticking all of them.
    */
   maxInterestBlocks?: number;
+  /**
+   * Trailing-edge window (ms) over which `rows` ticks are accumulated and
+   * key-conflated before a single {@link SsrmFlushEvent} is published.
+   * Cache ingest (`upsert`/`replaceSnapshot`/`remove`) is never throttled —
+   * only the flush notification is windowed. Default `0` = passthrough:
+   * one flush per store tick, matching today's per-frame behaviour.
+   */
+  publishWindowMs?: number;
+  /** Injectable timer (hub pattern) — defaults to `setTimeout`. */
+  setTimer?: (cb: () => void, ms: number) => unknown;
+  /** Injectable timer clear (hub pattern) — defaults to `clearTimeout`. */
+  clearTimer?: (handle: unknown) => void;
 }
+
+/**
+ * Revision-stamped, windowed notification derived from store ticks.
+ * Unlike a raw {@link TickEvent}, a flush is always a settled, deduped
+ * view: `keys`/`columns` are unions accumulated since the last flush, and
+ * `revision` is the store revision AT FLUSH TIME (not at accumulation
+ * start), so a consumer that reacts to a flush always sees a consistent
+ * snapshot of the store as of that revision.
+ */
+export interface SsrmFlushEvent {
+  type: 'rows' | 'snapshot';
+  /** Union of changed keys since the last flush (empty for snapshot). */
+  keys: string[];
+  /** Union of changed columns since the last flush. */
+  columns: string[];
+  /** Store revision AT FLUSH TIME — the consistency stamp. */
+  revision: number;
+  /** Keys accumulated before dedup — `- keys.length` were conflated. */
+  updatesAccumulated: number;
+}
+
+type FlushListener = (event: SsrmFlushEvent) => void;
 
 /**
  * Identifies which block of which query a `setViewportInterest` call covers.
@@ -72,11 +106,25 @@ export class SsrmServer implements ICacheIngest {
   private viewportInterest = new Map<string, SessionInterest>();
   private readonly maxInterestBlocks: number;
 
+  // ── Windowed flush ────────────────────────────────────────────────
+  private readonly publishWindowMs: number;
+  private readonly setTimer: (cb: () => void, ms: number) => unknown;
+  private readonly clearTimer: (handle: unknown) => void;
+  private flushListeners = new Set<FlushListener>();
+  private pendingKeys = new Set<string>();
+  private pendingColumns = new Set<string>();
+  private pendingCount = 0;
+  private windowTimer: unknown | null = null;
+
   constructor(options: SsrmServerOptions) {
     this.maxInterestBlocks = Math.max(
       1,
       options.maxInterestBlocks ?? DEFAULT_MAX_INTEREST_BLOCKS,
     );
+    this.publishWindowMs = options.publishWindowMs ?? 0;
+    this.setTimer = options.setTimer ?? ((cb, ms) => setTimeout(cb, ms));
+    this.clearTimer =
+      options.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     this.store = new RowStore({
       keyColumn: options.keyColumn,
       projectFields: options.projectFields,
@@ -85,6 +133,7 @@ export class SsrmServer implements ICacheIngest {
       store: this.store,
       tree: options.tree,
     });
+    this.store.onTick((event) => this.handleTick(event));
   }
 
   // ── Ingest ──────────────────────────────────────────────────────────
@@ -235,6 +284,97 @@ export class SsrmServer implements ICacheIngest {
 
   onTick(listener: TickListener): () => void {
     return this.store.onTick(listener);
+  }
+
+  // ── Windowed flush ────────────────────────────────────────────────
+  /**
+   * Subscribe to revision-stamped, windowed flush notifications derived
+   * from store ticks (see {@link SsrmFlushEvent}). Cache ingest is never
+   * throttled — this only windows *notification*. Returns an unsubscribe.
+   */
+  onFlush(listener: FlushListener): () => void {
+    this.flushListeners.add(listener);
+    return () => this.flushListeners.delete(listener);
+  }
+
+  /** Clears any pending window timer. Safe to call with nothing armed. */
+  dispose(): void {
+    if (this.windowTimer != null) {
+      this.clearTimer(this.windowTimer);
+      this.windowTimer = null;
+    }
+    this.pendingKeys.clear();
+    this.pendingColumns.clear();
+    this.pendingCount = 0;
+  }
+
+  private handleTick(event: TickEvent): void {
+    if (event.type === 'snapshot') {
+      // Snapshot invalidates any accumulation in flight — flush immediately.
+      if (this.windowTimer != null) {
+        this.clearTimer(this.windowTimer);
+        this.windowTimer = null;
+      }
+      this.pendingKeys.clear();
+      this.pendingColumns.clear();
+      this.pendingCount = 0;
+      this.emitFlush({
+        type: 'snapshot',
+        keys: [],
+        columns: [],
+        revision: this.store.getRevision(),
+        updatesAccumulated: 0,
+      });
+      return;
+    }
+
+    if (event.type !== 'rows') return;
+
+    if (this.publishWindowMs <= 0) {
+      // Passthrough: one flush per store tick (today's per-frame behaviour).
+      const keys = [...new Set(event.keys ?? [])];
+      this.emitFlush({
+        type: 'rows',
+        keys,
+        columns: [...(event.columns ?? [])],
+        revision: this.store.getRevision(),
+        updatesAccumulated: (event.keys ?? []).length,
+      });
+      return;
+    }
+
+    // Windowed: accumulate + key-conflate until the trailing-edge timer fires.
+    for (const key of event.keys ?? []) {
+      this.pendingKeys.add(key);
+      this.pendingCount++;
+    }
+    for (const col of event.columns ?? []) this.pendingColumns.add(col);
+
+    if (this.windowTimer == null) {
+      this.windowTimer = this.setTimer(() => this.flushWindow(), this.publishWindowMs);
+    }
+  }
+
+  private flushWindow(): void {
+    this.windowTimer = null;
+    const keys = [...this.pendingKeys];
+    const columns = [...this.pendingColumns];
+    const updatesAccumulated = this.pendingCount;
+    this.pendingKeys.clear();
+    this.pendingColumns.clear();
+    this.pendingCount = 0;
+    if (keys.length === 0 && updatesAccumulated === 0) return;
+    this.emitFlush({
+      type: 'rows',
+      keys,
+      columns,
+      revision: this.store.getRevision(),
+      updatesAccumulated,
+    });
+  }
+
+  private emitFlush(event: SsrmFlushEvent): void {
+    for (const l of this.flushListeners) l(event);
   }
 }
 
