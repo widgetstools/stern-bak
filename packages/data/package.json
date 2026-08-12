@@ -15,6 +15,10 @@
       "types": "./host-data/dist/runtime/index.d.ts",
       "import": "./host-data/dist/runtime/index.js"
     },
+    "./ssrm-engine": {
+      "types": "./host-data/dist/runtime/ssrm/index.d.ts",
+      "import": "./host-data/dist/runtime/ssrm/index.js"
+    },
     "./runtime/sharedWorker": {
       "types": "./host-data/dist/runtime/worker/index.d.ts",
       "import": "./host-data/dist/runtime/worker/index.js"
