@@ -35,23 +35,52 @@ export function withSsrmSetFilterValues<T extends ColDefLike>(
 ): T[] {
   const { provider } = deps;
 
+  const valuesParams = (field: string) => ({
+    refreshValuesOnOpen: true,
+    values: (params: SetFilterValuesParams) => {
+      provider
+        .getSetFilterValues({ column: field })
+        .then((values) => params.success(values))
+        .catch(() => params.success([]));
+    },
+  });
+
   const decorate = (def: ColDefLike): ColDefLike => {
     if (Array.isArray(def.children)) {
       return { ...def, children: def.children.map(decorate) };
     }
     const field = def.field;
     if (!field || def.filter === false) return def;
+
+    // agMultiColumnFilter envelope (the customizer writes the primary kind
+    // as sub-1 and agSetColumnFilter as sub-2): the envelope ignores
+    // top-level `values` — the set SUB-filter's own params must carry them.
+    const subFilters = (def.filterParams as { filters?: unknown } | undefined)?.filters;
+    if (Array.isArray(subFilters)) {
+      return {
+        ...def,
+        filterParams: {
+          ...(def.filterParams ?? {}),
+          filters: (subFilters as ColDefLike[]).map((sub) =>
+            sub && sub.filter === 'agSetColumnFilter'
+              ? {
+                  ...sub,
+                  filterParams: {
+                    ...((sub.filterParams as Record<string, unknown>) ?? {}),
+                    ...valuesParams(field),
+                  },
+                }
+              : sub,
+          ),
+        },
+      };
+    }
+
     return {
       ...def,
       filterParams: {
         ...(def.filterParams ?? {}),
-        refreshValuesOnOpen: true,
-        values: (params: SetFilterValuesParams) => {
-          provider
-            .getSetFilterValues({ column: field })
-            .then((values) => params.success(values))
-            .catch(() => params.success([]));
-        },
+        ...valuesParams(field),
       },
     };
   };

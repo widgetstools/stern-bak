@@ -61,6 +61,38 @@ describe('withSsrmSetFilterValues', () => {
     expect(d.provider.getSetFilterValues).toHaveBeenCalledWith({ column: 'px' });
   });
 
+  it('injects values into the set sub-filter of an agMultiColumnFilter envelope', async () => {
+    const d = deps(['A', 'B']);
+    const [col] = withSsrmSetFilterValues(
+      [{
+        field: 'trader',
+        filter: 'agMultiColumnFilter',
+        filterParams: {
+          filters: [
+            { filter: 'agTextColumnFilter', filterParams: { buttons: ['reset'] } },
+            { filter: 'agSetColumnFilter' },
+          ],
+        },
+      }],
+      d,
+    );
+    const fp = (col as { filterParams: { filters: Array<Record<string, unknown>> } }).filterParams;
+    // Text sub-filter untouched.
+    expect((fp.filters[0].filterParams as { buttons: string[] }).buttons).toEqual(['reset']);
+    expect((fp.filters[0].filterParams as { values?: unknown }).values).toBeUndefined();
+    // Set sub-filter got the worker-backed values callback.
+    const setParams = fp.filters[1].filterParams as {
+      values: (p: { success: (v: string[]) => void }) => void;
+      refreshValuesOnOpen: boolean;
+    };
+    expect(setParams.refreshValuesOnOpen).toBe(true);
+    const success = vi.fn();
+    setParams.values({ success });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d.provider.getSetFilterValues).toHaveBeenCalledWith({ column: 'trader' });
+    expect(success).toHaveBeenCalledWith(['A', 'B']);
+  });
+
   it('reports an empty list when the worker call fails (panel stays usable)', async () => {
     const provider = { getSetFilterValues: vi.fn(async () => { throw new Error('down'); }) };
     const [col] = withSsrmSetFilterValues([{ field: 'book' }], { provider });
