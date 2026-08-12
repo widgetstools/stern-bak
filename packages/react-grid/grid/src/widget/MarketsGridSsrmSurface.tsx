@@ -37,6 +37,7 @@ import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
 import { createSsrmStatusBar } from '../ssrm/createSsrmStatusBar.js';
 import { ssrmAlertRowClass, ssrmGetChildCount } from '../ssrm/expressionBindings.js';
+import { withSsrmSetFilterValues } from '../ssrm/ssrmSetFilterValues.js';
 import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
 
 /** AG Grid 35+: pass modules to the grid instance (plus global registry). */
@@ -133,6 +134,17 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   const cacheBlockSize = useMemo(
     () => resolveCacheBlockSize(provider, cacheBlockSizeProp),
     [provider, cacheBlockSizeProp],
+  );
+
+  // Set-filter panels list the column's full domain from the worker cache —
+  // without this they show only the values present in loaded blocks.
+  const ssrmColumnDefs = useMemo(
+    () =>
+      withSsrmSetFilterValues(
+        columnDefs as Parameters<typeof withSsrmSetFilterValues>[0],
+        { provider },
+      ),
+    [columnDefs, provider],
   );
 
   const statusPack = useMemo(
@@ -242,7 +254,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         {...pipelineGridOptions}
         {...hostOverrides}
         theme={theme}
-        columnDefs={columnDefs as never}
+        columnDefs={ssrmColumnDefs as never}
         rowModelType="serverSide"
         cacheBlockSize={cacheBlockSize}
         maxBlocksInCache={20}

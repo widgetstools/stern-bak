@@ -41,6 +41,8 @@ import {
   subtractFilterModel,
 } from './filtersToolbarLogic';
 import type { SavedFilter } from './types';
+import { computeSsrmFilterCounts } from './ssrmFilterCounts.js';
+import { useSsrmFilterCountsDeps } from './SsrmFilterCountsContext.js';
 
 // ─── AG-Grid v35 shape repair ──────────────────────────────────────────
 //
@@ -258,6 +260,9 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
   const [filterCounts, setFilterCounts] = useState<Record<string, number>>({});
   const filterCountsRef = useRef<Record<string, number>>({});
   const matchSetsRef = useRef<Map<string, Set<string>>>(new Map());
+  // Non-null under SSRM: pills count against the whole worker cache, not
+  // the loaded blocks a forEachNode scan would see.
+  const ssrmCountsDeps = useSsrmFilterCountsDeps();
 
   useEffect(() => {
     const disposers: Array<() => void> = [];
@@ -273,6 +278,18 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
         const fullRecompute = () => {
           if (filters.length === 0) {
             clearCounts();
+            return;
+          }
+          if (ssrmCountsDeps) {
+            // SSRM: the worker filters the whole cache and returns rowCount
+            // per pill; client match-sets stay empty so incremental tick
+            // updates route back here instead of patching stale sets.
+            void computeSsrmFilterCounts(filters, ssrmCountsDeps).then((next) => {
+              matchSetsRef.current = new Map();
+              if (filterCountsEqual(filterCountsRef.current, next)) return;
+              filterCountsRef.current = next;
+              setFilterCounts(next);
+            });
             return;
           }
           const matchSets = new Map<string, Set<string>>();
@@ -353,7 +370,7 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
       }),
     );
     return () => { for (const d of disposers) d(); };
-  }, [platform, filters]);
+  }, [platform, filters, ssrmCountsDeps]);
 
   return filterCounts;
 }
