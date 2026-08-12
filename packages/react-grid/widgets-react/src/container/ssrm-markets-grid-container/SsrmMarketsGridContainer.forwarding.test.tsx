@@ -6,7 +6,7 @@
  * the container previously dropped or hardcoded.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 const captured = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
@@ -90,37 +90,57 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     await waitFor(() => expect(onProviderReady).toHaveBeenCalledWith(fakeProvider));
   });
 
-  it('routes the provider-editor entry to onEditProvider when supplied', async () => {
+  it('routes the Data Provider Editor admin action to onEditProvider when supplied', async () => {
     const onEditProvider = vi.fn();
     render(
       <SsrmMarketsGridContainer providerId="p1" onEditProvider={onEditProvider} />,
     );
-    const button = await screen.findByRole('button', { name: /edit provider/i });
-    fireEvent.click(button);
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    const actions = captured.props.adminActions as Array<{
+      id: string;
+      onClick: () => void;
+    }>;
+    const editor = actions.find((a) => a.id === 'data-provider-editor');
+    expect(editor).toBeDefined();
+    editor!.onClick();
     expect(onEditProvider).toHaveBeenCalledWith('p1');
     expect(screen.queryByTestId('inline-editor')).toBeNull();
   });
 
-  it('opens the inline dialog when onEditProvider is not supplied', async () => {
+  it('opens the inline dialog from the admin action when onEditProvider is not supplied', async () => {
     render(<SsrmMarketsGridContainer providerId="p1" />);
-    const button = await screen.findByRole('button', { name: /edit provider/i });
-    fireEvent.click(button);
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    const actions = captured.props.adminActions as Array<{
+      id: string;
+      onClick: () => void;
+    }>;
+    act(() => {
+      actions.find((a) => a.id === 'data-provider-editor')!.onClick();
+    });
     expect(await screen.findByTestId('inline-editor')).toBeTruthy();
   });
 
-  it('exposes a Config Browser admin action wired to onOpenConfigBrowser', async () => {
+  it('carries CSRM\'s exact menu pair when both callbacks are wired', async () => {
     const onOpenConfigBrowser = vi.fn();
     render(
-      <SsrmMarketsGridContainer providerId="p1" onOpenConfigBrowser={onOpenConfigBrowser} />,
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        onEditProvider={vi.fn()}
+        onOpenConfigBrowser={onOpenConfigBrowser}
+      />,
     );
     await waitFor(() => expect(captured.props.adminActions).toBeDefined());
     const actions = captured.props.adminActions as Array<{
+      id: string;
       label: string;
       onClick: () => void;
     }>;
-    const browser = actions.find((a) => /config browser/i.test(a.label));
-    expect(browser).toBeDefined();
-    browser!.onClick();
+    // Same ids, labels and order as MarketsGridContainer's data-infra menu.
+    expect(actions.map((a) => [a.id, a.label])).toEqual([
+      ['data-provider-editor', 'Data Provider Editor'],
+      ['config-browser', 'Config Browser'],
+    ]);
+    actions[1].onClick();
     expect(onOpenConfigBrowser).toHaveBeenCalledTimes(1);
   });
 });

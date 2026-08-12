@@ -74,11 +74,12 @@ describe('SsrmMarketsGridContainer', () => {
     expect(screen.queryByTestId('legacy-ssrm')).not.toBeInTheDocument();
   });
 
-  it('shows provider status strip with row count', async () => {
+  it('shows provider status strip with row count when opted in', async () => {
     render(
       <SsrmMarketsGridContainer
         providerId="stomp-ssrm-1"
         showProviderEditor={false}
+        showStatusStrip
       />,
     );
 
@@ -87,5 +88,12 @@ describe('SsrmMarketsGridContainer', () => {
       expect(strip.textContent).toContain('Ready');
       expect(strip.textContent).toContain('20,000');
     });
+  });
+
+  it('renders neither strip by default — layout parity with MarketsGridContainer', () => {
+    render(<SsrmMarketsGridContainer providerId="stomp-ssrm-1" />);
+
+    expect(screen.queryByTestId('ssrm-provider-status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /edit provider/i })).not.toBeInTheDocument();
   });
 });

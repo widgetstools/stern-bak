@@ -46,6 +46,23 @@ const LOADING_STYLE = {
   color: 'var(--ds-text-muted)',
 };
 
+// Mirrors HostedMarketsGrid's full-bleed frame byte for byte.
+const FULL_BLEED_STYLE = {
+  position: 'fixed' as const,
+  inset: 0,
+  display: 'flex' as const,
+  flexDirection: 'column' as const,
+  background: 'var(--ds-surface-ground)',
+  color: 'var(--ds-text-primary)',
+  overflow: 'hidden' as const,
+};
+
+const INNER_FILL_STYLE = {
+  flex: 1,
+  minHeight: 0,
+  position: 'relative' as const,
+};
+
 export interface HostedSsrmMarketsGridProps
   extends Omit<SsrmMarketsGridContainerProps, ContainerOwnedKeys | 'providerId'> {
   /** Required `stomp-ssrm` catalog provider id. */
@@ -241,6 +258,16 @@ export function HostedSsrmMarketsGrid(props: HostedSsrmMarketsGridProps) {
     </div>
   );
 
+  const fullBleedReset = (
+    <style>{`
+      html, body {
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+      }
+    `}</style>
+  );
+
   const dataServicesWrapped = identity.configManager
     ? platform
       ? (
@@ -261,5 +288,16 @@ export function HostedSsrmMarketsGrid(props: HostedSsrmMarketsGridProps) {
         : grid
     : grid;
 
-  return dataServicesWrapped;
+  // Full-bleed frame identical to HostedMarketsGrid: `position: fixed` +
+  // `inset: 0` gives the grid a definite height regardless of the host
+  // route's layout chain — without it the AG Grid viewport collapses to
+  // zero height (chrome renders, rows don't) in OpenFin views.
+  return (
+    <>
+      {fullBleedReset}
+      <div style={FULL_BLEED_STYLE}>
+        <div style={INNER_FILL_STYLE}>{dataServicesWrapped}</div>
+      </div>
+    </>
+  );
 }

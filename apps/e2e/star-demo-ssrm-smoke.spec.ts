@@ -44,6 +44,18 @@ test.describe('star-demo-ssrm smoke', () => {
       page.locator('.ag-grid-scrolling-container .ag-row').first(),
     ).toBeVisible({ timeout: 45_000 });
 
+    // AG Grid positions rows absolutely, so a row can count as "visible"
+    // inside a zero-height viewport (chrome renders, grid body collapsed —
+    // the exact bug the full-bleed hosted frame fixes). Assert real height.
+    const viewport = page.locator('.ag-grid-viewport').first();
+    const box = await viewport.boundingBox();
+    expect(box, 'grid viewport should have a bounding box').toBeTruthy();
+    expect(box!.height, 'grid viewport must not be collapsed').toBeGreaterThan(200);
+
+    // Layout parity with star-demo: no SSRM-container strips above the grid.
+    await expect(page.getByTestId('ssrm-provider-status')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /edit provider/i })).toHaveCount(0);
+
     // Steady state: observe long enough for the first live ticks to land.
     await page.waitForTimeout(10_000);
 

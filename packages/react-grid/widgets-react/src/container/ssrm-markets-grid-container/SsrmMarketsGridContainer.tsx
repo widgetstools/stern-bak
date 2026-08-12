@@ -8,6 +8,7 @@ import {
   type MarketsGridProps,
 } from '@wellsfargo-starui/grid';
 import { createConfigBrowserAction } from '@wellsfargo-starui/grid/config-browser';
+import { DATA_PROVIDER_EDITOR_ACTION_ID } from '../markets-grid-container/MarketsGridContainer.js';
 import { useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from '../markets-grid-container/buildColumnDefs.js';
 import { useSsrmProviderDataWiring } from './useSsrmProviderDataWiring.js';
@@ -46,8 +47,18 @@ export interface SsrmMarketsGridContainerProps extends Partial<
   expressionSnapshot?: Parameters<typeof toSsrmExpressionRules>[0];
   className?: string;
   style?: React.CSSProperties;
-  /** Show inline provider editor entry. */
+  /**
+   * Show the standalone "Edit provider" strip above the grid. Off by
+   * default: the editor is always reachable through the same
+   * "Data Provider Editor" admin action MarketsGridContainer exposes, so
+   * hosted layouts match star-demo exactly. The SSRM lab turns the strip on.
+   */
   showProviderEditor?: boolean;
+  /**
+   * Show the connection status / row-count strip above the grid. Off by
+   * default for the same layout-parity reason; the lab turns it on.
+   */
+  showStatusStrip?: boolean;
   /**
    * Route the provider-editor entry to a host callback (e.g. a popout)
    * instead of the inline dialog.
@@ -83,7 +94,8 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     expressionSnapshot,
     className,
     style,
-    showProviderEditor = true,
+    showProviderEditor = false,
+    showStatusStrip = false,
     onEditProvider,
     onOpenConfigBrowser,
     onRowIdFieldChange,
@@ -192,13 +204,25 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     onProviderReady?.(provider);
   }, [onProviderReady, provider, ready]);
 
-  // Same admin-action seam MarketsGridContainer gives OpenFin hosts.
+  // Exactly MarketsGridContainer's data-infrastructure menu: the
+  // "Data Provider Editor" action (host popout when onEditProvider is
+  // supplied, inline dialog otherwise) and, when a host wires it,
+  // "Config Browser" — same ids, labels, icons and order as CSRM.
   const adminActions = useMemo(
-    () =>
-      onOpenConfigBrowser
+    () => [
+      {
+        id: DATA_PROVIDER_EDITOR_ACTION_ID,
+        label: 'Data Provider Editor',
+        description: 'Edit provider configs, STOMP paths, and field mappings',
+        icon: 'lucide:plug',
+        onClick: () =>
+          onEditProvider ? onEditProvider(providerId) : setEditorOpen(true),
+      },
+      ...(onOpenConfigBrowser
         ? [createConfigBrowserAction({ launch: onOpenConfigBrowser })]
-        : undefined,
-    [onOpenConfigBrowser],
+        : []),
+    ],
+    [onEditProvider, onOpenConfigBrowser, providerId],
   );
 
   return (
@@ -233,7 +257,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         </div>
       ) : null}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {provider ? (
+        {provider && showStatusStrip ? (
           <div
             data-testid="ssrm-provider-status"
             style={{
@@ -285,14 +309,14 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
           </p>
         )}
       </div>
-      {showProviderEditor ? (
-        <ProviderEditorDialog
-          open={editorOpen}
-          onOpenChange={setEditorOpen}
-          providerId={providerId}
-          userId={userId}
-        />
-      ) : null}
+      {/* Reachable from the Data Provider Editor admin action even when the
+          strip is hidden; renders nothing while closed. */}
+      <ProviderEditorDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        providerId={providerId}
+        userId={userId}
+      />
     </div>
   );
 }
