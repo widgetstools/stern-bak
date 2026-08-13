@@ -46,6 +46,17 @@ const SSRM_AG_GRID_MODULES: Module[] = [AllEnterpriseModule];
 
 const SURFACE_STYLE: CSSProperties = { flex: 1 };
 
+/** Sentinel: "no statusBar value has reached the grid api yet" — forces
+ *  the gridReady catch-up push to apply whatever is latest. */
+const STATUS_BAR_UNPUSHED = Symbol('statusBar-unpushed');
+
+/** "Bar off" is an EMPTY panel list, never `undefined`: AG Grid only
+ *  creates the status-bar container when the option is set at init, and
+ *  keeps the container when the option is cleared at runtime. Passing an
+ *  empty list at init + toggling the strip's visibility below makes
+ *  SHOW STATUS BAR work in both directions without a grid remount. */
+const EMPTY_STATUS_BAR = { statusPanels: [] as never[] };
+
 export interface MarketsGridSsrmSurfaceProps<TData> {
   readonly gridRef: RefObject<AgGridReact<TData> | null>;
   readonly gridOptions: Record<string, unknown>;
@@ -187,26 +198,34 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   }, [statusBar, hostOverrideKeys, statusPack, pipelineStatusBarJson, provider, getQuickFilterText]);
 
   // `statusBar` is skipped by useGridHost's generic option sync for SSRM
-  // grids (the raw native panels must never land), so post-mount changes
-  // from the customizer are pushed here. The initial value reaches the
-  // grid through the mount prop.
-  const statusBarPushRef = useRef<{ initial: boolean; last: unknown }>({ initial: true, last: null });
-  useEffect(() => {
-    const tracker = statusBarPushRef.current;
-    if (tracker.initial) {
-      tracker.initial = false;
-      tracker.last = mergedStatusBar;
-      return;
-    }
-    if (Object.is(tracker.last, mergedStatusBar)) return;
-    tracker.last = mergedStatusBar;
+  // grids (the raw native panels must never land), so the surface pushes
+  // its own mapped value. A value is recorded as applied ONLY when it
+  // actually reached a live grid api — recording before the api check
+  // silently swallowed any change that landed while the grid was still
+  // initialising (profile hydration routinely beats gridReady), which
+  // made customizer STATUS BAR edits apply intermittently. gridReady
+  // runs a catch-up push so everything from that window lands.
+  const latestStatusBarRef = useRef<unknown>(mergedStatusBar);
+  latestStatusBarRef.current = mergedStatusBar;
+  const appliedStatusBarRef = useRef<unknown>(STATUS_BAR_UNPUSHED);
+  const pushStatusBar = useCallback(() => {
+    if (Object.is(appliedStatusBarRef.current, latestStatusBarRef.current)) return;
     const api = apiRef.current as unknown as {
       isDestroyed?: () => boolean;
       setGridOption?: (key: string, value: unknown) => void;
     } | null;
     if (!api || api.isDestroyed?.()) return;
-    api.setGridOption?.('statusBar', mergedStatusBar);
-  }, [mergedStatusBar]);
+    appliedStatusBarRef.current = latestStatusBarRef.current;
+    const next = latestStatusBarRef.current as typeof EMPTY_STATUS_BAR | undefined;
+    api.setGridOption?.('statusBar', next ?? EMPTY_STATUS_BAR);
+    // AG Grid keeps (or re-fills) the container element; the strip's
+    // visibility is ours. Hidden entirely when the card toggles the bar off.
+    const strip = surfaceRootRef.current?.querySelector('.ag-status-bar') as HTMLElement | null;
+    if (strip) strip.style.display = next && next.statusPanels.length > 0 ? '' : 'none';
+  }, []);
+  useEffect(() => {
+    pushStatusBar();
+  }, [mergedStatusBar, pushStatusBar]);
 
   const mergedContext = useMemo(
     () => ({
@@ -255,26 +274,68 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     defaultColDef,
   ]);
 
-  const handleGridReady = useCallback(
-    (e: GridReadyEvent<TData>) => {
-      apiRef.current = e.api;
-      e.api.setGridOption(
+  // ── Late-bound key column ─────────────────────────────────────────
+  //
+  // `keyColumn` starts as the fallback 'id' and resolves (e.g. to
+  // 'positionId') once the provider is ready. The grid is created ONCE:
+  // `getRowId` is an init-only AG Grid option, but only the FUNCTION is
+  // captured at init — it reads the ref, so the resolved key takes
+  // effect without a remount. The datasource and the tick binding are
+  // runtime-settable, so a keyColumn change rebinds them and purges
+  // every block; no row can exist under the old identity because rows
+  // only load once the provider is ready, and ready both triggers the
+  // resolve and purges (bindSsrmTicks' status subscription).
+  const keyColumnRef = useRef(keyColumn);
+  keyColumnRef.current = keyColumn;
+  /** keyColumn the live datasource/ticks were bound with. */
+  const boundKeyColumnRef = useRef<string | null>(null);
+
+  const bindDataPath = useCallback(
+    (api: GridApi<TData>) => {
+      boundKeyColumnRef.current = keyColumnRef.current;
+      api.setGridOption(
         'serverSideDatasource',
         createSsrmDatasource(provider, {
-          keyColumn,
+          keyColumn: keyColumnRef.current,
           getQuickFilterText,
         }),
       );
       unbindTicks();
-      unbindRef.current = bindSsrmTicks(provider, e.api, {
-        keyColumn,
+      unbindRef.current = bindSsrmTicks(provider, api, {
+        keyColumn: keyColumnRef.current,
         flash: false,
         getQuickFilterText,
       });
+    },
+    [provider, getQuickFilterText, unbindTicks],
+  );
+
+  const handleGridReady = useCallback(
+    (e: GridReadyEvent<TData>) => {
+      apiRef.current = e.api;
+      // Catch-up: apply whatever statusBar value is latest — changes that
+      // landed while the grid was initialising never reached an api.
+      pushStatusBar();
+      bindDataPath(e.api);
       onGridReady(e);
     },
-    [provider, keyColumn, getQuickFilterText, onGridReady, unbindTicks],
+    [bindDataPath, onGridReady, pushStatusBar],
   );
+
+  // keyColumn resolved after the grid was already bound → rebind the
+  // datasource + ticks under the new key and reload every block.
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api || (api as { isDestroyed?: () => boolean }).isDestroyed?.()) return;
+    if (boundKeyColumnRef.current === null) return; // not bound yet — gridReady will bind
+    if (boundKeyColumnRef.current === keyColumn) return;
+    bindDataPath(api);
+    try {
+      (api as { refreshServerSide?: (p?: { purge?: boolean }) => void }).refreshServerSide?.({ purge: true });
+    } catch {
+      /* grid mid-teardown */
+    }
+  }, [keyColumn, bindDataPath]);
 
   const handleGridPreDestroyed = useCallback(() => {
     unbindTicks();
@@ -287,9 +348,12 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     apiRef.current = null;
   }, [unbindTicks]);
 
+  // Stable identity, live key: AG Grid captures this function at init
+  // (getRowId is init-only) — reading the ref lets the resolved
+  // keyColumn apply without remounting the grid.
   const getRowId = useCallback(
-    (p: { data?: unknown }) => resolveSsrmRowId(p.data, keyColumn),
-    [keyColumn],
+    (p: { data?: unknown }) => resolveSsrmRowId(p.data, keyColumnRef.current),
+    [],
   );
 
   return (
@@ -307,7 +371,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         getRowClass={ssrmAlertRowClass}
         getRowId={getRowId}
         loadingCellRenderer={BlankLoadingCellRenderer}
-        statusBar={mergedStatusBar}
+        statusBar={mergedStatusBar ?? EMPTY_STATUS_BAR}
         context={mergedContext}
         maintainColumnOrder
         cellSelection={true}

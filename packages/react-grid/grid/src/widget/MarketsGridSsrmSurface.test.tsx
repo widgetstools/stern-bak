@@ -3,18 +3,25 @@ import { render, waitFor } from '@testing-library/react';
 import React, { createRef } from 'react';
 import type { AgGridReact } from 'ag-grid-react';
 
-const { setGridOption, api, createSsrmDatasource, bindSsrmTicks } = vi.hoisted(() => {
+const { setGridOption, refreshServerSide, api, createSsrmDatasource, bindSsrmTicks } = vi.hoisted(() => {
   const setGridOption = vi.fn();
-  const api = { setGridOption, isDestroyed: () => false };
+  const refreshServerSide = vi.fn();
+  const api = { setGridOption, refreshServerSide, isDestroyed: () => false };
   const createSsrmDatasource = vi.fn(() => ({ getRows: vi.fn() }));
   const bindSsrmTicks = vi.fn(() => () => {});
-  return { setGridOption, api, createSsrmDatasource, bindSsrmTicks };
+  return { setGridOption, refreshServerSide, api, createSsrmDatasource, bindSsrmTicks };
 });
 
 vi.mock('ag-grid-react', () => ({
   AgGridReact: (props: { onGridReady?: (e: { api: typeof api }) => void }) => {
     (globalThis as Record<string, unknown>).__ssrmSurfaceProps = props;
+    // Real AG Grid fires gridReady exactly once per mount.
+    const firedRef = React.useRef(false);
     React.useEffect(() => {
+      // Tests may hold gridReady to simulate a slow grid init.
+      if ((globalThis as Record<string, unknown>).__ssrmHoldReady) return;
+      if (firedRef.current) return;
+      firedRef.current = true;
       props.onGridReady?.({ api });
     }, [props]);
     return React.createElement('div', {
@@ -51,6 +58,7 @@ vi.mock('./useRestoreCellFocusOnWindowFocus.js', () => ({
 }));
 
 import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface.js';
+import { SsrmFilteredRowsStatusPanel } from '../ssrm/createSsrmStatusBar.js';
 
 describe('MarketsGridSsrmSurface', () => {
   beforeEach(() => {
@@ -162,9 +170,11 @@ describe('MarketsGridSsrmSurface — customizer status bar', () => {
     expect(bar.statusPanels[1].statusPanel).toBe('agSelectedRowCountComponent');
   });
 
-  it('renders no status bar when the customizer toggles it off (key absent)', () => {
+  it('renders an empty panel list when the customizer toggles the bar off (key absent)', () => {
+    // Empty, not undefined — AG Grid only creates the status-bar container
+    // when the option exists at init; the surface hides the empty strip.
     mount({ gridOptions: {} });
-    expect(surfaceProps().statusBar).toBeUndefined();
+    expect(surfaceProps().statusBar).toEqual({ statusPanels: [] });
   });
 
   it('keeps host-prop statusBar behaviour: prepended to the SSRM pack', () => {
@@ -221,5 +231,129 @@ describe('MarketsGridSsrmSurface — customizer status bar', () => {
         }),
       );
     });
+  });
+});
+
+describe('MarketsGridSsrmSurface — pre-ready statusBar race', () => {
+  const provider = {
+    id: 'p-ssrm',
+    getConfig: () => ({ blockSize: 100, keyColumn: 'positionId' }),
+    getColumnDefs: () => [],
+  } as never;
+
+  const surfaceEl = (gridOptions: Record<string, unknown>) => (
+    <MarketsGridSsrmSurface
+      gridRef={createRef<AgGridReact>()}
+      gridOptions={gridOptions}
+      hostOverrideKeys={new Set(['statusBar'])}
+      theme={undefined}
+      columnDefs={[{ field: 'positionId' }]}
+      ssrm={{ provider, keyColumn: 'positionId' }}
+      sideBar={false}
+      statusBar={undefined}
+      defaultColDef={undefined}
+      onGridReady={() => {}}
+      onGridPreDestroyed={() => {}}
+    />
+  );
+
+  it('applies a selection that landed while the grid was initialising (catch-up push at ready)', async () => {
+    setGridOption.mockClear();
+    (globalThis as Record<string, unknown>).__ssrmHoldReady = true;
+    try {
+      const { rerender } = render(
+        surfaceEl({ statusBar: { statusPanels: [{ statusPanel: 'agTotalRowCountComponent' }] } }),
+      );
+      // Customizer hydration lands a DIFFERENT selection before gridReady.
+      rerender(
+        surfaceEl({ statusBar: { statusPanels: [{ statusPanel: 'agFilteredRowCountComponent' }] } }),
+      );
+      // No api yet — nothing pushed, and (critically) nothing swallowed.
+      expect(setGridOption).not.toHaveBeenCalledWith('statusBar', expect.anything());
+
+      // Grid becomes ready — the catch-up push applies the LATEST selection.
+      const props = (globalThis as Record<string, unknown>).__ssrmSurfaceProps as {
+        onGridReady?: (e: { api: typeof api }) => void;
+      };
+      props.onGridReady?.({ api });
+
+      const statusBarCalls = setGridOption.mock.calls.filter((c) => c[0] === 'statusBar');
+      expect(statusBarCalls.length).toBeGreaterThan(0);
+      const pushed = statusBarCalls[statusBarCalls.length - 1][1] as {
+        statusPanels: Array<{ statusPanel: unknown }>;
+      };
+      expect(pushed.statusPanels).toHaveLength(1);
+      expect(pushed.statusPanels[0].statusPanel).toBe(SsrmFilteredRowsStatusPanel);
+    } finally {
+      delete (globalThis as Record<string, unknown>).__ssrmHoldReady;
+    }
+  });
+});
+
+describe('MarketsGridSsrmSurface — late-bound key column (single grid instantiation)', () => {
+  const makeProvider = () => ({
+    id: 'p-ssrm',
+    getConfig: () => ({ blockSize: 100 }),
+    getColumnDefs: () => [],
+  }) as never;
+
+  const surfaceEl = (provider: never, keyColumn: string) => (
+    <MarketsGridSsrmSurface
+      gridRef={createRef<AgGridReact>()}
+      gridOptions={{}}
+      hostOverrideKeys={new Set(['statusBar'])}
+      theme={undefined}
+      columnDefs={[{ field: 'positionId' }]}
+      ssrm={{ provider, keyColumn }}
+      sideBar={false}
+      statusBar={undefined}
+      defaultColDef={undefined}
+      onGridReady={() => {}}
+      onGridPreDestroyed={() => {}}
+    />
+  );
+
+  it('rebinds datasource + ticks and purges when keyColumn resolves — no remount', async () => {
+    const provider = makeProvider();
+    createSsrmDatasource.mockClear();
+    bindSsrmTicks.mockClear();
+    refreshServerSide.mockClear();
+
+    const { rerender } = render(surfaceEl(provider, 'id'));
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalledWith(
+      provider,
+      expect.objectContaining({ keyColumn: 'id' }),
+    ));
+    const bindsAfterReady = bindSsrmTicks.mock.calls.length;
+
+    // Provider becomes ready → container resolves the real key column.
+    rerender(surfaceEl(provider, 'positionId'));
+
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalledWith(
+      provider,
+      expect.objectContaining({ keyColumn: 'positionId' }),
+    ));
+    expect(bindSsrmTicks.mock.calls.length).toBeGreaterThan(bindsAfterReady);
+    // Row identity changed — every block reloads under the new key.
+    expect(refreshServerSide).toHaveBeenCalledWith({ purge: true });
+
+    // getRowId captured at init reads the CURRENT key column via the ref.
+    const props = (globalThis as Record<string, unknown>).__ssrmSurfaceProps as {
+      getRowId: (p: { data: Record<string, unknown> }) => string;
+    };
+    expect(props.getRowId({ data: { id: 'wrong', positionId: 'POS-1' } })).toBe('POS-1');
+  });
+
+  it('does not rebind when keyColumn is unchanged across re-renders', async () => {
+    const provider = makeProvider();
+    createSsrmDatasource.mockClear();
+
+    const { rerender } = render(surfaceEl(provider, 'positionId'));
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+    const calls = createSsrmDatasource.mock.calls.length;
+
+    rerender(surfaceEl(provider, 'positionId'));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(createSsrmDatasource.mock.calls.length).toBe(calls);
   });
 });

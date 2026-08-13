@@ -366,9 +366,12 @@ function MarketsGridHostInner<TData>({
         </div>
       )}
 
+      {/* Keyed on the provider only — a keyColumn resolve rebinds the
+          datasource/ticks in place (see MarketsGridSsrmSurface's
+          late-bound key column) instead of remounting the grid. */}
       {kind === 'ssrm' && ssrm ? (
         <MarketsGridSsrmSurface
-          key={`ssrm:${ssrm.provider.id}:${ssrm.keyColumn ?? 'id'}`}
+          key={`ssrm:${ssrm.provider.id}`}
           gridRef={gridRef}
           gridOptions={gridOptions}
           hostOverrideKeys={hostOverrideKeys}
