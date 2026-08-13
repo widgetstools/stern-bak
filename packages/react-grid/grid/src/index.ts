@@ -6,7 +6,7 @@
  *   runtime/     Host-runtime helpers (OpenFin popout — not in engine)
  */
 
-export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES, MINIMAL_MODULES } from './widget/MarketsGrid.js';
+export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES } from './widget/MarketsGrid.js';
 export { useGridTheme } from './widget/theme/index.js';
 export { FiltersToolbar, type FiltersToolbarProps } from './widget/FiltersToolbar.js';
 export { FormattingToolbar } from './widget/FormattingToolbar.js';

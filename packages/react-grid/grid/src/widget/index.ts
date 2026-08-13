@@ -1,4 +1,4 @@
-export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES, MINIMAL_MODULES } from './MarketsGrid';
+export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES } from './MarketsGrid';
 export { useGridTheme } from './theme/index.js';
 export { FiltersToolbar, type FiltersToolbarProps } from './FiltersToolbar';
 export { FormattingToolbar } from './FormattingToolbar';

@@ -45,15 +45,3 @@ export const DEFAULT_MODULES: AnyModule[] = [
   toolbarDateSettingsModule,
   gridStateModule,
 ];
-
-/**
- * Lightweight preset for embed scenarios — general settings, saved filters,
- * and grid-state replay only. Profile round-trips for advanced modules
- * (alerts, conditional styling, column customization, …) require
- * {@link DEFAULT_MODULES} or an explicit custom list.
- */
-export const MINIMAL_MODULES: AnyModule[] = [
-  generalSettingsModule,
-  savedFiltersModule,
-  gridStateModule,
-];

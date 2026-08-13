@@ -57,7 +57,7 @@ export interface MarketsGridProps<TData = unknown> {
   /** Base column definitions — modules can transform them. */
   columnDefs: ColDef<TData>[];
   /** Module list. Default passes {@link DEFAULT_MODULES}; use exported
-   *  {@link MINIMAL_MODULES} for a lightweight embed preset. */
+   *  or pass a custom reduced list for lightweight embeds. */
   modules?: AnyModule[];
   /** AG-Grid theme object. */
   theme?: Theme;

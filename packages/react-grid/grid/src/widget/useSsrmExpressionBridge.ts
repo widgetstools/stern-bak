@@ -21,7 +21,7 @@ const PUSH_DEBOUNCE_MS = 25;
 /**
  * Slices are `undefined` whenever their module isn't registered — the store
  * seeds `moduleStates` from the module list alone, so presets like
- * `MINIMAL_MODULES` legitimately omit all three. Treat a missing module as
+ * reduced module lists legitimately omit all three. Treat a missing module as
  * "contributes no rules" rather than throwing through the host's render.
  */
 function buildExpressionSnapshot(

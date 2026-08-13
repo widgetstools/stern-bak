@@ -34,7 +34,7 @@ import { resolveMarketsGridHost } from './resolveMarketsGridHost';
 import { resolveSurfaceHostOverrideKeys } from './gridSurfaceOptions';
 import { MarketsGridHost } from './MarketsGridHost';
 import { todayIsoDate, type ToolbarIsoDate } from './toolbarDateUtils';
-import { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
+import { DEFAULT_MODULES } from './modules';
 import { ensureAgGridModules } from './ensureAgGridModules';
 import { mergeDefaultColDef } from './mergeDefaultColDef';
 import { GeneralSettingsProvider } from './GeneralSettingsContext';
@@ -46,7 +46,7 @@ import { SsrmFilterCountsProvider } from './SsrmFilterCountsContext.js';
 import { useSsrmExpressionBridge } from './useSsrmExpressionBridge.js';
 import type { MarketsGridSsrmProps } from './types';
 
-export { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
+export { DEFAULT_MODULES } from './modules';
 
 /** Inside {@link GridProvider} so {@link useModuleState} resolves. */
 function MarketsGridSsrmExpressionBridge({
