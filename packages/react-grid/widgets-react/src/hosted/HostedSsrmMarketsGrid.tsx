@@ -30,6 +30,9 @@ import {
 import { useGridLinkNotifications } from './useGridLinkNotifications.js';
 import { useInteropChannel, isInteropAvailable } from './useInteropChannel.js';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const fin: any;
+
 type ContainerOwnedKeys =
   | 'instanceId'
   | 'appId'
@@ -132,6 +135,25 @@ export function HostedSsrmMarketsGrid(props: HostedSsrmMarketsGridProps) {
     };
   }, [documentTitle]);
 
+  // Imperative handle to the underlying MarketsGrid — captured via
+  // `onReady` so `Save Workspace` runs the same `saveAll` path the
+  // toolbar Save button uses (mirrors HostedMarketsGrid).
+  const gridRef = useRef<MarketsGridHandle | null>(null);
+
+  const onWorkspaceSave = useCallback(async () => {
+    const handle = gridRef.current;
+    // Prefer `saveAll` — same path as the toolbar Save button, so the
+    // container's busy overlay and grid-state capture both run. Fall
+    // back to `profiles.saveActiveProfile` for older handle shapes.
+    if (handle?.saveAll) {
+      await handle.saveAll();
+      return;
+    }
+    if (handle?.profiles?.saveActiveProfile) {
+      await handle.profiles.saveActiveProfile();
+    }
+  }, []);
+
   const { identity, ready, agTheme, linking } = useHostedView({
     defaultInstanceId,
     defaultAppId,
@@ -140,7 +162,43 @@ export function HostedSsrmMarketsGrid(props: HostedSsrmMarketsGridProps) {
     configManager,
     componentName,
     theme,
+    onWorkspaceSave,
   });
+
+  // Flush grid state on view teardown — workspace drag/move does not fire
+  // `workspace-saving`, so persist on unmount, page hide, and OpenFin destroy.
+  useEffect(() => {
+    const flush = () => {
+      void onWorkspaceSave();
+    };
+
+    window.addEventListener('beforeunload', flush);
+    window.addEventListener('pagehide', flush);
+
+    let view: {
+      on?: (event: string, cb: () => void) => void;
+      removeListener?: (event: string, cb: () => void) => void;
+    } | null = null;
+    try {
+      if (typeof fin !== 'undefined' && typeof fin.View?.getCurrentSync === 'function') {
+        view = fin.View.getCurrentSync();
+        view?.on?.('destroyed', flush);
+      }
+    } catch {
+      /* not running inside an OpenFin view */
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      window.removeEventListener('pagehide', flush);
+      flush();
+      try {
+        view?.removeListener?.('destroyed', flush);
+      } catch {
+        /* view already torn down */
+      }
+    };
+  }, [onWorkspaceSave]);
 
   // ── Colour-link wiring (mirrors HostedMarketsGrid) ────────────────
   const linkActive = contextLink?.enabled === true;
@@ -152,6 +210,7 @@ export function HostedSsrmMarketsGrid(props: HostedSsrmMarketsGridProps) {
   }).onReady;
   const handleReady = useCallback(
     (handle: MarketsGridHandle) => {
+      gridRef.current = handle;
       if (linkActive) setGridApi(handle.gridApi as unknown as GridApi);
       callerOnReady?.(handle);
     },
