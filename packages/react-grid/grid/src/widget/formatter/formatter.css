@@ -74,121 +74,145 @@
   isolation: isolate;
 }
 
-/* Toolbar variant — Excel-ribbon band. One row of labeled groups,
-   controls on top and the group caption centered underneath, separated
-   by full-height hairlines (Clipboard | Font | Alignment | … pattern).
-   The band WRAPS: when the groups can't all fit, whole labeled groups
-   drop to a new line (never split mid-group) instead of growing a
-   horizontal scrollbar. The toolbar grows taller, never sideways. */
+/* Toolbar variant — compact single row. Fixed lead (target/scope +
+   column caption), labeled segments separated by hairlines, a flexible
+   readout that ellipsizes first, and a fixed trail (⋯ overflow, popout,
+   close). Segments that don't fit collapse into the ⋯ menu via
+   ./toolbarOverflow — the toolbar never wraps and never clips. */
 .fx-shell--horizontal {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 0;
-  padding: 6px 48px 8px 12px;
-  min-height: 56px;
+  padding: 5px 12px;
+  min-height: 40px;
   background: var(--ds-surface-sunken);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-/* Ribbon scaffold — single band; kept as a column so a future second
-   band (Excel tab switch) slots in without relayout. */
-.fx-toolbar-rows {
+/* The measured row — lead · segments · readout · trail. */
+.fx-bar {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-
-.fx-toolbar-row {
-  display: flex;
-  /* Stretch, not center — every group spans the band's full height so
-   * the inter-group hairline runs edge-to-edge like Excel's ribbon
-   * separators. */
-  align-items: stretch;
-  /* Reflow whole groups onto new lines instead of scrolling. `row-gap`
-   * gives wrapped lines breathing room so a wrapped group reads as a
-   * natural continuation rather than a cramped overflow. Horizontal
-   * spacing comes from the groups' own padding (hairline gutters). */
-  flex-wrap: wrap;
-  column-gap: 0;
-  row-gap: 8px;
-  min-height: calc(var(--fx-pill-h) + 15px);
-  min-width: 0;
-}
-
-/* Ribbon group — controls above, caption below, no outer box chrome.
-   The caption is pinned to the band's bottom edge (margin-top: auto)
-   so every group's label sits on one shared baseline regardless of
-   how tall its controls are. */
-.fx-toolbar-group {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  flex-shrink: 0;
-  max-width: 100%;
+  gap: 6px; /* keep in sync with useToolbarOverflow's gap */
   min-width: 0;
-}
-.fx-toolbar-row > .fx-toolbar-group:first-child {
-  padding-left: 0;
+  width: 100%;
 }
 
-/* Full-height hairline between adjacent groups — the Excel separator. */
-.fx-toolbar-group + .fx-toolbar-group {
-  border-left: 1px solid color-mix(in srgb, var(--ds-border-primary) 70%, transparent);
-}
-
-.fx-toolbar-group__label {
-  /* Sits below the controls (DOM keeps label-first for the aria-hidden
-     caption; flex `order` flips the visual stack). */
-  order: 1;
-  margin-top: auto;
-  align-self: center;
-  text-align: center;
-  font-family: var(--ds-font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ds-text-faint);
-  line-height: 1;
-  white-space: nowrap;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.fx-toolbar-group__body {
+.fx-bar__lead {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Segment — controls only (no inline caption; labels live in the ⋯
+   menu), hairline separator against the previous row item. */
+.fx-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--ds-border-primary) 70%, transparent);
+}
+
+/* Text label inside labeled dropdown triggers (Borders / Column / Templates). */
+.fx-trigger-lbl {
+  font-family: var(--ds-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Spring — flexible spacer that pins the tail (Templates, undo/redo,
+   clear, ⋯, popout, ✕) to the row's right edge. The scope readout chip
+   lives only in the popped-out panel now. */
+.fx-bar__spring {
+  flex: 1 1 0;
   min-width: 0;
-  flex-wrap: nowrap;
-  flex: 1;
 }
 
-/* Destruct cluster — label tint only (no enclosing box). */
-.fx-toolbar-group--destruct {
-  border: none;
-  background: transparent;
-}
-.fx-toolbar-group--destruct .fx-toolbar-group__label {
-  color: color-mix(in srgb, var(--ds-accent-negative) 72%, var(--ds-text-faint));
-}
-
-/* Inside a group, modules stay unstyled — pills provide per-control chrome. */
-.fx-toolbar-group .fx-module {
-  min-height: 0;
-}
-.fx-toolbar-group .fx-module__body {
+.fx-bar__trail {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Popover panel shared by the Column dropdown and the ⋯ overflow menu —
+   stacked sections, each an eyebrow label above one row of the same
+   controls the toolbar renders inline. */
+.fx-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  min-width: 240px;
+  max-width: min(560px, 92vw);
+  font-family: var(--ds-font-sans);
+}
+
+.fx-menu-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fx-menu-panel__section + .fx-menu-panel__section {
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ds-border-primary) 55%, transparent);
+}
+
+.fx-menu-panel__label {
+  margin: 0;
+  font-family: var(--ds-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ds-text-faint);
+  line-height: 1;
+  user-select: none;
+}
+
+.fx-menu-panel__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fx-menu-panel__hint {
+  font-size: 10px;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+/* Overflow variant — sleek fixed-width column. Controls wrap into
+   tight rows; the in-row hairlines are noise here, so they're hidden
+   and the section labels do the separating. */
+.fx-menu-panel--overflow {
+  width: 296px;
+  min-width: 0;
+  padding: 8px 10px;
+  gap: 8px;
+}
+.fx-menu-panel--overflow .fx-menu-panel__section + .fx-menu-panel__section {
+  padding-top: 8px;
+}
+.fx-menu-panel--overflow .fx-menu-panel__row {
+  gap: 4px 6px;
+}
+.fx-menu-panel--overflow .fx-hair {
+  display: none;
 }
 
 /* Undo/redo — inline at the end of the scope cluster. (The ribbon
@@ -364,8 +388,7 @@
 
 /* Horizontal mode — pills stay as individual outlined chips inside the
  * module, with comfortable breathing room between them. The module
- * itself stays unstyled (no container chrome) so adjacent modules
- * separate visually via the `.fx-divider` element only. */
+ * itself stays unstyled (no container chrome). */
 .fx-shell--horizontal .fx-module__body {
   display: inline-flex;
   align-items: center;
@@ -406,9 +429,9 @@
 }
 
 /* The section eyebrows (`02 · TYPE`, `03 · PAINT`, …) duplicate the labels
- * already provided by the ToolbarGroup (horizontal) and PanelGroup
- * (vertical), so they're hidden in both orientations — the surrounding
- * group label is the single section header. Kept in the DOM for
+ * already provided by the toolbar's segment labels (horizontal) and
+ * PanelGroup (vertical), so they're hidden in both orientations — the
+ * surrounding label is the single section header. Kept in the DOM for
  * `data-module-index` hooks. */
 .fx-eyebrow {
   display: none;
@@ -673,55 +696,27 @@
   text-overflow: ellipsis;
 }
 
-/* ─── Hairline divider between modules in horizontal mode. ──────── */
-
-.fx-shell--horizontal > .fx-divider {
-  width: 1px;
-  align-self: center;
-  height: 18px;
-  background: color-mix(in srgb, var(--ds-border-primary) 70%, transparent);
-  margin: 0 2px;
-  flex-shrink: 0;
-}
-.fx-shell--vertical > .fx-divider {
-  display: none;
-}
-
 /* Menu / MenuItem / MenuSep moved to primitives.tsx as Tailwind
    utilities resolving through `@wellsfargo-starui/design-system` tokens. The
    `.fx-menu*` rules used to live here. */
 
 /* ─── Pop-out trigger ──────────────────────────────────────────── */
 
+/* Inline in the toolbar's trailing cluster (next to ⋯ and ✕); the
+   vertical panel positions it via its own layout. */
 .fx-popout {
-  position: absolute;
-  /* Vertically centred on the full toolbar (one or two rows). */
-  top: 50%;
-  transform: translateY(-50%);
-  right: 12px;
   width: var(--fx-pill-h);
   height: var(--fx-pill-h);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   border: 1px solid var(--ds-border-primary);
   border-radius: var(--fx-radius);
   background: var(--ds-surface-primary);
   color: var(--fx-toolbar-meta);
   cursor: pointer;
   transition: color 120ms, border-color 120ms, background 120ms;
-  z-index: 3;
-}
-
-.fx-popout::before {
-  content: '';
-  position: absolute;
-  left: -11px;
-  top: 3px;
-  bottom: 3px;
-  width: 1px;
-  background: var(--ds-border-primary);
-  pointer-events: none;
 }
 
 .fx-popout:hover {

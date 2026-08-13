@@ -361,7 +361,8 @@ function MarketsGridHostInner<TData>({
           data-testid="formatting-toolbar-pinned"
           style={{ flexShrink: 0 }}
         >
-          <FormattingToolbar ref={toolbarRef} />
+          {/* Toolbar only renders while open, so toggle == close. */}
+          <FormattingToolbar ref={toolbarRef} onClose={handleToggleStyleToolbar} />
         </div>
       )}
 

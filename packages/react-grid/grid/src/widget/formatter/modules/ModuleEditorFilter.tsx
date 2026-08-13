@@ -55,7 +55,12 @@ const FILTER_OPTIONS: ReadonlyArray<{ kind: FilterKind; label: string }> = [
   { kind: 'streamSafeMultiDateColumnFilter',   label: 'Date'   },
 ];
 
-export function ModuleEditorFilter({
+/**
+ * Body of the Editor & Filter module without the Module wrapper — the
+ * horizontal toolbar hosts this inside its "Column" dropdown; the
+ * vertical panel keeps the wrapped {@link ModuleEditorFilter}.
+ */
+export function EditorFilterCluster({
   state,
   actions,
 }: {
@@ -83,7 +88,7 @@ export function ModuleEditorFilter({
   const filterSelectValue = filterIsCustom ? 'custom' : (filterPrimaryKind ?? '');
 
   return (
-    <Module index="05" label="Editor & Filter" testId="fmt-module-editor-filter">
+    <>
       <div className="inline-flex items-center gap-1.5">
         <ToolbarSelect
           value={editorSelectValue}
@@ -174,6 +179,20 @@ export function ModuleEditorFilter({
       >
         <FilterX size={13} strokeWidth={1.75} />
       </Pill>
+    </>
+  );
+}
+
+export function ModuleEditorFilter({
+  state,
+  actions,
+}: {
+  state: FormatterState;
+  actions: FormatterActions;
+}) {
+  return (
+    <Module index="05" label="Editor & Filter" testId="fmt-module-editor-filter">
+      <EditorFilterCluster state={state} actions={actions} />
     </Module>
   );
 }

@@ -571,24 +571,15 @@ describe('FormattingToolbar — disabled state', () => {
     });
   });
 
-  it('format readout invites selection when no column is active', async () => {
-    const fake = makeFakeApi(COLS, []);
-    mountToolbar({ platform, api: fake.api });
-    await waitFor(() => {
-      const readout = screen.getByTestId('formatting-readout');
-      expect(readout.getAttribute('data-empty')).toBe('true');
-      expect(readout.textContent).toContain('Select a column to format');
-    });
-  });
-
-  it('format readout names the target + scope for the active column', async () => {
+  // The scope readout chip was removed from the horizontal toolbar to
+  // save row width — it renders only in the popped-out panel now
+  // (ModuleContext), and its wording stays covered by scopeSummary tests.
+  it('does not render the scope readout in the horizontal toolbar', async () => {
     const fake = makeFakeApi(COLS, ['price']);
     mountToolbar({ platform, api: fake.api });
     await waitFor(() => {
-      const readout = screen.getByTestId('formatting-readout');
-      expect(readout.getAttribute('data-empty')).toBeNull();
-      expect(readout.textContent).toContain('Cells');
-      expect(readout.textContent).toContain('Price');
+      expect(screen.getByTestId('formatting-toolbar')).toBeInTheDocument();
     });
+    expect(screen.queryByTestId('formatting-readout')).toBeNull();
   });
 });

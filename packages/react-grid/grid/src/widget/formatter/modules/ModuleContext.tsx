@@ -127,9 +127,10 @@ function InlineColumnLabel({
   );
 }
 
-export function ModuleContext({ state, actions }: Props) {
+/** Target (cells ⇄ headers) + scope (selected ⇄ all) segmented toggles. */
+export function TargetScopeCluster({ state, actions }: Props) {
   return (
-    <div className="fx-ctx" data-module-index="01" data-target={state.target} data-scope={state.scope}>
+    <>
       {/* Two compact icon-only toggles — first thing the eye lands on.
           Together they answer "what am I editing?" (cells vs headers)
           and "for which columns?" (selected vs every column). Each
@@ -176,46 +177,63 @@ export function ModuleContext({ state, actions }: Props) {
         variant="scope"
         testId="formatting-scope-toggle"
       />
+    </>
+  );
+}
 
-      {state.singleColumnSelected ? (
-        <InlineColumnLabel
-          colLabel={state.colLabel}
-          disabled={state.disabled}
-          onCommit={actions.setHeaderName}
-        />
-      ) : (
-        <TooltipRoot>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <ColumnLabel
-                colLabel={state.colLabel}
-                disabled={state.disabled}
-                testId="formatting-col-label"
-              />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs px-1.5 py-0.5 text-[10px]">
-            {state.colIds.length > 0 ? state.colIds.join(', ') : 'Click a cell or header to pick a column'}
-          </TooltipContent>
-        </TooltipRoot>
-      )}
-
-      <Pill
-        tooltip={state.cellsEditable ? 'Cells editable — click to lock' : 'Cells locked — click to allow editing'}
+/** Column caption chip — inline rename when a single column is targeted. */
+export function ColumnCaptionCluster({ state, actions }: Props) {
+  if (state.singleColumnSelected) {
+    return (
+      <InlineColumnLabel
+        colLabel={state.colLabel}
         disabled={state.disabled}
-        active={state.cellsEditable}
-        onClick={actions.toggleEditable}
-        data-testid="formatting-toggle-editable"
-        aria-label="Toggle cell editing"
-      >
-        {state.cellsEditable ? (
-          <Pencil size={12} strokeWidth={1.75} />
-        ) : (
-          <Lock size={12} strokeWidth={1.75} />
-        )}
-      </Pill>
+        onCommit={actions.setHeaderName}
+      />
+    );
+  }
+  return (
+    <TooltipRoot>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <ColumnLabel
+            colLabel={state.colLabel}
+            disabled={state.disabled}
+            testId="formatting-col-label"
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs px-1.5 py-0.5 text-[10px]">
+        {state.colIds.length > 0 ? state.colIds.join(', ') : 'Click a cell or header to pick a column'}
+      </TooltipContent>
+    </TooltipRoot>
+  );
+}
 
-      <Hair />
+/** Per-column editable/locked toggle pill. */
+export function EditableToggle({ state, actions }: Props) {
+  return (
+    <Pill
+      tooltip={state.cellsEditable ? 'Cells editable — click to lock' : 'Cells locked — click to allow editing'}
+      disabled={state.disabled}
+      active={state.cellsEditable}
+      onClick={actions.toggleEditable}
+      data-testid="formatting-toggle-editable"
+      aria-label="Toggle cell editing"
+    >
+      {state.cellsEditable ? (
+        <Pencil size={12} strokeWidth={1.75} />
+      ) : (
+        <Lock size={12} strokeWidth={1.75} />
+      )}
+    </Pill>
+  );
+}
+
+/** Grid-wide presentation toggles — header UPPERCASE + cell tooltips. */
+export function GridTogglesCluster({ state, actions }: Props) {
+  return (
+    <>
       <Pill
         tooltip={
           state.headerCaseUppercase
@@ -243,26 +261,43 @@ export function ModuleContext({ state, actions }: Props) {
       >
         <MessageSquareText size={12} strokeWidth={1.75} />
       </Pill>
+    </>
+  );
+}
 
-      <div className="fx-ctx__history">
-        <Pill
-          tooltip="Undo"
-          disabled={!state.canUndo}
-          onClick={actions.undo}
-          data-testid="formatting-undo"
-        >
-          <Undo2 size={12} strokeWidth={1.75} />
-        </Pill>
-        <Pill
-          tooltip="Redo"
-          disabled={!state.canRedo}
-          onClick={actions.redo}
-          data-testid="formatting-redo"
-        >
-          <Redo2 size={12} strokeWidth={1.75} />
-        </Pill>
-      </div>
+/** Undo / redo pills. */
+export function HistoryCluster({ state, actions }: Props) {
+  return (
+    <div className="fx-ctx__history">
+      <Pill
+        tooltip="Undo"
+        disabled={!state.canUndo}
+        onClick={actions.undo}
+        data-testid="formatting-undo"
+      >
+        <Undo2 size={12} strokeWidth={1.75} />
+      </Pill>
+      <Pill
+        tooltip="Redo"
+        disabled={!state.canRedo}
+        onClick={actions.redo}
+        data-testid="formatting-redo"
+      >
+        <Redo2 size={12} strokeWidth={1.75} />
+      </Pill>
+    </div>
+  );
+}
 
+export function ModuleContext({ state, actions }: Props) {
+  return (
+    <div className="fx-ctx" data-module-index="01" data-target={state.target} data-scope={state.scope}>
+      <TargetScopeCluster state={state} actions={actions} />
+      <ColumnCaptionCluster state={state} actions={actions} />
+      <EditableToggle state={state} actions={actions} />
+      <Hair />
+      <GridTogglesCluster state={state} actions={actions} />
+      <HistoryCluster state={state} actions={actions} />
       <Hair />
       <FormatReadout state={state} />
     </div>

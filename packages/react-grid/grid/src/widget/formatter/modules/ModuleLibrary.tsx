@@ -13,18 +13,42 @@ import { TemplateManager } from '../../TemplateManager';
 import { Module, PillButton, pillClasses, type Orientation } from '../primitives';
 import type { FormatterActions, FormatterState } from '../state';
 
-export function ModuleLibrary({
-  state,
-  actions,
-  orientation,
-  colLabel,
-}: {
+export function ModuleLibrary(props: {
   state: FormatterState;
   actions: FormatterActions;
   orientation: Orientation;
   /** Used as the default save-as name when the user leaves the input
    *  empty — `${colLabel} Style`. */
   colLabel: string;
+}) {
+  if (props.orientation === 'horizontal') {
+    return (
+      <Module index="05" label="Library">
+        <TemplatesControl {...props} />
+      </Module>
+    );
+  }
+  return (
+    <Module index="05" label="Library">
+      <TemplatesInline {...props} />
+    </Module>
+  );
+}
+
+/**
+ * Templates popover trigger + manager. `labeled` renders the toolbar's
+ * text trigger ("Templates ⌄") instead of the icon-only pill.
+ */
+export function TemplatesControl({
+  state,
+  actions,
+  colLabel,
+  labeled,
+}: {
+  state: FormatterState;
+  actions: FormatterActions;
+  colLabel: string;
+  labeled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -70,34 +94,32 @@ export function ModuleLibrary({
       }}
       onRename={actions.renameTemplate}
       capturableFields={state.capturableFields}
-      variant={orientation === 'horizontal' ? 'compact' : 'panel'}
-      testIdPrefix={orientation === 'horizontal' ? 'tb-tpl' : 'fmt-panel-tpl'}
+      variant="compact"
+      testIdPrefix="tb-tpl"
     />
   );
 
-  // Horizontal — popover trigger that opens the manager.
-  if (orientation === 'horizontal') {
-    return (
-      <Module index="05" label="Library">
-        <Popover
-          open={open}
-          onOpenChange={setOpen}
-          trigger={
-            <Tooltip content="Column templates — apply, save, rename, or delete reusable styling presets">
-              <PillButton
-                type="button"
-                className={pillClasses()}
-                aria-label="Templates"
-                data-testid="templates-menu-trigger"
-                disabled={state.disabled}
-                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              >
-                <LayoutTemplate size={13} strokeWidth={1.75} />
-                <ChevronDown size={9} strokeWidth={2} />
-              </PillButton>
-            </Tooltip>
-          }
-        >
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <Tooltip content="Column templates — apply, save, rename, or delete reusable styling presets">
+          <PillButton
+            type="button"
+            className={pillClasses(labeled ? 'text' : 'icon')}
+            aria-label="Templates"
+            data-testid="templates-menu-trigger"
+            disabled={state.disabled}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          >
+            <LayoutTemplate size={13} strokeWidth={1.75} />
+            {labeled && <span className="fx-trigger-lbl">Templates</span>}
+            <ChevronDown size={9} strokeWidth={2} />
+          </PillButton>
+        </Tooltip>
+      }
+    >
           <div
             data-testid="templates-menu"
             style={{
@@ -123,15 +145,46 @@ export function ModuleLibrary({
           >
             {manager}
           </div>
-        </Popover>
-      </Module>
-    );
-  }
+    </Popover>
+  );
+}
 
-  // Vertical — inline list.
+/** Vertical panel variant — the manager expands inline as a list. */
+function TemplatesInline({
+  state,
+  actions,
+  colLabel,
+}: {
+  state: FormatterState;
+  actions: FormatterActions;
+  colLabel: string;
+}) {
   return (
-    <Module index="05" label="Library">
-      <div style={{ width: '100%', display: 'block' }}>{manager}</div>
-    </Module>
+    <div style={{ width: '100%', display: 'block' }}>
+      <TemplateManager
+        templates={state.templates}
+        activeTemplateId={state.activeTemplateId}
+        disabled={state.disabled}
+        saveName={state.saveAsTplName}
+        saveConfirmed={state.saveAsTplConfirmed}
+        onSaveNameChange={actions.setSaveAsTplName}
+        onSave={() => {
+          const name = state.saveAsTplName.trim() || `${colLabel} Style`;
+          const id = actions.saveAsTemplate(name);
+          if (id) {
+            actions.applyTemplate(id);
+            actions.setSaveAsTplName('');
+            actions.flashSaveAsTpl();
+          }
+        }}
+        onApply={(id) => actions.applyTemplate(id)}
+        onDelete={actions.deleteTemplate}
+        onUpdate={(id) => { actions.updateTemplate(id); }}
+        onRename={actions.renameTemplate}
+        capturableFields={state.capturableFields}
+        variant="panel"
+        testIdPrefix="fmt-panel-tpl"
+      />
+    </div>
   );
 }
