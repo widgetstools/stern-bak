@@ -41,8 +41,22 @@ vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
   };
 });
 
+const providerHook = vi.hoisted(() => ({ ids: [] as Array<string | null> }));
+
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
-  useSsrmDataProvider: () => ({ provider: fakeProvider, error: null }),
+  useSsrmDataProvider: (id: string | null) => {
+    providerHook.ids.push(id);
+    return { provider: id ? fakeProvider : null, error: null };
+  },
+  useDataProvidersList: () => ({
+    configs: [
+      { id: 'p1', name: 'P One' },
+      { id: 'p2', name: 'P Two' },
+      { id: 'hist-1', name: 'Historical One' },
+    ],
+    loading: false,
+    refresh: () => {},
+  }),
 }));
 
 const wiring = vi.hoisted(() => ({
@@ -68,6 +82,7 @@ import { SsrmMarketsGridContainer } from './SsrmMarketsGridContainer.js';
 beforeEach(() => {
   captured.props = {};
   wiring.params.length = 0;
+  providerHook.ids.length = 0;
 });
 
 describe('SsrmMarketsGridContainer prop forwarding', () => {
@@ -237,5 +252,82 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     ]);
     actions[3].onClick();
     expect(onOpenConfigBrowser).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SsrmMarketsGridContainer provider-grid-host (customizer Custom Settings)', () => {
+  type HostApi = {
+    available: boolean;
+    liveProviders: ReadonlyArray<{ id: string }>;
+    historicalProviders: ReadonlyArray<{ id: string }>;
+    liveProviderId: string | null;
+    historicalProviderId: string | null;
+    mode: string;
+    asOfDate: string | null;
+    onLiveChange(id: string | null): void;
+    onHistoricalChange(id: string | null): void;
+    onModeChange(mode: 'live' | 'historical'): void;
+    onAsOfDateChange(date: string | null): void;
+    onReloadFromSource(): void;
+    onEditProvider(id: string): void;
+  };
+  const host = () => captured.props.providerGridHost as HostApi;
+
+  it('supplies an available ProviderGridHostApi with the catalog and the bound provider', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
+    expect(host().available).toBe(true);
+    expect(host().liveProviders.map((c) => c.id)).toEqual(['p1', 'p2', 'hist-1']);
+    expect(host().historicalProviders.length).toBe(3);
+    expect(host().liveProviderId).toBe('p1');
+    expect(host().mode).toBe('live');
+  });
+
+  it('rebinds the grid to a different live provider through onLiveChange', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
+    await act(async () => {
+      host().onLiveChange('p2');
+    });
+    await waitFor(() => {
+      expect(providerHook.ids[providerHook.ids.length - 1]).toBe('p2');
+    });
+    expect(host().liveProviderId).toBe('p2');
+  });
+
+  it('historical mode resolves the historical provider and reload carries asOfDate', async () => {
+    const restart = vi.fn(async () => {});
+    (fakeProvider as Record<string, unknown>).restart = restart;
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
+    await act(async () => {
+      host().onHistoricalChange('hist-1');
+    });
+    await act(async () => {
+      host().onModeChange('historical');
+    });
+    await waitFor(() => {
+      expect(providerHook.ids[providerHook.ids.length - 1]).toBe('hist-1');
+    });
+    act(() => {
+      host().onAsOfDateChange('2026-08-01');
+    });
+    await waitFor(() => expect(host().asOfDate).toBe('2026-08-01'));
+    act(() => {
+      host().onReloadFromSource();
+    });
+    expect(restart).toHaveBeenCalledWith(
+      expect.objectContaining({ asOfDate: '2026-08-01' }),
+    );
+  });
+
+  it('routes the host Edit action to onEditProvider with the requested id', async () => {
+    const onEditProvider = vi.fn();
+    render(<SsrmMarketsGridContainer providerId="p1" onEditProvider={onEditProvider} />);
+    await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
+    act(() => {
+      host().onEditProvider('p2');
+    });
+    expect(onEditProvider).toHaveBeenCalledWith('p2');
   });
 });

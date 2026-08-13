@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
+import type { StorageAdapter } from '@wellsfargo-starui/core';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
   MarketsGrid,
   toSsrmExpressionRules,
+  type MarketsGridHandle,
   type MarketsGridProps,
+  type ProviderGridHostApi,
+  type StorageAdapterFactory,
 } from '@wellsfargo-starui/grid';
 import { createConfigBrowserAction } from '@wellsfargo-starui/grid/config-browser';
 import { DATA_PROVIDER_EDITOR_ACTION_ID } from '../markets-grid-container/MarketsGridContainer.js';
-import { useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
+import { useDataProvidersList, useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from '../markets-grid-container/buildColumnDefs.js';
+import { useGridLevelPersistence } from '../markets-grid-container/useGridLevelPersistence.js';
+import type { ProviderSelection } from '../markets-grid-container/gridLevelState.js';
 import { useSsrmProviderDataWiring } from './useSsrmProviderDataWiring.js';
 import { ProviderEditorDialog } from '../markets-grid-container/ProviderEditorDialog.js';
 
@@ -35,8 +41,12 @@ export interface SsrmMarketsGridContainerProps extends Partial<
     | 'onReady'
   >
 > {
-  /** Catalog provider id (`stomp-ssrm`). */
+  /** Catalog provider id (`stomp-ssrm`). Used as the default live
+   *  provider; the customizer's Custom Settings panel can rebind the
+   *  grid to any other provider at runtime (persisted per gridId). */
   providerId: string;
+  /** Default historical provider for the customizer's HISTORICAL slot. */
+  defaultHistoricalProviderId?: string;
   /**
    * Optional transport cfg — skips the worker `get-config` round-trip
    * (demo / editor drafts). Hub attach still receives this cfg.
@@ -89,6 +99,7 @@ export interface SsrmMarketsGridContainerProps extends Partial<
 export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const {
     providerId,
+    defaultHistoricalProviderId,
     inlineCfg,
     title = 'SSRM MarketsGrid',
     expressionSnapshot,
@@ -119,6 +130,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   } = props;
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [statusText, setStatusText] = useState('Connecting…');
   // CSRM-parity stale banner: error AFTER first ready = disconnected/stale
   // (cold-connect retries stay silent); any recovery to ready clears.
@@ -126,10 +138,80 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const everReadyRef = useRef(false);
   const [loadRowCount, setLoadRowCount] = useState<number | undefined>();
 
+  // ── Provider selection (CSRM parity) ──────────────────────────────
+  //
+  // Same grid-level persistence row MarketsGridContainer uses: the
+  // customizer's Custom Settings → DATA PROVIDER card can rebind the
+  // live / historical provider per gridId, surviving reloads. The
+  // `providerId` prop is the default live provider.
+  const gridId = gridIdProp ?? providerId;
+  const storageFactory = storage as StorageAdapterFactory | undefined;
+  const adapter = useMemo<StorageAdapter | null>(() => {
+    if (!storageFactory) return null;
+    return storageFactory({
+      instanceId: instanceId ?? gridId,
+      gridId,
+      appId,
+      userId,
+    });
+  }, [storageFactory, instanceId, gridId, appId, userId]);
+
+  const gridHandleRef = useRef<MarketsGridHandle | null>(null);
+  const [gridHandle, setGridHandle] = useState<MarketsGridHandle | null>(null);
+
+  const { selection, setSelection, loaded } = useGridLevelPersistence({
+    adapter,
+    gridId,
+    defaultLiveProviderId: providerId,
+    defaultHistoricalProviderId,
+    gridHandle,
+  });
+
+  const [asOfDate, setAsOfDate] = useState<string | null>(null);
+
+  // Save-and-switch (CSRM parity): flush per-card "Save"s to disk via the
+  // grid's own saveAll() BEFORE the selection applies, so the provider
+  // switch doesn't discard in-memory customizer edits.
+  const applyProviderSelection = useCallback(
+    async (apply: (s: ProviderSelection) => ProviderSelection) => {
+      const handle = gridHandleRef.current;
+      if (handle) {
+        try {
+          await handle.saveAll();
+        } catch (err) {
+          console.warn('[ssrm-markets-grid] save-before-provider-switch failed:', err);
+        }
+      }
+      setSelection(apply);
+    },
+    [setSelection],
+  );
+
+  const setLiveId = useCallback((id: string | null) => {
+    void applyProviderSelection((s) => ({ ...s, liveProviderId: id }));
+  }, [applyProviderSelection]);
+  const setHistoricalId = useCallback((id: string | null) => {
+    void applyProviderSelection((s) => ({ ...s, historicalProviderId: id }));
+  }, [applyProviderSelection]);
+  const setMode = useCallback((mode: ProviderSelection['mode']) => {
+    void applyProviderSelection((s) => ({ ...s, mode }));
+  }, [applyProviderSelection]);
+
+  // Active provider follows the persisted selection; `null` until the
+  // first load resolves so the default provider isn't created and then
+  // immediately torn down when a persisted rebind differs.
+  const activeProviderId = !loaded
+    ? null
+    : selection.mode === 'historical'
+      ? (selection.historicalProviderId ?? selection.liveProviderId ?? providerId)
+      : (selection.liveProviderId ?? providerId);
+
   // Lifecycle is owned by useSsrmProviderDataWiring — do not autoStart /
   // stop here (avoids fighting stop() on the status-subscription effect).
-  const { provider, error } = useSsrmDataProvider(providerId, {
-    inlineCfg,
+  const { provider, error } = useSsrmDataProvider(activeProviderId, {
+    // Inline cfg only describes the prop-named provider — never leak it
+    // onto a rebound one.
+    inlineCfg: activeProviderId === providerId ? inlineCfg : undefined,
     trackStatus: false,
     autoStart: false,
   });
@@ -157,7 +239,9 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     if (!provider) return;
     everReadyRef.current = false;
     setDataStale(false);
-    const offStatus = provider.onStatus((status) => {
+    // Optional-chained like bindSsrmTicks — bare ISsrmDataProvider
+    // mocks (and any transport without status) simply skip staleness.
+    const offStatus = provider.onStatus?.((status) => {
       if (status === 'ready') {
         everReadyRef.current = true;
         setDataStale(false);
@@ -165,7 +249,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         setDataStale(true);
       }
     });
-    return () => offStatus();
+    return () => offStatus?.();
   }, [provider]);
 
   // Column / key resolution must run *after* start() — getConfig() throws before that.
@@ -228,15 +312,80 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   }, [onProviderReady, provider, ready]);
 
   // Grid api for the "Refresh view" admin action (chained, not stolen —
-  // the caller's onReady still fires).
+  // the caller's onReady still fires). The full handle also feeds the
+  // save-before-provider-switch flush.
   const gridApiRef = useRef<{ refreshServerSide?: (p?: { purge?: boolean }) => void } | null>(null);
   const handleReady = useCallback(
     (handle: { gridApi?: unknown }) => {
       gridApiRef.current = (handle.gridApi ?? null) as typeof gridApiRef.current;
+      gridHandleRef.current = handle as MarketsGridHandle;
+      setGridHandle(handle as MarketsGridHandle);
       (onReady as ((h: unknown) => void) | undefined)?.(handle);
     },
     [onReady],
   );
+
+  // ── Refresh / reload / edit (shared by admin menu + customizer) ───
+  const refreshView = useCallback(() => {
+    try {
+      gridApiRef.current?.refreshServerSide?.({ purge: true });
+    } catch {
+      /* grid mid-teardown */
+    }
+  }, []);
+
+  // Historical mode forwards `{ asOfDate }` through restart, exactly like
+  // MarketsGridContainer's reloadFromSource — the transport decides what
+  // to do with it (snapshot-at-date request).
+  const reloadFromSource = useCallback(() => {
+    const extra: Record<string, unknown> = { __refresh: Date.now() };
+    if (selection.mode === 'historical' && asOfDate) extra.asOfDate = asOfDate;
+    void provider?.restart(extra).catch(() => {
+      /* status events surface the failure */
+    });
+  }, [provider, selection.mode, asOfDate]);
+
+  const handleProviderEdit = useCallback((id: string | null) => {
+    if (onEditProvider) {
+      onEditProvider(id);
+      return;
+    }
+    setEditingProviderId(id);
+    setEditorOpen(true);
+  }, [onEditProvider]);
+
+  // ── Customizer host API (Custom Settings → DATA PROVIDER card) ────
+  // Same contract MarketsGridContainer supplies; both provider slots see
+  // the full catalog (a Mock provider is a valid pick for either in dev).
+  const providersList = useDataProvidersList();
+  const providerGridHost = useMemo<ProviderGridHostApi>(() => ({
+    available: true,
+    liveProviders: providersList.configs,
+    historicalProviders: providersList.configs,
+    liveProviderId: selection.liveProviderId,
+    historicalProviderId: selection.historicalProviderId,
+    mode: selection.mode,
+    asOfDate,
+    onLiveChange: setLiveId,
+    onHistoricalChange: setHistoricalId,
+    onModeChange: setMode,
+    onAsOfDateChange: setAsOfDate,
+    onRefreshView: refreshView,
+    onReloadFromSource: reloadFromSource,
+    onEditProvider: handleProviderEdit,
+  }), [
+    providersList.configs,
+    selection.liveProviderId,
+    selection.historicalProviderId,
+    selection.mode,
+    asOfDate,
+    setLiveId,
+    setHistoricalId,
+    setMode,
+    refreshView,
+    reloadFromSource,
+    handleProviderEdit,
+  ]);
 
   // Exactly MarketsGridContainer's data-infrastructure menu: the
   // "Data Provider Editor" action (host popout when onEditProvider is
@@ -251,38 +400,27 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         label: 'Refresh view',
         description: 'Replay cached rows from the worker plane without reconnecting',
         icon: 'lucide:refresh-cw',
-        onClick: () => {
-          try {
-            gridApiRef.current?.refreshServerSide?.({ purge: true });
-          } catch {
-            /* grid mid-teardown */
-          }
-        },
+        onClick: refreshView,
       },
       {
         id: 'reload-from-source',
         label: 'Reload from source',
         description: 'Restart the provider and re-fetch the snapshot — refreshes every subscribed grid',
         icon: 'lucide:rotate-cw',
-        onClick: () => {
-          void provider?.restart({ __refresh: Date.now() }).catch(() => {
-            /* status events surface the failure */
-          });
-        },
+        onClick: reloadFromSource,
       },
       {
         id: DATA_PROVIDER_EDITOR_ACTION_ID,
         label: 'Data Provider Editor',
         description: 'Edit provider configs, STOMP paths, and field mappings',
         icon: 'lucide:plug',
-        onClick: () =>
-          onEditProvider ? onEditProvider(providerId) : setEditorOpen(true),
+        onClick: () => handleProviderEdit(activeProviderId ?? providerId),
       },
       ...(onOpenConfigBrowser
         ? [createConfigBrowserAction({ launch: onOpenConfigBrowser })]
         : []),
     ],
-    [onEditProvider, onOpenConfigBrowser, providerId, provider],
+    [onOpenConfigBrowser, providerId, activeProviderId, refreshView, reloadFromSource, handleProviderEdit],
   );
 
   return (
@@ -308,9 +446,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         >
           <button
             type="button"
-            onClick={() =>
-              onEditProvider ? onEditProvider(providerId) : setEditorOpen(true)
-            }
+            onClick={() => handleProviderEdit(activeProviderId ?? providerId)}
           >
             Edit provider
           </button>
@@ -345,6 +481,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             dataStale={dataStale}
             dataStaleMessage="Live SSRM feed disconnected — values may be stale"
             adminActions={adminActions}
+            providerGridHost={providerGridHost}
             ssrm={{
               provider,
               keyColumn,
@@ -380,8 +517,11 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
           strip is hidden; renders nothing while closed. */}
       <ProviderEditorDialog
         open={editorOpen}
-        onOpenChange={setEditorOpen}
-        providerId={providerId}
+        onOpenChange={(open) => {
+          setEditorOpen(open);
+          if (!open) setEditingProviderId(null);
+        }}
+        providerId={editingProviderId ?? activeProviderId ?? providerId}
         userId={userId}
       />
     </div>

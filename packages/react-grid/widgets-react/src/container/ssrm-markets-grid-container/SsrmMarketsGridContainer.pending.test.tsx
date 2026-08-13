@@ -29,6 +29,7 @@ vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useSsrmDataProvider: () => ({ provider: fakeProvider, error: null }),
+  useDataProvidersList: () => ({ configs: [], loading: false, refresh: () => {} }),
 }));
 
 // Provider exists but has NOT finished starting.

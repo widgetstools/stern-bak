@@ -31,6 +31,7 @@ vi.mock('@wellsfargo-starui/grid', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+  useDataProvidersList: () => ({ configs: [], loading: false, refresh: () => {} }),
   useSsrmDataProvider: () => ({
     provider: mockProvider,
     error: undefined,
