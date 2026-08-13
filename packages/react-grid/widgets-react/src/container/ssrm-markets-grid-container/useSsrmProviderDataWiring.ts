@@ -66,8 +66,20 @@ export function useSsrmProviderDataWiring(
     const offError = provider.onError((err: Error) => {
       if (!cancelled) onError?.(err);
     });
+    // Coalesced: the worker streams a large snapshot as hundreds of
+    // rows-received batches in quick succession. A setState per batch
+    // trips React's nested-update ceiling ("Maximum update depth
+    // exceeded"), which can kill the whole root — one update per ~100ms
+    // keeps the load counter live without the burst.
+    let rowCountTimer: ReturnType<typeof setTimeout> | null = null;
+    let latestRowCount: number | undefined;
     const offRows = provider.onRowsReceived((count: number) => {
-      if (!cancelled) setLoadRowCount?.(count);
+      if (cancelled) return;
+      latestRowCount = count;
+      rowCountTimer ??= setTimeout(() => {
+        rowCountTimer = null;
+        if (!cancelled) setLoadRowCount?.(latestRowCount);
+      }, 100);
     });
 
     void (async () => {
@@ -96,6 +108,10 @@ export function useSsrmProviderDataWiring(
       offStatus();
       offError();
       offRows();
+      if (rowCountTimer != null) {
+        clearTimeout(rowCountTimer);
+        rowCountTimer = null;
+      }
       // Macrotask (not microtask): StrictMode re-runs this effect in the
       // same turn and clears the timer before stop() can detach.
       const timer = setTimeout(() => {

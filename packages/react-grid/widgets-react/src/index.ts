@@ -1,5 +1,8 @@
 // @wellsfargo-starui/widgets-react — Star Widget Components
 
+// ─── StarGrid — the one grid component (Phase 1 front door) ────────
+export { StarGrid, type StarGridProps } from './stargrid/StarGrid.js';
+
 // ─── AG Grid Theme ───────────────────────────────
 // Theme objects live in `@wellsfargo-starui/design-system/adapters/ag-grid` —
 // import `agGridDarkTheme` / `agGridLightTheme` from there directly.

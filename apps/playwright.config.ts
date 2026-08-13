@@ -80,5 +80,15 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
+    {
+      // Phase-1 north-star app (hello-blotter.spec.ts): createStarui() +
+      // <StarGrid> against the seeded stomp-ssrm provider. Like the
+      // star-demo-ssrm smoke, the data feed (:8081) is not started here —
+      // the spec probes the socket and skips itself when it's down.
+      command: 'npm run dev -w @wellsfargo-starui/hello-blotter -- --no-open --force',
+      port: 5177,
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
   ],
 });

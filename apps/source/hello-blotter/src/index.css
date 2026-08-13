@@ -1,0 +1,16 @@
+/* Design-system tokens + theme surfaces, then MarketsGrid chrome. */
+@import '@wellsfargo-starui/design-system/css';
+@import '@wellsfargo-starui/grid/styles.css';
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ds-surface-ground);
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+}

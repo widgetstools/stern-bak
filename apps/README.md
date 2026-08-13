@@ -135,6 +135,7 @@ npm run app -- stomp-marketsgrid-minimal --tarball
 |---|---|---|
 | `star-demo` | 5175 | OpenFin workspace demo; primary e2e target |
 | `star-demo-ssrm` | 5176 | star-demo's SSRM twin (`stomp-ssrm` provider, worker query plane) |
+| `hello-blotter` | 5177 | Phase-1 north star — `createStarui()` + `<StarGrid>`, live SSRM in ~27 lines |
 | `markets-grid-lab` | 5300 | MarketsGrid editing / profiles lab |
 | `markets-grid-ssrm-lab` | 5320 | SSRM feature lab (mock-ssrm provider) |
 | `design-system` | 5310 | Design-system showcase |

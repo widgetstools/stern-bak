@@ -494,3 +494,12 @@ export type {
   HubAppDataIntrospectRow,
 } from '@wellsfargo-starui/data/runtime';
 export { createAppDataServices, type CreateAppDataServicesOpts } from './createAppDataServices.js';
+
+// ─── One-call app bootstrap ─────────────────────────────────────────
+export {
+  createStarui,
+  useStaruiIdentity,
+  type CreateStaruiOptions,
+  type Starui,
+  type StaruiIdentity,
+} from './createStarui.js';

@@ -368,6 +368,8 @@ Per-renderer config types (`PillRendererConfig`,
 - **Set-filter panels list the column's whole domain** — `withSsrmSetFilterValues` (applied by `MarketsGridSsrmSurface` to every filterable leaf column, header groups included) wires async `filterParams.values` to `provider.getSetFilterValues({ column })`, so the panel shows all distinct values in the worker cache rather than the loaded blocks; `refreshValuesOnOpen` re-fetches per open, and a failed worker call reports `[]` instead of breaking the panel
 - **Filter-pill badges count the whole cache** — `computeSsrmFilterCounts` asks the worker for a zero-row block per pill (`startRow: 0, endRow: 0` → `rowCount` with nothing materialised), carrying the active quick filter; provided to `useFilterCounts` via `SsrmFilterCountsProvider` whenever `ssrm` is active, replacing the CSRM `forEachNode` scan that only sees loaded blocks. Applied pill filters and the quick filter already evaluated worker-side via `setFilterModel` / SSRM query state
 - `SsrmMarketsGridContainer` host-shell props — `gridId` (defaults to `providerId`; keys stored grid state), `defaultColDef`, `onReady`, `onEditProvider` (routes the "Data Provider Editor" entry to a host popout instead of the inline dialog), `onOpenConfigBrowser`, `onRowIdFieldChange` (resolved key column), `onProviderReady` (live `ISsrmDataProvider`). Its data-infra menu is byte-for-byte `MarketsGridContainer`'s: the `data-provider-editor` admin action plus `config-browser` when wired — same ids, labels, icons, order. The "Edit provider" strip and status/row-count strip are opt-in (`showProviderEditor` / `showStatusStrip`, both default **false**) so hosted layouts match star-demo exactly; the inline editor dialog stays reachable from the admin action with the strip hidden. `historicalDateAppDataRef` is deliberately absent — CSRM's historical-date subsystem (AppData `asOfDate` + provider restart) has no SSRM counterpart yet
+- **SSRM column inference** — when the provider config declares no `columnDefinitions` (createStarui drafts, hand-seeded rows), `SsrmMarketsGridContainer` samples one block (`provider.getRows({ startRow: 0, endRow: 50 })`) after ready and infers `ColDef`s via `@wellsfargo-starui/data` `inferFields`: `__`-prefixed internals and `object`/`array` fields are skipped, `cellDataType` maps from the inferred type, headers humanize the field name (`positionId` → `Position Id`). A declared list always wins (no sample fetch); inference resets on provider rebind. Previously an undeclared column list rendered a headerless, cell-less grid
+- `useSsrmProviderDataWiring` coalesces the rows-received burst — the worker streams a large snapshot as hundreds of `onRowsReceived` batches; the hook now folds them into at most one `setLoadRowCount` per 100 ms window (trailing edge, timer cleared on unmount). One setState per batch used to trip React's nested-update ceiling ("Maximum update depth exceeded"), which could kill the app's React root and freeze every cell while ticks kept arriving
 
 #### SSRM colour-link parity
 
@@ -631,10 +633,14 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 **Public exports:**
 
-- `./widgets` — blotter components, hooks, provider, theme
+- `./widgets` — blotter components, hooks, provider, theme; `StarGrid` (the one front-door grid)
 - `./widgets/markets-grid-container` — `MarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
 - `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
 - `./widgets/hosted` — `HostedMarketsGrid` (legacy wrapper)
+
+#### StarGrid (one front door)
+
+- `StarGrid` / `StarGridProps` — the single grid component for `createStarui()` apps: `{ gridId, providerId?, rowData?, columnDefs?, title?, fullBleed?, onReady?, fallback?, advanced? }`. Identity (`appId`/`userId`/storage factory) comes from `useStaruiIdentity()` context — mounting outside `<starui.Provider>` throws. **Mode is inferred, never chosen**: no `providerId` → static `MarketsGrid` (`rowData`); catalog row whose `providerType` ends in `-ssrm` → `SsrmMarketsGridContainer`; any other provider → `MarketsGridContainer`. While the catalog row loads it renders `fallback`; a missing row renders a plain not-found message (catalogs hydrate asynchronously on cold starts). `fullBleed` pins the grid to the viewport (hosted-view style); `advanced` is the typed escape hatch for every other `MarketsGridProps` member. North-star proof: `apps/source/hello-blotter` (one `createStarui` call + one `<StarGrid>`, live SSRM in ~27 lines), e2e-guarded by `apps/e2e/hello-blotter.spec.ts`
 
 #### Blotter framework (v2)
 
@@ -1466,6 +1472,12 @@ modules).
 - `DataServicesProvider` — `configStore` calls `client.invalidateConfig()` after editor `save`/`remove`
 
 **Public exports:** `./data`, `./data/runtime`
+
+#### One-call bootstrap (`createStarui`)
+
+- `createStarui({ appId, userId, providers?, storage?, seedConfigUrl?, configServiceRestUrl?, workerScriptUrl?, fallback? })` — the single front door for a starui app: boots the platform via `ensurePlatformReady`, seeds catalog provider rows **create-if-missing** (each draft MUST carry a deterministic `providerId`; existing rows — e.g. later editor edits — are never overwritten), builds the profile-storage factory (`'localStorage'` default with one memoized `LocalStorageBundleAdapter` per gridId, or `'config'` → `createConfigServiceStorage` over the booted `configManager`), and returns `{ Provider, appId, userId, storage }`. `Provider` renders `fallback` until boot resolves, then `DataHubProvider` + identity context — identity is declared exactly once, no per-grid identity props
+- `useStaruiIdentity()` — `{ appId, userId, storage }` from the nearest `<starui.Provider>`; `null` outside one (how `<StarGrid>` enforces its mount-inside-Provider contract)
+- Types: `CreateStaruiOptions`, `Starui`, `StaruiIdentity`
 
 #### Provider
 

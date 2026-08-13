@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
-import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
+import { inferFields, type ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
   MarketsGrid,
   toSsrmExpressionRules,
@@ -19,6 +19,12 @@ import { useGridLevelPersistence } from '../markets-grid-container/useGridLevelP
 import type { ProviderSelection } from '../markets-grid-container/gridLevelState.js';
 import { useSsrmProviderDataWiring } from './useSsrmProviderDataWiring.js';
 import { ProviderEditorDialog } from '../markets-grid-container/ProviderEditorDialog.js';
+
+/** `positionId` → `Position Id` — header text for inferred columns. */
+function humanizeField(field: string): string {
+  const spaced = field.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
 export interface SsrmMarketsGridContainerProps extends Partial<
   Pick<
@@ -268,11 +274,54 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     }
   }, [provider, ready]);
 
+  // Providers without declared columnDefinitions (createStarui drafts,
+  // hand-seeded rows) infer their columns from a sampled block — the SSRM
+  // analog of the CSRM container's snapshot inference. A declared list
+  // always wins; inference only fills the empty case, where the previous
+  // behavior was a headerless, cell-less grid.
+  const [inferredDefs, setInferredDefs] = useState<ColDef[] | null>(null);
+  useEffect(() => {
+    // Inference belongs to one provider instance — a rebind starts clean.
+    setInferredDefs(null);
+  }, [provider]);
+  useEffect(() => {
+    if (!provider || !ready || inferredDefs) return;
+    try {
+      if (provider.getColumnDefs().length > 0) return;
+    } catch {
+      return;
+    }
+    let cancelled = false;
+    provider
+      .getRows({ startRow: 0, endRow: 50 })
+      .then((result) => {
+        if (cancelled) return;
+        const { fields } = inferFields(result.rowData);
+        const defs = fields
+          .filter((f) => !f.path.startsWith('__') && f.type !== 'object' && f.type !== 'array')
+          .map<ColDef>((f) => ({
+            field: f.path,
+            headerName: humanizeField(f.path),
+            cellDataType:
+              f.type === 'number' ? 'number'
+              : f.type === 'boolean' ? 'boolean'
+              : f.type === 'date' ? 'dateString'
+              : 'text',
+            enableRowGroup: true,
+            enablePivot: true,
+            enableValue: true,
+          }));
+        if (defs.length > 0) setInferredDefs(defs);
+      })
+      .catch(() => { /* declared-less provider with no rows yet — retry on next ready flip */ });
+    return () => { cancelled = true; };
+  }, [provider, ready, inferredDefs]);
+
   const columnDefs = useMemo<ColDef[] | undefined>(() => {
     if (!provider || !ready) return undefined;
     try {
       const defs = provider.getColumnDefs();
-      if (!defs.length) return undefined;
+      if (!defs.length) return inferredDefs ?? undefined;
       const asColDefs = defs.map((c) => ({
         field: c.field,
         headerName: c.headerName ?? c.field,
@@ -286,7 +335,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     } catch {
       return undefined;
     }
-  }, [provider, ready]);
+  }, [provider, ready, inferredDefs]);
 
   const cacheBlockSize = useMemo(() => {
     if (!provider || !ready) return undefined;
