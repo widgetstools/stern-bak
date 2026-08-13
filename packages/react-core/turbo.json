@@ -7,8 +7,6 @@
     "build": {
       "outputs": [
         "ui/dist/**",
-        "widget-sdk/dist/**",
-        "host-wrapper-react/dist/**",
         "workspace-setup-react/dist/**",
         "host-data-react/dist/**"
       ]

@@ -4,7 +4,7 @@ import { coverage } from '../../scripts/vitestCoverage.mjs';
 
 /**
  * Vitest config for `@wellsfargo-starui/core` (engine + host + host-browser +
- * host-config + widget + widget-browser).
+ * host-config).
  *
  * The former members kept materially different test settings (environment,
  * globals, setupFiles, timeouts), so this uses `test.projects` — each project
@@ -20,8 +20,6 @@ export default defineConfig({
         'host/src/**/*.ts',
         'host-browser/src/**/*.ts',
         'host-config/src/**/*.ts',
-        'widget/src/**/*.ts',
-        'widget-browser/src/**/*.ts',
       ],
     }),
     projects: [
@@ -74,27 +72,6 @@ export default defineConfig({
           include: ['src/**/*.test.ts'],
           setupFiles: ['./test/setup.ts'],
           css: false,
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: 'widget',
-          root: './widget',
-          environment: 'node',
-          include: ['src/**/*.test.ts'],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          // jsdom, not node: BrowserAdapter is built on window, window.open
-          // and BroadcastChannel.
-          name: 'widget-browser',
-          root: './widget-browser',
-          environment: 'jsdom',
-          globals: false,
-          include: ['src/**/*.test.ts'],
         },
       },
     ],

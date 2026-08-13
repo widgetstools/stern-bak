@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/core",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI core runtime — vanilla-TS grid engine, host ports (browser adapter + Dexie config store), and widget framework. Consolidates engine, host, host-browser, host-config, widget, widget-browser.",
+  "description": "MarketsUI core runtime \u2014 vanilla-TS grid engine, host ports (browser adapter + Dexie config store), and widget framework. Consolidates engine, host, host-browser, host-config, widget, widget-browser.",
   "type": "module",
   "main": "./engine/dist/index.cjs",
   "module": "./engine/dist/index.js",
@@ -24,27 +24,17 @@
     "./host/config": {
       "types": "./host-config/dist/index.d.ts",
       "import": "./host-config/dist/index.js"
-    },
-    "./widget": {
-      "types": "./widget/dist/index.d.ts",
-      "import": "./widget/dist/index.js"
-    },
-    "./widget/browser": {
-      "types": "./widget-browser/dist/index.d.ts",
-      "import": "./widget-browser/dist/index.js"
     }
   },
   "files": [
     "engine/dist",
     "host/dist",
     "host-browser/dist",
-    "host-config/dist",
-    "widget/dist",
-    "widget-browser/dist"
+    "host-config/dist"
   ],
   "scripts": {
-    "build": "rimraf engine/dist engine/tsconfig.tsbuildinfo host/dist host/tsconfig.tsbuildinfo host-browser/dist host-browser/tsconfig.tsbuildinfo host-config/dist host-config/tsconfig.tsbuildinfo widget/dist widget/tsconfig.tsbuildinfo widget-browser/dist widget-browser/tsconfig.tsbuildinfo && (cd engine && tsc && vite build && cd ..) && tsc --project host/tsconfig.json && tsc --project host-browser/tsconfig.json && tsc --project host-config/tsconfig.json && node host-config/scripts/copy-assets.mjs && tsc --project widget/tsconfig.json && tsc --project widget-browser/tsconfig.json",
-    "typecheck": "tsc --noEmit --project engine/tsconfig.json && tsc --noEmit --project host/tsconfig.json && tsc --noEmit --project host-browser/tsconfig.json && tsc --noEmit --project host-config/tsconfig.json && tsc --noEmit --project widget/tsconfig.json && tsc --noEmit --project widget-browser/tsconfig.json",
+    "build": "rimraf engine/dist engine/tsconfig.tsbuildinfo host/dist host/tsconfig.tsbuildinfo host-browser/dist host-browser/tsconfig.tsbuildinfo host-config/dist host-config/tsconfig.tsbuildinfo && (cd engine && tsc && vite build && cd ..) && tsc --project host/tsconfig.json && tsc --project host-browser/tsconfig.json && tsc --project host-config/tsconfig.json && node host-config/scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project engine/tsconfig.json && tsc --noEmit --project host/tsconfig.json && tsc --noEmit --project host-browser/tsconfig.json && tsc --noEmit --project host-config/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "vitest bench --run"

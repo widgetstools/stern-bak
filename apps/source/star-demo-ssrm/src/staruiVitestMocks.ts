@@ -127,7 +127,7 @@ vi.mock('@wellsfargo-starui/openfin', () => ({
   ACTION_IMPORT_CONFIG: 'import-config',
 }));
 
-vi.mock('@wellsfargo-starui/react/host/test-bridge', () => ({
+vi.mock('@wellsfargo-starui/openfin/test-bridge', () => ({
   installTestBridge: mockInstallTestBridge,
 }));
 

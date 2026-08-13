@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/react",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI React core — shadcn/Radix primitives, widget SDK, host wrapper, workspace setup, data bindings. Consolidates ui, widget-sdk, host-wrapper-react, workspace-setup-react, host-data-react.",
+  "description": "MarketsUI React core \u2014 shadcn/Radix primitives, widget SDK, host wrapper, workspace setup, data bindings. Consolidates ui, widget-sdk, host-wrapper-react, workspace-setup-react, host-data-react.",
   "type": "module",
   "main": "./ui/dist/index.js",
   "module": "./ui/dist/index.js",
@@ -19,21 +19,6 @@
       "require": "./ui/dist/components/chart.js"
     },
     "./tailwind-config": "./ui/tailwind.config.js",
-    "./widget-sdk": {
-      "types": "./widget-sdk/dist/index.d.ts",
-      "import": "./widget-sdk/dist/index.js",
-      "require": "./widget-sdk/dist/index.js"
-    },
-    "./host": {
-      "types": "./host-wrapper-react/dist/index.d.ts",
-      "import": "./host-wrapper-react/dist/index.js",
-      "require": "./host-wrapper-react/dist/index.js"
-    },
-    "./host/test-bridge": {
-      "types": "./host-wrapper-react/dist/test-bridge/index.d.ts",
-      "import": "./host-wrapper-react/dist/test-bridge/index.js",
-      "require": "./host-wrapper-react/dist/test-bridge/index.js"
-    },
     "./workspace-setup": {
       "types": "./workspace-setup-react/dist/index.d.ts",
       "import": "./workspace-setup-react/dist/index.js",
@@ -52,14 +37,12 @@
   "files": [
     "ui/dist",
     "ui/tailwind.config.js",
-    "widget-sdk/dist",
-    "host-wrapper-react/dist",
     "workspace-setup-react/dist",
     "host-data-react/dist"
   ],
   "scripts": {
-    "build": "rimraf ui/dist ui/tsconfig.tsbuildinfo widget-sdk/dist widget-sdk/tsconfig.tsbuildinfo host-wrapper-react/dist host-wrapper-react/tsconfig.tsbuildinfo workspace-setup-react/dist workspace-setup-react/tsconfig.tsbuildinfo host-data-react/dist host-data-react/tsconfig.tsbuildinfo && tsc --project ui/tsconfig.json && node ui/scripts/copy-assets.mjs && tsc --project widget-sdk/tsconfig.json && tsc --project host-wrapper-react/tsconfig.json && tsc --project workspace-setup-react/tsconfig.build.json && node workspace-setup-react/scripts/copy-assets.mjs && tsc --project host-data-react/tsconfig.build.json && node host-data-react/scripts/copy-assets.mjs",
-    "typecheck": "tsc --noEmit --project ui/tsconfig.json && tsc --noEmit --project widget-sdk/tsconfig.json && tsc --noEmit --project host-wrapper-react/tsconfig.json && tsc --noEmit --project workspace-setup-react/tsconfig.json && tsc --noEmit --project host-data-react/tsconfig.json",
+    "build": "rimraf ui/dist ui/tsconfig.tsbuildinfo workspace-setup-react/dist workspace-setup-react/tsconfig.tsbuildinfo host-data-react/dist host-data-react/tsconfig.tsbuildinfo && tsc --project ui/tsconfig.json && node ui/scripts/copy-assets.mjs && tsc --project workspace-setup-react/tsconfig.build.json && node workspace-setup-react/scripts/copy-assets.mjs && tsc --project host-data-react/tsconfig.build.json && node host-data-react/scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit --project ui/tsconfig.json && tsc --noEmit --project workspace-setup-react/tsconfig.json && tsc --noEmit --project host-data-react/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },

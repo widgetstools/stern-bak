@@ -37,9 +37,6 @@ const OUT_PATH = join(REPO_ROOT, 'tsconfig.consumer.json');
 
 // Angular is excluded from the build pipeline: its source is never built,
 // and mapping it would point tsc at unbuilt Angular source. The
-// angular-* buckets have been deleted, so host-data-angular is all that is left.
-// Mirrors SKIP_MEMBERS in scripts/pack-npm.mjs.
-const ANGULAR_MEMBERS = new Set(['@wellsfargo-starui/host-data-angular']);
 
 /**
  * Pick an export target for TYPE resolution.
@@ -98,7 +95,6 @@ function buildPaths() {
     if (!entry?.members?.length || !entry.bucket) continue;
 
     for (const member of entry.members) {
-      if (ANGULAR_MEMBERS.has(member)) continue;
       const folder = findMemberFolder(entry.bucket, member);
       const pkgDir = join(REPO_ROOT, 'packages', entry.bucket, folder);
       const pkgJsonPath = join(pkgDir, 'package.json');

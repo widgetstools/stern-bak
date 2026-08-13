@@ -2,8 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { coverage } from '../../scripts/vitestCoverage.mjs';
 
 /**
- * Vitest config for `@wellsfargo-starui/react` (ui + widget-sdk +
- * host-wrapper-react + workspace-setup-react + host-data-react).
+ * Vitest config for `@wellsfargo-starui/react` (ui + workspace-setup-react + host-data-react).
  *
  * The former members kept materially different test settings (globals,
  * setupFiles, timeouts), so this uses `test.projects` — each project gets its
@@ -16,8 +15,6 @@ export default defineConfig({
     coverage: coverage({
       include: [
         'ui/src/**/*.{ts,tsx}',
-        'widget-sdk/src/**/*.{ts,tsx}',
-        'host-wrapper-react/src/**/*.{ts,tsx}',
         'workspace-setup-react/src/**/*.{ts,tsx}',
         'host-data-react/src/**/*.{ts,tsx}',
       ],
@@ -31,28 +28,6 @@ export default defineConfig({
           environment: 'jsdom',
           globals: false,
           setupFiles: ['./src/test/setup.ts'],
-          include: ['src/**/*.test.{ts,tsx}'],
-          css: false,
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: 'widget-sdk',
-          root: './widget-sdk',
-          environment: 'jsdom',
-          globals: false,
-          include: ['src/**/*.test.{ts,tsx}'],
-          css: false,
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: 'host-wrapper',
-          root: './host-wrapper-react',
-          environment: 'jsdom',
-          globals: false,
           include: ['src/**/*.test.{ts,tsx}'],
           css: false,
         },

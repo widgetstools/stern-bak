@@ -9,9 +9,7 @@
         "engine/dist/**",
         "host/dist/**",
         "host-browser/dist/**",
-        "host-config/dist/**",
-        "widget/dist/**",
-        "widget-browser/dist/**"
+        "host-config/dist/**"
       ]
     },
     "test": {

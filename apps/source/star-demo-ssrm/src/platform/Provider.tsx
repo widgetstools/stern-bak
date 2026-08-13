@@ -61,7 +61,7 @@ function Provider() {
     })
       .then(() => {
         if (!isDev && !e2eBridge) return undefined;
-        return import("@wellsfargo-starui/react/host/test-bridge").then((m) => m.installTestBridge());
+        return import("@wellsfargo-starui/openfin/test-bridge").then((m) => m.installTestBridge());
       })
       .catch((err) => {
         console.error("Failed to initialize workspace platform:", err);

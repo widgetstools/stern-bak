@@ -16,7 +16,7 @@
  * every src/-bearing member folder its own node (`<pkgName>#<folder>`), maps
  * import subpaths to members via the bucket's exports map (longest-prefix
  * match), and also follows relative imports that escape the importing member's
- * folder. Non-collapsed packages (host-data-angular) stay single nodes; the
+ * folder. Non-collapsed packages stay single nodes; the
  * engine build shim (core-engine-build-shim, unscoped) is ignored like
  * everywhere else.
  *
@@ -170,7 +170,7 @@ function loadBuckets(dirToName) {
   // (b) exists for icons-svg, which keeps its sources at the member root with
   // no src/ and would otherwise drop out of the graph silently, taking every
   // edge through its five published subpaths with it. Subfolders with their
-  // own scoped package.json (host-data-angular) stay package-level nodes, and
+  // own scoped package.json stay package-level nodes, and
   // unscoped manifests (the engine build shim) were never in dirToName, so
   // engine/ remains an ordinary member. An exports target whose owning folder
   // cannot be registered is a loud warning, not a silent drop.
