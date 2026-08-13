@@ -32,8 +32,8 @@ export interface RegistryEntry {
   componentSubType: string;
   /** Config ID for the persisted config row. For singletons this is
    *  derived from componentType + componentSubType via
-   *  `deriveSingletonConfigId()`. For non-singletons it defaults to
-   *  `generateTemplateConfigId()` output but the user can override. */
+   *  `deriveTemplateConfigId()`. For non-singletons it defaults to
+   *  `deriveTemplateConfigId()` output but the user can override. */
   configId: string;
   /** Human-readable display name. */
   displayName: string;
@@ -110,28 +110,7 @@ export function deriveTemplateConfigId(componentType: string, componentSubType: 
   return `${componentType}-${componentSubType}`.toLowerCase();
 }
 
-/**
- * @deprecated Use {@link deriveTemplateConfigId}. Kept as a
- * source-compatibility alias so existing imports keep working
- * during the rename. The output format is now identical to
- * `deriveTemplateConfigId` (lowercase `${type}-${subtype}`); the
- * old `templateComponent<Type><SubType>` format is gone.
- */
-export function generateTemplateConfigId(componentType: string, componentSubType: string): string {
-  return deriveTemplateConfigId(componentType, componentSubType);
-}
 
-/**
- * @deprecated Use {@link deriveTemplateConfigId}. The singleton-vs-
- * non-singleton distinction is no longer encoded in the configId —
- * BOTH cases use `${componentType}-${componentSubType}` lowercase
- * for the template row. The instance row for a non-singleton uses
- * an arbitrary UUID; the instance row for a singleton doesn't
- * exist (everyone shares the template).
- */
-export function deriveSingletonConfigId(componentType: string, componentSubType: string): string {
-  return deriveTemplateConfigId(componentType, componentSubType);
-}
 
 /**
  * Mint a fresh `instanceId` for a non-singleton registered-component

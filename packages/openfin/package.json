@@ -19,10 +19,6 @@
       "types": "./openfin-platform/dist/configOnly.d.ts",
       "import": "./openfin-platform/dist/configOnly.js"
     },
-    "./plugin": {
-      "types": "./openfin-platform/dist/plugin.d.ts",
-      "import": "./openfin-platform/dist/plugin.js"
-    },
     "./test-bridge": {
       "types": "./openfin-platform/dist/testBridge/index.d.ts",
       "import": "./openfin-platform/dist/testBridge/index.js"

@@ -5,7 +5,7 @@ import type { App } from "@openfin/workspace";
 import { AppManifestType, getCurrentSync } from "@openfin/workspace-platform";
 import { getConfigManager, loadRegistryConfig } from "./db";
 import {
-  generateTemplateConfigId,
+  deriveTemplateConfigId,
   mintRegisteredInstanceId,
   type RegistryEntry,
 } from "./registryConfigTypes";
@@ -296,7 +296,7 @@ async function createComponentInstance(
   );
 
   const templateId = entry.configId ||
-    generateTemplateConfigId(entry.componentType, entry.componentSubType);
+    deriveTemplateConfigId(entry.componentType, entry.componentSubType);
 
   // Non-singleton launch: clone the template's row onto the fresh
   // instanceId so the view's storage reads hit a populated row directly.

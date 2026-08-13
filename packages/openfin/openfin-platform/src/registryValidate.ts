@@ -11,7 +11,7 @@
  * against a schema — callers won't notice.
  */
 import type { RegistryEntry } from './registryConfigTypes';
-import { deriveSingletonConfigId } from './registryConfigTypes';
+import { deriveTemplateConfigId } from './registryConfigTypes';
 
 export interface ValidationError {
   /** Target field — used by the UI to place the error under the right input. */
@@ -30,7 +30,7 @@ export interface ValidationError {
  *      (editor enforces by disabling the fields; this catches tampered payloads)
  *   5. usesHostConfig === false → appId required non-empty;
  *                                 configServiceUrl may be empty (self-contained)
- *   6. singleton === true → configId must equal deriveSingletonConfigId(...)
+ *   6. singleton === true → configId must equal deriveTemplateConfigId(...)
  *
  * Returns an array of errors (empty = valid).
  */
@@ -83,7 +83,7 @@ export function validateEntry(
 
   // ── Rule 6: singleton configId derivation ─────────────────────
   if (entry.singleton === true && entry.componentType && entry.componentSubType) {
-    const expected = deriveSingletonConfigId(entry.componentType, entry.componentSubType);
+    const expected = deriveTemplateConfigId(entry.componentType, entry.componentSubType);
     if (entry.configId && entry.configId !== expected) {
       errors.push({
         field: 'configId',
@@ -99,7 +99,7 @@ export function validateEntry(
  * Validate that no two singleton entries in the same `appId` share
  * a componentType + componentSubType pair.
  *
- * Non-singletons are exempt — they use `generateTemplateConfigId()`
+ * Non-singletons are exempt — they use `deriveTemplateConfigId()`
  * which is a shared template id for a class of components, not an
  * instance id, so collisions are expected and harmless.
  *
@@ -117,7 +117,7 @@ export function validateSingletonUniqueness(
     if (!e.singleton) continue;
     if (e.appId !== appId) continue; // scope to this app
 
-    const key = deriveSingletonConfigId(e.componentType, e.componentSubType);
+    const key = deriveTemplateConfigId(e.componentType, e.componentSubType);
     const existing = seen.get(key);
     if (existing) {
       errors.push({

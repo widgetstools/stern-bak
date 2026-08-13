@@ -41,7 +41,6 @@ import { registerNotifications } from './notifications';
 import { registerStore } from './store';
 import type { CustomSettings, PlatformSettings, WorkspaceConfig } from './types';
 import { createWorkspacePersistenceOverride } from './workspacePersistence';
-import { gcOrphanedConfigs } from './workspaceGc';
 import { buildCustomActions } from './internal/customActions';
 import { resolveDefaultPlatformScope } from './platformScope';
 import { resolveDeploymentIdentity } from './platformBootstrap';
@@ -354,43 +353,13 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
 
   // Build the workspace-persistence override so saved workspaces land in
   // ConfigService (Option A — single source of truth, shareable between
-  // users). OpenFin's local IndexedDB is bypassed entirely. The
-  // onWorkspaceChange hook drives orphan-config GC after every workspace
-  // mutation so per-instance config rows that no workspace references
-  // anymore get reaped.
+  // users). OpenFin's local IndexedDB is bypassed entirely.
   const cm = configManager;
   const workspaceOverride = createWorkspacePersistenceOverride({
     cm,
     appId: defaultScope.appId,
     userId: defaultScope.userId,
-    onWorkspaceChange: async () => {
-      try {
-        const r = await gcOrphanedConfigs({ cm, appId: defaultScope.appId, userId: defaultScope.userId });
-        // Deletion is currently disabled in workspace-gc; r.deleted is
-        // always 0. r.wouldDelete tracks the rows that match no
-        // preservation rule, kept for telemetry while we audit.
-        if (r.wouldDelete > 0) {
-          log(`Workspace GC: ${r.wouldDelete} orphan row(s) identified (deletion disabled — none removed).`);
-        }
-      } catch (gcErr) {
-        console.warn('[initWorkspace] post-workspace-change GC failed:', gcErr);
-      }
-    },
   });
-
-  // App-start GC sweep: catches orphans left over from a crashed session
-  // or from a workspace deletion that happened in another tab. Fire-and-
-  // forget so it never blocks platform init.
-  void (async () => {
-    try {
-      const r = await gcOrphanedConfigs({ cm, appId: defaultScope.appId, userId: defaultScope.userId });
-      if (r.wouldDelete > 0) {
-        log(`Workspace GC (boot): ${r.wouldDelete} orphan row(s) identified (deletion disabled — none removed).`);
-      }
-    } catch (gcErr) {
-      console.warn('[initWorkspace] boot GC failed:', gcErr);
-    }
-  })();
 
   // init() starts the platform and triggers "platform-api-ready" above
   await initializePlatform(settings.platformSettings, config?.theme, workspaceOverride);

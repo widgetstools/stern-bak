@@ -102,8 +102,6 @@ export {
 } from './registryHostEnv';
 export {
   deriveTemplateConfigId,
-  generateTemplateConfigId,    // deprecated alias of deriveTemplateConfigId
-  deriveSingletonConfigId,     // deprecated alias of deriveTemplateConfigId
   mintRegisteredInstanceId,
   REGISTRY_CONFIG_VERSION,
   type RegistryEditorConfig,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveSingletonConfigId, type RegistryEntry } from './registryConfigTypes.js';
+import { deriveTemplateConfigId, type RegistryEntry } from './registryConfigTypes.js';
 import { validateEntry, validateSingletonUniqueness } from './registryValidate.js';
 
 const hostEnv = { appId: 'TestApp', configServiceUrl: 'http://localhost:3001/api/v1' };
@@ -108,7 +108,7 @@ describe('validateEntry', () => {
   });
 
   it('rejects a singleton whose configId does not match the derivation', () => {
-    const expected = deriveSingletonConfigId('grid', 'trade');
+    const expected = deriveTemplateConfigId('grid', 'trade');
     const errors = validateEntry(
       validEntry({ singleton: true, configId: 'wrong-id' }),
       hostEnv,
@@ -120,7 +120,7 @@ describe('validateEntry', () => {
   });
 
   it('accepts a singleton with the derived configId', () => {
-    const expected = deriveSingletonConfigId('grid', 'trade');
+    const expected = deriveTemplateConfigId('grid', 'trade');
     expect(
       validateEntry(validEntry({ singleton: true, configId: expected }), hostEnv),
     ).toEqual([]);
@@ -142,7 +142,7 @@ describe('validateSingletonUniqueness', () => {
       usesHostConfig: true,
       appId: 'TestApp',
       configServiceUrl: 'http://localhost',
-      configId: deriveSingletonConfigId('grid', 'trade'),
+      configId: deriveTemplateConfigId('grid', 'trade'),
       singleton: true,
       ...over,
     }) as RegistryEntry;

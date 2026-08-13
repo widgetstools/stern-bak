@@ -23,7 +23,6 @@ const resolveDefaultPlatformScope = vi.fn().mockResolvedValue({ appId: 'TestApp'
 const resolveDeploymentIdentity = vi.fn().mockResolvedValue({ appId: 'TestApp', userId: 'dev1' });
 const resolveSeedConfigUrl = vi.fn(async (u: string) => u);
 const createWorkspacePersistenceOverride = vi.fn(() => vi.fn());
-const gcOrphanedConfigs = vi.fn().mockResolvedValue({ wouldDelete: 0, deleted: 0 });
 const buildCustomActions = vi.fn(() => ({}));
 const openChildToolWindow = vi.fn();
 const openDataProvidersToolWindow = vi.fn();
@@ -93,9 +92,6 @@ vi.mock('./platformScope.js', () => ({
 vi.mock('./workspacePersistence.js', () => ({
   createWorkspacePersistenceOverride: (...a: unknown[]) =>
     createWorkspacePersistenceOverride(...a),
-}));
-vi.mock('./workspaceGc.js', () => ({
-  gcOrphanedConfigs: (...a: unknown[]) => gcOrphanedConfigs(...a),
 }));
 vi.mock('./internal/customActions.js', () => ({
   buildCustomActions: (...a: unknown[]) => buildCustomActions(...a),
@@ -213,7 +209,6 @@ describe('initWorkspace', () => {
     realignAllConfigsToPlatformScope.mockReset().mockResolvedValue({ realigned: 2, total: 3 });
     migrateRegistryToGlobalScope.mockReset().mockResolvedValue({ migrated: 1 });
     migrateRegistryAppIdDrift.mockReset().mockResolvedValue({ migrated: 1 });
-    gcOrphanedConfigs.mockReset().mockResolvedValue({ wouldDelete: 1, deleted: 0 });
     buildCustomActions.mockClear().mockImplementation((deps) => {
       capturedCustomActionDeps = deps;
       return {};
@@ -306,7 +301,6 @@ describe('initWorkspace', () => {
     realignAllConfigsToPlatformScope.mockRejectedValueOnce(new Error('m2'));
     migrateRegistryToGlobalScope.mockRejectedValueOnce(new Error('m3'));
     migrateRegistryAppIdDrift.mockRejectedValueOnce(new Error('m4'));
-    gcOrphanedConfigs.mockRejectedValueOnce(new Error('gc'));
 
     await initWorkspace({ components: { home: false, store: false, dock: false, notifications: false } });
     expect(createConfigManager).not.toHaveBeenCalled();
@@ -396,16 +390,6 @@ describe('initWorkspace', () => {
     expect(platformQuit).toHaveBeenCalled();
   });
 
-  it('logs boot-time orphan GC telemetry when rows would be deleted', async () => {
-    const log = vi.fn();
-    gcOrphanedConfigs.mockResolvedValue({ wouldDelete: 3, deleted: 0 });
-    await initWorkspace({ onProgress: log });
-    await vi.waitFor(() => {
-      expect(log).toHaveBeenCalledWith(
-        expect.stringContaining('Workspace GC (boot): 3 orphan row(s)'),
-      );
-    });
-  });
 
   it('runThemeToggle flips data-theme and coalesces rapid re-entry', async () => {
     document.documentElement.setAttribute('data-theme', 'dark');
