@@ -208,10 +208,11 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
   // Default logger is a no-op if the caller didn't provide one
   const log = config?.onProgress ?? (() => {});
 
-  // All components are enabled by default; the caller can disable them
+  // Dock + notifications are on by default; Home and Store are opt-in —
+  // every known consumer disabled them, so the default now matches use.
   const components = {
-    home: true,
-    store: true,
+    home: false,
+    store: false,
     dock: true,
     notifications: true,
     ...config?.components,

@@ -91,7 +91,7 @@ export interface WorkspaceConfig {
     brandSecondary?: string;
     backgroundPrimary?: string;
   };
-  /** Which components to enable (defaults to all true) */
+  /** Which components to enable. Dock + notifications default on; Home + Store default OFF (opt-in). */
   components?: {
     home?: boolean;
     store?: boolean;

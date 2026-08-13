@@ -276,15 +276,16 @@ describe('initWorkspace', () => {
     __resetWorkspaceForTests();
   });
 
-  it('is idempotent and registers all workspace components', async () => {
+  it('is idempotent and registers the default components (Home/Store opt-in)', async () => {
     const log = vi.fn();
     await initWorkspace({ onProgress: log });
     await initWorkspace({ onProgress: log });
 
     expect(createConfigManager).toHaveBeenCalledTimes(1);
     expect(platformInit).toHaveBeenCalledTimes(1);
-    expect(registerHome).toHaveBeenCalledTimes(1);
-    expect(registerStore).toHaveBeenCalledTimes(1);
+    // Home + Store are opt-in now — not registered by default.
+    expect(registerHome).not.toHaveBeenCalled();
+    expect(registerStore).not.toHaveBeenCalled();
     expect(registerDock).toHaveBeenCalledTimes(1);
     expect(registerNotifications).toHaveBeenCalledTimes(1);
     expect(setPlatformDefaultScope).toHaveBeenCalledWith({
@@ -380,7 +381,7 @@ describe('initWorkspace', () => {
   });
 
   it('tears down components on provider close-requested', async () => {
-    await initWorkspace();
+    await initWorkspace({ components: { home: true, store: true } });
     expect(closeRequestedHandler).toBeTypeOf('function');
     await closeRequestedHandler!();
     expect(Home.deregister).toHaveBeenCalled();
