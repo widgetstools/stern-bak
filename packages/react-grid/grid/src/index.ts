@@ -7,10 +7,6 @@
  */
 
 export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES, MINIMAL_MODULES } from './widget/MarketsGrid.js';
-export {
-  SsrmMarketsGrid,
-  type SsrmMarketsGridProps,
-} from './widget/SsrmMarketsGrid.js';
 export { useGridTheme } from './widget/theme/index.js';
 export { FiltersToolbar, type FiltersToolbarProps } from './widget/FiltersToolbar.js';
 export { FormattingToolbar } from './widget/FormattingToolbar.js';
@@ -82,13 +78,11 @@ export {
   mapNativeStatusBarToSsrm,
   SsrmRowsStatusPanel,
   SSRM_STATUS_CONTEXT_KEY,
-  SsrmAgGrid,
   toSsrmExpressionRules,
   type CreateSsrmDatasourceOptions,
   type BindSsrmTicksOptions,
   type CreateSsrmStatusBarOptions,
   type SsrmStatusBarConfig,
   type SsrmStatusBarContext,
-  type SsrmAgGridProps,
   type MarketsGridExpressionSnapshot,
 } from './ssrm/index.js';

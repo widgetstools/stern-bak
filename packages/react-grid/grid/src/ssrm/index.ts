@@ -21,7 +21,6 @@ export {
   type SsrmStatusBarConfig,
   type SsrmStatusBarContext,
 } from './createSsrmStatusBar.js';
-export { SsrmAgGrid, type SsrmAgGridProps } from './SsrmAgGrid.js';
 export {
   toSsrmExpressionRules,
   type MarketsGridExpressionSnapshot,

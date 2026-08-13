@@ -11,9 +11,6 @@ type GridChrome = Pick<
   | 'showFiltersToolbar'
   | 'showFormattingToolbar'
   | 'showEditingToolbar'
-  | 'showSmartEditToolbar'
-  | 'showBulkUpdateToolbar'
-  | 'showEditHistoryToolbar'
   | 'showVisualExcelExport'
   | 'showProfileSelector'
   | 'showSaveButton'
@@ -48,9 +45,6 @@ export function SsrmLabGrid({
   showFiltersToolbar,
   showFormattingToolbar,
   showEditingToolbar,
-  showSmartEditToolbar,
-  showBulkUpdateToolbar,
-  showEditHistoryToolbar,
   showVisualExcelExport,
   sideBar,
   statusBar,
@@ -144,9 +138,6 @@ export function SsrmLabGrid({
       showFiltersToolbar={showFiltersToolbar}
       showFormattingToolbar={showFormattingToolbar}
       showEditingToolbar={showEditingToolbar}
-      showSmartEditToolbar={showSmartEditToolbar}
-      showBulkUpdateToolbar={showBulkUpdateToolbar}
-      showEditHistoryToolbar={showEditHistoryToolbar}
       showVisualExcelExport={showVisualExcelExport}
       sideBar={sideBar}
       statusBar={statusBar}

@@ -274,9 +274,6 @@ function MarketsGridInner<TData = unknown>(
     showFiltersToolbar = false,
     showFormattingToolbar = false,
     showEditingToolbar,
-    showSmartEditToolbar,
-    showBulkUpdateToolbar,
-    showEditHistoryToolbar,
     showSaveButton = true,
     showSettingsButton = true,
     showColumnSelector = true,
@@ -369,13 +366,8 @@ function MarketsGridInner<TData = unknown>(
   }
 
   const editingToolbarHostProps = useMemo(
-    () => ({
-      showEditingToolbar,
-      showSmartEditToolbar,
-      showBulkUpdateToolbar,
-      showEditHistoryToolbar,
-    }),
-    [showEditingToolbar, showSmartEditToolbar, showBulkUpdateToolbar, showEditHistoryToolbar],
+    () => ({ showEditingToolbar }),
+    [showEditingToolbar],
   );
 
   return (

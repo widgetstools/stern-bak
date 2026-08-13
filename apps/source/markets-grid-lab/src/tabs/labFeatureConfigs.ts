@@ -60,9 +60,6 @@ type GridChrome = Pick<
   | 'showFiltersToolbar'
   | 'showFormattingToolbar'
   | 'showEditingToolbar'
-  | 'showSmartEditToolbar'
-  | 'showBulkUpdateToolbar'
-  | 'showEditHistoryToolbar'
   | 'showVisualExcelExport'
   | 'showProfileSelector'
   | 'showSaveButton'
@@ -443,8 +440,7 @@ export const SMART_EDIT_FEATURE: LabFeatureConfig = {
   stream: { rowCount: 200, updateIntervalMs: 500, enableUpdates: false },
   getColumnDefs: () => SMART_EDIT_COLUMNS,
   grid: {
-    showSmartEditToolbar: true,
-    showEditHistoryToolbar: true,
+    showEditingToolbar: true,
     showFiltersToolbar: true,
     showFormattingToolbar: false,
     showProfileSelector: true,
@@ -481,8 +477,7 @@ export const BULK_UPDATE_FEATURE: LabFeatureConfig = {
   stream: { rowCount: 200, updateIntervalMs: 500, enableUpdates: false },
   getColumnDefs: () => BULK_UPDATE_COLUMNS,
   grid: {
-    showBulkUpdateToolbar: true,
-    showEditHistoryToolbar: true,
+    showEditingToolbar: true,
     showFiltersToolbar: true,
     showFormattingToolbar: false,
     showProfileSelector: true,
@@ -513,7 +508,7 @@ export const PLUS_MINUS_FEATURE: LabFeatureConfig = {
   stream: { rowCount: 200, updateIntervalMs: 500, enableUpdates: false },
   getColumnDefs: () => PLUS_MINUS_COLUMNS,
   grid: {
-    showEditHistoryToolbar: true,
+    showEditingToolbar: true,
     showFiltersToolbar: true,
     showFormattingToolbar: false,
     showProfileSelector: true,
@@ -544,7 +539,7 @@ export const SHORTCUTS_FEATURE: LabFeatureConfig = {
   stream: { rowCount: 200, updateIntervalMs: 500, enableUpdates: false },
   getColumnDefs: () => SHORTCUTS_COLUMNS,
   grid: {
-    showEditHistoryToolbar: true,
+    showEditingToolbar: true,
     showFiltersToolbar: true,
     showFormattingToolbar: false,
     showProfileSelector: true,

@@ -9,52 +9,22 @@ export interface EditingToolbarAllow {
 
 export interface EditingToolbarHostProps {
   showEditingToolbar?: boolean;
-  showSmartEditToolbar?: boolean;
-  showBulkUpdateToolbar?: boolean;
-  showEditHistoryToolbar?: boolean;
 }
 
 /**
- * Resolve host-level editing toolbar visibility.
- * Legacy per-module props act as an allow-list; `showEditingToolbar` alone
- * enables all three segments (each still gated by module settings.enabled).
+ * Resolve host-level editing toolbar visibility. `showEditingToolbar`
+ * enables the row with all three segments allowed — each segment is
+ * still gated by its module's `settings.enabled`.
  */
 export function resolveEditingToolbarAllow(
   props: EditingToolbarHostProps,
 ): EditingToolbarAllow {
-  const {
-    showEditingToolbar,
-    showSmartEditToolbar,
-    showBulkUpdateToolbar,
-    showEditHistoryToolbar,
-  } = props;
-
-  const legacySpecified =
-    showSmartEditToolbar !== undefined
-    || showBulkUpdateToolbar !== undefined
-    || showEditHistoryToolbar !== undefined;
-
-  const legacyAny = Boolean(
-    showSmartEditToolbar || showBulkUpdateToolbar || showEditHistoryToolbar,
-  );
-
-  // Use `||` so legacy props still enable the row when the unified prop is off.
-  const rowVisible = Boolean(showEditingToolbar) || legacyAny;
-
-  if (showEditingToolbar && !legacySpecified) {
-    return {
-      rowVisible,
-      allowHistory: true,
-      allowSmartEdit: true,
-      allowBulkUpdate: true,
-    };
-  }
-
+  const on = Boolean(props.showEditingToolbar);
   return {
-    rowVisible,
-    allowHistory: Boolean(showEditHistoryToolbar),
-    allowSmartEdit: Boolean(showSmartEditToolbar),
-    allowBulkUpdate: Boolean(showBulkUpdateToolbar),
+    rowVisible: on,
+    allowHistory: on,
+    allowSmartEdit: on,
+    allowBulkUpdate: on,
   };
 }
 
@@ -64,17 +34,11 @@ export interface EditingModuleEnabledSnapshot {
   history: boolean;
 }
 
-function editingToolbarLegacyAny(props: EditingToolbarHostProps): boolean {
-  return Boolean(
-    props.showSmartEditToolbar || props.showBulkUpdateToolbar || props.showEditHistoryToolbar,
-  );
-}
-
 /**
  * When the host did not opt in via props, derive the primary-row pencil toggle
  * from Custom Settings module switches (`settings.enabled` on smart-edit,
  * bulk-update, data-change-history). Explicit `showEditingToolbar: false`
- * (without legacy segment props) suppresses auto-detection.
+ * suppresses auto-detection.
  */
 export function mergeEditingToolbarAllowWithModules(
   base: EditingToolbarAllow,
@@ -83,7 +47,7 @@ export function mergeEditingToolbarAllowWithModules(
 ): EditingToolbarAllow {
   if (base.rowVisible) return base;
 
-  if (hostProps.showEditingToolbar === false && !editingToolbarLegacyAny(hostProps)) {
+  if (hostProps.showEditingToolbar === false) {
     return base;
   }
 

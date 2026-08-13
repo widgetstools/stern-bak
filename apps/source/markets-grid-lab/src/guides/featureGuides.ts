@@ -240,8 +240,8 @@ export const FEATURE_GUIDES: Record<string, FeatureGuide> = {
       { text: 'Enter a value in the Bulk Update toolbar and apply; confirm the dialog.' },
     ],
     props: [
-      { name: 'showBulkUpdateToolbar', type: 'boolean', default: 'false', note: 'The replace-selection control.' },
-      { name: 'showEditHistoryToolbar', type: 'boolean', default: 'false', note: 'Undo/redo of the bulk write.' },
+      { name: 'showEditingToolbar', type: 'boolean', default: 'false', note: 'The replace-selection control.' },
+      { name: 'showEditingToolbar', type: 'boolean', default: 'false', note: 'Undo/redo of the bulk write.' },
       showProfileSelector, showSaveButton, showSettingsButton,
     ],
   },
@@ -257,7 +257,7 @@ export const FEATURE_GUIDES: Record<string, FeatureGuide> = {
       { text: 'Press - to nudge back down; undo from the history controls.' },
     ],
     props: [
-      { name: 'showEditHistoryToolbar', type: 'boolean', default: 'false', note: 'Undo/redo of nudges.' },
+      { name: 'showEditingToolbar', type: 'boolean', default: 'false', note: 'Undo/redo of nudges.' },
       { name: 'showFiltersToolbar', type: 'boolean', default: 'false', note: 'Scope before nudging.' },
       showProfileSelector, showSaveButton, showSettingsButton,
     ],
@@ -274,7 +274,7 @@ export const FEATURE_GUIDES: Record<string, FeatureGuide> = {
       { text: 'Open Settings → Shortcuts to see the full key→operation map.' },
     ],
     props: [
-      { name: 'showEditHistoryToolbar', type: 'boolean', default: 'false', note: 'Undo/redo of shortcut ops.' },
+      { name: 'showEditingToolbar', type: 'boolean', default: 'false', note: 'Undo/redo of shortcut ops.' },
       showProfileSelector, showSaveButton, showSettingsButton,
     ],
   },

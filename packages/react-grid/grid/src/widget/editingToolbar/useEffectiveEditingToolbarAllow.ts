@@ -32,9 +32,6 @@ export function useEffectiveEditingToolbarAllow(
     });
   }, [
     hostProps.showEditingToolbar,
-    hostProps.showSmartEditToolbar,
-    hostProps.showBulkUpdateToolbar,
-    hostProps.showEditHistoryToolbar,
     smartEdit?.settings?.enabled,
     bulkUpdate?.settings?.enabled,
     history?.settings?.enabled,
