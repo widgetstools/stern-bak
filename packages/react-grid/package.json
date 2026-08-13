@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/grid",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsGrid + grid customizer + config browser + React widgets — merged product surface. Consolidates grid, config-browser, widgets-react.",
+  "description": "MarketsGrid + grid customizer + config browser + React widgets \u2014 merged product surface. Consolidates grid, config-browser, widgets-react.",
   "type": "module",
   "main": "./grid/dist/index.js",
   "module": "./grid/dist/index.js",
@@ -13,29 +13,15 @@
       "import": "./grid/dist/index.js",
       "require": "./grid/dist/index.js"
     },
-    "./ssrm": {
-      "types": "./grid/dist/ssrm/index.d.ts",
-      "import": "./grid/dist/ssrm/index.js"
-    },
     "./customizer": {
       "types": "./grid/dist/customizer/index.d.ts",
       "import": "./grid/dist/customizer/index.js"
     },
     "./styles.css": "./grid/dist/widget/styles/marketsGrid.css",
-    "./styles/core.css": "./grid/dist/widget/styles/marketsGrid-core.css",
-    "./styles/chrome.css": "./grid/dist/widget/styles/marketsGrid-chrome.css",
-    "./runtime/openfin": {
-      "types": "./grid/dist/runtime/openFin.d.ts",
-      "import": "./grid/dist/runtime/openFin.js"
-    },
     "./config-browser": {
       "types": "./config-browser/dist/index.d.ts",
       "import": "./config-browser/dist/index.js",
       "require": "./config-browser/dist/index.js"
-    },
-    "./config-browser/icons": {
-      "types": "./config-browser/dist/icons.d.ts",
-      "import": "./config-browser/dist/icons.js"
     },
     "./widgets": {
       "types": "./widgets-react/dist/index.d.ts",
@@ -53,10 +39,6 @@
     "./widgets/provider-editor": {
       "types": "./widgets-react/dist/container/provider-editor/index.d.ts",
       "import": "./widgets-react/dist/container/provider-editor/index.js"
-    },
-    "./widgets/data-provider-selector": {
-      "types": "./widgets-react/dist/container/data-provider-selector/index.d.ts",
-      "import": "./widgets-react/dist/container/data-provider-selector/index.js"
     },
     "./widgets/hosted": {
       "types": "./widgets-react/dist/hosted/index.d.ts",

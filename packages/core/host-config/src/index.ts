@@ -124,11 +124,6 @@ export {
   type MigrationResult,
 } from './migrations/profiles-v1';
 
-// ─── Change notifier (advanced — reserved for tests) ────────────────
-// Cross-tab + same-tab event bus that backs `ConfigManager.profiles.
-// subscribe`. Not part of the public API for production callers; used
-// in tests that simulate two managers sharing one BroadcastChannel.
-export { ChangeNotifier } from './changeNotifier';
 
 export { createConfigPort, type ConfigPortOptions } from './profileBundle';
 

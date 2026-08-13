@@ -11,7 +11,6 @@ export { useAgGridTheme } from './theme/index.js';
 // The v1 mirrored editor/selector are gone; consumers import the
 // v2 surfaces directly via subpath:
 //   import { DataProviderEditor } from '@wellsfargo-starui/widgets-react/provider-editor';
-//   import { DataProviderSelector } from '@wellsfargo-starui/widgets-react/data-provider-selector';
 //   import { MarketsGridContainer } from '@wellsfargo-starui/widgets-react/markets-grid-container';
 
 // ─── Hosted-feature wrappers (public API) ────────

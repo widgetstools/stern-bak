@@ -50,7 +50,7 @@ export const ACTION_OPEN_WORKSPACE_SETUP = "open-workspace-setup";
 /**
  * Dock action to open the DataProvider editor — the authoring surface
  * for STOMP / REST / Mock / AppData providers that any blotter in the
- * platform can later bind to via <DataProviderSelector>. Same scope
+ * platform can later bind a provider picker to. Same scope
  * + customData plumbing as the other admin tools.
  */
 export const ACTION_OPEN_DATA_PROVIDERS  = "open-data-providers";
