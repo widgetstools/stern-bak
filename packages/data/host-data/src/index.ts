@@ -98,10 +98,4 @@ export {
   type FiPositionsConfigOverrides,
 } from './runtime/providers/index.js';
 
-export {
-  DataProviderConfigService,
-  dataProviderConfigService,
-  type DataProviderLocalBackend,
-} from './services/index.js';
-
 export { createDataPort } from './createDataPort.js';

@@ -43,8 +43,6 @@ const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: str
     icon: Radio,
   },
   rest: { label: 'REST', description: 'One-shot HTTP fetch — no live updates.', icon: Globe },
-  websocket: { label: 'WebSocket', description: 'Raw WebSocket, framed by you.', icon: Radio },
-  socketio: { label: 'Socket.IO', description: 'Socket.IO event-driven channel.', icon: Radio },
   mock: { label: 'Mock', description: 'In-memory dummy stream — for dev/tests.', icon: TestTube2 },
   'mock-ssrm': {
     label: 'Mock SSRM',

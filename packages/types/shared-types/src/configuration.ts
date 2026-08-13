@@ -178,8 +178,6 @@ export const COMPONENT_TYPES = {
 
 export const COMPONENT_SUBTYPES = {
   STOMP: 'stomp',
-  WEBSOCKET: 'websocket',
-  SOCKETIO: 'socketio',
   REST: 'rest',
   MOCK: 'mock',
   DOCK_APPLICATIONS_MENU_ITEMS: 'dock-applications-menu-items',

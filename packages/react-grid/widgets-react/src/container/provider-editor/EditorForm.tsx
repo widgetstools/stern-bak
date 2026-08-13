@@ -315,7 +315,7 @@ function Header({
 // ─── Footer — save controls ───────────────────────────────────────
 
 // Stomp + Rest carry columnDefinitions on the cfg. The other transports
-// (websocket / socketio / mock / appdata) don't — but the editor still
+// (mock / appdata) don't — but the editor still
 // needs a uniform read path. Cast through `unknown` and shape-check.
 function readColumns(cfg: ProviderConfig): ColumnDefinition[] {
   const maybe = (cfg as unknown as { columnDefinitions?: ColumnDefinition[] }).columnDefinitions;

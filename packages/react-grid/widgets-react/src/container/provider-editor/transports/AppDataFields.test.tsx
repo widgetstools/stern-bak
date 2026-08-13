@@ -44,7 +44,6 @@ describe('AppDataFields', () => {
           key: 'asOfDate',
           value: '2026-01-01',
           type: 'string',
-          durability: 'volatile',
         },
       },
     });
@@ -57,7 +56,7 @@ describe('AppDataFields', () => {
         cfg={{
           providerType: 'appdata',
           variables: {
-            foo: { key: 'foo', value: '1', type: 'string', durability: 'volatile' },
+            foo: { key: 'foo', value: '1', type: 'string' },
           },
         }}
         onChange={vi.fn()}
@@ -75,7 +74,7 @@ describe('AppDataFields', () => {
         cfg={{
           providerType: 'appdata',
           variables: {
-            a: { key: 'a', value: '1', type: 'string', durability: 'volatile' },
+            a: { key: 'a', value: '1', type: 'string' },
           },
         }}
         onChange={onChange}
@@ -100,8 +99,8 @@ describe('AppDataFields', () => {
         cfg={{
           providerType: 'appdata',
           variables: {
-            '__editing_tmp': { key: '__editing_tmp', value: 'x', type: 'string', durability: 'volatile' },
-            keep: { key: 'keep', value: '1', type: 'string', durability: 'volatile' },
+            '__editing_tmp': { key: '__editing_tmp', value: 'x', type: 'string' },
+            keep: { key: 'keep', value: '1', type: 'string' },
           },
         }}
         onChange={onChange}
@@ -119,14 +118,14 @@ describe('AppDataFields', () => {
         cfg={{
           providerType: 'appdata',
           variables: {
-            d: { key: 'd', value: '2026-01-01', type: 'date', durability: 'volatile' },
+            d: { key: 'd', value: '2026-01-01', type: 'date' },
           },
         }}
         onChange={onChange}
       />,
     );
     lastGridProps.onCellValueChanged({
-      data: { key: 'd', value: '2026-01-01', type: 'date', durability: 'volatile', _rowId: 'd-0' },
+      data: { key: 'd', value: '2026-01-01', type: 'date', _rowId: 'd-0' },
       colDef: { field: 'value' },
       newValue: new Date('2026-02-01T12:00:00Z'),
     });

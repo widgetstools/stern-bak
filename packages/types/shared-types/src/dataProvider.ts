@@ -9,8 +9,6 @@ export const PROVIDER_TYPES = {
   /** STOMP feed + SharedWorker SSRM query plane (MarketsGrid SSRM). */
   STOMP_SSRM: 'stomp-ssrm',
   REST: 'rest',
-  WEBSOCKET: 'websocket',
-  SOCKETIO: 'socketio',
   MOCK: 'mock',
   /** Mock feed + SharedWorker SSRM query plane (lab / offline SSRM). */
   MOCK_SSRM: 'mock-ssrm',
@@ -26,8 +24,6 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
   [PROVIDER_TYPES.STOMP]: 'stomp',
   [PROVIDER_TYPES.STOMP_SSRM]: 'stomp-ssrm',
   [PROVIDER_TYPES.REST]: 'rest',
-  [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
-  [PROVIDER_TYPES.SOCKETIO]: 'socketio',
   [PROVIDER_TYPES.MOCK]: 'mock',
   [PROVIDER_TYPES.MOCK_SSRM]: 'mock-ssrm',
   [PROVIDER_TYPES.APPDATA]: 'appdata'
@@ -40,8 +36,6 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'stomp': PROVIDER_TYPES.STOMP,
   'stomp-ssrm': PROVIDER_TYPES.STOMP_SSRM,
   'rest': PROVIDER_TYPES.REST,
-  'websocket': PROVIDER_TYPES.WEBSOCKET,
-  'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
   'mock-ssrm': PROVIDER_TYPES.MOCK_SSRM,
   'appdata': PROVIDER_TYPES.APPDATA,
@@ -49,8 +43,6 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'Stomp': PROVIDER_TYPES.STOMP,
   'StompSsrm': PROVIDER_TYPES.STOMP_SSRM,
   'Rest': PROVIDER_TYPES.REST,
-  'WebSocket': PROVIDER_TYPES.WEBSOCKET,
-  'SocketIO': PROVIDER_TYPES.SOCKETIO,
   'Mock': PROVIDER_TYPES.MOCK,
   'MockSsrm': PROVIDER_TYPES.MOCK_SSRM,
   'AppData': PROVIDER_TYPES.APPDATA
@@ -218,21 +210,12 @@ export interface StompProviderConfig {
    */
   wireFormat?: 'json' | 'columnar';
   /**
-   * Reconnect policy. Today only `initialDelayMs` is honoured (it
-   * becomes the stompjs `reconnectDelay`); full exponential backoff +
-   * jitter + maxAttempts requires bypassing stompjs's auto-reconnect
-   * and is tracked as a follow-up. The fields are reserved here so
-   * configurators can author them now without a schema migration.
+   * Reconnect policy — `initialDelayMs` becomes the stompjs
+   * `reconnectDelay`. Default 5000.
    */
   reconnect?: {
     /** Static reconnect delay in ms. Default 5000 (matches prior behaviour). */
     initialDelayMs?: number;
-    /** Reserved for exp-backoff implementation. Currently ignored. */
-    maxDelayMs?: number;
-    /** Reserved for exp-backoff implementation. Currently ignored. */
-    jitter?: 'full' | 'equal' | 'none';
-    /** Reserved for exp-backoff implementation. Currently ignored. */
-    maxAttempts?: number;
   };
 }
 
@@ -298,41 +281,6 @@ export interface RestProviderConfig {
 }
 
 /**
- * WebSocket Provider Configuration
- */
-export interface WebSocketProviderConfig {
-  providerType: 'websocket';
-  url: string;
-  protocol?: string;
-  messageFormat: 'json' | 'binary' | 'text';
-  heartbeatInterval?: number;
-  reconnectAttempts?: number;
-  reconnectDelay?: number;
-  /** Message to send after connection to begin data subscription. */
-  subscribeMessage?: string;
-}
-
-/**
- * Socket.IO Provider Configuration
- */
-export interface SocketIOProviderConfig {
-  providerType: 'socketio';
-  url: string;
-  namespace?: string;
-  events: {
-    snapshot: string;
-    update: string;
-    delete?: string;
-  };
-  rooms?: string[];
-  auth?: any;
-  reconnection?: boolean;
-  reconnectionDelay?: number;
-  /** Simplified single-event name alternative to the `events` object. */
-  eventName?: string;
-}
-
-/**
  * Mock Provider Configuration
  */
 export interface MockProviderConfig {
@@ -391,22 +339,6 @@ export interface AppDataVariable {
   type: 'string' | 'number' | 'boolean' | 'json';
   description?: string;
   sensitive?: boolean;
-  /**
-   * Durability of this key:
-   *   'volatile'  — in-memory only, lost on worker restart (default).
-   *                 Auth tokens, transient selections, rate-limited
-   *                 caches, anything sensitive that shouldn't leak
-   *                 across sessions.
-   *   'persisted' — written through to ConfigService on every `put`
-   *                 and rehydrated from ConfigService when the
-   *                 AppData provider configures. User preferences,
-   *                 long-lived feature flags, anything the user
-   *                 expects to survive a reboot.
-   *
-   * Defaults to 'volatile' for back-compat. Existing configs without
-   * this field behave as today.
-   */
-  durability?: 'volatile' | 'persisted';
 }
 
 /**
@@ -424,8 +356,6 @@ export type ProviderConfig =
   | StompProviderConfig
   | StompSsrmProviderConfig
   | RestProviderConfig
-  | WebSocketProviderConfig
-  | SocketIOProviderConfig
   | MockProviderConfig
   | MockSsrmProviderConfig
   | AppDataProviderConfig;
@@ -569,21 +499,6 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     pageSize: 100,
     timeout: 30000
   },
-  websocket: {
-    providerType: 'websocket',
-    url: '',
-    messageFormat: 'json',
-    heartbeatInterval: 30000,
-    reconnectAttempts: 5,
-    reconnectDelay: 5000
-  },
-  socketio: {
-    providerType: 'socketio',
-    url: '',
-    namespace: '/',
-    reconnection: true,
-    reconnectionDelay: 5000
-  },
   mock: {
     providerType: 'mock',
     dataType: 'positions',
@@ -645,13 +560,6 @@ export function validateProviderConfig(config: ProviderConfig): ProviderValidati
       }
       if (restConfig.pollInterval && restConfig.pollInterval < 1000) {
         warnings.push('Poll interval is very low (< 1 second), may cause high server load');
-      }
-      break;
-    }
-    case 'websocket': {
-      const wsConfig = config as WebSocketProviderConfig;
-      if (wsConfig.url && !wsConfig.url.startsWith('ws://') && !wsConfig.url.startsWith('wss://')) {
-        warnings.push('URL should typically start with ws:// or wss://');
       }
       break;
     }

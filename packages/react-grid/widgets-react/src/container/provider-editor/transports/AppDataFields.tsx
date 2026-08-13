@@ -81,7 +81,6 @@ export function AppDataFields({ cfg, onChange }: AppDataFieldsProps) {
       key: newKey,
       value: newValue,
       type: 'string',
-      durability: 'volatile',
     };
 
     onChange({

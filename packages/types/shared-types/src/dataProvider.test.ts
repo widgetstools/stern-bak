@@ -38,8 +38,6 @@ describe('provider-type maps', () => {
 
   it('accepts the capitalised legacy subtypes written by older configs', () => {
     expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['Stomp']).toBe('stomp');
-    expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['WebSocket']).toBe('websocket');
-    expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['SocketIO']).toBe('socketio');
     expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['AppData']).toBe('appdata');
   });
 
@@ -150,16 +148,8 @@ describe('validateProviderConfig', () => {
     expect(result.warnings).toBeUndefined();
   });
 
-  it('warns on a non-ws websocket URL', () => {
-    const result = validateProviderConfig({
-      providerType: 'websocket',
-      url: 'https://host',
-    } as ProviderConfig);
-    expect(result.warnings).toEqual(['URL should typically start with ws:// or wss://']);
-  });
-
-  it('has no per-type rules for mock / socketio / appdata', () => {
-    for (const providerType of ['mock', 'socketio', 'appdata'] as const) {
+  it('has no per-type rules for mock / appdata', () => {
+    for (const providerType of ['mock', 'appdata'] as const) {
       const result = validateProviderConfig({ providerType } as ProviderConfig);
       expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
     }

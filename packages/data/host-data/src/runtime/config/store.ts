@@ -159,9 +159,9 @@ export class DataProviderConfigStore {
 function legacyAppDataRowToProvider(row: AppConfigRow): DataProviderConfig {
   const payload = (row.payload ?? {}) as Record<string, unknown>;
   const values = (payload.values as Record<string, unknown>) ?? {};
-  const variables: Record<string, { key: string; value: unknown; type: 'string'; durability: 'volatile' }> = {};
+  const variables: Record<string, { key: string; value: unknown; type: 'string' }> = {};
   for (const [key, value] of Object.entries(values)) {
-    variables[key] = { key, value, type: 'string', durability: 'volatile' };
+    variables[key] = { key, value, type: 'string' };
   }
   return {
     providerId: row.configId,

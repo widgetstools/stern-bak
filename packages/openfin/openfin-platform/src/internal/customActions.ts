@@ -259,7 +259,6 @@ export function buildCustomActions(deps: CustomActionDeps): CustomActionsMap {
     // Sized to comfortably fit the 4-tab provider configurator
     // (Connection / Fields / Columns / Behaviour). Forwards the
     // platform default scope as customData so the editor's
-    // dataProviderConfigService writes land under the right userId,
     // matching every other admin tool.
     [ACTION_OPEN_DATA_PROVIDERS]: async (e): Promise<void> => {
       if (

@@ -135,7 +135,7 @@ async function testConnectionOnce(
     case 'mock-ssrm':
       return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
-    default:      return { ok: false, error: `Test not implemented for ${cfg.providerType}` };
+    default:      return { ok: false, error: `Test not implemented for ${(cfg as { providerType?: string }).providerType}` };
   }
 }
 
@@ -157,6 +157,6 @@ async function probeOnce(
     case 'mock-ssrm':
       return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
-    default:      return { ok: false, error: `Probe not implemented for ${cfg.providerType}` };
+    default:      return { ok: false, error: `Probe not implemented for ${(cfg as { providerType?: string }).providerType}` };
   }
 }
