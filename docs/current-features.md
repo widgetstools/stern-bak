@@ -332,7 +332,6 @@ Per-renderer config types (`PillRendererConfig`,
   `toolbarDateHistoryEnabled` (when `false`, only today is selectable);
   `showColumnSelector` (default `true`) — toolbar Columns button + dual-list reorder dialog
 - `DEFAULT_MODULES` — ordered customizer-module pipeline (full feature set)
-- `MINIMAL_MODULES` — lightweight embed preset (general-settings, saved-filters, grid-state)
 - `gridSurfaceOptions` — AG Grid defaults, DOM options, row styling, cell renderers
 - `GridDensityPill` — center-top primary-toolbar chip; Ultra / Compact / Comfortable presets (persists `gridDensity` + matching `rowHeight`/`headerHeight` in general-settings; `applyGridDensityLive` pushes heights immediately with row animation suppressed)
 - `MarketsGridSurface` — memo'd AgGridReact boundary; `buildStreamSafeComponents` optionally omits date floating filter when unused; folds the effective `rowHeight`/`headerHeight` (host
@@ -355,13 +354,9 @@ Per-renderer config types (`PillRendererConfig`,
 
 - `MarketsGrid` `ssrm` prop (`{ provider, keyColumn?, cacheBlockSize? }`) — switches the inner surface to `rowModelType: 'serverSide'` while the host chrome (customizer, toolbars, profiles, settings) stays CSRM-identical. The AG Grid instance is created **once per provider** (surface keyed on `ssrm:${provider.id}` only): `keyColumn` is late-bound — it resolves after provider ready, `getRowId` is a stable function reading a ref (only the function is init-only), and a keyColumn change rebinds the datasource + tick binding in place with a full block purge instead of remounting the grid (no throwaway instance, one license-manager validation per load; React StrictMode still double-mounts in dev). Safe because no row can exist under the stale key: rows only load once the provider is ready, which is also what triggers the resolve and the purge. When `ssrm` is set, `rowData` is ignored. Its `MarketsGridSsrmProps` interface is **not** on the public barrel — consumers must inline the shape
 - `MarketsGridSsrmSurface` — SSRM inner surface; composes datasource, tick binding and status bar. **Internal** — mounted by `MarketsGrid`, not on the public barrel
-- `SsrmMarketsGrid` — **Deprecated.** thin wrapper that mounts `MarketsGrid` + `ssrm`; use the `ssrm` prop directly
-- `SsrmAgGrid` — low-level SSRM AgGrid mount for hosts that don't want MarketsGrid chrome. Caller `gridOptions` are merged **minus the SSRM-owned keys** (`rowModelType`, `serverSideDatasource`, `getRowId`, `onGridReady`, `context`, `modules`): those define the data path, so a caller key there would silently detach the datasource or the tick binding rather than customise anything. A caller `onGridReady` — as a prop or inside `gridOptions` — is chained after the internal one, not dropped
 - `createSsrmDatasource()` — AG Grid `IServerSideDatasource` over an `ISsrmDataProvider` (`CreateSsrmDatasourceOptions`). Reports each loaded block to the worker as `{ blockKey, queryId, hasFilter }` so viewport interest accumulates per query instead of being replaced per block
 - `bindSsrmTicks()` — routes provider tick events to `applyServerSideTransaction` (`BindSsrmTicksOptions`); also subscribes provider status and **purges all blocks on every transition into `ready`** — a broker restart/reconnect or a provider restart/refresh re-snapshots upstream, and since status fans to every session, every subscribed grid repopulates automatically with no page reload (the snapshot flush alone fires on the first streamed chunk and later chunks are interest-gated, so ready is the only complete-cache signal)
 - SSRM wires CSRM's stale-data busy indicator: provider `error` after first `ready` sets `dataStale` on MarketsGrid (flashing `StaleDataBanner`, editing disabled), any recovery to `ready` clears it; cold-connect retries before first ready stay silent — tracked via a direct `provider.onStatus` subscription keyed on the provider (the wiring hook's `onStatus` receives display text, and its identity must stay stable or the wiring effect restarts the provider every render)
-- `BlankLoadingCellRenderer` — `loadingCellRenderer` on both SSRM mounts (`MarketsGridSsrmSurface`, `SsrmAgGrid`) renders `null`, so blocks in flight during a fast scrollbar-thumb drag show blank rows instead of AG Grid's default "Loading..." spinner text
-- `HostedSsrmMarketsGrid` saves the blotter's current layout on OpenFin **Save Workspace**, exactly like `HostedMarketsGrid`: the `MarketsGridHandle` captured via `onReady` runs `saveAll()` (same path as the toolbar Save button; `profiles.saveActiveProfile` fallback for older handles) through `useHostedView`'s `onWorkspaceSave` → `workspace-saving` registration, plus the same teardown safety net (beforeunload / pagehide / OpenFin view `destroyed` / unmount flush — workspace drag/move never fires `workspace-saving`)
 - SSRM grids get CSRM's full customizer DATA PROVIDER card (`SsrmMarketsGridContainer` supplies `ProviderGridHostApi` via `providerGridHost`): pick the LIVE and HISTORICAL providers from the catalog, toggle Live/Hist mode, set the historical as-of date, and run Refresh view / Reload from source / Edit provider — selection persists per gridId through the same `useGridLevelPersistence` grid-level row as CSRM (save-before-switch flushes customizer edits via `saveAll()`), the container rebinds `useSsrmDataProvider` to the chosen id (prop `providerId` is the default live provider, `defaultHistoricalProviderId` seeds the HISTORICAL slot), and historical reloads forward `{ asOfDate }` through `provider.restart`
 - SSRM admin menu carries CSRM's refresh pair ahead of the data-infra actions — `refresh-view` ("Refresh view": `refreshServerSide({purge})` against the worker plane, no upstream I/O) and `reload-from-source` ("Reload from source": `provider.restart({__refresh})`, which refreshes every subscribed grid via the ready transition)
 - `createSsrmStatusBar()` / `SsrmRowsStatusPanel` / `SsrmTotalRowsStatusPanel` / `SsrmFilteredRowsStatusPanel` / `SSRM_STATUS_CONTEXT_KEY` — AG Grid default-status-bar parity under SSRM (`SsrmStatusBarConfig`, `SsrmStatusBarContext`): total-and-filtered (left), total / filtered / native selected (center), native `agAggregationComponent` range aggregations (right). The three count panels call `provider.getStatusBar` (full worker-cache scan) with AG Grid's own markup/classes/labels, because the native count components only see the client row model; the aggregation panel is the built-in — the selected cell range is always loaded client-side. Refresh is tick-driven: after the initial load, each `provider.onSsrmTick` fires a load throttled to `refreshThrottleMs` (leading edge + at most one trailing per window, default 150 ms — a burst of ticks yields at most 2 loads), with a slow 2 s `setInterval` fallback for providers without ticks or a missed edge, replacing the old free-running `setInterval(load, refreshThrottleMs)` poll
@@ -373,7 +368,6 @@ Per-renderer config types (`PillRendererConfig`,
 - **Set-filter panels list the column's whole domain** — `withSsrmSetFilterValues` (applied by `MarketsGridSsrmSurface` to every filterable leaf column, header groups included) wires async `filterParams.values` to `provider.getSetFilterValues({ column })`, so the panel shows all distinct values in the worker cache rather than the loaded blocks; `refreshValuesOnOpen` re-fetches per open, and a failed worker call reports `[]` instead of breaking the panel
 - **Filter-pill badges count the whole cache** — `computeSsrmFilterCounts` asks the worker for a zero-row block per pill (`startRow: 0, endRow: 0` → `rowCount` with nothing materialised), carrying the active quick filter; provided to `useFilterCounts` via `SsrmFilterCountsProvider` whenever `ssrm` is active, replacing the CSRM `forEachNode` scan that only sees loaded blocks. Applied pill filters and the quick filter already evaluated worker-side via `setFilterModel` / SSRM query state
 - `SsrmMarketsGridContainer` host-shell props — `gridId` (defaults to `providerId`; keys stored grid state), `defaultColDef`, `onReady`, `onEditProvider` (routes the "Data Provider Editor" entry to a host popout instead of the inline dialog), `onOpenConfigBrowser`, `onRowIdFieldChange` (resolved key column), `onProviderReady` (live `ISsrmDataProvider`). Its data-infra menu is byte-for-byte `MarketsGridContainer`'s: the `data-provider-editor` admin action plus `config-browser` when wired — same ids, labels, icons, order. The "Edit provider" strip and status/row-count strip are opt-in (`showProviderEditor` / `showStatusStrip`, both default **false**) so hosted layouts match star-demo exactly; the inline editor dialog stays reachable from the admin action with the strip hidden. `historicalDateAppDataRef` is deliberately absent — CSRM's historical-date subsystem (AppData `asOfDate` + provider restart) has no SSRM counterpart yet
-- `HostedSsrmMarketsGrid` — full-bleed frame identical to `HostedMarketsGrid` (`position: fixed` + `inset: 0` + html/body reset; without it the AG Grid viewport collapses to zero height under OpenFin), `documentTitle` (restored on unmount), and `contextLink` (`GridContextLinkConfig`) with SSRM defaults injected: publish builder = `createSsrmSelectionContextBuilder` over the container-reported provider/key column; receive resolver = `createRowIdSetFilterResolver` in `rowId` mode. Caller-supplied `buildContext` / `resolve` win
 
 #### SSRM colour-link parity
 
@@ -640,16 +634,12 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `./widgets` — blotter components, hooks, provider, theme
 - `./widgets/markets-grid-container` — `MarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
 - `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
-- `./widgets/data-provider-selector` — `DataProviderSelector`
 - `./widgets/hosted` — `HostedMarketsGrid` (legacy wrapper)
 
 #### Blotter framework (v2)
 
-- `BlotterProvider` — DI container for `IDataProvider`, actions, state
 - `BlotterDependencies` — actions/data/state contract
 - `useBlotterDI` — access injected dependencies
-- `BlotterToolbar` — layout selector + bulk actions + custom buttons
-- `LayoutSelector` — load/save/delete layouts
 - `BlotterSlots` — extension points (header, toolbar, footer, etc.)
 
 #### Data-provider container & editor
@@ -659,7 +649,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `MarketsGridContainer` — hub data via `useDataProvider` + `applyProviderToGrid` (no direct `client.subscribe` / cfg pass-through); optional `defaultLiveProviderId` for single-provider demos; live mode cold-starts STOMP immediately (hub attach dedupes concurrent windows); historical restore late-joins a running hub provider via `isProviderRunning` / `waitForProviderRunning` (≤2s) + `provider.start()` instead of `restartProvider` (avoids peer grid refresh and duplicate STOMP when several windows open at once)
 - `useProviderDataWiring` — provider→grid hot path inside `MarketsGridContainer`; live ticks apply regardless of `document.hidden` — hidden/minimized blotters stay fully current (trading policy: window-local alerting + instant correctness on restore; the old hidden-pause + refresh-on-visible dormancy was removed; Chromium's own background timer throttling is left at platform defaults); on STOMP auto-reconnect (`error` → `ready`) clears the stale banner and triggers `provider.refresh()` so every blotter replays the hub cache without a manual Reload
 - `MarketsGridContainer` — when an active provider id is chosen but `useDataProviderConfig` is still loading, renders a lightweight placeholder (no throwaway `MarketsGrid` / AG Grid shell); the `__no_provider__` shell path is unchanged when no provider is selected or cfg is loaded but missing key/columns
-- `applyProviderToGrid` — live-tick add/update split with pending-add coalescing (`createApplyProviderToGridState`, `splitProviderRowsForGrid`, `splitProviderRowsWithResolver`); after snapshot commit, `markSnapshotLoaded` indexes row ids so live ticks avoid O(n) `getRowNode`; ticks for ids still in an async add queue retain the latest payload instead of being dropped so peer grids on the same hub provider stay row-count aligned; internal to `MarketsGridContainer` / `useBlotterDataConnection` (not on public barrel)
 - `buildColumnDefs` — maps a provider's persisted `ColumnDefinition[]` to AG Grid `ColDef[]` for `MarketsGridContainer`. Per column: a `valueGetter` DSL expression compiles once (bounded FIFO cache) to a CSP-safe `@wellsfargo-starui/core` **compiled closure** (not per-cell AST walk); dotted `field` uses cached `getPathAccessor`; flat field stays on AG Grid's native path. Every column with no explicit `filter` defaults to the **Multi Filter** (`agMultiColumnFilter`): tab 1 is the `cellDataType`-appropriate filter (`number`→`agNumberColumnFilter`, `date`/`dateString`→`agDateColumnFilter`, else `agTextColumnFilter`), tab 2 is always `agSetColumnFilter`; a column that already declares its own `filter` is left untouched (FilterEditor / host choice wins). Expression getters never throw — parse errors fall back to the field binding, runtime errors to the field value (warn once per expression); reusable per-getter `EvaluationContext` avoids per-cell allocations under high-frequency updates. Soak: `npm run soak:value-getter` (`valueGetter.soak.test.ts`, `SOAK=1`) — sustained eval load + heap-delta guard. **Internal** — not on public barrel
 - Custom Settings panel (`toolbar-date-settings` module) — four sections: Toolbar Date (historical date → AppData config), Data Provider (live/historical pickers, mode, as-of date) when `providerGridHost` is wired, Event Callbacks (event→handler bindings) when `gridEventBindingsHost` is wired, and Row Filter (row-exclusion expression). All settings are staged and applied only on the panel's explicit Save (Reset reverts); imperative actions (refresh/reload/edit) stay immediate
 - Row exclusion — implemented in `@wellsfargo-starui/grid` `toolbar-date-settings` module (not widgets-react): multiline Monaco `ExpressionEditor` authors an EXCLUDE-when-true DSL predicate (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, e.g. `[ccy] == "INR"`, `[active] == false`); keystrokes stage into the panel draft (applied on Save). `transformGridOptions` installs it as AG Grid's external filter (`isExternalFilterPresent` / `doesExternalFilterPass`) and the module's `activate` calls `api.onFilterChanged()` on cell edits, expression edits, and first ready. Rows are hidden, not removed — they reappear when the offending value changes; parse/eval failure excludes nothing (`rowExclusionFilter.ts`, fails open)
@@ -667,7 +656,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `DataProviderEditor` — connection + tabs (Connections, Fields, Columns, Diagnostics). Sidebar **Import** button creates a brand-new persisted provider from an exported JSON config (`configStore.save` mints a fresh `providerId`, owned by the current user — or `system` when the config is public), then selects and opens it for editing; footer **Export** button downloads the current working config — including unsaved edits — as JSON. **Clone** (sidebar row or form footer) deep-clones the provider config into an unsaved draft that appears immediately in the sidebar list (tagged **Unsaved**) until the user saves — then `configStore.save` mints a real `providerId` and the row becomes persisted
 - `providerConfigIo` — `exportProviderConfig` (downloads a `{ kind, version, exportedAt, provider }` envelope with `providerId`/`userId`/`isDefault` stripped so bundles are portable), `parseProviderConfigImport` (accepts the wrapped envelope or a bare provider object; validates `providerType`/`config`, defaults a missing name, re-strips identity), `toPortableProviderConfig`
 - `columnDefsIo` — column-definitions JSON IO for the Columns tab. `serializeColumnDefs` / `exportColumnDefs` write a plain `ColumnDefinition[]` array at full fidelity (every field preserved, including each column's `valueGetter` DSL expression) and trigger a `starui-column-defs.json` download; `parseColumnDefsImport` accepts a bare array, `{ columns }`, or the `{ kind, columns }` envelope, sanitizes each entry to known keys (requires a non-empty `field`, defaults `headerName`→`field`, validates `cellDataType`, keeps `valueGetter`), and throws user-readable errors
-- `DataProviderSelector` — compact provider dropdown with quick-add
 - `useChordHotkey` — chord keybinding helper (internal to markets-grid-container; also in `@wellsfargo-starui/react/data` for hub inspector); `PROVIDER_TOOLBAR_TOGGLE_CHORDS` (`Alt+Shift+P`, `Meta+Shift+P`); capture-phase listener so AG-Grid cells cannot swallow the chord
 
 #### Provider editor tabs (internal to `DataProviderEditor`; not separately importable)
@@ -689,7 +677,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `SsrmMarketsGridContainer` — full `MarketsGrid` chrome wired to an SSRM provider (`SsrmMarketsGridContainerProps`); the SSRM counterpart of `MarketsGridContainer`
 - `useSsrmProviderDataWiring` — provider start/ready wiring behind `SsrmMarketsGridContainer` (`UseSsrmProviderDataWiringParams`)
-- `HostedSsrmMarketsGrid` — hosted SSRM grid with storage/identity parity with `HostedMarketsGrid` (`HostedSsrmMarketsGridProps`)
 - `StompSsrmFields` — provider-editor connection fields for `stomp-ssrm`. **Internal** to `DataProviderEditor`
 
 #### Hosted integration (legacy)
@@ -713,7 +700,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 #### Shared hooks
 
 - `IBlotterDataProvider` — deprecated alias of `IDataProvider`
-- `useBlotterDataConnection` — `IDataProvider` grid wiring (`onSnapshotData` / `onTick`); optional hub resolve via `useDataProvider`; snapshot commit flushes pending async transactions (parity with `useProviderDataWiring`); `rowCount` updates on snapshot and add ticks only (no React setState on update-only live ticks); `isConnected` reflects wiring lifecycle via React state
 - `useGridStateManager` — load/save grid state (cols, filter model, sort)
 
 ---
@@ -725,8 +711,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Widget host runtime
 
-- `WidgetHost` — lifecycle + slot rendering provider
-- `useWidgetHost` — access host instance + methods
 - `WidgetRegistry` — lazy-load registry for component discovery
 - `WidgetConfig` — id, name, icon, description, settings schema
 
@@ -759,7 +743,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 **Path:** `packages/react-core/host-wrapper-react`
 **Purpose:** React seam (Seam #2) — bridges `RuntimePort` + `ConfigManager` into React context.
 
-- `HostWrapper` — top-level component providing runtime, config, theme
 - `HostContext` — React context (`runtime, configManager, instanceId, theme, onThemeChanged`)
 - `useHost` — hook to read host context
 - Reactive theme propagation from `RuntimePort`
@@ -1623,7 +1606,6 @@ of importing `@openfin/*` directly (architecture boundary).
 
 - `.` — main platform API (workspace init, config, dock, launch)
 - `./config` — config-only entry (no runtime deps, browser-safe)
-- `./plugin` — `openFinPlatformPlugin` factory (OpenFin workspace plugin entry; `StarGridPlugin` contract lives in `@wellsfargo-starui/core/host`)
 - `./test-bridge` — test utilities
 - `./dock-editor` — icon helpers only (`ICON_OPTIONS`, `iconIdToSvgUrl`, `iconIdToThemedUrls`, `parseIconUrl`); dock editor React UI lives in `@wellsfargo-starui/react/workspace-setup`
 
@@ -1648,7 +1630,6 @@ of importing `@openfin/*` directly (architecture boundary).
   with content lost. See [`openfin-process-isolation.md`](archive/openfin-process-isolation.md)
   for the measurements and why the perf win did not survive contact with the
   background lifecycle
-- `workspaceGc` — cleanup stale view/window instances
 
 #### Launch
 
@@ -1771,7 +1752,6 @@ of importing `@openfin/*` directly (architecture boundary).
 
 #### Plugin system
 
-- `plugin.ts` — OpenFin workspace plugin factory (`openFinPlatformPlugin`)
 - `./plugin` export — workspace lifecycle wiring; app-level `StarGridPlugin` contract is in `@wellsfargo-starui/core/host`
 
 ---
@@ -1811,7 +1791,6 @@ These aren't a single feature, but they are platform invariants worth rememberin
   - **Co-save on profile save** — `useGridLevelPersistence` subscribes to the grid's `profile:saved` event and flushes the current grid-level data (provider selection + caption + event-bindings) on every profile save (toolbar Save, customizer card Save, save-on-switch, external `saveAll`). Guarantees `gridLevelData.provider.liveProviderId` is always written alongside the profile — together with the storage adapter's OCC-retry RMW, this is what prevents a registered/ConfigService component from persisting a profile without its provider link (which booted the grid empty next launch).
 - **Expression engine** — CSP-safe parser/evaluator drives calculated columns, conditional rules, and filter expressions; `tryCompileToAgString()` transpiles to AG Grid `valueFormatter` strings.
 - **Theme integration** — reactive dark/light switching via `RuntimePort` + `data-theme` attribute; AG Grid theme + StarUI tokens stay in lockstep.
-- **Extensibility surfaces** — slot-based widget extensions in `@wellsfargo-starui/react/widget-sdk`; `StarGridPlugin.register` in `@wellsfargo-starui/core/host` / `@wellsfargo-starui/app`; OpenFin workspace plugin via `openFinPlatformPlugin` in `@wellsfargo-starui/openfin/plugin`.
 - **External-consumption contract** — every package is publishable standalone to teams with no repo access, and a consumer edits **no** build config. See [`docs/EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) for the contract and [`docs/PACKAGING_CHANGELOG.md`](archive/PACKAGING_CHANGELOG.md) for the history behind it. The invariants:
   - **Peers only for genuine singletons** the consumer also owns — `react`/`react-dom`, `ag-grid-*` (ModuleRegistry singleton + consumer-held enterprise licence), `@tanstack/react-query` (consumer's QueryClient), `lucide-react`. Everything else is a normal dependency so nothing extra must be installed. `@stomp/stompjs` is a dependency, not a peer.
   - **`@openfin/*` are OPTIONAL peers** on `@wellsfargo-starui/openfin` — a browser-only consumer installs **zero** OpenFin packages (verified: `node_modules/@openfin` absent). `config-browser` / `host-wrapper-react` reach OpenFin only through the `@wellsfargo-starui/openfin/config` subpath, whose graph holds `import type` references alone. OpenFin apps declare the three packages themselves, as the in-repo demos already do.

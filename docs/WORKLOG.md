@@ -1,5 +1,7 @@
 # Worklog — outstanding items
 
+> **2026-08-14 (feature/simplify):** `EXTERNAL_CONSUMPTION.md`, `MARKETSGRID_USAGE_GUIDE.md`, `STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`, and the hosted-wrapper README were **deleted** — every one referenced packages, scripts, or apps that no longer exist. Phase 7 of the simplification roadmap rewrites consumer docs from scratch; `docs/latest/` remains the accurate set. Worklog entries below referring to those files are historical.
+
 Single index of known-open work in this repo — which, since 2026-08-02, again
 includes the consumer/demo apps: the `stern-apps` repo was merged back
 under [`apps/`](../apps) (git subtree, history preserved) once every package

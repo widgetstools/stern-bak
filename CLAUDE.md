@@ -58,22 +58,19 @@ architecture buckets (see
 | 2 | React Grid | `react-grid/` | `grid` |
 | 3 | Data Utilities | `data/` | `data` |
 | 4 | OpenFin Utils | `openfin/` | `openfin` |
-| 5 | React Core | `react-core/` | `react` (ui + widget-sdk + host-wrapper-react + workspace-setup-react + host-data-react) |
+| 5 | React Core | `react-core/` | `react` (ui + workspace-setup-react + host-data-react) |
 | 6 | Types | `types/` | `types` (types + shared-types) |
-| 7 | Core | `core/` | `core` (engine + host + host-browser + host-config + widget + widget-browser) |
+| 7 | Core | `core/` | `core` (engine + host + host-browser + host-config) |
 
 > **The Angular buckets are deleted, not excluded.** `angular-ui`,
 > `angular-grid` and `angular-core` (`app-angular`, `widgets-angular`,
 > `config-browser-angular`, `grid-angular`) are gone — recover from git history
 > if ever needed.
 >
-> **One Angular package remains:** `data/host-data-angular`. It is still
-> excluded from the pipeline — left out of the root `workspaces` (so it isn't
-> installed, linked, or built) and skipped by `scripts/pack-npm.mjs` and
-> `scripts/gen-consumer-tsconfig.mjs` (`SKIP_MEMBERS` / `ANGULAR_MEMBERS`). Its
-> `tsconfig.json` used to extend the shared `angular-core/tsconfig.angular.json`;
-> those options are now inlined. `build:packages` builds 7 packages (one per
-> bucket after the package collapse — see `docs/WORKLOG.md` item 11).
+> **All Angular packages are deleted** (including the last scaffold,
+> `data/host-data-angular`, removed on `feature/simplify`). Recover from
+> git history if ever needed. `build:packages` builds 7 packages (one per
+> bucket — see `docs/WORKLOG.md` item 11).
 >
 > `@wellsfargo-starui/app` (`react-core/app`) and `tools/mcp-scaffold` were also
 > deleted. `StarGridApp` is vendored into the apps repo's star-demo, which was
@@ -113,10 +110,6 @@ names in line with the symbols they export.
 
 **Allowed in types/, core/ and react/ buckets**: `camelCase` and `PascalCase` only.
 No kebab. No snake.
-
-**Required in `data/host-data-angular`** (the only Angular package left):
-kebab-case matching the Angular Style Guide. Don't switch — Angular tooling
-depends on it.
 
 **Carve-outs (kebab-case allowed despite the above)**:
 - `packages/react-core/ui/src/components/**` — shadcn-ui CLI generates kebab
