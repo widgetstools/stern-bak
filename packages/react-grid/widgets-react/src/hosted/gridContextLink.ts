@@ -68,12 +68,15 @@ export type GridLinkResolver = (
 
 /**
  * Publish-side mapping: turn the grid's current selection into a context
- * to broadcast, or `null` to broadcast nothing.
+ * to broadcast, or `null` to broadcast nothing. May be async — SSRM
+ * builders resolve group / select-all selections through the worker. The
+ * publish path awaits the result behind a staleness guard, so a build
+ * that resolves after a newer selection fired is discarded.
  */
 export type GridLinkSelectionBuilder = (
   api: GridApi,
   opts: { instanceId: string; rowIdField: readonly string[] },
-) => GridLinkSelectionContext | null;
+) => GridLinkSelectionContext | null | Promise<GridLinkSelectionContext | null>;
 
 /** Normalize a `rowIdField` prop into an always-array form (defaults to `['id']`). */
 export function normalizeRowIdField(
@@ -189,6 +192,22 @@ export const defaultGridLinkResolver: GridLinkResolver = (context) => {
   }
   return model;
 };
+
+/**
+ * Receive `mode: 'rowId'` contexts as a set-filter on the key column.
+ * SSRM never calls `doesExternalFilterPass`, so the external-filter
+ * default cannot work there; this resolver routes the same broadcast
+ * through {@link applyGridLinkContext}, merging with manual filters the
+ * way `'fields'` mode does. `null` for an empty id set clears the link
+ * filter, matching the external-filter behaviour.
+ */
+export function createRowIdSetFilterResolver(keyColumn: string): GridLinkResolver {
+  return (context) => {
+    const ids = context.rowIds ?? [];
+    if (ids.length === 0) return null;
+    return { [keyColumn]: { filterType: 'set', values: [...ids] } };
+  };
+}
 
 /**
  * Apply an incoming context to the grid as a filter, merging with any

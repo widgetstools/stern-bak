@@ -12,6 +12,7 @@ function makePlatform(api?: Partial<GridApi>) {
   const setGridOption = vi.fn();
   platform.onGridReady({
     setGridOption,
+    getGridOption: () => undefined,
     ...api,
   } as GridApi);
   return { platform, setGridOption };
@@ -44,6 +45,30 @@ describe('QuickSearch', () => {
 
     await user.clear(input);
     expect(setGridOption).toHaveBeenCalledWith('quickFilterText', '');
+  });
+
+  it('refreshes server-side row model after quick filter changes', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const refreshServerSide = vi.fn();
+    const { platform, setGridOption } = makePlatform({
+      getGridOption: (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined),
+      refreshServerSide,
+    });
+
+    render(
+      <GridProvider platform={platform}>
+        <QuickSearch />
+      </GridProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Search grid' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search grid' }), 'ibm');
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+
+    expect(setGridOption).toHaveBeenCalledWith('quickFilterText', 'ibm');
+    expect(refreshServerSide).toHaveBeenCalledWith({ purge: true });
   });
 
   it('clears on Escape and exposes clear button when text is present', async () => {

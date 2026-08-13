@@ -26,10 +26,12 @@ import {
   useFormatter,
 } from './formatter';
 
-// Empty interface kept for the public type; consumers spread it
-// when wrapping for design-system extensions.
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface FormattingToolbarProps {}
+export interface FormattingToolbarProps {
+  /** When provided, the in-grid toolbar renders a trailing ✕ that
+   *  invokes this (the host hides the toolbar). The popped-out panel
+   *  keeps its own close affordance from the Poppable host. */
+  onClose?: () => void;
+}
 
 /** Imperative handle over FormattingToolbar — thin alias over
  *  PoppableHandle. Lets MarketsGrid raise a buried popout
@@ -37,7 +39,7 @@ export interface FormattingToolbarProps {}
 export type FormattingToolbarHandle = PoppableHandle;
 
 export const FormattingToolbar = forwardRef<FormattingToolbarHandle, FormattingToolbarProps>(
-  function FormattingToolbar(_props, ref) {
+  function FormattingToolbar({ onClose }, ref) {
     const platform = useGridPlatform();
     const { state, actions } = useFormatter();
 
@@ -83,6 +85,7 @@ export const FormattingToolbar = forwardRef<FormattingToolbarHandle, FormattingT
               <FormatterToolbar
                 state={state}
                 actions={actions}
+                onClose={onClose}
                 popoutSlot={
                   <PopoutButton
                     className="fx-popout"

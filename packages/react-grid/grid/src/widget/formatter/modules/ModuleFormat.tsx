@@ -47,7 +47,12 @@ function currencyKeyFromTemplate(t: ValueFormatterTemplate | undefined): string 
   return '';
 }
 
-export function ModuleFormat({
+/**
+ * Body of the Format module without the Module wrapper — the horizontal
+ * toolbar renders this directly as its NUMBER segment; the vertical
+ * panel keeps the wrapped {@link ModuleFormat}.
+ */
+export function FormatCluster({
   state,
   actions,
 }: {
@@ -69,7 +74,7 @@ export function ModuleFormat({
   const decimals = templateDecimals(vft);
 
   return (
-    <Module index="04" label="Format">
+    <>
       <ToolbarSelect
         value={currencyValue}
         onValueChange={(next) => {
@@ -88,6 +93,7 @@ export function ModuleFormat({
         icon={<DollarSign size={13} strokeWidth={2.75} />}
         iconClassName="opacity-100 text-[color:var(--ds-accent-positive)]"
         placeholder="Currency"
+        hideValueWhenEmpty
         tooltip="Pick a currency (USD, EUR, GBP, JPY, basis points)"
         aria-label="Currency format"
         data-testid="fmt-currency-select"
@@ -182,6 +188,7 @@ export function ModuleFormat({
         }
         iconClassName="opacity-100 text-[color:var(--ds-text-secondary)]"
         placeholder="Tick"
+        hideValueWhenEmpty
         tooltip="Tick precision — choose denominator (32, 64, 128, 256)"
         aria-label="Tick format"
         data-testid="fmt-tick-select"
@@ -237,6 +244,20 @@ export function ModuleFormat({
           data-testid="fmt-picker-toolbar"
         />
       )}
+    </>
+  );
+}
+
+export function ModuleFormat({
+  state,
+  actions,
+}: {
+  state: FormatterState;
+  actions: FormatterActions;
+}) {
+  return (
+    <Module index="04" label="Format">
+      <FormatCluster state={state} actions={actions} />
     </Module>
   );
 }

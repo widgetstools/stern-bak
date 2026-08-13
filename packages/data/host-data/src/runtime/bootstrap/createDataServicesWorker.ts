@@ -51,6 +51,7 @@
  */
 
 import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
+import { dataServicesWorkerName } from './workerName.js';
 
 export interface CreateDataServicesWorkerOpts {
   /** Idempotency key — also used as SharedWorker `name` suffix. */
@@ -100,7 +101,7 @@ export function createDataServicesWorker(
     );
   }
 
-  const name = `mkt-data-services:${opts.appName}`;
+  const name = dataServicesWorkerName(opts.appName);
 
   // Explicit URL wins (CDN / OpenFin manifest / <script> hosting).
   // Otherwise fall through to the inline form below — which MUST stay

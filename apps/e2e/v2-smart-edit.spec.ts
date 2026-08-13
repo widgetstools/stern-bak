@@ -17,7 +17,7 @@ async function bootSmartEditTab(page: Page, profileId?: string): Promise<void> {
   await clearLabStorage(page, GRID_ID);
   await page.reload();
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('[role="tab"]', { timeout: 15_000 });
+  await page.waitForSelector('[data-testid^="lab-tab-"]', { timeout: 15_000 });
   await page.locator('[data-testid="lab-tab-editing"]').click();
   await page.waitForSelector(`[data-grid-id="${GRID_ID}"]`, { timeout: 15_000 });
   await page.waitForFunction(
@@ -30,7 +30,7 @@ async function bootSmartEditTab(page: Page, profileId?: string): Promise<void> {
     await loadLabProfile(page, profileId, GRID_ID);
   }
   await openEditingToolbar(page);
-  await page.waitForSelector(`[data-grid-id="${GRID_ID}"] .ag-body-viewport .ag-row`, {
+  await page.waitForSelector(`[data-grid-id="${GRID_ID}"] .ag-grid-viewport .ag-row`, {
     timeout: 15_000,
   });
 }

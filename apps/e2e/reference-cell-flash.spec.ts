@@ -51,7 +51,7 @@ test.describe('reference — cell flash on mock provider ticks', () => {
     await waitForFlashingCells(page, 20_000);
 
     await expect(
-      page.locator(`[data-grid-id="${REFERENCE_GRID_ID}"] .ag-center-cols-container .ag-cell-data-changed`).first(),
+      page.locator(`[data-grid-id="${REFERENCE_GRID_ID}"] .ag-grid-scrolling-cells .ag-cell-data-changed`).first(),
     ).toBeVisible();
   });
 });

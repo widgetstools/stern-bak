@@ -543,7 +543,7 @@ export class StompConnection {
     records: (PositionRecord | TradeRecord)[],
     rate: number,
     liveMode: LiveMode,
-  ): () => unknown[] {
+  ): () => { payloads: unknown[]; updatesGenerated: number } {
     const rowsPerSec = Math.min(rate, this.config.maxLiveRowsPerSec);
     if (rowsPerSec < rate) {
       console.log(
@@ -557,6 +557,9 @@ export class StompConnection {
         rowsPerSec,
         maxRowsPerFrame: this.config.maxRowsPerFrame,
         tickRow: (i) => sparseErraticTickPosition(rows[i]!),
+        // Conflation: several updates to one row inside a frame ship as
+        // one delta carrying the UNION of changed fields, last value wins.
+        mergePayloads: (prev, next) => ({ ...prev, ...next }),
       });
     }
     const isPositions = dataType === "positions";
@@ -599,7 +602,7 @@ export class StompConnection {
           return;
         }
         if (this.socketBackedUp()) return;
-        const batch = nextBatch();
+        const { payloads: batch, updatesGenerated } = nextBatch();
         if (batch.length === 0) return;
 
         this.send(
@@ -610,6 +613,9 @@ export class StompConnection {
             [protocol.HEADER.DESTINATION]: subscription.destination,
             [protocol.HEADER.CONTENT_TYPE]: "application/json",
             [protocol.HEADER.MESSAGE_TYPE]: protocol.MESSAGE_TYPE.LIVE_UPDATE,
+            // Conflation visibility: generated - shipped = collapsed.
+            "updates-generated": String(updatesGenerated),
+            "rows-shipped": String(batch.length),
           },
           JSON.stringify(batch),
         );
@@ -725,7 +731,7 @@ export class StompConnection {
           return;
         }
         if (this.socketBackedUp()) return;
-        const batch = nextBatch();
+        const { payloads: batch, updatesGenerated } = nextBatch();
         if (batch.length === 0) return;
 
         this.send(
@@ -736,6 +742,8 @@ export class StompConnection {
             [protocol.HEADER.DESTINATION]: subscription.destination,
             [protocol.HEADER.CONTENT_TYPE]: "application/json",
             [protocol.HEADER.MESSAGE_TYPE]: protocol.MESSAGE_TYPE.LIVE_UPDATE,
+            "updates-generated": String(updatesGenerated),
+            "rows-shipped": String(batch.length),
             [protocol.HEADER.CLIENT_ID]: clientId,
             [protocol.HEADER.UPDATE_NUMBER]: String(updateNumber),
           },

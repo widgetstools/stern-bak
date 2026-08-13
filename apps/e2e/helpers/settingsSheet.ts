@@ -31,7 +31,7 @@ export const V2_PATH = '/';
 
 export async function waitForV2Grid(page: Page): Promise<void> {
   await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-  await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+  await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
   await page.waitForTimeout(400); // initial Default-profile auto-seed
 }
 

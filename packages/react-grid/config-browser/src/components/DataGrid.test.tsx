@@ -70,7 +70,11 @@ describe('DataGrid', () => {
     const pk = cells().configId;
     expect(pk.style.fontFamily).toBe('var(--ds-font-mono)');
     expect(pk.style.fontWeight).toBe('600');
-    expect(document.querySelector('.ag-pinned-left-cols-container')?.contains(pk)).toBe(true);
+    // AG Grid 36 renamed the pinned cell containers
+    // (`.ag-pinned-left-cols-container` -> `.ag-grid-pinned-left-cells`) and
+    // renders more than one of them, so walk up from the cell rather than
+    // trusting whichever container `querySelector` happens to return first.
+    expect(pk.closest('.ag-grid-pinned-left-cells')).not.toBeNull();
   });
 
   it('renders an object cell as a budgeted JSON preview, not the full payload', async () => {

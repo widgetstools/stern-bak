@@ -39,8 +39,24 @@ import { ensureAgGridModules } from './ensureAgGridModules';
 import { mergeDefaultColDef } from './mergeDefaultColDef';
 import { GeneralSettingsProvider } from './GeneralSettingsContext';
 import { MarketsGridSurface } from './MarketsGridSurface';
+import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface';
+import { resolveMarketsGridSurfaceKind } from './MarketsGridHost';
+import { resolveSsrmWithQuickFilter } from './resolveSsrmWithQuickFilter.js';
+import { SsrmFilterCountsProvider } from './SsrmFilterCountsContext.js';
+import { useSsrmExpressionBridge } from './useSsrmExpressionBridge.js';
+import type { MarketsGridSsrmProps } from './types';
 
 export { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
+
+/** Inside {@link GridProvider} so {@link useModuleState} resolves. */
+function MarketsGridSsrmExpressionBridge({
+  ssrm,
+}: {
+  ssrm?: MarketsGridSsrmProps;
+}): null {
+  useSsrmExpressionBridge(ssrm?.provider, Boolean(ssrm?.provider));
+  return null;
+}
 
 // One-shot dev-only warning when the host forgets to pass `storage`
 // (or the legacy `storageAdapter`). Module-scoped so the message fires
@@ -54,6 +70,7 @@ function useMarketsGridShell<TData>(
 ) {
   const {
     rowData,
+    ssrm,
     columnDefs: baseColumnDefs,
     theme: themeProp,
     gridId,
@@ -99,16 +116,28 @@ function useMarketsGridShell<TData>(
   const resolvedAppData = hostResolved.appData ?? appData;
 
   const hostOverrideKeys = useMemo(
-    () =>
-      resolveSurfaceHostOverrideKeys({
+    () => {
+      const keys = resolveSurfaceHostOverrideKeys({
         rowHeight,
         headerHeight,
         animateRows,
         sideBar,
         statusBar,
         defaultColDef,
-      }),
-    [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef],
+      });
+      // SSRM: the surface owns `statusBar` end-to-end — it maps the
+      // customizer's native panel selection onto worker-backed panels
+      // and pushes updates itself. The generic post-mount option sync
+      // must never write the raw native panel set (native count
+      // components only see loaded blocks under SSRM).
+      if (ssrm) {
+        const withStatusBar = new Set(keys);
+        withStatusBar.add('statusBar');
+        return withStatusBar;
+      }
+      return keys;
+    },
+    [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef, ssrm],
   );
 
   const { platform, columnDefs, gridOptions, onGridReady, onGridPreDestroyed } = useGridHost({
@@ -226,6 +255,7 @@ function useMarketsGridShell<TData>(
     resolvedUserId,
     resolvedInstanceId,
     includeAllStreamSafeFilters,
+    ssrm,
   };
 }
 
@@ -299,6 +329,15 @@ function MarketsGridInner<TData = unknown>(
 
   const shell = useMarketsGridShell(props);
 
+  const readQuickFilterText = useCallback(
+    () => String(gridRef.current?.api?.getGridOption('quickFilterText') ?? ''),
+    [],
+  );
+  const ssrm = useMemo(
+    () => resolveSsrmWithQuickFilter(shell.ssrm, readQuickFilterText),
+    [shell.ssrm, readQuickFilterText],
+  );
+
   if (
     storage &&
     (!shell.resolvedAppId || !shell.resolvedUserId) &&
@@ -343,9 +382,12 @@ function MarketsGridInner<TData = unknown>(
     <ProviderGridHostProvider value={providerGridHost ?? null}>
     <GridEventBindingsHostProvider value={gridEventBindingsHost ?? null}>
       <GridProvider platform={shell.platform}>
+      <SsrmFilterCountsProvider ssrm={ssrm}>
       <GeneralSettingsProvider value={shell.generalSettings}>
+      <MarketsGridSsrmExpressionBridge ssrm={shell.ssrm} />
       <MarketsGridHost
-        rowData={rowData}
+        rowData={rowData ?? []}
+        ssrm={ssrm}
         columnDefs={shell.columnDefs}
         gridOptions={shell.gridOptions}
         hostOverrideKeys={shell.hostOverrideKeys}
@@ -400,6 +442,7 @@ function MarketsGridInner<TData = unknown>(
         includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
       />
       </GeneralSettingsProvider>
+      </SsrmFilterCountsProvider>
     </GridProvider>
     </GridEventBindingsHostProvider>
     </ProviderGridHostProvider>
@@ -429,29 +472,63 @@ function MarketsGridCoreInner<TData = unknown>(
   const gridRef = useRef<AgGridReact<TData>>(null);
   const shell = useMarketsGridShell(props);
 
+  const readQuickFilterText = useCallback(
+    () => String(gridRef.current?.api?.getGridOption('quickFilterText') ?? ''),
+    [],
+  );
+  const ssrm = useMemo(
+    () => resolveSsrmWithQuickFilter(shell.ssrm, readQuickFilterText),
+    [shell.ssrm, readQuickFilterText],
+  );
+  const surfaceKind = resolveMarketsGridSurfaceKind({ ssrm, rowData });
+
   return (
     <GridProvider platform={shell.platform}>
+      <SsrmFilterCountsProvider ssrm={ssrm}>
       <GeneralSettingsProvider value={shell.generalSettings}>
+        <MarketsGridSsrmExpressionBridge ssrm={ssrm} />
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
-          <MarketsGridSurface
-            gridRef={gridRef}
-            gridOptions={shell.gridOptions}
-            hostOverrideKeys={shell.hostOverrideKeys}
-            theme={shell.theme}
-            rowData={rowData}
-            columnDefs={shell.columnDefs}
-            rowHeight={rowHeight}
-            headerHeight={headerHeight}
-            animateRows={animateRows}
-            sideBar={sideBar}
-            statusBar={statusBar}
-            defaultColDef={shell.effectiveDefaultColDef}
-            onGridReady={shell.handleGridReady}
-            onGridPreDestroyed={shell.onGridPreDestroyed}
-            includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
-          />
+          {surfaceKind === 'ssrm' && ssrm ? (
+            <MarketsGridSsrmSurface
+              key={`ssrm:${ssrm.provider.id}:${ssrm.keyColumn ?? 'id'}`}
+              gridRef={gridRef}
+              gridOptions={shell.gridOptions}
+              hostOverrideKeys={shell.hostOverrideKeys}
+              theme={shell.theme}
+              columnDefs={shell.columnDefs}
+              ssrm={ssrm}
+              rowHeight={rowHeight}
+              headerHeight={headerHeight}
+              animateRows={animateRows}
+              sideBar={sideBar}
+              statusBar={statusBar}
+              defaultColDef={shell.effectiveDefaultColDef}
+              onGridReady={shell.handleGridReady}
+              onGridPreDestroyed={shell.onGridPreDestroyed}
+              includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
+            />
+          ) : (
+            <MarketsGridSurface
+              gridRef={gridRef}
+              gridOptions={shell.gridOptions}
+              hostOverrideKeys={shell.hostOverrideKeys}
+              theme={shell.theme}
+              rowData={rowData ?? []}
+              columnDefs={shell.columnDefs}
+              rowHeight={rowHeight}
+              headerHeight={headerHeight}
+              animateRows={animateRows}
+              sideBar={sideBar}
+              statusBar={statusBar}
+              defaultColDef={shell.effectiveDefaultColDef}
+              onGridReady={shell.handleGridReady}
+              onGridPreDestroyed={shell.onGridPreDestroyed}
+              includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
+            />
+          )}
         </div>
       </GeneralSettingsProvider>
+      </SsrmFilterCountsProvider>
     </GridProvider>
   );
 }

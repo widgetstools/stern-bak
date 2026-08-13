@@ -59,4 +59,17 @@ export type {
   GridLinkResolver,
   GridLinkSelectionBuilder,
 } from './hosted/index.js';
-export { HostedMarketsGrid, useGridContextLink } from './hosted/index.js';
+export {
+  HostedMarketsGrid,
+  HostedSsrmMarketsGrid,
+  useGridContextLink,
+} from './hosted/index.js';
+export type { HostedSsrmMarketsGridProps } from './hosted/index.js';
+export {
+  SsrmMarketsGridContainer,
+  useSsrmProviderDataWiring,
+} from './container/ssrm-markets-grid-container/index.js';
+export type {
+  SsrmMarketsGridContainerProps,
+  UseSsrmProviderDataWiringParams,
+} from './container/ssrm-markets-grid-container/index.js';

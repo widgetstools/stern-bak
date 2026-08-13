@@ -29,7 +29,7 @@ import type { GetContextMenuItemsParams, GridReadyEvent } from 'ag-grid-communit
 import { TooltipProvider } from '@wellsfargo-starui/react';
 import { resolveGridDensity } from '@wellsfargo-starui/design-system/adapters/ag-grid';
 import type { AnyModule, StorageAdapter } from '@wellsfargo-starui/core';
-import type { AdminAction, MarketsGridHandle, MarketsGridProps } from './types';
+import type { AdminAction, MarketsGridHandle, MarketsGridProps, MarketsGridSsrmProps } from './types';
 import { FormattingToolbar } from './FormattingToolbar';
 import { EditingToolbar } from './editingToolbar/EditingToolbar';
 import type { EditingToolbarHostProps } from './editingToolbar/resolveEditingToolbarAllow';
@@ -41,6 +41,7 @@ import { PrimaryToolbar } from './PrimaryToolbar';
 import { ColumnSelectorDialog } from './column-selector';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog';
 import { MarketsGridSurface } from './MarketsGridSurface';
+import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface';
 import { buildGridContextMenuItems } from './gridContextMenu';
 import { StaleDataBanner } from './StaleDataBanner';
 import { HistoricalViewBanner } from './HistoricalViewBanner';
@@ -48,8 +49,15 @@ import { GridChromeProvider } from './GridChromeContext';
 import { useGeneralSettingsFromContext } from './GeneralSettingsContext';
 import { useProfileSelectorActions } from './useProfileSelectorActions';
 
+export function resolveMarketsGridSurfaceKind(
+  props: { ssrm?: MarketsGridSsrmProps; rowData?: unknown },
+): 'ssrm' | 'csrm' {
+  return props.ssrm?.provider ? 'ssrm' : 'csrm';
+}
+
 export interface MarketsGridHostProps<TData> {
-  rowData: TData[];
+  rowData?: TData[];
+  ssrm?: MarketsGridSsrmProps;
   columnDefs: unknown[];
   gridOptions: Record<string, unknown>;
   hostOverrideKeys: ReadonlySet<string>;
@@ -106,6 +114,7 @@ export interface MarketsGridHostProps<TData> {
 
 function MarketsGridHostInner<TData>({
   rowData,
+  ssrm,
   columnDefs,
   gridOptions,
   hostOverrideKeys,
@@ -262,6 +271,8 @@ function MarketsGridHostInner<TData>({
     [settingsOpen, setSettingsOpen, styleToolbarOpen, editingToolbarOpen, saveFlash, isDirty],
   );
 
+  const kind = resolveMarketsGridSurfaceKind({ ssrm, rowData });
+
   return (
     <GridChromeProvider value={chromeState}>
     <TooltipProvider delayDuration={200}>
@@ -350,28 +361,55 @@ function MarketsGridHostInner<TData>({
           data-testid="formatting-toolbar-pinned"
           style={{ flexShrink: 0 }}
         >
-          <FormattingToolbar ref={toolbarRef} />
+          {/* Toolbar only renders while open, so toggle == close. */}
+          <FormattingToolbar ref={toolbarRef} onClose={handleToggleStyleToolbar} />
         </div>
       )}
 
-      <MarketsGridSurface
-        gridRef={gridRef}
-        gridOptions={gridOptions}
-        hostOverrideKeys={hostOverrideKeys}
-        theme={theme}
-        rowData={rowData}
-        columnDefs={columnDefs}
-        rowHeight={rowHeight}
-        headerHeight={headerHeight}
-        animateRows={animateRows}
-        sideBar={sideBar}
-        statusBar={statusBar}
-        defaultColDef={defaultColDef}
-        getContextMenuItems={getContextMenuItems}
-        onGridReady={handleGridReady}
-        onGridPreDestroyed={onGridPreDestroyed}
-        includeAllStreamSafeFilters={includeAllStreamSafeFilters}
-      />
+      {/* Keyed on the provider only — a keyColumn resolve rebinds the
+          datasource/ticks in place (see MarketsGridSsrmSurface's
+          late-bound key column) instead of remounting the grid. */}
+      {kind === 'ssrm' && ssrm ? (
+        <MarketsGridSsrmSurface
+          key={`ssrm:${ssrm.provider.id}`}
+          gridRef={gridRef}
+          gridOptions={gridOptions}
+          hostOverrideKeys={hostOverrideKeys}
+          theme={theme}
+          columnDefs={columnDefs}
+          ssrm={ssrm}
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          animateRows={animateRows}
+          sideBar={sideBar}
+          statusBar={statusBar}
+          defaultColDef={defaultColDef}
+          getContextMenuItems={getContextMenuItems}
+          onGridReady={handleGridReady}
+          onGridPreDestroyed={onGridPreDestroyed}
+          includeAllStreamSafeFilters={includeAllStreamSafeFilters}
+        />
+      ) : (
+        <MarketsGridSurface
+          key="csrm"
+          gridRef={gridRef}
+          gridOptions={gridOptions}
+          hostOverrideKeys={hostOverrideKeys}
+          theme={theme}
+          rowData={rowData ?? []}
+          columnDefs={columnDefs}
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          animateRows={animateRows}
+          sideBar={sideBar}
+          statusBar={statusBar}
+          defaultColDef={defaultColDef}
+          getContextMenuItems={getContextMenuItems}
+          onGridReady={handleGridReady}
+          onGridPreDestroyed={onGridPreDestroyed}
+          includeAllStreamSafeFilters={includeAllStreamSafeFilters}
+        />
+      )}
 
       {(settingsMounted || settingsOpen) && (
         <LazySettingsSheet

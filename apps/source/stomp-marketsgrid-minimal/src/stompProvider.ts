@@ -5,7 +5,11 @@
  * from ConfigCatalogCache on attach; the grid never receives cfg inline.
  */
 
-import type { DataProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type {
+  DataProviderConfig,
+  StompProviderConfig,
+  StompSsrmProviderConfig,
+} from '@wellsfargo-starui/types';
 
 /** Must match a tag published by stomp-view-server (`npm run dev` there). */
 const TAG = 'TRADER001';
@@ -59,6 +63,8 @@ export const STOMP_PROVIDER_CFG_VERSION = 5;
 // also removes any pre-existing random-id duplicates.
 export const STOMP_LIVE_PROVIDER_ID = 'stomp-marketsgrid-minimal:positions-live';
 export const STOMP_HISTORICAL_PROVIDER_ID = 'stomp-marketsgrid-minimal:positions-historical';
+/** SSRM catalog row — same wire as live, `providerType: 'stomp-ssrm'`. */
+export const STOMP_SSRM_PROVIDER_ID = 'stomp-marketsgrid-minimal:positions-ssrm';
 
 /** StompProviderConfig — passed to hub startStomp() after catalog resolve. */
 const stompLive: StompProviderConfig = {
@@ -150,4 +156,20 @@ export const stompHistoricalProviderDraft: DataProviderConfig = {
   userId: 'dev1',
   public: false,
   config: stompHistorical,
+};
+
+/** Same live wire as CSRM, but hub attaches an SSRM query plane. */
+const stompSsrm: StompSsrmProviderConfig = {
+  ...stompLive,
+  providerType: 'stomp-ssrm',
+  blockSize: 100,
+};
+
+export const stompSsrmProviderDraft: DataProviderConfig = {
+  providerId: STOMP_SSRM_PROVIDER_ID,
+  name: 'STOMP Positions (SSRM)',
+  providerType: 'stomp-ssrm',
+  userId: 'dev1',
+  public: false,
+  config: stompSsrm,
 };

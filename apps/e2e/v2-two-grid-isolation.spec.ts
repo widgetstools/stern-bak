@@ -45,10 +45,10 @@ async function waitForBothGrids(page: Page) {
   await page.waitForFunction(
     () => {
       const rates = document.querySelector(
-        '[data-grid-id="dashboard-rates-v2"] .ag-body-viewport .ag-row',
+        '[data-grid-id="dashboard-rates-v2"] .ag-grid-viewport .ag-row',
       );
       const equities = document.querySelector(
-        '[data-grid-id="dashboard-equities-v2"] .ag-body-viewport .ag-row',
+        '[data-grid-id="dashboard-equities-v2"] .ag-grid-viewport .ag-row',
       );
       return !!rates && !!equities;
     },

@@ -138,6 +138,8 @@ export function useGridContextLink({
   // True while we apply a received context, so the resulting
   // selection/filter churn doesn't echo straight back out.
   const applyingRemoteRef = useRef(false);
+  /** Monotonic publish sequence — a build that finishes late is discarded. */
+  const publishSeqRef = useRef(0);
 
   // Ref-bridge the notify callbacks so changing their identity doesn't
   // re-attach the grid / fdc3 listeners below.
@@ -180,7 +182,11 @@ export function useGridContextLink({
       if (isEcho) return;
       applyingRemoteRef.current = true;
       try {
-        if (mode === 'rowId') {
+        // In rowId mode a caller-supplied resolver (e.g. SSRM's set-filter
+        // translation — SSRM never invokes doesExternalFilterPass) routes
+        // through the merging filter path; without one, the external-filter
+        // default is byte-for-byte the pre-existing behaviour.
+        if (mode === 'rowId' && resolve === defaultGridLinkResolver) {
           applyRowIdExternalFilter(gridApi, context);
         } else {
           linkFieldsRef.current = applyGridLinkContext(
@@ -213,10 +219,7 @@ export function useGridContextLink({
   useEffect(() => {
     if (!active || !publish || !gridApi) return;
     const fields = normalizeRowIdField(rowIdField);
-    const onSelectionChanged = () => {
-      if (applyingRemoteRef.current) return;
-      const context = build(gridApi, { instanceId: sourceId, rowIdField: fields });
-      if (!context) return;
+    const publishContext = (context: GridLinkSelectionContext) => {
       context.type = contextType;
       // Stamp the joined channel so peers + notifications can show it. A
       // `null` channel here is the #1 reason peers receive nothing — the
@@ -232,6 +235,34 @@ export function useGridContextLink({
       }
       void broadcast(context);
       onPublishRef.current?.(context);
+    };
+
+    const onSelectionChanged = () => {
+      if (applyingRemoteRef.current) return;
+      const seq = ++publishSeqRef.current;
+      let result: ReturnType<typeof build>;
+      try {
+        result = build(gridApi, { instanceId: sourceId, rowIdField: fields });
+      } catch {
+        return; // a failed build publishes nothing; the next selection retries
+      }
+      // Sync builders (CSRM) publish synchronously — identical to the
+      // pre-awaitable behaviour. Only promise-returning builders (SSRM
+      // worker round-trips) take the guarded async path.
+      if (!(result instanceof Promise)) {
+        if (result) publishContext(result);
+        return;
+      }
+      void result
+        .then((context) => {
+          // A newer selection superseded this build while it was in flight.
+          if (seq !== publishSeqRef.current) return;
+          if (!context) return;
+          publishContext(context);
+        })
+        .catch(() => {
+          /* failed async build publishes nothing; next selection retries */
+        });
     };
     gridApi.addEventListener('selectionChanged', onSelectionChanged);
     return () => {

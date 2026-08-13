@@ -120,6 +120,7 @@ export function ToolbarSelect({
   iconClassName,
   placeholder = '—',
   tooltip,
+  hideValueWhenEmpty,
   'aria-label': ariaLabel,
   'data-testid': dataTestId,
   className,
@@ -135,11 +136,17 @@ export function ToolbarSelect({
   iconClassName?: string;
   placeholder?: string;
   tooltip?: string;
+  /** Slim trigger: while nothing is selected, show only the icon +
+   *  chevron (no "None"/placeholder text). The dropdown list still
+   *  carries the explicit "None" option. Keeps wide single-row
+   *  toolbars fitting; the value text returns once a pick is made. */
+  hideValueWhenEmpty?: boolean;
   'aria-label'?: string;
   'data-testid'?: string;
   className?: string;
 }) {
-  const encoded = value == null || value === '' ? TOOLBAR_SELECT_EMPTY : value;
+  const isEmpty = value == null || value === '';
+  const encoded = isEmpty ? TOOLBAR_SELECT_EMPTY : value;
 
   const trigger = (
     <SelectTrigger
@@ -149,7 +156,7 @@ export function ToolbarSelect({
       data-testid={dataTestId}
     >
       {icon ? <span className={cn('inline-flex shrink-0', iconClassName ?? 'opacity-75')}>{icon}</span> : null}
-      <SelectValue placeholder={placeholder} />
+      {hideValueWhenEmpty && isEmpty ? null : <SelectValue placeholder={placeholder} />}
     </SelectTrigger>
   );
 
@@ -311,45 +318,10 @@ export function Module({ index, label, children, className, testId }: ModuleProp
   );
 }
 
-// ─── Divider between modules in horizontal mode ──────────────────
-
-export function ModuleDivider() {
-  return <span aria-hidden className="fx-divider" />;
-}
-
-// ─── ToolbarGroup — labeled cluster in the horizontal strip ───────
-
-export function ToolbarGroup({
-  label,
-  children,
-  variant = 'default',
-  testId,
-  className,
-}: {
-  label: string;
-  children: React.ReactNode;
-  variant?: 'default' | 'destruct';
-  testId?: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        'fx-toolbar-group',
-        variant === 'destruct' && 'fx-toolbar-group--destruct',
-        className,
-      )}
-      data-testid={testId}
-      role="group"
-      aria-label={label}
-    >
-      <span className="fx-toolbar-group__label" aria-hidden>
-        {label}
-      </span>
-      <div className="fx-toolbar-group__body">{children}</div>
-    </div>
-  );
-}
+// ToolbarGroup / ModuleDivider (the Excel-ribbon captioned clusters)
+// were deleted with the single-row toolbar redesign — segments are
+// arranged directly by `FormatterToolbar` with overflow handling in
+// ./toolbarOverflow.
 
 // ─── PanelGroup — labeled section card in the vertical popout ─────
 

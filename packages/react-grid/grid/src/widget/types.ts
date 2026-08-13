@@ -1,5 +1,6 @@
 import type { ColDef, GridApi, SideBarDef, StatusPanelDef, Theme } from 'ag-grid-community';
 import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
+import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { GridHostContext } from '@wellsfargo-starui/core/host';
 import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
@@ -15,6 +16,19 @@ export interface SavedFilter {
   label: string;
   filterModel: Record<string, unknown>;
   active: boolean;
+}
+
+export interface MarketsGridSsrmProps {
+  provider: ISsrmDataProvider;
+  keyColumn?: string;
+  getQuickFilterText?: () => string;
+  cacheBlockSize?: number;
+}
+
+export function isMarketsGridSsrmMode(
+  props: Pick<MarketsGridProps, 'ssrm'>,
+): props is MarketsGridProps & { ssrm: MarketsGridSsrmProps } {
+  return props.ssrm?.provider != null;
 }
 
 /**
@@ -35,8 +49,11 @@ export interface MarketsGridProps<TData = unknown> {
    *  For live streaming, prefer keeping this prop referentially stable
    *  (e.g. pass a module-scoped `EMPTY` array) and push deltas via
    *  `gridApi.applyTransactionAsync` — see `applyProviderToGrid` in
-   *  `@wellsfargo-starui/grid/widgets` MarketsGridContainer for the reference pattern. */
-  rowData: TData[];
+   *  `@wellsfargo-starui/grid/widgets` MarketsGridContainer for the reference pattern.
+   *  Required in CSRM mode (when `ssrm` is absent). Ignored when `ssrm` is set. */
+  rowData?: TData[];
+  /** Server-side row model configuration. When set, `rowData` is ignored. */
+  ssrm?: MarketsGridSsrmProps;
   /** Base column definitions — modules can transform them. */
   columnDefs: ColDef<TData>[];
   /** Module list. Default passes {@link DEFAULT_MODULES}; use exported

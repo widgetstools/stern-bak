@@ -39,7 +39,7 @@ describe('createDataServicesWorker', () => {
     expect(worker.url).not.toContain('appId=');
     expect(worker.opts).toMatchObject({
       type: 'module',
-      name: 'mkt-data-services:demo-app',
+      name: 'mkt-data-services:demo-app:ssrm3',
     });
   });
 

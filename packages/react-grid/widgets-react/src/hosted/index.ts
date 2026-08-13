@@ -71,6 +71,7 @@ export {
   GRID_LINK_CONTEXT_TYPE,
   buildSelectionContext,
   defaultGridLinkResolver,
+  createRowIdSetFilterResolver,
   applyGridLinkContext,
   normalizeRowIdField,
 } from './gridContextLink.js';
@@ -96,3 +97,9 @@ export type { GridLinkNotificationContent } from './gridLinkNotifications.js';
 
 export { HostedMarketsGrid } from './HostedMarketsGrid.js';
 export type { HostedMarketsGridProps } from './HostedMarketsGrid.js';
+
+export { HostedSsrmMarketsGrid } from './HostedSsrmMarketsGrid.js';
+export type { HostedSsrmMarketsGridProps } from './HostedSsrmMarketsGrid.js';
+
+export { createSsrmSelectionContextBuilder } from './ssrmGridContextLink.js';
+export type { SsrmSelectionBuilderDeps } from './ssrmGridContextLink.js';

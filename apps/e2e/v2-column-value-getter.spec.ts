@@ -43,7 +43,7 @@ async function typeExpression(page: Page, text: string) {
 async function openColumnsTab(page: Page) {
   await page.goto(APP_URL);
   // Wait out the STOMP snapshot buffering.
-  await expect(page.locator('.ag-center-cols-container .ag-row').first()).toBeVisible({
+  await expect(page.locator('.ag-grid-scrolling-rows .ag-row').first()).toBeVisible({
     timeout: 45_000,
   });
   await page.getByRole('button', { name: 'More actions' }).click();
@@ -92,10 +92,10 @@ test('authors a column valueGetter expression and the grid computes it', async (
   await page.getByRole('button', { name: 'Close' }).click();
 
   await page.reload();
-  await expect(page.locator('.ag-center-cols-container .ag-row').first()).toBeVisible({
+  await expect(page.locator('.ag-grid-scrolling-rows .ag-row').first()).toBeVisible({
     timeout: 45_000,
   });
-  const regionCell = page.locator('.ag-center-cols-container [col-id="region"]').first();
+  const regionCell = page.locator('.ag-grid-scrolling-cells [col-id="region"]').first();
   await expect(regionCell).toHaveText(/^[A-Za-z ]+\/[A-Za-z ]+$/, { timeout: 20_000 });
 
   // Clean up so the run is idempotent — clear the expression back out.

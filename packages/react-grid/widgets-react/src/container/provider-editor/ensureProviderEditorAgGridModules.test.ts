@@ -4,6 +4,7 @@ const registerModules = vi.fn();
 
 vi.mock('ag-grid-community', () => ({
   ModuleRegistry: { registerModules },
+  enableDevValidations: vi.fn(),
 }));
 
 vi.mock('ag-grid-enterprise', () => ({

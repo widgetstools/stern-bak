@@ -241,7 +241,7 @@ test.describe('v2 — column-groups panel', () => {
 
     await page.reload();
     await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
 
     // Grid still shows the header group.
     await expect(
@@ -289,12 +289,12 @@ test.describe('v2 — column-groups panel', () => {
     // Reload and verify the collapsed state was persisted via openGroupIds.
     await page.reload();
     await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
 
     // After reload, the group is collapsed, so `venue` (show='open') is not
     // in the DOM.
     await expect(
-      page.locator('.ag-header-container [col-id="venue"]'),
+      page.locator('.ag-header [col-id="venue"]'),
     ).toHaveCount(0, { timeout: 3000 });
   });
 });

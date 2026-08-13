@@ -127,9 +127,13 @@ async function testConnectionOnce(
   opts: { maxRows: number; timeoutMs: number },
 ): Promise<{ ok: boolean; rows?: readonly unknown[]; error?: string }> {
   switch (cfg.providerType) {
-    case 'stomp': return connectStomp(cfg, { timeoutMs: opts.timeoutMs });
+    case 'stomp':
+    case 'stomp-ssrm':
+      return connectStomp(cfg as never, { timeoutMs: opts.timeoutMs });
     case 'rest':  return probeRest(cfg);
-    case 'mock':  return probeMock(cfg, { maxRows: opts.maxRows });
+    case 'mock':
+    case 'mock-ssrm':
+      return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
     default:      return { ok: false, error: `Test not implemented for ${cfg.providerType}` };
   }
@@ -145,9 +149,13 @@ async function probeOnce(
   opts: { maxRows: number; timeoutMs: number },
 ): Promise<{ ok: boolean; rows?: readonly unknown[]; error?: string }> {
   switch (cfg.providerType) {
-    case 'stomp': return probeStomp(cfg, opts);
+    case 'stomp':
+    case 'stomp-ssrm':
+      return probeStomp(cfg as never, opts);
     case 'rest':  return probeRest(cfg);
-    case 'mock':  return probeMock(cfg, { maxRows: opts.maxRows });
+    case 'mock':
+    case 'mock-ssrm':
+      return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
     default:      return { ok: false, error: `Probe not implemented for ${cfg.providerType}` };
   }

@@ -53,7 +53,12 @@ export function QuickSearch() {
 
   const pushToGrid = useCallback(
     (next: string) => {
-      api?.setGridOption('quickFilterText', next);
+      if (!api) return;
+      api.setGridOption('quickFilterText', next);
+      // SSRM does not re-run getRows on quickFilterText alone — purge refresh.
+      if (api.getGridOption?.('rowModelType') === 'serverSide') {
+        api.refreshServerSide?.({ purge: true });
+      }
     },
     [api],
   );

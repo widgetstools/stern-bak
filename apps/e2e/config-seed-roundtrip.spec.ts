@@ -108,7 +108,7 @@ test.describe('config seed — profile + export round-trip (demo-react / ConfigS
 
     await page.reload();
     await page.waitForSelector(`[data-grid-id="${INSTANCE_ID}"]`, { timeout: 15_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
     await page.waitForTimeout(600);
 
     await expect(page.locator('.ds-filter-pill')).toHaveCount(1);

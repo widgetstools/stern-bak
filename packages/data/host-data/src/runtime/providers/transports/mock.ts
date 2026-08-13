@@ -28,11 +28,14 @@
  * existing config.
  */
 
-import type { MockProviderConfig } from '@wellsfargo-starui/types';
+import type { MockProviderConfig, MockSsrmProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../Provider.js';
 import { getUniverse } from './mockUniverse.js';
 import { buildPosition, tickPosition, type PositionRow } from './mockPosition.js';
 import { buildTrade, tickTrade, pickTradingCusip, type TradeRow } from './mockTrade.js';
+
+/** CSRM `mock` and SSRM `mock-ssrm` share the same row generator. */
+type MockLikeConfig = MockProviderConfig | MockSsrmProviderConfig;
 
 export interface MockProviderOpts {
   /** Inject for deterministic tests. Defaults to `setInterval`. */
@@ -42,7 +45,7 @@ export interface MockProviderOpts {
 }
 
 export function startMock(
-  cfg: MockProviderConfig,
+  cfg: MockLikeConfig,
   emit: ProviderEmit,
   opts: MockProviderOpts = {},
 ): ProviderHandle {
@@ -58,7 +61,7 @@ export function startMock(
 // ─── Positions ───────────────────────────────────────────────────────
 
 function startPositions(
-  cfgIn: MockProviderConfig,
+  cfgIn: MockLikeConfig,
   emit: ProviderEmit,
   setTicker: NonNullable<MockProviderOpts['setTicker']>,
   clearTicker: NonNullable<MockProviderOpts['clearTicker']>,
@@ -132,7 +135,7 @@ function startPositions(
 const TRADE_BOOK_CAP = 1000;
 
 function startTrades(
-  cfgIn: MockProviderConfig,
+  cfgIn: MockLikeConfig,
   emit: ProviderEmit,
   setTicker: NonNullable<MockProviderOpts['setTicker']>,
   clearTicker: NonNullable<MockProviderOpts['clearTicker']>,
@@ -256,7 +259,7 @@ function buildLegacyRow(idx: number): LegacyRow {
 }
 
 function startLegacy(
-  cfgIn: MockProviderConfig,
+  cfgIn: MockLikeConfig,
   emit: ProviderEmit,
   setTicker: NonNullable<MockProviderOpts['setTicker']>,
   clearTicker: NonNullable<MockProviderOpts['clearTicker']>,
@@ -328,7 +331,7 @@ function startLegacy(
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function applyOverlay(cfg: MockProviderConfig, extra: unknown): MockProviderConfig {
+function applyOverlay(cfg: MockLikeConfig, extra: unknown): MockLikeConfig {
   if (!extra || typeof extra !== 'object') return cfg;
   const o = extra as Record<string, unknown>;
   return {
@@ -336,12 +339,12 @@ function applyOverlay(cfg: MockProviderConfig, extra: unknown): MockProviderConf
     rowCount: typeof o.rowCount === 'number' ? o.rowCount : cfg.rowCount,
     updateIntervalMs: typeof o.updateIntervalMs === 'number' ? o.updateIntervalMs : cfg.updateIntervalMs,
     enableUpdates: typeof o.enableUpdates === 'boolean' ? o.enableUpdates : cfg.enableUpdates,
-    dataType: (typeof o.dataType === 'string' ? o.dataType : cfg.dataType) as MockProviderConfig['dataType'],
+    dataType: (typeof o.dataType === 'string' ? o.dataType : cfg.dataType) as MockLikeConfig['dataType'],
   };
 }
 
 /** Interval / pause toggles only — no snapshot rebuild. */
-function isSoftRuntimePatch(extra: unknown, cfg: MockProviderConfig): boolean {
+function isSoftRuntimePatch(extra: unknown, cfg: MockLikeConfig): boolean {
   if (!extra || typeof extra !== 'object') return false;
   const o = extra as Record<string, unknown>;
   if ('__scenarioClear' in o || '__refresh' in o) return false;
@@ -352,8 +355,8 @@ function isSoftRuntimePatch(extra: unknown, cfg: MockProviderConfig): boolean {
 
 function trySoftRuntimeRestart(
   extra: unknown,
-  cfgIn: MockProviderConfig,
-  setCfg: (next: MockProviderConfig) => void,
+  cfgIn: MockLikeConfig,
+  setCfg: (next: MockLikeConfig) => void,
   stopTicker: () => void,
   startTicker: () => void,
 ): boolean {
@@ -370,7 +373,7 @@ function trySoftRuntimeRestart(
  * so `useProviderProbe` can call it without going through the full
  * provider lifecycle.
  */
-export function probeMock(cfg: MockProviderConfig, opts: { maxRows?: number } = {}): { ok: true; rows: readonly unknown[] } {
+export function probeMock(cfg: MockLikeConfig, opts: { maxRows?: number } = {}): { ok: true; rows: readonly unknown[] } {
   const max = opts.maxRows ?? 5;
   const dataType = cfg.dataType ?? 'positions';
   const universe = getUniverse();

@@ -46,6 +46,7 @@
 import { createConfigManager, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { bootstrapDataServices, type DataServices } from './bootstrap.js';
 import { sendWorkerBootstrap } from './sendWorkerBootstrap.js';
+import { dataServicesWorkerName } from './workerName.js';
 
 export interface CreateDataServicesClientOpts {
   /**
@@ -113,7 +114,7 @@ export function createDataServicesClient(
   // consumer's build. See createDataServicesWorker.ts for the full note.
   const worker = new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), {
     type: 'module',
-    name: `mkt-data-services:${opts.appName}`,
+    name: dataServicesWorkerName(opts.appName),
   });
 
   worker.addEventListener('error', (ev) => {

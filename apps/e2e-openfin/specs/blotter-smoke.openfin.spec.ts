@@ -5,8 +5,8 @@
  */
 import { test, expect } from '../fixtures/launchOpenFin';
 
-const ROW_SELECTOR = '.ag-center-cols-container .ag-row';
-const CELL_SELECTOR = '.ag-center-cols-container .ag-row .ag-cell';
+const ROW_SELECTOR = '.ag-grid-scrolling-rows .ag-row';
+const CELL_SELECTOR = '.ag-grid-scrolling-cells .ag-cell';
 
 test.describe('star-demo — blotter smoke', () => {
   test('blotter mounts in OpenFin and loads STOMP rows', async ({ platform }) => {

@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-01T01:59:56.219Z",
+  "profile": {
+    "name": "06 · History suspended",
+    "gridId": "lab-editing",
+    "state": {
+      "general-settings": {
+        "v": 1,
+        "data": {
+          "cellSelection": true
+        }
+      },
+      "smart-edit": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "incrementStep": 1,
+            "magnitudeShortcutsEnabled": true,
+            "enabledOps": [
+              "multiply",
+              "divide",
+              "add",
+              "subtract",
+              "set"
+            ],
+            "confirmThreshold": 50,
+            "enforceSingleColumn": true,
+            "previewBeforeApply": false,
+            "recordHistory": true
+          }
+        }
+      },
+      "bulk-update": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "confirmThreshold": 50,
+            "showDistinctValues": true,
+            "maxDropdownValues": 20,
+            "enforceSingleColumn": true,
+            "recordHistory": true
+          }
+        }
+      },
+      "plus-minus": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "recordHistory": true
+          },
+          "nudges": [
+            {
+              "id": "pm-ms9q4lyl-tdc9",
+              "name": "Qty ±100",
+              "enabled": true,
+              "scope": {
+                "columnIds": [
+                  "quantityFace"
+                ]
+              },
+              "incrementStep": 100,
+              "decrementStep": 100
+            },
+            {
+              "id": "pm-ms9q4lyl-ytwp",
+              "name": "Mid ±0.01",
+              "enabled": true,
+              "scope": {
+                "columnIds": [
+                  "midPrice"
+                ]
+              },
+              "incrementStep": 0.01,
+              "decrementStep": 0.01
+            }
+          ]
+        }
+      },
+      "shortcuts": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "recordHistory": true
+          },
+          "shortcuts": [
+            {
+              "id": "sc-ms9q4lyl-cy63",
+              "name": "H ×100 qty",
+              "enabled": true,
+              "shortcutKey": "h",
+              "operation": "multiply",
+              "shortcutValue": 100,
+              "scope": {
+                "columnIds": [
+                  "quantityFace"
+                ]
+              }
+            },
+            {
+              "id": "sc-ms9q4lyl-k126",
+              "name": "M +1000 qty",
+              "enabled": true,
+              "shortcutKey": "m",
+              "operation": "add",
+              "shortcutValue": 1000,
+              "scope": {
+                "columnIds": [
+                  "quantityFace"
+                ]
+              }
+            },
+            {
+              "id": "sc-ms9q4lyl-h7ik",
+              "name": "L −500 qty",
+              "enabled": true,
+              "shortcutKey": "l",
+              "operation": "subtract",
+              "shortcutValue": 500,
+              "scope": {
+                "columnIds": [
+                  "quantityFace"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "data-change-history": {
+        "v": 1,
+        "data": {
+          "settings": {
+            "enabled": true,
+            "maxEntries": 50,
+            "suspended": true,
+            "unifyUndo": true,
+            "recordSources": {
+              "smartEdit": true,
+              "bulkUpdate": true,
+              "plusMinus": true,
+              "shortcuts": true,
+              "cellEditor": true,
+              "stream": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

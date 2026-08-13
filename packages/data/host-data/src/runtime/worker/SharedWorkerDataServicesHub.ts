@@ -32,9 +32,14 @@ import type {
   CatalogEvent,
   RefreshProviderRequest,
   HubIntrospectSnapshot,
+  SsrmRequest,
+  SsrmRpcEvent,
+  SsrmTickEvent,
 } from '../protocol.js';
 import { startProvider } from '../providers/registry.js';
 import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider.js';
+import { isSsrmProviderType, SsrmPlane } from '../ssrm/index.js';
+import type { Row, SsrmFlushEvent } from '../ssrm/index.js';
 import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import {
   traceStompProviderCfg,
@@ -79,6 +84,11 @@ const DEBUG = false;
 
 export class SharedWorkerDataServicesHub {
   private readonly providers = new Map<string, ProviderSlot>();
+  /** SSRM query planes for `stomp-ssrm` providers (keyed by providerId). */
+  private readonly ssrmPlanes = new Map<
+    string,
+    { plane: SsrmPlane; offFlush: () => void }
+  >();
   private readonly subscribers = new SubscriberRegistry();
   private readonly appDataSvc: HubAppDataService;
   private readonly configCatalog: ConfigCatalogCache | null;
@@ -141,6 +151,13 @@ export class SharedWorkerDataServicesHub {
       case 'refresh-provider': this.handleRefreshProvider(req); return;
       case 'hub-introspect': handleHubIntrospect(this.catalogRpcCtx, port, req); return;
       case 'provider-running': handleProviderRunning(this.catalogRpcCtx, port, req); return;
+      case 'ssrm-get-rows':
+      case 'ssrm-set-viewport':
+      case 'ssrm-configure-expressions':
+      case 'ssrm-status-bar':
+      case 'ssrm-set-filter-values':
+        this.handleSsrmRequest(port, req);
+        return;
     }
   }
 
@@ -188,6 +205,7 @@ export class SharedWorkerDataServicesHub {
       connectedPortCount: this.connectedPorts.size,
       appDataListenerCount: this.appDataSvc.listenerCount,
       appDataRows: this.appDataSvc.snapshotRows(),
+      ssrmPlanes: this.ssrmPlanes,
     };
     return buildIntrospectSnapshot(sources);
   }
@@ -210,8 +228,12 @@ export class SharedWorkerDataServicesHub {
       /* port already torn down */
     }
     this.connectedPorts.delete(port);
-    const { idleCandidates, statsEmptied } = this.subscribers.removeByPort(port);
+    const { idleCandidates, statsEmptied, released } =
+      this.subscribers.removeByPort(port);
     if (statsEmptied) this.maybeStopStatsSampler();
+    for (const { providerId, subId } of released) {
+      this.releaseSsrmSession(providerId, subId);
+    }
     this.appDataSvc.onPortClosed(port);
     for (const providerId of idleCandidates) {
       this.maybeStopProviderIfIdle(providerId);
@@ -222,6 +244,11 @@ export class SharedWorkerDataServicesHub {
   async dispose(): Promise<void> {
     for (const [, slot] of this.providers) await slot.handle.stop();
     this.providers.clear();
+    for (const [, entry] of this.ssrmPlanes) {
+      entry.offFlush();
+      entry.plane.dispose();
+    }
+    this.ssrmPlanes.clear();
     this.subscribers.clear();
     this.appDataSvc.clear();
     this.connectedPorts.clear();
@@ -335,7 +362,20 @@ export class SharedWorkerDataServicesHub {
   private handleDetach(req: DetachRequest): void {
     const removed = this.subscribers.remove(req.subId);
     if (removed.statsEmptied) this.maybeStopStatsSampler();
-    if (removed.providerId) this.maybeStopProviderIfIdle(removed.providerId);
+    if (removed.providerId) {
+      this.releaseSsrmSession(removed.providerId, req.subId);
+      this.maybeStopProviderIfIdle(removed.providerId);
+    }
+  }
+
+  /**
+   * Release a session's SSRM viewport keys. Disposing the plane covers the
+   * last-subscriber case, but a plane shared with other grids survives and
+   * would otherwise retain this session's keys — and keep walking them on
+   * every tick — forever.
+   */
+  private releaseSsrmSession(providerId: string, subId: string): void {
+    this.ssrmPlanes.get(providerId)?.plane.clearViewportInterest(subId);
   }
 
   private maybeStopProviderIfIdle(providerId: string): void {
@@ -392,6 +432,7 @@ export class SharedWorkerDataServicesHub {
     }
     const removed = this.subscribers.remove(subId);
     if (removed.statsEmptied) this.maybeStopStatsSampler();
+    if (removed.providerId) this.releaseSsrmSession(removed.providerId, subId);
     return removed.providerId;
   }
 
@@ -408,6 +449,180 @@ export class SharedWorkerDataServicesHub {
     this.replayCacheToPort(req.subId, listener.port, slot, 'refresh');
   }
 
+  private disposeSsrmPlane(providerId: string): void {
+    const entry = this.ssrmPlanes.get(providerId);
+    if (!entry) return;
+    entry.offFlush();
+    entry.plane.dispose();
+    this.ssrmPlanes.delete(providerId);
+  }
+
+  private ensureSsrmPlane(providerId: string, cfg: ProviderConfig): SsrmPlane | null {
+    if (!isSsrmProviderType(cfg.providerType)) return null;
+    const existing = this.ssrmPlanes.get(providerId);
+    if (existing) return existing.plane;
+    // Thread the hub's own injectable timers through so tests that fake
+    // them (subscriber sweeper, stats sampler) control the SSRM flush
+    // window too. NOTE: the hub's own default is setInterval/clearInterval
+    // (see constructor above), not setTimeout — SsrmServer.flushWindow()
+    // unconditionally clears its timer on every fire specifically so a
+    // single-shot flush window is correct under either primitive.
+    const plane = new SsrmPlane(cfg, {
+      setTimer: this.setTimer,
+      clearTimer: this.clearTimer,
+    });
+    const offFlush = plane.onFlush((flush) => {
+      this.fanSsrmFlush(providerId, plane, flush);
+    });
+    this.ssrmPlanes.set(providerId, { plane, offFlush });
+    return plane;
+  }
+
+  private syncSsrmFromEmit(
+    providerId: string,
+    slot: ProviderSlot,
+    event: ProviderEmitEvent,
+  ): void {
+    if (!('rows' in event)) return;
+    const plane =
+      this.ssrmPlanes.get(providerId)?.plane ??
+      this.ensureSsrmPlane(providerId, slot.cfg);
+    if (!plane) return;
+    if (event.replace) {
+      plane.syncFromCache(slot.cache);
+    } else {
+      plane.upsertRows(event.rows);
+    }
+  }
+
+  /**
+   * Fan a windowed {@link SsrmFlushEvent} out to every data subscriber of a
+   * provider. Unlike the old per-tick fan-out, a flush carries no rows of
+   * its own — it's a settled, conflated notice of which keys changed since
+   * the last flush. Rows are sourced fresh from the store per session
+   * (`plane.rowsForKeys`), which is what makes conflation "free": the
+   * payload built at flush time is automatically last-value-wins.
+   */
+  private fanSsrmFlush(
+    providerId: string,
+    plane: SsrmPlane,
+    flush: SsrmFlushEvent,
+  ): void {
+    const listeners = this.subscribers.dataListeners(providerId);
+    if (!listeners?.size) return;
+    for (const [subId, listener] of listeners) {
+      const interestedKeys = plane.interestedKeys(subId, flush.keys);
+      let rows: Row[] = [];
+      if (flush.type === 'rows' && interestedKeys.length) {
+        rows = plane.enrichRows(plane.rowsForKeys(interestedKeys), subId);
+      } else if (flush.type === 'rows' && flush.keys.length) {
+        // Nothing in this session's viewport changed. A *filtered* session
+        // still needs the full set — a row that changes into matching its
+        // filter is undiscoverable otherwise (bindSsrmTicks re-tests them).
+        // An unfiltered session would only pay to enrich and post rows it
+        // then discards, so send it nothing.
+        rows = plane.wantsUnmatchedRows(subId)
+          ? plane.enrichRows(plane.rowsForKeys(flush.keys), subId)
+          : [];
+      }
+      const msg: SsrmTickEvent = {
+        kind: 'ssrm-tick',
+        subId,
+        providerId,
+        event: {
+          type: flush.type,
+          keys: flush.keys,
+          columns: flush.columns,
+          revision: flush.revision,
+          rows,
+        },
+        interestedKeys,
+      };
+      try {
+        listener.port.postMessage(msg);
+      } catch {
+        /* port dead */
+      }
+    }
+  }
+
+  private handleSsrmRequest(port: PortLike, req: SsrmRequest): void {
+    const reply = (event: SsrmRpcEvent): void => {
+      try {
+        port.postMessage(event);
+      } catch {
+        /* port dead */
+      }
+    };
+
+    if (req.kind === 'ssrm-set-viewport') {
+      const plane = this.ssrmPlanes.get(req.providerId)?.plane;
+      plane?.setViewportInterest(req.sessionId, req.keys, req.scope);
+      return;
+    }
+
+    const reqId = 'reqId' in req ? req.reqId : '';
+    try {
+      let slot = this.providers.get(req.providerId);
+      const cfg =
+        slot?.cfg ??
+        this.configCatalog?.getProviderConfig(req.providerId) ??
+        undefined;
+      if (!cfg || !isSsrmProviderType(cfg.providerType)) {
+        reply({
+          kind: 'ssrm-rpc',
+          reqId,
+          ok: false,
+          error: `No SSRM plane for provider '${req.providerId}'`,
+        });
+        return;
+      }
+      const plane =
+        this.ssrmPlanes.get(req.providerId)?.plane ??
+        this.ensureSsrmPlane(req.providerId, cfg);
+      if (!plane) {
+        reply({
+          kind: 'ssrm-rpc',
+          reqId,
+          ok: false,
+          error: `Failed to create SSRM plane for '${req.providerId}'`,
+        });
+        return;
+      }
+      // Late RPC before first emit — seed from hub cache if present.
+      if (slot && slot.cache.size > 0 && plane.getStats().rowCount === 0) {
+        plane.syncFromCache(slot.cache);
+      }
+
+      if (req.kind === 'ssrm-get-rows') {
+        const getRows = plane.getRows(req.request, req.sessionId);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true, getRows });
+        return;
+      }
+      if (req.kind === 'ssrm-configure-expressions') {
+        plane.configureExpressions(req.rules, req.sessionId);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true });
+        return;
+      }
+      if (req.kind === 'ssrm-status-bar') {
+        const statusBar = plane.getStatusBar(req.request);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true, statusBar });
+        return;
+      }
+      if (req.kind === 'ssrm-set-filter-values') {
+        const setFilterValues = plane.getSetFilterValues(req.request);
+        reply({ kind: 'ssrm-rpc', reqId, ok: true, setFilterValues });
+      }
+    } catch (err) {
+      reply({
+        kind: 'ssrm-rpc',
+        reqId,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   private async stopProvider(providerId: string): Promise<void> {
     const slot = this.providers.get(providerId);
     if (!slot) return;
@@ -415,6 +630,7 @@ export class SharedWorkerDataServicesHub {
     // Drop from the registry first so late STOMP frames cannot fan-out
     // while deactivate() is still in flight.
     this.providers.delete(providerId);
+    this.disposeSsrmPlane(providerId);
 
     for (const l of this.subscribers.removeDataListenersOf(providerId)) {
       try {
@@ -518,6 +734,7 @@ export class SharedWorkerDataServicesHub {
       // new cache.
       if (this.providers.get(providerId) !== slot) return;
       applyProviderEmit(this.emitCtx, providerId, slot, event);
+      this.syncSsrmFromEmit(providerId, slot, event);
     };
 
     // Register BEFORE starting the provider: transports emit
@@ -528,6 +745,8 @@ export class SharedWorkerDataServicesHub {
     // this by re-emitting loading post-registration; the adopt-in-
     // flight restart path doesn't).
     this.providers.set(providerId, slot);
+    // Attach SSRM plane early so getRows can land during snapshot load.
+    this.ensureSsrmPlane(providerId, cfg);
     try {
       slot.handle = startProvider(cfg, emit, {
         appDataLookup: (name, key) => this.appDataSvc.get(name, key),
@@ -553,6 +772,7 @@ export class SharedWorkerDataServicesHub {
     // the currently-registered slot, so any in-flight frames from the
     // old connection are ignored the moment it stops being that slot.
     this.providers.delete(providerId);
+    this.disposeSsrmPlane(providerId);
     if (old) void old.handle.stop();
     // createProvider registers the fresh slot before starting it, so its
     // synchronous `loading` emission reaches every existing listener.
@@ -707,6 +927,22 @@ export class SharedWorkerDataServicesHub {
   private broadcastData(providerId: string, slot: ProviderSlot, eventTemplate: Event): void {
     const listeners = this.subscribers.dataListeners(providerId);
     if (!listeners) return;
+    // SSRM providers: once ready, rows reach every session through the
+    // interest-filtered ssrm-tick fan instead. Broadcasting the raw live
+    // delta as well would structured-clone the full frame to N sessions
+    // that never render from it — at 20k rows/sec x 4 grids that is ~80k
+    // wasted row-clones/sec in this worker plus the same again in window
+    // deserialisation. Snapshot-phase deltas still flow (they resolve the
+    // adapter's handle.snapshot); status events are unaffected.
+    if (
+      slot.snapshotReady
+      && this.ssrmPlanes.has(providerId)
+      && (eventTemplate.kind === 'delta'
+        || eventTemplate.kind === 'delta-bin'
+        || eventTemplate.kind === 'delta-patch')
+    ) {
+      return;
+    }
     const countPublish =
       slot.snapshotReady
       && (

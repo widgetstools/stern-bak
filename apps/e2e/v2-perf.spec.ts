@@ -25,7 +25,7 @@ async function measureMountMs(page: Page, path: string): Promise<number> {
   // Fresh context per measurement — no warm AG-Grid module cache, no warm Dexie.
   const start = Date.now();
   await page.goto(path);
-  await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+  await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
   return Date.now() - start;
 }
 
@@ -65,7 +65,7 @@ test.describe('perf canaries', () => {
   test('auto-save latency: profile creation observed in IndexedDB within 1s', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
 
     // Clear db so the create is observable against a clean slate.
     await page.evaluate(async () => {
@@ -79,7 +79,7 @@ test.describe('perf canaries', () => {
     });
     await page.goto('/');
     await page.waitForSelector('[data-grid-id="demo-blotter-v2"]', { timeout: 10_000 });
-    await page.waitForSelector('.ag-body-viewport .ag-row', { timeout: 15_000 });
+    await page.waitForSelector('.ag-grid-viewport .ag-row', { timeout: 15_000 });
     await page.waitForTimeout(400); // initial Default-profile auto-seed
 
     const tStart = Date.now();

@@ -1572,6 +1572,75 @@ describe('SharedWorkerDataServicesHub — config catalog', () => {
   });
 });
 
+interface SsrmIntrospectRow {
+  providerId: string;
+  ssrm?: {
+    rowCount: number;
+    sessions: number;
+    memoHits: number;
+    memoMisses: number;
+    flushes: number;
+    updatesAccumulated: number;
+    keysFlushed: number;
+  };
+}
+
+describe('SharedWorkerDataServicesHub — SSRM plane stats in introspect', () => {
+  it('carries the SSRM plane stats object on the provider introspect row', () => {
+    let emitRef: ProviderEmit | null = null;
+    registerProvider('mock-ssrm' as ProviderConfig['providerType'], (_cfg, emit) => {
+      emitRef = emit;
+      const handle: ProviderHandle = { stop() {}, restart() {} };
+      return handle;
+    });
+    const hub = new SharedWorkerDataServicesHub();
+    const port = makePort();
+
+    hub.handleRequest(port, {
+      kind: 'attach', subId: 's1', providerId: 'p-ssrm', mode: 'data',
+      cfg: { providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as ProviderConfig,
+    });
+    emitRef?.({ rows: [{ id: 'a', px: 1 }], replace: true });
+    // Two identical queries — the second is a memo hit.
+    hub.handleRequest(port, {
+      kind: 'ssrm-get-rows', reqId: 'r1', providerId: 'p-ssrm', sessionId: 's1',
+      request: { startRow: 0, endRow: 10 },
+    });
+    hub.handleRequest(port, {
+      kind: 'ssrm-get-rows', reqId: 'r2', providerId: 'p-ssrm', sessionId: 's1',
+      request: { startRow: 0, endRow: 10 },
+    });
+
+    hub.handleRequest(port, { kind: 'hub-introspect', reqId: 'intro-ssrm' });
+
+    const snap = port.messages.find(
+      (m) => (m as { reqId?: string }).reqId === 'intro-ssrm',
+    ) as { introspect?: { providers: SsrmIntrospectRow[] } };
+    const row = snap.introspect?.providers.find((p) => p.providerId === 'p-ssrm');
+
+    expect(row?.ssrm).toBeDefined();
+    expect(row?.ssrm?.rowCount).toBe(1);
+    expect(row?.ssrm?.flushes).toBeGreaterThanOrEqual(1);
+    expect(row?.ssrm?.memoMisses).toBeGreaterThanOrEqual(1);
+    expect(row?.ssrm?.memoHits).toBeGreaterThanOrEqual(1);
+  });
+
+  it('leaves ssrm undefined on the introspect row for a non-SSRM provider', () => {
+    const hub = new SharedWorkerDataServicesHub();
+    const port = makePort();
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg() });
+
+    hub.handleRequest(port, { kind: 'hub-introspect', reqId: 'intro-plain' });
+
+    const snap = port.messages.find(
+      (m) => (m as { reqId?: string }).reqId === 'intro-plain',
+    ) as { introspect?: { providers: SsrmIntrospectRow[] } };
+    const row = snap.introspect?.providers.find((p) => p.providerId === 'p1');
+
+    expect(row?.ssrm).toBeUndefined();
+  });
+});
+
 describe('SharedWorkerDataServicesHub — live binary fan-out', () => {
   it('broadcasts large post-ready live ticks as delta-bin to every listener', () => {
     const hub = new SharedWorkerDataServicesHub();
