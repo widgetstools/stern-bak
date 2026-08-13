@@ -116,16 +116,28 @@ function useMarketsGridShell<TData>(
   const resolvedAppData = hostResolved.appData ?? appData;
 
   const hostOverrideKeys = useMemo(
-    () =>
-      resolveSurfaceHostOverrideKeys({
+    () => {
+      const keys = resolveSurfaceHostOverrideKeys({
         rowHeight,
         headerHeight,
         animateRows,
         sideBar,
         statusBar,
         defaultColDef,
-      }),
-    [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef],
+      });
+      // SSRM: the surface owns `statusBar` end-to-end — it maps the
+      // customizer's native panel selection onto worker-backed panels
+      // and pushes updates itself. The generic post-mount option sync
+      // must never write the raw native panel set (native count
+      // components only see loaded blocks under SSRM).
+      if (ssrm) {
+        const withStatusBar = new Set(keys);
+        withStatusBar.add('statusBar');
+        return withStatusBar;
+      }
+      return keys;
+    },
+    [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef, ssrm],
   );
 
   const { platform, columnDefs, gridOptions, onGridReady, onGridPreDestroyed } = useGridHost({

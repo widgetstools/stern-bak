@@ -79,6 +79,7 @@ export {
   ssrmAlertRowClass,
   ssrmEditable,
   createSsrmStatusBar,
+  mapNativeStatusBarToSsrm,
   SsrmRowsStatusPanel,
   SSRM_STATUS_CONTEXT_KEY,
   SsrmAgGrid,

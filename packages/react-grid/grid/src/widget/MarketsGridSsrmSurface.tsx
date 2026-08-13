@@ -35,7 +35,7 @@ import { useRestoreCellFocusOnWindowFocus } from './useRestoreCellFocusOnWindowF
 import { ensureAgGridModules } from './ensureAgGridModules';
 import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
-import { createSsrmStatusBar } from '../ssrm/createSsrmStatusBar.js';
+import { createSsrmStatusBar, mapNativeStatusBarToSsrm } from '../ssrm/createSsrmStatusBar.js';
 import { ssrmAlertRowClass, ssrmGetChildCount } from '../ssrm/expressionBindings.js';
 import { withSsrmSetFilterValues } from '../ssrm/ssrmSetFilterValues.js';
 import { BlankLoadingCellRenderer } from '../ssrm/BlankLoadingCellRenderer.js';
@@ -153,16 +153,60 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     [provider, getQuickFilterText],
   );
 
+  // Customizer Grid Options → STATUS BAR card: the pipeline emits AG
+  // Grid's native panel selection. JSON-key it so unrelated pipeline
+  // ticks (fresh object, identical content) don't rebuild the bar.
+  const pipelineStatusBarJson = useMemo(() => {
+    const raw = (gridOptions as { statusBar?: unknown }).statusBar;
+    return raw === undefined ? null : JSON.stringify(raw);
+  }, [gridOptions]);
+
   const mergedStatusBar = useMemo(() => {
-    const hostBar = hostOverrideKeys.has('statusBar') ? statusBar : undefined;
-    if (!hostBar) return statusPack.statusBar;
-    return {
-      statusPanels: [
-        ...hostBar.statusPanels,
-        ...statusPack.statusBar.statusPanels,
-      ],
-    };
-  }, [statusBar, hostOverrideKeys, statusPack]);
+    // A statusBar passed as a host PROP keeps its historical behaviour:
+    // its panels prepended to the full SSRM pack. (`statusBar` is in
+    // hostOverrideKeys for every SSRM grid — the surface owns the key —
+    // so presence of the prop value is the real discriminator.)
+    const hostBar = statusBar != null && hostOverrideKeys.has('statusBar') ? statusBar : undefined;
+    if (hostBar) {
+      return {
+        statusPanels: [
+          ...hostBar.statusPanels,
+          ...statusPack.statusBar.statusPanels,
+        ],
+      };
+    }
+    // Customizer selection: map the native count panels onto their
+    // worker-backed SSRM equivalents (the native ones only see loaded
+    // blocks). Absent key = SHOW STATUS BAR toggled off → no bar,
+    // exactly like CSRM.
+    if (pipelineStatusBarJson == null) return undefined;
+    return mapNativeStatusBarToSsrm(JSON.parse(pipelineStatusBarJson), {
+      provider,
+      getQuickFilterText,
+    });
+  }, [statusBar, hostOverrideKeys, statusPack, pipelineStatusBarJson, provider, getQuickFilterText]);
+
+  // `statusBar` is skipped by useGridHost's generic option sync for SSRM
+  // grids (the raw native panels must never land), so post-mount changes
+  // from the customizer are pushed here. The initial value reaches the
+  // grid through the mount prop.
+  const statusBarPushRef = useRef<{ initial: boolean; last: unknown }>({ initial: true, last: null });
+  useEffect(() => {
+    const tracker = statusBarPushRef.current;
+    if (tracker.initial) {
+      tracker.initial = false;
+      tracker.last = mergedStatusBar;
+      return;
+    }
+    if (Object.is(tracker.last, mergedStatusBar)) return;
+    tracker.last = mergedStatusBar;
+    const api = apiRef.current as unknown as {
+      isDestroyed?: () => boolean;
+      setGridOption?: (key: string, value: unknown) => void;
+    } | null;
+    if (!api || api.isDestroyed?.()) return;
+    api.setGridOption?.('statusBar', mergedStatusBar);
+  }, [mergedStatusBar]);
 
   const mergedContext = useMemo(
     () => ({

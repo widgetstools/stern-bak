@@ -14,6 +14,7 @@ export {
 } from './expressionBindings.js';
 export {
   createSsrmStatusBar,
+  mapNativeStatusBarToSsrm,
   SsrmRowsStatusPanel,
   SSRM_STATUS_CONTEXT_KEY,
   type CreateSsrmStatusBarOptions,

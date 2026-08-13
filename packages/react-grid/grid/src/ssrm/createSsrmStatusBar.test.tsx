@@ -10,8 +10,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import {
   createSsrmStatusBar,
+  SsrmRowsStatusPanel,
   SsrmTotalRowsStatusPanel,
   SsrmFilteredRowsStatusPanel,
+  mapNativeStatusBarToSsrm,
 } from './createSsrmStatusBar.js';
 
 const provider = {
@@ -80,5 +82,56 @@ describe('createSsrmStatusBar default parity', () => {
     expect((p as never as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length)
       .toBe(initial + 1);
     vi.useRealTimers();
+  });
+});
+
+describe('mapNativeStatusBarToSsrm', () => {
+  const provider = { id: 'p' } as never;
+
+  it('replaces the three native count components with worker-backed panels', () => {
+    const mapped = mapNativeStatusBarToSsrm(
+      {
+        statusPanels: [
+          { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
+          { statusPanel: 'agFilteredRowCountComponent' },
+          { statusPanel: 'agTotalRowCountComponent' },
+        ],
+      },
+      { provider },
+    )!;
+    expect(mapped.statusPanels).toHaveLength(3);
+    expect(mapped.statusPanels[0].statusPanel).toBe(SsrmRowsStatusPanel);
+    expect(mapped.statusPanels[0].align).toBe('left');
+    expect(mapped.statusPanels[1].statusPanel).toBe(SsrmFilteredRowsStatusPanel);
+    expect(mapped.statusPanels[2].statusPanel).toBe(SsrmTotalRowsStatusPanel);
+    // Worker provider injected so counts come from the whole cache.
+    for (const panel of mapped.statusPanels) {
+      expect((panel.statusPanelParams as { provider: unknown }).provider).toBe(provider);
+    }
+  });
+
+  it('passes selected / aggregation / custom panels through untouched', () => {
+    const custom = { statusPanel: 'myCustomPanel', align: 'left' as const };
+    const mapped = mapNativeStatusBarToSsrm(
+      {
+        statusPanels: [
+          { statusPanel: 'agSelectedRowCountComponent' },
+          { statusPanel: 'agAggregationComponent', align: 'right' },
+          custom,
+        ],
+      },
+      { provider },
+    )!;
+    expect(mapped.statusPanels[0].statusPanel).toBe('agSelectedRowCountComponent');
+    expect(mapped.statusPanels[1].statusPanel).toBe('agAggregationComponent');
+    expect(mapped.statusPanels[1].align).toBe('right');
+    expect(mapped.statusPanels[2]).toBe(custom);
+  });
+
+  it('returns undefined when the option is absent, malformed, or empty', () => {
+    expect(mapNativeStatusBarToSsrm(undefined, { provider })).toBeUndefined();
+    expect(mapNativeStatusBarToSsrm(true, { provider })).toBeUndefined();
+    expect(mapNativeStatusBarToSsrm({}, { provider })).toBeUndefined();
+    expect(mapNativeStatusBarToSsrm({ statusPanels: [] }, { provider })).toBeUndefined();
   });
 });

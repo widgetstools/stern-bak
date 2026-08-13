@@ -30,9 +30,16 @@ vi.mock('ag-grid-enterprise', () => ({
 
 vi.mock('../ssrm/createSsrmDatasource.js', () => ({ createSsrmDatasource }));
 vi.mock('../ssrm/bindSsrmTicks.js', () => ({ bindSsrmTicks }));
-vi.mock('../ssrm/createSsrmStatusBar.js', () => ({
-  createSsrmStatusBar: () => ({ statusBar: { statusPanels: [] }, context: {} }),
-}));
+vi.mock('../ssrm/createSsrmStatusBar.js', async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    createSsrmStatusBar: () => ({
+      statusBar: { statusPanels: [{ key: 'ssrm-pack-panel', statusPanel: 'packPanel' }] },
+      context: {},
+    }),
+  };
+});
 vi.mock('./buildStreamSafeComponents.js', () => ({
   buildStreamSafeComponents: () => ({}),
 }));
@@ -98,4 +105,121 @@ it('replaces the "Loading..." block renderer with a blank one (fast thumb scroll
   };
   expect(props.loadingCellRenderer).toBeDefined();
   expect(props.loadingCellRenderer!()).toBeNull();
+});
+
+describe('MarketsGridSsrmSurface — customizer status bar', () => {
+  const provider = {
+    id: 'p-ssrm',
+    getConfig: () => ({ blockSize: 100, keyColumn: 'positionId' }),
+    getColumnDefs: () => [],
+  } as never;
+
+  function mount(extra: {
+    gridOptions?: Record<string, unknown>;
+    statusBar?: { statusPanels: Array<Record<string, unknown>> };
+    hostOverrideKeys?: Set<string>;
+  }) {
+    const gridRef = createRef<AgGridReact>();
+    return render(
+      <MarketsGridSsrmSurface
+        gridRef={gridRef}
+        gridOptions={extra.gridOptions ?? {}}
+        hostOverrideKeys={extra.hostOverrideKeys ?? new Set(['statusBar'])}
+        theme={undefined}
+        columnDefs={[{ field: 'positionId' }]}
+        ssrm={{ provider, keyColumn: 'positionId' }}
+        sideBar={false}
+        statusBar={extra.statusBar as never}
+        defaultColDef={undefined}
+        onGridReady={() => {}}
+        onGridPreDestroyed={() => {}}
+      />,
+    );
+  }
+
+  const surfaceProps = () =>
+    (globalThis as Record<string, unknown>).__ssrmSurfaceProps as {
+      statusBar?: { statusPanels: Array<{ statusPanel: unknown; align?: string }> };
+    };
+
+  it('maps the pipeline statusBar selection onto worker-backed panels', () => {
+    mount({
+      gridOptions: {
+        statusBar: {
+          statusPanels: [
+            { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
+            { statusPanel: 'agSelectedRowCountComponent' },
+          ],
+        },
+      },
+    });
+    const bar = surfaceProps().statusBar!;
+    expect(bar.statusPanels).toHaveLength(2);
+    // Count panel replaced with the SSRM component (a function, not the
+    // native string); selected count passes through untouched.
+    expect(typeof bar.statusPanels[0].statusPanel).toBe('function');
+    expect(bar.statusPanels[0].align).toBe('left');
+    expect(bar.statusPanels[1].statusPanel).toBe('agSelectedRowCountComponent');
+  });
+
+  it('renders no status bar when the customizer toggles it off (key absent)', () => {
+    mount({ gridOptions: {} });
+    expect(surfaceProps().statusBar).toBeUndefined();
+  });
+
+  it('keeps host-prop statusBar behaviour: prepended to the SSRM pack', () => {
+    mount({
+      gridOptions: {},
+      statusBar: { statusPanels: [{ statusPanel: 'hostPanel' }] },
+    });
+    const bar = surfaceProps().statusBar!;
+    expect(bar.statusPanels.map((panel) => panel.statusPanel)).toEqual([
+      'hostPanel',
+      'packPanel',
+    ]);
+  });
+
+  it('pushes post-mount customizer changes through setGridOption', async () => {
+    const { rerender } = mount({
+      gridOptions: {
+        statusBar: { statusPanels: [{ statusPanel: 'agTotalRowCountComponent' }] },
+      },
+    });
+    await waitFor(() => expect(setGridOption).toHaveBeenCalled());
+    setGridOption.mockClear();
+
+    const gridRef = createRef<AgGridReact>();
+    rerender(
+      <MarketsGridSsrmSurface
+        gridRef={gridRef}
+        gridOptions={{
+          statusBar: {
+            statusPanels: [
+              { statusPanel: 'agTotalRowCountComponent' },
+              { statusPanel: 'agAggregationComponent', align: 'right' },
+            ],
+          },
+        }}
+        hostOverrideKeys={new Set(['statusBar'])}
+        theme={undefined}
+        columnDefs={[{ field: 'positionId' }]}
+        ssrm={{ provider, keyColumn: 'positionId' }}
+        sideBar={false}
+        statusBar={undefined}
+        defaultColDef={undefined}
+        onGridReady={() => {}}
+        onGridPreDestroyed={() => {}}
+      />,
+    );
+    await waitFor(() => {
+      expect(setGridOption).toHaveBeenCalledWith(
+        'statusBar',
+        expect.objectContaining({
+          statusPanels: expect.arrayContaining([
+            expect.objectContaining({ statusPanel: 'agAggregationComponent' }),
+          ]),
+        }),
+      );
+    });
+  });
 });

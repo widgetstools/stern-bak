@@ -171,6 +171,59 @@ export const SsrmRowsStatusPanel = makeSsrmCountPanel('totalAndFiltered');
 export const SsrmTotalRowsStatusPanel = makeSsrmCountPanel('total');
 export const SsrmFilteredRowsStatusPanel = makeSsrmCountPanel('filtered');
 
+/** Native count components whose client-row-model numbers are wrong under
+ *  SSRM (they only see loaded blocks) → worker-backed replacements. */
+const NATIVE_COUNT_TO_SSRM: Record<string, FunctionComponent<PanelProps>> = {
+  agTotalAndFilteredRowCountComponent: SsrmRowsStatusPanel,
+  agTotalRowCountComponent: SsrmTotalRowsStatusPanel,
+  agFilteredRowCountComponent: SsrmFilteredRowsStatusPanel,
+};
+
+/**
+ * Map a native AG Grid `statusBar` option (e.g. the customizer's Grid
+ * Options → STATUS BAR selection) onto its SSRM equivalent: the three
+ * row-count components become worker-backed panels (same markup and
+ * labels, whole-cache numbers); everything else — selected count,
+ * aggregation, custom panels — passes through untouched, keeping each
+ * panel's align and order.
+ *
+ * Returns `undefined` when the option is absent or carries no panels —
+ * the caller renders no status bar, exactly like CSRM with the card
+ * toggled off.
+ */
+export function mapNativeStatusBarToSsrm(
+  statusBarOpt: unknown,
+  options: CreateSsrmStatusBarOptions,
+): { statusPanels: StatusPanelDef[] } | undefined {
+  if (!statusBarOpt || typeof statusBarOpt !== 'object') return undefined;
+  const panels = (statusBarOpt as { statusPanels?: unknown }).statusPanels;
+  if (!Array.isArray(panels) || panels.length === 0) return undefined;
+
+  const refreshThrottleMs = options.refreshThrottleMs ?? 150;
+  const statusPanelParams = {
+    provider: options.provider,
+    refreshThrottleMs,
+    getQuickFilterText: options.getQuickFilterText,
+  };
+
+  const statusPanels = panels.map((raw, i) => {
+    const def = raw as StatusPanelDef;
+    const replacement =
+      typeof def.statusPanel === 'string'
+        ? NATIVE_COUNT_TO_SSRM[def.statusPanel]
+        : undefined;
+    if (!replacement) return def;
+    return {
+      key: def.key ?? `ssrm-${String(def.statusPanel)}-${i}`,
+      align: def.align,
+      statusPanel: replacement,
+      statusPanelParams,
+    } as StatusPanelDef;
+  });
+
+  return { statusPanels };
+}
+
 /**
  * Simplified SSRM status bar — worker-backed row counts + native selected panel.
  */
