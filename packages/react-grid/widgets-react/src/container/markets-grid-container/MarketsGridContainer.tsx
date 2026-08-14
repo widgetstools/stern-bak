@@ -134,7 +134,7 @@ export interface MarketsGridContainerProps<TData extends Record<string, unknown>
   /**
    * Called whenever the resolved row-key field(s) change — the active
    * provider's `keyColumn` that drives `getRowId`. Lets a host (e.g.
-   * `HostedMarketsGrid`) wire grid-to-grid context linking off the SAME
+   * `StarGrid`) wire grid-to-grid context linking off the SAME
    * fields without hardcoding them. `null` until a provider/key resolves.
    */
   onRowIdFieldChange?(rowIdField: string | readonly string[] | null): void;
@@ -263,7 +263,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   const propCaption = (marketsGridProps as { caption?: string }).caption;
   const effectiveCaption = persistedCaption ?? propCaption;
 
-  // Under OpenFin, HostedMarketsGrid binds the `caption` prop to the live
+  // Under OpenFin, StarGrid binds the `caption` prop to the live
   // view tab name (useViewTabTitle). A genuine post-mount change to that
   // prop means the tab was renamed externally ("Save Tab As…") — adopt it
   // into the persisted caption so the toolbar follows the tab and the new

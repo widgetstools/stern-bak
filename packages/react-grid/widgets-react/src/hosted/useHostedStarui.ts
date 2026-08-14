@@ -28,8 +28,11 @@
  * grid-level row should stay keyed by the logical grid name, or as
  * `gridId` when one view = one grid.
  */
-import { useEffect, useMemo } from 'react';
-import type { StaruiIdentity } from '@wellsfargo-starui/react/data/runtime';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  usePlatformIdentityOrNull,
+  type StaruiIdentity,
+} from '@wellsfargo-starui/react/data/runtime';
 import { useHostedIdentity } from './useHostedIdentity.js';
 import type { ConfigManager } from './types.js';
 
@@ -46,6 +49,14 @@ export interface UseHostedStaruiArgs {
   configManager?: ConfigManager;
   /** Logical component name for storage diagnostics. Default `'StarGrid'`. */
   componentName?: string;
+  /**
+   * Allow the shared dev constants (`'TestApp'` / `'dev1'`) to stand in
+   * when neither the platform bootstrap context nor the ConfigManager
+   * yields a real appId / userId. Default **false**: without a real
+   * source the hook stays not-ready and logs one error, so dev identity
+   * can never silently key production config rows.
+   */
+  devDefaults?: boolean;
 }
 
 export interface UseHostedStaruiResult {
@@ -58,7 +69,7 @@ export interface UseHostedStaruiResult {
 }
 
 export function useHostedStarui(args: UseHostedStaruiArgs): UseHostedStaruiResult {
-  const { defaultGridId, configManager, componentName = 'StarGrid' } = args;
+  const { defaultGridId, configManager, componentName = 'StarGrid', devDefaults = false } = args;
 
   const { identity: hosted, ready: identityReady } = useHostedIdentity({
     defaultInstanceId: defaultGridId,
@@ -67,14 +78,41 @@ export function useHostedStarui(args: UseHostedStaruiArgs): UseHostedStaruiResul
     componentName,
   });
 
+  // Dev-default gate. `useHostedIdentity` falls back to the shared dev
+  // constants as its terminal resolution step; this bridge only accepts
+  // an appId / userId that came from a REAL source — the platform
+  // bootstrap context or the ConfigManager — unless `devDefaults: true`.
+  const platformIdentity = usePlatformIdentityOrNull();
+  const cm = hosted.configManager as
+    | (ConfigManager & { getIdentity?: () => { userId?: string } })
+    | null;
+  const appIdReal =
+    Boolean(platformIdentity?.appId)
+    || Boolean(typeof cm?.getAppId === 'function' && cm.getAppId());
+  const userIdReal =
+    Boolean(platformIdentity?.userId)
+    || Boolean(typeof cm?.getIdentity === 'function' && cm.getIdentity()?.userId);
+  const identityAllowed = devDefaults || (appIdReal && userIdReal);
+
+  const warnedRef = useRef(false);
+  useEffect(() => {
+    if (identityAllowed || !identityReady || warnedRef.current) return;
+    warnedRef.current = true;
+    console.error(
+      `[useHostedStarui:${componentName}] no real appId/userId source resolved ` +
+      '(platform bootstrap context or ConfigManager). Refusing the dev-default ' +
+      "identity — pass { devDefaults: true } to opt in for local development.",
+    );
+  }, [identityAllowed, identityReady, componentName]);
+
   const identity = useMemo<StaruiIdentity | null>(() => {
-    if (!hosted.storage) return null;
+    if (!hosted.storage || !identityAllowed) return null;
     return {
       appId: hosted.appId,
       userId: hosted.userId,
       storage: hosted.storage,
     };
-  }, [hosted.appId, hosted.userId, hosted.storage]);
+  }, [hosted.appId, hosted.userId, hosted.storage, identityAllowed]);
 
   // One-shot legacy `marketsgrid-view-state::*` cleanup (carried over from
   // HostedMarketsGrid). Sentinel-gated so it runs once per browser no

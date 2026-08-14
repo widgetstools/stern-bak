@@ -13,7 +13,7 @@ import {
 import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
 import { appDataBootstrapHooks } from './platform/appDataBootstrap.js';
 
-/** Set by bootstrap(); read by App for HostedMarketsGrid layout persistence. */
+/** Set by bootstrap(); read by App for StarGrid layout persistence. */
 let platform: ResolvedDataServicesHubBundle | undefined;
 
 export function getPlatform(): ResolvedDataServicesHubBundle {

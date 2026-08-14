@@ -20,13 +20,13 @@ receives.
 
 ## How to enable
 
-Pass the `contextLink` prop to `<HostedMarketsGrid>` (or any host that wires
+Pass the `contextLink` prop to `<StarGrid>` (or any host that wires
 `useGridContextLink`):
 
 ```tsx
-<HostedMarketsGrid
+<StarGrid
   gridId="my-blotter"
-  /* …data-provider props… */
+  providerId="dp-positions"
   contextLink={{
     enabled: true,     // master switch (default: off)
     mode: 'fields',    // 'fields' = key columns + values (recommended);
@@ -37,7 +37,10 @@ Pass the `contextLink` prop to `<HostedMarketsGrid>` (or any host that wires
 ```
 
 That is the **entire** app-level wiring — see the live example in
-`apps/demos/star-demo/src/views/BlottersMarketsGrid.tsx`.
+`apps/source/star-demo/src/views/BlottersMarketsGrid.tsx`. The link
+flavour follows the grid's inferred mode: SSRM injects the worker-backed
+selection builder (group / select-all publishes resolve leaf keys in the
+worker), CSRM uses the generic builder.
 
 ### `GridContextLinkConfig` options
 
@@ -49,7 +52,7 @@ Defined in `packages/react-core/widgets-react/src/hosted/useGridContextLink.ts`.
 | `mode` | `'rowId'` | `'fields'` broadcasts key columns + values (per-column set-filter on peers — **use this**); `'rowId'` broadcasts the composed `getRowId` values (external filter; only works when peers key rows identically). |
 | `publish` | `true` | Broadcast this grid's selection to peers. |
 | `receive` | `true` | Apply incoming peer selections as a filter. |
-| `rowIdField` | auto | `'fields'` mode key column(s). **Do not hardcode** — `HostedMarketsGrid` auto-fills it from the active provider's `keyColumn` (the same fields that drive `getRowId`). Only set it to override. |
+| `rowIdField` | auto | `'fields'` mode key column(s). **Do not hardcode** — `StarGrid` auto-fills it from the active provider's `keyColumn` (the same fields that drive `getRowId`). Only set it to override. |
 | `notify` | `false` | Post OpenFin Notification Center messages for sent/received link traffic. |
 | `debug` | `false` | Emit verbose `[gridLink]` / `[interop]` console diagnostics (see below). Genuine error warnings always log regardless. |
 | `contextType` | `'starui.gridSelection'` | Context type used on the wire. |
@@ -127,7 +130,7 @@ All of the reusable implementation lives in
 | `useColorLinking.ts` | Derives the parent window's link color from OpenFin window options (diagnostic / channel label). |
 | `gridLinkNotifications.ts` | Pure notification formatters: `buildSelectionNotification`, `buildAckNotification`, `summarizeCriteria` (caps the displayed value list so a whole-group selection doesn't produce a giant toast). Unit tested in `gridLinkNotifications.test.ts`. |
 | `useGridLinkNotifications.ts` | Dispatches the formatted notifications via `@wellsfargo-starui/host-openfin` (`loadOpenFinNotificationsApi` / `dispatchOpenFinNotification`); no-op outside OpenFin. Returns the `onPublish`/`onReceive` callbacks. |
-| `HostedMarketsGrid.tsx` | Orchestration: picks the transport (interop preferred), auto-derives `rowIdField` from the provider (via the container callback), and wires `useGridContextLink` + `useGridLinkNotifications`. |
+| `stargrid/StarGrid.tsx` | Orchestration: picks the transport (interop preferred), auto-derives `rowIdField` from the provider (via the container callback), and wires `useGridContextLink` + `useGridLinkNotifications`. |
 
 Supporting pieces outside `hosted/`:
 

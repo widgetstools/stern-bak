@@ -1,10 +1,9 @@
 /**
- * Public surface for hosted-feature wrappers.
+ * Public surface for hosted-view primitives.
  *
- * Today: the type contract used by `<HostedMarketsGrid>` and the
- * underlying identity / storage primitives. Future sessions of the
- * HostedMarketsGrid refactor add the hooks and the wrapper component
- * itself to this barrel.
+ * The hosted wrappers collapsed into `<StarGrid>`; what remains here is
+ * the workspace-host bridge (`useHostedStarui`) and the à-la-carte
+ * identity / theme / linking / lifecycle hooks StarGrid composes.
  */
 
 export type {
@@ -64,8 +63,6 @@ export type {
   UseWorkspaceSaveEventOptions,
 } from './useWorkspaceSaveEvent.js';
 
-export { useHostedView } from './useHostedView.js';
-export type { UseHostedViewArgs, UseHostedViewResult } from './useHostedView.js';
 
 export { useGridContextLink } from './useGridContextLink.js';
 export type {
@@ -100,8 +97,6 @@ export {
 } from './gridLinkNotifications.js';
 export type { GridLinkNotificationContent } from './gridLinkNotifications.js';
 
-export { HostedMarketsGrid } from './HostedMarketsGrid.js';
-export type { HostedMarketsGridProps } from './HostedMarketsGrid.js';
 
 export { createSsrmSelectionContextBuilder } from './ssrmGridContextLink.js';
 export type { SsrmSelectionBuilderDeps } from './ssrmGridContextLink.js';

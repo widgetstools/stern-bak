@@ -11,7 +11,7 @@ describe('HostedGridPanel', () => {
     await initPlatformBootstrap();
   });
 
-  it('renders HostedMarketsGrid with expected props', () => {
+  it('renders StarGrid with expected props', () => {
     render(
       <HostedGridPanel
         instanceId="dataprovider-editor-demo-a"
@@ -41,11 +41,13 @@ describe('HostedGridPanel', () => {
     expect(onEditProvider).toHaveBeenCalledWith('provider-1');
   });
 
-  it('uses a translateZ containing block wrapper', () => {
+  it('fills the panel without a containing-block transform (StarGrid is not fixed-position)', () => {
     const { container } = render(
-      <HostedGridPanel instanceId="demo" componentName="Demo" />,
+      <HostedGridPanel instanceId="grid-1" componentName="Grid" />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
-    expect(wrapper.style.transform).toBe('translateZ(0)');
+    expect(wrapper.style.transform).toBe('');
+    expect(wrapper.className).toContain('h-full');
+    expect(wrapper.className).toContain('w-full');
   });
 });

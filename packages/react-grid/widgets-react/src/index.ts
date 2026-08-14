@@ -25,16 +25,12 @@ export type {
   RegisteredComponentMetadata,
   ConfigManager,
   StorageAdapterFactory,
-  HostedMarketsGridProps,
   GridContextLinkConfig,
   GridLinkSelectionContext,
   GridLinkResolver,
   GridLinkSelectionBuilder,
 } from './hosted/index.js';
-export {
-  HostedMarketsGrid,
-  useGridContextLink,
-} from './hosted/index.js';
+export { useGridContextLink } from './hosted/index.js';
 export {
   SsrmMarketsGridContainer,
   useSsrmProviderDataWiring,

@@ -42,6 +42,8 @@ vi.mock('../container/markets-grid-container/MarketsGridContainer.js', () => ({
       'data-testid': 'csrm-container',
       'data-provider': props.defaultLiveProviderId,
       'data-app': props.appId,
+      'data-caption': props.caption ?? '',
+      'data-tabs-hidden': String(Boolean(props.tabsHidden)),
     }),
 }));
 
@@ -169,6 +171,19 @@ describe('StarGrid', () => {
       <StarGrid gridId="g1" providerId="dp1" advanced={{ theme: 'pinned' } as never} />,
     );
     expect(screen.getByTestId('ssrm-container')).toHaveAttribute('data-theme-kind', 'pinned');
+  });
+
+  it('forwards the CSRM caption from title and falls back to gridId', () => {
+    cfgRef.current = {
+      cfg: { providerId: 'dp2', providerType: 'stomp', name: 'P' },
+      loading: false,
+    };
+    const { unmount } = render(<StarGrid gridId="g1" providerId="dp2" title="Markets Blotter" />);
+    expect(screen.getByTestId('csrm-container')).toHaveAttribute('data-caption', 'Markets Blotter');
+    expect(screen.getByTestId('csrm-container')).toHaveAttribute('data-tabs-hidden', 'false');
+    unmount();
+    render(<StarGrid gridId="g1" providerId="dp2" />);
+    expect(screen.getByTestId('csrm-container')).toHaveAttribute('data-caption', 'g1');
   });
 
   it('renders the full-bleed page reset only when fullBleed is set', () => {

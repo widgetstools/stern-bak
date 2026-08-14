@@ -103,24 +103,34 @@ vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
-  HostedMarketsGrid: (props: Record<string, unknown>) =>
-    React.createElement(
+  useHostedStarui: ({ defaultGridId }: { defaultGridId: string }) => ({
+    gridId: defaultGridId,
+    identity: { appId: 'DPEditor', userId: 'dev1', storage: () => ({}) },
+    ready: true,
+  }),
+}));
+
+vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+  StarGrid: (props: Record<string, unknown>) => {
+    const advanced = (props.advanced ?? {}) as Record<string, unknown>;
+    return React.createElement(
       'div',
       {
         'data-testid': 'hosted-markets-grid',
         'data-grid-id': props.gridId,
-        'data-component-name': props.componentName,
+        'data-component-name': advanced.componentName,
       },
       React.createElement(
         'button',
         {
           type: 'button',
           'data-testid': 'edit-provider',
-          onClick: () => (props.onEditProvider as ((id: string) => void) | undefined)?.('provider-1'),
+          onClick: () => (advanced.onEditProvider as ((id: string) => void) | undefined)?.('provider-1'),
         },
         'Edit',
       ),
-    ),
+    );
+  },
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({
@@ -141,6 +151,8 @@ vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));

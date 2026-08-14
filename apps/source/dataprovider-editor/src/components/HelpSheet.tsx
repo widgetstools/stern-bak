@@ -117,7 +117,7 @@ function QuickStart() {
       </Section>
 
       <Section title="The workspace at a glance" icon={<Layers size={12} strokeWidth={1.75} />}>
-        <ItemRow icon={<Plug size={13} strokeWidth={1.75} />} name="Grid A + Grid B (docked)" desc="Two independent <HostedMarketsGrid /> instances split horizontally. Each has its own profile bundle and picker state; both share the same DataServices client (one SharedWorker hub fans out to both)." />
+        <ItemRow icon={<Plug size={13} strokeWidth={1.75} />} name="Grid A + Grid B (docked)" desc="Two independent <StarGrid /> instances split horizontally. Each has its own profile bundle and picker state; both share the same DataServices client (one SharedWorker hub fans out to both)." />
         <ItemRow icon={<BookOpen size={13} strokeWidth={1.75} />} name="Live stats (bottom strip)" desc="Reads each grid's persisted picker state from localStorage and echoes the active providerId per side." />
         <ItemRow icon={<Database size={13} strokeWidth={1.75} />} name="Provider Editor (floating, on demand)" desc="Open from View → Provider Editor. Floats as a non-dockable window — drag/resize, but can't be docked into the workspace tree. Renders <DataProviderEditor /> from @wellsfargo-starui/grid/widgets." />
         <ItemRow icon={<Database size={13} strokeWidth={1.75} />} name="Config Browser (floating, on demand)" desc="Open from View → Config Browser. Same floating semantics. Renders <ConfigBrowserPanel /> from @wellsfargo-starui/grid/config-browser — inspects every Dexie table the platform writes to." />
@@ -233,12 +233,14 @@ function HostedGridDocs() {
     <div className="flex flex-col gap-5">
       <Section title="The component" icon={<Plug size={12} strokeWidth={1.75} />}>
         <Prose>
-          <Code>{`<HostedMarketsGrid />`}</Code> from
-          <Code>@wellsfargo-starui/grid/widgets/hosted</Code> is a wrapping shell
-          that owns identity (instanceId / appId / userId), resolves a
-          ConfigManager, mounts <Code>{`<DataHubProvider>`}</Code>
-          if needed, picks an AG-Grid theme, and delegates to
-          <Code>MarketsGridContainer</Code>.
+          <Code>{`<StarGrid />`}</Code> from
+          <Code>@wellsfargo-starui/grid/widgets</Code> is the one grid
+          component. Identity (appId / userId / storage) comes from
+          <Code>{`<StaruiIdentityProvider>`}</Code> — here fed by
+          <Code>useHostedStarui</Code>, which resolves the per-view id and
+          ConfigService storage — and the grid delegates to
+          <Code>MarketsGridContainer</Code>, theme auto-tracking the host's
+          <Code>[data-theme]</Code>.
         </Prose>
       </Section>
 
@@ -251,22 +253,25 @@ function HostedGridDocs() {
 
       <Section title="In this demo" icon={<Plug size={12} strokeWidth={1.75} />}>
         <CodeBlock>
-{`<HostedMarketsGrid
-  componentName="Grid A"
-  defaultInstanceId="dataprovider-editor-demo-a"
-  defaultUserId="dev1"
-  withStorage
-  configManager={getPlatform().configManager}
-  onEditProvider={(providerId) => { ... bring editor to front ... }}
-  showFiltersToolbar
-  showFormattingToolbar
-  showEditingToolbar
-  showProfileSelector
-  showSaveButton
-  showSettingsButton
-  sideBar={{ toolPanels: ['columns', 'filters'] }}
-  statusBar={{ statusPanels: [...] }}
-/>`}
+{`const { identity, ready } = useHostedStarui({
+  defaultGridId: 'dataprovider-editor-demo-a',
+  configManager: getPlatform().configManager,
+});
+
+<StaruiIdentityProvider identity={identity}>
+  <StarGrid
+    gridId="dataprovider-editor-demo-a"
+    title="Grid A"
+    advanced={{
+      onEditProvider: (providerId) => { ... bring editor to front ... },
+      showFiltersToolbar: true, showFormattingToolbar: true,
+      showEditingToolbar: true, showProfileSelector: true,
+      showSaveButton: true, showSettingsButton: true,
+      sideBar: { toolPanels: ['columns', 'filters'] },
+      statusBar: { statusPanels: [...] },
+    }}
+  />
+</StaruiIdentityProvider>`}
         </CodeBlock>
         <Prose>
           Grid B is the same component with a different

@@ -1,7 +1,7 @@
 /**
  * Public type contract for `@wellsfargo-starui/widgets-react/hosted`.
  *
- * These types are consumed by `<HostedMarketsGrid>` and any future
+ * These types are consumed by the hosted hooks (`useHostedStarui`,
  * hosted-feature wrapper that needs the same identity / storage shape.
  * They were lifted out of `apps/markets-ui-react-reference` so external
  * consumers (other OpenFin React apps) have a documented integration
@@ -16,7 +16,7 @@ export type { ConfigManager, StorageAdapterFactory };
 /**
  * Resolved per-instance identity and host-services bundle passed to
  * hosted features. Built by `useHostedIdentity` and consumed by
- * `<HostedMarketsGrid>`.
+ * `useHostedIdentity`) and `<StarGrid>`'s hosted wiring.
  *
  * Several fields start as `null` and resolve asynchronously on mount
  * (OpenFin lookups, ConfigManager singleton init). Consumers should
