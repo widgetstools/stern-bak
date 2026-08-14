@@ -22,7 +22,6 @@ export const IAB_REGISTRY_CONFIG_UPDATE = "registry-config-update";
 // ─── Action ID constants ─────────────────────────────────────────────
 export const ACTION_LAUNCH_APP           = "launch-app";
 export const ACTION_TOGGLE_THEME         = "toggle-theme";
-export const ACTION_OPEN_DOCK_EDITOR     = "open-dock-editor";
 export const ACTION_RELOAD_DOCK          = "reload-dock";
 export const ACTION_SHOW_DEVTOOLS        = "show-devtools";
 /**
@@ -35,16 +34,12 @@ export const ACTION_SHOW_DEVTOOLS        = "show-devtools";
  */
 export const ACTION_INSPECT_SHARED_WORKER = "inspect-shared-worker";
 export const ACTION_EXPORT_CONFIG        = "export-config";
-export const ACTION_IMPORT_CONFIG        = "import-config";
 export const ACTION_TOGGLE_PROVIDER      = "toggle-provider-window";
-export const ACTION_OPEN_REGISTRY_EDITOR = "open-registry-editor";
 export const ACTION_OPEN_CONFIG_BROWSER  = "open-config-browser";
 /**
- * Dock action to open the unified Workspace Setup editor — Phase 6
- * supersedes the standalone Dock Editor + Registry Editor with one
+ * Dock action to open the unified Workspace Setup editor — one
  * three-pane editor (Components / Dock / Inspector). The standalone
- * editors remain available for now; both surfaces edit the same
- * underlying ConfigService rows.
+ * Dock/Registry editors it superseded are deleted (routes and actions).
  */
 export const ACTION_OPEN_WORKSPACE_SETUP = "open-workspace-setup";
 /**

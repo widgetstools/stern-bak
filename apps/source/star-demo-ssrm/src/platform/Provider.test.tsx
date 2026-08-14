@@ -27,8 +27,7 @@ describe('Provider', () => {
     await waitFor(() => {
       expect(mockInitWorkspace).toHaveBeenCalledWith(
         expect.objectContaining({
-          roles: ['admin', 'developer'],
-          dock: { excludeTools: ['export-config', 'import-config'] },
+          dock: { excludeTools: ['export-config'] },
         }),
       );
     });

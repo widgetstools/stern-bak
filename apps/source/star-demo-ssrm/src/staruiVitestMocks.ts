@@ -127,7 +127,6 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
 vi.mock('@wellsfargo-starui/openfin', () => ({
   initWorkspace: mockInitWorkspace,
   ACTION_EXPORT_CONFIG: 'export-config',
-  ACTION_IMPORT_CONFIG: 'import-config',
 }));
 
 vi.mock('@wellsfargo-starui/openfin/test-bridge', () => ({

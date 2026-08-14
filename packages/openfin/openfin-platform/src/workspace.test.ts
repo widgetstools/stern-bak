@@ -108,7 +108,8 @@ vi.mock('./openfinPalette.js', () => ({
   applyDarkPaletteOverrides: (p: unknown) => p,
 }));
 
-const { __resetWorkspaceForTests, initWorkspace } = await import('./workspace.js');
+const { __resetWorkspaceForTests, initWorkspace, ensureConfigService } =
+  await import('./workspace.js');
 const {
   ACTION_EXPORT_CONFIG,
   ACTION_INSPECT_SHARED_WORKER,
@@ -116,13 +117,10 @@ const {
   ACTION_LAUNCH_COMPONENT,
   ACTION_OPEN_CONFIG_BROWSER,
   ACTION_OPEN_DATA_PROVIDERS,
-  ACTION_OPEN_DOCK_EDITOR,
-  ACTION_OPEN_REGISTRY_EDITOR,
   ACTION_OPEN_WORKSPACE_SETUP,
   ACTION_RELOAD_DOCK,
   ACTION_SHOW_DEVTOOLS,
   ACTION_TOGGLE_PROVIDER,
-  ACTION_IMPORT_CONFIG,
 } = await import('./iabTopics.js');
 
 describe('initWorkspace', () => {
@@ -195,7 +193,7 @@ describe('initWorkspace', () => {
     peekConfigManager.mockReset().mockReturnValue(undefined);
     registerHome.mockReset().mockResolvedValue({});
     registerStore.mockReset().mockResolvedValue({});
-    registerDock.mockReset().mockImplementation(async (_s, _a, _i, _d, _l, _r, dispatcher) => {
+    registerDock.mockReset().mockImplementation(async (_s, _a, _i, _d, _l, dispatcher) => {
       // stash dispatcher for action coverage
       (registerDock as unknown as { dispatcher?: typeof dispatcher }).dispatcher = dispatcher;
       return {};
@@ -328,12 +326,9 @@ describe('initWorkspace', () => {
     await dispatcher(ACTION_LAUNCH_COMPONENT, { registryEntryId: 'e1' });
     expect(launchRegisteredComponent).toHaveBeenCalledWith('e1', { asWindow: undefined });
 
-    await dispatcher(ACTION_OPEN_DOCK_EDITOR);
-    await dispatcher(ACTION_OPEN_REGISTRY_EDITOR);
     await dispatcher(ACTION_OPEN_WORKSPACE_SETUP);
     await dispatcher(ACTION_OPEN_CONFIG_BROWSER);
     await dispatcher(ACTION_OPEN_DATA_PROVIDERS);
-    await dispatcher(ACTION_IMPORT_CONFIG);
     expect(openChildToolWindow).toHaveBeenCalled();
     expect(openDataProvidersToolWindow).toHaveBeenCalled();
 
@@ -478,9 +473,67 @@ describe('initWorkspace', () => {
     );
   });
 
+  it("ensureConfigService throws loudly in 'require-prewired' mode with no prewired manager", async () => {
+    peekConfigManager.mockReturnValue(undefined);
+    await expect(
+      ensureConfigService(undefined, undefined, { mode: 'require-prewired' }),
+    ).rejects.toThrow('no prewired ConfigManager');
+    expect(createConfigManager).not.toHaveBeenCalled();
+  });
+
+  it('migrations: false skips every persisted-state sweep', async () => {
+    await initWorkspace({ migrations: false });
+    expect(migrateLegacyPlatformScope).not.toHaveBeenCalled();
+    expect(realignAllConfigsToPlatformScope).not.toHaveBeenCalled();
+    expect(migrateRegistryToGlobalScope).not.toHaveBeenCalled();
+    expect(migrateRegistryAppIdDrift).not.toHaveBeenCalled();
+  });
+
+  it('merges app-supplied customActions into the platform action map (app wins on collision)', async () => {
+    const mine = vi.fn(async () => {});
+    buildCustomActions.mockImplementation((deps) => {
+      capturedCustomActionDeps = deps;
+      return { 'built-in': vi.fn(), 'open-blotter': vi.fn() };
+    });
+    await initWorkspace({ customActions: { 'open-blotter': mine } });
+    const initArg = platformInit.mock.calls[0][0] as {
+      customActions: Record<string, unknown>;
+    };
+    expect(initArg.customActions['open-blotter']).toBe(mine);
+    expect(initArg.customActions['built-in']).toBeTypeOf('function');
+  });
+
+  it('devTools: false appends the devtools actions to the excluded dock tools', async () => {
+    await initWorkspace({
+      devTools: false,
+      dock: { excludeTools: [ACTION_EXPORT_CONFIG] },
+    });
+    await Promise.resolve();
+    const excluded = setExcludedDockTools.mock.lastCall?.[0] as string[];
+    expect(excluded).toEqual(
+      expect.arrayContaining([
+        ACTION_EXPORT_CONFIG,
+        ACTION_SHOW_DEVTOOLS,
+        ACTION_INSPECT_SHARED_WORKER,
+        ACTION_TOGGLE_PROVIDER,
+      ]),
+    );
+  });
+
+  it('devTools: true keeps the excluded list to the explicit opt-outs', async () => {
+    await initWorkspace({
+      devTools: true,
+      dock: { excludeTools: [ACTION_EXPORT_CONFIG] },
+    });
+    await Promise.resolve();
+    expect(setExcludedDockTools.mock.lastCall?.[0]).toEqual([ACTION_EXPORT_CONFIG]);
+  });
+
   it('dock dispatcher covers config-browser uuid fallback and error paths', async () => {
-    getPlatformDefaultScope.mockReturnValueOnce({ appId: '', userId: 'dev1' });
     await initWorkspace();
+    // Stub AFTER init — the scope-migration sweep inside initWorkspace
+    // reads getPlatformDefaultScope too and would consume a Once earlier.
+    getPlatformDefaultScope.mockReturnValueOnce({ appId: '', userId: 'dev1' });
     const dispatcher = (registerDock as unknown as {
       dispatcher: (id: string, data?: unknown) => Promise<void>;
     }).dispatcher;

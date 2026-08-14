@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { initWorkspace, ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG } from "@wellsfargo-starui/openfin";
+import { initWorkspace, ACTION_EXPORT_CONFIG } from "@wellsfargo-starui/openfin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wellsfargo-starui/react";
 
 /**
@@ -54,10 +54,9 @@ function Provider() {
     initWorkspace({
       dockIcon: "http://localhost:5176/dock-provider.png",
       onProgress: setMessage,
-      roles: ["admin", "developer"],
       components: { home: false, store: false },
-      // Hide the built-in Import/Export Config items from the dock Tools menu.
-      dock: { excludeTools: [ACTION_EXPORT_CONFIG, ACTION_IMPORT_CONFIG] },
+      // Hide the built-in Export Config item from the dock Tools menu.
+      dock: { excludeTools: [ACTION_EXPORT_CONFIG] },
     })
       .then(() => {
         if (!isDev && !e2eBridge) return undefined;

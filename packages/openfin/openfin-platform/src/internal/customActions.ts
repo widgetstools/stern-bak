@@ -10,13 +10,10 @@ import { type App } from '@openfin/workspace';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   ACTION_EXPORT_CONFIG,
-  ACTION_IMPORT_CONFIG,
   ACTION_LAUNCH_APP,
   ACTION_LAUNCH_COMPONENT,
   ACTION_OPEN_CONFIG_BROWSER,
   ACTION_OPEN_DATA_PROVIDERS,
-  ACTION_OPEN_DOCK_EDITOR,
-  ACTION_OPEN_REGISTRY_EDITOR,
   ACTION_OPEN_WORKSPACE_SETUP,
   ACTION_RELOAD_DOCK,
   ACTION_SHOW_DEVTOOLS,
@@ -31,7 +28,6 @@ import { launchApp, launchRegisteredComponent } from '../launch';
 import { getPlatformDefaultScope } from '../db';
 import { createRenameViewTabAction } from './viewTabRename';
 import { openDataProvidersToolWindow } from '../openChildToolWindow.js';
-import { buildPlatformChildUrl } from '../buildPlatformChildUrl.js';
 
 export interface CustomActionDeps {
   /** Coalescing wrapper around the dark/light theme flip. */
@@ -138,105 +134,6 @@ export function buildCustomActions(deps: CustomActionDeps): CustomActionsMap {
           console.warn('IAB publish failed:', iabErr);
         }
       });
-    },
-
-    // ── Open the dock editor window ──
-    [ACTION_OPEN_DOCK_EDITOR]: async (e): Promise<void> => {
-      if (
-        e.callerType !== CustomActionCallerType.CustomButton &&
-        e.callerType !== CustomActionCallerType.CustomDropdownItem
-      ) {
-        return;
-      }
-
-      // Forward the platform scope so the child window's db.ts default
-      // matches the provider's — see Config Browser launcher below.
-      // Without this, the child saves to (system, system) while the
-      // provider's boot-time migrations relocate rows under the real
-      // (appId, userId), and the next reload finds nothing.
-      const scope = getPlatformDefaultScope();
-
-      // Try to bring an existing editor window to the front
-      try {
-        const existingWindow = fin.Window.wrapSync({
-          uuid: fin.me.identity.uuid,
-          name: 'dock-editor',
-        });
-        await existingWindow.setAsForeground();
-      } catch {
-        // Window doesn't exist yet — create a new one
-        const app = await fin.Application.getCurrent();
-        const manifest: Record<string, unknown> = await app.getManifest();
-        const platformConfig = manifest['platform'] as Record<string, string> | undefined;
-        const providerUrl = platformConfig?.['providerUrl'] ?? '';
-
-        // Build against the manifest providerUrl so path- and hash-routed
-        // apps both resolve correctly (see buildPlatformChildUrl).
-        const url = buildPlatformChildUrl(providerUrl, '/dock-editor');
-        if (!url) {
-          console.error('Could not determine app origin from providerUrl:', providerUrl);
-          return;
-        }
-
-        const platform = getCurrentSync();
-        await platform.createWindow({
-          name: 'dock-editor',
-          url,
-          defaultWidth: 720,
-          defaultHeight: 800,
-          autoShow: true,
-          frame: true,
-          resizable: true,
-          saveWindowState: true,
-          contextMenu: true,
-          customData: { appId: scope.appId, userId: scope.userId },
-        });
-      }
-    },
-
-    // ── Open the registry editor window ──
-    [ACTION_OPEN_REGISTRY_EDITOR]: async (e): Promise<void> => {
-      if (
-        e.callerType !== CustomActionCallerType.CustomButton &&
-        e.callerType !== CustomActionCallerType.CustomDropdownItem
-      ) {
-        return;
-      }
-
-      const scope = getPlatformDefaultScope();
-
-      try {
-        const existingWindow = fin.Window.wrapSync({
-          uuid: fin.me.identity.uuid,
-          name: 'registry-editor',
-        });
-        await existingWindow.setAsForeground();
-      } catch {
-        const app = await fin.Application.getCurrent();
-        const manifest: Record<string, unknown> = await app.getManifest();
-        const platformConfig = manifest['platform'] as Record<string, string> | undefined;
-        const providerUrl = platformConfig?.['providerUrl'] ?? '';
-
-        const url = buildPlatformChildUrl(providerUrl, '/registry-editor');
-        if (!url) {
-          console.error('Could not determine app origin from providerUrl:', providerUrl);
-          return;
-        }
-
-        const platform = getCurrentSync();
-        await platform.createWindow({
-          name: 'registry-editor',
-          url,
-          defaultWidth: 800,
-          defaultHeight: 700,
-          autoShow: true,
-          frame: true,
-          resizable: true,
-          saveWindowState: true,
-          contextMenu: true,
-          customData: { appId: scope.appId, userId: scope.userId },
-        });
-      }
     },
 
     // ── Open the unified Workspace Setup editor (Phase 6) ──
@@ -384,49 +281,6 @@ export function buildCustomActions(deps: CustomActionDeps): CustomActionsMap {
         await exportAllConfig(cm);
       } catch (error) {
         console.error('Failed to export config.', error);
-      }
-    },
-
-    // ── Open the import config window ──
-    [ACTION_IMPORT_CONFIG]: async (e): Promise<void> => {
-      if (e.callerType !== CustomActionCallerType.CustomDropdownItem) {
-        return;
-      }
-
-      // Open a dedicated React window for the file picker — same pattern
-      // as the dock editor. A hidden provider window cannot show a native
-      // file picker dialog, so we host the UI in its own OpenFin window.
-      try {
-        const existingWindow = fin.Window.wrapSync({
-          uuid: fin.me.identity.uuid,
-          name: 'import-config',
-        });
-        await existingWindow.setAsForeground();
-      } catch {
-        // Window doesn't exist yet — create it
-        const app = await fin.Application.getCurrent();
-        const manifest: Record<string, unknown> = await app.getManifest();
-        const platformConfig = manifest['platform'] as Record<string, string> | undefined;
-        const providerUrl = platformConfig?.['providerUrl'] ?? '';
-
-        const url = buildPlatformChildUrl(providerUrl, '/import-config');
-        if (!url) {
-          console.error('Could not determine app origin from providerUrl:', providerUrl);
-          return;
-        }
-
-        const platform = getCurrentSync();
-        await platform.createWindow({
-          name: 'import-config',
-          url,
-          defaultWidth: 400,
-          defaultHeight: 320,
-          autoShow: true,
-          frame: true,
-          resizable: false,
-          saveWindowState: false,
-          contextMenu: false,
-        });
       }
     },
 

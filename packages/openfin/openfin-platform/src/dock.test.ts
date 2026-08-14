@@ -114,7 +114,7 @@ describe('dock', () => {
 
   it('setExcludedDockTools filters classic Tools options', async () => {
     setExcludedDockTools(['export-config', 'import-config']);
-    await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+    await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
     const provider = classicRegister.mock.calls[0][0];
     const tools = provider.buttons.find((b: { tooltip: string }) => b.tooltip === 'Tools');
     const ids = tools.options.map((o: { action: { id: string } }) => o.action.id);
@@ -125,12 +125,12 @@ describe('dock', () => {
 
   describe('dock2 (classic)', () => {
     it('registers, shows, and refreshes idempotently', async () => {
-      const reg = await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      const reg = await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       expect(classicRegister).toHaveBeenCalledTimes(1);
       expect(classicShow).toHaveBeenCalled();
       expect(iabSubscribe).toHaveBeenCalled();
 
-      const again = await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      const again = await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       expect(again).toBe(reg);
       expect(classicRegister).toHaveBeenCalledTimes(1);
       expect(classicUpdate).toHaveBeenCalled();
@@ -139,12 +139,12 @@ describe('dock', () => {
     it('returns undefined when ClassicDock.register throws', async () => {
       classicRegister.mockRejectedValueOnce(new Error('classic boom'));
       await expect(
-        registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2'),
+        registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2'),
       ).resolves.toBeUndefined();
     });
 
     it('reloads via soft update and shuts down with swallow paths', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       loadDockConfig.mockResolvedValueOnce({
         version: 1,
         updatedAt: '',
@@ -168,7 +168,6 @@ describe('dock', () => {
         undefined,
         undefined,
         undefined,
-        undefined,
         vi.fn(),
         'dock3',
       );
@@ -176,7 +175,7 @@ describe('dock', () => {
       expect(dockInit).toHaveBeenCalledTimes(1);
       expect(capturedOverride).toBeTypeOf('function');
 
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       expect(dockInit).toHaveBeenCalledTimes(1);
       expect(dockProvider.updateConfig).toHaveBeenCalled();
     });
@@ -184,12 +183,12 @@ describe('dock', () => {
     it('returns undefined when Dock.init fails', async () => {
       dockInit.mockRejectedValueOnce(new Error('init fail'));
       await expect(
-        registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock3'),
+        registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock3'),
       ).resolves.toBeUndefined();
     });
 
     it('hard-reloads on reloadDockFromConfig and continues if shutdown fails', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       dockProvider.shutdown.mockRejectedValueOnce(new Error('shutdown fail'));
       await reloadDockFromConfig();
       expect(console.error).toHaveBeenCalledWith(
@@ -200,7 +199,7 @@ describe('dock', () => {
     });
 
     it('updateDockButtons / recolorDockIcons push config', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       await updateDockButtons({ version: 1, updatedAt: '', buttons: [] });
       expect(saveDockConfig).toHaveBeenCalled();
       expect(dockProvider.updateConfig).toHaveBeenCalled();
@@ -210,7 +209,7 @@ describe('dock', () => {
 
     it('override launchEntry toggles theme and swallows dispatcher errors', async () => {
       const dispatcher = vi.fn().mockRejectedValue(new Error('action boom'));
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, dispatcher, 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, dispatcher, 'dock3');
       const Override = capturedOverride!(class {
         config = { favorites: [], contentMenu: [] };
       });
@@ -247,7 +246,7 @@ describe('dock', () => {
     });
 
     it('override launchEntry warns when no dispatcher is registered', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock3');
       const Override = capturedOverride!(class {
         config = {};
       });
@@ -264,7 +263,7 @@ describe('dock', () => {
 
     it('swallows IAB subscribe failures during dock3 init', async () => {
       iabSubscribe.mockRejectedValue(new Error('iab'));
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('Could not subscribe'),
         expect.anything(),
@@ -296,7 +295,7 @@ describe('dock', () => {
           },
         ],
       });
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       const initArgs = dockInit.mock.calls[0][0];
       const folder = initArgs.config.favorites.find((e: { type: string }) => e.type === 'folder');
       expect(folder?.icon).toBeTruthy();
@@ -309,7 +308,7 @@ describe('dock', () => {
     });
 
     it('shuts down dock3 and swallows shutdown / IAB unsubscribe errors', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       dockProvider.shutdown.mockRejectedValueOnce(new Error('shutdown fail'));
       iabUnsubscribe.mockRejectedValueOnce(new Error('unsub fail'));
       await shutdownDock();
@@ -319,7 +318,7 @@ describe('dock', () => {
     it('override launchEntry flips light→dark and swallows IAB publish failures', async () => {
       getSelectedScheme.mockResolvedValueOnce('light');
       iabPublish.mockRejectedValueOnce(new Error('publish fail'));
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       const Override = capturedOverride!(class {
         config = { favorites: [], contentMenu: [] };
       });
@@ -348,7 +347,7 @@ describe('dock', () => {
       vi.stubGlobal('fin', undefined);
       document.documentElement.removeAttribute('data-theme');
       localStorage.setItem('starui:theme', 'light');
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       const provider = classicRegister.mock.calls[0][0];
       const themeToggle = provider.buttons.find((b: { tooltip: string }) => b.tooltip === 'Toggle Theme');
       expect(themeToggle.iconUrl).toBeTruthy();
@@ -359,7 +358,7 @@ describe('dock', () => {
     it('setExcludedDockTools(undefined) restores the full Tools menu', async () => {
       setExcludedDockTools(['export-config']);
       setExcludedDockTools(undefined);
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       const tools = classicRegister.mock.calls[0][0].buttons.find(
         (b: { tooltip: string }) => b.tooltip === 'Tools',
       );
@@ -380,9 +379,9 @@ describe('dock', () => {
         updatedAt: '',
         buttons: [{ type: 'ActionButton', tooltip: 'Saved', iconId: 'lucide:home', action: { id: 'x' } }],
       });
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       classicUpdate.mockClear();
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       expect(classicRegister).toHaveBeenCalledTimes(1);
       expect(classicUpdate).toHaveBeenCalled();
     });
@@ -402,7 +401,7 @@ describe('dock', () => {
         .mockImplementationOnce(() => {
           throw new Error('reload topic');
         });
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('Could not subscribe to dock-config-update'),
         expect.anything(),
@@ -414,7 +413,7 @@ describe('dock', () => {
     });
 
     it('invokes classic IAB handlers to persist config and reload after import', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       const configHandler = iabSubscribe.mock.calls.find(
         (c) => c[1] === 'dock-config-update',
       )?.[2] as (cfg: unknown) => Promise<void>;
@@ -435,16 +434,16 @@ describe('dock', () => {
       loadDockConfig.mockResolvedValueOnce(null);
       document.documentElement.removeAttribute('data-theme');
       localStorage.setItem('starui:theme', 'light');
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       const buttons = classicRegister.mock.calls[0][0].buttons;
       expect(buttons.some((b: { tooltip: string }) => b.tooltip === 'Tools')).toBe(true);
       expect(buttons.some((b: { tooltip: string }) => b.tooltip === 'Toggle Theme')).toBe(true);
     });
 
     it('logs when classic updateDockProviderConfig fails on refresh', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       classicUpdate.mockRejectedValueOnce(new Error('update fail'));
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, undefined, 'dock2');
+      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, 'dock2');
       expect(console.error).toHaveBeenCalledWith(
         'Failed to update classic dock config.',
         expect.anything(),
@@ -453,7 +452,7 @@ describe('dock', () => {
 
     it('dock3 excludes tool actions from the flattened content menu', async () => {
       setExcludedDockTools(['export-config']);
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       const menu = dockInit.mock.calls[0][0].config.contentMenu;
       const toolsFolder = menu.find((e: { id: string }) => e.id === 'system-tools');
       const childIds = (toolsFolder?.children ?? []).map(
@@ -463,7 +462,7 @@ describe('dock', () => {
     });
 
     it('override launchEntry returns early when itemData has no actionId', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       const Override = capturedOverride!(class { config = {}; });
       const instance = new Override() as {
         launchEntry: (p: { entry: unknown }) => Promise<void>;
@@ -473,7 +472,7 @@ describe('dock', () => {
     });
 
     it('hard-reload unsubscribes IAB handlers before re-init', async () => {
-      await registerDock(settings as never, [], undefined, undefined, undefined, undefined, vi.fn(), 'dock3');
+      await registerDock(settings as never, [], undefined, undefined, undefined, vi.fn(), 'dock3');
       iabUnsubscribe.mockClear();
       await reloadDockFromConfig();
       expect(iabUnsubscribe).toHaveBeenCalled();

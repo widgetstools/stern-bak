@@ -57,14 +57,11 @@ vi.mock('../buildPlatformChildUrl.js', () => ({
 const { buildCustomActions } = await import('./customActions.js');
 const {
   ACTION_EXPORT_CONFIG,
-  ACTION_IMPORT_CONFIG,
   ACTION_INSPECT_SHARED_WORKER,
   ACTION_LAUNCH_APP,
   ACTION_LAUNCH_COMPONENT,
   ACTION_OPEN_CONFIG_BROWSER,
   ACTION_OPEN_DATA_PROVIDERS,
-  ACTION_OPEN_DOCK_EDITOR,
-  ACTION_OPEN_REGISTRY_EDITOR,
   ACTION_OPEN_WORKSPACE_SETUP,
   ACTION_RELOAD_DOCK,
   ACTION_SHOW_DEVTOOLS,
@@ -84,7 +81,6 @@ describe('buildCustomActions', () => {
   const getConfigManager = vi.fn();
 
   let actions: ReturnType<typeof buildCustomActions>;
-  let existingWindow: { setAsForeground: ReturnType<typeof vi.fn> };
   let providerWindow: {
     showDeveloperTools: ReturnType<typeof vi.fn>;
     isShowing: ReturnType<typeof vi.fn>;
@@ -116,7 +112,6 @@ describe('buildCustomActions', () => {
     openChildWindow.mockResolvedValue(undefined);
     exportAllConfig.mockResolvedValue(undefined);
     getConfigManager.mockReturnValue({ id: 'cm' });
-    existingWindow = { setAsForeground: vi.fn().mockResolvedValue(undefined) };
     providerWindow = {
       showDeveloperTools: vi.fn().mockResolvedValue(undefined),
       isShowing: vi.fn().mockResolvedValue(true),
@@ -209,21 +204,7 @@ describe('buildCustomActions', () => {
     expect(console.warn).toHaveBeenCalledWith('IAB publish failed:', expect.anything());
   });
 
-  it('opens child tool windows (create path) with scope customData', async () => {
-    await actions[ACTION_OPEN_DOCK_EDITOR]({ callerType: btn } as never);
-    expect(createWindow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'dock-editor',
-        url: 'http://app.example/dock-editor',
-        customData: { appId: 'TestApp', userId: 'dev1' },
-      }),
-    );
-
-    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: drop } as never);
-    expect(createWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'registry-editor' }),
-    );
-
+  it('opens child tool windows with scope customData', async () => {
     await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
     expect(openChildWindow).toHaveBeenCalledWith(
       'config-browser',
@@ -246,14 +227,7 @@ describe('buildCustomActions', () => {
     expect(openDataProvidersToolWindow).toHaveBeenCalled();
   });
 
-  it('foregrounds an existing dock-editor window', async () => {
-    (fin.Window.wrapSync as ReturnType<typeof vi.fn>).mockReturnValue(existingWindow);
-    await actions[ACTION_OPEN_DOCK_EDITOR]({ callerType: btn } as never);
-    expect(existingWindow.setAsForeground).toHaveBeenCalled();
-    expect(createWindow).not.toHaveBeenCalled();
-  });
-
-  it('handles reload / devtools / export / import / toggle provider', async () => {
+  it('handles reload / devtools / export / toggle provider', async () => {
     await actions[ACTION_RELOAD_DOCK]({ callerType: btn } as never);
     expect(reloadDockFromConfig).not.toHaveBeenCalled();
     await actions[ACTION_RELOAD_DOCK]({ callerType: drop } as never);
@@ -275,11 +249,6 @@ describe('buildCustomActions', () => {
     getConfigManager.mockReturnValueOnce(undefined);
     await actions[ACTION_EXPORT_CONFIG]({ callerType: drop } as never);
     expect(console.error).toHaveBeenCalledWith('ConfigManager not initialized.');
-
-    await actions[ACTION_IMPORT_CONFIG]({ callerType: drop } as never);
-    expect(createWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'import-config' }),
-    );
 
     await actions[ACTION_TOGGLE_PROVIDER]({ callerType: drop } as never);
     expect(providerWindow.hide).toHaveBeenCalled();
@@ -321,50 +290,17 @@ describe('buildCustomActions', () => {
 
   it('no-ops child-window actions for the wrong callerType', async () => {
     const wrong = CustomActionCallerType.ViewTabContextMenu;
-    await actions[ACTION_OPEN_DOCK_EDITOR]({ callerType: wrong } as never);
-    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: wrong } as never);
     await actions[ACTION_OPEN_WORKSPACE_SETUP]({ callerType: wrong } as never);
     await actions[ACTION_OPEN_DATA_PROVIDERS]({ callerType: wrong } as never);
     await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: wrong } as never);
     await actions[ACTION_RELOAD_DOCK]({ callerType: btn } as never);
     await actions[ACTION_SHOW_DEVTOOLS]({ callerType: btn } as never);
     await actions[ACTION_EXPORT_CONFIG]({ callerType: btn } as never);
-    await actions[ACTION_IMPORT_CONFIG]({ callerType: btn } as never);
     await actions[ACTION_TOGGLE_PROVIDER]({ callerType: btn } as never);
     await actions[ACTION_INSPECT_SHARED_WORKER]({ callerType: btn } as never);
     expect(createWindow).not.toHaveBeenCalled();
     expect(openChildWindow).not.toHaveBeenCalled();
     expect(openDataProvidersToolWindow).not.toHaveBeenCalled();
-  });
-
-  it('warns when providerUrl cannot be resolved for child windows', async () => {
-    (fin.Application.getCurrent as ReturnType<typeof vi.fn>).mockResolvedValue({
-      getManifest: vi.fn().mockResolvedValue({ platform: { providerUrl: '' } }),
-    });
-    await actions[ACTION_OPEN_DOCK_EDITOR]({ callerType: btn } as never);
-    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: drop } as never);
-    await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
-    await actions[ACTION_IMPORT_CONFIG]({ callerType: drop } as never);
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('Could not determine app origin'),
-      expect.anything(),
-    );
-    expect(createWindow).not.toHaveBeenCalled();
-  });
-
-  it('foregrounds existing registry / import windows', async () => {
-    // config-browser no longer wraps windows itself — it delegates to the
-    // injected openChildWindow (the same path the dock handler takes), so
-    // only the two remaining inline handlers foreground here.
-    (fin.Window.wrapSync as ReturnType<typeof vi.fn>).mockImplementation(({ name }: { name: string }) => {
-      if (name === 'registry-editor' || name === 'import-config') {
-        return existingWindow;
-      }
-      throw new Error('missing');
-    });
-    await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: drop } as never);
-    await actions[ACTION_IMPORT_CONFIG]({ callerType: drop } as never);
-    expect(existingWindow.setAsForeground).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to fin.me.identity.uuid when platform scope appId is empty', async () => {

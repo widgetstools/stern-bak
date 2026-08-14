@@ -26,7 +26,6 @@ import {
   REFRESH_SVG,
   CODE_SVG,
   DOWNLOAD_SVG,
-  UPLOAD_SVG,
   SUN_SVG,
   MOON_SVG,
   EYE_SVG,
@@ -51,14 +50,11 @@ import {
   IAB_REGISTRY_CONFIG_UPDATE,
   ACTION_LAUNCH_APP,
   ACTION_TOGGLE_THEME,
-  ACTION_OPEN_DOCK_EDITOR,
   ACTION_RELOAD_DOCK,
   ACTION_SHOW_DEVTOOLS,
   ACTION_INSPECT_SHARED_WORKER,
   ACTION_EXPORT_CONFIG,
-  ACTION_IMPORT_CONFIG,
   ACTION_TOGGLE_PROVIDER,
-  ACTION_OPEN_REGISTRY_EDITOR,
   ACTION_OPEN_CONFIG_BROWSER,
   ACTION_OPEN_WORKSPACE_SETUP,
   ACTION_OPEN_DATA_PROVIDERS,
@@ -71,14 +67,11 @@ export {
   IAB_REGISTRY_CONFIG_UPDATE,
   ACTION_LAUNCH_APP,
   ACTION_TOGGLE_THEME,
-  ACTION_OPEN_DOCK_EDITOR,
   ACTION_RELOAD_DOCK,
   ACTION_SHOW_DEVTOOLS,
   ACTION_INSPECT_SHARED_WORKER,
   ACTION_EXPORT_CONFIG,
-  ACTION_IMPORT_CONFIG,
   ACTION_TOGGLE_PROVIDER,
-  ACTION_OPEN_REGISTRY_EDITOR,
   ACTION_OPEN_CONFIG_BROWSER,
   ACTION_OPEN_WORKSPACE_SETUP,
   ACTION_OPEN_DATA_PROVIDERS,
@@ -348,13 +341,6 @@ function buildSystemContentMenuEntries(): ContentMenuEntryType[] {
     },
     {
       type: "item",
-      id: "tool-import-config",
-      label: "Import Config",
-      icon: contentMenuIcon(UPLOAD_SVG),
-      itemData: { actionId: ACTION_IMPORT_CONFIG },
-    },
-    {
-      type: "item",
       id: "tool-toggle-provider",
       label: "Show/Hide Provider",
       icon: contentMenuIcon(EYE_SVG),
@@ -489,7 +475,6 @@ function buildClassicSystemTools(theme: "dark" | "light"): DockButton {
     opt("Developer Tools", ACTION_SHOW_DEVTOOLS, CODE_SVG),
     opt("Inspect Shared Worker", ACTION_INSPECT_SHARED_WORKER, CODE_SVG),
     opt("Export Config", ACTION_EXPORT_CONFIG, DOWNLOAD_SVG),
-    opt("Import Config", ACTION_IMPORT_CONFIG, UPLOAD_SVG),
     opt("Show/Hide Provider", ACTION_TOGGLE_PROVIDER, EYE_SVG),
   ];
   return {
@@ -689,7 +674,6 @@ export async function registerDock(
   dockIcon?: string,
   darkIcon?: string,
   lightIcon?: string,
-  _roles?: string[],
   onAction?: (actionId: string, customData?: any) => Promise<void>,
   dockVersionArg?: "dock2" | "dock3",
 ): Promise<any> {
@@ -949,7 +933,6 @@ async function hardReloadDock(): Promise<void> {
       snapshot.icon,
       snapshot.darkIcon,
       snapshot.lightIcon,
-      undefined,             // roles passthrough; registerDock currently ignores
       snapshot.dispatcher,
     );
     console.log("[hardReloadDock] Dock3 provider re-initialised.");

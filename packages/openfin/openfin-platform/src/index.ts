@@ -6,7 +6,12 @@
 // this package's own code, not part of the public API.
 
 // ─── Workspace initialization ────────────────────────────────────────
-export { initWorkspace } from './workspace';
+export {
+  initWorkspace,
+  ensureConfigService,
+  runPlatformScopeMigrations,
+  type EnsureConfigServiceOptions,
+} from './workspace';
 export { resolveHostUrl } from './hostUrl';
 
 // ─── Built-in Tools-menu action IDs ─────────────────────────────────
@@ -14,7 +19,6 @@ export { resolveHostUrl } from './hostUrl';
 // matching entries.
 export {
   ACTION_EXPORT_CONFIG,
-  ACTION_IMPORT_CONFIG,
   IAB_REGISTRY_CONFIG_UPDATE,
 } from './dock';
 
@@ -39,5 +43,4 @@ export type {
   WorkspaceConfig,
   PlatformSettings,
   CustomSettings,
-  UserRole,
 } from './types';

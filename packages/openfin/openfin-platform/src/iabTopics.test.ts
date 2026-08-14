@@ -18,14 +18,11 @@ describe('iabTopics', () => {
   it('exports stable action id constants', () => {
     expect(topics.ACTION_LAUNCH_APP).toBe('launch-app');
     expect(topics.ACTION_TOGGLE_THEME).toBe('toggle-theme');
-    expect(topics.ACTION_OPEN_DOCK_EDITOR).toBe('open-dock-editor');
     expect(topics.ACTION_RELOAD_DOCK).toBe('reload-dock');
     expect(topics.ACTION_SHOW_DEVTOOLS).toBe('show-devtools');
     expect(topics.ACTION_INSPECT_SHARED_WORKER).toBe('inspect-shared-worker');
     expect(topics.ACTION_EXPORT_CONFIG).toBe('export-config');
-    expect(topics.ACTION_IMPORT_CONFIG).toBe('import-config');
     expect(topics.ACTION_TOGGLE_PROVIDER).toBe('toggle-provider-window');
-    expect(topics.ACTION_OPEN_REGISTRY_EDITOR).toBe('open-registry-editor');
     expect(topics.ACTION_OPEN_CONFIG_BROWSER).toBe('open-config-browser');
     expect(topics.ACTION_OPEN_WORKSPACE_SETUP).toBe('open-workspace-setup');
     expect(topics.ACTION_OPEN_DATA_PROVIDERS).toBe('open-data-providers');

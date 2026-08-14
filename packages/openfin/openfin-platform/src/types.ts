@@ -82,8 +82,6 @@ export interface PlatformSettings {
   icon: string;
 }
 
-export type UserRole = "admin" | "developer" | "support" | "user";
-
 export interface WorkspaceConfig {
   /** Theme palette override */
   theme?: {
@@ -106,15 +104,15 @@ export interface WorkspaceConfig {
   dock?: {
     /**
      * Action IDs of built-in Tools-menu items to hide from the dock.
-     * Defaults to none — every built-in tool is shown. The IDs match the
-     * `ACTION_*` constants exported by this package, e.g.
-     * `ACTION_EXPORT_CONFIG === "export-config"` and
-     * `ACTION_IMPORT_CONFIG === "import-config"`. Applies to both the
+     * Defaults to none — every built-in tool is shown (devtools entries
+     * additionally gate on {@link WorkspaceConfig.devTools}). The IDs
+     * match the `ACTION_*` constants exported by this package, e.g.
+     * `ACTION_EXPORT_CONFIG === "export-config"`. Applies to both the
      * classic (dock2) Tools dropdown and the dock3 content menu.
      *
      * @example
      * ```typescript
-     * initWorkspace({ dock: { excludeTools: ["export-config", "import-config"] } });
+     * initWorkspace({ dock: { excludeTools: ["export-config"] } });
      * ```
      */
     excludeTools?: string[];
@@ -135,10 +133,27 @@ export interface WorkspaceConfig {
   /** Progress callback for UI status updates */
   onProgress?: (message: string) => void;
   /**
-   * User roles for access control.
-   * If includes "admin", "developer", or "support", the Dock Editor button is shown.
+   * How the shared ConfigManager is resolved (see `ensureConfigService`):
+   * `'auto'` (default) adopts a prewired manager or constructs + seeds one
+   * from manifest customSettings; `'require-prewired'` throws loudly when
+   * the host app didn't install one first — for apps that own their
+   * bootstrap and want silent construction to be impossible.
    */
-  roles?: UserRole[];
+  configService?: 'auto' | 'require-prewired';
+  /**
+   * Run the idempotent persisted-state scope migrations at init
+   * (see `runPlatformScopeMigrations`). Default `true` — existing
+   * installs depend on them to keep pre-platform rows reachable. Set
+   * `false` only for a brand-new deployment with nothing to heal.
+   */
+  migrations?: boolean;
+  /**
+   * Show the devtools Tools-menu entries (Developer Tools, Inspect
+   * Shared Worker, Show/Hide Provider) on the dock. Default: shown in a
+   * dev bundle (`import.meta.env.DEV`), hidden otherwise. The action
+   * handlers stay registered either way — this only gates the menus.
+   */
+  devTools?: boolean;
 
   /**
    * App-level custom action handlers for dock buttons.
@@ -147,9 +162,10 @@ export interface WorkspaceConfig {
    * in the dock editor (the "Action ID" field). When a user clicks that button,
    * OpenFin calls the matching handler.
    *
-   * Built-in action IDs (launch-app, toggle-theme, open-dock-editor, etc.) are
+   * Built-in action IDs (launch-app, toggle-theme, launch-component, etc.) are
    * always registered automatically — you do not need to re-register them here.
-   * Any IDs provided here are merged alongside the built-in ones.
+   * Any IDs provided here are merged alongside the built-in ones; on an id
+   * collision the app-supplied handler wins.
    *
    * @example
    * ```typescript

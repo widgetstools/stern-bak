@@ -20,14 +20,11 @@ import {
   setExcludedDockTools,
   reloadDockFromConfig,
   ACTION_LAUNCH_APP,
-  ACTION_OPEN_DOCK_EDITOR,
   ACTION_RELOAD_DOCK,
   ACTION_SHOW_DEVTOOLS,
   ACTION_INSPECT_SHARED_WORKER,
   ACTION_EXPORT_CONFIG,
-  ACTION_IMPORT_CONFIG,
   ACTION_TOGGLE_PROVIDER,
-  ACTION_OPEN_REGISTRY_EDITOR,
   ACTION_OPEN_CONFIG_BROWSER,
   ACTION_OPEN_WORKSPACE_SETUP,
   ACTION_OPEN_DATA_PROVIDERS,
@@ -174,6 +171,23 @@ function syncPlatformColorScheme(): "dark" | "light" {
 }
 
 /**
+ * The dock Tools-menu entries that only make sense while developing.
+ * Hidden from both dock menus unless `WorkspaceConfig.devTools` (or a
+ * dev bundle) says otherwise — the action handlers stay registered, so
+ * a persisted config referencing one keeps working either way.
+ */
+const DEVTOOLS_TOOL_ACTIONS = [
+  ACTION_SHOW_DEVTOOLS,
+  ACTION_INSPECT_SHARED_WORKER,
+  ACTION_TOGGLE_PROVIDER,
+] as const;
+
+/** True in a dev bundle (Vite injects import.meta.env.DEV); false otherwise. */
+function isDevBundle(): boolean {
+  return Boolean((import.meta as { env?: { DEV?: boolean } }).env?.DEV);
+}
+
+/**
  * Prevents initWorkspace() from running more than once.
  * The platform can only be initialised a single time per provider window,
  * so a second call silently returns without doing anything.
@@ -222,42 +236,10 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
 
   const settings = await getManifestCustomSettings();
 
-  // Initialize the config service before anything else.
-  // It seeds the database on first run and starts the sync drain
-  // loop if REST mode is enabled in the manifest.
-  //
-  // REST mode requires BOTH `useRest === true` and a non-empty
-  // `configServiceRestUrl`. Keeping the URL configured but `useRest`
-  // off lets one manifest flip between local and REST by toggling
-  // a single boolean instead of editing two fields. This matches the
-  // same source-of-truth read used by view-route ConfigServiceProviders
-  // (see `getConfigServiceRestUrlFromManifest()`).
-  const restUrl = resolveRestUrl(settings.customSettings);
-  const app = await fin.Application.getCurrent();
-  const manifest = (await app.getManifest()) as OpenFin.Manifest & {
-    customSettings?: import('./types.js').CustomSettings;
-    platform?: { providerUrl?: string };
-  };
-  const providerUrl = manifest.platform?.providerUrl;
-  const prewired = peekConfigManager();
-  if (prewired) {
-    configManager = prewired;
-  } else {
-    const deployment = await resolveDeploymentIdentity(settings.customSettings, providerUrl);
-    const rawSeedUrl = settings.customSettings?.seedConfigUrl?.trim();
-    const seedConfigUrl = rawSeedUrl
-      ? await resolveSeedConfigUrl(rawSeedUrl, providerUrl)
-      : undefined;
-    configManager = createConfigManager({
-      appId: deployment.appId,
-      identity: { userId: deployment.userId, displayName: deployment.userId },
-      seedConfigUrl,
-      seedConfigReload: settings.customSettings?.seedConfigReload,
-      configServiceRestUrl: restUrl,
-    });
-    await configManager.init();
-    setConfigManager(configManager);
-  }
+  configManager = await ensureConfigService(settings.customSettings, settings.providerUrl, {
+    mode: config?.configService ?? 'auto',
+    log,
+  });
 
   // Scope comes from seed.json activeAppId / activeUserId via ConfigManager.
   const defaultScope = await resolveDefaultPlatformScope(
@@ -269,59 +251,12 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
     `Platform default scope: appId='${defaultScope.appId}' userId='${defaultScope.userId}' ` +
     `(from seed.json activeAppId / activeUserId).`,
   );
-  // One-shot migration: pre-platform rows still tagged with the legacy
-  // `appId='system'` get re-stamped to the platform scope so they show
-  // up in the browser without forcing the user to re-save.
-  try {
-    const result = await migrateLegacyPlatformScope();
-    if (result.migrated > 0) {
-      log(`Migrated ${result.migrated} legacy-scope config row(s) to appId='${defaultScope.appId}'.`);
-    }
-  } catch (migrateErr) {
-    console.warn('[initWorkspace] migrateLegacyPlatformScope failed:', migrateErr);
-  }
 
-  // Broad sweep: collapse every appConfig row onto the platform scope —
-  // catches rows previously tagged with stale `(appId, userId)` (e.g.
-  // `react-workspace-starter`/`system` from earlier builds) so the whole
-  // table renders under a single chip in the Config Browser. Idempotent
-  // — rows already on the platform scope are skipped.
-  try {
-    const result = await realignAllConfigsToPlatformScope();
-    if (result.realigned > 0) {
-      log(
-        `Realigned ${result.realigned}/${result.total} config row(s) to ` +
-        `appId='${defaultScope.appId}' userId='${defaultScope.userId}'.`,
-      );
-    }
-  } catch (realignErr) {
-    console.warn('[initWorkspace] realignAllConfigsToPlatformScope failed:', realignErr);
-  }
-
-  // Phase-5 migration: relocate the component registry from per-user
-  // scope (where Phase 3 and earlier wrote it) to the new global scope
-  // (appId, 'system') so every user of the app shares the same catalog.
-  // Runs AFTER realignAllConfigsToPlatformScope so any stray rows have
-  // already been re-tagged to the current platform scope first — keeps
-  // the candidate-picking logic deterministic.
-  try {
-    const r = await migrateRegistryToGlobalScope();
-    if (r.migrated > 0) {
-      log(`Workspace setup migrated to new format (registry → global scope, ${r.migrated} row(s)).`);
-    }
-  } catch (regMigErr) {
-    console.warn('[initWorkspace] migrateRegistryToGlobalScope failed:', regMigErr);
-  }
-
-  // Relocate registry rows stamped under a stale appId (e.g. TestApp from
-  // the old hard-coded platform scope) to the current platform appId.
-  try {
-    const drift = await migrateRegistryAppIdDrift();
-    if (drift.migrated > 0) {
-      log(`Migrated ${drift.migrated} component-registry row(s) to appId='${defaultScope.appId}'.`);
-    }
-  } catch (driftErr) {
-    console.warn('[initWorkspace] migrateRegistryAppIdDrift failed:', driftErr);
+  // Persisted-state healing. On by default: existing installs depend on
+  // these idempotent sweeps to keep old rows reachable — opt OUT only
+  // for a brand-new deployment with no pre-platform data to heal.
+  if (config?.migrations !== false) {
+    await runPlatformScopeMigrations(log);
   }
 
   log("Config service initialized");
@@ -343,8 +278,8 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
         config?.dockIcon,
         config?.themeToggleDarkIcon,
         config?.themeToggleLightIcon,
-        config?.roles,
         config?.dock?.excludeTools,
+        config?.devTools,
       );
       log("Workspace platform initialized");
     } catch (err) {
@@ -363,7 +298,141 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
   });
 
   // init() starts the platform and triggers "platform-api-ready" above
-  await initializePlatform(settings.platformSettings, config?.theme, workspaceOverride);
+  await initializePlatform(
+    settings.platformSettings,
+    config?.theme,
+    workspaceOverride,
+    config?.customActions,
+  );
+}
+
+// ─── Config-service construction (independently callable) ────────────
+
+export interface EnsureConfigServiceOptions {
+  /**
+   * `'auto'` (default): adopt a prewired ConfigManager when the host app
+   * already installed one via `setConfigManager` (the case in every
+   * shipped app — their platform bootstrap runs first), else construct
+   * one from manifest customSettings and seed it.
+   * `'require-prewired'`: never construct — throw loudly when no manager
+   * is installed, for apps that own their bootstrap and want silent
+   * construction to be impossible.
+   */
+  mode?: 'auto' | 'require-prewired';
+  log?: (message: string) => void;
+}
+
+/**
+ * Resolve the platform's shared ConfigManager: prewired instance first,
+ * else construct + seed from manifest `customSettings` (seedConfigUrl /
+ * seedConfigReload / REST switches — REST mode requires BOTH
+ * `useRest === true` and a non-empty `configServiceRestUrl`, so one
+ * manifest can flip between local and REST with a single boolean).
+ */
+export async function ensureConfigService(
+  customSettings: CustomSettings | undefined,
+  providerUrl: string | undefined,
+  options?: EnsureConfigServiceOptions,
+): Promise<ConfigManager> {
+  const log = options?.log ?? (() => {});
+  const prewired = peekConfigManager();
+  if (prewired) {
+    log('Config service adopted from host bootstrap (prewired).');
+    return prewired;
+  }
+  if (options?.mode === 'require-prewired') {
+    throw new Error(
+      '[ensureConfigService] no prewired ConfigManager found. The host app ' +
+        'must call setConfigManager(...) before workspace init when ' +
+        "configService: 'require-prewired' is set.",
+    );
+  }
+  const restUrl = resolveRestUrl(customSettings);
+  const deployment = await resolveDeploymentIdentity(customSettings, providerUrl);
+  const rawSeedUrl = customSettings?.seedConfigUrl?.trim();
+  const seedConfigUrl = rawSeedUrl
+    ? await resolveSeedConfigUrl(rawSeedUrl, providerUrl)
+    : undefined;
+  const cm = createConfigManager({
+    appId: deployment.appId,
+    identity: { userId: deployment.userId, displayName: deployment.userId },
+    seedConfigUrl,
+    seedConfigReload: customSettings?.seedConfigReload,
+    configServiceRestUrl: restUrl,
+  });
+  await cm.init();
+  setConfigManager(cm);
+  log('Config service constructed and seeded from manifest customSettings.');
+  return cm;
+}
+
+// ─── Scope migrations (independently callable) ───────────────────────
+
+/**
+ * The idempotent persisted-state sweeps that keep pre-platform rows
+ * reachable. Requires `setPlatformDefaultScope(...)` to have run.
+ * Each step is individually best-effort (a failure warns and the rest
+ * continue); the registry-to-global step deliberately runs AFTER the
+ * broad realign so candidate picking stays deterministic.
+ */
+export async function runPlatformScopeMigrations(
+  log: (message: string) => void = () => {},
+): Promise<void> {
+  const scope = getPlatformDefaultScope();
+
+  // One-shot migration: pre-platform rows still tagged with the legacy
+  // `appId='system'` get re-stamped to the platform scope so they show
+  // up in the browser without forcing the user to re-save.
+  try {
+    const result = await migrateLegacyPlatformScope();
+    if (result.migrated > 0) {
+      log(`Migrated ${result.migrated} legacy-scope config row(s) to appId='${scope.appId}'.`);
+    }
+  } catch (migrateErr) {
+    console.warn('[initWorkspace] migrateLegacyPlatformScope failed:', migrateErr);
+  }
+
+  // Broad sweep: collapse every appConfig row onto the platform scope —
+  // catches rows previously tagged with stale `(appId, userId)` (e.g.
+  // `react-workspace-starter`/`system` from earlier builds) so the whole
+  // table renders under a single chip in the Config Browser. Idempotent
+  // — rows already on the platform scope are skipped.
+  try {
+    const result = await realignAllConfigsToPlatformScope();
+    if (result.realigned > 0) {
+      log(
+        `Realigned ${result.realigned}/${result.total} config row(s) to ` +
+        `appId='${scope.appId}' userId='${scope.userId}'.`,
+      );
+    }
+  } catch (realignErr) {
+    console.warn('[initWorkspace] realignAllConfigsToPlatformScope failed:', realignErr);
+  }
+
+  // Relocate the component registry from per-user scope to the global
+  // scope (appId, 'system') so every user of the app shares the same
+  // catalog. Runs AFTER realignAllConfigsToPlatformScope so any stray
+  // rows have already been re-tagged to the current platform scope
+  // first — keeps the candidate-picking logic deterministic.
+  try {
+    const r = await migrateRegistryToGlobalScope();
+    if (r.migrated > 0) {
+      log(`Workspace setup migrated to new format (registry → global scope, ${r.migrated} row(s)).`);
+    }
+  } catch (regMigErr) {
+    console.warn('[initWorkspace] migrateRegistryToGlobalScope failed:', regMigErr);
+  }
+
+  // Relocate registry rows stamped under a stale appId (e.g. TestApp from
+  // the old hard-coded platform scope) to the current platform appId.
+  try {
+    const drift = await migrateRegistryAppIdDrift();
+    if (drift.migrated > 0) {
+      log(`Migrated ${drift.migrated} component-registry row(s) to appId='${scope.appId}'.`);
+    }
+  } catch (driftErr) {
+    console.warn('[initWorkspace] migrateRegistryAppIdDrift failed:', driftErr);
+  }
 }
 
 // ─── Export config helper ─────────────────────────────────────────────
@@ -421,6 +490,7 @@ async function initializePlatform(
   platformSettings: PlatformSettings,
   theme?: WorkspaceConfig["theme"],
   overrideCallback?: WorkspacePlatformOverrideCallback,
+  userCustomActions?: WorkspaceConfig["customActions"],
 ): Promise<void> {
   // Resolve full per-scheme palettes from StarUI OKLCH tokens (starui-tokens.css).
   // OpenFin themes dock, browser tabs, home/store, and modals from these values.
@@ -460,12 +530,17 @@ async function initializePlatform(
         },
       },
     ],
-    customActions: buildCustomActions({
-      runThemeToggle,
-      openChildWindow,
-      getConfigManager: () => configManager,
-      exportAllConfig,
-    }),
+    customActions: {
+      ...buildCustomActions({
+        runThemeToggle,
+        openChildWindow,
+        getConfigManager: () => configManager,
+        exportAllConfig,
+      }),
+      // App-supplied actions merge alongside the built-ins; on an id
+      // collision the app's handler wins (deliberate override hook).
+      ...(userCustomActions ?? {}),
+    },
   });
 }
 
@@ -497,20 +572,6 @@ const dockActionHandlers: Record<string, (customData?: any) => Promise<void>> = 
   // override's `launchEntry()` (see dock.ts) — that's the canonical v23
   // pattern. Routing it through this handler caused
   // `setSelectedScheme()` to deadlock the dock channel.
-
-  [ACTION_OPEN_DOCK_EDITOR]: async () => {
-    const scope = getPlatformDefaultScope();
-    await openChildWindow("dock-editor", "/dock-editor", 720, 800, {
-      customData: { appId: scope.appId, userId: scope.userId },
-    });
-  },
-
-  [ACTION_OPEN_REGISTRY_EDITOR]: async () => {
-    const scope = getPlatformDefaultScope();
-    await openChildWindow("registry-editor", "/registry-editor", 800, 700, {
-      customData: { appId: scope.appId, userId: scope.userId },
-    });
-  },
 
   [ACTION_OPEN_WORKSPACE_SETUP]: async () => {
     const scope = getPlatformDefaultScope();
@@ -609,10 +670,6 @@ const dockActionHandlers: Record<string, (customData?: any) => Promise<void>> = 
     }
   },
 
-  [ACTION_IMPORT_CONFIG]: async () => {
-    await openChildWindow("import-config", "/import-config", 400, 320, { resizable: false, saveWindowState: false, contextMenu: false });
-  },
-
   [ACTION_TOGGLE_PROVIDER]: async () => {
     try {
       const providerWindow = fin.Window.getCurrentSync();
@@ -694,8 +751,8 @@ async function initializeWorkspaceComponents(
   dockIcon?: string,
   themeToggleDarkIcon?: string,
   themeToggleLightIcon?: string,
-  roles?: string[],
   excludeTools?: string[],
+  devTools?: boolean,
 ): Promise<void> {
   log("Initializing workspace components");
 
@@ -725,10 +782,16 @@ async function initializeWorkspaceComponents(
     };
 
     // Hide any built-in Tools-menu items the app opted out of (e.g.
-    // export-config / import-config) before the dock builds its menus.
-    setExcludedDockTools(excludeTools);
+    // export-config) before the dock builds its menus. Devtools entries
+    // are hidden by default outside a dev bundle; `devTools: true`
+    // forces them on, `devTools: false` forces them off.
+    const showDevTools = devTools ?? isDevBundle();
+    const excluded = showDevTools
+      ? excludeTools
+      : [...new Set([...(excludeTools ?? []), ...DEVTOOLS_TOOL_ACTIONS])];
+    setExcludedDockTools(excluded);
 
-    await registerDock(platformSettings, customSettings?.apps, dockIcon, themeToggleDarkIcon, themeToggleLightIcon, roles, dockActionDispatcher, customSettings?.dockVersion ?? "dock2");
+    await registerDock(platformSettings, customSettings?.apps, dockIcon, themeToggleDarkIcon, themeToggleLightIcon, dockActionDispatcher, customSettings?.dockVersion ?? "dock2");
   }
 
   if (components.notifications) {
@@ -776,6 +839,7 @@ async function initializeWorkspaceComponents(
 async function getManifestCustomSettings(): Promise<{
   platformSettings: PlatformSettings;
   customSettings?: CustomSettings;
+  providerUrl?: string;
 }> {
   const app = await fin.Application.getCurrent();
   const manifest: OpenFin.Manifest & { customSettings?: CustomSettings } = await app.getManifest();
@@ -787,5 +851,6 @@ async function getManifestCustomSettings(): Promise<{
       icon: manifest['platform']?.icon ?? "",
     },
     customSettings: manifest.customSettings,
+    providerUrl: (manifest['platform'] as { providerUrl?: string } | undefined)?.providerUrl,
   };
 }
