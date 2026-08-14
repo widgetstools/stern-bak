@@ -2,7 +2,7 @@
  * DataProviders — admin page that mounts the v2 `<DataProviderEditor>`
  * so users can author STOMP / REST / Mock / AppData providers.
  *
- * This view is the popout target for `openProviderEditorPopout()`.
+ * This view is the popout target for `openProviderEditorSurface()`.
  * The popout helper passes `?id=<providerId>` when editing an
  * existing row; we read it via `URLSearchParams` and forward as
  * `initialProviderId` so the form snaps to that row on mount.

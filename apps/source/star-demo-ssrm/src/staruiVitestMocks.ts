@@ -84,7 +84,11 @@ vi.mock('@wellsfargo-starui/core/host/browser', () => ({
   BrowserRuntime: mockBrowserRuntime,
 }));
 
-vi.mock('@wellsfargo-starui/core/host', () => ({
+vi.mock('@wellsfargo-starui/core/host', async (importOriginal) => ({
+  // Real module (incl. openProviderEditorSurface / openConfigBrowserSurface,
+  // which the view tests drive through mockOpenSurface via the runtime),
+  // with only the host-context factories intercepted.
+  ...(await importOriginal<typeof import('@wellsfargo-starui/core/host')>()),
   buildGridHostContext: mockBuildGridHostContext,
   storageFactoryForPersistence: mockStorageFactoryForPersistence,
   defineStarGridPlugin: mockDefineStarGridPlugin,

@@ -225,8 +225,12 @@ describe('buildCustomActions', () => {
     );
 
     await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
-    expect(createWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'config-browser' }),
+    expect(openChildWindow).toHaveBeenCalledWith(
+      'config-browser',
+      '/config-browser',
+      1100,
+      720,
+      expect.objectContaining({ customData: { appId: 'TestApp', userId: 'dev1' } }),
     );
 
     await actions[ACTION_OPEN_WORKSPACE_SETUP]({ callerType: btn } as never);
@@ -348,26 +352,30 @@ describe('buildCustomActions', () => {
     expect(createWindow).not.toHaveBeenCalled();
   });
 
-  it('foregrounds existing registry / config-browser / import windows', async () => {
+  it('foregrounds existing registry / import windows', async () => {
+    // config-browser no longer wraps windows itself — it delegates to the
+    // injected openChildWindow (the same path the dock handler takes), so
+    // only the two remaining inline handlers foreground here.
     (fin.Window.wrapSync as ReturnType<typeof vi.fn>).mockImplementation(({ name }: { name: string }) => {
-      if (name === 'registry-editor' || name === 'config-browser' || name === 'import-config') {
+      if (name === 'registry-editor' || name === 'import-config') {
         return existingWindow;
       }
       throw new Error('missing');
     });
     await actions[ACTION_OPEN_REGISTRY_EDITOR]({ callerType: drop } as never);
-    await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
     await actions[ACTION_IMPORT_CONFIG]({ callerType: drop } as never);
-    expect(existingWindow.setAsForeground).toHaveBeenCalledTimes(3);
+    expect(existingWindow.setAsForeground).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to fin.me.identity.uuid when platform scope appId is empty', async () => {
     getPlatformDefaultScope.mockReturnValueOnce({ appId: '', userId: 'dev1' });
     await actions[ACTION_OPEN_CONFIG_BROWSER]({ callerType: btn } as never);
-    expect(createWindow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        customData: { appId: 'plat', userId: 'dev1' },
-      }),
+    expect(openChildWindow).toHaveBeenCalledWith(
+      'config-browser',
+      '/config-browser',
+      1100,
+      720,
+      expect.objectContaining({ customData: { appId: 'plat', userId: 'dev1' } }),
     );
   });
 

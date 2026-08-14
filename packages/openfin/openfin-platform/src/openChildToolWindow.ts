@@ -1,18 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare const fin: any;
 
+import { openOpenFinPopout } from '@wellsfargo-starui/openfin/host';
 import { getPlatformDefaultScope } from './db.js';
 import { buildPlatformChildUrl } from './buildPlatformChildUrl.js';
-
-function urlsSameDocument(a: string, b: string): boolean {
-  try {
-    const ua = new URL(a);
-    const ub = new URL(b);
-    return ua.origin === ub.origin && ua.pathname === ub.pathname && ua.search === ub.search;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Resolve the web app origin for child tool windows (config browser,
@@ -58,12 +49,13 @@ function resolveProviderUrl(): Promise<string | undefined> {
  * Open or focus a named OpenFin platform window at `path` (may include
  * `?query`). Uses manifest-derived origin (not `window.location`).
  *
- * Creation goes through `fin.Platform.getCurrentSync().createWindow(...)`
- * so the window is workspace-aware (saveable in `Platform.snapshot()`
- * restore, dockable with platform views). When the window already
- * exists: foreground it and `navigate` to the target URL when it
- * differs — so e.g. `/dataproviders?id=…` updates when opening from
- * the grid toolbar.
+ * The open/focus/navigate mechanics live in ONE place —
+ * `openOpenFinPopout` (`@wellsfargo-starui/openfin/host`), the same
+ * implementation behind `OpenFinRuntime.openSurface`. This wrapper only
+ * adds what tool windows need: the manifest-origin resolution above and
+ * an inspectable context menu (`contextMenuSettings.devtools` adds the
+ * "Inspect" entry, `reload` a "Reload" entry — `contextMenu: true`
+ * alone only enables the default menu).
  */
 export async function openChildToolWindow(
   name: string,
@@ -82,43 +74,18 @@ export async function openChildToolWindow(
   console.log(`[openChildToolWindow] Opening "${name}" at "${path}"`);
 
   try {
-    const existing = fin.Window.wrapSync({ uuid: fin.me.identity.uuid, name });
-    const info = await existing.getInfo();
-    await existing.setAsForeground();
-    const currentUrl = typeof info?.url === 'string' ? info.url : '';
-    if (!currentUrl || !urlsSameDocument(currentUrl, url)) {
-      await existing.navigate(url);
-    }
-    console.log(`[openChildToolWindow] Brought existing "${name}" to front.`);
-    return;
-  } catch {
-    console.debug(`[openChildToolWindow] "${name}" does not exist; will create.`);
-  }
-
-  try {
-    const platform = fin.Platform.getCurrentSync();
-    await platform.createWindow({
+    await openOpenFinPopout('popout', {
       name,
       url,
-      defaultWidth: width,
-      defaultHeight: height,
-      autoShow: true,
-      frame: true,
-      resizable: true,
-      saveWindowState: true,
-      contextMenu: true,
-      // Make child tool windows (config browser, data providers editor)
-      // inspectable. `contextMenu: true` only enables the default menu;
-      // `contextMenuSettings.devtools` adds the "Inspect" entry (and
-      // `reload` a "Reload" entry) so the editor can be opened in
-      // DevTools via right-click. (ContextMenuSettings shape per
-      // @openfin/core: { enable, devtools?, reload? }.)
-      contextMenuSettings: { enable: true, devtools: true, reload: true },
-      ...extraOptions,
+      width,
+      height,
+      windowOptions: {
+        contextMenuSettings: { enable: true, devtools: true, reload: true },
+        ...extraOptions,
+      },
     });
-    console.log(`[openChildToolWindow] Created platform window "${name}" at ${url}`);
-  } catch (createErr) {
-    console.error(`[openChildToolWindow] Failed to create "${name}"`, createErr);
+  } catch (err) {
+    console.error(`[openChildToolWindow] Failed to open "${name}"`, err);
   }
 }
 

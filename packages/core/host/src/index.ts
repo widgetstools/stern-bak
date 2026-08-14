@@ -12,3 +12,9 @@ export {
   type GridHostScope,
 } from './buildGridHostContext.js';
 export { defineStarGridPlugin, type StarGridPlugin } from './plugins.js';
+export {
+  openProviderEditorSurface,
+  openConfigBrowserSurface,
+  type OpenProviderEditorOpts,
+  type OpenConfigBrowserOpts,
+} from './toolSurfaces.js';

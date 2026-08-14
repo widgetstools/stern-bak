@@ -1115,6 +1115,7 @@ modules).
 - `storageFactoryForPersistence()` — adapt `StoragePort` to `ProfileManager`
 - `defineStarGridPlugin()` — declare a host plugin
 - `StarGridPlugin` — `{ id, register?({ appId }) }` optional one-shot registration hook
+- `openProviderEditorSurface(runtime, { providerId?, route? })` / `openConfigBrowserSurface(runtime, { route? })` (+ opts types) — the ONE definition of the platform tool windows' name/route/dimensions for app views, over `RuntimePort.openSurface` (works in browser and OpenFin; the port owns named-window dedup and focus-on-reopen). `providerId` rides the hash (`#/dataproviders?id=…`) and is mirrored into `customData` for the OpenFin path. Replaces the per-app `dataProvidersPopout.ts` copies and inline `openSurface` blocks
 
 ---
 
@@ -1591,7 +1592,7 @@ modules).
 
 - `openFinWindowOpener` — popout factory (formatting toolbar, providers editor, help); self-disables (returns undefined) without the `fin.Window.create` capability
 - `debugOpenFin` — opt-in OpenFin environment diagnostics
-- Popout lifecycle (`openOpenFinPopout` in `popout.ts`) — internal to `OpenFinRuntime.openSurface`
+- `openOpenFinPopout(kind, opts)` (+ `OpenFinPopoutOpts`) — **the** OpenFin URL-window opener: wrap-existing → foreground → navigate-when-url-differs, else `platform.createWindow` (workspace-aware: snapshot-saveable, dockable); optional `windowOptions` spread extends/overrides the creation defaults (e.g. `contextMenuSettings`). Backs `OpenFinRuntime.openSurface` AND the platform's `openChildToolWindow` — one implementation, no duplicated helpers
 
 #### Window options subscription
 
@@ -1763,7 +1764,7 @@ of importing `@openfin/*` directly (architecture boundary).
 
 #### Child windows
 
-- `openChildToolWindow` — config-browser / workspace-setup in child; windows are inspectable (`contextMenuSettings: { enable, devtools, reload }` → right-click Inspect / Reload); manifest-derived provider origin is cached after the first lookup (failures are not cached)
+- `openChildToolWindow` — config-browser / workspace-setup in child; a thin wrapper over `openOpenFinPopout` (`@wellsfargo-starui/openfin/host`) adding manifest-derived origin resolution (cached after the first successful lookup; failures are not cached) and the inspectable context menu (`contextMenuSettings: { enable, devtools, reload }` → right-click Inspect / Reload). The dock handler and the `open-config-browser` customAction now share this one open path
 - `openDataProvidersToolWindow` — provider selector child window
 
 #### Context menu / custom actions

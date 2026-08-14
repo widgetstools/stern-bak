@@ -26,6 +26,7 @@ export {
   type InteropClientLike,
 } from './interop.js';
 export { createPlatformView, closeCurrentWindow } from './platformApi.js';
+export { openOpenFinPopout, type OpenFinPopoutOpts } from './popout.js';
 export {
   subscribeWindowOptions,
   __resetWindowOptionsSubscriptionForTests,

@@ -12,9 +12,12 @@ import { useCallback, type ReactNode } from 'react';
 import { StarGrid } from '@wellsfargo-starui/grid/widgets';
 import { useHostedStarui } from '@wellsfargo-starui/grid/widgets/hosted';
 import { StaruiIdentityProvider } from '@wellsfargo-starui/react/data/runtime';
+import {
+  openProviderEditorSurface,
+  openConfigBrowserSurface,
+} from '@wellsfargo-starui/core/host';
 import { useStarGridApp } from '../starGridApp/index.js';
 import { usePlatformBootstrap } from '../platformBootstrap';
-import { openProviderEditorPopout } from '../dataProvidersPopout';
 
 const DEFAULT_COL_DEF = {
   floatingFilter: true,
@@ -40,20 +43,14 @@ function BlottersMarketsGrid(): ReactNode {
   const { runtime } = useStarGridApp();
   const handleEditProvider = useCallback(
     (providerId: string | null) => {
-      void openProviderEditorPopout(runtime, {
+      void openProviderEditorSurface(runtime, {
         providerId: providerId ?? SSRM_PROVIDER_ID,
       });
     },
     [runtime],
   );
   const handleOpenConfigBrowser = useCallback(() => {
-    void runtime.openSurface({
-      kind: 'popout',
-      url: `${window.location.origin}/#/config-browser`,
-      windowName: 'config-browser',
-      width: 1100,
-      height: 720,
-    });
+    void openConfigBrowserSurface(runtime);
   }, [runtime]);
 
   // Per-view id (restored workspace views keep their own profiles) +

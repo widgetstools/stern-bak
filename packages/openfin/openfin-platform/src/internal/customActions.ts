@@ -290,38 +290,11 @@ export function buildCustomActions(deps: CustomActionDeps): CustomActionsMap {
       })();
       const userId = scope.userId;
 
-      try {
-        const existingWindow = fin.Window.wrapSync({
-          uuid: fin.me.identity.uuid,
-          name: 'config-browser',
-        });
-        await existingWindow.setAsForeground();
-      } catch {
-        const app = await fin.Application.getCurrent();
-        const manifest: Record<string, unknown> = await app.getManifest();
-        const platformConfig = manifest['platform'] as Record<string, string> | undefined;
-        const providerUrl = platformConfig?.['providerUrl'] ?? '';
-
-        const url = buildPlatformChildUrl(providerUrl, '/config-browser');
-        if (!url) {
-          console.error('Could not determine app origin from providerUrl:', providerUrl);
-          return;
-        }
-
-        const platform = getCurrentSync();
-        await platform.createWindow({
-          name: 'config-browser',
-          url,
-          defaultWidth: 1100,
-          defaultHeight: 720,
-          autoShow: true,
-          frame: true,
-          resizable: true,
-          saveWindowState: true,
-          contextMenu: true,
-          customData: { appId, userId },
-        });
-      }
+      // Same window name, dimensions, and customData scope as the dock's
+      // handler for this action in workspace.ts — one open path, not two.
+      await openChildWindow('config-browser', '/config-browser', 1100, 720, {
+        customData: { appId, userId },
+      });
     },
 
     // ── Reload the dock buttons from the saved config ──

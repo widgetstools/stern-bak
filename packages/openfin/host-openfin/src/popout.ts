@@ -40,6 +40,13 @@ export interface OpenFinPopoutOpts {
    * window reads it back via `fin.me.getOptions()`.
    */
   readonly customData?: Readonly<Record<string, unknown>>;
+  /**
+   * Extra `platform.createWindow` options spread AFTER the defaults, so
+   * callers can override or extend them (e.g. `contextMenuSettings` for
+   * inspectable tool windows). Applies to creation only — an existing
+   * window is focused/navigated, not reconfigured.
+   */
+  readonly windowOptions?: Readonly<Record<string, unknown>>;
 }
 
 function urlsSameDocument(a: string, b: string): boolean {
@@ -90,6 +97,7 @@ export async function openOpenFinPopout(
       saveWindowState: true,
       contextMenu: true,
       ...(opts.customData ? { customData: opts.customData } : {}),
+      ...(opts.windowOptions ?? {}),
     });
   }
 
