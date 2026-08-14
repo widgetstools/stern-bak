@@ -3,8 +3,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/core';
 import {
-  PLUS_MINUS_MODULE_ID,
-  SHORTCUTS_MODULE_ID,
+  EDITING_MODULE_ID,
+  INITIAL_EDITING,
+  type EditingState,
 } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../customizer/internal.js';
 import { EditingToolbarKeyboardMenu } from './EditingToolbarKeyboardMenu';
@@ -16,17 +17,20 @@ function mountMenu(overrides?: {
   shortcutsEnabled?: boolean;
 }) {
   const platform = new GridPlatform({ gridId: 'test-grid', modules: [] });
-  platform.store.setModuleState(PLUS_MINUS_MODULE_ID, () => ({
-    settings: { enabled: overrides?.plusEnabled ?? true },
-    nudges: overrides?.nudges ?? [
-      { id: 'n1', name: 'Price', incrementStep: 0.01, decrementStep: 0.01, enabled: true },
-    ],
-  }));
-  platform.store.setModuleState(SHORTCUTS_MODULE_ID, () => ({
-    settings: { enabled: overrides?.shortcutsEnabled ?? true },
-    shortcuts: overrides?.shortcuts ?? [
-      { id: 's1', name: 'Fill down', shortcutKey: 'd', operation: 'set', shortcutValue: '100', enabled: true },
-    ],
+  platform.store.setModuleState<EditingState>(EDITING_MODULE_ID, () => ({
+    ...structuredClone(INITIAL_EDITING),
+    plusMinus: {
+      settings: { enabled: overrides?.plusEnabled ?? true, recordHistory: true },
+      nudges: (overrides?.nudges ?? [
+        { id: 'n1', name: 'Price', incrementStep: 0.01, decrementStep: 0.01, enabled: true },
+      ]) as EditingState['plusMinus']['nudges'],
+    },
+    shortcuts: {
+      settings: { enabled: overrides?.shortcutsEnabled ?? true, recordHistory: true },
+      shortcuts: (overrides?.shortcuts ?? [
+        { id: 's1', name: 'Fill down', shortcutKey: 'd', operation: 'set', shortcutValue: '100', enabled: true },
+      ]) as unknown as EditingState['shortcuts']['shortcuts'],
+    },
   }));
   return render(
     <GridProvider platform={platform}>

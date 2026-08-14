@@ -7,20 +7,23 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { PlusMinusEditor, PlusMinusList, PlusMinusPanel } from './PlusMinusPanel';
-import { plusMinusModule } from './index';
-import type { PlusMinusState } from '@wellsfargo-starui/core';
+import { editingModule } from '../editing';
+import type { EditingState } from '@wellsfargo-starui/core';
 
 function makePlatform() {
-  const platform = new GridPlatform({ gridId: 'test-grid', modules: [plusMinusModule] });
-  platform.store.setModuleState<PlusMinusState>('plus-minus', (s) => ({
+  const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
+  platform.store.setModuleState<EditingState>('editing', (s) => ({
     ...s,
-    nudges: [{
-      id: 'nudge-one',
-      name: 'Qty step',
-      enabled: true,
-      incrementStep: 1,
-      scope: { columnIds: ['qty'] },
-    }],
+    plusMinus: {
+      ...s.plusMinus,
+      nudges: [{
+        id: 'nudge-one',
+        name: 'Qty step',
+        enabled: true,
+        incrementStep: 1,
+        scope: { columnIds: ['qty'] },
+      }],
+    },
   }));
   return platform;
 }
@@ -72,9 +75,9 @@ describe('PlusMinusPanel', () => {
 
   it('ADD creates a nudge and selects it', () => {
     render(<MasterDetail platform={platform} />);
-    const before = platform.store.getModuleState<PlusMinusState>('plus-minus').nudges.length;
+    const before = platform.store.getModuleState<EditingState>('editing').plusMinus.nudges.length;
     act(() => screen.getByTestId('pm-add-nudge').click());
-    const after = platform.store.getModuleState<PlusMinusState>('plus-minus').nudges.length;
+    const after = platform.store.getModuleState<EditingState>('editing').plusMinus.nudges.length;
     expect(after).toBe(before + 1);
   });
 
@@ -86,14 +89,14 @@ describe('PlusMinusPanel', () => {
     );
     act(() => fireEvent.click(screen.getByTestId('pm-enabled-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState<PlusMinusState>('plus-minus').settings.enabled).toBe(false);
+    expect(platform.store.getModuleState<EditingState>('editing').plusMinus.settings.enabled).toBe(false);
   });
 
   it('rename nudge updates module state immediately', () => {
     render(<MasterDetail platform={platform} />);
     const input = screen.getByTestId('pm-nudge-name-input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'Face qty' } });
-    const nudge = platform.store.getModuleState<PlusMinusState>('plus-minus').nudges.find((n) => n.id === 'nudge-one');
+    const nudge = platform.store.getModuleState<EditingState>('editing').plusMinus.nudges.find((n) => n.id === 'nudge-one');
     expect(nudge?.name).toBe('Face qty');
   });
 
@@ -109,7 +112,7 @@ describe('PlusMinusPanel', () => {
   it('deletes a nudge from the list', () => {
     render(<MasterDetail platform={platform} />);
     act(() => fireEvent.click(screen.getByLabelText('Delete Qty step')));
-    expect(platform.store.getModuleState<PlusMinusState>('plus-minus').nudges).toHaveLength(0);
+    expect(platform.store.getModuleState<EditingState>('editing').plusMinus.nudges).toHaveLength(0);
   });
 
   it('updates increment, decrement, columns, and enabled toggle', () => {
@@ -127,7 +130,7 @@ describe('PlusMinusPanel', () => {
     });
     act(() => fireEvent.click(screen.getByTestId('pm-nudge-enabled-toggle')));
 
-    const nudge = platform.store.getModuleState<PlusMinusState>('plus-minus').nudges[0];
+    const nudge = platform.store.getModuleState<EditingState>('editing').plusMinus.nudges[0];
     expect(nudge?.incrementStep).toBe(5);
     expect(nudge?.decrementStep).toBe(2);
     expect(nudge?.scope.columnIds).toEqual(['qty', 'mid']);
@@ -142,7 +145,7 @@ describe('PlusMinusPanel', () => {
     );
     act(() => fireEvent.click(screen.getByTestId('pm-record-history-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState<PlusMinusState>('plus-minus').settings.recordHistory).toBe(false);
+    expect(platform.store.getModuleState<EditingState>('editing').plusMinus.settings.recordHistory).toBe(false);
   });
 
   it('Reset reverts unsaved global settings in flat panel', () => {
@@ -153,22 +156,25 @@ describe('PlusMinusPanel', () => {
     );
     act(() => fireEvent.click(screen.getByTestId('pm-enabled-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset' })));
-    expect(platform.store.getModuleState<PlusMinusState>('plus-minus').settings.enabled).toBe(true);
+    expect(platform.store.getModuleState<EditingState>('editing').plusMinus.settings.enabled).toBe(true);
   });
 
   it('selects another nudge from the list rail', () => {
-    platform.store.setModuleState<PlusMinusState>('plus-minus', (s) => ({
+    platform.store.setModuleState<EditingState>('editing', (s) => ({
       ...s,
-      nudges: [
-        ...s.nudges,
-        {
-          id: 'nudge-two',
-          name: 'Mid step',
-          enabled: true,
-          incrementStep: 2,
-          scope: { columnIds: ['mid'] },
-        },
-      ],
+      plusMinus: {
+        ...s.plusMinus,
+        nudges: [
+          ...s.plusMinus.nudges,
+          {
+            id: 'nudge-two',
+            name: 'Mid step',
+            enabled: true,
+            incrementStep: 2,
+            scope: { columnIds: ['mid'] },
+          },
+        ],
+      },
     }));
     render(<MasterDetail platform={platform} />);
     act(() => fireEvent.click(screen.getByTestId('pm-nudge-item-nudge-two')));
@@ -197,13 +203,13 @@ describe('PlusMinusPanel', () => {
     );
     act(() => fireEvent.click(screen.getByTestId('pm-record-history-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState<PlusMinusState>('plus-minus').settings.recordHistory).toBe(false);
+    expect(platform.store.getModuleState<EditingState>('editing').plusMinus.settings.recordHistory).toBe(false);
   });
 
   it('flat panel omits editor pane when no nudges exist', () => {
-    platform.store.setModuleState<PlusMinusState>('plus-minus', (s) => ({
+    platform.store.setModuleState<EditingState>('editing', (s) => ({
       ...s,
-      nudges: [],
+      plusMinus: { ...s.plusMinus, nudges: [] },
     }));
     render(
       <GridProvider platform={platform}>

@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
 import {
-  BULK_UPDATE_MODULE_ID,
   DATA_CHANGE_HISTORY_MODULE_ID,
-  SMART_EDIT_MODULE_ID,
-  type BulkUpdateState,
+  EDITING_MODULE_ID,
   type DataChangeHistoryState,
-  type SmartEditState,
+  type EditingState,
 } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../customizer/hooks/useModuleState';
 import {
@@ -19,21 +17,20 @@ import {
 export function useEffectiveEditingToolbarAllow(
   hostProps: EditingToolbarHostProps,
 ): EditingToolbarAllow {
-  const [smartEdit] = useModuleState<SmartEditState>(SMART_EDIT_MODULE_ID);
-  const [bulkUpdate] = useModuleState<BulkUpdateState>(BULK_UPDATE_MODULE_ID);
+  const [editing] = useModuleState<EditingState>(EDITING_MODULE_ID);
   const [history] = useModuleState<DataChangeHistoryState>(DATA_CHANGE_HISTORY_MODULE_ID);
 
   return useMemo(() => {
     const base = resolveEditingToolbarAllow(hostProps);
     return mergeEditingToolbarAllowWithModules(base, hostProps, {
-      smartEdit: Boolean(smartEdit?.settings?.enabled),
-      bulkUpdate: Boolean(bulkUpdate?.settings?.enabled),
+      smartEdit: Boolean(editing?.smartEdit?.settings?.enabled),
+      bulkUpdate: Boolean(editing?.bulkUpdate?.settings?.enabled),
       history: Boolean(history?.settings?.enabled),
     });
   }, [
     hostProps.showEditingToolbar,
-    smartEdit?.settings?.enabled,
-    bulkUpdate?.settings?.enabled,
+    editing?.smartEdit?.settings?.enabled,
+    editing?.bulkUpdate?.settings?.enabled,
     history?.settings?.enabled,
   ]);
 }

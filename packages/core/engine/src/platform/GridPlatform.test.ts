@@ -64,6 +64,63 @@ describe('GridPlatform lifecycle and persistence', () => {
     warn.mockRestore();
   });
 
+  it('assembles merged-module state from legacy envelopes via migrateLegacy', () => {
+    const merged: Module<CounterState> = {
+      ...counterModule(),
+      id: 'merged',
+      legacyIds: ['old-a', 'old-b'],
+      migrateLegacy: (envelopes) => {
+        const a = (envelopes['old-a'] as { data?: { n?: number } } | undefined)?.data?.n ?? 0;
+        const b = (envelopes['old-b'] as { data?: { n?: number } } | undefined)?.data?.n ?? 0;
+        return { n: a + b };
+      },
+    };
+    const platform = new GridPlatform({ gridId: 'legacy', modules: [merged] });
+    platform.deserializeAll({
+      'old-a': { v: 2, data: { n: 4 } },
+      'old-b': { v: 1, data: { n: 2 } },
+    });
+    expect(platform.store.getModuleState<CounterState>('merged').n).toBe(6);
+    // the module's own envelope wins over legacy keys when both exist
+    platform.deserializeAll({
+      merged: { v: 2, data: { n: 42 } },
+      'old-a': { v: 2, data: { n: 4 } },
+    });
+    expect(platform.store.getModuleState<CounterState>('merged').n).toBe(42);
+    // saves write only the merged id
+    expect(Object.keys(platform.serializeAll())).toEqual(['merged']);
+  });
+
+  it('leaves merged-module state untouched when neither its id nor legacy ids are present', () => {
+    const merged: Module<CounterState> = {
+      ...counterModule(),
+      id: 'merged',
+      legacyIds: ['old-a'],
+      migrateLegacy: () => ({ n: 99 }),
+    };
+    const platform = new GridPlatform({ gridId: 'legacy-absent', modules: [merged] });
+    platform.store.setModuleState<CounterState>('merged', () => ({ n: 5 }));
+    platform.deserializeAll({ unrelated: { v: 1, data: {} } });
+    expect(platform.store.getModuleState<CounterState>('merged').n).toBe(5);
+  });
+
+  it('falls back to initial state when migrateLegacy throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const merged: Module<CounterState> = {
+      ...counterModule(),
+      id: 'merged',
+      legacyIds: ['old-a'],
+      migrateLegacy: () => {
+        throw new Error('bad legacy blob');
+      },
+    };
+    const platform = new GridPlatform({ gridId: 'legacy-fail', modules: [merged] });
+    platform.store.setModuleState<CounterState>('merged', () => ({ n: 5 }));
+    platform.deserializeAll({ 'old-a': { v: 2, data: { n: 4 } } });
+    expect(platform.store.getModuleState<CounterState>('merged').n).toBe(0);
+    warn.mockRestore();
+  });
+
   it('transformColumnDefs runs the pipeline', () => {
     const platform = new GridPlatform({ gridId: 'cols', modules: [counterModule()] });
     platform.store.setModuleState<CounterState>('counter', () => ({ n: 5 }));

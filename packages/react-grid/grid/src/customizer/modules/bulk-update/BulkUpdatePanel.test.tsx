@@ -6,11 +6,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { BulkUpdatePanel } from './BulkUpdatePanel';
-import { bulkUpdateModule } from './index';
-import type { BulkUpdateState } from '@wellsfargo-starui/core';
+import { editingModule } from '../editing';
+import type { EditingState } from '@wellsfargo-starui/core';
 
 function makePlatform(): GridPlatform {
-  return new GridPlatform({ gridId: 'test-grid', modules: [bulkUpdateModule] });
+  return new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
 }
 
 describe('BulkUpdatePanel', () => {
@@ -53,7 +53,7 @@ describe('BulkUpdatePanel', () => {
       fireEvent.blur(input);
     });
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState<BulkUpdateState>('bulk-update').settings.confirmThreshold).toBe(5);
+    expect(platform.store.getModuleState<EditingState>('editing').bulkUpdate.settings.confirmThreshold).toBe(5);
   });
 
   it('DISCARD reverts staged settings', () => {
@@ -64,7 +64,7 @@ describe('BulkUpdatePanel', () => {
     );
     act(() => fireEvent.click(screen.getByTestId('bu-record-history-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset' })));
-    expect(platform.store.getModuleState<BulkUpdateState>('bulk-update').settings.recordHistory).toBe(true);
+    expect(platform.store.getModuleState<EditingState>('editing').bulkUpdate.settings.recordHistory).toBe(true);
   });
 
   it('toggle distinct values dropdown setting', () => {
@@ -75,6 +75,6 @@ describe('BulkUpdatePanel', () => {
     );
     act(() => fireEvent.click(screen.getByTestId('bu-distinct-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState<BulkUpdateState>('bulk-update').settings.showDistinctValues).toBe(false);
+    expect(platform.store.getModuleState<EditingState>('editing').bulkUpdate.settings.showDistinctValues).toBe(false);
   });
 });

@@ -1,11 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  SMART_EDIT_MODULE_ID,
   assertSingleColumnSelection,
   previewPatches,
   type CellPatch,
   type SmartEditOp,
-  type SmartEditState,
 } from '@wellsfargo-starui/core';
 import {
   AlertDialog,
@@ -37,7 +35,7 @@ import {
 import type { EditingToolbarSegmentProps } from '../../editing/editingToolbarLayout';
 import { resolveEditRecording } from '../../editing/recordEdit';
 import { useGridPlatform } from '../../hooks/GridProvider';
-import { useModuleState } from '../../hooks/useModuleState';
+import { useEditingSlice } from '../editing/useEditingSlice';
 import {
   editingToolbarInputClasses,
   editingToolbarFieldWidthStyle,
@@ -71,7 +69,7 @@ const OP_TITLES: Record<Exclude<SmartEditOp, 'set'>, string> = {
 
 export function SmartEditToolbarBody({ layout = 'standalone' }: EditingToolbarSegmentProps) {
   const platform = useGridPlatform();
-  const [settings] = useModuleState<SmartEditState>(SMART_EDIT_MODULE_ID);
+  const [settings] = useEditingSlice('smartEdit');
   const { count, cells } = useSmartEditSelection();
   const [operand, setOperand] = useState('1');
   const [setDialogOpen, setSetDialogOpen] = useState(false);

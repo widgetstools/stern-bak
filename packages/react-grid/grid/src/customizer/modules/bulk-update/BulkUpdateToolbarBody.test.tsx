@@ -3,10 +3,10 @@
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform, type BulkUpdateState } from '@wellsfargo-starui/core';
+import { GridPlatform, type BulkUpdateState, type EditingState } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { BulkUpdateToolbarBody } from './BulkUpdateToolbarBody';
-import { bulkUpdateModule } from './index';
+import { editingModule } from '../editing';
 
 function makeMockApi() {
   const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
@@ -35,10 +35,13 @@ function makeMockApi() {
 }
 
 function makePlatform(settings?: Partial<BulkUpdateState['settings']>): GridPlatform {
-  const platform = new GridPlatform({ gridId: 'test-grid', modules: [bulkUpdateModule] });
-  platform.store.setModuleState<BulkUpdateState>('bulk-update', (s) => ({
+  const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
+  platform.store.setModuleState<EditingState>('editing', (s) => ({
     ...s,
-    settings: { ...s.settings, showDistinctValues: false, ...settings },
+    bulkUpdate: {
+      ...s.bulkUpdate,
+      settings: { ...s.bulkUpdate.settings, showDistinctValues: false, ...settings },
+    },
   }));
   return platform;
 }

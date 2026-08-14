@@ -1,8 +1,6 @@
 import {
-  PLUS_MINUS_MODULE_ID,
-  SHORTCUTS_MODULE_ID,
-  type PlusMinusState,
-  type ShortcutsState,
+  EDITING_MODULE_ID,
+  type EditingState,
 } from '@wellsfargo-starui/core';
 import {
   DropdownMenu,
@@ -23,8 +21,8 @@ import {
 } from './EditingToolbarPrimitives';
 
 export function EditingToolbarKeyboardMenu() {
-  const [plusMinus] = useModuleState<PlusMinusState>(PLUS_MINUS_MODULE_ID);
-  const [shortcuts] = useModuleState<ShortcutsState>(SHORTCUTS_MODULE_ID);
+  const [editing] = useModuleState<EditingState>(EDITING_MODULE_ID);
+  const { plusMinus, shortcuts } = editing;
 
   const plusEnabled = plusMinus.settings.enabled;
   const shortcutsEnabled = shortcuts.settings.enabled;

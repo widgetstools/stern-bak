@@ -530,18 +530,26 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   `applyFormatExcelClasses`, `exportVisualExcel` (via `api.exportDataAsExcel` +
   `processCellCallback`). Primary toolbar spreadsheet icon when enabled.
   Settings panel: **Visual Excel**. Lab: **Visual Excel** tab (`lab-visual-excel-v1`).
-- **Editing family (overview)** — five customizer modules share a cell-patch
-  journal (`EditJournal` in `@wellsfargo-starui/core`). React wiring: `recordEdit.ts`
-  (`resolveEditRecording`), `useEditJournal`, `journalUndoRedo`,
-  `journalApplyGuard`, `editJournalScope`. Unified **`EditingToolbar`** row
-  composes edit-history, smart-edit, and bulk-update segments plus
-  `EditingToolbarKeyboardMenu` hints; plus/minus and shortcuts are keyboard-only
-  (settings panels, no toolbar segment). Host opt-in: `showEditingToolbar`
-  (all three segments) or legacy `showSmartEditToolbar` /
-  `showBulkUpdateToolbar` / `showEditHistoryToolbar` (per-segment allow-list;
-  row visible when any legacy prop is true). Default module pipeline order in
-  `DEFAULT_MODULES`: … → smart-edit → bulk-update → plus-minus → shortcuts →
-  data-change-history → alerts → … → grid-state (last). E2e: 45 Playwright
+- **Editing family (overview)** — ONE merged **`editing`** module (id
+  `editing`, `EditingState` slices `smartEdit` / `bulkUpdate` / `plusMinus` /
+  `shortcuts`) plus the separate `data-change-history` module, sharing a
+  cell-patch journal (`EditJournal` in `@wellsfargo-starui/core`). One keyboard
+  runtime (`activateEditing`) arbitrates `+`/`-` (plus-minus owns the keys when
+  enabled, smart-edit's global step otherwise) and letter shortcuts. One
+  settings entry: the **Editing** panel with Smart Edit / Bulk Update /
+  Plus / Minus / Shortcuts section tabs. React slice hook: `useEditingSlice`.
+  Persistence: one `editing` envelope; profiles saved before the merge (four
+  envelopes under the legacy ids `smart-edit` / `bulk-update` / `plus-minus` /
+  `shortcuts`) keep loading via the module's `legacyIds` + `migrateLegacy`
+  seam on `GridPlatform.deserializeAll` — version-tolerant, so lab profiles
+  stamped `v: 1` for smart-edit (previously dropped at load) now load too.
+  React wiring: `recordEdit.ts` (`resolveEditRecording`), `useEditJournal`,
+  `journalUndoRedo`, `journalApplyGuard`, `editJournalScope`. Unified
+  **`EditingToolbar`** row composes edit-history, smart-edit, and bulk-update
+  segments plus `EditingToolbarKeyboardMenu` hints; plus/minus and shortcuts
+  are keyboard-only (no toolbar segment). Host opt-in: `showEditingToolbar`.
+  Default module pipeline order in `DEFAULT_MODULES`: … → editing →
+  data-change-history → alerts → … → grid-state (last). E2e: Playwright
   specs (`e2e/v2-editing-family.spec.ts`, `v2-editing`, `v2-smart-edit`,
   `v2-bulk-update`, `v2-edit-history`, `v2-plus-minus`, `v2-shortcuts`);
   shared helpers in `e2e/helpers/labEditing.ts` and `e2e/helpers/editingToolbar.ts`.
@@ -549,8 +557,9 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   toolbar **Set…** dialog, +/- keyboard increment, and K/M/B magnitude shortcuts
   via `valueParser` on editable numeric columns. Single-column guard, optional
   preview-before-apply, and cell-patch journal recording for undo (via shared
-  `EditJournal`). Framework-agnostic ops in `@wellsfargo-starui/core`; React module +
-  `SmartEditToolbarBody` in `@wellsfargo-starui/grid`. Settings panel: **Smart Edit**.
+  `EditJournal`). Framework-agnostic ops in `@wellsfargo-starui/core`; React slice +
+  `SmartEditToolbarBody` in `@wellsfargo-starui/grid`. Settings: **Editing**
+  panel, Smart Edit section.
   Lab: unified **Editing** tab (`lab-editing`, 12 profiles); focused Smart Edit
   profiles under `public/lab-profiles/smart-edit/`.
 - **Edit History** — session-scoped undo/redo journal consumed by all editing
@@ -569,18 +578,21 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   Smart Edit–only history demo in `public/lab-profiles/smart-edit/se-04-history.json`.
 - **Bulk Update** — replace all selected cells in one column with the same
   value (text, number, date). Distinct-value dropdown, confirm threshold,
-  single-column guard, journal integration. Settings panel: **Bulk Update**.
+  single-column guard, journal integration. Settings: **Editing** panel,
+  Bulk Update section.
   Lab: **Bulk Update** tab (`lab-bulk-update`) and unified **Editing** tab.
 - **Plus / Minus** — keyboard +/- nudge rules with per-column increment/decrement
   steps and optional expression gates. Takes over +/- keys from Smart Edit when
   enabled; `suppressKeyboardEvent` on editable numeric columns prevents inline
   edit from consuming +/- keys. Keyboard only — no toolbar segment. Journal
-  integration via `recordHistory`. Settings panel: **Plus / Minus**.
+  integration via `recordHistory`. Settings: **Editing** panel,
+  Plus / Minus section.
   Lab: **Plus / Minus** tab (`lab-plus-minus`).
 - **Shortcuts** — letter-key arithmetic (× ÷ + −) with per-shortcut operand and
   column scope. Distinct from Smart Edit K/M/B magnitude parsing in the cell editor.
   Keyboard only — no toolbar segment. Journal integration via `recordHistory`.
-  Settings panel: **Shortcuts**. Lab: **Shortcuts** tab (`lab-shortcuts`).
+  Settings: **Editing** panel, Shortcuts section. Lab: **Shortcuts** tab
+  (`lab-shortcuts`).
 - **Alerts** — expression-driven notifications (dataChange / relativeChange /
   rowChange triggers) with toast, toolbar bell badge, and OpenFin Notification
   Centre channels. Runtime evaluates on `cellValueChanged` and on

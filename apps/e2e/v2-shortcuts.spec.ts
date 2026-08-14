@@ -46,7 +46,7 @@ async function waitForShortcutsReady(
       }).__labGrid;
       if (!handle) return false;
       try {
-        const st = handle.platform.store.getModuleState('shortcuts');
+        const st = handle.platform.store.getModuleState('editing')?.shortcuts;
         if (st?.settings?.enabled !== wantEnabled) return false;
         return (st?.shortcuts?.length ?? 0) >= min;
       } catch {

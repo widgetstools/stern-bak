@@ -290,6 +290,15 @@ export interface Module<S = unknown> {
   serialize(state: S): unknown;
   deserialize(raw: unknown): S;
   migrate?(raw: unknown, fromVersion: number): S;
+  /**
+   * Module ids this module absorbed. When a snapshot has no envelope under
+   * `id` but has one under any of these, the platform hands ALL present
+   * legacy envelopes (still `{v, data}`-wrapped) to `migrateLegacy` and
+   * stores its result. Saved snapshots only ever write `id` — legacy keys
+   * disappear on the next save.
+   */
+  readonly legacyIds?: readonly string[];
+  migrateLegacy?(envelopes: Readonly<Record<string, unknown>>): S;
 
   /**
    * Single-shot lifecycle. Called after the grid is ready, with the

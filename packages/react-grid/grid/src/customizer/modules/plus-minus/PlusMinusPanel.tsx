@@ -8,14 +8,14 @@ import {
 import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import {
   defaultPlusMinusNudge,
-  PLUS_MINUS_MODULE_ID,
+  EDITING_MODULE_ID,
+  type EditingState,
   type PlusMinusNudge,
   type PlusMinusSettings,
-  type PlusMinusState,
 } from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
-import { useModuleState } from '../../hooks/useModuleState';
+import { useEditingSlice } from '../editing/useEditingSlice';
 import { useGridColumns } from '../../hooks/useGridColumns';
 import { ExpressionBand } from '../conditional-styling/editor/ExpressionBand';
 import {
@@ -37,7 +37,7 @@ function NudgeListBody({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  const [state, setState] = useModuleState<PlusMinusState>(PLUS_MINUS_MODULE_ID);
+  const [state, setState] = useEditingSlice('plusMinus');
 
   const addNudge = () => {
     const nudge = defaultPlusMinusNudge(`Nudge ${state.nudges.length + 1}`);
@@ -99,7 +99,7 @@ function NudgeListBody({
 }
 
 function NudgeEditorBody({ nudgeId }: { nudgeId: string }) {
-  const [state, setState] = useModuleState<PlusMinusState>(PLUS_MINUS_MODULE_ID);
+  const [state, setState] = useEditingSlice('plusMinus');
   const platform = useGridPlatform();
   const columns = useGridColumns();
 
@@ -212,13 +212,13 @@ function NudgeEditorBody({ nudgeId }: { nudgeId: string }) {
 
 function PlusMinusSettingsBand() {
   const { draft, setDraft, dirty, save, discard } = useModuleDraft<
-    PlusMinusState,
+    EditingState,
     PlusMinusSettings
   >({
-    moduleId: PLUS_MINUS_MODULE_ID,
-    itemId: 'settings',
-    selectItem: (s) => s.settings,
-    commitItem: (settings) => (s) => ({ ...s, settings }),
+    moduleId: EDITING_MODULE_ID,
+    itemId: 'plus-minus-settings',
+    selectItem: (s) => s.plusMinus.settings,
+    commitItem: (settings) => (s) => ({ ...s, plusMinus: { ...s.plusMinus, settings } }),
   });
 
   const updateSetting = <K extends keyof PlusMinusSettings>(
@@ -273,7 +273,7 @@ function PlusMinusSettingsBand() {
 }
 
 export function PlusMinusList({ selectedId, onSelect }: ListPaneProps) {
-  const [state] = useModuleState<PlusMinusState>(PLUS_MINUS_MODULE_ID);
+  const [state] = useEditingSlice('plusMinus');
 
   useEffect(() => {
     if (!selectedId && state.nudges.length > 0) {
@@ -302,7 +302,7 @@ export function PlusMinusEditor({ selectedId }: EditorPaneProps) {
 }
 
 function PlusMinusPanelInner() {
-  const [state, setState] = useModuleState<PlusMinusState>(PLUS_MINUS_MODULE_ID);
+  const [state, setState] = useEditingSlice('plusMinus');
   const [selectedId, setSelectedId] = useState<string | null>(state.nudges[0]?.id ?? null);
 
   return (

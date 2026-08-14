@@ -4,6 +4,7 @@ import { openEditingToolbar } from './helpers/editingToolbar';
 import {
   cellAt,
   clearLabStorage,
+  loadLabProfile,
   setBulkUpdateValue,
 } from './helpers/labEditing';
 
@@ -122,6 +123,9 @@ test.describe('Bulk Update lab tab', () => {
 
   test('distinct-value dropdown appears when column selected', async ({ page }) => {
     await bootBulkUpdateTab(page);
+    // The default active profile (bu-00-curriculum) seeds
+    // showDistinctValues: false — the dropdown profile is bu-01.
+    await loadLabProfile(page, 'bu-01-text-column', GRID_ID);
 
     await cellAt(page, GRID_ID, 0, 'currency').click();
     await expect(page.getByTestId('bulk-update-value-input')).toBeVisible();
@@ -136,6 +140,9 @@ test.describe('Bulk Update lab tab', () => {
 
     const cell = cellAt(page, GRID_ID, 0, 'maturityDate');
     await cell.click();
+    // Selection propagates to the toolbar asynchronously — apply stays
+    // disabled until the count reflects the click.
+    await expect(page.getByTestId('bulk-update-count')).toContainText('1 selected');
     await page.getByTestId('bulk-update-value-input').fill('2030-12-31');
     await page.getByTestId('bulk-update-apply').click();
 

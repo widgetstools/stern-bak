@@ -150,13 +150,15 @@ export class GridPlatform {
     return out;
   }
 
-  /** Restore state for every module that's represented in `snapshot`. */
+  /** Restore state for every module that's represented in `snapshot` —
+   *  directly under its id, or (for merged modules) under its `legacyIds`. */
   deserializeAll(snapshot: Record<string, unknown> | null | undefined): void {
     if (!snapshot || typeof snapshot !== 'object') return;
     for (const m of this.modules) {
       const raw = (snapshot as Record<string, unknown>)[m.id];
-      if (raw === undefined) continue;
-      const state = this.loadOne(m, raw);
+      const state =
+        raw !== undefined ? this.loadOne(m, raw) : this.loadFromLegacy(m, snapshot);
+      if (state === SKIP) continue;
       this.store.replaceModuleState(m.id, state);
       this.events.emit('module:stateChanged', { gridId: this.gridId, moduleId: m.id });
     }
@@ -202,6 +204,30 @@ export class GridPlatform {
     };
   }
 
+  /** Assemble state from legacy envelopes for a module absorbed into `m`,
+   *  or `SKIP` when the snapshot has nothing for it. */
+  private loadFromLegacy<S>(
+    m: AnyModule,
+    snapshot: Record<string, unknown>,
+  ): S | typeof SKIP {
+    if (!m.legacyIds?.length || !m.migrateLegacy) return SKIP;
+    const envelopes: Record<string, unknown> = {};
+    let found = false;
+    for (const id of m.legacyIds) {
+      const raw = snapshot[id];
+      if (raw === undefined) continue;
+      envelopes[id] = raw;
+      found = true;
+    }
+    if (!found) return SKIP;
+    try {
+      return m.migrateLegacy(envelopes) as S;
+    } catch (err) {
+      console.warn(`[platform] Module "${m.id}" migrateLegacy failed — falling back to initial:`, err);
+      return m.getInitialState() as S;
+    }
+  }
+
   private loadOne<S>(m: AnyModule, raw: unknown): S {
     const envelope = isEnvelope(raw) ? raw : null;
     const data = envelope ? envelope.data : raw;
@@ -220,6 +246,9 @@ export class GridPlatform {
     }
   }
 }
+
+/** Sentinel: `deserializeAll` leaves the module's current state untouched. */
+const SKIP = Symbol('skip');
 
 function isEnvelope(value: unknown): value is SerializedState {
   return (

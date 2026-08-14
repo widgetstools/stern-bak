@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { clickSettingsFromToolbar } from './helpers/settingsSheet';
+import { clickSettingsFromToolbar, navigateToModule, openModuleMenu } from './helpers/settingsSheet';
 import { openEditingToolbar } from './helpers/editingToolbar';
 import { focusCellValue } from './helpers/labEditing';
 
@@ -62,12 +62,16 @@ test.describe('Editing lab tab (unified)', () => {
     // Modules live behind grouped menubar menus — open each module's
     // owning menu (resolved via the trigger's data-modules list) and
     // assert the item renders, then dismiss before the next one.
-    for (const moduleId of ['smart-edit', 'bulk-update', 'plus-minus', 'shortcuts', 'data-change-history']) {
-      await page
-        .locator(`[data-testid^="v2-settings-nav-group-"][data-modules~="${moduleId}"]`)
-        .click();
-      await expect(page.getByTestId(`v2-settings-nav-menu-${moduleId}`)).toBeVisible();
+    // Post-merge the Editing menu lists the merged `editing` module and
+    // `data-change-history`; the four former modules are section tabs
+    // inside the editing panel.
+    for (const moduleId of ['editing', 'data-change-history']) {
+      await expect(await openModuleMenu(page, moduleId)).toBeVisible();
       await page.keyboard.press('Escape');
+    }
+    await navigateToModule(page, 'editing');
+    for (const sectionId of ['smart-edit', 'bulk-update', 'plus-minus', 'shortcuts']) {
+      await expect(page.getByTestId(`editing-section-tab-${sectionId}`)).toBeVisible();
     }
   });
 

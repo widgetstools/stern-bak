@@ -1,10 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  BULK_UPDATE_MODULE_ID,
   assertSingleColumnSelection,
   bulkUpdateValueKind,
   resolveColumnDistinctValues,
-  type BulkUpdateState,
 } from '@wellsfargo-starui/core';
 import {
   AlertDialog,
@@ -28,7 +26,7 @@ import {
 import type { EditingToolbarSegmentProps } from '../../editing/editingToolbarLayout';
 import { resolveEditRecording } from '../../editing/recordEdit';
 import { useGridPlatform } from '../../hooks/GridProvider';
-import { useModuleState } from '../../hooks/useModuleState';
+import { useEditingSlice } from '../editing/useEditingSlice';
 import {
   editingToolbarInputClasses,
   editingToolbarFieldWidthStyle,
@@ -50,7 +48,7 @@ function formatDistinctLabel(value: unknown): string {
 
 export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarSegmentProps) {
   const platform = useGridPlatform();
-  const [settings] = useModuleState<BulkUpdateState>(BULK_UPDATE_MODULE_ID);
+  const [settings] = useEditingSlice('bulkUpdate');
   const { count, cells } = useBulkUpdateSelection();
   const [value, setValue] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);

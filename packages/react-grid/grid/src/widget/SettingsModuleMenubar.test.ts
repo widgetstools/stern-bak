@@ -13,7 +13,7 @@ describe('groupModulesForMenubar', () => {
       mod('general-settings'),
       mod('column-groups'),
       mod('column-customization'),
-      mod('smart-edit'),
+      mod('editing'),
     ]);
 
     expect(groups.map((g) => g.id)).toEqual(['options', 'columns', 'styling', 'editing']);

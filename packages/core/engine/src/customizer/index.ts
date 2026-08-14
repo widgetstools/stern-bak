@@ -53,6 +53,8 @@ export * from './modules/alerts/state.js';
 export * from './modules/alerts/evaluator.js';
 export { applyAlertTransforms, applyAlertGridOptions } from './modules/alerts/transforms.js';
 
+export * from './modules/editing/state.js';
+
 export * from './modules/smart-edit/state.js';
 export { applyNumericOp } from './modules/smart-edit/operations.js';
 export { parseMagnitudeSuffix } from './modules/smart-edit/parseMagnitudeSuffix.js';

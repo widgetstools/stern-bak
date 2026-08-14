@@ -7,7 +7,7 @@ import type { GridApi } from 'ag-grid-community';
 import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { useBulkUpdateSelection } from './useBulkUpdateSelection';
-import { bulkUpdateModule } from './index';
+import { editingModule } from '../editing';
 
 function makeMockApi(withSelection = true) {
   const listeners = new Map<string, Set<() => void>>();
@@ -49,7 +49,7 @@ describe('useBulkUpdateSelection', () => {
   let platform: GridPlatform;
 
   beforeEach(() => {
-    platform = new GridPlatform({ gridId: 'test-grid', modules: [bulkUpdateModule] });
+    platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
   });
 
   it('returns empty selection before grid api attaches', () => {

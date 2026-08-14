@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import {
-  BULK_UPDATE_MODULE_ID,
+  EDITING_MODULE_ID,
   type BulkUpdateSettings,
-  type BulkUpdateState,
+  type EditingState,
 } from '@wellsfargo-starui/core';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { Band, ObjectTitleRow, SettingsRow as Row, SharpBtn } from '../../ui/SettingsPanel';
@@ -10,13 +10,13 @@ import { BoolControl, NumberControl } from '../general-settings/fieldSchema';
 
 function BulkUpdatePanelInner() {
   const { draft, setDraft, dirty, save, discard } = useModuleDraft<
-    BulkUpdateState,
+    EditingState,
     BulkUpdateSettings
   >({
-    moduleId: BULK_UPDATE_MODULE_ID,
-    itemId: 'settings',
-    selectItem: (s) => s.settings,
-    commitItem: (settings) => (s) => ({ ...s, settings }),
+    moduleId: EDITING_MODULE_ID,
+    itemId: 'bulk-update-settings',
+    selectItem: (s) => s.bulkUpdate.settings,
+    commitItem: (settings) => (s) => ({ ...s, bulkUpdate: { ...s.bulkUpdate, settings } }),
   });
 
   const updateSetting = <K extends keyof BulkUpdateSettings>(

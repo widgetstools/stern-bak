@@ -50,7 +50,6 @@ const MODULE_GROUP_DEFS: readonly ModuleGroupDef[] = [
       'toolbar-visibility',
       'toolbar-date-settings',
       'grid-state',
-      'shortcuts',
     ],
   },
   {
@@ -71,7 +70,7 @@ const MODULE_GROUP_DEFS: readonly ModuleGroupDef[] = [
   {
     id: 'editing',
     label: 'Editing',
-    moduleIds: ['smart-edit', 'bulk-update', 'plus-minus', 'data-change-history'],
+    moduleIds: ['editing', 'data-change-history'],
   },
   {
     id: 'data',

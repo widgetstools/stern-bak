@@ -8,14 +8,14 @@ import {
 import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import {
   defaultShortcut,
-  SHORTCUTS_MODULE_ID,
+  EDITING_MODULE_ID,
+  type EditingState,
   type ShortcutDefinition,
   type ShortcutOperation,
   type ShortcutsSettings,
-  type ShortcutsState,
 } from '@wellsfargo-starui/core';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
-import { useModuleState } from '../../hooks/useModuleState';
+import { useEditingSlice } from '../editing/useEditingSlice';
 import { useGridColumns } from '../../hooks/useGridColumns';
 import {
   Band,
@@ -43,7 +43,7 @@ function ShortcutListBody({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  const [state, setState] = useModuleState<ShortcutsState>(SHORTCUTS_MODULE_ID);
+  const [state, setState] = useEditingSlice('shortcuts');
 
   const addShortcut = () => {
     const shortcut = defaultShortcut(`Shortcut ${state.shortcuts.length + 1}`);
@@ -109,7 +109,7 @@ function ShortcutListBody({
 }
 
 function ShortcutEditorBody({ shortcutId }: { shortcutId: string }) {
-  const [state, setState] = useModuleState<ShortcutsState>(SHORTCUTS_MODULE_ID);
+  const [state, setState] = useEditingSlice('shortcuts');
   const columns = useGridColumns();
 
   const shortcut = state.shortcuts.find((s) => s.id === shortcutId);
@@ -243,13 +243,13 @@ function ShortcutEditorBody({ shortcutId }: { shortcutId: string }) {
 
 function ShortcutsSettingsBand() {
   const { draft, setDraft, dirty, save, discard } = useModuleDraft<
-    ShortcutsState,
+    EditingState,
     ShortcutsSettings
   >({
-    moduleId: SHORTCUTS_MODULE_ID,
-    itemId: 'settings',
-    selectItem: (s) => s.settings,
-    commitItem: (settings) => (s) => ({ ...s, settings }),
+    moduleId: EDITING_MODULE_ID,
+    itemId: 'shortcuts-settings',
+    selectItem: (s) => s.shortcuts.settings,
+    commitItem: (settings) => (s) => ({ ...s, shortcuts: { ...s.shortcuts, settings } }),
   });
 
   const updateSetting = <K extends keyof ShortcutsSettings>(
@@ -304,7 +304,7 @@ function ShortcutsSettingsBand() {
 }
 
 export function ShortcutsList({ selectedId, onSelect }: ListPaneProps) {
-  const [state] = useModuleState<ShortcutsState>(SHORTCUTS_MODULE_ID);
+  const [state] = useEditingSlice('shortcuts');
 
   useEffect(() => {
     if (!selectedId && state.shortcuts.length > 0) {
@@ -333,7 +333,7 @@ export function ShortcutsEditor({ selectedId }: EditorPaneProps) {
 }
 
 function ShortcutsPanelInner() {
-  const [state, setState] = useModuleState<ShortcutsState>(SHORTCUTS_MODULE_ID);
+  const [state, setState] = useEditingSlice('shortcuts');
   const [selectedId, setSelectedId] = useState<string | null>(state.shortcuts[0]?.id ?? null);
 
   return (

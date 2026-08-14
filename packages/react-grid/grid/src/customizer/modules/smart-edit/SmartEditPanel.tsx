@@ -1,9 +1,9 @@
 import { memo } from 'react';
 import {
-  SMART_EDIT_MODULE_ID,
+  EDITING_MODULE_ID,
+  type EditingState,
   type SmartEditOp,
   type SmartEditSettings,
-  type SmartEditState,
 } from '@wellsfargo-starui/core';
 import { Button } from '@wellsfargo-starui/react';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
@@ -20,13 +20,13 @@ const ALL_OPS: { op: SmartEditOp; label: string }[] = [
 
 function SmartEditPanelInner() {
   const { draft, setDraft, dirty, save, discard } = useModuleDraft<
-    SmartEditState,
+    EditingState,
     SmartEditSettings
   >({
-    moduleId: SMART_EDIT_MODULE_ID,
-    itemId: 'settings',
-    selectItem: (s) => s.settings,
-    commitItem: (settings) => (s) => ({ ...s, settings }),
+    moduleId: EDITING_MODULE_ID,
+    itemId: 'smart-edit-settings',
+    selectItem: (s) => s.smartEdit.settings,
+    commitItem: (settings) => (s) => ({ ...s, smartEdit: { ...s.smartEdit, settings } }),
   });
 
   const updateSetting = <K extends keyof SmartEditSettings>(key: K, value: SmartEditSettings[K]) => {

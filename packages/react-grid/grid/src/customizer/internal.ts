@@ -318,25 +318,15 @@ export {
   type IndicatorIconDef,
 } from './modules/conditional-styling';
 export {
-  smartEditModule,
-  SMART_EDIT_MODULE_ID,
-  SmartEditToolbarBody,
-  useSmartEditSelection,
-} from './modules/smart-edit';
-export {
-  bulkUpdateModule,
-  BULK_UPDATE_MODULE_ID,
-  BulkUpdateToolbarBody,
-  useBulkUpdateSelection,
-} from './modules/bulk-update';
-export {
-  plusMinusModule,
-  PLUS_MINUS_MODULE_ID,
-} from './modules/plus-minus';
-export {
-  shortcutsModule,
-  SHORTCUTS_MODULE_ID,
-} from './modules/shortcuts';
+  editingModule,
+  EDITING_MODULE_ID,
+  EditingPanel,
+  useEditingSlice,
+} from './modules/editing';
+export { SmartEditToolbarBody } from './modules/smart-edit/SmartEditToolbarBody';
+export { useSmartEditSelection } from './modules/smart-edit/useSmartEditSelection';
+export { BulkUpdateToolbarBody } from './modules/bulk-update/BulkUpdateToolbarBody';
+export { useBulkUpdateSelection } from './modules/bulk-update/useBulkUpdateSelection';
 export {
   dataChangeHistoryModule,
   DATA_CHANGE_HISTORY_MODULE_ID,

@@ -3,10 +3,10 @@
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GridPlatform, type SmartEditState } from '@wellsfargo-starui/core';
+import { GridPlatform, type EditingState, type SmartEditState } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { SmartEditToolbarBody } from './SmartEditToolbarBody';
-import { smartEditModule } from './index';
+import { editingModule } from '../editing';
 
 function makeMockApi() {
   const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
@@ -33,11 +33,11 @@ function makeMockApi() {
 }
 
 function makePlatform(settings?: Partial<SmartEditState['settings']>): GridPlatform {
-  const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+  const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
   if (settings) {
-    platform.store.setModuleState<SmartEditState>('smart-edit', (s) => ({
+    platform.store.setModuleState<EditingState>('editing', (s) => ({
       ...s,
-      settings: { ...s.settings, ...settings },
+      smartEdit: { ...s.smartEdit, settings: { ...s.smartEdit.settings, ...settings } },
     }));
   }
   return platform;

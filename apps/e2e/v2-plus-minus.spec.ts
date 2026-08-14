@@ -47,7 +47,7 @@ async function waitForPlusMinusReady(
       }).__labGrid;
       if (!handle) return false;
       try {
-        const st = handle.platform.store.getModuleState('plus-minus');
+        const st = handle.platform.store.getModuleState('editing')?.plusMinus;
         if (st?.settings?.enabled !== true) return false;
         if ((st?.nudges?.length ?? 0) < min) return false;
         if (step != null && !st.nudges?.some((n) => n.incrementStep === step)) return false;

@@ -5,7 +5,7 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
-import { smartEditModule } from './index';
+import { editingModule } from '../editing';
 import { useSmartEditSelection } from './useSmartEditSelection';
 
 function makeMockApi() {
@@ -37,7 +37,7 @@ function makeMockApi() {
 
 describe('useSmartEditSelection', () => {
   it('returns cell count from focused cell', () => {
-    const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+    const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
     const api = makeMockApi();
     platform.onGridReady(api as never);
 
@@ -52,7 +52,7 @@ describe('useSmartEditSelection', () => {
   });
 
   it('recomputes when cellFocused fires', () => {
-    const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+    const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
     const api = makeMockApi();
     platform.onGridReady(api as never);
 
@@ -70,7 +70,7 @@ describe('useSmartEditSelection', () => {
   });
 
   it('returns empty selection before grid api is ready', () => {
-    const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+    const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
     const { result } = renderHook(() => useSmartEditSelection(), {
       wrapper: ({ children }) => (
         <GridProvider platform={platform}>{children}</GridProvider>
@@ -80,7 +80,7 @@ describe('useSmartEditSelection', () => {
   });
 
   it('counts cells from a range selection', () => {
-    const platform = new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+    const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
     const api = makeMockApi();
     api.getCellRanges = () => [{
       columns: [{ getColId: () => 'qty' }, { getColId: () => 'price' }],

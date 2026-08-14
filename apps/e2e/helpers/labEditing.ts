@@ -122,10 +122,21 @@ export async function waitForModuleEnabled(
 ): Promise<void> {
   await page.waitForFunction(
     ({ mod, want }) => {
-      const handle = (window as { __labGrid?: { platform?: { store?: { getModuleState: (m: string) => { settings?: { enabled?: boolean } } } } } }).__labGrid;
+      const handle = (window as { __labGrid?: { platform?: { store?: { getModuleState: (m: string) => Record<string, { settings?: { enabled?: boolean } }> & { settings?: { enabled?: boolean } } } } } }).__labGrid;
       if (!handle?.platform?.store) return false;
+      // The four pre-merge editing ids are slices of the merged module.
+      const sliceByLegacyId: Record<string, string> = {
+        'smart-edit': 'smartEdit',
+        'bulk-update': 'bulkUpdate',
+        'plus-minus': 'plusMinus',
+        shortcuts: 'shortcuts',
+      };
       try {
-        return handle.platform.store.getModuleState(mod)?.settings?.enabled === want;
+        const slice = sliceByLegacyId[mod];
+        const state = slice
+          ? handle.platform.store.getModuleState('editing')?.[slice]
+          : handle.platform.store.getModuleState(mod);
+        return state?.settings?.enabled === want;
       } catch {
         return false;
       }
@@ -143,7 +154,7 @@ export async function waitForSmartEditSetting(
   await page.waitForFunction(
     ({ settingKey, want }) => {
       const handle = (window as { __labGrid?: { platform?: { store?: { getModuleState: (m: string) => { settings?: Record<string, boolean> } } } } }).__labGrid;
-      const settings = handle?.platform?.store?.getModuleState('smart-edit')?.settings;
+      const settings = handle?.platform?.store?.getModuleState('editing')?.smartEdit?.settings;
       return settings?.[settingKey] === want;
     },
     { settingKey: key, want: value },

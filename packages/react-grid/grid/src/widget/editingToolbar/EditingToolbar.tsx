@@ -1,15 +1,9 @@
 import type { ReactNode } from 'react';
 import {
-  BULK_UPDATE_MODULE_ID,
   DATA_CHANGE_HISTORY_MODULE_ID,
-  PLUS_MINUS_MODULE_ID,
-  SHORTCUTS_MODULE_ID,
-  SMART_EDIT_MODULE_ID,
-  type BulkUpdateState,
+  EDITING_MODULE_ID,
   type DataChangeHistoryState,
-  type PlusMinusState,
-  type ShortcutsState,
-  type SmartEditState,
+  type EditingState,
 } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../customizer/hooks/useModuleState';
 import { BulkUpdateToolbarBody } from '../../customizer/modules/bulk-update/BulkUpdateToolbarBody';
@@ -37,10 +31,8 @@ function joinSegments(nodes: Array<ReactNode | false | null | undefined>) {
 /** Unified editing toolbar — history, smart edit, bulk update, keyboard hints. */
 export function EditingToolbar({ allow }: EditingToolbarProps) {
   const [history] = useModuleState<DataChangeHistoryState>(DATA_CHANGE_HISTORY_MODULE_ID);
-  const [smartEdit] = useModuleState<SmartEditState>(SMART_EDIT_MODULE_ID);
-  const [bulkUpdate] = useModuleState<BulkUpdateState>(BULK_UPDATE_MODULE_ID);
-  const [plusMinus] = useModuleState<PlusMinusState>(PLUS_MINUS_MODULE_ID);
-  const [shortcuts] = useModuleState<ShortcutsState>(SHORTCUTS_MODULE_ID);
+  const [editing] = useModuleState<EditingState>(EDITING_MODULE_ID);
+  const { smartEdit, bulkUpdate, plusMinus, shortcuts } = editing;
 
   const showHistory = allow.allowHistory && history.settings.enabled;
   const showSmartEdit = allow.allowSmartEdit && smartEdit.settings.enabled;

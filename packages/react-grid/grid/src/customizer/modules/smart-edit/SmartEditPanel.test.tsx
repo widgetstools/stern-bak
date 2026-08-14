@@ -3,13 +3,13 @@
  */
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GridPlatform } from '@wellsfargo-starui/core';
+import { GridPlatform, type EditingState } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { SmartEditPanel } from './SmartEditPanel';
-import { smartEditModule } from './index';
+import { editingModule } from '../editing';
 
 function makePlatform(): GridPlatform {
-  return new GridPlatform({ gridId: 'test-grid', modules: [smartEditModule] });
+  return new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
 }
 
 function mount(platform: GridPlatform) {
@@ -55,7 +55,7 @@ describe('SmartEditPanel', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     });
-    expect(platform.store.getModuleState('smart-edit').settings.enabled).toBe(false);
+    expect(platform.store.getModuleState<EditingState>('editing').smartEdit.settings.enabled).toBe(false);
   });
 
   it('toggle op buttons update enabledOps draft', () => {
@@ -66,7 +66,7 @@ describe('SmartEditPanel', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     });
-    const ops = platform.store.getModuleState('smart-edit').settings.enabledOps;
+    const ops = platform.store.getModuleState<EditingState>('editing').smartEdit.settings.enabledOps;
     expect(ops.includes('multiply')).toBe(false);
   });
 
@@ -77,14 +77,14 @@ describe('SmartEditPanel', () => {
       fireEvent.blur(screen.getByTestId('se-confirm-input'));
     });
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState('smart-edit').settings.confirmThreshold).toBe(10);
+    expect(platform.store.getModuleState<EditingState>('editing').smartEdit.settings.confirmThreshold).toBe(10);
   });
 
   it('Reset reverts unsaved draft', () => {
     mount(platform);
     act(() => fireEvent.click(screen.getByTestId('se-enabled-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Reset' })));
-    expect(platform.store.getModuleState('smart-edit').settings.enabled).toBe(true);
+    expect(platform.store.getModuleState<EditingState>('editing').smartEdit.settings.enabled).toBe(true);
   });
 
   it('increment input and magnitude toggle update draft', () => {
@@ -95,7 +95,7 @@ describe('SmartEditPanel', () => {
     });
     act(() => fireEvent.click(screen.getByTestId('se-magnitude-toggle')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    const settings = platform.store.getModuleState('smart-edit').settings;
+    const settings = platform.store.getModuleState<EditingState>('editing').smartEdit.settings;
     expect(settings.incrementStep).toBe(0.5);
     expect(settings.magnitudeShortcutsEnabled).toBe(false);
   });
@@ -105,6 +105,6 @@ describe('SmartEditPanel', () => {
     act(() => fireEvent.click(screen.getByTestId('se-op-divide')));
     act(() => fireEvent.click(screen.getByTestId('se-op-divide')));
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
-    expect(platform.store.getModuleState('smart-edit').settings.enabledOps.includes('divide')).toBe(true);
+    expect(platform.store.getModuleState<EditingState>('editing').smartEdit.settings.enabledOps.includes('divide')).toBe(true);
   });
 });

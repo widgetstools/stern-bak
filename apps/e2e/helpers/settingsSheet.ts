@@ -121,19 +121,53 @@ export const PANEL_ROOT_TESTID: Record<PanelModuleId, string> = {
 };
 
 /**
+ * The four pre-merge editing module ids now live as SECTIONS inside the
+ * merged `editing` module's panel. Navigating to one of them means:
+ * open the `editing` panel, then click its section tab.
+ */
+const EDITING_SECTION_IDS = new Set(['smart-edit', 'bulk-update', 'plus-minus', 'shortcuts']);
+
+/**
+ * Opens the menubar menu owning `moduleId` (resolved through the group
+ * trigger's `data-modules` attribute) and returns the module item's
+ * locator once it is mounted. The sheet slides in, so a group click
+ * dispatched mid-animation can land on a neighbouring trigger — verify
+ * the intended item actually mounted and Escape + retry when it didn't.
+ */
+export async function openModuleMenu(page: Page, moduleId: string) {
+  const item = page.locator(`[data-testid="v2-settings-nav-menu-${moduleId}"]`);
+  for (let attempt = 0; ; attempt += 1) {
+    if (!(await item.isVisible().catch(() => false))) {
+      await page
+        .locator(`[data-testid^="v2-settings-nav-group-"][data-modules~="${moduleId}"]`)
+        .click();
+    }
+    const mounted = await item
+      .waitFor({ state: 'visible', timeout: 2_000 })
+      .then(() => true, () => false);
+    if (mounted) return item;
+    if (attempt >= 2) {
+      throw new Error(`settings nav item for "${moduleId}" did not appear after ${attempt + 1} attempts`);
+    }
+    await page.keyboard.press('Escape');
+  }
+}
+
+/**
  * Navigates to a module via the visible grouped menubar — opens the
- * category menu owning `moduleId` (resolved through the trigger's
- * `data-modules` attribute), then clicks the module item. Assumes the
- * settings sheet is already open. Works on popout `Page`s too.
+ * category menu owning `moduleId`, then clicks the module item. Assumes
+ * the settings sheet is already open. Works on popout `Page`s too.
  */
 export async function navigateToModule(page: Page, moduleId: string): Promise<void> {
-  const item = page.locator(`[data-testid="v2-settings-nav-menu-${moduleId}"]`);
-  if (!(await item.isVisible().catch(() => false))) {
-    await page
-      .locator(`[data-testid^="v2-settings-nav-group-"][data-modules~="${moduleId}"]`)
-      .click();
-  }
+  const sectionId = EDITING_SECTION_IDS.has(moduleId) ? moduleId : null;
+  const targetModuleId = sectionId ? 'editing' : moduleId;
+  const item = await openModuleMenu(page, targetModuleId);
   await item.click();
+  if (sectionId) {
+    const tab = page.locator(`[data-testid="editing-section-tab-${sectionId}"]`);
+    await tab.waitFor({ state: 'visible', timeout: 10_000 });
+    await tab.click();
+  }
 }
 
 /**

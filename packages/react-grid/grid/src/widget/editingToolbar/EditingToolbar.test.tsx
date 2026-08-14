@@ -4,11 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/core';
 import {
-  BULK_UPDATE_MODULE_ID,
   DATA_CHANGE_HISTORY_MODULE_ID,
-  PLUS_MINUS_MODULE_ID,
-  SHORTCUTS_MODULE_ID,
-  SMART_EDIT_MODULE_ID,
+  EDITING_MODULE_ID,
+  INITIAL_EDITING,
+  type EditingState,
 } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../customizer/internal.js';
 import { EditingToolbar } from './EditingToolbar';
@@ -29,21 +28,28 @@ function mountToolbar(allow: React.ComponentProps<typeof EditingToolbar>['allow'
     settings: { enabled: true },
     entries: [],
   }));
-  platform.store.setModuleState(SMART_EDIT_MODULE_ID, () => ({
-    settings: { enabled: true },
-    rules: [],
-  }));
-  platform.store.setModuleState(BULK_UPDATE_MODULE_ID, () => ({
-    settings: { enabled: true },
-    rules: [],
-  }));
-  platform.store.setModuleState(PLUS_MINUS_MODULE_ID, () => ({
-    settings: { enabled: true },
-    nudges: [{ id: 'n1', name: 'Price', incrementStep: 1, decrementStep: 1, enabled: true }],
-  }));
-  platform.store.setModuleState(SHORTCUTS_MODULE_ID, () => ({
-    settings: { enabled: true },
-    shortcuts: [{ id: 's1', name: 'Fill', shortcutKey: 'f', operation: 'set', shortcutValue: '1', enabled: true }],
+  platform.store.setModuleState<EditingState>(EDITING_MODULE_ID, () => ({
+    ...structuredClone(INITIAL_EDITING),
+    plusMinus: {
+      settings: { enabled: true, recordHistory: true },
+      nudges: [
+        { id: 'n1', name: 'Price', incrementStep: 1, decrementStep: 1, enabled: true, scope: { columnIds: [] } },
+      ],
+    },
+    shortcuts: {
+      settings: { enabled: true, recordHistory: true },
+      shortcuts: [
+        {
+          id: 's1',
+          name: 'Fill',
+          shortcutKey: 'f',
+          operation: 'multiply',
+          shortcutValue: 1,
+          enabled: true,
+          scope: { columnIds: [] },
+        },
+      ],
+    },
   }));
   return render(
     <GridProvider platform={platform}>
@@ -83,13 +89,10 @@ describe('EditingToolbar', () => {
       settings: { enabled: true },
       entries: [],
     }));
-    platform.store.setModuleState(PLUS_MINUS_MODULE_ID, () => ({
-      settings: { enabled: true },
-      nudges: [],
-    }));
-    platform.store.setModuleState(SHORTCUTS_MODULE_ID, () => ({
-      settings: { enabled: false },
-      shortcuts: [],
+    platform.store.setModuleState<EditingState>(EDITING_MODULE_ID, () => ({
+      ...structuredClone(INITIAL_EDITING),
+      plusMinus: { settings: { enabled: true, recordHistory: true }, nudges: [] },
+      shortcuts: { settings: { enabled: false, recordHistory: true }, shortcuts: [] },
     }));
     render(
       <GridProvider platform={platform}>

@@ -49,10 +49,6 @@ const PANEL_TESTID_BY_MODULE_ID: Record<string, string> = {
   // `cols-panel` testid the e2e helpers + docs consistently target.
   'column-customization': 'cols-panel',
   alerts: 'alerts-panel',
-  'smart-edit': 'smart-edit-panel',
-  'bulk-update': 'bulk-update-panel',
-  'plus-minus': 'plus-minus-panel',
-  shortcuts: 'shortcuts-panel',
   'data-change-history': 'edit-history-panel',
   'toolbar-date-settings': 'toolbar-date-settings-panel',
 };
