@@ -1,7 +1,7 @@
 # Simplification roadmap — execution record
 
-**Branch:** `feature/simplify` (off `feature/ssrm`). **Status: Phases 0–5
-complete (32 commits + doc commits); Phases 6–7 remain.** All commits
+**Branch:** `feature/simplify` (off `feature/ssrm`). **Status: Phases 0–6
+complete (39 commits + doc commits); Phase 7 remains.** All commits
 local/unpushed unless the log says otherwise.
 
 The originating review found a ~130k-LOC framework whose irreducible
@@ -261,17 +261,73 @@ selections (fields mode incl. SSRM group select-all) and the
 no-transport error appears when linking is enabled without
 interop/fdc3.
 
-## Phase 6 — customizer consolidation ⬜
+## Phase 6 — customizer consolidation ✅ (7 commits)
 
-Merge the numeric-edit module family (smart-edit + bulk-update +
-shortcuts + plus-minus → one editing module; they already share
-`applyNumericOp`/`buildPatchesFromTargets`), one write-surface for
-column styling (Column Settings is authority), one UI kit
-(customizer/ui 8.5k LOC → ~4k using `@wellsfargo-starui/react`
-primitives; 4 color pickers → 1), slimmer module-authoring contract,
-provider-editor/config-browser reuse of the shared grid mount. Persisted
-module state changes ship `migrate()` paths. Re-count the public symbol
-surface here against the ≤400 goal.
+`e1f14a2` `e1fa551` `39a6aab` `2585845` `de67fb7` `fd23def` `c43d60f`
+
+- **One `editing` module** (`e1f14a2`): smart-edit + bulk-update +
+  plus-minus + shortcuts → one module id / persisted envelope / settings
+  panel (four section tabs) / keyboard runtime (`activateEditing`
+  arbitrates +/- ownership and letter shortcuts). Constraint-1 seam: new
+  `Module.legacyIds` + `migrateLegacy` on `GridPlatform.deserializeAll`
+  assembles `EditingState` from pre-merge snapshots' four legacy
+  envelopes; version-TOLERANT — the old path DROPPED smart-edit
+  envelopes stamped `v:1` by the lab profile kit (module was v2, no
+  `migrate`), a real state-loss bug fixed, not preserved. e2e helpers
+  resolve the legacy ids to section tabs; `navigateToModule` hardened
+  against the settings-sheet slide-in / menu-animation races that made
+  two specs flake under parallel-worker load. The v2-bulk-update
+  distinct-value spec was red BEFORE the merge (stash-verified: the
+  active seed profile sets `showDistinctValues: false`); it now loads
+  the profile built for the dropdown.
+- **Editing-toolbar allow collapse + prop diet** (`e1fa551`): the
+  4-field `EditingToolbarAllow` struct was structurally dead since
+  Phase 0 — collapsed to `useEditingToolbarVisible(showEditingToolbar)`
+  (host tri-state; `undefined` defers to module switches).
+  `showColumnSelector` + `showToolbarDatePicker` deleted (10 → 8 `show*`
+  props; both defaulted true with zero setters anywhere — rendered
+  behavior identical for every consumer).
+- **Module-authoring contract** (`39a6aab`): `defineModule` defaults
+  schemaVersion/priority/getInitialState/serialize/deserialize AND
+  `migrate` (additive spread — a version bump can no longer silently
+  drop state); `Module.category` replaces the menubar's id-list map
+  (settings nav buckets by the module's own field); dead `code` field
+  deleted (zero runtime consumers). "Add a toggle" now touches 4 files.
+- **UI kit** (`2585845`): dead components deleted with per-symbol
+  verification (icons.tsx, ItemCard, PanelChrome, TabStrip, the bare
+  `ColorPicker` shell — dead since Phase 0's check that kept its file —
+  and the `DirtyDot` BC alias); `PortalContainer` pure re-export
+  collapsed onto `@wellsfargo-starui/react`; files renamed to their
+  primary exports (`LedBar.tsx`, `ColorPickerPopover.tsx`).
+- **Tool surfaces** (`de67fb7`): config-browser's private DynamicIcon
+  fork deleted (9 unique Lucide keys merged into the design-system map;
+  one-line re-export keeps its 8 importers untouched); its two
+  hand-baked AG themes replaced by ONE `staruiGridTheme.withParams(tool
+  overrides)` switched by the `data-ag-theme-mode` attribute it already
+  writes; provider editor's registrar fork deleted —
+  `ensureAgGridModules` now public on the grid barrel (fork had omitted
+  the set-filter validate guard). Browser-verified on star-demo.
+- **One write-surface for column styling** (`fd23def`): survey PROVED
+  the formatting toolbar already writes the same
+  `column-customization` state (same store key/type/field paths — no
+  parallel copy); the ownership matrix in `current-features.md` is now
+  the single reference (authority = Column Settings; every writer's
+  fields; ColumnsTab's lower-precedence base-colDef layer; the
+  deliberate divergences). Dead `clearAllBordersReducer` deleted.
+- **Barrel curation + re-count** (`c43d60f`): core `.` 400 → 289 names
+  (111 zero-external-importer names dropped; 7 API-companion types
+  kept; d.ts references of other packages verified clean). Totals
+  (checker-verified, same tool as Phase 4's baseline):
+  **45 subpaths / 1,831 slots / 1,439 names** vs pre-Phase-4
+  55 / 2,307 / 1,729. The ≤400 TOTAL goal is **not reachable without
+  deleting consumed, documented API** — the remaining bulk is real
+  consumed surface (react `.` shadcn set 253, data 155+94,
+  design-system icon components 139, core `.` 289 now all externally
+  consumed) — recorded here instead of forced.
+
+Manual-validation note: config-browser + provider editor render checks
+were done in a browser (star-demo routes); an OpenFin dock-opened
+config-browser window deserves one eyeball pass on the new theme.
 
 ## Phase 7 — docs ⬜
 
@@ -295,6 +351,12 @@ nonexistent packages.
 | 5 | leaked call sites go through `RuntimePort` | function seams on `openfin/host` | the port is prop-injected with one call site; widening it plumbs host context through every hosted hook for nothing |
 | 5 | initWorkspace pieces default minimal | migrations default stays ON | flipping it off breaks the persisted-state healing existing installs depend on |
 | 5 | one popout mechanism | URL-window family unified; PopoutPortal kept | DOM-reparenting popouts are a different mechanism (state preserved) and the only e2e-covered path |
+| 6 | customizer/ui 8.5k LOC → ~4k; replace duplicates with react primitives | dead files/exports deleted; wrappers kept | the audit's "gc-themed shadcn copy" NEVER EXISTED (git-history-verified); every primitive already comes from `@wellsfargo-starui/react` — the wrappers add styling/legacy APIs, not duplication |
+| 6 | 4 color pickers → 1; 3 formatter pickers → 1 | dead `ColorPicker` shell deleted; the rest kept | ground truth: ONE engine (`FormatColorPicker`) behind role-distinct shells (toolbar popover vs alpha-carrying compact field); `FormatterPicker` is already one entry with compact/inline presentations; `FormatSection` is a narrow styling-band control with a different API |
+| 6 | MarketsGridProps keeps ~4 coarse show* props | 10 → 8 (two zero-consumer props deleted) | the remaining 8 have live lab/demo consumers; "one mechanism" via general-settings would be a NEW persisted feature — general-settings has no toolbar-visibility mechanism (the `toolbar-visibility` module only stores filter-pill expansion) |
+| 6 | ColumnsTab loses styling authority | UI already authors names/types/valueGetter only; JSON-import styling fields kept | removing the import back door breaks existing exported provider configs (constraint 1); precedence documented in the ownership matrix |
+| 6 | tools reuse the shared grid MOUNT | registrar + theme + icons unified; purpose-built AgGridReact mounts kept | `MarketsGridSurface` lacks pass-through for the editors' core interactions (rowDrag, singleClickEdit, getRowId, cell-change hooks) and `MarketsGridCore` drags a GridPlatform per embedded table; config-browser's narrow module registration is a documented perf decision |
+| 6 | ≤400 total public symbols | 1,831 slots / 1,439 names recorded | the remainder is consumed, documented API (shadcn set, icon components, data runtime); deleting it breaks external consumers for a number's sake |
 
 ## Known-broken, tracked, not chased
 
