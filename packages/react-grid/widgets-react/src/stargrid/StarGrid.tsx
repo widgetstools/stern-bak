@@ -224,7 +224,7 @@ export function StarGrid(props: StarGridProps): ReactElement {
   const handleReady = useCallback(
     (handle: MarketsGridHandle) => {
       gridRef.current = handle;
-      if (linkActive) setGridApi(handle.gridApi as unknown as GridApi);
+      if (linkActive) setGridApi(handle.gridApi);
       advancedOnReady?.(handle);
       onReady?.(handle);
     },

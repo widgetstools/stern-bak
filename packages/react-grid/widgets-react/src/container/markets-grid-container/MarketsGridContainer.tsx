@@ -481,7 +481,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   const onReady = useCallback((handle: MarketsGridHandle) => {
     const k = expectedKeyRef.current;
     if (k) {
-      setStamped({ key: k, api: handle.gridApi as unknown as GridApi<TData> });
+      setStamped({ key: k, api: handle.gridApi as GridApi<TData> });
     }
     gridHandleRef.current = handle;
     setGridHandle(handle);

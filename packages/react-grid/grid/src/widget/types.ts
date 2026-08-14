@@ -370,9 +370,10 @@ export interface MarketsGridProps<TData = unknown> {
  * things a consumer might reach for when interacting programmatically
  * with a MarketsGrid instance.
  */
-export interface MarketsGridHandle {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface MarketsGridHandle<TData = any> {
   /** AG-Grid's GridApi — column manipulation, filters, sort, export, etc. */
-  gridApi: GridApi;
+  gridApi: GridApi<TData>;
   /** Our module-system handle — module state, transforms, expression engine. */
   platform: GridPlatform;
   /** The hook-shaped profile manager — `{ activeProfileId, profiles,

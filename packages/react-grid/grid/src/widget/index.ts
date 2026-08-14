@@ -21,7 +21,9 @@ export type {
   SavedFilter,
   AdminAction,
   MarketsGridHandle,
+  MarketsGridSsrmProps,
   StorageAdapterFactory,
   StorageAdapterFactoryOpts,
   MarketsGridLocalStorageConfig,
 } from './types';
+export { isMarketsGridSsrmMode } from './types';

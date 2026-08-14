@@ -6,7 +6,9 @@ import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/core';
  * Shapes are intentionally aligned — pass-through with explicit typing.
  */
 export function storagePortAsAdapter(port: StoragePort): StorageAdapter {
-  return port as unknown as StorageAdapter;
+  // Structural: both interfaces share the ONE ProfileSnapshot from
+  // @wellsfargo-starui/types since the type-seam unification.
+  return port;
 }
 
 /** Wrap a host DataPort as the engine's AppDataLookup object shape. */

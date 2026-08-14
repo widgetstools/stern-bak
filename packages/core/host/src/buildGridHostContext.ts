@@ -15,7 +15,9 @@ export interface GridHostScope {
 }
 
 function adapterAsStoragePort(adapter: StorageAdapter): StoragePort {
-  return adapter as unknown as StoragePort;
+  // Structural: both interfaces share the ONE ProfileSnapshot from
+  // @wellsfargo-starui/types since the type-seam unification.
+  return adapter;
 }
 
 export function storageFactoryForPersistence(

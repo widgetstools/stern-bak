@@ -38,11 +38,12 @@ export type { GridApi, GridOptions, GetRowIdFunc, GetRowIdParams };
  * value doesn't match the current module's schemaVersion, the platform
  * invokes `migrate` (or drops the state with a warning if no migration is
  * supplied).
+ *
+ * Canonical declaration lives in `@wellsfargo-starui/types` (so the
+ * storage contract is shared across layers); re-exported here to keep
+ * the engine import path stable.
  */
-export interface SerializedState {
-  v: number;
-  data: unknown;
-}
+export type { SerializedState } from '@wellsfargo-starui/types';
 
 // ─── Typed event bus ──────────────────────────────────────────────────────
 

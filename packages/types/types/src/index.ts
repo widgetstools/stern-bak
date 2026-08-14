@@ -51,12 +51,23 @@ export interface SurfaceHandle {
   onClosed(fn: () => void): Unsubscribe;
 }
 
+/**
+ * Versioned per-module state envelope — what `GridPlatform.serializeAll()`
+ * produces for every customizer module. Hosted here so the ONE
+ * `ProfileSnapshot` contract can be shared by the engine's StorageAdapter
+ * and the host layer's StoragePort without an engine dependency.
+ */
+export interface SerializedState {
+  v: number;
+  data: unknown;
+}
+
 /** Opaque profile blob — engine interprets; host adapters store. */
 export interface ProfileSnapshot {
   readonly id: string;
   readonly gridId: string;
   name: string;
-  state: Record<string, unknown>;
+  state: Record<string, SerializedState>;
   createdAt: number;
   updatedAt: number;
 }

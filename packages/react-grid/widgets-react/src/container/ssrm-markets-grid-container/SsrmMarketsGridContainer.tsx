@@ -353,11 +353,11 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   // save-before-provider-switch flush.
   const gridApiRef = useRef<{ refreshServerSide?: (p?: { purge?: boolean }) => void } | null>(null);
   const handleReady = useCallback(
-    (handle: { gridApi?: unknown }) => {
-      gridApiRef.current = (handle.gridApi ?? null) as typeof gridApiRef.current;
-      gridHandleRef.current = handle as MarketsGridHandle;
-      setGridHandle(handle as MarketsGridHandle);
-      (onReady as ((h: unknown) => void) | undefined)?.(handle);
+    (handle: MarketsGridHandle) => {
+      gridApiRef.current = handle.gridApi ?? null;
+      gridHandleRef.current = handle;
+      setGridHandle(handle);
+      onReady?.(handle);
     },
     [onReady],
   );

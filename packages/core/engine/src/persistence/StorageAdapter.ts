@@ -1,18 +1,14 @@
-import type { SerializedState } from '../platform/types';
-
 /**
  * Persisted profile shape. `state` is the map of module id → versioned
  * envelope that `GridPlatform.serializeAll()` produces. Adapters treat it as
  * an opaque blob — only the platform knows how to interpret it.
+ *
+ * ONE declaration, in `@wellsfargo-starui/types` — the same interface the
+ * host layer's `StoragePort` uses, which is what lets an adapter cross the
+ * engine/host seam without `as unknown as`.
  */
-export interface ProfileSnapshot {
-  readonly id: string;
-  readonly gridId: string;
-  name: string;
-  state: Record<string, SerializedState>;
-  createdAt: number;
-  updatedAt: number;
-}
+export type { ProfileSnapshot } from '@wellsfargo-starui/types';
+import type { ProfileSnapshot } from '@wellsfargo-starui/types';
 
 /**
  * Minimal K/V contract for per-grid profile storage.
