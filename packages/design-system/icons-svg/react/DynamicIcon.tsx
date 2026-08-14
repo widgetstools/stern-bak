@@ -36,12 +36,24 @@ import {
   GitBranch, Share2, Plug, Power, LogIn, LogOut, Info, HelpCircle,
   AlertTriangle, AlertCircle, Ban, MessageSquare, MessageCircle,
   ListTree, SunMoon, Pipette, Wrench, Loader2, SearchX,
+  CircleCheck, Cloud, CloudOff, DatabaseBackup, FileJson, Inbox,
+  OctagonAlert, Rocket, TriangleAlert,
 } from 'lucide-react';
 
 // ─── Icon lookup map ─────────────────────────────────────────────────
 // Maps Iconify-style IDs ("lucide:file-text") to Lucide React components.
 // This lets us render icons from config strings without @iconify/react.
 const ICON_MAP: Record<string, LucideIcon> = {
+  // config-browser set (merged when its private icon fork was deleted)
+  'lucide:circle-check': CircleCheck,
+  'lucide:cloud': Cloud,
+  'lucide:cloud-off': CloudOff,
+  'lucide:database-backup': DatabaseBackup,
+  'lucide:file-json': FileJson,
+  'lucide:inbox': Inbox,
+  'lucide:octagon-alert': OctagonAlert,
+  'lucide:rocket': Rocket,
+  'lucide:triangle-alert': TriangleAlert,
   'lucide:file-text': FileText,
   'lucide:file': File,
   'lucide:file-plus': FilePlus,
@@ -174,7 +186,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
 
 // ─── Component ──────────────────────────────────────────────────────
 
-interface DynamicIconProps {
+export interface DynamicIconProps {
   /** Iconify-style icon ID (e.g. "lucide:file-text") */
   icon: string;
   /** CSS styles — width/height/color are applied to the SVG */

@@ -4,13 +4,12 @@ import { AgGridReact } from "ag-grid-react";
 import type { CellStyle, ColDef, GridOptions, RowClickedEvent } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import { StatusBarModule } from "ag-grid-enterprise";
-import { agGridThemeFor } from "../agGridTheme";
+import { configBrowserGridTheme } from "../agGridTheme";
 
 ModuleRegistry.registerModules([AllCommunityModule, StatusBarModule]);
 
 interface DataGridProps {
   rows: any[];
-  theme: "dark" | "light";
   quickFilter: string;
   primaryKey: string;
   onRowClick: (row: any) => void;
@@ -74,7 +73,6 @@ export function previewJson(v: unknown, budget: number): string {
  */
 export function DataGrid({
   rows,
-  theme,
   quickFilter,
   primaryKey,
   onRowClick,
@@ -148,9 +146,8 @@ export function DataGrid({
       headerHeight: 34,
       suppressCellFocus: true,
       animateRows: false,
-      theme: agGridThemeFor(theme),
     }),
-    [theme],
+    [],
   );
 
   const handleRowClick = (e: RowClickedEvent) => {
@@ -168,7 +165,7 @@ export function DataGrid({
   return (
     <div style={{ flex: 1, minHeight: 0, width: "100%", position: "relative" }}>
       <AgGridReact
-        theme={agGridThemeFor(theme)}
+        theme={configBrowserGridTheme}
         rowData={rows}
         getRowId={getRowId}
         columnDefs={columnDefs}

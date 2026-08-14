@@ -316,7 +316,6 @@ export function ConfigBrowserPanel() {
             ) : (
               <DataGrid
                 rows={rows}
-                theme={theme}
                 quickFilter={quickFilter}
                 primaryKey={selected.primaryKey}
                 onRowClick={openEdit}

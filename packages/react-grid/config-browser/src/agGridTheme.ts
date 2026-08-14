@@ -1,18 +1,16 @@
 /**
- * AG-Grid theming bridge for config-browser-react.
+ * AG-Grid theming bridge for config-browser.
  *
- * Surface / border / focus / range / accent colors flow from the design-system
- * adapter (agGridDarkParams / agGridLightParams). Only tool-specific overrides
- * (input chrome, resize handle, header row border, wrapper border) are kept here.
- * Flipping [data-theme="light"|"dark"] re-skins the grid automatically via
- * the CSS variables resolved by the adapter.
+ * One theme object: the canonical `staruiGridTheme` (mode-switched by the
+ * `data-ag-theme-mode` attribute on <html>, which ConfigBrowser sets) plus
+ * the tool-specific chrome overrides (input chrome, resize handle, header
+ * row border, wrapper border). The `--ds-*` variables in the overrides
+ * re-resolve per theme, so no per-mode theme objects are needed.
  */
-import { themeQuartz } from "ag-grid-community";
 import type { Theme } from "ag-grid-community";
-import { agGridDarkParams, agGridLightParams } from "@wellsfargo-starui/design-system/adapters/ag-grid";
+import { staruiGridTheme } from "@wellsfargo-starui/design-system/adapters/ag-grid";
 
-// Tool-specific overrides: input chrome + structural borders not covered by adapter.
-const overrides = {
+export const configBrowserGridTheme: Theme = staruiGridTheme.withParams({
   headerColumnResizeHandleColor: "var(--ds-border-secondary)",
   wrapperBorder:    "solid 1px var(--ds-border-primary)",
   headerRowBorder:  "solid 1px var(--ds-border-primary)",
@@ -20,11 +18,4 @@ const overrides = {
   inputBackgroundColor: "var(--ds-surface-secondary)",
   inputBorder:      "solid 1px var(--ds-border-primary)",
   inputTextColor:   "var(--ds-text-primary)",
-};
-
-const agGridThemeDark: Theme  = themeQuartz.withParams({ ...agGridDarkParams,  ...overrides });
-const agGridThemeLight: Theme = themeQuartz.withParams({ ...agGridLightParams, ...overrides });
-
-export function agGridThemeFor(theme: "dark" | "light"): Theme {
-  return theme === "dark" ? agGridThemeDark : agGridThemeLight;
-}
+});

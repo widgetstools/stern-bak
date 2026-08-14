@@ -9,6 +9,7 @@
 export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES } from './widget/MarketsGrid.js';
 export { isMarketsGridSsrmMode } from './widget/types.js';
 export { useGridTheme } from './widget/theme/index.js';
+export { ensureAgGridModules } from './widget/ensureAgGridModules.js';
 export { FiltersToolbar, type FiltersToolbarProps } from './widget/FiltersToolbar.js';
 export { FormattingToolbar } from './widget/FormattingToolbar.js';
 export { DraggableFloat } from './widget/DraggableFloat.js';

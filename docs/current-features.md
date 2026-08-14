@@ -360,6 +360,7 @@ Per-renderer config types (`PillRendererConfig`,
 - `useGridHost`, `useMarketsGridController` — imperative grid control hooks (internal to `MarketsGrid`; not on package `.` barrel)
 - `useFilterModel` — filter-model persistence + mutation; per-pill counts use incremental `RowChangeBus` deltas on streaming ticks (full-grid recompute only on structural changes / cold mount)
 - `useGridTheme` — resolves AG Grid theme from `data-theme`
+- `ensureAgGridModules(modules?)` — one-shot AG Grid module registration (full `AllEnterpriseModule` by default, optional subset) + dev validations + the set-filter validate guard; on the package `.` barrel so embedded grids (provider editor Columns/AppData tables) share it instead of forking their own registrar
 - `grid-chrome.css` — container/toolbar layout
 
 #### Server-side row model (SSRM)
@@ -690,6 +691,8 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Provider editor tabs (internal to `DataProviderEditor`; not separately importable)
 
+Embedded AG Grid tables (Columns tab, AppData fields) register modules via the shared `ensureAgGridModules` from `@wellsfargo-starui/grid` (the tool's private registrar fork is deleted — the shared one additionally installs the set-filter validate guard) and already themed via `useAgGridTheme` → `staruiGridTheme`.
+
 - `ConnectionTab` — connection string, auth, transport selection; "Test Connection" button (STOMP/REST) drives `useProviderProbe.test()`. STOMP runs a pure socket connect (`connectStomp` — handshake only, no subscribe/trigger/rows) and shows "Connected"; row-fetching transports (REST/mock) show "Connected — received N rows"
 - `FieldsTab` — discover provider fields, map to columns, infer types; `buildColumns` maps each inferred `FieldNode.type` to a `cellDataType` (number/boolean/object pass through, everything else → `text`), and **inferred date fields → `dateString`** (not `date`) because `inferFields` detects ISO date *strings*, which AG-Grid's `date` type — expecting native `Date` objects — would mis-sort/filter
 - `ColumnsTab` — derive AG Grid column defs from schema; collapsible Key Column + Add Custom Column panels and a scrollable body keep the columns table at a usable minimum height in short containers. **Export JSON / Import JSON** buttons (header cluster, plus an Import button in the empty state) round-trip the full `ColumnDefinition[]` via `columnDefsIo` — export preserves `valueGetter`; import replaces the columns and prunes the key column to surviving fields, surfacing parse errors inline. A "Clear all columns" button (confirm dialog) wipes the column list and the now-stale key column in one action. Per-row ƒx button opens a Monaco `ExpressionEditor` (from `@wellsfargo-starui/grid/customizer`) to author a column `valueGetter` DSL expression (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, live-validated); persists onto `ColumnDefinition.valueGetter`, applied at runtime by `buildColumnDefs`
@@ -786,7 +789,9 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 **Public exports:**
 
 - `./config-browser` — `ConfigBrowserPanel`, `useConfigBrowser`, types
-- `./config-browser/icons` — `DynamicIcon` (Lucide id → component for config-browser chrome)
+  (chrome icons come from `@wellsfargo-starui/design-system/icons/react`
+  `DynamicIcon` — the tool's private Lucide fork was deleted and its nine
+  unique keys merged into the design-system map)
 
 #### Panels & dialogs
 
@@ -809,7 +814,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - Platform scope realignment — `initWorkspace` reads manifest / `app-config.json` `appId` instead of hard-coded `TestApp`; `migrateRegistryAppIdDrift()` runs inside workspace init (not a public `@wellsfargo-starui/openfin` export); `readHostEnv()` uses the same bootstrap before dev fallback
 - `TABLES` — table enumeration
 - `createConfigBrowserAction` — wire config browser as OpenFin context-menu action
-- `agGridThemeFor()` — AG Grid theme adapter (internal helper; not on package barrel)
+- `configBrowserGridTheme` — the canonical design-system `staruiGridTheme` plus the tool's chrome overrides (input chrome, resize handle, structural borders via `--ds-*` vars); ONE theme object, mode-switched by the `data-ag-theme-mode` attribute ConfigBrowser already writes (internal helper; not on package barrel). Replaced the tool's two hand-baked `themeQuartz` objects
 - `editorStyles` — inline styles for editors
 - Format conversion, validation, clipboard helpers
 

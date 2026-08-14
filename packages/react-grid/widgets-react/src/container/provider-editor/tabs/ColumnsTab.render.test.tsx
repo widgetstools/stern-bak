@@ -23,8 +23,9 @@ vi.mock('../../../theme/useAgGridTheme.js', () => ({
   useAgGridTheme: () => ({ theme: null }),
 }));
 
-vi.mock('../ensureProviderEditorAgGridModules.js', () => ({
-  ensureProviderEditorAgGridModules: vi.fn(),
+vi.mock('@wellsfargo-starui/grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ensureAgGridModules: vi.fn(),
 }));
 
 vi.mock('../MultiSelect.js', () => ({
