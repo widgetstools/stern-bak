@@ -32,8 +32,7 @@ import type { AnyModule, StorageAdapter } from '@wellsfargo-starui/core';
 import type { AdminAction, MarketsGridHandle, MarketsGridProps, MarketsGridSsrmProps } from './types';
 import { FormattingToolbar } from './FormattingToolbar';
 import { EditingToolbar } from './editingToolbar/EditingToolbar';
-import type { EditingToolbarHostProps } from './editingToolbar/resolveEditingToolbarAllow';
-import { useEffectiveEditingToolbarAllow } from './editingToolbar/useEffectiveEditingToolbarAllow';
+import { useEditingToolbarVisible } from './editingToolbar/useEditingToolbarVisible';
 import { LazySettingsSheet, preloadSettingsSheet } from './LazySettingsSheet';
 import { useMarketsGridController } from './useMarketsGridController';
 import { useToolbarDateSettingsBridge } from '../customizer/modules/toolbar-date-settings/useToolbarDateSettingsBridge';
@@ -74,10 +73,10 @@ export interface MarketsGridHostProps<TData> {
   showToolbar: boolean;
   showFiltersToolbar: boolean;
   showFormattingToolbar: boolean;
-  editingToolbarHostProps: EditingToolbarHostProps;
+  /** Tri-state: true/false are host verdicts; undefined defers to module switches. */
+  showEditingToolbar: boolean | undefined;
   showSaveButton: boolean;
   showSettingsButton: boolean;
-  showColumnSelector: boolean;
   showVisualExcelExport: boolean;
   showProfileSelector: boolean;
   modules: AnyModule[];
@@ -104,7 +103,6 @@ export interface MarketsGridHostProps<TData> {
   dataStaleMessage: string | undefined;
   historicalViewMode: boolean;
   historicalViewMessage: string | undefined;
-  showToolbarDatePicker: boolean;
   toolbarDate: string;
   onToolbarDateChange: (next: string) => void;
   toolbarDateHistoryEnabled: boolean | undefined;
@@ -131,10 +129,9 @@ function MarketsGridHostInner<TData>({
   showToolbar,
   showFiltersToolbar,
   showFormattingToolbar,
-  editingToolbarHostProps,
+  showEditingToolbar,
   showSaveButton,
   showSettingsButton,
-  showColumnSelector,
   showVisualExcelExport,
   showProfileSelector,
   modules,
@@ -161,7 +158,6 @@ function MarketsGridHostInner<TData>({
   dataStaleMessage,
   historicalViewMode,
   historicalViewMessage,
-  showToolbarDatePicker,
   toolbarDate,
   onToolbarDateChange,
   toolbarDateHistoryEnabled,
@@ -251,7 +247,7 @@ function MarketsGridHostInner<TData>({
 
   const profileActions = useProfileSelectorActions(profiles, requestLoadProfile);
 
-  const editingToolbarAllow = useEffectiveEditingToolbarAllow(editingToolbarHostProps);
+  const editingToolbarVisible = useEditingToolbarVisible(showEditingToolbar);
 
   const toolbarDateBridge = useToolbarDateSettingsBridge({
     toolbarDate,
@@ -318,10 +314,9 @@ function MarketsGridHostInner<TData>({
           showAutoFormat={showFormattingToolbar}
           styleToolbarOpen={styleToolbarOpen}
           onToggleStyleToolbar={handleToggleStyleToolbar}
-          showEditingToolbar={editingToolbarAllow.rowVisible}
+          showEditingToolbar={editingToolbarVisible}
           editingToolbarOpen={editingToolbarOpen}
           onToggleEditingToolbar={handleToggleEditingToolbar}
-          showColumnSelector={showColumnSelector}
           onOpenColumnSelector={handleOpenColumnSelector}
           showProfileSelector={showProfileSelector}
           profileList={profiles.profiles}
@@ -342,7 +337,6 @@ function MarketsGridHostInner<TData>({
           instanceId={instanceId}
           appId={appId}
           userId={userId}
-          showToolbarDatePicker={showToolbarDatePicker}
           toolbarDate={toolbarDateBridge.toolbarDate}
           onToolbarDateChange={toolbarDateBridge.onToolbarDateChange}
           toolbarDateHistoryEnabled={toolbarDateBridge.toolbarDateHistoryEnabled}
@@ -351,9 +345,7 @@ function MarketsGridHostInner<TData>({
         />
       )}
 
-      {editingToolbarOpen && editingToolbarAllow.rowVisible && (
-        <EditingToolbar allow={editingToolbarAllow} />
-      )}
+      {editingToolbarOpen && editingToolbarVisible && <EditingToolbar />}
 
       {showFormattingToolbar && styleToolbarOpen && (
         <div
@@ -429,13 +421,11 @@ function MarketsGridHostInner<TData>({
         onSave={confirmSwitchSave}
       />
 
-      {showColumnSelector && (
-        <ColumnSelectorDialog
-          open={columnSelectorOpen}
-          onOpenChange={setColumnSelectorOpen}
-          api={api}
-        />
-      )}
+      <ColumnSelectorDialog
+        open={columnSelectorOpen}
+        onOpenChange={setColumnSelectorOpen}
+        api={api}
+      />
     </div>
     </TooltipProvider>
     </GridChromeProvider>

@@ -105,13 +105,6 @@ export interface MarketsGridProps<TData = unknown> {
   showSaveButton?: boolean;
   /** Settings button on the toolbar. Defaults to `true`. */
   showSettingsButton?: boolean;
-  /**
-   * Column-selector button on the toolbar — opens a dialog to choose which
-   * columns are shown vs hidden and reorder the visible ones by drag. Applying
-   * reorders the live grid (`[...visible, ...available]`, available hidden);
-   * persistence flows through the normal Save. Defaults to `true`.
-   */
-  showColumnSelector?: boolean;
   /** Visual Excel export button on the toolbar. Defaults to `true`. */
   showVisualExcelExport?: boolean;
   /** Profile selector pill. Defaults to `true`. */
@@ -348,9 +341,6 @@ export interface MarketsGridProps<TData = unknown> {
 
   /** Fired when the user selects a new date in the toolbar date picker. */
   onToolbarDateChange?: (date: string) => void;
-
-  /** Show the shadcn date picker on the primary toolbar. Defaults to `true`. */
-  showToolbarDatePicker?: boolean;
 
   /**
    * When `false`, the toolbar date picker only allows selecting today

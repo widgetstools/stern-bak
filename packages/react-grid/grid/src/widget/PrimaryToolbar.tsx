@@ -44,7 +44,6 @@ export interface PrimaryToolbarProps {
   readonly showEditingToolbar: boolean;
   readonly editingToolbarOpen: boolean;
   readonly onToggleEditingToolbar: () => void;
-  readonly showColumnSelector: boolean;
   readonly onOpenColumnSelector: () => void;
   readonly showProfileSelector: boolean;
   readonly profileList: readonly ProfileMeta[];
@@ -65,7 +64,6 @@ export interface PrimaryToolbarProps {
   readonly instanceId: string | undefined;
   readonly appId: string | undefined;
   readonly userId: string | undefined;
-  readonly showToolbarDatePicker: boolean;
   readonly toolbarDate: string;
   readonly onToolbarDateChange: (next: string) => void;
   readonly toolbarDateHistoryEnabled: boolean | undefined;
@@ -85,7 +83,6 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
     showEditingToolbar,
     editingToolbarOpen,
     onToggleEditingToolbar,
-    showColumnSelector,
     onOpenColumnSelector,
     showProfileSelector,
     profileList,
@@ -106,7 +103,6 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
     instanceId,
     appId,
     userId,
-    showToolbarDatePicker,
     toolbarDate,
     onToolbarDateChange,
     toolbarDateHistoryEnabled,
@@ -126,7 +122,7 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
     instanceId,
     appId,
     userId,
-    showLeadingDivider: !showToolbarDatePicker,
+    showLeadingDivider: false,
   };
 
   return (
@@ -151,51 +147,47 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
 
         <AlertsBadge />
 
-        {(showProfileSelector || showSaveButton || showToolbarDatePicker) && (
-          <div className="ds-primary-profile-cluster">
-            {showProfileSelector && (
-              <ProfileSelector
-                profiles={[...profileList]}
-                activeProfileId={activeProfileId}
-                isDirty={isDirty}
-                onCreate={profileActions.onCreate}
-                onLoad={profileActions.onLoad}
-                onDelete={profileActions.onDelete}
-                onClone={profileActions.onClone}
-                onRename={profileActions.onRename}
-                onExport={profileActions.onExport}
-                onImport={profileActions.onImport}
-              />
-            )}
+        {/* Always rendered: the date picker lives here and has no host toggle. */}
+        <div className="ds-primary-profile-cluster">
+          {showProfileSelector && (
+            <ProfileSelector
+              profiles={[...profileList]}
+              activeProfileId={activeProfileId}
+              isDirty={isDirty}
+              onCreate={profileActions.onCreate}
+              onLoad={profileActions.onLoad}
+              onDelete={profileActions.onDelete}
+              onClone={profileActions.onClone}
+              onRename={profileActions.onRename}
+              onExport={profileActions.onExport}
+              onImport={profileActions.onImport}
+            />
+          )}
 
-            {showSaveButton && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="ds-primary-action ds-primary-save"
-                onClick={() => { void onSaveAll(); }}
-                title={isDirty ? 'Save all settings (unsaved changes)' : 'Save all settings'}
-                data-testid="save-all-btn"
-                data-state={saveFlash ? 'saved' : isDirty ? 'dirty' : 'idle'}
-              >
-                {saveFlash ? <Check size={14} strokeWidth={2.5} /> : <Save size={14} strokeWidth={2} />}
-              </Button>
-            )}
+          {showSaveButton && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ds-primary-action ds-primary-save"
+              onClick={() => { void onSaveAll(); }}
+              title={isDirty ? 'Save all settings (unsaved changes)' : 'Save all settings'}
+              data-testid="save-all-btn"
+              data-state={saveFlash ? 'saved' : isDirty ? 'dirty' : 'idle'}
+            >
+              {saveFlash ? <Check size={14} strokeWidth={2.5} /> : <Save size={14} strokeWidth={2} />}
+            </Button>
+          )}
 
-            {showToolbarDatePicker && (
-              <ToolbarDatePicker
-                value={toolbarDate}
-                onChange={onToolbarDateChange}
-                historyEnabled={toolbarDateHistoryEnabled ?? true}
-              />
-            )}
-          </div>
-        )}
+          <ToolbarDatePicker
+            value={toolbarDate}
+            onChange={onToolbarDateChange}
+            historyEnabled={toolbarDateHistoryEnabled ?? true}
+          />
+        </div>
 
         <div className="ds-primary-actions-trailing">
           <ViewMenu
-            showColumnSelector={showColumnSelector}
             onOpenColumnSelector={onOpenColumnSelector}
             showAutoFormat={showAutoFormat}
             showFormattingToolbar={showFormattingToolbar}
@@ -229,7 +221,6 @@ function primaryToolbarPropsEqual(prev: PrimaryToolbarProps, next: PrimaryToolba
     && prev.showEditingToolbar === next.showEditingToolbar
     && prev.editingToolbarOpen === next.editingToolbarOpen
     && prev.onToggleEditingToolbar === next.onToggleEditingToolbar
-    && prev.showColumnSelector === next.showColumnSelector
     && prev.onOpenColumnSelector === next.onOpenColumnSelector
     && prev.showProfileSelector === next.showProfileSelector
     && prev.profileList === next.profileList
@@ -250,7 +241,6 @@ function primaryToolbarPropsEqual(prev: PrimaryToolbarProps, next: PrimaryToolba
     && prev.instanceId === next.instanceId
     && prev.appId === next.appId
     && prev.userId === next.userId
-    && prev.showToolbarDatePicker === next.showToolbarDatePicker
     && prev.toolbarDate === next.toolbarDate
     && prev.onToolbarDateChange === next.onToolbarDateChange
     && prev.toolbarDateHistoryEnabled === next.toolbarDateHistoryEnabled

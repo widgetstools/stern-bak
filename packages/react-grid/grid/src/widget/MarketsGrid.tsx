@@ -276,7 +276,6 @@ function MarketsGridInner<TData = unknown>(
     showEditingToolbar,
     showSaveButton = true,
     showSettingsButton = true,
-    showColumnSelector = true,
     showVisualExcelExport = true,
     showProfileSelector = true,
     modules = DEFAULT_MODULES,
@@ -301,7 +300,6 @@ function MarketsGridInner<TData = unknown>(
     historicalViewMessage,
     toolbarDate: toolbarDateProp,
     onToolbarDateChange,
-    showToolbarDatePicker = true,
     toolbarDateHistoryEnabled,
     toolbarActionsLayout = 'overflow',
     storage,
@@ -365,11 +363,6 @@ function MarketsGridInner<TData = unknown>(
     );
   }
 
-  const editingToolbarHostProps = useMemo(
-    () => ({ showEditingToolbar }),
-    [showEditingToolbar],
-  );
-
   return (
     <ProviderGridHostProvider value={providerGridHost ?? null}>
     <GridEventBindingsHostProvider value={gridEventBindingsHost ?? null}>
@@ -396,10 +389,9 @@ function MarketsGridInner<TData = unknown>(
         showToolbar={showToolbar}
         showFiltersToolbar={showFiltersToolbar}
         showFormattingToolbar={showFormattingToolbar}
-        editingToolbarHostProps={editingToolbarHostProps}
+        showEditingToolbar={showEditingToolbar}
         showSaveButton={showSaveButton}
         showSettingsButton={showSettingsButton}
-        showColumnSelector={showColumnSelector}
         showVisualExcelExport={showVisualExcelExport}
         showProfileSelector={showProfileSelector}
         modules={modules}
@@ -426,7 +418,6 @@ function MarketsGridInner<TData = unknown>(
         dataStaleMessage={dataStaleMessage}
         historicalViewMode={historicalViewMode}
         historicalViewMessage={historicalViewMessage}
-        showToolbarDatePicker={showToolbarDatePicker}
         toolbarDate={toolbarDate}
         onToolbarDateChange={handleToolbarDateChange}
         toolbarDateHistoryEnabled={toolbarDateHistoryEnabled}

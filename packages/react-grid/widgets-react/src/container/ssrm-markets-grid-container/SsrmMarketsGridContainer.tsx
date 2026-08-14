@@ -535,7 +535,6 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             showFiltersToolbar={showFiltersToolbar}
             showSaveButton={showSaveButton}
             showProfileSelector={showProfileSelector}
-            showColumnSelector
             storage={storage}
             instanceId={instanceId}
             appId={appId}

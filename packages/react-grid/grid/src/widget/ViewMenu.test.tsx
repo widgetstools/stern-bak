@@ -5,7 +5,6 @@ import { ViewMenu, type ViewMenuProps } from './ViewMenu';
 
 function makeProps(overrides: Partial<ViewMenuProps> = {}): ViewMenuProps {
   return {
-    showColumnSelector: true,
     onOpenColumnSelector: vi.fn(),
     showAutoFormat: true,
     showFormattingToolbar: true,
@@ -19,18 +18,17 @@ function makeProps(overrides: Partial<ViewMenuProps> = {}): ViewMenuProps {
 }
 
 describe('ViewMenu', () => {
-  it('renders nothing when every view feature is disabled', () => {
-    const { container } = render(
+  it('renders the trigger even when every toggle is disabled (Columns… is always available)', () => {
+    render(
       <ViewMenu
         {...makeProps({
-          showColumnSelector: false,
           showAutoFormat: false,
           showFormattingToolbar: false,
           showEditingToolbar: false,
         })}
       />,
     );
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByTestId('toolbar-view-menu-trigger')).toBeInTheDocument();
   });
 
   it('shows a single trigger button (toolbar stays uncluttered)', () => {

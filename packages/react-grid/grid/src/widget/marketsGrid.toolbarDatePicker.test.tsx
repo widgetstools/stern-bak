@@ -79,20 +79,6 @@ describe('MarketsGrid toolbar date picker', () => {
     expect(screen.getByTestId('toolbar-date-picker-trigger')).toHaveTextContent('2026-06-01');
   });
 
-  it('can be hidden with showToolbarDatePicker={false}', () => {
-    render(
-      <MarketsGrid
-        gridId="datepicker-test"
-        rowData={[{ id: '1' }]}
-        columnDefs={[{ field: 'id' }]}
-        showToolbar
-        showToolbarDatePicker={false}
-      />,
-    );
-
-    expect(screen.queryByTestId('toolbar-date-picker-trigger')).toBeNull();
-  });
-
   it('resets to today when history is unavailable', () => {
     const onChange = vi.fn();
     render(

@@ -30,7 +30,6 @@ import {
 import { useAutoFormatAction } from './useAutoFormatAction';
 
 export interface ViewMenuProps {
-  readonly showColumnSelector: boolean;
   readonly onOpenColumnSelector: () => void;
   readonly showAutoFormat: boolean;
   readonly showFormattingToolbar: boolean;
@@ -43,7 +42,6 @@ export interface ViewMenuProps {
 
 function ViewMenuInner(props: ViewMenuProps): ReactElement | null {
   const {
-    showColumnSelector,
     onOpenColumnSelector,
     showAutoFormat,
     showFormattingToolbar,
@@ -56,9 +54,7 @@ function ViewMenuInner(props: ViewMenuProps): ReactElement | null {
 
   const autoFormat = useAutoFormatAction();
 
-  const hasActions = showColumnSelector || showAutoFormat;
   const hasToggles = showFormattingToolbar || showEditingToolbar;
-  if (!hasActions && !hasToggles) return null;
 
   return (
     <DropdownMenu>
@@ -76,16 +72,14 @@ function ViewMenuInner(props: ViewMenuProps): ReactElement | null {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="fx-menu w-max min-w-0 p-0.5" data-testid="toolbar-view-menu">
-        {showColumnSelector ? (
-          <DropdownMenuItem
-            onSelect={onOpenColumnSelector}
-            data-testid="column-selector-open"
-            className="gap-1.5 px-2 py-1"
-          >
-            <Columns3 size={14} strokeWidth={2} className="shrink-0 opacity-80" />
-            Columns…
-          </DropdownMenuItem>
-        ) : null}
+        <DropdownMenuItem
+          onSelect={onOpenColumnSelector}
+          data-testid="column-selector-open"
+          className="gap-1.5 px-2 py-1"
+        >
+          <Columns3 size={14} strokeWidth={2} className="shrink-0 opacity-80" />
+          Columns…
+        </DropdownMenuItem>
         {showAutoFormat ? (
           <DropdownMenuItem
             onSelect={autoFormat.run}
@@ -97,7 +91,7 @@ function ViewMenuInner(props: ViewMenuProps): ReactElement | null {
           </DropdownMenuItem>
         ) : null}
 
-        {hasActions && hasToggles ? <DropdownMenuSeparator /> : null}
+        {hasToggles ? <DropdownMenuSeparator /> : null}
 
         {showFormattingToolbar ? (
           <DropdownMenuCheckboxItem

@@ -73,8 +73,8 @@ vi.mock('./editingToolbar/EditingToolbar', () => ({
   EditingToolbar: () => <div data-testid="editing-toolbar" />,
 }));
 
-vi.mock('./editingToolbar/useEffectiveEditingToolbarAllow', () => ({
-  useEffectiveEditingToolbarAllow: () => ({ rowVisible: true, cellVisible: true }),
+vi.mock('./editingToolbar/useEditingToolbarVisible', () => ({
+  useEditingToolbarVisible: () => true,
 }));
 
 vi.mock('./FormattingToolbar', () => ({
@@ -140,10 +140,9 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     showToolbar: true,
     showFiltersToolbar: true,
     showFormattingToolbar: true,
-    editingToolbarHostProps: {},
+    showEditingToolbar: undefined,
     showSaveButton: true,
     showSettingsButton: true,
-    showColumnSelector: true,
     showVisualExcelExport: true,
     showProfileSelector: true,
     modules: [],
@@ -170,7 +169,6 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     dataStaleMessage: undefined,
     historicalViewMode: false,
     historicalViewMessage: undefined,
-    showToolbarDatePicker: false,
     toolbarDate: '2024-01-01',
     onToolbarDateChange: vi.fn(),
     toolbarDateHistoryEnabled: true,

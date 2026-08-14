@@ -49,7 +49,6 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     showEditingToolbar: true,
     editingToolbarOpen: false,
     onToggleEditingToolbar: vi.fn(),
-    showColumnSelector: true,
     onOpenColumnSelector: vi.fn(),
     showProfileSelector: true,
     profileList: [{ id: 'a', name: 'Default', updatedAt: 1 }],
@@ -70,7 +69,6 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     instanceId: undefined,
     appId: undefined,
     userId: undefined,
-    showToolbarDatePicker: false,
     toolbarDate: '2024-01-01',
     onToolbarDateChange: vi.fn(),
     toolbarDateHistoryEnabled: true,
@@ -104,23 +102,23 @@ describe('PrimaryToolbar', () => {
     expect(screen.queryByTestId('filters-toolbar')).toBeNull();
   });
 
-  it('shows toolbar date picker inside profile cluster', () => {
-    render(<PrimaryToolbar {...baseProps({ showToolbarDatePicker: true })} />);
+  it('always shows the toolbar date picker inside the profile cluster', () => {
+    render(<PrimaryToolbar {...baseProps()} />);
     expect(screen.getByTestId('toolbar-date-picker')).toBeInTheDocument();
   });
 
-  it('hides profile cluster when all cluster features disabled', () => {
+  it('hides profile selector and save button when disabled (date picker stays)', () => {
     render(
       <PrimaryToolbar
         {...baseProps({
           showProfileSelector: false,
           showSaveButton: false,
-          showToolbarDatePicker: false,
         })}
       />,
     );
     expect(screen.queryByTestId('profile-selector')).toBeNull();
     expect(screen.queryByTestId('save-all-btn')).toBeNull();
+    expect(screen.getByTestId('toolbar-date-picker')).toBeInTheDocument();
   });
 
   it('calls onSaveAll from save button', () => {
