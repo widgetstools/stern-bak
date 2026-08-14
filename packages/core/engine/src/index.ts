@@ -15,17 +15,7 @@
  */
 
 // ─── Platform runtime (framework-agnostic) ──────────────────────────────────
-export {
-  GridPlatform,
-  EventBus,
-  topoSortModules,
-  ApiHub,
-  RowChangeBus,
-  ResourceScope,
-  CssInjector,
-  PipelineRunner,
-  defineModule,
-} from './platform';
+export { GridPlatform, defineModule } from './platform';
 export type {
   DefineModuleOptions,
   GridPlatformOptions,
@@ -46,7 +36,6 @@ export type {
   PlatformEventMap,
   PlatformHandle,
   RowChange,
-  RowChangeSignal,
   SerializedState,
   SettingsPanelProps,
   Store,
@@ -54,10 +43,6 @@ export type {
 } from './platform';
 
 // ─── Store + auto-save ──────────────────────────────────────────────────────
-export { createGridStore } from './store/createGridStore';
-export type { CreateStoreOptions } from './store/createGridStore';
-export { startAutoSave } from './store/autosave';
-export type { AutoSaveHandle, AutoSaveOptions } from './store/autosave';
 
 // ─── Persistence adapters ───────────────────────────────────────────────────
 export {
@@ -91,15 +76,6 @@ export type {
 // (compiled via `new Function`, therefore CSP-unsafe). Set to `'strict'`
 // at boot when running under a `script-src` CSP that forbids
 // `unsafe-eval`. See docs in `./security/expressionPolicy.ts`.
-export {
-  configureExpressionPolicy,
-  getExpressionPolicy,
-} from './security/expressionPolicy';
-export type {
-  ExpressionPolicy,
-  ExpressionPolicyMode,
-  ExpressionPolicyViolation,
-} from './security/expressionPolicy';
 
 // ─── History (framework-agnostic; the non-React core of useUndoRedo) ────────
 export { HistoryStack, type HistoryStackOptions } from './history/HistoryStack';
@@ -108,25 +84,10 @@ export { HistoryStack, type HistoryStackOptions } from './history/HistoryStack';
 export type { Store as GridStore } from './platform/types';
 
 // ─── Expression Engine ──────────────────────────────────────────────────────
-export {
-  ExpressionEngine,
-  tokenize,
-  parse,
-  Evaluator,
-  tryCompileToAgString,
-  astUsesAggregateFunctions,
-  getAggregateFunctionNames,
-} from './expression';
-export type {
-  ExpressionNode,
-  EvaluationContext,
-  ValidationResult,
-  FunctionDefinition,
-} from './expression';
-export { migrateExpressionSyntax, migrateExpressionsInObject } from './expression/migrate';
+export { ExpressionEngine, astUsesAggregateFunctions } from './expression';
+export type { ExpressionNode } from './expression';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-export type { CellStyleProperties, ThemeAwareStyle } from './types/common';
 
 // ─── Shared CSS utilities ────────────────────────────────────────────────────
 export { injectEditorStyles } from './css';
@@ -140,45 +101,25 @@ export { injectEditorStyles } from './css';
 export type {
   BorderSpec,
   CellStyleOverrides,
-  ColumnAssignment as BaseColumnAssignment,
   ColumnDataType,
   GridThemeMode,
   PresetId,
   ThemedCellStyleOverrides,
-  TickToken,
   ValueFormatterTemplate,
 } from './colDef';
 export {
   valueFormatterFromTemplate,
-  excelFormatter,
-  excelFormatColorResolver,
   isValidExcelFormat,
-  tickFormatter,
-  presetToExcelFormat,
-  cellStyleToAgStyle,
   getActiveTheme,
-  mergeCellStyleOverrides,
-  mergeThemedStyle,
   migrateThemedStyle,
   patchActiveStyle,
   resolveActiveStyle,
-  resolveEffectiveStyle,
   nestedField,
   defaultNullSafeComparator,
-  FIELD_FORMAT_CATALOG,
-  matchFieldToCatalog,
-  normalizeToken,
-  soundex,
   buildAutoFormatPlan,
 } from './colDef';
 export type { NestedFieldOptions } from './colDef';
-export type {
-  AutoFormatAlignment,
-  AutoFormatAssignment,
-  AutoFormatColumn,
-  AutoFormatTypography,
-  FieldFormatEntry,
-} from './colDef';
+export type { AutoFormatColumn } from './colDef';
 
 // ─── Style editor value shape (shared by customizer panels) ────────────────
 export type {
@@ -191,7 +132,215 @@ export type {
 } from './styleEditor/types';
 
 // ─── Customizer module logic (framework-agnostic) ────────────────────────────
-export * from './customizer';
+export {
+  buildVirtualColDef,
+  invalidateAllRowsCache,
+  applyAssignments,
+  reinjectCSS,
+  cssEscapeColId,
+  applyFilterConfigToColDef,
+  applyRowGroupingConfigToColDef,
+  composeGroups,
+  collectGroupIds,
+  collectAssignedColIds,
+  groupHeaderBorderOverlayCSS,
+  groupHeaderStyleToCSS,
+  hasHeaderBorders,
+  hasHeaderStyle,
+  resolveTemplates,
+  INDICATOR_ICONS,
+  findIndicatorIcon,
+  toStyleEditorValue,
+  fromStyleEditorValue,
+  applyNumericOp,
+  applySmartEditColDefTransforms,
+  collectTargetCells,
+  collectFocusedCell,
+  bulkUpdateValueKind,
+  collectBulkUpdateTargets,
+  buildBulkUpdatePatchesFromRaw,
+  resolveColumnDistinctValues,
+  buildNudgePatches,
+  applyPlusMinusColDefTransforms,
+  buildShortcutPatches,
+  applyShortcutsColDefTransforms,
+  buildVisualExcelStyles,
+  applyFormatExcelClasses,
+  defaultVisualExcelFileName,
+  INITIAL_CALCULATED_COLUMNS,
+  INITIAL_COLUMN_CUSTOMIZATION,
+  overrideKey,
+  globalKey,
+  stripUndefined,
+  mergeOverrides,
+  writeOverridesReducer,
+  applyTypographyReducer,
+  applyColorsReducer,
+  applyAlignmentReducer,
+  applyBordersReducer,
+  applyHeaderNameReducer,
+  applyEditableReducer,
+  applyCellEditorKindReducer,
+  applyCellEditorValuesReducer,
+  applyFilterPrimaryKindReducer,
+  applyFloatingFilterReducer,
+  applyFormatterReducer,
+  applyTemplateToColumnsReducer,
+  removeTemplateRefFromAssignmentsReducer,
+  clearAllStylesReducer,
+  clearAllStylesInProfileReducer,
+  applyAutoFormatPlanReducer,
+  isColumnGroupsState,
+  INITIAL_COLUMN_GROUPS,
+  flattenGroups,
+  updateGroupAtPath,
+  deleteGroupAtPath,
+  moveGroupAtPath,
+  INITIAL_COLUMN_TEMPLATES,
+  snapshotTemplate,
+  pickTemplateFields,
+  addTemplateReducer,
+  snapshotTemplateUpdate,
+  updateTemplateReducer,
+  renameTemplateReducer,
+  removeTemplateReducer,
+  INITIAL_CONDITIONAL_STYLING,
+  createTimedRuleStore,
+  reinjectAllRules,
+  extractTriggerColumns,
+  buildRowClassPredicate,
+  applyCellRulesToDefs,
+  CONDITIONAL_DIFF_CACHE_KEY,
+  CONDITIONAL_TIMED_RULE_CACHE_KEY,
+  FLASH_PALETTE,
+  INITIAL_GENERAL_SETTINGS,
+  GRID_STATE_SCHEMA_VERSION,
+  INITIAL_GRID_STATE,
+  captureGridState,
+  applyGridState,
+  captureGridStateInto,
+  deserializeAlertsState,
+  capHistory,
+  DEFAULT_ALERTS_SETTINGS,
+  INITIAL_ALERTS,
+  evaluateDataChangeRule,
+  computeRelativeChange,
+  detectRowChanges,
+  renderMessage,
+  deserializeEditingState,
+  migrateLegacyEditingState,
+  EDITING_MODULE_ID,
+  EDITING_SCHEMA_VERSION,
+  LEGACY_EDITING_MODULE_IDS,
+  INITIAL_EDITING,
+  INITIAL_SMART_EDIT,
+  buildPatchesFromTargets,
+  applyForwardPatches,
+  previewPatches,
+  assertSingleColumnSelection,
+  EditJournal,
+  deserializeDataChangeHistoryState,
+  recordSourceKey,
+  DATA_CHANGE_HISTORY_MODULE_ID,
+  DATA_CHANGE_HISTORY_SCHEMA_VERSION,
+  INITIAL_DATA_CHANGE_HISTORY,
+  INITIAL_BULK_UPDATE,
+  defaultPlusMinusNudge,
+  INITIAL_PLUS_MINUS,
+  defaultShortcut,
+  INITIAL_SHORTCUTS,
+  deserializeVisualExcelState,
+  VISUAL_EXCEL_MODULE_ID,
+  INITIAL_VISUAL_EXCEL,
+} from './customizer';
+export type {
+  AllRowsEntry,
+  IndicatorIconDef,
+  TargetCell,
+  BulkUpdateTarget,
+  BuildNudgePatchesOptions,
+  NudgeDirection,
+  VirtualColumnDef,
+  CalculatedColumnsState,
+  FilterKind,
+  SetFilterOptions,
+  MultiFilterEntry,
+  ColumnFilterConfig,
+  AggFuncName,
+  RowGroupingConfig,
+  CellEditorKind,
+  ColumnCellEditorConfig,
+  ColumnAssignment,
+  ColumnCustomizationState,
+  TargetKind,
+  ScopeKind,
+  FormatterKind,
+  AutoFormatApplyOptions,
+  GroupChildShow,
+  ColumnGroupChild,
+  GroupHeaderBorderSpec,
+  GroupHeaderStyle,
+  ColumnGroupNode,
+  ColumnGroupsState,
+  Path,
+  RowGroupingTemplate,
+  ColumnTemplate,
+  ColumnTemplatesState,
+  SnapshotTemplateDeps,
+  RuleScope,
+  FlashTarget,
+  FlashMode,
+  FlashColor,
+  FlashConfig,
+  IndicatorTarget,
+  IndicatorPosition,
+  RuleIndicator,
+  AnimationKind,
+  AnimationConfig,
+  ConditionalRule,
+  ConditionalStylingState,
+  DiffCacheByApi,
+  TimedRuleStateByApi,
+  TimedRuleStore,
+  GeneralSettingsState,
+  SavedGridState,
+  GridStateState,
+  AlertSeverity,
+  AlertChannel,
+  RelativeChangeMode,
+  RelativeChangeDirection,
+  AlertTrigger,
+  AlertRule,
+  DataChangeRule,
+  RelativeChangeRule,
+  AlertNotification,
+  EvaluationMode,
+  AlertsSettings,
+  AlertsState,
+  AlertHit,
+  EditingState,
+  SmartEditOp,
+  SmartEditSettings,
+  SmartEditState,
+  CellPatch,
+  EditSource,
+  EditJournalEntry,
+  EditGridWriter,
+  DataChangeHistoryRecordSources,
+  DataChangeHistorySettings,
+  DataChangeHistoryState,
+  BulkUpdateSettings,
+  BulkUpdateState,
+  PlusMinusNudge,
+  PlusMinusSettings,
+  PlusMinusState,
+  ShortcutOperation,
+  ShortcutDefinition,
+  ShortcutsSettings,
+  ShortcutsState,
+  VisualExcelSettings,
+  VisualExcelState,
+} from './customizer';
 
 // ─── Filter toolbar helpers ──────────────────────────────────────────────────
 export {

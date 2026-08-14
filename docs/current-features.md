@@ -952,21 +952,22 @@ modules).
 
 - `GridPlatform` — per-grid singleton (store, api, events, rows, resources, pipeline)
 - `defineModule()` — module-authoring helper: defaults `schemaVersion` (1), `priority` (100), `getInitialState` (clone of `initialState`), `serialize` (identity), `deserialize` **and** `migrate` (spread-over-initial — additive, never drops persisted state on a version bump); every default overridable. With `Module.category` (settings-nav group, replaces the deleted display-only `code` field), a minimal toggle module is `defineModule({ id, name, category, initialState, SettingsPanel })`
-- `EventBus<T>` — typed pub-sub (`emit`, `on`, `off`)
-- `ApiHub` — reactive `GridApi` (`attach`, `whenReady`, event subscriptions; `on` forwards the AG event object)
-- `RowChangeBus` (`platform.rows`, type `RowChangeSignal`) — shared, timer-coalesced row-change emitter. Reads the exact changed nodes from AG `asyncTransactionsFlushed` and emits one `RowChange` (`added`/`updated`/`removed` deltas, or `full` for sort/filter/`setRowData`; explicit `sortChanged`/`filterChanged` listeners keep the `full` classification even when the sort/filter shares a coalescing window with a streaming flush) per frame, so data-reactive modules (alerts, conditional-styling, filter counts) evaluate only changed rows instead of walking the whole grid on every streaming tick. Filter pill badge counts (`useFilterCounts` in `useFilterModel`) maintain per-filter row-id sets and adjust counts incrementally on delta emits
-- `ResourceScope` — `CssInjector` + `ExpressionEngine` + WeakMap caches
-- `PipelineRunner` — cached transform pipeline for `colDef` + `gridOptions`; per-module memo plus output structural sharing (returns previous refs when shallow-equal)
-- `topoSortModules()` — topological module-dependency sort
-- `CssInjector` — dynamic CSS injection; rule upserts are microtask-coalesced into one style-element write per burst, and unchanged rule text skips the DOM entirely
 - `GridPlatformOptions` — `gridId, modules, rowIdField, appData`
-
-#### Store & state
-
-- `createGridStore()` — Zustand vanilla store factory
-- `Store` — grid state container
-- `startAutoSave()` — debounced persistence
-- `AutoSaveHandle`, `AutoSaveOptions`
+- Internal machinery reachable through a `GridPlatform` instance (no longer
+  exported from the barrel — the Phase-6 curation removed every root-barrel
+  name with zero importers outside the engine): `EventBus` (`platform.events`,
+  typed pub-sub), `ApiHub` (`platform.api`, reactive `GridApi`),
+  `RowChangeBus` (`platform.rows` — shared, timer-coalesced row-change
+  emitter reading exact changed nodes from AG `asyncTransactionsFlushed`;
+  one `RowChange` per frame with `added`/`updated`/`removed` deltas or
+  `full` for sort/filter/`setRowData`, so data-reactive modules evaluate
+  only changed rows; filter pill counts adjust incrementally on deltas),
+  `ResourceScope` (`platform.resources` — `CssInjector` + `ExpressionEngine`
+  + WeakMap caches), `PipelineRunner` (cached transform pipeline with
+  per-module memo + output structural sharing), `topoSortModules`,
+  `CssInjector` (microtask-coalesced rule upserts), the Zustand store
+  factory `createGridStore` (`Store` type stays public as `GridStore`),
+  and `startAutoSave` (debounced persistence, wired by the React layer)
 
 #### Persistence adapters
 
@@ -995,11 +996,11 @@ modules).
 
 #### Security policy
 
-- `configureExpressionPolicy()` — set CSP mode (`'strict' | 'permissive'`)
-- `getExpressionPolicy()` — runtime policy lookup
-- `ExpressionPolicy`, `ExpressionPolicyMode`, `ExpressionPolicyViolation`
+- `configureExpressionPolicy()` / `getExpressionPolicy()` + the
+  `ExpressionPolicy*` types — CSP mode gate. Internal since the Phase-6
+  barrel curation (zero external importers); reachable in-package only
 - `sanitizeExpressionFormatters()` — drop unsafe expression formatters (used internally by `ProfileManager`; not on engine `.` barrel)
-- `migrateExpressionsInObject()` — batch expression-syntax migration across profile payloads
+- `migrateExpressionsInObject()` / `migrateExpressionSyntax()` — expression-syntax migration (internal; off the `.` barrel since Phase 6)
 
 #### History (undo/redo)
 
@@ -1009,21 +1010,27 @@ modules).
   `applyForwardPatches`, `previewPatches`, `assertSingleColumnSelection`,
   `BuildNudgePatchesOptions` — cell-patch journal for row data edits (one user
   action = one undo step)
-- **Smart edit** — `applyNumericOp`, `parseMagnitudeSuffix`, `collectTargetCells`,
-  `applySmartEditColDefTransforms`, `deserializeSmartEditState`, `INITIAL_SMART_EDIT`
+- **Smart edit** — `applyNumericOp`, `collectTargetCells`,
+  `applySmartEditColDefTransforms`, `INITIAL_SMART_EDIT` (internal since
+  Phase 6: `parseMagnitudeSuffix`, `deserializeSmartEditState`)
 - **Data change history** — `DataChangeHistorySettings`, `recordSourceKey`,
   `deserializeDataChangeHistoryState`, `INITIAL_DATA_CHANGE_HISTORY` — profile
   settings for the edit-history module (session-only stacks; settings-only persistence)
 - **Bulk update** — `BulkUpdateSettings`, `collectBulkUpdateTargets`,
-  `buildBulkUpdatePatches`, `resolveColumnDistinctValues`, `parseBulkUpdateValue`,
-  `deserializeBulkUpdateState`, `INITIAL_BULK_UPDATE` — replace-all-selected with one value
-- **Plus / minus** — `buildNudgePatches`, `resolveNudgeForCell`,
-  `applyPlusMinusColDefTransforms`, `deserializePlusMinusState`, `INITIAL_PLUS_MINUS`
-- **Shortcuts** — `buildShortcutPatches`, `matchShortcutForCell`, `collectShortcutKeys`,
-  `applyShortcutsColDefTransforms`, `deserializeShortcutsState`, `INITIAL_SHORTCUTS`
+  `resolveColumnDistinctValues`, `INITIAL_BULK_UPDATE` — replace-all-selected
+  with one value (internal since Phase 6: `buildBulkUpdatePatches`,
+  `parseBulkUpdateValue`, `deserializeBulkUpdateState`)
+- **Plus / minus** — `buildNudgePatches`,
+  `applyPlusMinusColDefTransforms`, `INITIAL_PLUS_MINUS` (internal since
+  Phase 6: `resolveNudgeForCell`, `deserializePlusMinusState`)
+- **Shortcuts** — `buildShortcutPatches`,
+  `applyShortcutsColDefTransforms`, `INITIAL_SHORTCUTS` (internal since
+  Phase 6: `matchShortcutForCell`, `collectShortcutKeys`,
+  `deserializeShortcutsState`)
 - **Visual Excel** — `buildVisualExcelStyles`, `applyFormatExcelClasses`,
-  `formatExcelClassId`, `cssToExcelColor`, `cellStyleToExcelStyle`,
-  `defaultVisualExcelFileName`, `deserializeVisualExcelState`, `INITIAL_VISUAL_EXCEL`
+  `defaultVisualExcelFileName`, `deserializeVisualExcelState`,
+  `INITIAL_VISUAL_EXCEL` (internal since Phase 6: `formatExcelClassId`,
+  `cssToExcelColor`, `cellStyleToExcelStyle`)
 
 #### Expression engine
 
@@ -1031,7 +1038,7 @@ modules).
   source string (immutable ASTs shared across calls), so the per-cell/per-tick
   `parseAndEvaluate` hot path is a Map lookup, not a re-tokenize+re-parse
   (benchmarked ~7x faster for a conditional-styling-heavy frame: ~23ms → ~3ms)
-- `tokenize()`, `parse()`, `Evaluator`
+- `tokenize()`, `parse()`, `Evaluator` — internal since Phase 6 (use `ExpressionEngine`)
 - `compile()` — compile an AST once into a reusable `(ctx) => value` closure
   (cached by source; `compileToFunction` exists in `expression/index.ts` but is
   not re-exported from the engine `.` barrel); `evalOps` holds the shared
@@ -1043,9 +1050,8 @@ modules).
   functions and arity mismatches rejected before save/runtime)
 - `REGEX_MATCH` — invalid patterns return `false` (never throw)
 - `tryCompileToAgString()` — transpile to AG Grid `valueFormatter` string
-  (still the FIRST choice — zero per-cell JS; the closure is the fallback)
-- `ExpressionNode`, `EvaluationContext`, `ValidationResult`, `FunctionDefinition`
-- `migrateExpressionSyntax()` — legacy migration
+  (still the FIRST choice — zero per-cell JS; the closure is the fallback; internal since Phase 6)
+- `ExpressionNode` (public); `EvaluationContext` / `ValidationResult` / `FunctionDefinition` internal since Phase 6
 - Conditional sugar (both desugar to short-circuiting ternaries at parse time, so
   they compose with everything and the `IF`/`IFS`/`SWITCH`/`CASE(...)` functions
   still work): SQL-style `CASE WHEN cond THEN result [WHEN …] [ELSE e] END` and
@@ -1061,17 +1067,13 @@ modules).
   (honour `options.locale` / `options.dateStyle` / `options.timeStyle`; default
   locale from `navigator.language`), pinned to `timeZone: 'UTC'` for
   deterministic output
-- `excelFormatter()` — Excel-style numeric formatting
-- `excelFormatColorResolver()` — conditional cell background colours
 - `isValidExcelFormat()` — Excel format-string validation
-- `tickFormatter()` — tick-mark formatting
-- `presetToExcelFormat()` — preset id → Excel format
-- `cellStyleToAgStyle()` — themed style → AG Grid style
-- `getActiveTheme()`, `mergeThemedStyle()`, `migrateThemedStyle()`
+- Internal since Phase 6 (in-package helpers behind `valueFormatterFromTemplate`): `excelFormatter()`, `excelFormatColorResolver()`, `tickFormatter()`, `presetToExcelFormat()`, `cellStyleToAgStyle()`
+- `getActiveTheme()`, `migrateThemedStyle()` (`mergeThemedStyle()` internal since Phase 6)
 - `patchActiveStyle()`, `resolveActiveStyle()` (own-slot read, divergence-only)
-- `resolveEffectiveStyle()` — render-time fold: dark renders its own slot;
+- `resolveEffectiveStyle()` (internal since Phase 6) — render-time fold: dark renders its own slot;
   light inherits the dark slot and overrides it per-leaf
-- `mergeCellStyleOverrides()` — per-leaf `CellStyleOverrides` merge (top wins;
+- `mergeCellStyleOverrides()` (internal since Phase 6) — per-leaf `CellStyleOverrides` merge (top wins;
   borders per-side), shared by template resolution + dark→light inheritance
 - `nestedField()` — nested-field accessor
 - `defaultNullSafeComparator()` — null-safe sort comparator
@@ -1080,7 +1082,7 @@ modules).
 
 #### Field-format catalog (Auto Format)
 
-- `FIELD_FORMAT_CATALOG` — curated repository of FI/equity blotter field names
+- `FIELD_FORMAT_CATALOG` (internal since Phase 6) — curated repository of FI/equity blotter field names
   (sourced from `docs/blotter-field-catalog.md`) mapped to **native
   formatting-system state only**: value formatters (incl. `excelFormat`
   `[Green]`/`[Red]` colour tags for P&L / change / signed numerics, which resolve
@@ -1092,19 +1094,15 @@ modules).
   commas: P&L → `"K"` (÷1,000, sign-coloured), quantities/sizes → `"K"`,
   notional / market value → `"M"` (÷1,000,000); small money (fees, commission,
   accrued interest) stays on plain decimals so it isn't squashed to `0.0M`
-- `matchFieldToCatalog(field, headerName?, cellDataType?)` — resolve a column's
+- `matchFieldToCatalog(field, headerName?, cellDataType?)` (internal since Phase 6) — resolve a column's
   `AutoFormatAssignment`. Nested paths match on their **last segment only**
   (`position.marketValue` → `marketValue`). Resolution order: exact alias →
   last-element suffix (e.g. `bidPrice` → `price`) → phonetic Soundex
   (catches misspellings/variants, e.g. `yeild` → `yield`) → generic fallback by
   data type (number → right-aligned grouped 2dp; date → localised; boolean →
   centred; else none)
-- `normalizeToken()` — lowercase + strip non-alphanumerics for matching
-- `soundex()` — Russell Soundex code (first letter + 3 digits) powering the
-  phonetic match tier
-- `buildAutoFormatPlan(columns)` — map columns → `Record<colId, AutoFormatAssignment>`
-- Types: `FieldFormatEntry`, `AutoFormatAssignment`, `AutoFormatColumn`,
-  `AutoFormatAlignment`, `AutoFormatTypography`
+- `buildAutoFormatPlan(columns)` — map columns → `Record<colId, AutoFormatAssignment>` (public, with `AutoFormatColumn`)
+- Internal since Phase 6: `normalizeToken()`, `soundex()` (Russell Soundex powering the phonetic match tier), and the `FieldFormatEntry` / `AutoFormatAssignment` / `AutoFormatAlignment` / `AutoFormatTypography` types — reachable in-package behind `buildAutoFormatPlan`
 
 #### Style editor model
 
