@@ -1,10 +1,8 @@
 /**
- * Small status dot — 6×6 filled circle. Three states:
+ * Small status LED — 2×12 filled bar. Three states:
  *   - on + green (default)  — active / ok
  *   - on + amber            — pending / warning
  *   - off                   — muted
- *
- * `DirtyDot` is kept as a BC alias — it now renders a 6px amber dot.
  */
 
 export interface LedBarProps {
@@ -32,21 +30,4 @@ export function LedBar({ on = true, amber, title }: LedBarProps) {
       aria-label={title}
     />
   );
-}
-
-export interface DirtyDotProps {
-  hidden?: boolean;
-  title?: string;
-}
-
-export function DirtyDot({ hidden, title = 'Unsaved changes' }: DirtyDotProps) {
-  if (hidden) {
-    return (
-      <span
-        aria-hidden
-        className="inline-block w-1.5 h-1.5 invisible flex-shrink-0"
-      />
-    );
-  }
-  return <LedBar amber on title={title} />;
 }

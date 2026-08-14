@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { PortalContainerProvider } from './PortalContainer';
+import { PortalContainerProvider } from '@wellsfargo-starui/react';
 import { enableCrossRealmNodeInstanceOf } from './crossRealmNodeInstanceOf';
 
 // ─── StrictMode-safe window registry (module-level) ───────────────────

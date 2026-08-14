@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { DirtyDot, LedBar } from './DirtyDot';
+import { LedBar } from './LedBar';
 
 describe('LedBar', () => {
   it('defaults to on + green', () => {
@@ -13,17 +13,5 @@ describe('LedBar', () => {
   it('supports amber warning state', () => {
     render(<LedBar amber title="warn" />);
     expect(screen.getByLabelText('warn').getAttribute('data-amber')).toBe('true');
-  });
-});
-
-describe('DirtyDot', () => {
-  it('renders invisible spacer when hidden', () => {
-    const { container } = render(<DirtyDot hidden />);
-    expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
-  });
-
-  it('renders amber led when visible', () => {
-    render(<DirtyDot />);
-    expect(screen.getByLabelText('Unsaved changes')).toBeTruthy();
   });
 });

@@ -161,8 +161,16 @@ export async function openModuleMenu(page: Page, moduleId: string) {
 export async function navigateToModule(page: Page, moduleId: string): Promise<void> {
   const sectionId = EDITING_SECTION_IDS.has(moduleId) ? moduleId : null;
   const targetModuleId = sectionId ? 'editing' : moduleId;
-  const item = await openModuleMenu(page, targetModuleId);
-  await item.click();
+  // The menu content animates open; under parallel-worker load the item
+  // can stay "not stable" past a single click's patience. Bound each
+  // click attempt and re-open the menu between attempts.
+  for (let attempt = 0; ; attempt += 1) {
+    const item = await openModuleMenu(page, targetModuleId);
+    const clicked = await item.click({ timeout: 5_000 }).then(() => true, () => false);
+    if (clicked) break;
+    if (attempt >= 2) throw new Error(`could not click settings nav item "${targetModuleId}"`);
+    await page.keyboard.press('Escape');
+  }
   if (sectionId) {
     const tab = page.locator(`[data-testid="editing-section-tab-${sectionId}"]`);
     await tab.waitFor({ state: 'visible', timeout: 10_000 });

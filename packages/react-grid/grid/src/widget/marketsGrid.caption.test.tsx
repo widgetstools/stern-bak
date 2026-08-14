@@ -65,7 +65,6 @@ vi.mock('../customizer/internal.js', async () => {
       discardActiveProfile: vi.fn(),
     }),
     captureGridStateInto: vi.fn(),
-    DirtyDot: () => null,
     ChromeButton: React.forwardRef<HTMLButtonElement, any>(({ children, ...rest }, ref) => (
       <button ref={ref} {...rest}>{children}</button>
     )),

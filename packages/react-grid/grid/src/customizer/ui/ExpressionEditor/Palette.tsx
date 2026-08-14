@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Input } from '@wellsfargo-starui/react';
-import { useResolvedPortalContainer } from '../PortalContainer';
+import { useResolvedPortalContainer } from '@wellsfargo-starui/react';
 import { getPortalDomContext } from './editorDom';
 
 /**

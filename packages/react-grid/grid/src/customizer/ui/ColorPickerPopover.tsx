@@ -5,27 +5,6 @@ import { FormatColorPicker } from './format-editor/FormatColorPicker';
 import { ChromeButton } from './ChromeButton';
 import { FormatPopover } from './format-editor/FormatPopover';
 
-export interface ColorPickerProps {
-  value?: string;
-  onChange: (color: string | undefined) => void;
-  allowClear?: boolean;
-  compact?: boolean;
-}
-
-export function ColorPicker({ value, onChange, allowClear = true }: ColorPickerProps) {
-  return (
-    <div style={{ padding: 8 }} onMouseDown={(e) => {
-      if ((e.target as HTMLElement).tagName !== 'INPUT') e.preventDefault();
-    }}>
-      <FormatColorPicker
-        value={value || '#000000'}
-        onChange={(c) => onChange(c || undefined)}
-        allowClear={allowClear}
-      />
-    </div>
-  );
-}
-
 export interface ColorPickerPopoverProps {
   value?: string;
   onChange: (color: string | undefined) => void;

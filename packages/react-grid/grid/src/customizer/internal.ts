@@ -72,12 +72,11 @@ export {
   PortalContainerProvider,
   usePortalContainer,
   useResolvedPortalContainer,
-} from './ui/PortalContainer';
-export type { PortalContainerProviderProps } from './ui/PortalContainer';
+} from '@wellsfargo-starui/react';
+export type { PortalContainerProviderProps } from '@wellsfargo-starui/react';
 
 // ─── Settings-panel primitives ───────────────────────────────────────────
 export {
-  DirtyDot,
   LedBar,
   GhostIcon,
   SubLabel,
@@ -86,11 +85,8 @@ export {
   PillToggleBtn,
   PairRow,
   FigmaPanelSection,
-  ItemCard,
   ObjectTitleRow,
   TitleInput,
-  PanelChrome,
-  TabStrip,
   Caps,
   Mono,
   SharpBtn,
@@ -102,7 +98,6 @@ export {
   Stepper,
 } from './ui/SettingsPanel';
 export type {
-  DirtyDotProps,
   LedBarProps,
   GhostIconProps,
   SubLabelProps,
@@ -111,12 +106,8 @@ export type {
   PillToggleBtnProps,
   PairRowProps,
   FigmaPanelSectionProps,
-  ItemCardProps,
   ObjectTitleRowProps,
   TitleInputProps,
-  PanelChromeProps,
-  TabStripProps,
-  TabItem,
   CapsProps,
   MonoProps,
   SharpBtnProps,
@@ -173,8 +164,8 @@ export { Select, NativeOptionsSelect } from './ui/NativeOptionsSelect';
 export type { NativeOptionsSelectProps } from './ui/NativeOptionsSelect';
 export { PopoverCompat } from './ui/PopoverCompat';
 export { Tooltip } from './ui/HoverTooltip';
-export { ColorPicker, ColorPickerPopover } from './ui/GridColorPickerPopover';
-export type { ColorPickerProps, ColorPickerPopoverProps } from './ui/GridColorPickerPopover';
+export { ColorPickerPopover } from './ui/ColorPickerPopover';
+export type { ColorPickerPopoverProps } from './ui/ColorPickerPopover';
 
 // ─── StyleEditor + ColorPicker + FormatterPicker ─────────────────────────
 export {

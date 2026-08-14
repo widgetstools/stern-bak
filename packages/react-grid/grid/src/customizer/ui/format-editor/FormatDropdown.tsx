@@ -3,7 +3,7 @@ import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Check } from 'lucide-react';
 import { cn } from '@wellsfargo-starui/react';
 import { ChromeButton } from '../ChromeButton';
-import { useResolvedPortalContainer } from '../PortalContainer';
+import { useResolvedPortalContainer } from '@wellsfargo-starui/react';
 import { clickIsInsideAnyOpenPopover, registerPopoverRoot } from './popoverStack';
 
 /**

@@ -4,10 +4,8 @@
  * Import site:
  *
  *   import {
- *     PanelChrome, TabStrip, ObjectTitleRow,
- *     FigmaPanelSection, SubLabel, PairRow,
- *     ItemCard, IconInput, PillToggleGroup, PillToggleBtn,
- *     GhostIcon, DirtyDot, LedBar,
+ *     ObjectTitleRow, FigmaPanelSection, SubLabel, PairRow,
+ *     IconInput, PillToggleGroup, PillToggleBtn, GhostIcon, LedBar,
  *     Caps, Mono, SharpBtn, TGroup, TBtn, TDivider, Band, MetaCell, Stepper,
  *   } from '@wellsfargo-starui/core';
  *
@@ -15,24 +13,21 @@
  * via Tailwind utility classes from the shared preset.
  */
 
-export { DirtyDot, LedBar, type DirtyDotProps, type LedBarProps } from './DirtyDot';
+export { LedBar, type LedBarProps } from './LedBar';
 export { GhostIcon, type GhostIconProps } from './GhostIcon';
 export { SubLabel, type SubLabelProps } from './SubLabel';
 export { IconInput, type IconInputProps } from './IconInput';
 export { PillToggleGroup, PillToggleBtn, type PillToggleGroupProps, type PillToggleBtnProps } from './PillToggleGroup';
 export { PairRow, type PairRowProps } from './PairRow';
 export { FigmaPanelSection, type FigmaPanelSectionProps } from './FigmaPanelSection';
-export { ItemCard, type ItemCardProps } from './ItemCard';
 export { ObjectTitleRow, type ObjectTitleRowProps } from './ObjectTitleRow';
 export { TitleInput, type TitleInputProps } from './TitleInput';
-export { PanelChrome, type PanelChromeProps } from './PanelChrome';
 export { SettingsRow, type SettingsRowProps } from './SettingsRow';
 export {
   SummaryChip,
   type SummaryChipProps,
   type SummaryChipTone,
 } from './SummaryChip';
-export { TabStrip, type TabStripProps, type TabItem } from './TabStrip';
 export {
   CockpitList,
   CockpitListItem,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useResolvedPortalContainer } from '../PortalContainer';
+import { useResolvedPortalContainer } from '@wellsfargo-starui/react';
 import { getPortalDomContext } from './editorDom';
 
 /**
