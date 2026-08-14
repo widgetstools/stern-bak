@@ -1,7 +1,9 @@
 /**
  * Cross-instance write coherence for `createConfigServiceStorage`.
  *
- * A MarketsGrid hosted by MarketsGridContainer ends up with TWO adapter
+ * Two adapter instances over the SAME bundled row — since the factory
+ * memoizes per row identity, this now models CROSS-WINDOW writers (each
+ * window builds its own factory). Historically one window's pair of
  * instances over the SAME bundled row: the container's adapter writes
  * `gridLevelData` (provider selection), while MarketsGrid's controller
  * adapter writes profiles. They keep independent per-scope row caches +

@@ -229,3 +229,20 @@ describe('LocalStorageBundleAdapter', () => {
     expect(await adapter.listProfiles(gridId)).toEqual([]);
   });
 });
+
+describe('createMarketsGridLocalStorageStorage — instance memoization', () => {
+  it('returns the SAME adapter for the same grid key and distinct ones otherwise', async () => {
+    const { createMarketsGridLocalStorageStorage } = await import(
+      './createMarketsGridLocalStorageStorage.js'
+    );
+    const factory = createMarketsGridLocalStorageStorage();
+    const a = factory({ instanceId: 'g1', gridId: 'g1' });
+    const b = factory({ instanceId: 'g1', gridId: 'g1' });
+    const c = factory({ instanceId: 'g2', gridId: 'g2' });
+    expect(b).toBe(a);
+    expect(c).not.toBe(a);
+    // gridId falls back to instanceId for the key.
+    const d = factory({ instanceId: 'g1' });
+    expect(d).toBe(a);
+  });
+});

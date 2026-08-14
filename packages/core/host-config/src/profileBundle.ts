@@ -287,11 +287,32 @@ export function createConfigServiceStorage(
   const closureUserId = opts.userId;
   const displayTextPrefix = opts.displayTextPrefix ?? 'MarketsGrid profiles';
 
+  // One adapter INSTANCE per row identity. Historically each factory call
+  // minted a fresh adapter, so a container + grid pair over the same row
+  // held two independent version caches — the intra-window dual-writer
+  // hazard the OCC retry below papers over. Sharing the instance makes
+  // that hazard structurally impossible within a window; the retry stays
+  // as the belt for genuinely concurrent writers (other windows/tabs).
+  const instances = new Map<string, StorageAdapter>();
+
   return (factoryOpts: ProfileStorageFactoryOpts): StorageAdapter => {
     const instanceId = factoryOpts.instanceId;
     const appId = factoryOpts.appId ?? closureAppId;
     const userId = factoryOpts.userId ?? closureUserId;
     const identity = factoryOpts.registeredIdentity;
+
+    // Identity participates in the key: it stamps componentType /
+    // componentSubType on saves, so two callers with different registered
+    // identities must not share a save pipeline.
+    const instanceKey = JSON.stringify([
+      appId, userId, instanceId,
+      identity?.componentType ?? null,
+      identity?.componentSubType ?? null,
+      identity?.isTemplate ?? null,
+      identity?.singleton ?? null,
+    ]);
+    const existing = instances.get(instanceKey);
+    if (existing) return existing;
 
     if (!appId || !userId) {
       throw new Error(
@@ -331,17 +352,17 @@ export function createConfigServiceStorage(
       return cachedRow;
     };
 
-    // OCC read-modify-write with bounded retry. A single bundled row can be
-    // targeted by TWO adapter instances at once — MarketsGridContainer's
-    // adapter writes `gridLevelData` (provider selection) while MarketsGrid's
-    // controller adapter writes profiles — each holding an INDEPENDENT version
-    // cache, and the gridLevelData adapter does not subscribe to change
-    // notifications. When the other instance bumps the row version between our
-    // cached read and our write, `saveProfileSet` throws
-    // `ProfileSetVersionConflictError`. Dropping the write here is what
-    // silently lost the provider selection (the grid booted empty next launch).
-    // Instead: invalidate, re-read the current row, rebuild the payload from
-    // it (preserving the other writer's changes), and retry.
+    // OCC read-modify-write with bounded retry. Within one window the
+    // factory memoizes one adapter per row identity, so the historical
+    // intra-window hazard (container gridLevelData writer vs controller
+    // profile writer, each with an independent version cache — which once
+    // silently lost the provider selection and booted the grid empty) can
+    // no longer occur. The retry remains for genuinely concurrent writers:
+    // another window/tab (its own factory, its own version cache) can bump
+    // the row version between our cached read and our write, making
+    // `saveProfileSet` throw `ProfileSetVersionConflictError`. Instead of
+    // dropping the write: invalidate, re-read the current row, rebuild the
+    // payload from it (preserving the other writer's changes), and retry.
     //
     // `build` returns the next payload, or `null` to signal a no-op (e.g.
     // deleting a profile that isn't there) so we skip the write entirely.
@@ -472,6 +493,7 @@ export function createConfigServiceStorage(
       configurable: false,
     });
 
+    instances.set(instanceKey, adapter);
     return adapter;
   };
 }
