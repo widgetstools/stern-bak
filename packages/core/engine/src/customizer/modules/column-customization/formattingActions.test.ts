@@ -21,7 +21,6 @@ import {
   applyFormatterReducer,
   applyTemplateToColumnsReducer,
   applyTypographyReducer,
-  clearAllBordersReducer,
   clearAllStylesReducer,
   clearAllStylesInProfileReducer,
   removeTemplateRefFromAssignmentsReducer,
@@ -331,33 +330,6 @@ describe('applyBordersReducer', () => {
     const seed = applyBordersReducer(['price'], 'cell', ['top', 'bottom'], spec)(EMPTY);
     const next = applyBordersReducer(['price'], 'cell', ['top'], undefined)(seed);
     expect(next.assignments['price'].cellStyleOverrides?.dark?.borders).toEqual({ bottom: spec });
-  });
-});
-
-describe('clearAllBordersReducer', () => {
-  const spec: BorderSpec = { width: 1, color: '#000', style: 'dashed' };
-
-  it('drops every border side', () => {
-    const seed = applyBordersReducer(
-      ['price'],
-      'cell',
-      ['top', 'right', 'bottom', 'left'],
-      spec,
-    )(EMPTY);
-    const next = clearAllBordersReducer(['price'], 'cell')(seed);
-    expect(next.assignments['price']).toEqual({ colId: 'price' });
-  });
-
-  it('leaves non-border sections intact', () => {
-    const spec2: BorderSpec = { width: 1, color: '#000', style: 'solid' };
-    let state = applyTypographyReducer(['price'], 'cell', { bold: true })(EMPTY);
-    state = applyBordersReducer(['price'], 'cell', ['top'], spec2)(state);
-    const next = clearAllBordersReducer(['price'], 'cell')(state);
-    // Reducers wrote only to the active (`dark`) slot — the `light`
-    // slot was never seeded so it stays absent.
-    expect(next.assignments['price'].cellStyleOverrides).toEqual({
-      dark: { typography: { bold: true } },
-    });
   });
 });
 

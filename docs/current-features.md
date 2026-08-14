@@ -511,6 +511,31 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `formatterPresets` — built-in numeric, date, currency, % presets; traffic-light / emoji patterns documented in `HelpPanel` and authored via Excel value-format strings in conditional styling
 - `formattingToolbarHooks` — `useFormatter` state + actions; `resolveToolbarPickerDataType()` maps `dateString` / `dateTimeString` (and `date` columns whose sample values include time) to datetime FormatterPicker presets so **Date + time** tiles (ISO with time, US short) appear in the toolbar
 
+#### Column-styling ownership matrix (the ONE write-surface reference)
+
+Every styling writer lands in the SAME `column-customization` module state
+(`ColumnCustomizationState.assignments[colId]` + four `global*` root fields)
+— there is no parallel copy. **Column Settings is the authority; the
+formatting toolbar is a shortcut writing identical state.** Who writes what:
+
+| Writer | Mechanism | Fields written |
+|---|---|---|
+| **Column Settings panel** (`ColumnSettingsPanel`, authority) | draft + explicit Save (`useModuleDraft`, DirtyBus) | `assignments[colId].*` — headerName, tooltip, layout (width/pin/hide/sort/resize), `templateIds` (appends), `cellStyleOverrides` / `headerStyleOverrides` (per active theme), `valueFormatterTemplate`, filter, rowGrouping, cellEditor, cellRenderer |
+| **Formatting toolbar** (`useFormatterActions`) | immediate write + its own undo/redo stack, via the pure reducer bank (`formattingActions.ts`) | same assignment fields via `apply*Reducer`s, plus the four toolbar-only `global*` root fields (scope = All); `templateIds` (replaces), `doFormat` clears `cellRendererId`/`cellRendererConfig`, `setCellEditorKind` force-sets `editable: true`; also sole writer of `general-settings.headerCaseUppercase` / `showCellTooltips` |
+| **Auto Format** (`useAutoFormatAction`) | one-shot `setModuleState` (`applyAutoFormatPlanReducer`) — bypasses both histories | `valueFormatterTemplate`, `headerName`, both-theme alignment/typography; clears `cellRendererId`/`cellRendererConfig` on matched columns |
+| **Provider editor ColumnsTab** | `TransportConfig.columnDefinitions` (base colDefs — a lower-precedence LAYER, not module state) | UI: field names / `headerName` / `cellDataType` / `valueGetter` / order only. JSON-import additionally accepts width / valueFormatter / cellRenderer / filter / sortable / resizable / hide — kept for existing exported configs; the column-customization transform overrides all of it |
+| **Templates** (`column-templates`) | authored ONLY from the formatting toolbar (`useFormatterTemplates`); no panel | own `templates` map (same styling field names, layered in via `assignments[colId].templateIds`). `typeDefaults` has a tested resolve path but no UI writer today |
+| **Conditional styling** | own rules (`cellClassRules`, per-cell wins on match) | `ConditionalRule.style` / `flash` / `indicator` + a per-rule `valueFormatterTemplate` (same union as the assignment's — the one deliberate second formatter authority, scoped to matching cells) |
+| **Calculated columns** | own `virtualColumns` defs | per-virtual-column `valueFormatterTemplate` + initial layout; the transform layers `assignments[virtualColId]` on top, assignment formatter wins |
+| **grid-state** | explicit Save capture of live AG state | column width / order / pinned / visibility (replayed after all structure modules) |
+
+Known semantic divergences between the two primary writers (documented,
+deliberate): toolbar `templateIds` **replaces** while the panel **appends**;
+toolbar `doFormat` clears an existing cell renderer while the panel's
+ValueFormatBand leaves it; toolbar `setCellEditorKind` force-enables
+`editable`; the toolbar has target (cell/header) + scope (selected/all)
+tri-states the panel lacks — the four `global*` fields are toolbar-only.
+
 #### Customizer modules (under `./customizer`)
 
 - **General settings** — grid behaviour toggles; defaults `animateRows: false` and

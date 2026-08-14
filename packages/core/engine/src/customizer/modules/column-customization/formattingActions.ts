@@ -236,21 +236,6 @@ export function applyBordersReducer(
   return writeOverridesReducer(colIds, target, { borders }, scope);
 }
 
-/** Clear every border side (top/right/bottom/left) in one shot. */
-export function clearAllBordersReducer(
-  colIds: readonly string[],
-  target: TargetKind,
-  scope: ScopeKind = 'selected',
-): (prev: ColumnCustomizationState | undefined) => ColumnCustomizationState {
-  return applyBordersReducer(
-    colIds,
-    target,
-    ['top', 'right', 'bottom', 'left'],
-    undefined,
-    scope,
-  );
-}
-
 /**
  * Set (or clear with `headerName: undefined`) the column's display caption.
  * Lives on the assignment root and writes through to AG-Grid's

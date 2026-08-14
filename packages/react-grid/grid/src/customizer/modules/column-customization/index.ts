@@ -264,7 +264,6 @@ export {
   applyColorsReducer,
   applyAlignmentReducer,
   applyBordersReducer,
-  clearAllBordersReducer,
   applyHeaderNameReducer,
   applyEditableReducer,
   applyCellEditorKindReducer,
