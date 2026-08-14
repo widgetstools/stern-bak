@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   mockBrowserRuntime,
   mockBuildGridHostContext,
-  mockCreateConfigPort,
   mockCreateConfigServiceStorage,
   mockStorageFactoryForPersistence,
   resetStaruiMocks,
@@ -70,7 +69,6 @@ describe('StarGridApp', () => {
     await waitFor(() => {
       expect(configManager.init).toHaveBeenCalled();
       expect(mockCreateConfigServiceStorage).toHaveBeenCalledWith({ configManager });
-      expect(mockCreateConfigPort).toHaveBeenCalled();
       expect(screen.getByTestId('ready')).toBeInTheDocument();
     });
   });

@@ -80,9 +80,9 @@ export {
 // ConfigService-backed persistence for <MarketsGrid>. Pass the factory
 // to MarketsGrid's `storage` prop to opt-in to cross-device profile
 // sync scoped by (appId, userId, instanceId).
-// All three profile surfaces (StorageAdapter factory, the
-// `ConfigManager.profiles` namespace, and the ConfigPort adapter) plus
-// the bundle RMW helper live in one module now — see `profileBundle.ts`.
+// The one profile surface (the StorageAdapter factory) plus the bundle
+// RMW helper live in `profileBundle.ts`; row change events route through
+// `ConfigManager.onRowChanged`.
 export {
   readProfileSetPayload,
   createConfigServiceStorage,
@@ -100,32 +100,6 @@ export {
   type RegisteredComponentIdentity,
   type StorageAdapter,
 } from './profileBundle';
-
-// ─── ConfigManager.profiles namespace ────────────────────────────────
-// First-class API for reading/writing the bundled profile-set row
-// without going through StorageAdapter. Same Dexie row, identical
-// semantics. See docs/PROFILE-STATE-CONSOLIDATION.md.
-export type {
-  ProfilesNamespace,
-  ProfilesScope,
-  ProfilesSaveOptions,
-} from './profileBundle.types';
-
-// ─── Profile-state consolidation migration (Session 3.2) ────────────
-// One-shot copy from the legacy `gc-customizer-v2` Dexie DB into the
-// ConfigService bundled row. Runs once on `<ConfigServiceProvider>`
-// mount; idempotent via a localStorage flag.
-export {
-  migrateLegacyProfilesIfNeeded,
-  PROFILE_MIGRATION_V1_FLAG,
-  LEGACY_PROFILES_DB_NAME,
-  LEGACY_PROFILES_TABLE,
-  type MigrationOptions,
-  type MigrationResult,
-} from './migrations/profiles-v1';
-
-
-export { createConfigPort, type ConfigPortOptions } from './profileBundle';
 
 export {
   CONFIG_BROWSER_TABLES,

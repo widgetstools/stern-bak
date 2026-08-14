@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ConfigPort, DataPort, RuntimePort } from '@wellsfargo-starui/core/host';
+import type { DataPort, RuntimePort } from '@wellsfargo-starui/core/host';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { StorageAdapterFactory } from '@wellsfargo-starui/core';
 import type { Theme, Unsubscribe } from '@wellsfargo-starui/types';
@@ -17,7 +17,6 @@ export interface StarGridHostScope {
 export interface StarGridAppState {
   readonly runtime: RuntimePort;
   readonly configManager?: ConfigManager;
-  readonly configPort?: ConfigPort;
   readonly data?: DataPort;
   readonly storageFactory?: StorageAdapterFactory;
   readonly theme: Theme;

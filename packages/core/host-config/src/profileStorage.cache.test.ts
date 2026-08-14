@@ -21,7 +21,7 @@ interface FakeManager {
   getCount: () => number;
   saveConfig: ConfigManager['saveConfig'];
   getConfig: ConfigManager['getConfig'];
-  profiles: { subscribe: (scope: unknown, fn: () => void) => () => void };
+  onRowChanged: (configId: string, fn: () => void) => () => void;
 }
 
 /**
@@ -44,11 +44,9 @@ function makeFakeConfigManager(): FakeManager {
       getCount++;
       return rows.get(id);
     },
-    profiles: {
-      subscribe: (_scope: unknown, fn: () => void) => {
-        listeners.add(fn);
-        return () => listeners.delete(fn);
-      },
+    onRowChanged: (_configId: string, fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
     },
   } as unknown as FakeManager;
 }

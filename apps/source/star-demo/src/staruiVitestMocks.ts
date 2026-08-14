@@ -24,7 +24,6 @@ export const mockBuildGridHostContext = vi.fn(() => ({ gridId: 'mock-host' }));
 export const mockStorageFactoryForPersistence = vi.fn(() => vi.fn());
 export const mockDefineStarGridPlugin = vi.fn((def: unknown) => def);
 export const mockCreateConfigServiceStorage = vi.fn(() => vi.fn());
-export const mockCreateConfigPort = vi.fn(() => ({ port: 'config' }));
 
 const runtimeMock = {
   getTheme: vi.fn(() => 'dark' as const),
@@ -56,7 +55,6 @@ export function resetStaruiMocks(): void {
   mockStorageFactoryForPersistence.mockClear().mockReturnValue(vi.fn());
   mockDefineStarGridPlugin.mockClear().mockImplementation((def: unknown) => def);
   mockCreateConfigServiceStorage.mockClear().mockReturnValue(vi.fn());
-  mockCreateConfigPort.mockClear().mockReturnValue({ port: 'config' });
   mockBrowserRuntime.mockClear();
   mockOpenFinRuntimeCreate.mockClear().mockResolvedValue(runtimeMock);
   mockIsOpenFin.mockClear().mockReturnValue(false);
@@ -94,7 +92,6 @@ vi.mock('@wellsfargo-starui/core/host', () => ({
 
 vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigServiceStorage: mockCreateConfigServiceStorage,
-  createConfigPort: mockCreateConfigPort,
 }));
 
 vi.mock('@wellsfargo-starui/data', () => ({

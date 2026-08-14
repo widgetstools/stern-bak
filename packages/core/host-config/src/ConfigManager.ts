@@ -22,8 +22,6 @@ import { ConfigDatabase } from './db';
 import { ConfigNotFoundError, OptimisticLockError } from './errors';
 import { normalizeImportedAppConfigRow, normalizeSeedData, parseSeedJson } from './normalizeSeedData';
 import { computeSeedDigest, seedDigestStorageKey } from './seedDigest';
-import { createProfilesNamespace } from './profileBundle';
-import type { ProfilesNamespace } from './profileBundle.types';
 import type {
   AppConfigRow,
   AppIdentity,
@@ -170,10 +168,6 @@ export class ConfigManager {
   private readonly rowCache = new Map<string, AppConfigRow | undefined>();
   /** Backstop cap for {@link rowCache}; clears wholesale when exceeded. */
   private static readonly ROW_CACHE_MAX = 1000;
-  /** First-class `profiles` namespace — see `./profiles.ts` and
-   *  `docs/PROFILE-STATE-CONSOLIDATION.md` for the API. Backed by the
-   *  same bundled row that `createConfigServiceStorage` writes. */
-  readonly profiles: ProfilesNamespace;
 
   constructor(options: ConfigManagerOptions = {}) {
     this.db = new ConfigDatabase();
@@ -192,7 +186,6 @@ export class ConfigManager {
     this.changeNotifier.subscribeAll((configId) => {
       this.rowCache.delete(configId);
     });
-    this.profiles = createProfilesNamespace(this, this.changeNotifier);
   }
 
   // ─── Identity accessors ──────────────────────────────────────────
@@ -224,6 +217,15 @@ export class ConfigManager {
    */
   onConfigChanged(fn: (configId: string) => void): () => void {
     return this.changeNotifier.subscribeAll(fn);
+  }
+
+  /**
+   * Subscribe to writes/deletes of ONE config row (same-tab + cross-tab).
+   * The per-row analogue of {@link onConfigChanged} — used by
+   * `createConfigServiceStorage` to keep its row cache coherent.
+   */
+  onRowChanged(configId: string, fn: () => void): () => void {
+    return this.changeNotifier.subscribe(configId, fn);
   }
 
   // ─── ApplicationContext / data-services wiring (Session 7) ────────

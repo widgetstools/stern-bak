@@ -29,7 +29,7 @@ interface FakeManager {
   rows: Map<string, AppConfigRow>;
   saveConfig: ConfigManager['saveConfig'];
   getConfig: ConfigManager['getConfig'];
-  profiles: { subscribe: (scope: unknown, fn: () => void) => () => void };
+  onRowChanged: (configId: string, fn: () => void) => () => void;
 }
 
 function makeFakeConfigManager(): FakeManager {
@@ -42,11 +42,9 @@ function makeFakeConfigManager(): FakeManager {
       for (const fn of listeners) fn();
     },
     getConfig: async (id: string) => rows.get(id),
-    profiles: {
-      subscribe: (_scope: unknown, fn: () => void) => {
-        listeners.add(fn);
-        return () => listeners.delete(fn);
-      },
+    onRowChanged: (_configId: string, fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
     },
   } as unknown as FakeManager;
 }

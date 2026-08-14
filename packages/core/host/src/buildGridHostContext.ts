@@ -5,7 +5,6 @@ import {
   type StorageAdapterFactory,
 } from '@wellsfargo-starui/core';
 import { createGridHostContext, type GridHostContext } from './GridHostContext.js';
-import type { ConfigPort } from './ConfigPort.js';
 import type { DataPort } from './DataPort.js';
 import type { RuntimePort } from './RuntimePort.js';
 import type { StoragePort } from './StoragePort.js';
@@ -42,7 +41,7 @@ export function buildGridHostContext(
   runtime: RuntimePort,
   storageFactory: StorageAdapterFactory,
   scope: GridHostScope,
-  opts?: { data?: DataPort; config?: ConfigPort },
+  opts?: { data?: DataPort },
 ): GridHostContext {
   const identity = runtime.resolveIdentity();
   const instanceId = scope.instanceId ?? scope.gridId;
@@ -58,6 +57,5 @@ export function buildGridHostContext(
     runtime,
     storage,
     ...(opts?.data !== undefined ? { data: opts.data } : {}),
-    ...(opts?.config !== undefined ? { config: opts.config } : {}),
   });
 }

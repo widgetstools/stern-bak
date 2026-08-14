@@ -53,7 +53,7 @@ describe('saveGridLevelData — scope drift', () => {
     cm = {
       getConfig: async (id: string) => rows.get(id),
       saveConfig: async (row: AppConfigRow) => { rows.set(row.configId, row); },
-      profiles: { subscribe: () => () => {} },
+      onRowChanged: () => () => {},
     } as unknown as ConfigManager;
     rows.set('inst-1', makeRow({}));
   });

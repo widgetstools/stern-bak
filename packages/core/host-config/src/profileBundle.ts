@@ -4,26 +4,20 @@
  * A MarketsGrid instance stores every one of its profiles (plus
  * `gridLevelData`) in a SINGLE `AppConfigRow` keyed by `instanceId`,
  * with `payload = { version, profiles[], gridLevelData }`. This file
- * owns the read-modify-write of that bundle and exposes it three ways:
- *
- *   1. `createProfilesNamespace` → `ConfigManager.profiles.*` — the
- *      first-class scope-based API.
- *   2. `createConfigServiceStorage` → a `StorageAdapter` for the
- *      `<MarketsGrid storage=…>` prop (legacy per-profile API).
- *   3. `createConfigPort` → a `ConfigPort` for GridHostContext.
- *
- * All three sit on the same `loadProfileSet` / `saveProfileSet`
- * helpers so version-handling and component-type discrimination never
- * drift between surfaces.
+ * owns the read-modify-write of that bundle and exposes it ONE way:
+ * `createConfigServiceStorage` → the `StorageAdapter` behind the
+ * `<MarketsGrid storage=…>` prop. (The `ConfigManager.profiles`
+ * namespace and `createConfigPort` surfaces were deleted in the
+ * persistence consolidation — every writer now goes through the
+ * adapter, which routes row change events via
+ * `ConfigManager.onRowChanged`.)
  */
 
 // Type-only import — @wellsfargo-starui/core is a peerDependency so the types
 // line up exactly with what MarketsGrid expects. No runtime dep on
 // core; consumers naturally satisfy the peer by depending on both.
 import type { ProfileSnapshot, StorageAdapter } from '@wellsfargo-starui/core';
-import type { ConfigPort } from '@wellsfargo-starui/core/host';
 
-import type { ChangeNotifier } from './changeNotifier';
 import type { ConfigManager } from './ConfigManager.js';
 import type { AppConfigRow } from './types';
 import {
@@ -32,9 +26,6 @@ import {
   type ProfileSetPayload,
   type ProfileSetSaveOptions,
   type ProfileSetScope,
-  type ProfilesNamespace,
-  type ProfilesSaveOptions,
-  type ProfilesScope,
   type RegisteredComponentIdentity,
 } from './profileBundle.types';
 
@@ -49,9 +40,6 @@ export type {
   ProfileSetPayload,
   ProfileSetScope,
   ProfileSetSaveOptions,
-  ProfilesNamespace,
-  ProfilesScope,
-  ProfilesSaveOptions,
   RegisteredComponentIdentity,
   ProfileSnapshot,
   StorageAdapter,
@@ -63,12 +51,6 @@ export type {
 export interface ProfileSetConfigAccess {
   getConfig(configId: string): Promise<AppConfigRow | null | undefined>;
   saveConfig(row: AppConfigRow): Promise<void>;
-}
-
-/** ConfigManager surface used by the `profiles` namespace factory. */
-export interface ProfilesHost extends ProfileSetConfigAccess {
-  getAppId(): string;
-  getIdentity(): { userId: string };
 }
 
 // ─── Read-modify-write helpers ───────────────────────────────────────
@@ -224,100 +206,11 @@ function normalizeSnapshot(raw: unknown): ProfileSnapshot | null {
   };
 }
 
-// ─── Surface 1: `ConfigManager.profiles` namespace ───────────────────
-
-export function createProfilesNamespace(
-  manager: ProfilesHost,
-  notifier: ChangeNotifier,
-): ProfilesNamespace {
-  function resolveScope(scope: ProfilesScope): { instanceId: string; appId: string; userId: string } {
-    const appId = scope.appId ?? manager.getAppId();
-    const userId = scope.userId ?? manager.getIdentity().userId;
-    return { instanceId: scope.instanceId, appId, userId };
-  }
-
-  function toSaveOptions(options: ProfilesSaveOptions | undefined): ProfileSetSaveOptions {
-    return {
-      identity: options?.identity,
-      displayTextPrefix: options?.displayTextPrefix,
-    };
-  }
-
-  return {
-    async list(scope) {
-      const resolved = resolveScope(scope);
-      const set = await loadProfileSet(manager, resolved);
-      return set?.profiles ?? [];
-    },
-
-    async save(scope, snapshot, options) {
-      const resolved = resolveScope(scope);
-      const loaded = await loadProfileSet(manager, resolved);
-      const expectedVersion = loaded?.version ?? 0;
-      const profiles = loaded?.profiles ?? [];
-      const idx = profiles.findIndex((p) => p.id === snapshot.id);
-      if (idx >= 0) {
-        profiles[idx] = snapshot;
-      } else {
-        profiles.push(snapshot);
-      }
-      await saveProfileSet(
-        manager,
-        resolved,
-        { version: expectedVersion, profiles, gridLevelData: loaded?.gridLevelData },
-        expectedVersion,
-        toSaveOptions(options),
-      );
-    },
-
-    async delete(scope, profileId, options) {
-      const resolved = resolveScope(scope);
-      const loaded = await loadProfileSet(manager, resolved);
-      if (!loaded) return;
-      const filtered = loaded.profiles.filter((p) => p.id !== profileId);
-      if (filtered.length === loaded.profiles.length) return;
-      await saveProfileSet(
-        manager,
-        resolved,
-        { version: loaded.version, profiles: filtered, gridLevelData: loaded?.gridLevelData },
-        loaded.version,
-        toSaveOptions(options),
-      );
-    },
-
-    async loadGridLevelData(scope) {
-      const resolved = resolveScope(scope);
-      const set = await loadProfileSet(manager, resolved);
-      return set?.gridLevelData ?? null;
-    },
-
-    async saveGridLevelData(scope, data, options) {
-      const resolved = resolveScope(scope);
-      const loaded = await loadProfileSet(manager, resolved);
-      const expectedVersion = loaded?.version ?? 0;
-      await saveProfileSet(
-        manager,
-        resolved,
-        {
-          version: expectedVersion,
-          profiles: loaded?.profiles ?? [],
-          gridLevelData: data,
-        },
-        expectedVersion,
-        toSaveOptions(options),
-      );
-    },
-
-    subscribe(scope, fn) {
-      return notifier.subscribe(scope.instanceId, fn);
-    },
-  };
-}
-
 // ─── Surface 2: `createConfigServiceStorage` (StorageAdapter) ─────────
 
 export interface ConfigManagerForProfileStorage extends ProfileSetConfigAccess {
-  profiles: Pick<ProfilesNamespace, 'subscribe'>;
+  /** Per-row change subscription (same-tab + cross-tab). */
+  onRowChanged(configId: string, fn: () => void): () => void;
 }
 
 export interface ConfigServiceStorageOptions {
@@ -421,9 +314,9 @@ export function createConfigServiceStorage(
     // we just feed them the cached row instead of re-fetching.
     //
     // Invalidation: cleared after every local write AND on any change
-    // notification for this scope (cross-tab writes, or writes via the
-    // `configManager.profiles.*` namespace that bypass this adapter), so
-    // the cache never serves a row that's gone stale past a write.
+    // notification for this row (cross-tab writes, or any other writer
+    // going through ConfigManager), so the cache never serves a row
+    // that's gone stale past a write.
     let cachedRow: AppConfigRow | undefined;
     let cacheLoaded = false;
     const invalidate = (): void => {
@@ -553,17 +446,14 @@ export function createConfigServiceStorage(
       // another tab via BroadcastChannel — fire the listener so
       // ProfileManager (or any other consumer) can refresh.
       //
-      // Routes through the manager's `profiles.subscribe` namespace
-      // so the same hook works for non-StorageAdapter consumers in
-      // future refactors.
       subscribeToChanges(gridId: string, fn: () => void): () => void {
         void gridId;
         // Drop the cached row before notifying the consumer so its
         // refetch (and any read this adapter does next) sees the new
         // row, not the stale cached one. Covers cross-tab writes and
-        // writes that go through the `configManager.profiles.*` namespace
-        // rather than this adapter.
-        return configManager.profiles.subscribe(scope, () => {
+        // any writer that goes through ConfigManager rather than this
+        // adapter instance.
+        return configManager.onRowChanged(scope.instanceId, () => {
           invalidate();
           fn();
         });
@@ -675,24 +565,3 @@ export async function migrateProfilesToConfigService(params: {
   return { migrated: true, count: sourceProfiles.length };
 }
 
-// ─── Surface 3: `createConfigPort` (GridHostContext) ─────────────────
-
-export interface ConfigPortOptions {
-  readonly configManager: ConfigManager;
-  readonly appId: string;
-  readonly userId: string;
-}
-
-/**
- * Minimal ConfigPort adapter over ConfigManager for GridHostContext.
- */
-export function createConfigPort(opts: ConfigPortOptions): ConfigPort {
-  const { configManager, appId, userId } = opts;
-  return {
-    appId,
-    userId,
-    subscribe(instanceId: string, fn: () => void) {
-      return configManager.profiles.subscribe({ instanceId, appId, userId }, fn);
-    },
-  };
-}

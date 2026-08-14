@@ -1180,7 +1180,7 @@ modules).
 
 #### MarketsGrid profile storage
 
-- All three profile surfaces live in one module (`profileBundle.ts`): the `StorageAdapter` factory, the `ConfigManager.profiles` namespace, and `createConfigPort`, over shared `loadProfileSet` / `saveProfileSet` RMW helpers.
+- The one profile surface lives in `profileBundle.ts`: the `StorageAdapter` factory over the `loadProfileSet` / `saveProfileSet` RMW helpers. (The `ConfigManager.profiles` namespace and `createConfigPort` were deleted in the persistence consolidation — the namespace's only live member was `subscribe`, now `ConfigManager.onRowChanged(configId, fn)`; the port was a subscribe-only façade nothing consumed.)
 - `createConfigServiceStorage()` — `StorageAdapter` factory for `MarketsGrid` profile sync
   (thin per-scope row cache layered over ConfigManager's own single-row cache; invalidated on
   every local write and on `subscribeToChanges` notifications so cross-tab writes never serve
@@ -1202,12 +1202,8 @@ modules).
 
 #### Profile-state consolidation
 
-- `ConfigManager.profiles` namespace — first-class profile-set API
-- `ProfilesNamespace` — reactive `subscribe()` via `BroadcastChannel`
-- `ProfilesSaveOptions` — durable save options
 - `ProfileSetVersionConflictError` — version-conflict detection
-- `migrateLegacyProfilesIfNeeded()` — migrate from old Dexie DB
-- `PROFILE_MIGRATION_V1_FLAG`, `LEGACY_PROFILES_DB_NAME`
+- `ConfigManager.onRowChanged(configId, fn)` — per-row change subscription (same-tab + cross-tab via `BroadcastChannel`); the per-row analogue of `onConfigChanged`
 
 #### Data layer
 
@@ -1249,8 +1245,6 @@ modules).
 
 #### Adapters & utilities
 
-- `createConfigPort()` — `ConfigManager` → `StoragePort` adapter
-- `ConfigPortOptions`
 - `CONFIG_BROWSER_TABLES`, `TABLES` — config-browser metadata
 - `ConfigBrowserTableKey`, `ConfigBrowserTableMeta`
 

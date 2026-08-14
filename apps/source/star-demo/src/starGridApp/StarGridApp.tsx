@@ -3,10 +3,7 @@ import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import { BrowserRuntime } from '@wellsfargo-starui/core/host/browser';
 import type { RuntimePort } from '@wellsfargo-starui/core/host';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import {
-  createConfigServiceStorage,
-  createConfigPort,
-} from '@wellsfargo-starui/core/host/config';
+import { createConfigServiceStorage } from '@wellsfargo-starui/core/host/config';
 import { buildGridHostContext, storageFactoryForPersistence } from './buildHostContext.js';
 import { StarGridAppProvider } from './StarGridAppContext.js';
 import type { StarGridAppOptions, StarGridAppState } from './types.js';
@@ -110,19 +107,9 @@ export function StarGridApp({
   const appState = useMemo<StarGridAppState | null>(() => {
     if (!resolved || !storageFactory) return null;
 
-    const configPort =
-      resolved.configManager !== undefined
-        ? createConfigPort({
-            configManager: resolved.configManager,
-            appId,
-            userId,
-          })
-        : undefined;
-
     return {
       runtime: resolved.runtime,
       configManager: resolved.configManager,
-      configPort,
       data: resolved.data,
       storageFactory,
       theme,
@@ -131,7 +118,6 @@ export function StarGridApp({
       hostForGrid: (scope) =>
         buildGridHostContext(resolved.runtime, storageFactory, scope, {
           data: resolved.data,
-          config: configPort,
         }),
     };
   }, [resolved, storageFactory, appId, userId, theme]);

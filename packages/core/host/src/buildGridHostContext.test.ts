@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { StorageAdapter, StorageAdapterFactory } from '@wellsfargo-starui/core';
 import type { IdentitySnapshot } from '@wellsfargo-starui/types';
 import type { RuntimePort } from './RuntimePort.js';
-import type { ConfigPort } from './ConfigPort.js';
 import type { DataPort } from './DataPort.js';
 import { buildGridHostContext, storageFactoryForPersistence } from './buildGridHostContext.js';
 
@@ -102,23 +101,20 @@ describe('buildGridHostContext', () => {
     expect(ctx.storage).toBeDefined();
   });
 
-  it('omits data and config when not supplied', () => {
+  it('omits data when not supplied', () => {
     const ctx = buildGridHostContext(
       fakeRuntime(), vi.fn(fakeAdapter) as unknown as StorageAdapterFactory, { gridId: 'g' },
     );
     expect(ctx.data).toBeUndefined();
-    expect(ctx.config).toBeUndefined();
   });
 
-  it('threads through data and config ports when supplied', () => {
+  it('threads through the data port when supplied', () => {
     const data = { subscribe: vi.fn() } as unknown as DataPort;
-    const config = { get: vi.fn() } as unknown as ConfigPort;
     const ctx = buildGridHostContext(
       fakeRuntime(), vi.fn(fakeAdapter) as unknown as StorageAdapterFactory,
-      { gridId: 'g' }, { data, config },
+      { gridId: 'g' }, { data },
     );
     expect(ctx.data).toBe(data);
-    expect(ctx.config).toBe(config);
   });
 
   it('reads identity from the runtime on every build', () => {
