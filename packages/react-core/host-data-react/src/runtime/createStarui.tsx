@@ -101,6 +101,25 @@ export function useStaruiIdentity(): StaruiIdentity | null {
   return useContext(StaruiContext);
 }
 
+/**
+ * Identity adapter for apps with their own platform bootstrap.
+ *
+ * `createStarui()` is the one-call path for new apps; an app that already
+ * boots the platform itself (tiered bootstraps, workspace hosts) mounts
+ * this instead to declare the SAME identity contract for `<StarGrid>`
+ * and friends — appId / userId / storage, once, at the top of the tree.
+ */
+export function StaruiIdentityProvider(props: {
+  identity: StaruiIdentity;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <StaruiContext.Provider value={props.identity}>
+      {props.children}
+    </StaruiContext.Provider>
+  );
+}
+
 function localStorageFactory(): StorageAdapterFactory {
   const adapters = new Map<string, StorageAdapter>();
   return ({ gridId, instanceId }) => {

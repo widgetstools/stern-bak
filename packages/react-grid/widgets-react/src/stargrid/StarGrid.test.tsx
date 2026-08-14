@@ -46,13 +46,26 @@ vi.mock('../container/markets-grid-container/MarketsGridContainer.js', () => ({
 }));
 
 vi.mock('../container/ssrm-markets-grid-container/SsrmMarketsGridContainer.js', () => ({
-  SsrmMarketsGridContainer: (props: Record<string, unknown>) =>
-    React.createElement('div', {
+  SsrmMarketsGridContainer: (props: Record<string, unknown>) => {
+    const onReady = props.onReady as ((handle: unknown) => void) | undefined;
+    React.useEffect(() => {
+      onReady?.(readyHandleRef.current);
+      // One delivery per mount — mirrors the real container's gridReady.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return React.createElement('div', {
       'data-testid': 'ssrm-container',
       'data-provider': props.providerId,
       'data-app': props.appId,
       'data-user': props.userId,
-    }),
+      'data-theme-kind':
+        props.theme == null ? 'none' : typeof props.theme === 'string' ? props.theme : 'theme-object',
+    });
+  },
+}));
+
+const { readyHandleRef } = vi.hoisted(() => ({
+  readyHandleRef: { current: { saveAll: () => Promise.resolve() } as Record<string, unknown> },
 }));
 
 import { StarGrid } from './StarGrid.js';
@@ -108,5 +121,54 @@ describe('StarGrid', () => {
     cfgRef.current = { cfg: null, loading: false };
     render(<StarGrid gridId="g1" providerId="dp-nope" />);
     expect(screen.getByText(/"dp-nope" was not found/)).toBeInTheDocument();
+  });
+
+  it('sets and restores the document title', () => {
+    document.title = 'before';
+    const { unmount } = render(
+      <StarGrid gridId="g1" rowData={[]} documentTitle="My Blotter" />,
+    );
+    expect(document.title).toBe('My Blotter');
+    unmount();
+    expect(document.title).toBe('before');
+  });
+
+  it('flushes grid state via saveAll on unmount', async () => {
+    const saveAll = vi.fn().mockResolvedValue(undefined);
+    readyHandleRef.current = { saveAll };
+    cfgRef.current = {
+      cfg: { providerId: 'dp1', providerType: 'stomp-ssrm', name: 'P' },
+      loading: false,
+    };
+    const { unmount } = render(<StarGrid gridId="g1" providerId="dp1" />);
+    expect(screen.getByTestId('ssrm-container')).toBeInTheDocument();
+    saveAll.mockClear();
+    unmount();
+    expect(saveAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults the container theme and lets advanced.theme win', () => {
+    cfgRef.current = {
+      cfg: { providerId: 'dp1', providerType: 'stomp-ssrm', name: 'P' },
+      loading: false,
+    };
+    const { unmount } = render(<StarGrid gridId="g1" providerId="dp1" />);
+    expect(screen.getByTestId('ssrm-container')).toHaveAttribute(
+      'data-theme-kind',
+      'theme-object',
+    );
+    unmount();
+    render(
+      <StarGrid gridId="g1" providerId="dp1" advanced={{ theme: 'pinned' } as never} />,
+    );
+    expect(screen.getByTestId('ssrm-container')).toHaveAttribute('data-theme-kind', 'pinned');
+  });
+
+  it('renders the full-bleed page reset only when fullBleed is set', () => {
+    const { container, unmount } = render(<StarGrid gridId="g1" rowData={[]} fullBleed />);
+    expect(container.querySelector('style')?.textContent).toContain('overflow: hidden');
+    unmount();
+    const { container: plain } = render(<StarGrid gridId="g1" rowData={[]} />);
+    expect(plain.querySelector('style')).toBeNull();
   });
 });

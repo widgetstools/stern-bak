@@ -499,6 +499,7 @@ export { createAppDataServices, type CreateAppDataServicesOpts } from './createA
 export {
   createStarui,
   useStaruiIdentity,
+  StaruiIdentityProvider,
   type CreateStaruiOptions,
   type Starui,
   type StaruiIdentity,

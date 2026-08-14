@@ -15,6 +15,11 @@ export type {
 } from './types.js';
 
 export { useHostedIdentity } from './useHostedIdentity.js';
+export {
+  useHostedStarui,
+  type UseHostedStaruiArgs,
+  type UseHostedStaruiResult,
+} from './useHostedStarui.js';
 export type {
   UseHostedIdentityArgs,
   UseHostedIdentityResult,
