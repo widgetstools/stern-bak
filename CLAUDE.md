@@ -14,6 +14,9 @@ so demo apps never enter the package CI surface — see
 **Read before editing:**
 
 - [`README.md`](./README.md) — quick orientation, scripts, getting started
+- [`docs/SIMPLIFICATION_ROADMAP.md`](./docs/SIMPLIFICATION_ROADMAP.md) — the
+  simplification effort's execution record (phase status, constraints,
+  deviations ledger); read this before touching anything the roadmap covers
 - [`docs/WORKLOG.md`](./docs/WORKLOG.md) — **known-open items across both repos**; check
   before starting work so you don't rediscover a documented gap
 - [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md) — the 70%-per-file effort, split

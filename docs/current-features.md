@@ -1792,6 +1792,7 @@ recover from git history if it is ever revived.
 
 ### Consumer documentation
 
+- `docs/SIMPLIFICATION_ROADMAP.md` — the simplification effort's in-repo execution record: per-phase status + commits, the binding constraints and working method, the deviations ledger, and the remaining phases' scope
 - `docs/STORAGE_KEYS.md` — browser-storage key registry: every localStorage/sessionStorage key written under `packages/`, its owning file (the only place the literal lives), durability class, and the rename-requires-migration rule
 - `docs/EXPRESSION_DSL.md` — authoritative reference for the `@wellsfargo-starui/core` expression DSL (grammar, operator semantics, the full 44-function catalog, coercion/null rules, conditional sugar) plus an explicit JavaScript→DSL conversion guide written for an AI agent to translate JS expressions into DSL correctly
 - `docs/OPENFIN_GRID_LINKING.md` — OpenFin grid-to-grid color linking: how to enable (`StarGrid` `contextLink`), prerequisites, manifest notes (interop needs none; optional `fdc3InteropApi` fallback), the file map, wire format, group→leaf expansion, receiver column matching, notifications, and diagnostics
