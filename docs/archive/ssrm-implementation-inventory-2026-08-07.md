@@ -7,7 +7,7 @@
 Related docs:
 
 - Design: [specs/2026-08-07-marketsgrid-ssrm-chrome-design.md](./specs/2026-08-07-marketsgrid-ssrm-chrome-design.md)
-- Plan: [plans/2026-08-07-marketsgrid-ssrm-chrome.md](./plans/2026-08-07-marketsgrid-ssrm-chrome.md)
+- Plan: `2026-08-07-marketsgrid-ssrm-chrome.md` (deleted — git history)
 
 ---
 
@@ -152,9 +152,9 @@ ISsrmDataProvider (SsrmProviderClientAdapter)
 
 | File | Purpose |
 |------|---------|
-| `docs/superpowers/specs/2026-08-07-marketsgrid-ssrm-chrome-design.md` | Design spec |
-| `docs/superpowers/plans/2026-08-07-marketsgrid-ssrm-chrome.md` | Implementation plan |
-| `docs/superpowers/2026-08-07-ssrm-implementation-inventory.md` | This inventory |
+| `docs/archive/marketsgrid-ssrm-chrome-design-2026-08-07.md` | Design spec |
+| `2026-08-07-marketsgrid-ssrm-chrome.md` (deleted — git history) | Implementation plan |
+| `docs/archive/ssrm-implementation-inventory-2026-08-07.md` | This inventory |
 
 ### App: `markets-grid-ssrm-lab`
 

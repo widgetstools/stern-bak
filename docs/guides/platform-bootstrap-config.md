@@ -72,7 +72,7 @@ const platform = await ensurePlatformReady(config, {
 
 Only **hook ids** are stored in JSON — never executable code.
 
-**Interactive demo:** [`apps/demos/platform-hooks-demo`](../../apps/demos/platform-hooks-demo/) — `npm run dev:platform-hooks-demo` ([full testing guide](../archive/platform-hooks-demo.md)).
+**Interactive demo:** the former `platform-hooks-demo` app was deleted with the app curation; the hooks it exercised are covered by unit tests in `packages/data` and the surviving demo apps.
 
 ---
 

@@ -18,7 +18,7 @@ The suite has grown well past its original handful of specs. As of
 
 The full spec inventory, the seven-server `webServer` topology, known-fragile
 specs, and the procedure for capturing a fresh pass/fail baseline live in
-[`../docs/E2E_STATUS.md`](../docs/E2E_STATUS.md) — keep that file in sync when
+[`../E2E_STATUS.md`](../E2E_STATUS.md) — keep that file in sync when
 specs are added, removed, or re-pointed. Pass/fail counts are captured from a
 live run there rather than asserted here, because the multi-server topology
 makes a stale snapshot misleading.
@@ -106,7 +106,7 @@ npx playwright test --debug                        # interactive
 ```
 
 The main suite auto-starts its seven dev servers (see the topology table in
-[`../docs/E2E_STATUS.md`](../docs/E2E_STATUS.md)); each reuses an existing
+[`../E2E_STATUS.md`](../E2E_STATUS.md)); each reuses an existing
 server on its port if one is already listening. Kill stale dev servers before
 a clean run so a previous run's stale code isn't silently reused — on Windows,
 `Get-Process node | Stop-Process -Force` (scope as needed); on Unix,

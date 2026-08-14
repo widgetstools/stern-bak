@@ -258,4 +258,4 @@ Use this before treating the working-tree fixes as release-ready:
 - [`MARKETSGRID_USAGE_GUIDE.md`](../MARKETSGRID_USAGE_GUIDE.md) — production integration layers
 - [`STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`](../STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md) — STOMP + MarketsGrid wiring
 - [`PROFILE_PERSISTENCE.md`](../PROFILE_PERSISTENCE.md) — identity scoping in production
-- [`E2E_STATUS.md`](./E2E_STATUS.md) — Playwright inventory (`stale-data-disconnect`, `hosted-markets-grid`, OpenFin suite)
+- `E2E_STATUS.md` (superseded — see `apps/E2E_STATUS.md`) — Playwright inventory (`stale-data-disconnect`, `hosted-markets-grid`, OpenFin suite)
