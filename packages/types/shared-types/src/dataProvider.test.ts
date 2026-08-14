@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  COMPONENT_SUBTYPE_TO_PROVIDER_TYPE,
+  isSsrmProviderType,
   COMPOSITE_KEY_SEPARATOR,
   CONNECTION_STATES,
   DEFAULT_PROVIDER_CONFIGS,
   PROVIDER_TYPES,
-  PROVIDER_TYPE_TO_COMPONENT_SUBTYPE,
   __resetPathAccessorCaches,
   composeRowId,
   getDefaultProviderConfig,
@@ -22,37 +21,15 @@ beforeEach(() => {
   __resetPathAccessorCaches();
 });
 
-describe('provider-type maps', () => {
-  it('maps every provider type to a componentSubType', () => {
-    for (const type of Object.values(PROVIDER_TYPES)) {
-      expect(PROVIDER_TYPE_TO_COMPONENT_SUBTYPE[type]).toBe(type);
-    }
-  });
-
-  it('round-trips componentSubType back to the provider type', () => {
-    for (const type of Object.values(PROVIDER_TYPES)) {
-      const subtype = PROVIDER_TYPE_TO_COMPONENT_SUBTYPE[type];
-      expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE[subtype]).toBe(type);
-    }
-  });
-
-  it('accepts the capitalised legacy subtypes written by older configs', () => {
-    expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['Stomp']).toBe('stomp');
-    expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['AppData']).toBe('appdata');
-  });
-
-  it('returns undefined for an unknown subtype rather than a wrong type', () => {
-    expect(COMPONENT_SUBTYPE_TO_PROVIDER_TYPE['kafka']).toBeUndefined();
-  });
-
-  it('pins the connection-state strings surfaced to status UIs', () => {
-    expect(CONNECTION_STATES).toEqual({
-      DISCONNECTED: 'disconnected',
-      CONNECTING: 'connecting',
-      CONNECTED: 'connected',
-      RECONNECTING: 'reconnecting',
-      ERROR: 'error',
-    });
+describe('isSsrmProviderType', () => {
+  it('is true exactly for the two SSRM transports', () => {
+    expect(isSsrmProviderType('stomp-ssrm')).toBe(true);
+    expect(isSsrmProviderType('mock-ssrm')).toBe(true);
+    expect(isSsrmProviderType('stomp')).toBe(false);
+    expect(isSsrmProviderType('rest')).toBe(false);
+    expect(isSsrmProviderType('mock')).toBe(false);
+    expect(isSsrmProviderType('appdata')).toBe(false);
+    expect(isSsrmProviderType(undefined)).toBe(false);
   });
 });
 

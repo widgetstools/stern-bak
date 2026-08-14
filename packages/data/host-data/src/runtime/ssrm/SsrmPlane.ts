@@ -33,9 +33,9 @@ export interface SsrmPlaneOpts {
   clearTimer?: (handle: unknown) => void;
 }
 
-export function isSsrmProviderType(type: string | undefined): boolean {
-  return type === 'stomp-ssrm' || type === 'mock-ssrm';
-}
+// Canonical predicate now lives in @wellsfargo-starui/types — re-exported
+// here so existing worker-side importers keep their path.
+export { isSsrmProviderType } from '@wellsfargo-starui/types';
 
 /**
  * Reads `publishWindowMs` off a `ProviderConfig` via honest discriminated-

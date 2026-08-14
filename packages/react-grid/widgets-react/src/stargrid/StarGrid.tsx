@@ -4,8 +4,8 @@
  * The consumer names the grid and (optionally) a data provider; StarGrid
  * does the rest:
  *
- *  - **Mode is inferred, never chosen.** A provider whose `providerType`
- *    ends in `-ssrm` renders the server-side row model path; any other
+ *  - **Mode is inferred, never chosen.** A provider whose type is SSRM
+ *    (`isSsrmProviderType`) renders the server-side row model path; any other
  *    provider renders the client-side path; no provider + `rowData`
  *    renders a static grid; neither renders the client-side container
  *    alone — the customizer's DATA PROVIDER card picks the provider at
@@ -36,6 +36,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { ColDef, GridApi } from 'ag-grid-community';
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
   useDataProviderConfig,
@@ -84,8 +85,8 @@ export interface StarGridProps {
   /** Unique grid id — keys saved profiles and grid-level state. */
   gridId: string;
   /**
-   * Catalog data-provider id. CSRM vs SSRM is inferred from the
-   * provider's `providerType`. Omit for a static grid (`rowData`) or a
+   * Catalog data-provider id. CSRM vs SSRM is inferred via
+   * `isSsrmProviderType(providerType)`. Omit for a static grid (`rowData`) or a
    * customizer-driven grid (neither — the provider is picked at runtime).
    */
   providerId?: string;
@@ -211,8 +212,7 @@ export function StarGrid(props: StarGridProps): ReactElement {
   }, [flushGridState]);
 
   // Mode inference — needed by the link wiring below as well as the body.
-  const isSsrm =
-    providerRow != null && String(providerRow.providerType).endsWith('-ssrm');
+  const isSsrm = providerRow != null && isSsrmProviderType(String(providerRow.providerType));
 
   // ── Colour-link wiring (mirrors the hosted wrappers; SSRM injects the
   // worker-backed selection builder, CSRM only resolves rowIdField) ────

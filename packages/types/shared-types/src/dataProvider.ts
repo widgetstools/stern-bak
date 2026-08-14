@@ -18,35 +18,15 @@ export const PROVIDER_TYPES = {
 export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
 
 /**
- * Provider type to ComponentSubType mapping
+ * THE CSRM-vs-SSRM discriminator. A provider type is SSRM when its rows
+ * are served block-wise from the worker's query plane instead of streamed
+ * whole to the client. Every mode decision in the repo — container
+ * choice, worker plane attachment, link-config flavour — routes through
+ * this one predicate; never test the string suffix inline.
  */
-export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = {
-  [PROVIDER_TYPES.STOMP]: 'stomp',
-  [PROVIDER_TYPES.STOMP_SSRM]: 'stomp-ssrm',
-  [PROVIDER_TYPES.REST]: 'rest',
-  [PROVIDER_TYPES.MOCK]: 'mock',
-  [PROVIDER_TYPES.MOCK_SSRM]: 'mock-ssrm',
-  [PROVIDER_TYPES.APPDATA]: 'appdata'
-};
-
-/**
- * ComponentSubType to Provider type mapping
- */
-export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = {
-  'stomp': PROVIDER_TYPES.STOMP,
-  'stomp-ssrm': PROVIDER_TYPES.STOMP_SSRM,
-  'rest': PROVIDER_TYPES.REST,
-  'mock': PROVIDER_TYPES.MOCK,
-  'mock-ssrm': PROVIDER_TYPES.MOCK_SSRM,
-  'appdata': PROVIDER_TYPES.APPDATA,
-  // Capitalized (backward compatibility)
-  'Stomp': PROVIDER_TYPES.STOMP,
-  'StompSsrm': PROVIDER_TYPES.STOMP_SSRM,
-  'Rest': PROVIDER_TYPES.REST,
-  'Mock': PROVIDER_TYPES.MOCK,
-  'MockSsrm': PROVIDER_TYPES.MOCK_SSRM,
-  'AppData': PROVIDER_TYPES.APPDATA
-};
+export function isSsrmProviderType(type: string | undefined): boolean {
+  return type === PROVIDER_TYPES.STOMP_SSRM || type === PROVIDER_TYPES.MOCK_SSRM;
+}
 
 /**
  * Connection state enumeration
