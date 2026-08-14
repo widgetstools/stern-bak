@@ -1,8 +1,8 @@
 # Simplification roadmap — execution record
 
-**Branch:** `feature/simplify` (off `feature/ssrm`). **Status: Phases 0–4
-complete (27 commits); Phases 5–7 remain.** All commits local/unpushed
-unless the log says otherwise.
+**Branch:** `feature/simplify` (off `feature/ssrm`). **Status: Phases 0–5
+complete (32 commits + doc commits); Phases 6–7 remain.** All commits
+local/unpushed unless the log says otherwise.
 
 The originating review found a ~130k-LOC framework whose irreducible
 feature set (AG Grid + live data feeds + no-code customization + saved
@@ -193,19 +193,73 @@ pre-Phase-4): 2,307 slots / 1,729 names / 55 subpaths.
 
 ---
 
-## Phase 5 — OpenFin containment ⬜ (next)
+## Phase 5 — OpenFin containment ✅ (5 commits; ran in its own session)
 
-From the plan: one `isOpenFin()` predicate (`declare const fin` only
-inside `packages/openfin`; outside-references drop ~120 → <20 via
-`RuntimePort`); one popout mechanism (PopoutPortal + injected opener;
-`popout.ts`/`openChildToolWindow`/app-level helpers collapse); one
-linking facade (interop primary, FDC3/IAB/Channel behind one adapter;
-`contextLink` shrinks to `{enabled, mode}` + advanced; `fdc3InteropApi`
-manifest requirement validated loudly at init); `initWorkspace` splits
-into opt-in registration / seeding / migrations with customActions
-opt-in and devtools dev-gated. WORKLOG item 17 (theme writers bypassing
-`applyTheme`) is assigned here. Note: link wiring now lives in StarGrid +
-`useGridContextLink`; the hosted wrappers no longer exist.
+`e3316c8` `f77618d` `731453b` `1d9081a` `954a832`
+
+- **One `isOpenFin()`** (bare presence check, pinned by test). The
+  survey found 13 named predicates + 7 inline guards (plan said 4); all
+  private detectors outside `packages/openfin` deleted, both ambient
+  `declare global fin` shims (with CONFLICTING types for the same
+  global) and all 10 `declare const fin` lines outside openfin gone.
+  Named seams on `@wellsfargo-starui/openfin/host` (getFinMe, IAB
+  publish/subscribe/connect, interop client, platform view/window
+  control — all no-op outside OpenFin, each tested); 17 files migrated.
+  Dead hosted `useIab` + `useOpenFinChannel` deleted (~494 LOC, zero
+  consumers — the plan's "four link transports" were two live + these
+  two dead).
+- **One URL-window opener**: `openOpenFinPopout` public;
+  `openChildToolWindow` a thin wrapper (manifest-origin cache +
+  inspectable menu); the divergent inline `open-config-browser`
+  createWindow copy deleted (adopts dock-handler semantics: navigates
+  stale-URL windows, inspectable menu). NEW `core/host` `toolSurfaces`
+  (provider-editor / config-browser openers over
+  `RuntimePort.openSurface`) replaces two md5-identical app copies +
+  two inline blocks. PopoutPortal/Poppable deliberately NOT folded —
+  DOM-reparenting popouts are a different mechanism (state preserved)
+  and the only e2e-covered path.
+- **One linking facade**: `GridLinkTransport` `{current,
+  addContextListener, broadcast}` — the 3 members the hook uses
+  (join/leave excluded; the consumer never called them).
+  `GridContextLinkConfig` → `{enabled?, mode?, advanced?}` (evidence:
+  every live consumer set exactly `{enabled, mode}`); enabled-but-no-
+  transport now logs a loud error naming the fix; the demo manifests'
+  false "$comment-fdc3" claim corrected (interop is primary; the flag
+  only enables the fallback). Wire format untouched (rolling-deploy
+  safe).
+- **`initWorkspace` split**: `ensureConfigService` (with
+  `'require-prewired'` mode that throws instead of silently
+  constructing) + `runPlatformScopeMigrations`, both exported;
+  `customActions` option now genuinely merged (was documented but never
+  read); dead `roles` threading deleted; dead
+  open-dock-editor/open-registry-editor/import-config actions + the
+  ImportConfig window deleted (14 built-ins → 11); devtools menu
+  entries gate on dev bundles (`WorkspaceConfig.devTools` forces).
+- **One theme writer** (closes WORKLOG item 17): every `setTheme` —
+  runtimes, dock toggle, workspace, inbound broadcast handlers — routes
+  through `applyTheme` via a new `design-system ./apply-theme` subpath;
+  a toggle no longer wipes the persisted cvd/variant choice, and the
+  dock/workspace writers gain the `data-ag-theme-mode` attribute they
+  wrongly omitted. New dependency edge core → design-system (downward
+  onto a foundation package, permitted by the layer rules).
+
+Deviations: containment via function seams on `openfin/host` instead of
+widening `RuntimePort` (the port is prop-injected with one call site;
+widening it would force host-context plumbing through every hosted hook
+for zero consumer benefit); `initWorkspace`'s migrations default stays
+ON (flipping it off would break the persisted-state healing existing
+installs depend on — the "defaults minimal" plan text applies to the
+new callable pieces); PopoutPortal kept as the second, genuinely
+different popout mechanism.
+
+Carries a manual-OpenFin-validation backlog (aggregated from the commit
+messages): dock theme toggle preserves variant/cvd + recolors icons;
+workspace save/restore unaffected; dock Tools menu devtools gating
+dev-vs-prod and Import Config absence; tool-window open-or-focus +
+navigate-on-stale-URL + Inspect; two dock-linked blotters exchange
+selections (fields mode incl. SSRM group select-all) and the
+no-transport error appears when linking is enabled without
+interop/fdc3.
 
 ## Phase 6 — customizer consolidation ⬜
 
@@ -238,6 +292,9 @@ nonexistent packages.
 | 3 | `{connection, tuning}` config split | dead-field deletion + defaults table + banners | ~10 structural-cast readers would fail silently |
 | 3 | `mode: 'csrm'\|'ssrm'` field | canonical `isSsrmProviderType` | 37-file + persisted-data blast radius vs a one-helper actual problem |
 | 4 | rename MarketsGrid or StarGrid everywhere | StarGrid public / MarketsGrid internal (binding vocabulary) | consumers never type the internal name; churn without benefit |
+| 5 | leaked call sites go through `RuntimePort` | function seams on `openfin/host` | the port is prop-injected with one call site; widening it plumbs host context through every hosted hook for nothing |
+| 5 | initWorkspace pieces default minimal | migrations default stays ON | flipping it off breaks the persisted-state healing existing installs depend on |
+| 5 | one popout mechanism | URL-window family unified; PopoutPortal kept | DOM-reparenting popouts are a different mechanism (state preserved) and the only e2e-covered path |
 
 ## Known-broken, tracked, not chased
 
@@ -245,5 +302,3 @@ nonexistent packages.
   app at baseURL `/`; fail on boot, before and after every phase.
 - WORKLOG item 16 — `v2-column-value-getter` grid-compute case
   (pre-existing, stash-verified).
-- WORKLOG item 17 — theme writers bypass `applyTheme` (assigned to
-  Phase 5).
