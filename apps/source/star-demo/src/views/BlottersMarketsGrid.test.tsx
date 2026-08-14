@@ -62,7 +62,7 @@ describe('BlottersMarketsGrid', () => {
     });
   });
 
-  it('renders HostedMarketsGrid with blotter config', async () => {
+  it('renders StarGrid with blotter config', async () => {
     const BlottersMarketsGrid = (await import('./BlottersMarketsGrid')).default;
     renderWithProviders(<BlottersMarketsGrid />);
 

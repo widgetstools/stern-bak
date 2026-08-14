@@ -119,6 +119,8 @@ vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
+  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
 }));
 
 vi.mock('@wellsfargo-starui/openfin', () => ({
@@ -137,8 +139,17 @@ vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
-  HostedMarketsGrid: (props: Record<string, unknown>) =>
-    React.createElement(
+  useHostedStarui: ({ defaultGridId }: { defaultGridId: string }) => ({
+    gridId: defaultGridId,
+    identity: { appId: 'StarDemo', userId: 'dev1', storage: () => ({}) },
+    ready: true,
+  }),
+}));
+
+vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+  StarGrid: (props: Record<string, unknown>) => {
+    const advanced = (props.advanced ?? {}) as Record<string, unknown>;
+    return React.createElement(
       'div',
       {
         'data-testid': 'hosted-markets-grid',
@@ -149,7 +160,7 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
         {
           type: 'button',
           'data-testid': 'edit-provider',
-          onClick: () => (props.onEditProvider as ((id: string) => void) | undefined)?.('p-1'),
+          onClick: () => (advanced.onEditProvider as ((id: string) => void) | undefined)?.('p-1'),
         },
         'Edit provider',
       ),
@@ -158,11 +169,12 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
         {
           type: 'button',
           'data-testid': 'open-config-browser',
-          onClick: () => (props.onOpenConfigBrowser as (() => void) | undefined)?.(),
+          onClick: () => (advanced.onOpenConfigBrowser as (() => void) | undefined)?.(),
         },
         'Config browser',
       ),
-    ),
+    );
+  },
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({

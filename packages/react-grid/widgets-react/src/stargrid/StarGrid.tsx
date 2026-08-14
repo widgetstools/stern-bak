@@ -7,7 +7,9 @@
  *  - **Mode is inferred, never chosen.** A provider whose `providerType`
  *    ends in `-ssrm` renders the server-side row model path; any other
  *    provider renders the client-side path; no provider + `rowData`
- *    renders a static grid. The consumer never picks a container.
+ *    renders a static grid; neither renders the client-side container
+ *    alone — the customizer's DATA PROVIDER card picks the provider at
+ *    runtime. The consumer never picks a container.
  *  - **Identity comes from context.** `appId` / `userId` / the storage
  *    factory are read from `createStarui()`'s provider (or a
  *    `StaruiIdentityProvider` in apps with their own bootstrap) — no
@@ -43,6 +45,8 @@ import { MarketsGrid, type MarketsGridHandle, type MarketsGridProps } from '@wel
 import { MarketsGridContainer } from '../container/markets-grid-container/MarketsGridContainer.js';
 import { SsrmMarketsGridContainer } from '../container/ssrm-markets-grid-container/SsrmMarketsGridContainer.js';
 import { useAgGridTheme } from '../hosted/useAgGridTheme.js';
+import { useTabsHidden } from '../hosted/useTabsHidden.js';
+import { useViewTabTitle } from '../hosted/useViewTabTitle.js';
 import { useWorkspaceSaveEvent } from '../hosted/useWorkspaceSaveEvent.js';
 import { useFdc3Channel } from '../hosted/useFdc3Channel.js';
 import { useInteropChannel, isInteropAvailable } from '../hosted/useInteropChannel.js';
@@ -81,7 +85,8 @@ export interface StarGridProps {
   gridId: string;
   /**
    * Catalog data-provider id. CSRM vs SSRM is inferred from the
-   * provider's `providerType`. Omit for a static grid (`rowData`).
+   * provider's `providerType`. Omit for a static grid (`rowData`) or a
+   * customizer-driven grid (neither — the provider is picked at runtime).
    */
   providerId?: string;
   /** Static rows — used only when no `providerId` is given. */
@@ -205,7 +210,12 @@ export function StarGrid(props: StarGridProps): ReactElement {
     };
   }, [flushGridState]);
 
-  // ── Colour-link wiring (SSRM flavour; mirrors HostedSsrmMarketsGrid) ─
+  // Mode inference — needed by the link wiring below as well as the body.
+  const isSsrm =
+    providerRow != null && String(providerRow.providerType).endsWith('-ssrm');
+
+  // ── Colour-link wiring (mirrors the hosted wrappers; SSRM injects the
+  // worker-backed selection builder, CSRM only resolves rowIdField) ────
   const linkActive = contextLink?.enabled === true;
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const advancedOnReady = (advanced as {
@@ -221,13 +231,13 @@ export function StarGrid(props: StarGridProps): ReactElement {
     [onReady, advancedOnReady, linkActive],
   );
 
-  // Resolved key column (drives getRowId) → link rowIdField + resolver.
-  const [linkRowIdField, setLinkRowIdField] = useState<string | null>(null);
+  // Resolved key column(s) (drives getRowId) → link rowIdField + resolver.
+  const [linkRowIdField, setLinkRowIdField] = useState<string | readonly string[] | null>(null);
   const advancedOnRowIdFieldChange = (advanced as {
-    onRowIdFieldChange?: (field: string | null) => void;
+    onRowIdFieldChange?: (field: string | readonly string[] | null) => void;
   } | undefined)?.onRowIdFieldChange;
   const handleRowIdFieldChange = useCallback(
-    (field: string | null) => {
+    (field: string | readonly string[] | null) => {
       setLinkRowIdField(field);
       advancedOnRowIdFieldChange?.(field);
     },
@@ -250,7 +260,16 @@ export function StarGrid(props: StarGridProps): ReactElement {
 
   const effectiveContextLink = useMemo<GridContextLinkConfig | undefined>(() => {
     if (!contextLink) return undefined;
-    const keyColumn = linkRowIdField ?? 'id';
+    if (!isSsrm) {
+      // CSRM (HostedMarketsGrid parity): only fill rowIdField from the
+      // container's resolved key column(s); the generic selection
+      // builder / resolver defaults inside useGridContextLink apply.
+      const resolved = linkRowIdField ?? contextLink.rowIdField ?? undefined;
+      return resolved !== undefined
+        ? { ...contextLink, rowIdField: resolved }
+        : contextLink;
+    }
+    const keyColumn = typeof linkRowIdField === 'string' ? linkRowIdField : 'id';
     const buildContext =
       contextLink.buildContext
       ?? createSsrmSelectionContextBuilder({
@@ -274,7 +293,7 @@ export function StarGrid(props: StarGridProps): ReactElement {
       buildContext,
       ...(resolve ? { resolve } : {}),
     };
-  }, [contextLink, linkRowIdField]);
+  }, [contextLink, linkRowIdField, isSsrm]);
 
   // Link identity prefers the per-view instance id (advanced.instanceId)
   // so two restored views of the same grid don't filter each other's
@@ -300,13 +319,33 @@ export function StarGrid(props: StarGridProps): ReactElement {
     onReceive: linkNotifications.onReceive,
   });
 
+  // ── CSRM caption ↔ OpenFin tab name (HostedMarketsGrid parity) ─────
+  //
+  // `tabTitle` seeds from `customData.savedTitle` ("Save Tab As…") and
+  // tracks external renames; a toolbar caption edit writes back to the
+  // tab. Outside OpenFin this is a plain local value with a no-op
+  // writer. The SSRM container carries its own `title` prop and the SSRM
+  // wrapper never bound tab titles, so this stays CSRM-only.
+  const { title: tabTitle, setTitle: writeTabTitle } = useViewTabTitle(title ?? gridId);
+  const tabsHidden = useTabsHidden();
+  const advancedOnCaptionChange = (advanced as {
+    onCaptionChange?: (next: string) => void;
+  } | undefined)?.onCaptionChange;
+  const handleCaptionChange = useCallback(
+    (next: string) => {
+      writeTabTitle(next);
+      advancedOnCaptionChange?.(next);
+    },
+    [writeTabTitle, advancedOnCaptionChange],
+  );
+
   const body = useMemo<ReactElement>(() => {
-    if (!providerId) {
+    if (!providerId && rowData) {
       return (
         <MarketsGrid
           gridId={gridId}
           columnDefs={(columnDefs ?? []) as never}
-          rowData={(rowData ?? []) as never}
+          rowData={rowData as never}
           caption={title}
           appId={identity.appId}
           userId={identity.userId}
@@ -318,7 +357,7 @@ export function StarGrid(props: StarGridProps): ReactElement {
       );
     }
 
-    if (!providerRow) {
+    if (providerId && !providerRow) {
       // Row still loading (or missing). Loading renders the fallback;
       // a missing row renders a plain message rather than throwing —
       // catalogs hydrate asynchronously on cold starts.
@@ -329,8 +368,7 @@ export function StarGrid(props: StarGridProps): ReactElement {
       );
     }
 
-    const isSsrm = String(providerRow.providerType).endsWith('-ssrm');
-    if (isSsrm) {
+    if (isSsrm && providerId) {
       return (
         <SsrmMarketsGridContainer
           providerId={providerId}
@@ -348,22 +386,29 @@ export function StarGrid(props: StarGridProps): ReactElement {
       );
     }
 
+    // CSRM — either a named default provider, or (no providerId, no
+    // rowData) the container alone: the customizer's DATA PROVIDER card
+    // picks the provider at runtime, persisted per gridId.
     return (
       <MarketsGridContainer
         gridId={gridId}
         defaultLiveProviderId={providerId}
-        caption={title}
+        caption={tabTitle || title || gridId}
+        tabsHidden={tabsHidden}
         appId={identity.appId}
         userId={identity.userId}
         storage={identity.storage}
         theme={theme}
         {...(advanced as object)}
+        onCaptionChange={handleCaptionChange}
         onReady={handleReady}
+        onRowIdFieldChange={linkActive ? handleRowIdFieldChange : undefined}
       />
     );
   }, [
-    providerId, providerRow, loading, gridId, columnDefs, rowData, title,
+    providerId, providerRow, loading, isSsrm, gridId, columnDefs, rowData, title,
     identity, theme, handleReady, handleRowIdFieldChange, handleProviderReady,
+    tabTitle, tabsHidden, handleCaptionChange, linkActive,
     fallback, advanced,
   ]);
 

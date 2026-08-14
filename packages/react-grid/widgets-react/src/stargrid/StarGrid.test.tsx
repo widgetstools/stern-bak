@@ -102,6 +102,13 @@ describe('StarGrid', () => {
     expect(grid).toHaveAttribute('data-user', 'u1');
   });
 
+  it('mounts the CSRM container alone when neither providerId nor rowData is given', () => {
+    render(<StarGrid gridId="g1" />);
+    const grid = screen.getByTestId('csrm-container');
+    expect(grid).not.toHaveAttribute('data-provider');
+    expect(screen.queryByTestId('static-grid')).not.toBeInTheDocument();
+  });
+
   it('routes any other providerType to the CSRM container', () => {
     cfgRef.current = {
       cfg: { providerId: 'dp2', providerType: 'stomp', name: 'P' },

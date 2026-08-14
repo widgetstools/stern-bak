@@ -28,10 +28,13 @@
  * grid-level row should stay keyed by the logical grid name, or as
  * `gridId` when one view = one grid.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { StaruiIdentity } from '@wellsfargo-starui/react/data/runtime';
 import { useHostedIdentity } from './useHostedIdentity.js';
 import type { ConfigManager } from './types.js';
+
+/** One-shot `marketsgrid-view-state::*` cleanup marker (pre-profile rows). */
+const LEGACY_CLEANUP_SENTINEL = 'hosted-mg.legacy-cleanup';
 
 export interface UseHostedStaruiArgs {
   /** Grid id used when neither OpenFin customData nor the URL resolves one. */
@@ -72,6 +75,35 @@ export function useHostedStarui(args: UseHostedStaruiArgs): UseHostedStaruiResul
       storage: hosted.storage,
     };
   }, [hosted.appId, hosted.userId, hosted.storage]);
+
+  // One-shot legacy `marketsgrid-view-state::*` cleanup (carried over from
+  // HostedMarketsGrid). Sentinel-gated so it runs once per browser no
+  // matter how many hosted grids mount.
+  useEffect(() => {
+    if (!hosted.configManager || !hosted.instanceId) return;
+    try {
+      if (window.localStorage.getItem(LEGACY_CLEANUP_SENTINEL) === '1') return;
+    } catch {
+      // localStorage unavailable (private mode, SSR) — best-effort skip.
+      return;
+    }
+    const cm = hosted.configManager as ConfigManager & {
+      deleteConfig?: (id: string) => Promise<void>;
+    };
+    if (typeof cm.deleteConfig !== 'function') return;
+    void cm
+      .deleteConfig(`marketsgrid-view-state::${hosted.instanceId}`)
+      .catch(() => {
+        /* no row to clean — fine */
+      })
+      .finally(() => {
+        try {
+          window.localStorage.setItem(LEGACY_CLEANUP_SENTINEL, '1');
+        } catch {
+          /* ignore */
+        }
+      });
+  }, [hosted.configManager, hosted.instanceId]);
 
   return {
     gridId: hosted.instanceId,

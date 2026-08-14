@@ -23,12 +23,15 @@ const { saveAll, saveActiveProfile } = vi.hoisted(() => ({
   saveActiveProfile: vi.fn().mockResolvedValue(undefined),
 }));
 
+const { cfgRef } = vi.hoisted(() => ({
+  cfgRef: {
+    current: { providerId: 'p1', providerType: 'stomp-ssrm', name: 'P' } as Record<string, unknown>,
+  },
+}));
+
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useStaruiIdentity: () => ({ appId: 'app', userId: 'user', storage: () => ({}) }),
-  useDataProviderConfig: () => ({
-    cfg: { providerId: 'p1', providerType: 'stomp-ssrm', name: 'P' },
-    loading: false,
-  }),
+  useDataProviderConfig: () => ({ cfg: cfgRef.current, loading: false }),
 }));
 
 vi.mock('../container/ssrm-markets-grid-container/SsrmMarketsGridContainer.js', () => ({
@@ -48,7 +51,18 @@ vi.mock('../container/ssrm-markets-grid-container/SsrmMarketsGridContainer.js', 
 }));
 
 vi.mock('../container/markets-grid-container/MarketsGridContainer.js', () => ({
-  MarketsGridContainer: () => React.createElement('div', { 'data-testid': 'csrm-container' }),
+  MarketsGridContainer: (props: Record<string, unknown>) => {
+    React.useEffect(() => {
+      (props.onRowIdFieldChange as ((f: unknown) => void) | undefined)?.(['bookId', 'cusip']);
+      (props.onReady as ((h: unknown) => void) | undefined)?.({
+        gridApi: { id: 'csrm-api' },
+        saveAll,
+        profiles: { saveActiveProfile },
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return React.createElement('div', { 'data-testid': 'csrm-container' });
+  },
 }));
 
 vi.mock('@wellsfargo-starui/grid', () => ({
@@ -85,6 +99,7 @@ import { StarGrid } from './StarGrid.js';
 beforeEach(() => {
   captured.link = null;
   captured.onWorkspaceSave = undefined;
+  cfgRef.current = { providerId: 'p1', providerType: 'stomp-ssrm', name: 'P' };
   saveAll.mockClear();
   saveActiveProfile.mockClear();
 });
@@ -145,6 +160,21 @@ describe('StarGrid colour-link wiring', () => {
       />,
     );
     await waitFor(() => expect(captured.link?.instanceId).toBe('view-7'));
+  });
+});
+
+describe('StarGrid CSRM colour-link flavour', () => {
+  it('resolves rowIdField from the container without injecting an SSRM builder', async () => {
+    cfgRef.current = { providerId: 'p2', providerType: 'stomp', name: 'C' };
+    render(<StarGrid gridId="g1" providerId="p2" contextLink={{ enabled: true, mode: 'fields' }} />);
+    await waitFor(() => {
+      const cfg = captured.link?.config as Record<string, unknown> | undefined;
+      expect(cfg?.rowIdField).toEqual(['bookId', 'cusip']);
+    });
+    const cfg = captured.link?.config as Record<string, unknown>;
+    expect(cfg.buildContext).toBeUndefined();
+    expect(cfg.resolve).toBeUndefined();
+    expect(captured.link?.gridApi).toEqual({ id: 'csrm-api' });
   });
 });
 
