@@ -8,6 +8,10 @@ export const LOGGED_IN_USER_ID = 'dev1';
 
 export type Theme = 'light' | 'dark';
 
+// NOTE: intentionally byte-equal to the declaration in
+// `shared-types/src/theme.ts` (`@wellsfargo-starui/types/shared`) — the two
+// subpath builds can't share a source file, so a drift-guard test
+// (`themeKeyParity.test.ts`) pins them together. Change BOTH or neither.
 export const THEME_STORAGE_KEY = 'starui:theme';
 
 export const THEME_BROADCAST_CHANNEL = 'starui:theme';

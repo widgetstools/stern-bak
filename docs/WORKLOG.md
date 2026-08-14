@@ -788,6 +788,24 @@ selector sweep). Fix belongs with the spec (scroll the column into view the
 way `hello-blotter.spec.ts` does, or pin the column) or with the seeded
 column order — decide when picking this up.
 
+## 17. Runtime-port theme writers bypass the design-system's applyTheme
+
+Found during the Phase-2 persistence survey (2026-08-13). Five writers set
+`starui:theme` + `data-theme`/`data-ag-theme-mode` directly —
+`BrowserRuntime.setTheme`, `OpenFinRuntime.setTheme`, the dock toggle
+(`dock.ts`), `workspace.ts`, and the design-system's own `applyTheme`. Only
+`applyTheme` also manages the sibling keys (`starui:cvd`, `starui:variant`)
+and the `data-variant` attribute. Consequence: a dock/runtime theme toggle
+leaves `data-variant` stale relative to what `getTheme()` would compute (the
+variant CSS is light-scoped, so today this is latent rather than visible).
+The deep fix is routing every setTheme through `applyTheme` — an
+import-boundary decision (core/openfin would gain a design-system dep, which
+the layer rules permit but nothing forces yet). Decide with Phase 5's OpenFin
+containment. Until then the constants are drift-pinned by
+`themeKeyParity.test.ts`, and `THEME_BROADCAST_CHANNEL` sharing the literal
+`'starui:theme'` with the storage key is intentional-but-unlovely (renaming
+the channel would break cross-version window sync during rolling deploys).
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

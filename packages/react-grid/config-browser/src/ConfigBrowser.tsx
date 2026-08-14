@@ -4,6 +4,7 @@
 declare const fin: any;
 
 import { useEffect, useRef, useState } from "react";
+import { THEME_STORAGE_KEY } from "@wellsfargo-starui/types";
 import { Button } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "./icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { useConfigBrowser } from "./hooks/useConfigBrowser";
@@ -67,7 +68,6 @@ export function ConfigBrowserPanel() {
   // The initial value is seeded from that same persisted key (rather than the
   // hang-prone `platform.Theme.getSelectedScheme()`).
   useEffect(() => {
-    const THEME_KEY = "starui:theme";
     const toTheme = (msg: any): "dark" | "light" | null => {
       if (msg?.theme === "dark" || msg?.theme === "light") return msg.theme;
       if (typeof msg?.isDark === "boolean") return msg.isDark ? "dark" : "light";
@@ -75,7 +75,7 @@ export function ConfigBrowserPanel() {
     };
 
     try {
-      const stored = window.localStorage.getItem(THEME_KEY);
+      const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
       if (stored === "dark" || stored === "light") setTheme(stored);
     } catch { /* storage unavailable */ }
 
@@ -91,7 +91,7 @@ export function ConfigBrowserPanel() {
     }
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== THEME_KEY) return;
+      if (e.key !== THEME_STORAGE_KEY) return;
       if (e.newValue === "dark" || e.newValue === "light") setTheme(e.newValue);
     };
     window.addEventListener("storage", onStorage);

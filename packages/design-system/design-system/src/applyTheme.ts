@@ -43,7 +43,6 @@ export interface ThemeOptions {
 const CVD_KEY = 'starui:cvd';
 const VARIANT_KEY = 'starui:variant';
 const LEGACY_KEY = '@wellsfargo-starui/theme';
-const LEGACY_THEME_KEY = 'starui:theme';
 
 function applyVariant(variant: LightVariant | undefined, theme: Mode): void {
   if (theme === 'dark') {
@@ -88,8 +87,7 @@ export function applyTheme(opts: ThemeOptions): void {
 export function getTheme(): ThemeOptions {
   if (typeof localStorage === 'undefined') return { theme: 'dark' };
   try {
-    const theme = localStorage.getItem(THEME_STORAGE_KEY)
-      ?? localStorage.getItem(LEGACY_THEME_KEY);
+    const theme = localStorage.getItem(THEME_STORAGE_KEY);
     const cvd = localStorage.getItem(CVD_KEY) === 'on';
     const variantRaw = localStorage.getItem(VARIANT_KEY);
     const variant: LightVariant | undefined =
