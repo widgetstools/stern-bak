@@ -7,6 +7,25 @@
 >
 > Last reconciled: 2026-06-09 (sourced directly from `packages/` source.)
 
+## Naming vocabulary (binding)
+
+- **StarGrid** is the consumer-facing name: the one component apps mount
+  (`<StarGrid>`), the one bootstrap (`createStarui()`), the workspace
+  bridge (`useHostedStarui`). New public API uses the StarGrid family.
+- **MarketsGrid** is the internal surface StarGrid composes (engine,
+  containers, customizer). It stays MarketsGrid — a repo-wide rename was
+  deliberately rejected (thousands of occurrences across components,
+  files, CSS classes and tests for zero consumer-facing gain; consumers
+  never type the word).
+- **"profile"** is the only word for a saved grid arrangement. "layout",
+  "viewState" and "gridLevelData" name OTHER things (workspace layouts,
+  nothing, the per-grid provider-selection row respectively) — never use
+  them for profiles.
+- **DataHub** is the data subsystem's name going forward
+  (`DataHubProvider`); `DataServicesProvider` is the legacy wrapper it
+  still mounts.
+- **"blotter"** survives only in demo copy and app names.
+
 ## Document conventions
 
 - **Granular bullets** — one bullet per distinct capability (component, hook,
@@ -304,14 +323,7 @@ Per-renderer config types (`PillRendererConfig`,
 **Public exports:**
 
 - `.` — `MarketsGrid` component, toolbars, storage helpers, types
-- `./customizer` — hooks (`useEditJournal`, `useModuleState`, `useProfileManager`,
-  `useGridPlatform`, `useGridApi`, `useModuleDraft`, `useActiveThemeMode`, …),
-  module definitions, settings-panel primitives (`SettingsPanel`, `ExpressionEditor`,
-  `StyleEditor`, `FormatterPicker`, `CellRendererBand` + per-renderer config editors),
-  editing helpers (`resolveEditRecording`, `journalUndo`/`journalRedo`, `withJournalApplyGuard`),
-  grid-state capture/restore (`captureGridState`, `applyGridState`),
-  toolbar-date bridge (`ToolbarDateSettingsPanel`, `applyHistoricalToolbarDateToAppData`),
-  `ChromeButton` (shadcn `Button` with chrome CSS resets for legacy `.ds-*` / `.fx-*` styling)
+- `./customizer` — the CURATED cross-package surface (was ~320 symbols at a 95.6%-internal ratio; now 14): `ExpressionEditor` (+ props/handle types), `isHistoricalToolbarDate`, and the 10 module STATE types demo seeds author against (`GeneralSettingsState`, `ColumnAssignment`, `ColumnCustomizationState`, `ConditionalRule`, `ConditionalStylingState`, `CalculatedColumnsState`, `VirtualColumnDef`, `ColumnGroupsState`, `ColumnGroupNode` from core; `SavedFiltersState` grid-local). The full former surface lives in `customizer/internal.ts` for in-package imports only — not reachable via any exports subpath
 - `./styles.css` — widget stylesheet (barrel: `@import` of core + chrome splits)
 - `./styles/core.css` — filter-pill tokens + toolbar button theme layer
 - `./styles/chrome.css` — primary toolbar, filters row, banners, density pill layout
@@ -633,8 +645,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 **Public exports:**
 
-- `./widgets` — blotter components, hooks, provider, theme; `StarGrid` (the one front-door grid)
-- `./widgets/markets-grid-container` — `MarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
+- `./widgets` — `StarGrid` (the one front-door grid), `MarketsGridContainer` + `DatePicker` (+ `ProviderSelection`/`ProviderMode` types; the dedicated subpath was removed), the SSRM container, hooks, provider, theme. Note: the `{ theme }`-wrapper `useAgGridTheme` left this barrel — the PUBLIC `useAgGridTheme` is the hosted variant (`./widgets/hosted`, mode → `Theme`); two same-name exports with incompatible signatures in one package was a documented footgun
 - `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
 - `./widgets/hosted` — `useHostedStarui` + the à-la-carte hosted hooks (identity, theme, linking, lifecycle)
 
@@ -1469,7 +1480,7 @@ modules).
 
 - `DataServicesProvider` — `configStore` calls `client.invalidateConfig()` after editor `save`/`remove`
 
-**Public exports:** `./data`, `./data/runtime`
+**Public exports:** `./data/runtime` (the `./data` duplicate subpath was removed — zero importers; everything goes through `./data/runtime`)
 
 #### One-call bootstrap (`createStarui`)
 
