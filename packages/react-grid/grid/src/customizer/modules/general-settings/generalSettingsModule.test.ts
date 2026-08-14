@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TransformContext } from '@wellsfargo-starui/core';
 import { generalSettingsModule } from './index';
-import { INITIAL_GENERAL_SETTINGS } from './state';
+import { INITIAL_GENERAL_SETTINGS } from '@wellsfargo-starui/core';
 import {
   buildCellChangeFlashCss,
   CELL_CHANGE_FLASH_CSS_HANDLE,

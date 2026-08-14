@@ -15,10 +15,10 @@ import { migrateThemedStyle } from '@wellsfargo-starui/core';
 import {
   INITIAL_COLUMN_CUSTOMIZATION,
   type ColumnCustomizationState,
-} from './state';
+} from '@wellsfargo-starui/core';
 import type { ColumnTemplatesState } from '../column-templates';
 import { COLUMN_TEMPLATES_MODULE_ID } from '../column-templates';
-import { applyAssignments, reinjectCSS } from './transforms';
+import { applyAssignments, reinjectCSS } from '@wellsfargo-starui/core';
 import {
   ColumnSettingsEditor,
   ColumnSettingsList,
@@ -229,7 +229,7 @@ export const columnCustomizationModule: Module<ColumnCustomizationState> = {
 // `rowGrouping` shapes) under a distinct name so consumers can opt into
 // the richer type without colliding with the base `ColumnAssignment`
 // exported from colDef.
-export type { ColumnAssignment as ColumnCustomizationAssignment } from './state';
+export type { ColumnAssignment as ColumnCustomizationAssignment } from '@wellsfargo-starui/core';
 export type {
   ColumnAssignment,
   ColumnCustomizationState,
@@ -241,13 +241,13 @@ export type {
   AggFuncName,
   SetFilterOptions,
   MultiFilterEntry,
-} from './state';
+} from '@wellsfargo-starui/core';
 export { INITIAL_COLUMN_CUSTOMIZATION };
 export {
   applyFilterConfigToColDef,
   applyRowGroupingConfigToColDef,
   cssEscapeColId,
-} from './transforms';
+} from '@wellsfargo-starui/core';
 export {
   useAppDataLookup,
   useAppDataProviders,
@@ -281,4 +281,4 @@ export {
   type ScopeKind,
   type FormatterKind,
   type AutoFormatApplyOptions,
-} from './formattingActions';
+} from '@wellsfargo-starui/core';

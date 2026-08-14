@@ -23,7 +23,7 @@ import {
   CalculatedColumnsPanel,
 } from './CalculatedColumnsPanel';
 import { calculatedColumnsModule } from './index';
-import type { CalculatedColumnsState } from './state';
+import type { CalculatedColumnsState } from '@wellsfargo-starui/core';
 
 function makePlatform() {
   const platform = new GridPlatform({ gridId: 'test-grid', modules: [calculatedColumnsModule] });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExpressionEngine } from '@wellsfargo-starui/core';
 import { calculatedColumnsModule } from './index.js';
-import type { AllRowsEntry } from './virtualColumn.js';
+import type { AllRowsEntry } from '@wellsfargo-starui/core';
 
 /**
  * Contract under test: the per-flush forced `refreshCells` over the

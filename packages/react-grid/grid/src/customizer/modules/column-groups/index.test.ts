@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/core';
 import { columnGroupsModule, COLUMN_GROUPS_MODULE_ID } from './index';
-import type { ColumnGroupsState } from './state';
+import type { ColumnGroupsState } from '@wellsfargo-starui/core';
 
 describe('columnGroupsModule', () => {
   it('registers with expected metadata', () => {

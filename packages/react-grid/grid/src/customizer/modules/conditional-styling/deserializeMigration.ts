@@ -22,7 +22,7 @@ import type {
   FlashColor,
   FlashConfig,
   FlashMode,
-} from './state';
+} from '@wellsfargo-starui/core';
 
 const FLASH_COLOR_NAMES: readonly FlashColor[] = [
   'amber',

@@ -20,8 +20,8 @@
  */
 
 import type { PlatformHandle } from '@wellsfargo-starui/core';
-import { extractTriggerColumns } from '../transforms';
-import type { ConditionalRule, ConditionalStylingState } from '../state';
+import { extractTriggerColumns } from '@wellsfargo-starui/core';
+import type { ConditionalRule, ConditionalStylingState } from '@wellsfargo-starui/core';
 
 export interface TriggerCache {
   /** Stable cache key for a rule (id + expression hash). */

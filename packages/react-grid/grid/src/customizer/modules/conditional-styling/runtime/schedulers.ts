@@ -25,8 +25,8 @@
  */
 
 import type { PlatformHandle } from '@wellsfargo-starui/core';
-import type { TimedRuleStore } from '../transforms';
-import type { ConditionalStylingState } from '../state';
+import type { TimedRuleStore } from '@wellsfargo-starui/core';
+import type { ConditionalStylingState } from '@wellsfargo-starui/core';
 import { isTimedTraceOn, traceTimed } from './utils';
 
 /* ─── full-grid refresh ─────────────────────────────────────────────── */

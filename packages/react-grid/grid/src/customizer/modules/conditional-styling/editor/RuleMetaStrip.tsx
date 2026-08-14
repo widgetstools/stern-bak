@@ -4,7 +4,7 @@ import { controls, typography } from '@wellsfargo-starui/design-system/tokens';
 import { Caps, IconInput, LedBar, Mono, SummaryChip } from '../../../ui/SettingsPanel';
 import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
-import type { ConditionalRule, FlashTarget } from '../state';
+import type { ConditionalRule, FlashTarget } from '@wellsfargo-starui/core';
 
 export const RuleMetaStrip = memo(function RuleMetaStrip({
   ruleId,

@@ -16,7 +16,7 @@ import { GridPlatform } from '@wellsfargo-starui/core';
 import { GridProvider } from '../../hooks/GridProvider';
 import { ColumnGroupsEditor, ColumnGroupsList, ColumnGroupsPanel } from './ColumnGroupsPanel';
 import { columnGroupsModule } from './index';
-import type { ColumnGroupsState } from './state';
+import type { ColumnGroupsState } from '@wellsfargo-starui/core';
 
 function makeFakeApi(): GridApi {
   const listeners = new Map<string, Set<() => void>>();

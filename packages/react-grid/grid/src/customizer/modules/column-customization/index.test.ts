@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_COLUMN_CUSTOMIZATION } from './state';
+import { INITIAL_COLUMN_CUSTOMIZATION } from '@wellsfargo-starui/core';
 import { columnCustomizationModule, COLUMN_CUSTOMIZATION_MODULE_ID } from './index';
 import { COLUMN_TEMPLATES_MODULE_ID } from '../column-templates';
 

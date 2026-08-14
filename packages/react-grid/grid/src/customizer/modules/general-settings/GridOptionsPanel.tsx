@@ -60,7 +60,7 @@ import {
   type Field,
 } from './fieldSchema';
 import { GRID_OPTIONS_SCHEMA } from './gridOptionsSchema';
-import { INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from './state';
+import { INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from '@wellsfargo-starui/core';
 
 const MODULE_ID = 'general-settings';
 

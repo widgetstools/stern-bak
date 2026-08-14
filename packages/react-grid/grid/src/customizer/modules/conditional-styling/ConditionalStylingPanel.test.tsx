@@ -20,7 +20,7 @@ import {
   ConditionalStylingPanel,
 } from './ConditionalStylingPanel';
 import { conditionalStylingModule } from './index';
-import type { ConditionalRule, ConditionalStylingState } from './state';
+import type { ConditionalRule, ConditionalStylingState } from '@wellsfargo-starui/core';
 
 function makePlatform() {
   const platform = new GridPlatform({

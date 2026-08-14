@@ -5,7 +5,7 @@ import {
   inferPickerDataType,
   type FormatterPickerDataType,
 } from '../../../ui/FormatterPicker';
-import type { ConditionalRule } from '../state';
+import type { ConditionalRule } from '@wellsfargo-starui/core';
 
 export const ValueFormatterBand = memo(function ValueFormatterBand({
   ruleId,

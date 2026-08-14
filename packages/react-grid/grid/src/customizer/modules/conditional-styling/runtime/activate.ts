@@ -25,9 +25,9 @@ import {
   CONDITIONAL_DIFF_CACHE_KEY,
   CONDITIONAL_TIMED_RULE_CACHE_KEY,
   createTimedRuleStore,
-} from '../transforms';
-import type { TimedRuleStateByApi } from '../transforms';
-import type { ConditionalStylingState } from '../state';
+} from '@wellsfargo-starui/core';
+import type { TimedRuleStateByApi } from '@wellsfargo-starui/core';
+import type { ConditionalStylingState } from '@wellsfargo-starui/core';
 import { normalizeDuration } from './utils';
 import {
   createExpiryScheduler,

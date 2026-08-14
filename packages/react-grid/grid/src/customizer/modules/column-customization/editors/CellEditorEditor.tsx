@@ -3,7 +3,7 @@ import { IconInput } from '../../../ui/SettingsPanel';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import { useGridPlatform } from '../../../hooks/GridProvider';
 import type { AppDataLookup } from '@wellsfargo-starui/core';
-import type { CellEditorKind, ColumnCellEditorConfig } from '../state';
+import type { CellEditorKind, ColumnCellEditorConfig } from '@wellsfargo-starui/core';
 import { Row } from './Row';
 
 /**

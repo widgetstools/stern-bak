@@ -7,8 +7,8 @@ import {
   buildRowClassPredicate,
   extractTriggerColumns,
   reinjectAllRules,
-} from './transforms';
-import type { ConditionalRule } from './state';
+} from '@wellsfargo-starui/core';
+import type { ConditionalRule } from '@wellsfargo-starui/core';
 
 class CaptureCss implements CssHandle {
   readonly rules = new Map<string, string>();

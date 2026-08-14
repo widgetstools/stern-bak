@@ -27,8 +27,8 @@
 import type { PlatformHandle, RowChange } from '@wellsfargo-starui/core';
 import type { GridApi } from 'ag-grid-community';
 import { getValueByPath } from '@wellsfargo-starui/types';
-import type { DiffCacheByApi, TimedRuleStore } from '../transforms';
-import type { ConditionalStylingState } from '../state';
+import type { DiffCacheByApi, TimedRuleStore } from '@wellsfargo-starui/core';
+import type { ConditionalStylingState } from '@wellsfargo-starui/core';
 import {
   buildColumnsContextFromDiffs,
   isTimedTraceOn,

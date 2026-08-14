@@ -45,7 +45,7 @@ import {
 import { ChromeButton } from '../../ui/ChromeButton';
 import { FormatterPicker, type FormatterPickerDataType } from '../../ui/FormatterPicker';
 import { Tooltip } from '../../ui/HoverTooltip';
-import type { CalculatedColumnsState, VirtualColumnDef } from './state';
+import type { CalculatedColumnsState, VirtualColumnDef } from '@wellsfargo-starui/core';
 
 const MODULE_ID = 'calculated-columns';
 

@@ -12,9 +12,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { ColDef } from 'ag-grid-community';
-import { applyAssignments } from './transforms';
-import type { ColumnCustomizationState } from './state';
-import type { ColumnTemplatesState } from '../column-templates';
+import { applyAssignments } from '@wellsfargo-starui/core';
+import type { ColumnCustomizationState } from '@wellsfargo-starui/core';
+import type { ColumnTemplatesState } from '@wellsfargo-starui/core';
 
 /** Stub — transforms only touch engine in custom aggFunc path, which
  *  these tests don't exercise. We implement the full

@@ -4,7 +4,7 @@ import {
   inferPickerDataType,
   type FormatterPickerDataType,
 } from '../../../ui/FormatterPicker';
-import type { ValueFormatterTemplate } from '../state';
+import type { ValueFormatterTemplate } from '@wellsfargo-starui/core';
 
 export function ValueFormatBand({
   colId,

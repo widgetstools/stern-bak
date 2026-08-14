@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { INITIAL_GRID_STATE } from './state';
+import { INITIAL_GRID_STATE } from '@wellsfargo-starui/core';
 import { gridStateModule, GRID_STATE_MODULE_ID } from './index';
 
 describe('gridStateModule', () => {

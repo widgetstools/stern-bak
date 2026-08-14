@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { INITIAL_CONDITIONAL_STYLING } from './state';
+import { INITIAL_CONDITIONAL_STYLING } from '@wellsfargo-starui/core';
 import { conditionalStylingModule, CONDITIONAL_STYLING_MODULE_ID } from './index';
 
 describe('conditionalStylingModule', () => {

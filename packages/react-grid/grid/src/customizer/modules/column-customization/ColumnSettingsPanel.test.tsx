@@ -24,7 +24,7 @@ import {
 import { columnCustomizationModule } from './index';
 import { columnTemplatesModule } from '../column-templates';
 import { generalSettingsModule } from '../general-settings';
-import type { ColumnCustomizationState } from './state';
+import type { ColumnCustomizationState } from '@wellsfargo-starui/core';
 
 // ─── Fake GridApi harness (shared pattern with useGridColumns.test) ───
 

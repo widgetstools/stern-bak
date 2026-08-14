@@ -57,9 +57,9 @@ import type {
   IndicatorPosition,
   IndicatorTarget,
   RuleIndicator,
-} from './state';
-import { INDICATOR_ICONS, findIndicatorIcon } from './indicatorIcons';
-import { fromStyleEditorValue, toStyleEditorValue } from './styleBridge';
+} from '@wellsfargo-starui/core';
+import { INDICATOR_ICONS, findIndicatorIcon } from '@wellsfargo-starui/core';
+import { fromStyleEditorValue, toStyleEditorValue } from '@wellsfargo-starui/core';
 import { RuleEditorHeader } from './editor/RuleEditorHeader';
 import { RuleMetaStrip } from './editor/RuleMetaStrip';
 import { ExpressionBand } from './editor/ExpressionBand';

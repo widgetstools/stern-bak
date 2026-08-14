@@ -30,7 +30,7 @@ import {
 import { Band } from '../../../ui/SettingsPanel';
 import { Row } from './Row';
 import { EDITORS_BY_ID } from '../CellRendererEditors';
-import type { ColumnAssignment } from '../state';
+import type { ColumnAssignment } from '@wellsfargo-starui/core';
 
 const CATEGORY_LABELS: Record<CellRendererCategory, string> = {
   'visual-analytics': 'Visual analytics',

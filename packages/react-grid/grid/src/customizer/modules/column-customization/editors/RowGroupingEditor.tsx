@@ -2,8 +2,8 @@ import { Caps, IconInput } from '../../../ui/SettingsPanel';
 import { Switch, Textarea } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import { useModuleState } from '../../../hooks/useModuleState';
-import type { GeneralSettingsState } from '../../general-settings/state';
-import type { AggFuncName, RowGroupingConfig } from '../state';
+import type { GeneralSettingsState } from '@wellsfargo-starui/core';
+import type { AggFuncName, RowGroupingConfig } from '@wellsfargo-starui/core';
 import { Row } from './Row';
 
 /**

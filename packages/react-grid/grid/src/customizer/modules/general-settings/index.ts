@@ -18,7 +18,7 @@
  */
 import type { GridOptions } from 'ag-grid-community';
 import type { Module, TransformContext } from '@wellsfargo-starui/core';
-import { INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from './state';
+import { INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from '@wellsfargo-starui/core';
 import { GridOptionsPanel } from './GridOptionsPanel';
 import {
   buildCellChangeFlashCss,

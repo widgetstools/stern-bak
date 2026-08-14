@@ -16,8 +16,8 @@ import type {
   FlashColor,
   FlashMode,
   FlashTarget,
-} from '../state';
-import { FLASH_PALETTE } from '../transforms';
+} from '@wellsfargo-starui/core';
+import { FLASH_PALETTE } from '@wellsfargo-starui/core';
 
 const FLASH_COLOR_ORDER: ReadonlyArray<FlashColor> = [
   'amber',

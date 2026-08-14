@@ -9,7 +9,7 @@ import {
 } from '../../../ui/SettingsPanel';
 import { SettingsRow } from '../../../ui/SettingsPanel/SettingsRow';
 import { Switch } from '@wellsfargo-starui/react';
-import type { AnimationConfig, AnimationKind, ConditionalRule } from '../state';
+import type { AnimationConfig, AnimationKind, ConditionalRule } from '@wellsfargo-starui/core';
 
 const DEFAULT_ANIMATION_KIND: AnimationKind = 'spin';
 const DEFAULT_DURATION_MS = 1000;

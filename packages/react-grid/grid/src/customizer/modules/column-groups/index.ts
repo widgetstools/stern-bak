@@ -17,7 +17,7 @@ import {
   isColumnGroupsState,
   type ColumnGroupNode,
   type ColumnGroupsState,
-} from './state';
+} from '@wellsfargo-starui/core';
 import {
   collectGroupIds,
   composeGroups,
@@ -25,9 +25,9 @@ import {
   groupHeaderStyleToCSS,
   hasHeaderBorders,
   hasHeaderStyle,
-} from './composeGroups';
+} from '@wellsfargo-starui/core';
 import type { CssHandle } from '@wellsfargo-starui/core';
-import { cssEscapeColId } from '../column-customization/transforms';
+import { cssEscapeColId } from '@wellsfargo-starui/core';
 import {
   ColumnGroupsEditor,
   ColumnGroupsList,
@@ -162,7 +162,7 @@ export const columnGroupsModule: Module<ColumnGroupsState> = {
   SettingsPanel: ColumnGroupsPanel,
 };
 
-export { INITIAL_COLUMN_GROUPS } from './state';
+export { INITIAL_COLUMN_GROUPS } from '@wellsfargo-starui/core';
 export type {
   ColumnGroupsState,
   ColumnGroupNode,
@@ -170,5 +170,5 @@ export type {
   GroupChildShow,
   GroupHeaderStyle,
   GroupHeaderBorderSpec,
-} from './state';
-export { composeGroups, collectGroupIds, collectAssignedColIds } from './composeGroups';
+} from '@wellsfargo-starui/core';
+export { composeGroups, collectGroupIds, collectAssignedColIds } from '@wellsfargo-starui/core';

@@ -23,7 +23,7 @@ import {
 } from '../../ui/SettingsPanel';
 import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../ui/NativeOptionsSelect';
-import type { GeneralSettingsState } from './state';
+import type { GeneralSettingsState } from '@wellsfargo-starui/core';
 
 // ─── Row primitive ────────────────────────────────────────────────────
 //

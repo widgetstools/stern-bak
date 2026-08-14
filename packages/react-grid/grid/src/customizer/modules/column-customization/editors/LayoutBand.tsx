@@ -3,7 +3,7 @@ import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../../ui/NativeOptionsSelect';
 import { Row } from './Row';
 import { TriStateToggle } from './TriStateToggle';
-import type { ColumnAssignment } from '../state';
+import type { ColumnAssignment } from '@wellsfargo-starui/core';
 
 export function LayoutBand({
   colId,

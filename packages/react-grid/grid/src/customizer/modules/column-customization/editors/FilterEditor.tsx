@@ -7,7 +7,7 @@ import type {
   FilterKind,
   MultiFilterEntry,
   SetFilterOptions,
-} from '../state';
+} from '@wellsfargo-starui/core';
 import { ChromeButton } from '../../../ui/ChromeButton';
 import { Row } from './Row';
 

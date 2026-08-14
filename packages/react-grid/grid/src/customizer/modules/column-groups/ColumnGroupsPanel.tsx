@@ -60,15 +60,15 @@ import type {
   ColumnGroupsState,
   GroupChildShow,
   GroupHeaderStyle,
-} from './state';
-import { collectAssignedColIds } from './composeGroups';
+} from '@wellsfargo-starui/core';
+import { collectAssignedColIds } from '@wellsfargo-starui/core';
 import {
   deleteGroupAtPath,
   flattenGroups,
   moveGroupAtPath,
   updateGroupAtPath,
   type Path,
-} from './treeOps';
+} from '@wellsfargo-starui/core';
 
 const MODULE_ID = 'column-groups';
 

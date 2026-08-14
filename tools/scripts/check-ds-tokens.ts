@@ -74,15 +74,14 @@ const ALLOW_PATHS = [
   'packages/react-grid/grid/src/customizer/ui/ColorPicker/CompactColorField.tsx',
   'packages/react-grid/grid/src/customizer/ui/shadcn/color-picker.tsx',
   'packages/react-grid/grid/src/customizer/ui/StyleEditor/BorderStyleEditor.tsx',
-  'packages/react-grid/grid/src/customizer/modules/conditional-styling/styleBridge.ts',
   'packages/react-grid/grid/src/customizer/modules/conditional-styling/ConditionalStylingPanel.tsx',
   // --- Tool scripts themselves ---
   'tools/',
   // --- Test files: hex in assertion fixtures ---
   'e2e/',
   'packages/react-grid/grid/src/widget/FormattingToolbar.test.tsx',
-  'packages/react-grid/grid/src/customizer/modules/column-customization/formattingActions.test.ts',
-  'packages/react-grid/grid/src/customizer/modules/column-templates/snapshotTemplate.test.ts',
+  'packages/core/engine/src/customizer/modules/column-customization/formattingActions.test.ts',
+  'packages/core/engine/src/customizer/modules/column-templates/snapshotTemplate.test.ts',
   'packages/react-grid/widgets-react/src/hosted/__tests__/useColorLinking.test.tsx',
   'packages/react-grid/widgets-react/src/hosted/useColorLinking.ts',
   // --- Demo app profile/fixture data files ---

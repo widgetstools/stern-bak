@@ -19,8 +19,8 @@ import {
   INITIAL_GRID_STATE,
   type GridStateState,
   type SavedGridState,
-} from './state';
-import { applyGridState } from './helpers';
+} from '@wellsfargo-starui/core';
+import { applyGridState } from '@wellsfargo-starui/core';
 
 export const GRID_STATE_MODULE_ID = 'grid-state';
 
@@ -81,10 +81,10 @@ export const gridStateModule: Module<GridStateState> = {
   },
 };
 
-export { INITIAL_GRID_STATE, GRID_STATE_SCHEMA_VERSION } from './state';
-export type { GridStateState, SavedGridState } from './state';
+export { INITIAL_GRID_STATE, GRID_STATE_SCHEMA_VERSION } from '@wellsfargo-starui/core';
+export type { GridStateState, SavedGridState } from '@wellsfargo-starui/core';
 export {
   captureGridState,
   applyGridState,
   captureGridStateInto,
-} from './helpers';
+} from '@wellsfargo-starui/core';

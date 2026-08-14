@@ -24,7 +24,7 @@ import { useActiveThemeMode } from '../../hooks/useActiveThemeMode';
 import type {
   ColumnAssignment,
   ColumnCustomizationState,
-} from './state';
+} from '@wellsfargo-starui/core';
 import type { ColumnTemplate, ColumnTemplatesState } from '../column-templates';
 // Extracted sub-editors — see editors/* for the per-facet implementations
 // that were lifted out of this file during the AUDIT M3 + Phase C-2 splits.
@@ -574,7 +574,7 @@ const ColumnSettingsEditorInner = memo(function ColumnSettingsEditorInner({
 // Filter / RowGrouping editors keep their existing un-Banded shape; wrap
 // them in Bands inline so the orchestrator's render tree reads cleanly.
 import { Band } from '../../ui/SettingsPanel';
-import type { ColumnAssignment as _ColumnAssignment } from './state';
+import type { ColumnAssignment as _ColumnAssignment } from '@wellsfargo-starui/core';
 
 function FilterBandWrapper({
   colId,

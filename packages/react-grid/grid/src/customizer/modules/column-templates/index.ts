@@ -14,7 +14,7 @@ import {
   type ColumnDataType,
   type ColumnTemplate,
   type ColumnTemplatesState,
-} from './state';
+} from '@wellsfargo-starui/core';
 
 export const COLUMN_TEMPLATES_MODULE_ID = 'column-templates';
 
@@ -64,7 +64,7 @@ export const columnTemplatesModule: Module<ColumnTemplatesState> = {
 };
 
 export { INITIAL_COLUMN_TEMPLATES };
-export { resolveTemplates } from './resolveTemplates';
+export { resolveTemplates } from '@wellsfargo-starui/core';
 export {
   snapshotTemplate,
   snapshotTemplateUpdate,
@@ -74,10 +74,10 @@ export {
   updateTemplateReducer,
   renameTemplateReducer,
   type SnapshotTemplateDeps,
-} from './snapshotTemplate';
+} from '@wellsfargo-starui/core';
 export type {
   ColumnTemplate,
   ColumnTemplatesState,
   ColumnDataType,
   RowGroupingTemplate,
-} from './state';
+} from '@wellsfargo-starui/core';

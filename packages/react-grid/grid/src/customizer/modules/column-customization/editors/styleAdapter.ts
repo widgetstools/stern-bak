@@ -3,7 +3,7 @@ import type {
   BorderSpec,
   CellStyleOverrides,
   ColumnAssignment,
-} from '../state';
+} from '@wellsfargo-starui/core';
 
 /**
  * Bridges between the panel's flat `CellStyleOverrides` shape and the

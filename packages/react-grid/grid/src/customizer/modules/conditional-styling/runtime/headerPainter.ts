@@ -17,9 +17,9 @@
  */
 
 import type { PlatformHandle } from '@wellsfargo-starui/core';
-import { cssEscapeColId } from '../../column-customization/transforms';
-import type { ConditionalRule, ConditionalStylingState } from '../state';
-import type { DiffCacheByApi } from '../transforms';
+import { cssEscapeColId } from '@wellsfargo-starui/core';
+import type { ConditionalRule, ConditionalStylingState } from '@wellsfargo-starui/core';
+import type { DiffCacheByApi } from '@wellsfargo-starui/core';
 import { buildColumnsContextFromDiffs } from './utils';
 
 export interface HeaderPainter {

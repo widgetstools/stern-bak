@@ -8,7 +8,7 @@ import {
   Type,
 } from 'lucide-react';
 import { SummaryChip, type SummaryChipTone } from '../../../ui/SettingsPanel';
-import type { ColumnAssignment } from '../state';
+import type { ColumnAssignment } from '@wellsfargo-starui/core';
 
 /**
  * Sticky info strip pinned under the column editor header.

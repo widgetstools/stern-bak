@@ -11,13 +11,13 @@ import {
   INITIAL_CALCULATED_COLUMNS,
   type CalculatedColumnsState,
   type VirtualColumnDef,
-} from './state';
+} from '@wellsfargo-starui/core';
 import { astUsesAggregateFunctions } from '@wellsfargo-starui/core';
 import {
   buildVirtualColDef,
   invalidateAllRowsCache,
   type AllRowsEntry,
-} from './virtualColumn';
+} from '@wellsfargo-starui/core';
 import {
   applyFilterConfigToColDef,
   applyRowGroupingConfigToColDef,
