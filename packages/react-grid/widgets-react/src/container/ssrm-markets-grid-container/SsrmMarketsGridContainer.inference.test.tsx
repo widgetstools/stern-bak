@@ -18,6 +18,7 @@ const { getRows, providerRef, resetProvider, state } = vi.hoisted(() => {
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined),
       getConfig: () => ({ keyColumn: 'positionId' }),
+      getConfigOrNull: () => ({ keyColumn: 'positionId' }),
       getColumnDefs: () => state.declaredDefs,
       getRows,
       onStatus: vi.fn(() => () => undefined),

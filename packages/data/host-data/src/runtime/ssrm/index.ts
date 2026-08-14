@@ -32,6 +32,7 @@ export {
   SsrmPlane,
   isSsrmProviderType,
   resolveSsrmKeyColumn,
+  SSRM_COMPOSITE_KEY_FIELD,
 } from './SsrmPlane.js';
 export {
   parseQuickFilter,

@@ -24,6 +24,13 @@ export interface ISsrmDataProvider {
   refresh(): Promise<void>;
   restart(extra?: Record<string, unknown>): Promise<void>;
   getConfig(): ProviderConfig;
+  /**
+   * Null-safe config accessor — `null` until `start()` resolves the
+   * config. Prefer this over wrapping `getConfig()` in try/catch.
+   * Optional so bare test doubles stay valid; the client adapters
+   * always implement it, and callers optional-chain (`?.() ?? null`).
+   */
+  getConfigOrNull?(): ProviderConfig | null;
   getColumnDefs(): readonly ColumnDefinition[];
   getRows(req: SsrmGetRowsRequest): Promise<SsrmGetRowsResult>;
   setViewport(keys: string[], scope?: ViewportInterestScope): Promise<void>;

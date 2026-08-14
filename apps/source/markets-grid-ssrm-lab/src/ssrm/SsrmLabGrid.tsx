@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { MarketsGrid, type MarketsGridProps } from '@wellsfargo-starui/grid';
 import { useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
+import { resolveSsrmKeyColumn } from '@wellsfargo-starui/data';
 import { useSsrmProviderDataWiring } from '@wellsfargo-starui/grid/widgets/ssrm-markets-grid-container';
 import { labStorage } from '../data/storage.js';
 import { useSsrmLabProvider } from './SsrmLabProviderContext.js';
@@ -62,21 +63,14 @@ export function SsrmLabGrid({
 
   const keyColumn = useMemo(() => {
     if (!provider || !ready) return 'id';
-    try {
-      const cfg = provider.getConfig() as { keyColumn?: string | readonly string[] };
-      if (Array.isArray(cfg.keyColumn)) return '__ssrmRowId';
-      return cfg.keyColumn && String(cfg.keyColumn).trim()
-        ? String(cfg.keyColumn)
-        : 'id';
-    } catch {
-      return 'id';
-    }
+    const cfg = provider.getConfigOrNull?.() as { keyColumn?: string | readonly string[] } | null;
+    return resolveSsrmKeyColumn(cfg?.keyColumn);
   }, [provider, ready]);
 
   const columnDefs = useMemo<ColDef[]>(() => {
     if (columnDefsProp && columnDefsProp.length > 0) return columnDefsProp;
     if (!provider || !ready) return [];
-    try {
+    {
       const defs = provider.getColumnDefs();
       return defs.map((c) => ({
         field: c.field,
@@ -90,20 +84,14 @@ export function SsrmLabGrid({
         enablePivot: true,
         enableValue: true,
       })) as ColDef[];
-    } catch {
-      return [];
     }
   }, [columnDefsProp, provider, ready]);
 
   const cacheBlockSize = useMemo(() => {
     if (!provider || !ready) return undefined;
-    try {
-      const cfg = provider.getConfig() as { blockSize?: number };
-      const n = cfg.blockSize;
-      return typeof n === 'number' && n >= 20 ? n : undefined;
-    } catch {
-      return undefined;
-    }
+    const cfg = provider.getConfigOrNull?.() as { blockSize?: number } | null;
+    const n = cfg?.blockSize;
+    return typeof n === 'number' && n >= 20 ? n : undefined;
   }, [provider, ready]);
 
   const ssrm = useMemo(

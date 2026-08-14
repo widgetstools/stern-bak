@@ -132,5 +132,6 @@ export {
   rowPassesQuickFilter,
   rowPassesFilter,
   resolveSsrmKeyColumn,
+  SSRM_COMPOSITE_KEY_FIELD,
   isSsrmProviderType,
 } from './ssrm/index.js';

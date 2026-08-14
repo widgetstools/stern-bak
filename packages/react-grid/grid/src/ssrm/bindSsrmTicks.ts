@@ -89,7 +89,7 @@ export function bindSsrmTicks(
   const throttleMs = options?.refreshThrottleMs ?? 400;
   const sortThrottleMs =
     options?.sortRefreshThrottleMs ?? Math.min(throttleMs, 50);
-  const keyColumn = options?.keyColumn ?? 'positionId';
+  const keyColumn = options?.keyColumn ?? 'id'; // aligned with every other keyColumn default (was 'positionId' — a latent split-default trap; the wired surface always passes an explicit value)
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingPurge = false;
   let unbound = false;

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
-import { inferFields, type ISsrmDataProvider } from '@wellsfargo-starui/data';
+import { inferFields, resolveSsrmKeyColumn, type ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
   MarketsGrid,
   toSsrmExpressionRules,
@@ -258,20 +258,14 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     return () => offStatus?.();
   }, [provider]);
 
-  // Column / key resolution must run *after* start() — getConfig() throws before that.
+  // Column / key resolution refines once `start()` resolves the config —
+  // pre-start the null-safe read simply yields the default.
   const keyColumn = useMemo(() => {
     if (!provider || !ready) return 'id';
-    try {
-      const cfg = provider.getConfig() as {
-        keyColumn?: string | readonly string[];
-      };
-      if (Array.isArray(cfg.keyColumn)) return '__ssrmRowId';
-      return cfg.keyColumn && String(cfg.keyColumn).trim()
-        ? String(cfg.keyColumn)
-        : 'id';
-    } catch {
-      return 'id';
-    }
+    const cfg = provider.getConfigOrNull?.() as {
+      keyColumn?: string | readonly string[];
+    } | null;
+    return resolveSsrmKeyColumn(cfg?.keyColumn);
   }, [provider, ready]);
 
   // Providers without declared columnDefinitions (createStarui drafts,
@@ -286,11 +280,11 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   }, [provider]);
   useEffect(() => {
     if (!provider || !ready || inferredDefs) return;
-    try {
-      if (provider.getColumnDefs().length > 0) return;
-    } catch {
-      return;
-    }
+    // Explicit not-started guard: getColumnDefs() is null-safe now and
+    // returns [] pre-start — inferring against an unstarted provider
+    // would sample an empty plane.
+    if (!provider.getConfigOrNull?.()) return;
+    if (provider.getColumnDefs().length > 0) return;
     let cancelled = false;
     provider
       .getRows({ startRow: 0, endRow: 50 })
@@ -319,7 +313,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
 
   const columnDefs = useMemo<ColDef[] | undefined>(() => {
     if (!provider || !ready) return undefined;
-    try {
+    {
       const defs = provider.getColumnDefs();
       if (!defs.length) return inferredDefs ?? undefined;
       const asColDefs = defs.map((c) => ({
@@ -332,20 +326,14 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
         enableValue: true,
       })) as ColDef[];
       return buildColumnDefs(asColDefs) ?? asColDefs;
-    } catch {
-      return undefined;
     }
   }, [provider, ready, inferredDefs]);
 
   const cacheBlockSize = useMemo(() => {
     if (!provider || !ready) return undefined;
-    try {
-      const cfg = provider.getConfig() as { blockSize?: number };
-      const n = cfg.blockSize;
-      return typeof n === 'number' && n >= 20 ? n : undefined;
-    } catch {
-      return undefined;
-    }
+    const cfg = provider.getConfigOrNull?.() as { blockSize?: number } | null;
+    const n = cfg?.blockSize;
+    return typeof n === 'number' && n >= 20 ? n : undefined;
   }, [provider, ready]);
 
   // Hosted wrappers need the resolved key column (link rowIdField) and the

@@ -15,6 +15,7 @@ const fakeProvider = vi.hoisted(() => {
   const statusHandlers: Array<(s: string) => void> = [];
   return {
     getConfig: () => ({ keyColumn: 'positionId' }),
+    getConfigOrNull: () => ({ keyColumn: 'positionId' }),
     getColumnDefs: () => [{ field: 'positionId' }],
     getSetFilterValues: vi.fn(async () => []),
     // Raw provider status stream — what the container's stale tracking

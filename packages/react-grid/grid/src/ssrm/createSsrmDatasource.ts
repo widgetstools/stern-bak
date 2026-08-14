@@ -59,7 +59,7 @@ export function createSsrmDatasource(
   provider: ISsrmDataProvider,
   options: CreateSsrmDatasourceOptions = {},
 ): IServerSideDatasource {
-  const keyColumn = options.keyColumn ?? 'positionId';
+  const keyColumn = options.keyColumn ?? 'id'; // aligned with every other keyColumn default (was 'positionId' — a latent split-default trap; the wired surface always passes an explicit value)
   const pivotSep = options.pivotResultFieldSeparator ?? '_';
   return {
     getRows(params: IServerSideGetRowsParams): void {

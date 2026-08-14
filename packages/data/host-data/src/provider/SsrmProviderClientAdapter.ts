@@ -132,11 +132,15 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
     return this.resolvedConfig;
   }
 
+  getConfigOrNull(): ProviderConfig | null {
+    return this.resolvedConfig;
+  }
+
   getColumnDefs(): readonly ColumnDefinition[] {
-    const config = this.getConfig() as ProviderConfig & {
+    const config = this.resolvedConfig as (ProviderConfig & {
       columnDefinitions?: ColumnDefinition[];
-    };
-    return config.columnDefinitions ?? [];
+    }) | null;
+    return config?.columnDefinitions ?? [];
   }
 
   /**

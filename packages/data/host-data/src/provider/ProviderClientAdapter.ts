@@ -167,11 +167,15 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
     return this.resolvedConfig;
   }
 
+  getConfigOrNull(): ProviderConfig | null {
+    return this.resolvedConfig;
+  }
+
   getColumnDefs(): readonly ColumnDefinition[] {
-    const config = this.getConfig() as ProviderConfig & {
+    const config = this.resolvedConfig as (ProviderConfig & {
       columnDefinitions?: ColumnDefinition[];
-    };
-    return config.columnDefinitions ?? [];
+    }) | null;
+    return config?.columnDefinitions ?? [];
   }
 
   onRowsReceived(handler: (count: number) => void): Unsubscribe {

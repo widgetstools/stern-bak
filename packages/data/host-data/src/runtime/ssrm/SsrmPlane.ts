@@ -16,7 +16,13 @@ import type {
 } from './types.js';
 import type { StatusBarRequest, StatusBarSummary } from './statusBar.js';
 
-const COMPOSITE_KEY_FIELD = '__ssrmRowId';
+/**
+ * Field stamped onto rows whose keyColumn is a composite (array) — the
+ * worker cache key surfaces under this name so client `getRowId` and the
+ * cache can never drift. Import it; never respell '__ssrmRowId'.
+ */
+export const SSRM_COMPOSITE_KEY_FIELD = '__ssrmRowId';
+const COMPOSITE_KEY_FIELD = SSRM_COMPOSITE_KEY_FIELD;
 
 export interface SsrmPlaneOpts {
   /**

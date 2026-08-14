@@ -107,13 +107,13 @@ function resolveCacheBlockSize(
   if (typeof cacheBlockSizeProp === 'number' && cacheBlockSizeProp >= 20) {
     return cacheBlockSizeProp;
   }
-  try {
-    const cfg = provider.getConfig() as { blockSize?: number };
-    const n = cfg.blockSize;
-    return typeof n === 'number' && n >= 20 ? n : 100;
-  } catch {
-    return 100;
-  }
+  // Null-safe read: pre-start this is null (the container remounts-by-key
+  // or re-props once ready, so a declared blockSize still lands). The old
+  // try/catch swallowed the pre-start throw into a permanent 100 —
+  // indistinguishable from a malformed config.
+  const cfg = provider.getConfigOrNull?.() as { blockSize?: number } | null;
+  const n = cfg?.blockSize;
+  return typeof n === 'number' && n >= 20 ? n : 100;
 }
 
 export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData>({
