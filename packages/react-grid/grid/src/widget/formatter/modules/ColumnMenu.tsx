@@ -9,7 +9,7 @@
  */
 import { useState } from 'react';
 import { ChevronDown, Columns3 } from 'lucide-react';
-import { PopoverCompat as Popover, Tooltip } from '../../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { PopoverCompat as Popover, Tooltip } from '../../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { PillButton, pillClasses } from '../primitives';
 import { EditableToggle } from './ModuleContext';
 import { EditorFilterCluster } from './ModuleEditorFilter';

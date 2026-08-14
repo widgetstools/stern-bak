@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import type { AdminAction } from './types';
 import { AdminActionButtons, resolveAdminActionIcon } from './AdminActionButtons';
-import { ChromeButton, useActiveThemeMode } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { ChromeButton, useActiveThemeMode } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { GridInfoButton } from './GridInfoButton';
 import { GridInfoContent } from './GridInfoContent';
 import { preloadSettingsSheet } from './LazySettingsSheet';

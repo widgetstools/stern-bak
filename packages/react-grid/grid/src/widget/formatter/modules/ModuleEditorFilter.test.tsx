@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { ModuleEditorFilter } from './ModuleEditorFilter';
 import { makeFormatterActions, makeFormatterState } from '../formatterTestHelpers';
 
-vi.mock('../../../customizer/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../customizer/index.js')>();
+vi.mock('../../../customizer/internal.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../customizer/internal.js')>();
   return {
     ...actual,
     useAppDataLookup: () => ({ providers: { static: {} } }),

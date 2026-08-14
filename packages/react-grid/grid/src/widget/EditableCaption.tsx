@@ -16,7 +16,7 @@ import {
   useState,
   type ReactElement,
 } from 'react';
-import { Input, ChromeButton } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { Input, ChromeButton } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { Pencil } from 'lucide-react';
 
 export interface EditableCaptionProps {

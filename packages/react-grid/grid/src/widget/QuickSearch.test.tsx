@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
 import { GridPlatform } from '@wellsfargo-starui/core';
-import { GridProvider, generalSettingsModule } from '@wellsfargo-starui/grid/customizer';
+import { GridProvider, generalSettingsModule } from '../customizer/internal.js';
 import { QuickSearch } from './QuickSearch';
 
 function makePlatform(api?: Partial<GridApi>) {

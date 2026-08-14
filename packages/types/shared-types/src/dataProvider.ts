@@ -347,18 +347,6 @@ export type TransportConfig =
  */
 export type ProviderConfig = TransportConfig;
 
-/**
- * Provider capabilities
- */
-export interface ProviderCapabilities {
-  hasSnapshot: boolean;
-  hasRealtime: boolean;
-  hasPagination: boolean;
-  hasFiltering: boolean;
-  hasSorting: boolean;
-  hasSearch: boolean;
-  maxRowsPerRequest?: number;
-}
 
 /**
  * Provider statistics for monitoring
@@ -424,17 +412,6 @@ export interface ProviderValidationResult {
 /**
  * Provider connection test result
  */
-export interface ProviderTestResult {
-  success: boolean;
-  connectionState: ConnectionState;
-  responseTime?: number;
-  error?: string;
-  metadata?: {
-    serverVersion?: string;
-    capabilities?: ProviderCapabilities;
-    sampleData?: any[];
-  };
-}
 
 /**
  * Default provider configurations for quick setup

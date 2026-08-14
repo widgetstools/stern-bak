@@ -46,7 +46,7 @@ import {
   type ColumnCustomizationState,
   type FilterKind,
   type GeneralSettingsState,
-} from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
   numberTemplate,
   templateDecimals,
@@ -54,7 +54,7 @@ import {
 import {
   resolveTemplates,
   type ColumnTemplatesState,
-} from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
   readFirstRowValue,
   useFlashConfirm,
@@ -62,7 +62,7 @@ import {
 } from '../formattingToolbarHooks';
 import type { FormatterSelection } from './useFormatterSelection';
 import type { PickerDataType } from './state';
-import { useGridPlatform } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { useGridPlatform } from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 export interface FormatterActionsSlice {
   /** Bundle of state values owned by this slice (clear flags, editor /

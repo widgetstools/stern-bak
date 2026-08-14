@@ -10,7 +10,7 @@ import {
   SHORTCUTS_MODULE_ID,
   SMART_EDIT_MODULE_ID,
 } from '@wellsfargo-starui/core';
-import { GridProvider } from '@wellsfargo-starui/grid/customizer';
+import { GridProvider } from '../../customizer/internal.js';
 import { EditingToolbar } from './EditingToolbar';
 
 vi.mock('../../customizer/modules/bulk-update/BulkUpdateToolbarBody', () => ({

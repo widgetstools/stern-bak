@@ -7,7 +7,7 @@
 
 import { ArrowRight } from 'lucide-react';
 import { SECTION_META } from './sectionMeta';
-import { ChromeButton } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { ChromeButton } from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { Code, H1, H2, P, Table } from './primitives';
 import type { HelpSectionProps } from './types';
 

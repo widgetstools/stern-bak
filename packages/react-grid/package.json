@@ -28,10 +28,6 @@
       "import": "./widgets-react/dist/index.js",
       "require": "./widgets-react/dist/index.js"
     },
-    "./widgets/markets-grid-container": {
-      "types": "./widgets-react/dist/container/markets-grid-container/index.d.ts",
-      "import": "./widgets-react/dist/container/markets-grid-container/index.js"
-    },
     "./widgets/ssrm-markets-grid-container": {
       "types": "./widgets-react/dist/container/ssrm-markets-grid-container/index.d.ts",
       "import": "./widgets-react/dist/container/ssrm-markets-grid-container/index.js"

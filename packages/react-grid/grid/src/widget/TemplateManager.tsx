@@ -28,7 +28,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, RotateCw, Trash2, Check, X } from 'lucide-react';
-import { GhostIconButton, Input, ChromeButton, cn } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { GhostIconButton, Input, ChromeButton, cn } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wellsfargo-starui/react';
 
 // Inactive-row hover tint. Co-located here (instead of marketsGrid.css)

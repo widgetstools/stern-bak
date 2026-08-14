@@ -26,7 +26,7 @@ import {
   type ProviderGridHostApi,
   GridEventBindingsHostProvider,
   type GridEventBindingsHostApi,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import type { MarketsGridHandle, MarketsGridProps } from './types';
 import { isMarketsGridLocalStorageStorageFactory } from './createMarketsGridLocalStorageStorage';
 import { useGridHost } from './useGridHost';

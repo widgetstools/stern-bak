@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   toolbarFocusIfPopped: vi.fn(() => false),
 }));
 
-vi.mock('../customizer/index.js', () => ({
+vi.mock('../customizer/internal.js', () => ({
   useProfileManager: () => mocks.profile,
   useGridApi: () => mocks.api,
   useGridPlatform: () => mocks.platform,

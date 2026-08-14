@@ -2,9 +2,9 @@ import type { ColDef, GridApi, SideBarDef, StatusPanelDef, Theme } from 'ag-grid
 import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { GridHostContext } from '@wellsfargo-starui/core/host';
-import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
-export type { ProviderGridHostApi, ProviderGridHostMode, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+export type { ProviderGridHostApi, ProviderGridHostMode, GridEventBindingsHostApi } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 export type { MarketsGridLocalStorageConfig, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
 
 /**

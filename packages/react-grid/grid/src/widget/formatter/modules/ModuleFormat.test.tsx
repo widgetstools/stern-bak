@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { ModuleFormat } from './ModuleFormat';
 import { makeFormatterActions, makeFormatterState, PERCENT_TEMPLATE, COMMA_TEMPLATE } from '../formatterTestHelpers';
 
-vi.mock('../../../customizer/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../customizer/index.js')>();
+vi.mock('../../../customizer/internal.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../customizer/internal.js')>();
   return {
     ...actual,
     FormatterPicker: ({ 'data-testid': testId }: { 'data-testid'?: string }) => (

@@ -14,7 +14,7 @@ import {
   savedFiltersModule,
   toolbarVisibilityModule,
   type SavedFiltersState,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../customizer/internal.js';
 import { FiltersToolbar } from './FiltersToolbar';
 import type { SavedFilter } from './types';
 

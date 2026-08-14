@@ -24,11 +24,6 @@
       "import": "./workspace-setup-react/dist/index.js",
       "require": "./workspace-setup-react/dist/index.js"
     },
-    "./data": {
-      "types": "./host-data-react/dist/index.d.ts",
-      "import": "./host-data-react/dist/index.js",
-      "require": "./host-data-react/dist/index.js"
-    },
     "./data/runtime": {
       "types": "./host-data-react/dist/runtime/index.d.ts",
       "import": "./host-data-react/dist/runtime/index.js"

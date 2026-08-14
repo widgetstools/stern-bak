@@ -29,7 +29,7 @@ import {
   type ColumnCustomizationState,
   type ColumnTemplatesState,
   type GeneralSettingsState,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../customizer/internal.js';
 import { FormattingToolbar } from './FormattingToolbar';
 
 // Per-column overrides are theme-keyed in profile state. jsdom has no

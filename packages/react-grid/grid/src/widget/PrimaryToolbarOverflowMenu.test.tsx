@@ -10,8 +10,8 @@ vi.mock('./LazySettingsSheet', () => ({
   preloadSettingsSheet: vi.fn(),
 }));
 
-vi.mock('../customizer/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../customizer/index.js')>();
+vi.mock('../customizer/internal.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../customizer/internal.js')>();
   return {
     ...actual,
     useActiveThemeMode: () => 'dark',

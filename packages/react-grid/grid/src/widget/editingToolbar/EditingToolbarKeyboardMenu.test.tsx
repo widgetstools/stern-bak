@@ -6,7 +6,7 @@ import {
   PLUS_MINUS_MODULE_ID,
   SHORTCUTS_MODULE_ID,
 } from '@wellsfargo-starui/core';
-import { GridProvider } from '@wellsfargo-starui/grid/customizer';
+import { GridProvider } from '../../customizer/internal.js';
 import { EditingToolbarKeyboardMenu } from './EditingToolbarKeyboardMenu';
 
 function mountMenu(overrides?: {

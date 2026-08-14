@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
 import { GridPlatform } from '@wellsfargo-starui/core';
-import { generalSettingsModule } from '@wellsfargo-starui/grid/customizer';
+import { generalSettingsModule } from '../customizer/internal.js';
 import { useGridHost } from './useGridHost';
 
 function makeFakeApi() {

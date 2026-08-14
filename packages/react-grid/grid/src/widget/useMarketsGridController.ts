@@ -40,7 +40,7 @@ import {
   useProfileManager,
   VISUAL_EXCEL_MODULE_ID,
   type VisualExcelExportOptions,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { type VisualExcelState } from '@wellsfargo-starui/core';
 import type { FormattingToolbarHandle } from './FormattingToolbar';
 import type { SettingsSheetHandle } from './SettingsSheet';

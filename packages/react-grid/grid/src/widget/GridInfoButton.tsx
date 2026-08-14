@@ -14,7 +14,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { Info } from 'lucide-react';
 import { GridInfoContent } from './GridInfoContent';
 

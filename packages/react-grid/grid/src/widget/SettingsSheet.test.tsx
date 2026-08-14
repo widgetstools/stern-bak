@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnyModule } from '@wellsfargo-starui/core';
 import { GridPlatform } from '@wellsfargo-starui/core';
-import { GridProvider } from '@wellsfargo-starui/grid/customizer';
+import { GridProvider } from '../customizer/internal.js';
 import { SettingsSheet } from './SettingsSheet';
 
 vi.mock('../runtime/openFin.js', () => ({
@@ -15,8 +15,8 @@ vi.mock('../runtime/openFin.js', () => ({
 
 let mockPoppablePopped = false;
 
-vi.mock('../customizer/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../customizer/index.js')>();
+vi.mock('../customizer/internal.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../customizer/internal.js')>();
   return {
     ...actual,
     Poppable: React.forwardRef(function MockPoppable(props: React.ComponentProps<typeof actual.Poppable>, ref) {

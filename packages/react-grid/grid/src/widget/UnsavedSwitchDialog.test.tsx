@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog.js';
 
-vi.mock('../customizer/index.js', () => {
+vi.mock('../customizer/internal.js', () => {
   let onOpenChangeRef: ((next: boolean) => void) | undefined;
   return {
     AlertDialog: ({ children, open, onOpenChange }: {

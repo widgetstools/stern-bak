@@ -188,26 +188,6 @@ vi.mock('@wellsfargo-starui/react/workspace-setup', () => ({
     React.createElement('div', { 'data-testid': 'workspace-setup' }, 'Workspace Setup'),
 }));
 
-vi.mock('@wellsfargo-starui/grid/customizer', () => ({
-  Button: ({
-    children,
-    onClick,
-    disabled,
-    ...rest
-  }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) =>
-    React.createElement(
-      'button',
-      { type: 'button', onClick, disabled, ...rest },
-      children,
-    ),
-  Input: React.forwardRef(function MockInput(
-    props: React.InputHTMLAttributes<HTMLInputElement>,
-    ref: React.ForwardedRef<HTMLInputElement>,
-  ) {
-    return React.createElement('input', { ref, ...props });
-  }),
-}));
-
 vi.mock('ag-grid-community', () => ({ ModuleRegistry: { registerModules: vi.fn() } }));
 vi.mock('ag-grid-enterprise', () => ({ AllEnterpriseModule: {} }));
 vi.mock('ag-grid-react', () => ({

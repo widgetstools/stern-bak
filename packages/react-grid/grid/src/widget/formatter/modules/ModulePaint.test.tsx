@@ -3,8 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ModulePaint } from './ModulePaint';
 import { makeFormatterActions, makeFormatterState } from '../formatterTestHelpers';
 
-vi.mock('../../../customizer/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../customizer/index.js')>();
+vi.mock('../../../customizer/internal.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../customizer/internal.js')>();
   return {
     ...actual,
     ColorPickerPopover: ({

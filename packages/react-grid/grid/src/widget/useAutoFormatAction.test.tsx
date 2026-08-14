@@ -9,7 +9,7 @@ import {
   columnTemplatesModule,
   generalSettingsModule,
   type ColumnCustomizationState,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../customizer/internal.js';
 import { useAutoFormatAction } from './useAutoFormatAction';
 import { AutoFormatButton } from './AutoFormatButton';
 

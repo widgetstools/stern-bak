@@ -43,7 +43,7 @@ vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
   };
 });
 
-vi.mock('@wellsfargo-starui/grid/customizer', async () => {
+vi.mock('../customizer/internal.js', async () => {
   const actual: any = {};
   return {
     ...actual,

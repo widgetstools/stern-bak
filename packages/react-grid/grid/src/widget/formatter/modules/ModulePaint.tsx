@@ -15,7 +15,7 @@ import {
   PopoverContent as RadixPopoverContent,
   PopoverTrigger as RadixPopoverTrigger,
   Tooltip,
-} from '../../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { Hair, Module, PillButton, pillClasses } from '../primitives';
 import type { FormatterActions, FormatterState } from '../state';
 

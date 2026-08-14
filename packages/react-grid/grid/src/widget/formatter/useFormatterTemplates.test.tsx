@@ -9,7 +9,7 @@ import {
   columnTemplatesModule,
   type ColumnCustomizationState,
   type ColumnTemplatesState,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../../customizer/internal.js';
 import { useFormatterTemplates } from './useFormatterTemplates';
 import type { FormatterSelection } from './useFormatterSelection';
 

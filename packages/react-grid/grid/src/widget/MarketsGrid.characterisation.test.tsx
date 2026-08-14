@@ -101,7 +101,7 @@ vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
   };
 });
 
-vi.mock('@wellsfargo-starui/grid/customizer', () => ({
+vi.mock('../customizer/internal.js', () => ({
   GridProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   ProviderGridHostProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   GridEventBindingsHostProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

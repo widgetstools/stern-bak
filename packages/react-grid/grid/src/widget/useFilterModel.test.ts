@@ -26,7 +26,7 @@ import {
   GridProvider,
   savedFiltersModule,
   type SavedFiltersState,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../customizer/internal.js';
 import { useFilterModel } from './useFilterModel';
 import type { SavedFilter } from './types';
 

@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { ChevronDown, LayoutTemplate } from 'lucide-react';
-import { PopoverCompat as Popover, Tooltip } from '../../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { PopoverCompat as Popover, Tooltip } from '../../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { TemplateManager } from '../../TemplateManager';
 import { Module, PillButton, pillClasses, type Orientation } from '../primitives';
 import type { FormatterActions, FormatterState } from '../state';

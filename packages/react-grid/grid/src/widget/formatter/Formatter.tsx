@@ -21,7 +21,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { MoreHorizontal, X } from 'lucide-react';
-import { PopoverCompat as Popover, Tooltip } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { PopoverCompat as Popover, Tooltip } from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { ColumnMenuControl } from './modules/ColumnMenu';
 import { ModuleClear } from './modules/ModuleClear';
 import {

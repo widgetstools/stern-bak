@@ -10,7 +10,7 @@ import {
   ArrowLeft, ArrowRight, DollarSign, Hash, Percent,
 } from 'lucide-react';
 import type { ValueFormatterTemplate } from '@wellsfargo-starui/core';
-import { FormatterPicker } from '../../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { FormatterPicker } from '../../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
   BPS_TEMPLATE,
   COMMA_TEMPLATE,

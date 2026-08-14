@@ -8,7 +8,7 @@ import {
   GridProvider,
   generalSettingsModule,
   type GeneralSettingsState,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../customizer/internal.js';
 import { GridDensityPill } from './GridDensityPill';
 
 function mountPill(density: 'compact' | 'comfort' | 'ultra' = 'compact') {

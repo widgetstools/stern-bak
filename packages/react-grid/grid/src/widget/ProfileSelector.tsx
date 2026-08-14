@@ -19,7 +19,7 @@ import {
   buttonVariants,
   Input,
   ChromeButton,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 export interface ProfileSelectorProps {
   profiles: ProfileMeta[];

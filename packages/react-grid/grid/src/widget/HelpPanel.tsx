@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react';
-import { ChromeButton } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { ChromeButton } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import './HelpPanel.css';
 import { SECTIONS } from './help/sections';
 import type { SectionId } from './help/types';

@@ -15,7 +15,7 @@ import {
   type ColumnCustomizationState,
   type GeneralSettingsState,
   GENERAL_SETTINGS_MODULE_ID,
-} from '@wellsfargo-starui/grid/customizer';
+} from '../customizer/internal.js';
 import { useFormatterActions } from './formatter/useFormatterActions';
 import type { FormatterSelection } from './formatter/useFormatterSelection';
 

@@ -5,11 +5,11 @@ import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { GridPlatform } from '@wellsfargo-starui/core';
-import { GridProvider, generalSettingsModule } from '@wellsfargo-starui/grid/customizer';
+import { GridProvider, generalSettingsModule } from '../customizer/internal.js';
 import { FormattingToolbar } from './FormattingToolbar';
 
-vi.mock('../customizer/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../customizer/index.js')>();
+vi.mock('../customizer/internal.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../customizer/internal.js')>();
   return {
     ...actual,
     Poppable: React.forwardRef(function MockPoppable(_props: any, ref) {

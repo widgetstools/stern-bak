@@ -18,7 +18,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ChromeButton } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { ChromeButton } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { GripVertical, X as XIcon } from 'lucide-react';
 import './grid-chrome.css';
 

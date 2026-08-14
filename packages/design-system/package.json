@@ -20,16 +20,6 @@
       "import": "./design-system/dist/adapters/tailwind.js",
       "default": "./design-system/dist/adapters/tailwind.js"
     },
-    "./primeng": {
-      "types": "./design-system/dist/adapters/primeng.d.ts",
-      "import": "./design-system/dist/adapters/primeng.js",
-      "default": "./design-system/dist/adapters/primeng.js"
-    },
-    "./shadcn": {
-      "types": "./design-system/dist/adapters/shadcn.d.ts",
-      "import": "./design-system/dist/adapters/shadcn.js",
-      "default": "./design-system/dist/adapters/shadcn.js"
-    },
     "./adapters/ag-grid": {
       "types": "./design-system/dist/adapters/agGrid.d.ts",
       "import": "./design-system/dist/adapters/agGrid.js",

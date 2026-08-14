@@ -12,8 +12,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useGridPlatform, useModuleState } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
-import type { ColumnCustomizationState } from '../../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { useGridPlatform, useModuleState } from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import type { ColumnCustomizationState } from '../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
   readHeaderName,
   resolveToolbarPickerDataType,

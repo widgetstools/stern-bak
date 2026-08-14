@@ -8,7 +8,10 @@ export { StarGrid, type StarGridProps } from './stargrid/StarGrid.js';
 // import `agGridDarkTheme` / `agGridLightTheme` from there directly.
 // This hook still reads the runtime `[data-theme]` and returns the
 // matching theme.
-export { useAgGridTheme } from './theme/index.js';
+// useAgGridTheme (the { theme } wrapper) is internal now — the PUBLIC
+// useAgGridTheme is the hosted variant on ./widgets/hosted (mode -> Theme).
+// Two same-name exports with incompatible signatures in one package was
+// a documented footgun.
 
 // ─── Provider Editor (v2) and Data Provider Selector (v2) ─────────
 // The v1 mirrored editor/selector are gone; consumers import the
@@ -31,6 +34,15 @@ export type {
   GridLinkSelectionBuilder,
 } from './hosted/index.js';
 export { useGridContextLink } from './hosted/index.js';
+export {
+  MarketsGridContainer,
+  DatePicker,
+} from './container/markets-grid-container/index.js';
+export type {
+  MarketsGridContainerProps,
+  ProviderSelection,
+  ProviderMode,
+} from './container/markets-grid-container/index.js';
 export {
   SsrmMarketsGridContainer,
   useSsrmProviderDataWiring,

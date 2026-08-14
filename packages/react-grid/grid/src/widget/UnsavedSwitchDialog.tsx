@@ -19,7 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 export interface UnsavedSwitchDialogProps {
   readonly open: boolean;

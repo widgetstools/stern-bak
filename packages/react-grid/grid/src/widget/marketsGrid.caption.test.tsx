@@ -41,7 +41,7 @@ vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
 
 // React shells from @wellsfargo-starui/grid/customizer — hooks, panel primitives,
 // shadcn primitives, and module registry exports.
-vi.mock('@wellsfargo-starui/grid/customizer', async () => {
+vi.mock('../customizer/internal.js', async () => {
   const actual: any = {};
   return {
     ...actual,

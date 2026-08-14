@@ -17,7 +17,7 @@ import {
   toolbarDateSettingsModule,
   toolbarVisibilityModule,
   visualExcelModule,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 
 /**
  * Default module list — every shipped module, ordered the way the user's

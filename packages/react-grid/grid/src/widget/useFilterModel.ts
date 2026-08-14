@@ -31,7 +31,7 @@ import {
   useGridPlatform,
   useModuleState,
   type SavedFiltersState,
-} from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+} from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
   doesRowMatchFilterModel,
   generateLabel,
