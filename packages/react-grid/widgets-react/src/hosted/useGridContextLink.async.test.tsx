@@ -70,9 +70,9 @@ describe('async selection builders', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
-        config: { enabled: true, mode: 'fields', buildContext: build },
+        config: { enabled: true, mode: 'fields', advanced: { buildContext: build } },
       }),
     );
 
@@ -104,9 +104,9 @@ describe('async selection builders', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
-        config: { enabled: true, mode: 'fields', buildContext: build },
+        config: { enabled: true, mode: 'fields', advanced: { buildContext: build } },
       }),
     );
 
@@ -134,9 +134,9 @@ describe('async selection builders', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
-        config: { enabled: true, mode: 'fields', buildContext: build },
+        config: { enabled: true, mode: 'fields', advanced: { buildContext: build } },
       }),
     );
 
@@ -159,12 +159,14 @@ describe('async selection builders', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
         config: {
           enabled: true,
           mode: 'fields',
-          buildContext: () => ({ type: 't', criteria: { positionId: ['SYNC'] } }),
+          advanced: {
+            buildContext: () => ({ type: 't', criteria: { positionId: ['SYNC'] } }),
+          },
         },
       }),
     );

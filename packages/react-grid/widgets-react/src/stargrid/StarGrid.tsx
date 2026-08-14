@@ -59,7 +59,7 @@ import { useGridLinkNotifications } from '../hosted/useGridLinkNotifications.js'
 import { createRowIdSetFilterResolver } from '../hosted/gridContextLink.js';
 import { createSsrmSelectionContextBuilder } from '../hosted/ssrmGridContextLink.js';
 
-import { getCurrentView } from '@wellsfargo-starui/openfin/host';
+import { getCurrentView, isOpenFin } from '@wellsfargo-starui/openfin/host';
 
 /** Fills the parent; `fullBleed` pins to the viewport (hosted-view style). */
 const FULL_BLEED_STYLE: CSSProperties = {
@@ -101,10 +101,12 @@ export interface StarGridProps {
   documentTitle?: string;
   /**
    * OpenFin colour-based grid linking — dock-link two grids to the same
-   * colour to share row selection. SSRM defaults are injected (worker-
-   * resolved group / select-all publishes; `mode: 'rowId'` receives as a
-   * key-column set-filter). Currently wired on the SSRM path; the CSRM
-   * flavour lands with the star-demo migration.
+   * colour to share row selection. `{ enabled, mode }` is the whole
+   * consumer surface; expert overrides live under `advanced`
+   * ({@link GridContextLinkAdvanced}). Mode-aware defaults are injected:
+   * SSRM gets worker-resolved group / select-all publishes (and
+   * `mode: 'rowId'` receives as a key-column set-filter); CSRM fills
+   * `advanced.rowIdField` from the container's resolved key column.
    */
   contextLink?: GridContextLinkConfig;
   /** Imperative handle once the grid is live. */
@@ -113,7 +115,7 @@ export interface StarGridProps {
   fallback?: ReactNode;
   /**
    * Typed escape hatch — everything else the underlying MarketsGrid
-   * surface accepts (toolbars, theme, contextLink, admin actions, …).
+   * surface accepts (toolbars, theme, admin actions, …).
    * Prefer the first-class props; reach in here for the rest.
    */
   advanced?: Partial<Omit<MarketsGridProps, 'gridId' | 'rowData' | 'columnDefs'>>;
@@ -253,18 +255,19 @@ export function StarGrid(props: StarGridProps): ReactElement {
 
   const effectiveContextLink = useMemo<GridContextLinkConfig | undefined>(() => {
     if (!contextLink) return undefined;
+    const adv = contextLink.advanced;
     if (!isSsrm) {
       // CSRM (HostedMarketsGrid parity): only fill rowIdField from the
       // container's resolved key column(s); the generic selection
       // builder / resolver defaults inside useGridContextLink apply.
-      const resolved = linkRowIdField ?? contextLink.rowIdField ?? undefined;
+      const resolved = linkRowIdField ?? adv?.rowIdField ?? undefined;
       return resolved !== undefined
-        ? { ...contextLink, rowIdField: resolved }
+        ? { ...contextLink, advanced: { ...adv, rowIdField: resolved } }
         : contextLink;
     }
     const keyColumn = typeof linkRowIdField === 'string' ? linkRowIdField : 'id';
     const buildContext =
-      contextLink.buildContext
+      adv?.buildContext
       ?? createSsrmSelectionContextBuilder({
         provider: {
           getSetFilterValues: (req) => {
@@ -276,15 +279,18 @@ export function StarGrid(props: StarGridProps): ReactElement {
         keyColumn,
       });
     const resolve =
-      contextLink.resolve
+      adv?.resolve
       ?? (contextLink.mode === 'rowId'
         ? createRowIdSetFilterResolver(keyColumn)
         : undefined);
     return {
       ...contextLink,
-      rowIdField: contextLink.rowIdField ?? keyColumn,
-      buildContext,
-      ...(resolve ? { resolve } : {}),
+      advanced: {
+        ...adv,
+        rowIdField: adv?.rowIdField ?? keyColumn,
+        buildContext,
+        ...(resolve ? { resolve } : {}),
+      },
     };
   }, [contextLink, linkRowIdField, isSsrm]);
 
@@ -294,18 +300,35 @@ export function StarGrid(props: StarGridProps): ReactElement {
   const linkInstanceId = (advanced as { instanceId?: string } | undefined)?.instanceId ?? gridId;
   const linkNotifications = useGridLinkNotifications({
     instanceId: linkInstanceId,
-    enabled: linkActive && contextLink?.notify === true,
+    enabled: linkActive && contextLink?.advanced?.notify === true,
   });
 
   // Prefer the interop client under OpenFin (the dock "Link" button joins
   // interop context groups that window.fdc3 doesn't reliably reflect).
   const fdc3 = useFdc3Channel();
-  const interopChannel = useInteropChannel({ debug: contextLink?.debug === true });
+  const interopChannel = useInteropChannel({ debug: contextLink?.advanced?.debug === true });
   const linkTransport = isInteropAvailable() ? interopChannel : fdc3;
+
+  // Loud init validation: linking that can never carry traffic is a
+  // config/manifest bug, not a quiet degradation. Interop is present by
+  // default in platform views (no manifest flag); the FDC3 fallback needs
+  // `fdc3InteropApi` in defaultViewOptions/defaultWindowOptions.
+  useEffect(() => {
+    if (!linkActive || !isOpenFin()) return;
+    if (!isInteropAvailable() && typeof (window as { fdc3?: unknown }).fdc3 === 'undefined') {
+      console.error(
+        `[StarGrid] contextLink is enabled for "${gridId}" but neither the OpenFin interop API ` +
+          '(fin.me.interop) nor window.fdc3 is available — grid linking cannot carry any traffic. ' +
+          'Platform views get interop by default; if this view was created outside the platform, ' +
+          'set `fdc3InteropApi` in the manifest defaultViewOptions/defaultWindowOptions to enable ' +
+          'the FDC3 fallback.',
+      );
+    }
+  }, [linkActive, gridId]);
 
   useGridContextLink({
     gridApi,
-    fdc3: linkTransport,
+    transport: linkTransport,
     instanceId: linkInstanceId,
     config: effectiveContextLink,
     onPublish: linkNotifications.onPublish,

@@ -29,6 +29,8 @@ export type {
   ConfigManager,
   StorageAdapterFactory,
   GridContextLinkConfig,
+  GridContextLinkAdvanced,
+  GridLinkTransport,
   GridLinkSelectionContext,
   GridLinkResolver,
   GridLinkSelectionBuilder,

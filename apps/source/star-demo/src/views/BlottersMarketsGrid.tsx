@@ -70,9 +70,9 @@ function BlottersMarketsGrid(): ReactNode {
         documentTitle="MarketsGrid · Blotter"
         // OpenFin colour-based grid linking: dock-link two blotters to the
         // same colour to share row selection (docs/OPENFIN_GRID_LINKING.md).
-        // `rowIdField` auto-derives from the active provider's key column.
-        // `notify` left off — no Notification Center alerts on link traffic.
-        contextLink={{ enabled: true, mode: 'fields', notify: false }}
+        // `rowIdField` auto-derives from the active provider's key column;
+        // Notification Center alerts stay off (`advanced.notify` default).
+        contextLink={{ enabled: true, mode: 'fields' }}
         advanced={{
           // Profiles stay keyed by the RESOLVED per-view id while the
           // grid-level row keeps the logical grid key — exact parity with

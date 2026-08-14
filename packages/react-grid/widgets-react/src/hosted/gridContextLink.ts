@@ -16,10 +16,34 @@
  */
 
 import type { GridApi, IRowNode } from 'ag-grid-community';
-import type { Fdc3Context } from './useFdc3Channel.js';
+import type { Fdc3Context, Fdc3ContextHandler } from './useFdc3Channel.js';
 
 /** Default FDC3 context type for grid-selection link messages. */
 export const GRID_LINK_CONTEXT_TYPE = 'starui.gridSelection';
+
+/**
+ * The single link-transport adapter interface — everything
+ * `useGridContextLink` needs from a transport. Both shipped transports
+ * satisfy it: the OpenFin interop facade (`useInteropChannel`, PRIMARY —
+ * the dock "Link" button joins interop context groups that `window.fdc3`
+ * does not reliably reflect) and the FDC3 user-channel fallback
+ * (`useFdc3Channel`). `join`/`leave` are deliberately NOT part of the
+ * seam: link-group membership belongs to the dock, never to the grid.
+ */
+export interface GridLinkTransport {
+  /** Diagnostic channel label (colour / `'linked'`), null when unlinked. */
+  current: string | null;
+  /**
+   * Listen for broadcast contexts of `contextType` (null = all). Returns
+   * a cleanup that detaches the listener.
+   */
+  addContextListener: (
+    contextType: string | null,
+    handler: Fdc3ContextHandler,
+  ) => () => void;
+  /** Broadcast a context to the joined link group. */
+  broadcast: (context: Fdc3Context) => Promise<void>;
+}
 
 /**
  * The wire payload broadcast between linked grids. `criteria` maps a

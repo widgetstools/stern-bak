@@ -54,7 +54,7 @@ describe('useGridContextLink', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
         config: { enabled: false },
       }),
@@ -72,7 +72,7 @@ describe('useGridContextLink', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
         config: { enabled: true, mode: 'rowId' },
         onPublish,
@@ -92,9 +92,9 @@ describe('useGridContextLink', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
-        config: { enabled: true, mode: 'fields', rowIdField: 'symbol' },
+        config: { enabled: true, mode: 'fields', advanced: { rowIdField: 'symbol' } },
         onReceive,
       }),
     );
@@ -116,7 +116,7 @@ describe('useGridContextLink', () => {
     const { unmount } = renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
         config: { enabled: true },
       }),
@@ -134,7 +134,7 @@ describe('useGridContextLink', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
         config: { enabled: true, mode: 'rowId' },
         onReceive,
@@ -160,9 +160,9 @@ describe('useGridContextLink', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
-        config: { enabled: true, mode: 'rowId', receive: true },
+        config: { enabled: true, mode: 'rowId', advanced: { receive: true } },
       }),
     );
     act(() => {
@@ -181,9 +181,9 @@ describe('useGridContextLink', () => {
     renderHook(() =>
       useGridContextLink({
         gridApi: api,
-        fdc3,
+        transport: fdc3,
         instanceId: 'grid-a',
-        config: { enabled: true, publish: false },
+        config: { enabled: true, advanced: { publish: false } },
       }),
     );
     act(() => {

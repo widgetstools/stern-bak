@@ -14,7 +14,7 @@
     "autoShow": false,
     "providerUrl": "http://localhost:5176/#/platform/provider",
     "preventQuitOnLastWindowClosed": true,
-    "$comment-fdc3": "Enable the FDC3 API (window.fdc3) for EVERY view/window the platform creates. Without this window.fdc3 is undefined, so the grid color-link transport (useFdc3Channel → useGridContextLink) silently no-ops and color-linked grids never exchange selection context. The dock 'Link' button joins windows to interop context groups; fdc3 broadcast/addContextListener wrap interop.setContext/addContextHandler over that group.",
+    "$comment-fdc3": "OPTIONAL. The primary grid color-link transport is the OpenFin interop API (fin.me.interop) — present by default in every platform view/window, no manifest flag needed. fdc3InteropApi only injects window.fdc3, the FALLBACK transport used when interop is absent (e.g. views created outside the platform). If neither is available, StarGrid logs a loud console error at link init instead of silently dropping traffic. See docs/OPENFIN_GRID_LINKING.md.",
     "defaultViewOptions": {
       "fdc3InteropApi": "2.0",
       "backgroundThrottling": false

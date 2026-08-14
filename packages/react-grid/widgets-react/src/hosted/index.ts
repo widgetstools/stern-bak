@@ -51,8 +51,10 @@ export type {
 export { useGridContextLink } from './useGridContextLink.js';
 export type {
   GridContextLinkConfig,
+  GridContextLinkAdvanced,
   UseGridContextLinkArgs,
 } from './useGridContextLink.js';
+export type { GridLinkTransport } from './gridContextLink.js';
 export {
   GRID_LINK_CONTEXT_TYPE,
   buildSelectionContext,

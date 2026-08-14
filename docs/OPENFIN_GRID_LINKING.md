@@ -31,7 +31,8 @@ Pass the `contextLink` prop to `<StarGrid>` (or any host that wires
     enabled: true,     // master switch (default: off)
     mode: 'fields',    // 'fields' = key columns + values (recommended);
                        // 'rowId'  = opaque composed getRowId values
-    notify: true,      // post Notification Center messages (default: off)
+    // Expert knobs live under `advanced`, e.g.:
+    // advanced: { notify: true },  // post Notification Center messages
   }}
 />
 ```
@@ -46,19 +47,24 @@ worker), CSRM uses the generic builder.
 
 Defined in `packages/react-core/widgets-react/src/hosted/useGridContextLink.ts`.
 
+The config is `{ enabled, mode, advanced? }` — the top level is the whole
+consumer surface; everything else is a typed expert block
+(`GridContextLinkAdvanced`).
+
 | Field | Default | Purpose |
 |---|---|---|
 | `enabled` | `false` | Master switch. Linking is inert unless `true`. |
 | `mode` | `'rowId'` | `'fields'` broadcasts key columns + values (per-column set-filter on peers — **use this**); `'rowId'` broadcasts the composed `getRowId` values (external filter; only works when peers key rows identically). |
-| `publish` | `true` | Broadcast this grid's selection to peers. |
-| `receive` | `true` | Apply incoming peer selections as a filter. |
-| `rowIdField` | auto | `'fields'` mode key column(s). **Do not hardcode** — `StarGrid` auto-fills it from the active provider's `keyColumn` (the same fields that drive `getRowId`). Only set it to override. |
-| `notify` | `false` | Post OpenFin Notification Center messages for sent/received link traffic. |
-| `debug` | `false` | Emit verbose `[gridLink]` / `[interop]` console diagnostics (see below). Genuine error warnings always log regardless. |
-| `contextType` | `'starui.gridSelection'` | Context type used on the wire. |
-| `resolve` / `buildContext` | defaults | Override the receive-side context→filter and publish-side selection→context mappings. |
+| `advanced.publish` | `true` | Broadcast this grid's selection to peers. |
+| `advanced.receive` | `true` | Apply incoming peer selections as a filter. |
+| `advanced.rowIdField` | auto | `'fields'` mode key column(s). **Do not hardcode** — `StarGrid` auto-fills it from the active provider's `keyColumn` (the same fields that drive `getRowId`). Only set it to override. |
+| `advanced.notify` | `false` | Post OpenFin Notification Center messages for sent/received link traffic. |
+| `advanced.debug` | `false` | Emit verbose `[gridLink]` / `[interop]` console diagnostics (see below). Genuine error warnings always log regardless. |
+| `advanced.contextType` | `'starui.gridSelection'` | Context type used on the wire. |
+| `advanced.resolve` / `advanced.buildContext` | defaults | Override the receive-side context→filter and publish-side selection→context mappings. |
 
-> **Recommended:** `{ enabled: true, mode: 'fields', notify: true }` and let
+> **Recommended:** `{ enabled: true, mode: 'fields' }` (add
+> `advanced: { notify: true }` for Notification Center traffic) and let
 > `rowIdField` auto-derive. This sends the real key columns + values and filters
 > peers precisely.
 
@@ -173,7 +179,7 @@ user's own column filters (manual filters survive).
 
 ## Diagnostics
 
-Set `contextLink.debug: true` to emit console diagnostics (off by default; open
+Set `contextLink.advanced.debug: true` to emit console diagnostics (off by default; open
 OpenFin DevTools via `chrome://inspect` on the runtime's
 `--remote-debugging-port`). star-demo's blotter sets `debug: true`:
 
@@ -184,7 +190,7 @@ OpenFin DevTools via `chrome://inspect` on the runtime's
 - `[gridLink] receive { self, from, channel, isEcho, context }` — an incoming
   context (and whether it was dropped as our own echo).
 
-With `notify: true`, each notification body also prints the channel, e.g.
+With `advanced.notify: true`, each notification body also prints the channel, e.g.
 *"…on channel `purple`"* or *"…(no channel — peers won't receive)"*, so a
 channel/color mismatch is visible without DevTools (independent of `debug`).
 

@@ -21,7 +21,6 @@
 import { useEffect, useRef } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { getOpenFinWindowIdentity } from '@wellsfargo-starui/openfin/host';
-import type { UseFdc3ChannelResult } from './useFdc3Channel.js';
 import {
   GRID_LINK_CONTEXT_TYPE,
   applyGridLinkContext,
@@ -33,30 +32,24 @@ import {
   type GridLinkResolver,
   type GridLinkSelectionBuilder,
   type GridLinkSelectionContext,
+  type GridLinkTransport,
 } from './gridContextLink.js';
 
-export interface GridContextLinkConfig {
-  /** Master switch. Linking is inactive unless this is `true`. */
-  enabled?: boolean;
-  /**
-   * What a selected row contributes to the broadcast:
-   *  - `'rowId'` (default): the row id from AG-Grid's `getRowId`
-   *    (`composeRowId` over the data provider's key fields). Peers apply
-   *    it as an external filter that keeps only those rows. Needs no
-   *    `rowIdField` config — the provider already drives `getRowId`.
-   *  - `'fields'`: the row's `rowIdField` values, applied by peers as a
-   *    per-column set-filter. Use when peers key rows differently and
-   *    you want to match on shared business fields.
-   */
-  mode?: 'rowId' | 'fields';
+/**
+ * Expert knobs behind {@link GridContextLinkConfig.advanced}. Every real
+ * consumer configures linking with `{ enabled, mode }` alone — the host
+ * (StarGrid) fills the rest from the provider's key column, so nothing
+ * here is needed for normal use.
+ */
+export interface GridContextLinkAdvanced {
   /** Broadcast this grid's selection to linked peers. Default `true`. */
   publish?: boolean;
   /** Apply incoming linked contexts to the grid. Default `true`. */
   receive?: boolean;
   /**
    * `mode: 'fields'` only — row key field(s) describing a selected leaf
-   * row. Set to the provider's `keyColumn` so peers match on the same
-   * fields. Defaults to `'id'`. Ignored in `'rowId'` mode.
+   * row. Auto-filled by StarGrid from the provider's `keyColumn`; set it
+   * only to override. Defaults to `'id'`. Ignored in `'rowId'` mode.
    */
   rowIdField?: string | readonly string[];
   /** Override the receive-side context → filter-model mapping (`'fields'` mode). */
@@ -82,11 +75,32 @@ export interface GridContextLinkConfig {
   debug?: boolean;
 }
 
+export interface GridContextLinkConfig {
+  /** Master switch. Linking is inactive unless this is `true`. */
+  enabled?: boolean;
+  /**
+   * What a selected row contributes to the broadcast:
+   *  - `'rowId'` (default): the row id from AG-Grid's `getRowId`
+   *    (`composeRowId` over the data provider's key fields). Peers apply
+   *    it as an external filter that keeps only those rows. Needs no
+   *    `rowIdField` config — the provider already drives `getRowId`.
+   *  - `'fields'`: the row's `rowIdField` values, applied by peers as a
+   *    per-column set-filter. Use when peers key rows differently and
+   *    you want to match on shared business fields.
+   */
+  mode?: 'rowId' | 'fields';
+  /** Expert overrides — see {@link GridContextLinkAdvanced}. */
+  advanced?: GridContextLinkAdvanced;
+}
+
 export interface UseGridContextLinkArgs {
   /** Live AG-Grid API, or `null` until the grid is ready. */
   gridApi: GridApi | null;
-  /** FDC3 channel facade from `useFdc3Channel` / `useHostedView().linking.fdc3`. */
-  fdc3: UseFdc3ChannelResult;
+  /**
+   * The link transport — interop (`useInteropChannel`, primary) or FDC3
+   * (`useFdc3Channel`, fallback), both satisfying {@link GridLinkTransport}.
+   */
+  transport: GridLinkTransport;
   /** This view's instance id — broadcast as `source` so we ignore our own echo. */
   instanceId: string;
   /** Linking config; when omitted or `enabled !== true`, the hook does nothing. */
@@ -117,14 +131,15 @@ function makeSourceId(instanceId: string): string {
 
 export function useGridContextLink({
   gridApi,
-  fdc3,
+  transport,
   instanceId,
   config,
   onPublish,
   onReceive,
 }: UseGridContextLinkArgs): void {
   const active = Boolean(config) && config?.enabled === true;
-  const contextType = config?.contextType ?? GRID_LINK_CONTEXT_TYPE;
+  const adv = config?.advanced;
+  const contextType = adv?.contextType ?? GRID_LINK_CONTEXT_TYPE;
   const mode = config?.mode ?? 'rowId';
 
   // Per-window source id (see makeSourceId). Stable for the hook's lifetime.
@@ -149,19 +164,19 @@ export function useGridContextLink({
   onReceiveRef.current = onReceive;
 
   // Latest joined channel, read fresh at selection time (the publish effect
-  // doesn't re-run on channel change, so reading a captured `fdc3.current`
+  // doesn't re-run on channel change, so reading a captured `transport.current`
   // would go stale).
-  const channelRef = useRef<string | null>(fdc3.current);
-  channelRef.current = fdc3.current;
+  const channelRef = useRef<string | null>(transport.current);
+  channelRef.current = transport.current;
 
   // Verbose diagnostics gate (off by default). Ref-bridged so toggling it
   // doesn't re-attach the listeners below.
   const debugRef = useRef(false);
-  debugRef.current = config?.debug === true;
+  debugRef.current = adv?.debug === true;
 
-  const { addContextListener } = fdc3;
-  const resolve = config?.resolve ?? defaultGridLinkResolver;
-  const receive = config?.receive !== false;
+  const { addContextListener } = transport;
+  const resolve = adv?.resolve ?? defaultGridLinkResolver;
+  const receive = adv?.receive !== false;
 
   // ── RECEIVE ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -209,11 +224,11 @@ export function useGridContextLink({
     return detach;
   }, [active, receive, gridApi, addContextListener, contextType, instanceId, resolve, mode]);
 
-  const { broadcast } = fdc3;
+  const { broadcast } = transport;
   const build =
-    config?.buildContext ?? (mode === 'rowId' ? buildRowIdContext : buildSelectionContext);
-  const publish = config?.publish !== false;
-  const rowIdField = config?.rowIdField;
+    adv?.buildContext ?? (mode === 'rowId' ? buildRowIdContext : buildSelectionContext);
+  const publish = adv?.publish !== false;
+  const rowIdField = adv?.rowIdField;
 
   // ── PUBLISH ──────────────────────────────────────────────────────
   useEffect(() => {

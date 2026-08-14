@@ -114,9 +114,9 @@ describe('StarGrid colour-link wiring', () => {
   it('feeds gridApi, keyColumn rowIdField and an SSRM builder into useGridContextLink', async () => {
     render(<StarGrid {...BASE} contextLink={{ enabled: true, mode: 'fields' }} />);
     await waitFor(() => {
-      const cfg = captured.link?.config as Record<string, unknown> | undefined;
-      expect(cfg?.rowIdField).toBe('positionId');
-      expect(typeof cfg?.buildContext).toBe('function');
+      const cfg = captured.link?.config as { advanced?: Record<string, unknown> } | undefined;
+      expect(cfg?.advanced?.rowIdField).toBe('positionId');
+      expect(typeof cfg?.advanced?.buildContext).toBe('function');
     });
     await waitFor(() => expect(captured.link?.gridApi).toEqual({ id: 'fake-api' }));
   });
@@ -124,24 +124,29 @@ describe('StarGrid colour-link wiring', () => {
   it('injects the rowId set-filter resolver only in rowId mode', async () => {
     render(<StarGrid {...BASE} contextLink={{ enabled: true, mode: 'rowId' }} />);
     await waitFor(() => {
-      const cfg = captured.link?.config as Record<string, unknown> | undefined;
-      expect(typeof cfg?.resolve).toBe('function');
+      const cfg = captured.link?.config as { advanced?: Record<string, unknown> } | undefined;
+      expect(typeof cfg?.advanced?.resolve).toBe('function');
     });
   });
 
   it('leaves resolve unset in fields mode unless the caller supplies one', async () => {
     render(<StarGrid {...BASE} contextLink={{ enabled: true, mode: 'fields' }} />);
     await waitFor(() => expect(captured.link?.config).toBeDefined());
-    expect((captured.link?.config as Record<string, unknown>).resolve).toBeUndefined();
+    const cfg = captured.link?.config as { advanced?: Record<string, unknown> };
+    expect(cfg.advanced?.resolve).toBeUndefined();
   });
 
-  it('a caller-supplied buildContext wins over the SSRM default', async () => {
+  it('a caller-supplied advanced.buildContext wins over the SSRM default', async () => {
     const mine = vi.fn(() => null);
     render(
-      <StarGrid {...BASE} contextLink={{ enabled: true, mode: 'fields', buildContext: mine }} />,
+      <StarGrid
+        {...BASE}
+        contextLink={{ enabled: true, mode: 'fields', advanced: { buildContext: mine } }}
+      />,
     );
     await waitFor(() => {
-      expect((captured.link?.config as Record<string, unknown>)?.buildContext).toBe(mine);
+      const cfg = captured.link?.config as { advanced?: Record<string, unknown> };
+      expect(cfg?.advanced?.buildContext).toBe(mine);
     });
   });
 
@@ -168,12 +173,12 @@ describe('StarGrid CSRM colour-link flavour', () => {
     cfgRef.current = { providerId: 'p2', providerType: 'stomp', name: 'C' };
     render(<StarGrid gridId="g1" providerId="p2" contextLink={{ enabled: true, mode: 'fields' }} />);
     await waitFor(() => {
-      const cfg = captured.link?.config as Record<string, unknown> | undefined;
-      expect(cfg?.rowIdField).toEqual(['bookId', 'cusip']);
+      const cfg = captured.link?.config as { advanced?: Record<string, unknown> } | undefined;
+      expect(cfg?.advanced?.rowIdField).toEqual(['bookId', 'cusip']);
     });
-    const cfg = captured.link?.config as Record<string, unknown>;
-    expect(cfg.buildContext).toBeUndefined();
-    expect(cfg.resolve).toBeUndefined();
+    const cfg = captured.link?.config as { advanced?: Record<string, unknown> };
+    expect(cfg.advanced?.buildContext).toBeUndefined();
+    expect(cfg.advanced?.resolve).toBeUndefined();
     expect(captured.link?.gridApi).toEqual({ id: 'csrm-api' });
   });
 });
