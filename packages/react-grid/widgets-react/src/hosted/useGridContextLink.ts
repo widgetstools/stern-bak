@@ -20,6 +20,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { GridApi } from 'ag-grid-community';
+import { getOpenFinWindowIdentity } from '@wellsfargo-starui/openfin/host';
 import type { UseFdc3ChannelResult } from './useFdc3Channel.js';
 import {
   GRID_LINK_CONTEXT_TYPE,
@@ -106,8 +107,7 @@ export interface UseGridContextLinkArgs {
  */
 function makeSourceId(instanceId: string): string {
   try {
-    const fin = (window as unknown as { fin?: { me?: { identity?: { name?: string; uuid?: string } } } }).fin;
-    const id = fin?.me?.identity;
+    const id = getOpenFinWindowIdentity();
     if (id?.name) return id.uuid ? `${id.uuid}/${id.name}` : id.name;
   } catch {
     /* not OpenFin */

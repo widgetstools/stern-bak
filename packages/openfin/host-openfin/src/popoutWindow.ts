@@ -78,8 +78,13 @@ interface WithFin {
   fin?: OpenFinWindow;
 }
 
-/** True when running inside an OpenFin container. Safe in SSR. */
-export function isOpenFin(): boolean {
+/**
+ * Capability probe private to this seam: the opener needs
+ * `fin.Window.create` specifically, not just the OpenFin runtime. The
+ * package-level "are we in OpenFin?" question is `isOpenFin()` from
+ * `identity.ts` — this is deliberately narrower.
+ */
+function hasWindowCreate(): boolean {
   if (typeof window === 'undefined') return false;
   return typeof (window as WithFin).fin?.Window?.create === 'function';
 }
@@ -142,7 +147,7 @@ export function openFinWindowOpener(opts?: { alwaysOnTop?: boolean }):
       frame?: boolean;
     }) => Promise<Window | null>)
   | undefined {
-  if (!isOpenFin()) {
+  if (!hasWindowCreate()) {
     // Diagnostic: tell the dev WHY the OpenFin path isn't taken
     // even though the user expects it. Common causes: running in a
     // plain browser (expected), running in OpenFin but `window.fin`

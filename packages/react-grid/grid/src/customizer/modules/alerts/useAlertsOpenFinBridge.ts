@@ -25,6 +25,8 @@ import { useEffect, useRef } from 'react';
 import {
   loadOpenFinNotificationsApi,
   dispatchOpenFinNotification,
+  isOpenFin,
+  getOpenFinWindowIdentity,
   type OpenFinNotificationsApi,
 } from '@wellsfargo-starui/openfin/host';
 import type {
@@ -36,22 +38,12 @@ import type {
 
 const MODULE_ID = 'alerts';
 
-interface FinGlobal {
-  me?: { identity?: { uuid?: string } };
-}
-
 const SEVERITY_TO_CATEGORY: Record<AlertSeverity, string> = {
   info: 'info',
   success: 'success',
   warning: 'warning',
   critical: 'critical',
 };
-
-function getFin(): FinGlobal | null {
-  if (typeof window === 'undefined') return null;
-  const fin = (window as unknown as { fin?: FinGlobal }).fin;
-  return fin && typeof fin === 'object' ? fin : null;
-}
 
 export function useAlertsOpenFinBridge(platform: GridPlatform | null): void {
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -60,8 +52,7 @@ export function useAlertsOpenFinBridge(platform: GridPlatform | null): void {
 
   useEffect(() => {
     if (!platform) return;
-    const fin = getFin();
-    if (!fin) return;
+    if (!isOpenFin()) return;
     const store = platform.store;
 
     let cancelled = false;
@@ -115,7 +106,7 @@ export function useAlertsOpenFinBridge(platform: GridPlatform | null): void {
           if (!enabled) continue;
           const rule = rulesById.get(n.ruleId);
           if (!rule?.channels.includes('openfin')) continue;
-          void dispatchAlert(apiRef.current!, n, fin);
+          void dispatchAlert(apiRef.current!, n);
         }
       });
     })();
@@ -138,10 +129,9 @@ export function useAlertsOpenFinBridge(platform: GridPlatform | null): void {
 function dispatchAlert(
   api: OpenFinNotificationsApi,
   notification: AlertNotification,
-  fin: FinGlobal,
 ): Promise<void> {
   return dispatchOpenFinNotification(api, {
-    platformUuid: fin.me?.identity?.uuid,
+    platformUuid: getOpenFinWindowIdentity()?.uuid,
     title: notification.ruleName,
     body: notification.message,
     category: SEVERITY_TO_CATEGORY[notification.severity],

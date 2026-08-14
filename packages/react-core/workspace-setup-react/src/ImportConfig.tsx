@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
-
 import { useState, useRef, useEffect } from "react";
 // /config subpath — side-effect-free; safe in plain-browser dev contexts.
 import {
@@ -9,6 +6,12 @@ import {
   IAB_REGISTRY_CONFIG_UPDATE,
   type ImportConfigBundleResult,
 } from "@wellsfargo-starui/openfin/config";
+// /host subpath — the fin-global seam; every helper noops outside OpenFin.
+import {
+  isOpenFin,
+  publishIabTopic,
+  closeCurrentWindow,
+} from "@wellsfargo-starui/openfin/host";
 import { UPLOAD_SVG } from "@wellsfargo-starui/design-system/icons/all-icons";
 import { spacing, typography } from "@wellsfargo-starui/design-system/tokens";
 
@@ -29,11 +32,6 @@ const COLORS = {
   textPrimary:   "var(--de-text)",
   textSecondary: "var(--de-text-secondary)",
 };
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-/** Returns true when the app is running inside an OpenFin window. */
-const isInOpenFin = typeof (window as any).fin !== "undefined";
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -96,11 +94,10 @@ export default function ImportConfig() {
       // Notify other surfaces. IAB_RELOAD_AFTER_IMPORT prompts the dock
       // provider window to reload its buttons; IAB_REGISTRY_CONFIG_UPDATE
       // tells the registry editor / launchers to re-read the registry.
-      if (isInOpenFin) {
-        const iab = (window as any).fin.InterApplicationBus;
-        await iab.publish(IAB_RELOAD_AFTER_IMPORT, {});
+      if (isOpenFin()) {
+        await publishIabTopic(IAB_RELOAD_AFTER_IMPORT, {});
         if (result.appConfig.imported > 0) {
-          await iab.publish(IAB_REGISTRY_CONFIG_UPDATE, {});
+          await publishIabTopic(IAB_REGISTRY_CONFIG_UPDATE, {});
         }
       }
 
@@ -109,9 +106,7 @@ export default function ImportConfig() {
 
       // Auto-close after 1.5 s so the user can read the success message
       closeTimerRef.current = setTimeout(async () => {
-        if (isInOpenFin) {
-          await (window as any).fin.Window.getCurrentSync().close();
-        }
+        await closeCurrentWindow();
       }, 1500);
     } catch (err) {
       console.error("Import failed:", err);
@@ -240,9 +235,7 @@ export default function ImportConfig() {
       {/* Close button */}
       <button
         onClick={async () => {
-          if (isInOpenFin) {
-            await (window as any).fin.Window.getCurrentSync().close();
-          }
+          await closeCurrentWindow();
         }}
         style={{
           padding: `${spacing[2]}px ${spacing[6]}px`,

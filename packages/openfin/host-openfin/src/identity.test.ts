@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
-import { resolveOpenFinIdentity, isOpenFin, getCurrentView } from './identity.js';
+import {
+  resolveOpenFinIdentity,
+  isOpenFin,
+  getCurrentView,
+  getFinMe,
+  getOpenFinWindowIdentity,
+} from './identity.js';
 
 /**
  * Tests run under jsdom; we control the `fin` global directly to
@@ -134,5 +140,48 @@ describe('isOpenFin / getCurrentView', () => {
     (globalThis as any).fin = { View: { getCurrentSync: () => fakeView } };
     expect(isOpenFin()).toBe(true);
     expect(getCurrentView()).toBe(fakeView);
+  });
+
+  it('isOpenFin is a bare presence check (true even in a window-only context); getCurrentView degrades to null', () => {
+    // Phase 5 canonicalization: the predicate answers "is the OpenFin
+    // runtime here?", not "is this a view?" — window (non-view) contexts
+    // count. View access still degrades gracefully.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).fin = { Window: {} };
+    expect(isOpenFin()).toBe(true);
+    expect(getCurrentView()).toBe(null);
+  });
+});
+
+describe('getFinMe / getOpenFinWindowIdentity', () => {
+  let originalFin: unknown;
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    originalFin = (globalThis as any).fin;
+  });
+  afterEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).fin = originalFin;
+  });
+
+  it('both return null outside OpenFin', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).fin = undefined;
+    expect(getFinMe()).toBe(null);
+    expect(getOpenFinWindowIdentity()).toBe(null);
+  });
+
+  it('getFinMe hands back fin.me; identity strings surface uuid/name', () => {
+    const me = { identity: { uuid: 'plat', name: 'view-1' } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).fin = { me };
+    expect(getFinMe()).toBe(me);
+    expect(getOpenFinWindowIdentity()).toEqual({ uuid: 'plat', name: 'view-1' });
+  });
+
+  it('identity is null when fin.me carries no usable strings', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).fin = { me: { identity: {} } };
+    expect(getOpenFinWindowIdentity()).toBe(null);
   });
 });

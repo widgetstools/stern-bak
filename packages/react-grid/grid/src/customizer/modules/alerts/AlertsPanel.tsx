@@ -15,6 +15,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Bell, Copy, Plus, Trash2 } from 'lucide-react';
+import { isOpenFin } from '@wellsfargo-starui/openfin/host';
 import {
   Button,
   Input,
@@ -98,11 +99,6 @@ function cloneRule(source: AlertRule, existingNames: ReadonlyArray<string>): Ale
   } as AlertRule;
 }
 
-function isOpenFinHost(): boolean {
-  if (typeof window === 'undefined') return false;
-  return Boolean((window as unknown as { fin?: unknown }).fin);
-}
-
 // ─── Settings band (module-level controls) ─────────────────────────────────
 
 interface AlertsSettingsBandProps {
@@ -111,7 +107,7 @@ interface AlertsSettingsBandProps {
 }
 
 export function AlertsSettingsBand({ settings, onChange }: AlertsSettingsBandProps) {
-  const openFinDetected = isOpenFinHost();
+  const openFinDetected = isOpenFin();
   const setEvalMode = (mode: EvaluationMode) =>
     onChange((prev) => ({ ...prev, evaluationMode: mode }));
 

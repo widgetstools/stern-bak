@@ -59,8 +59,7 @@ import { useGridLinkNotifications } from '../hosted/useGridLinkNotifications.js'
 import { createRowIdSetFilterResolver } from '../hosted/gridContextLink.js';
 import { createSsrmSelectionContextBuilder } from '../hosted/ssrmGridContextLink.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const fin: any;
+import { getCurrentView } from '@wellsfargo-starui/openfin/host';
 
 /** Fills the parent; `fullBleed` pins to the viewport (hosted-view style). */
 const FULL_BLEED_STYLE: CSSProperties = {
@@ -187,15 +186,9 @@ export function StarGrid(props: StarGridProps): ReactElement {
     };
     window.addEventListener('beforeunload', flush);
     window.addEventListener('pagehide', flush);
-    let view: {
-      on?: (event: string, cb: () => void) => void;
-      removeListener?: (event: string, cb: () => void) => void;
-    } | null = null;
+    const view = getCurrentView();
     try {
-      if (typeof fin !== 'undefined' && typeof fin.View?.getCurrentSync === 'function') {
-        view = fin.View.getCurrentSync();
-        view?.on?.('destroyed', flush);
-      }
+      view?.on?.('destroyed', flush);
     } catch {
       /* not running inside an OpenFin view */
     }

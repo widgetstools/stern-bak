@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
-
 import { useEffect, useMemo, useState } from 'react';
+import { getFinMe, isOpenFin } from '@wellsfargo-starui/openfin/host';
 import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/data';
 import { usePlatformIdentityOrNull } from '@wellsfargo-starui/react/data/runtime';
 import { createConfigServiceStorage } from '@wellsfargo-starui/core/host/config';
@@ -119,10 +117,6 @@ function readUrlInstanceId(): string | null {
   }
 }
 
-function isOpenFinRuntime(): boolean {
-  return typeof fin !== 'undefined';
-}
-
 /**
  * Initial `instanceId` state. Browser and URL-stamped OpenFin views seed
  * synchronously; bare OpenFin views start `null` so the grid does not mount
@@ -131,13 +125,13 @@ function isOpenFinRuntime(): boolean {
 function initialInstanceId(defaultId: string): string | null {
   const fromUrl = readUrlInstanceId();
   if (fromUrl) return fromUrl;
-  if (isOpenFinRuntime()) return null;
+  if (isOpenFin()) return null;
   return defaultId;
 }
 
 /** True while an OpenFin view awaits `customData` without a URL-stamped id. */
 function initialIdentityPending(): boolean {
-  return isOpenFinRuntime() && readUrlInstanceId() === null;
+  return isOpenFin() && readUrlInstanceId() === null;
 }
 
 /**
@@ -145,10 +139,11 @@ function initialIdentityPending(): boolean {
  * OpenFin, on error, or on timeout — callers then keep the synchronous seed.
  */
 async function readHostCustomData(timeoutMs: number): Promise<HostCustomData | null> {
-  if (typeof fin === 'undefined') return null;
+  const me = getFinMe();
+  if (typeof me?.getOptions !== 'function') return null;
   try {
     const options = await withTimeout(
-      fin.me.getOptions() as Promise<{ customData?: HostCustomData }>,
+      me.getOptions() as Promise<{ customData?: HostCustomData }>,
       timeoutMs,
       'fin.me.getOptions()',
     );
@@ -279,7 +274,7 @@ export function useHostedIdentity(args: UseHostedIdentityArgs): UseHostedIdentit
   // metadata. Bounded by HOST_OPTIONS_TIMEOUT_MS; on timeout/error fall back
   // to the host default when no URL-stamped id is present.
   useEffect(() => {
-    if (!isOpenFinRuntime()) return;
+    if (!isOpenFin()) return;
     let cancelled = false;
     readHostCustomData(HOST_OPTIONS_TIMEOUT_MS)
       .then((cd) => {

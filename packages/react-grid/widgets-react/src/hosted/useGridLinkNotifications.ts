@@ -21,6 +21,8 @@ import { useCallback, useRef } from 'react';
 import {
   loadOpenFinNotificationsApi,
   dispatchOpenFinNotification,
+  isOpenFin,
+  getOpenFinWindowIdentity,
   type OpenFinNotificationsApi,
 } from '@wellsfargo-starui/openfin/host';
 import type { GridLinkSelectionContext } from './gridContextLink.js';
@@ -29,16 +31,6 @@ import {
   buildAckNotification,
   type GridLinkNotificationContent,
 } from './gridLinkNotifications.js';
-
-interface FinGlobal {
-  me?: { identity?: { uuid?: string } };
-}
-
-function getFin(): FinGlobal | null {
-  if (typeof window === 'undefined') return null;
-  const fin = (window as unknown as { fin?: FinGlobal }).fin;
-  return fin && typeof fin === 'object' ? fin : null;
-}
 
 export interface UseGridLinkNotificationsArgs {
   /** This view's instance id — used as the ack's `to` and to label the peer. */
@@ -73,12 +65,12 @@ export function useGridLinkNotifications({
   const dispatch = useCallback(
     (content: GridLinkNotificationContent | null) => {
       if (!enabled || !content) return;
-      if (!getFin()) return; // non-OpenFin host — nothing to post to.
+      if (!isOpenFin()) return; // non-OpenFin host — nothing to post to.
       void (async () => {
         const api = await getApi();
         if (!api) return;
         await dispatchOpenFinNotification(api, {
-          platformUuid: getFin()?.me?.identity?.uuid,
+          platformUuid: getOpenFinWindowIdentity()?.uuid,
           title: content.title,
           body: content.body,
           category: content.category,

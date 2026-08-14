@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { debugOpenFin, isOpenFin, openFinWindowOpener } from './popoutWindow.js';
+import { debugOpenFin, openFinWindowOpener } from './popoutWindow.js';
 
 /**
  * The popout opener has to survive OpenFin's window registry rejecting
@@ -46,19 +46,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('isOpenFin', () => {
-  it('is false with no fin global', () => {
-    expect(isOpenFin()).toBe(false);
+describe('capability gate (fin.Window.create)', () => {
+  // The opener's environment probe is private — pin it through the public
+  // contract: `openFinWindowOpener` returns undefined without the capability.
+  it('yields no opener with no fin global', () => {
+    expect(openFinWindowOpener()).toBeUndefined();
   });
 
-  it('is true when fin.Window.create exists', () => {
+  it('yields an opener when fin.Window.create exists', () => {
     installFin();
-    expect(isOpenFin()).toBe(true);
+    expect(openFinWindowOpener()).toBeTypeOf('function');
   });
 
-  it('is false when fin exists but Window.create does not', () => {
+  it('yields no opener when fin exists but Window.create does not', () => {
     (window as unknown as { fin?: unknown }).fin = { Window: {} };
-    expect(isOpenFin()).toBe(false);
+    expect(openFinWindowOpener()).toBeUndefined();
   });
 });
 

@@ -702,8 +702,6 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useHostedStarui({ defaultGridId, configManager?, componentName?, devDefaults? })` — the workspace-host bridge to the StarGrid front door: runs `useHostedIdentity`'s resolution (per-view id from OpenFin customData / URL, ConfigService storage with registered-component metadata) and shapes the result as `{ gridId, identity, ready }` for `<StaruiIdentityProvider>` + `<StarGrid>`. `ready` folds the three hosted gates (id, storage, ConfigManager) into one flag. **Dev identity is gated**: unless `devDefaults: true`, an appId / userId that would fall back to the shared dev constants (`'TestApp'` / `'dev1'`) — i.e. neither the platform bootstrap context nor the ConfigManager yielded a real value — keeps the hook not-ready and logs one error, so dev identity can never silently key production config rows. Also owns the one-shot legacy `marketsgrid-view-state::*` cleanup (sentinel `hosted-mg.legacy-cleanup`, carried over from the deleted HostedMarketsGrid). All demo blotters + dataprovider-editor's grid panels consume it (per-view id passes as `advanced.instanceId` so profiles stay view-keyed while the grid-level row keeps the logical grid key)
 - `useHostedIdentity` — resolve current view identity. URL `?instanceId=` / `?id=` wins synchronously; bare OpenFin views start `instanceId: null` and `ready: false` until `fin.me.getOptions().customData` settles (3s hard timeout → `defaultInstanceId`). Browser paths seed `defaultInstanceId` on first paint. Host ConfigManager resolution is peek-first (`peekConfigManager()`) then a slow-warned (8s) `getConfigManager()` fallback. Gate grid mount on `ready` plus `identity.configManager` / `identity.storage`
 - `useFdc3Channel` — FDC3 channel subscription
-- `useOpenFinChannel` — OpenFin IAB subscription
-- `useIab` — generic Inter-App Bus pub/sub
 - `useColorLinking` — workspace colour-linking membership (`{ color, linked }`); flat peer group, no parent/child
 - `useGridContextLink` — grid-to-grid context linking over colored "Link" groups: publishes the selection and filters rows on peer selections. Echo suppression keys on a **per-window** source id (`makeSourceId` → OpenFin `uuid/name`), so two instances of the same view don't drop each other's broadcasts. Two modes: `'rowId'` (default) broadcasts AG-Grid `getRowId` values (`node.id` = `composeRowId` over the provider key fields) and applies them as an external filter; `'fields'` broadcasts **key columns + values** (the fields that compose `getRowId`) and applies a per-column set-filter — a selected **group expands to its `allLeafChildren`** so any mix of groups/sub-groups/rows resolves to precise leaf-row keys. Receivers apply only the columns they own (`api.getColumn`), merged with the user's manual filters. `onPublish`/`onReceive` callbacks drive notifications. `GridContextLinkConfig`: `enabled`, `mode`, `publish`, `receive`, `rowIdField` (auto-filled by `HostedMarketsGrid` from the provider `keyColumn`), `resolve`, `buildContext`, `contextType`, `notify`. Exported helpers: `buildSelectionContext`, `defaultGridLinkResolver`, `applyGridLinkContext`, `GRID_LINK_CONTEXT_TYPE`, `normalizeRowIdField`. See [`docs/OPENFIN_GRID_LINKING.md`](./OPENFIN_GRID_LINKING.md)
 - `useInteropChannel` (+ `isInteropAvailable`) — **primary** link transport: OpenFin interop facade (`fin.me.interop.setContext` / `addContextHandler`), shape-compatible with `useFdc3Channel`. Used because the dock "Link" joins **interop context groups** that `window.fdc3`'s channel tracking doesn't reliably reflect; `HostedMarketsGrid` prefers it and falls back to `useFdc3Channel` only when interop is absent
@@ -1567,15 +1565,32 @@ modules).
 - `OpenFinRuntime` — `RuntimePort` wrapping `fin.*` APIs (window, view, app identity, messaging)
 - `OpenFinRuntimeOptions` — parent window name, container name, custom settings
 - `resolveOpenFinIdentity()` — current window/view identity (name, uuid, instance id)
-- `isOpenFin` — environment detection boolean
-- `getCurrentView()` — current view/window reference
+- `isOpenFin()` — **the** canonical runtime predicate (bare `fin`-global presence check); every framework package answers "are we in OpenFin?" through this one function — `declare const fin` is allowed only inside `packages/openfin`
+- `getCurrentView()` — current view reference (null in window contexts / outside OpenFin)
+- `getFinMe()` (+ `FinEntityLike`) — narrow structural `fin.me` handle (getOptions / updateOptions / on / removeListener / getCurrentWindow / interop), null outside OpenFin; the seam behind view-options readers (`useViewTabTitle`, `useHostedIdentity`, the grid's per-view active-profile source)
+- `getOpenFinWindowIdentity()` — `fin.me.identity` `{ uuid, name }` strings or null; per-view unique (echo-suppression source ids, notification platformUuid)
 - `OpenFinIdentitySources` — identity priority (localStorage → URL → window name → defaults)
+
+#### InterApplicationBus seam
+
+- `publishIabTopic(topic, payload)` — IAB publish; resolves as a noop outside OpenFin, rejections propagate inside
+- `subscribeIabTopic(topic, handler)` — wildcard-uuid (`{ uuid: '*' }`) IAB subscription returning a disposer; noop outside OpenFin. Consumers: dock/registry editors, import dialog
+- `connectIabChannel(name)` (+ `IabChannelClient`) — IAB Channel client connect; resolves null outside OpenFin / without the Channel API. Consumer: `useWorkspaceSaveEvent`
+
+#### Interop seam
+
+- `getInteropClient()` (+ `InteropClientLike`) — `fin.me.interop` structural handle, undefined outside OpenFin
+- `isInteropAvailable()` — true when the interop client is reachable (a platform view/window); drives the link-transport choice in `StarGrid`
+
+#### Platform/window control seam
+
+- `createPlatformView({ url, customData })` — `fin.Platform.getCurrentSync().createView`; false-noop outside OpenFin. Consumer: registry editor test-launch
+- `closeCurrentWindow()` — `fin.Window.getCurrentSync().close()`; noop outside OpenFin. Consumer: import dialog
 
 #### Popout lifecycle
 
-- `openFinWindowOpener` — popout factory (formatting toolbar, providers editor, help)
+- `openFinWindowOpener` — popout factory (formatting toolbar, providers editor, help); self-disables (returns undefined) without the `fin.Window.create` capability
 - `debugOpenFin` — opt-in OpenFin environment diagnostics
-- `isOpenFinWindow` — alias of `isOpenFin` (OpenFin window type guard)
 - Popout lifecycle (`openOpenFinPopout` in `popout.ts`) — internal to `OpenFinRuntime.openSurface`
 
 #### Window options subscription

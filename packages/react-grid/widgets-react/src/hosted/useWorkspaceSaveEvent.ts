@@ -1,7 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
-
 import { useEffect, useRef } from 'react';
+import {
+  connectIabChannel,
+  isOpenFin,
+  type IabChannelClient,
+} from '@wellsfargo-starui/openfin/host';
 
 const WORKSPACE_SAVE_CHANNEL = 'marketsui-workspace-save-channel';
 
@@ -26,10 +28,6 @@ export interface UseWorkspaceSaveEventOptions {
    * snapshot row has committed.
    */
   onSaved?: WorkspaceSavedCallback;
-}
-
-function isOpenFin(): boolean {
-  return typeof fin !== 'undefined' && !!fin?.InterApplicationBus?.Channel?.connect;
 }
 
 /**
@@ -67,11 +65,12 @@ export function useWorkspaceSaveEvent(
     if (!isOpenFin() || !saveCb) return;
 
     let cancelled = false;
-    let client: any | null = null;
+    let client: IabChannelClient | null = null;
 
     (async () => {
       try {
-        client = await fin.InterApplicationBus.Channel.connect(WORKSPACE_SAVE_CHANNEL);
+        client = await connectIabChannel(WORKSPACE_SAVE_CHANNEL);
+        if (!client) return; // runtime lacks the Channel API — nothing to register
         if (cancelled) {
           // Hook unmounted before the connection resolved — drop it.
           try {
@@ -94,11 +93,11 @@ export function useWorkspaceSaveEvent(
           }
         });
 
-        client.register('workspace-saved', (payload: any) => {
+        client.register('workspace-saved', (payload?: unknown) => {
           const cb = savedRef.current;
           if (!cb) return;
           try {
-            cb(payload?.workspaceId);
+            cb((payload as { workspaceId?: string } | undefined)?.workspaceId ?? '');
           } catch (err) {
             console.warn('[useWorkspaceSaveEvent] onSaved listener threw:', err);
           }

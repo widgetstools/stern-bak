@@ -54,7 +54,7 @@ import type { AdminAction } from '@wellsfargo-starui/grid';
 import { ConfigBrowserDialog } from './ConfigBrowserDialog.js';
 import { ProviderEditorDialog } from './ProviderEditorDialog.js';
 import { MarketsGridLoadingOverlay } from './LoadingOverlay.js';
-import { isOpenFinRuntime } from './openFinRuntime.js';
+import { isOpenFin } from '@wellsfargo-starui/openfin/host';
 import {
   type ProviderMode,
   type ProviderSelection,
@@ -274,7 +274,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   useEffect(() => {
     if (lastPropCaptionRef.current === propCaption) return;
     lastPropCaptionRef.current = propCaption;
-    if (!isOpenFinRuntime()) return;
+    if (!isOpenFin()) return;
     if (propCaption && propCaption !== persistedCaption) {
       setPersistedCaption(propCaption);
     }
@@ -732,7 +732,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   ]);
 
   const handleProviderEdit = useCallback((providerId: string | null) => {
-    if (isOpenFinRuntime()) {
+    if (isOpenFin()) {
       onEditProvider?.(providerId);
       return;
     }
@@ -741,7 +741,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   }, [onEditProvider]);
 
   const handleOpenConfigBrowser = useCallback(() => {
-    if (isOpenFinRuntime()) {
+    if (isOpenFin()) {
       onOpenConfigBrowser?.();
       return;
     }

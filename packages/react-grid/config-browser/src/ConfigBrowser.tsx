@@ -1,10 +1,9 @@
 "use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
-
 import { useEffect, useRef, useState } from "react";
 import { THEME_STORAGE_KEY } from "@wellsfargo-starui/types";
+import { subscribeThemeBroadcast } from "@wellsfargo-starui/openfin/host";
 import { Button } from "@wellsfargo-starui/react";
 import { DynamicIcon as Icon } from "./icons.js"; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { useConfigBrowser } from "./hooks/useConfigBrowser";
@@ -68,40 +67,15 @@ export function ConfigBrowserPanel() {
   // The initial value is seeded from that same persisted key (rather than the
   // hang-prone `platform.Theme.getSelectedScheme()`).
   useEffect(() => {
-    const toTheme = (msg: any): "dark" | "light" | null => {
-      if (msg?.theme === "dark" || msg?.theme === "light") return msg.theme;
-      if (typeof msg?.isDark === "boolean") return msg.isDark ? "dark" : "light";
-      return null;
-    };
-
     try {
       const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
       if (stored === "dark" || stored === "light") setTheme(stored);
     } catch { /* storage unavailable */ }
 
-    const openFinApi = (window as any).fin;
-    const onThemeMsg = (data: unknown) => {
-      const next = toTheme(data);
-      if (next) setTheme(next);
-    };
-    if (openFinApi?.InterApplicationBus?.subscribe) {
-      try {
-        openFinApi.InterApplicationBus.subscribe({ uuid: "*" }, "theme-changed", onThemeMsg);
-      } catch { /* IAB not ready */ }
-    }
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== THEME_STORAGE_KEY) return;
-      if (e.newValue === "dark" || e.newValue === "light") setTheme(e.newValue);
-    };
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      try {
-        openFinApi?.InterApplicationBus?.unsubscribe?.({ uuid: "*" }, "theme-changed", onThemeMsg);
-      } catch { /* cleanup */ }
-      window.removeEventListener("storage", onStorage);
-    };
+    // subscribeThemeBroadcast covers both transports (wildcard-uuid IAB
+    // `theme-changed` + same-origin `storage` events) and both payload
+    // shapes — the same seam OpenFinRuntime and the tool windows use.
+    return subscribeThemeBroadcast((next) => setTheme(next));
   }, []);
 
   // Apply [data-theme] so fi-dark / fi-light CSS vars re-resolve.

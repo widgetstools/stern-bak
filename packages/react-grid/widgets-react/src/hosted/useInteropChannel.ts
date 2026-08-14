@@ -17,29 +17,14 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
+import { getInteropClient, isInteropAvailable } from '@wellsfargo-starui/openfin/host';
 import { useColorLinking } from './useColorLinking.js';
 import type { Fdc3Context, UseFdc3ChannelResult } from './useFdc3Channel.js';
 
-interface InteropClient {
-  setContext?: (context: Fdc3Context) => Promise<void>;
-  addContextHandler?: (
-    handler: (ctx: Fdc3Context) => void,
-    contextType?: string,
-  ) => Promise<{ unsubscribe?: () => void }> | { unsubscribe?: () => void };
-  joinContextGroup?: (contextGroupId: string, target?: unknown) => Promise<void>;
-  removeFromContextGroup?: () => Promise<void>;
-}
+// Re-exported for API stability — consumers import it from this module.
+export { isInteropAvailable };
 
-function getInterop(): InteropClient | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const interop = (window as any).fin?.me?.interop;
-  return interop && typeof interop === 'object' ? (interop as InteropClient) : undefined;
-}
-
-/** True when the OpenFin interop client is reachable (a platform view/window). */
-export function isInteropAvailable(): boolean {
-  return getInterop() !== undefined;
-}
+const getInterop = getInteropClient;
 
 export interface UseInteropChannelOptions {
   /** Emit verbose `[interop]` diagnostics. Off by default. */
@@ -62,7 +47,7 @@ export function useInteropChannel(opts: UseInteropChannelOptions = {}): UseFdc3C
     const interop = getInterop();
     if (!interop?.setContext) return;
     try {
-      await interop.setContext(context as Fdc3Context);
+      await interop.setContext(context);
       if (debugRef.current) {
         // eslint-disable-next-line no-console
         console.debug('[interop] setContext ok', context);
@@ -91,7 +76,7 @@ export function useInteropChannel(opts: UseInteropChannelOptions = {}): UseFdc3C
       void (async () => {
         try {
           const result = interop.addContextHandler!(
-            (ctx) => handler(ctx),
+            (ctx) => handler(ctx as Fdc3Context),
             contextType ?? undefined,
           );
           listenerHandle = result instanceof Promise ? await result : result;

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
+import { getFinMe } from './identity.js';
 
 /**
  * Module-private subscription manager for the parent OpenFin window's
@@ -20,7 +20,7 @@ let initPromise: Promise<void> | null = null;
 let probedEventShape = false;
 
 function isOpenFinWindowOptions(): boolean {
-  return typeof fin !== 'undefined' && fin?.me?.getCurrentWindow;
+  return typeof getFinMe()?.getCurrentWindow === 'function';
 }
 
 function fireAll(opts: unknown): void {
@@ -49,7 +49,7 @@ function ensureListener(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      const win = await fin.me.getCurrentWindow();
+      const win: any = await getFinMe()!.getCurrentWindow!();
       const handler = (evt: unknown) => {
         if (!probedEventShape) {
           probedEventShape = true;

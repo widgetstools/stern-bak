@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
+import { getFinMe } from './identity.js';
 
 /**
  * Module-private subscription manager for the parent OpenFin window's
@@ -23,7 +23,7 @@ let active: { win: any; handler: () => void } | null = null;
 let initPromise: Promise<void> | null = null;
 
 function isOpenFinContext(): boolean {
-  return typeof fin !== 'undefined' && Boolean(fin?.me?.getCurrentWindow);
+  return typeof getFinMe()?.getCurrentWindow === 'function';
 }
 
 function fireAll(): void {
@@ -43,7 +43,7 @@ function ensureListener(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      const win = await fin.me.getCurrentWindow();
+      const win: any = await getFinMe()!.getCurrentWindow!();
       const handler = () => fireAll();
       try {
         win.on('focused', handler);
@@ -92,8 +92,9 @@ export function subscribeParentWindowFocused(cb: FocusedCallback): () => void {
  */
 export function focusCurrentOpenFinHost(): void {
   try {
-    if (typeof fin !== 'undefined' && typeof fin?.me?.focus === 'function') {
-      void fin.me.focus();
+    const me = getFinMe() as { focus?: () => Promise<void> } | null;
+    if (typeof me?.focus === 'function') {
+      void me.focus();
     }
   } catch {
     /* noop */

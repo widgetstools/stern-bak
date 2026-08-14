@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any;
-
 import { useReducer, useEffect, useCallback, useRef, useState } from "react";
+// /host subpath — the fin-global seam; every helper noops outside OpenFin.
+import {
+  isOpenFin,
+  publishIabTopic,
+  createPlatformView,
+} from "@wellsfargo-starui/openfin/host";
 import {
   loadRegistryConfig,
   saveRegistryConfig,
@@ -155,9 +159,7 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
 
   const publishConfig = useCallback(async (config: RegistryEditorConfig) => {
     try {
-      if (typeof fin !== "undefined") {
-        await fin.InterApplicationBus.publish(IAB_REGISTRY_CONFIG_UPDATE, config);
-      }
+      await publishIabTopic(IAB_REGISTRY_CONFIG_UPDATE, config);
     } catch (err) {
       console.warn("Failed to publish registry config update:", err);
     }
@@ -201,8 +203,7 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
       // branches keeps user behaviour consistent across the two paths.
       const resolvedUrl = resolveHostUrl(entry.hostUrl);
 
-      const openFinApi = (window as any).fin;
-      if (typeof openFinApi === "undefined") {
+      if (!isOpenFin()) {
         window.open(resolvedUrl, "_blank");
         return;
       }
@@ -227,8 +228,7 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
       );
       const instanceId = templateId;
 
-      const platform = openFinApi.Platform.getCurrentSync();
-      await platform.createView({
+      await createPlatformView({
         url: resolvedUrl,
         customData: {
           instanceId,

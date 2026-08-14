@@ -29,14 +29,57 @@ interface FinViewOptions {
 interface FinViewLike {
   identity?: FinViewIdentity;
   getOptions(): Promise<FinViewOptions> | FinViewOptions;
+  on?(event: string, handler: (...args: unknown[]) => void): unknown;
+  removeListener?(event: string, handler: (...args: unknown[]) => void): unknown;
 }
 
-/** True if the OpenFin runtime is reachable from this window. */
+/**
+ * THE canonical OpenFin runtime predicate: true when the `fin` global is
+ * present. Every package-level "are we in OpenFin?" question goes through
+ * this one function; capability-specific probes (`fin.me.getCurrentWindow`,
+ * `fin.Window.create`, …) stay private to the seam that needs them.
+ *
+ * The `fin` namespace (including `fin.View`) is injected atomically by the
+ * runtime, so a bare presence check is equivalent to the old
+ * `fin && fin.View` probe in every real OpenFin context while also
+ * answering correctly in window (non-view) contexts.
+ */
 export function isOpenFin(): boolean {
   if (typeof globalThis === 'undefined') return false;
+  return typeof (globalThis as { fin?: unknown }).fin !== 'undefined';
+}
+
+/**
+ * Narrow structural view of `fin.me` — the current OpenFin entity (view in a
+ * view context, window in a window context). Every member is optional so
+ * callers degrade gracefully on runtimes that lack an API.
+ */
+export interface FinEntityLike {
+  identity?: { uuid?: string; name?: string };
+  getOptions?: () => Promise<{ customData?: unknown; [key: string]: unknown }>;
+  updateOptions?: (patch: { customData?: Record<string, unknown> }) => Promise<unknown>;
+  on?: (event: string, handler: (...args: unknown[]) => void) => unknown;
+  removeListener?: (event: string, handler: (...args: unknown[]) => void) => unknown;
+  getCurrentWindow?: () => Promise<unknown>;
+  interop?: unknown;
+}
+
+/** `fin.me` — the current OpenFin entity — or null outside OpenFin. */
+export function getFinMe(): FinEntityLike | null {
+  if (!isOpenFin()) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g = globalThis as any;
-  return Boolean(g.fin && g.fin.View);
+  const me = (globalThis as any).fin?.me;
+  return me && typeof me === 'object' ? (me as FinEntityLike) : null;
+}
+
+/**
+ * This window/view's OpenFin identity strings (`fin.me.identity`), or null
+ * outside OpenFin. Unique per view — safe as an echo-suppression source id.
+ */
+export function getOpenFinWindowIdentity(): { uuid?: string; name?: string } | null {
+  const id = getFinMe()?.identity;
+  if (!id || (!id.uuid && !id.name)) return null;
+  return { uuid: id.uuid, name: id.name };
 }
 
 /** Get the current OpenFin view, or null when not in OpenFin. */

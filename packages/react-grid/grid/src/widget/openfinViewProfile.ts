@@ -1,5 +1,5 @@
-/// <reference path="../types/openfinRuntime.d.ts" />
 import type { ActiveIdSource } from '@wellsfargo-starui/core';
+import { getFinMe } from '@wellsfargo-starui/openfin/host';
 
 /**
  * OpenFin per-view active-profile pointer source.
@@ -28,19 +28,20 @@ import type { ActiveIdSource } from '@wellsfargo-starui/core';
  *     workspace snapshot automatically.
  */
 export function createOpenFinViewProfileSource(): ActiveIdSource | null {
-  // `globalThis.fin` is declared by src/types/openfinRuntime.d.ts as a
-  // narrow surface — just the two `me.*` methods this module uses.
   // Capture `me` locally so TypeScript's narrowing flows into the async
   // closures below (it forgets the optional-chain refinement across
   // function boundaries).
-  const me = globalThis.fin?.me;
+  const me = getFinMe();
   if (!me?.getOptions || !me?.updateOptions) return null;
+  const getOptions = me.getOptions.bind(me);
+  const updateOptions = me.updateOptions.bind(me);
 
   return {
     async read(): Promise<string | null> {
       try {
-        const opts = await me.getOptions();
-        const id = opts?.customData?.activeProfileId;
+        const opts = await getOptions();
+        const id = (opts?.customData as { activeProfileId?: unknown } | undefined)
+          ?.activeProfileId;
         return typeof id === 'string' && id ? id : null;
       } catch {
         return null;
@@ -48,10 +49,10 @@ export function createOpenFinViewProfileSource(): ActiveIdSource | null {
     },
     async write(id: string): Promise<void> {
       try {
-        const opts = await me.getOptions();
+        const opts = await getOptions();
         const current = (opts?.customData ?? {}) as Record<string, unknown>;
         if (current.activeProfileId === id) return;
-        await me.updateOptions({
+        await updateOptions({
           customData: { ...current, activeProfileId: id },
         });
       } catch {

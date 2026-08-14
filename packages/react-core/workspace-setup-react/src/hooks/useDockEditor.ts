@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const fin: any; // OpenFin global — available at runtime in OpenFin windows
-
 import { useReducer, useEffect, useCallback, useRef, useState } from "react";
+// /host subpath — the fin-global seam; every helper noops outside OpenFin
+// (the dock-editor renders in a plain browser window at dev time).
+import { publishIabTopic, subscribeIabTopic } from "@wellsfargo-starui/openfin/host";
 // /config subpath — avoids pulling @openfin/workspace-platform at
 // module-eval time. The dock-editor renders in a browser window (not
 // always inside OpenFin) so the main barrel's side effects break here.
@@ -280,37 +281,18 @@ export function useDockEditor(opts: UseDockEditorOptions = {}): UseDockEditorRet
       }
     })();
 
-    // Subscribe to registry-config-update IAB messages. Guarded for
-    // non-OpenFin contexts (the editor window runs in a plain browser
-    // at dev time).
-    let unsubscribe: (() => void) | undefined;
-    try {
-      if (typeof fin !== "undefined" && fin?.InterApplicationBus?.subscribe) {
-        const handler = (msg: RegistryEditorConfig) => {
-          if (!cancelled) setRegistryEntries(msg?.entries ?? []);
-        };
-        fin.InterApplicationBus.subscribe(
-          { uuid: "*" },
-          IAB_REGISTRY_CONFIG_UPDATE,
-          handler,
-        );
-        unsubscribe = () => {
-          try {
-            fin.InterApplicationBus.unsubscribe(
-              { uuid: "*" },
-              IAB_REGISTRY_CONFIG_UPDATE,
-              handler,
-            );
-          } catch { /* best-effort */ }
-        };
+    // Subscribe to registry-config-update IAB messages. The seam noops in
+    // non-OpenFin contexts (the editor window runs in a plain browser at
+    // dev time).
+    const unsubscribe = subscribeIabTopic(IAB_REGISTRY_CONFIG_UPDATE, (msg) => {
+      if (!cancelled) {
+        setRegistryEntries((msg as RegistryEditorConfig | undefined)?.entries ?? []);
       }
-    } catch (err) {
-      console.warn("useDockEditor: registry IAB subscribe failed", err);
-    }
+    });
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
+      unsubscribe();
     };
   }, [scope]);
 
@@ -346,9 +328,7 @@ export function useDockEditor(opts: UseDockEditorOptions = {}): UseDockEditorRet
   // Publish config via InterApplicationBus (for live updates)
   const publishConfig = useCallback(async (config: DockEditorConfig) => {
     try {
-      if (typeof fin !== "undefined") {
-        await fin.InterApplicationBus.publish(IAB_DOCK_CONFIG_UPDATE, config);
-      }
+      await publishIabTopic(IAB_DOCK_CONFIG_UPDATE, config);
     } catch (err) {
       console.warn("Failed to publish dock config update:", err);
     }
@@ -377,9 +357,7 @@ export function useDockEditor(opts: UseDockEditorOptions = {}): UseDockEditorRet
     dispatch({ type: "SET_BUTTONS", buttons: [] });
     // Publish empty config so dock reverts to defaults
     try {
-      if (typeof fin !== "undefined") {
-        await fin.InterApplicationBus.publish("dock-config-reset", {});
-      }
+      await publishIabTopic("dock-config-reset", {});
     } catch (err) {
       console.warn("Failed to publish dock config reset:", err);
     }

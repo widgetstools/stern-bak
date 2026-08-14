@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-declare const fin: any;
+import { getFinMe } from '@wellsfargo-starui/openfin/host';
 
 /**
  * useViewTabTitle — two-way binding between the grid caption and the
@@ -33,10 +31,6 @@ declare const fin: any;
 
 const POLL_MS = 1000;
 
-function isOpenFin(): boolean {
-  return typeof (globalThis as { fin?: unknown }).fin !== 'undefined';
-}
-
 function readSavedTitle(customData: unknown): string | null {
   if (!customData || typeof customData !== 'object') return null;
   const value = (customData as { savedTitle?: unknown }).savedTitle;
@@ -57,7 +51,8 @@ export function useViewTabTitle(fallback: string): ViewTabTitle {
   const lastSeenRef = useRef<string>(fallback);
 
   useEffect(() => {
-    if (!isOpenFin() || typeof fin?.me?.getOptions !== 'function') return;
+    const me = getFinMe();
+    if (typeof me?.getOptions !== 'function') return;
     let cancelled = false;
 
     const applySaved = (customData: unknown): void => {
@@ -69,7 +64,7 @@ export function useViewTabTitle(fallback: string): ViewTabTitle {
 
     const sync = async (): Promise<void> => {
       try {
-        const opts = await fin.me.getOptions();
+        const opts = await me.getOptions!();
         applySaved(opts?.customData);
       } catch {
         /* view not reachable yet — the next event/tick retries */
@@ -81,17 +76,18 @@ export function useViewTabTitle(fallback: string): ViewTabTitle {
     // Event-driven path: `options-changed` fires with the updated
     // options whenever anything (the rename popout, workspace restore)
     // writes them — zero standing IPC.
-    if (typeof fin?.me?.on === 'function' && typeof fin?.me?.removeListener === 'function') {
-      const handler = (evt: { options?: { customData?: unknown } }): void => {
-        const customData = evt?.options?.customData;
+    if (typeof me.on === 'function' && typeof me.removeListener === 'function') {
+      const handler = (evt: unknown): void => {
+        const customData = (evt as { options?: { customData?: unknown } } | undefined)?.options
+          ?.customData;
         if (customData !== undefined) applySaved(customData);
         else void sync();
       };
       try {
-        fin.me.on('options-changed', handler);
+        me.on('options-changed', handler);
         return () => {
           cancelled = true;
-          try { fin.me.removeListener('options-changed', handler); } catch { /* view gone */ }
+          try { me.removeListener!('options-changed', handler); } catch { /* view gone */ }
         };
       } catch {
         /* subscription unsupported — fall through to the poll */
@@ -111,7 +107,8 @@ export function useViewTabTitle(fallback: string): ViewTabTitle {
     lastSeenRef.current = trimmed;
     setTitleState(trimmed);
 
-    if (!isOpenFin() || typeof fin?.me?.updateOptions !== 'function') return;
+    const me = getFinMe();
+    if (typeof me?.updateOptions !== 'function') return;
     try {
       if (typeof document !== 'undefined') document.title = trimmed;
     } catch {
@@ -119,10 +116,10 @@ export function useViewTabTitle(fallback: string): ViewTabTitle {
     }
     void (async () => {
       try {
-        const opts = await fin.me.getOptions();
+        const opts = await me.getOptions?.();
         const cd = (opts?.customData ?? {}) as Record<string, unknown>;
         if (cd.savedTitle !== trimmed) {
-          await fin.me.updateOptions({ customData: { ...cd, savedTitle: trimmed } });
+          await me.updateOptions!({ customData: { ...cd, savedTitle: trimmed } });
         }
       } catch {
         /* best-effort — document.title already drives the tabstrip */

@@ -11,7 +11,10 @@ import { alertsModule } from './index';
 const loadOpenFinNotificationsApi = vi.fn();
 const dispatchOpenFinNotification = vi.fn();
 
-vi.mock('@wellsfargo-starui/openfin/host', () => ({
+vi.mock('@wellsfargo-starui/openfin/host', async (importOriginal) => ({
+  // Real isOpenFin/getOpenFinWindowIdentity — the suite drives them by
+  // stubbing window.fin; only the notification pair is intercepted.
+  ...(await importOriginal<typeof import('@wellsfargo-starui/openfin/host')>()),
   loadOpenFinNotificationsApi: (...args: unknown[]) => loadOpenFinNotificationsApi(...args),
   dispatchOpenFinNotification: (...args: unknown[]) => dispatchOpenFinNotification(...args),
 }));
