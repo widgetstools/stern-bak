@@ -30,28 +30,30 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useUserIdFromContext: () => 'test-user',
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
+  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
-  HostedMarketsGrid: (props: Record<string, unknown>) =>
-    React.createElement('div', {
-      'data-testid': 'hosted-markets-grid',
+  useHostedStarui: ({ defaultGridId }: { defaultGridId: string }) => ({
+    gridId: defaultGridId,
+    identity: { appId: 'TestApp', userId: 'test-user', storage: () => ({}) },
+    ready: true,
+  }),
+}));
+
+vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+  StarGrid: (props: Record<string, unknown>) => {
+    const advanced = (props.advanced ?? {}) as Record<string, unknown>;
+    return React.createElement('div', {
+      'data-testid': props.title === 'STOMP Positions (SSRM)' ? 'star-grid-ssrm' : 'star-grid',
       'data-grid-id': props.gridId,
-      'data-live-provider': props.defaultLiveProviderId,
-      'data-historical-provider': props.defaultHistoricalProviderId,
-      'data-with-storage': props.withStorage ? 'true' : 'false',
-      'data-has-config-manager': props.configManager ? 'true' : 'false',
-    }),
-  HostedSsrmMarketsGrid: (props: Record<string, unknown>) =>
-    React.createElement('div', {
-      'data-testid': 'hosted-ssrm-markets-grid',
       'data-provider-id': props.providerId,
-      'data-title': props.title,
-      'data-has-inline-cfg': props.inlineCfg ? 'true' : 'false',
-      'data-default-instance-id': props.defaultInstanceId,
-      'data-with-storage': props.withStorage ? 'true' : 'false',
-      'data-has-config-manager': props.configManager ? 'true' : 'false',
-    }),
+      'data-instance-id': advanced.instanceId,
+      'data-historical-provider': advanced.defaultHistoricalProviderId,
+      'data-has-inline-cfg': advanced.inlineCfg ? 'true' : 'false',
+    });
+  },
 }));
 
 vi.mock('@wellsfargo-starui/design-system', () => ({

@@ -768,6 +768,26 @@ Deferred, non-blocking items from the ssrm-engine-hardening plan's final review;
 - createSsrmStatusBar: mount load doesn't stamp lastLoadAt (one duplicate RPC possible per panel mount); burst-trailing and unmount-pending-timer paths untested; 2s fallback poll runs even for tick-capable providers.
 - docs/latest/ssrm-engine.md: ICacheIngest listing omits clear(); pseudocode uses illustrative type names not in the codebase.
 
+## 16. v2-column-value-getter.spec.ts: the "authors a column valueGetter" case fails — pre-existing
+
+**Found:** 2026-08-13, during the Phase-1 StarGrid migration of
+`stomp-marketsgrid-minimal`. **Not a migration regression** — verified by
+stashing the migration, rebuilding packages, and re-running: the spec fails
+identically against the old `HostedMarketsGrid` mount.
+
+The editor flow passes (opens Columns tab, authors
+`CONCAT([region], "/", [country])` on `region`, saves); after the reload the
+assertion `locator('.ag-grid-scrolling-cells [col-id="region"]')` times out —
+the rendered column window ends at `Trader` and no `region` cell exists in the
+DOM. The file's other two cases (validation-only, no grid-cell assertions)
+pass. Suspects, unverified: the seeded column set / order changed so `region`
+now sits beyond the horizontally-virtualized window at 1280px, or the
+`STOMP_PROVIDER_CFG_VERSION` refresh replaced a column list that previously
+placed `region` in view. Last known green: `e1cf395` (2026-08-11, AG Grid 36
+selector sweep). Fix belongs with the spec (scroll the column into view the
+way `hello-blotter.spec.ts` does, or pin the column) or with the seeded
+column order — decide when picking this up.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

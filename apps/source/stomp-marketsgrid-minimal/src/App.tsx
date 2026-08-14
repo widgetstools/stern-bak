@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { StarGrid } from '@wellsfargo-starui/grid/widgets';
+import { useHostedStarui } from '@wellsfargo-starui/grid/widgets/hosted';
 import {
-  HostedMarketsGrid,
-  HostedSsrmMarketsGrid,
-} from '@wellsfargo-starui/grid/widgets/hosted';
-import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/react/data/runtime';
+  StaruiIdentityProvider,
+  useDataServices,
+  useUserIdFromContext,
+} from '@wellsfargo-starui/react/data/runtime';
 import { getPlatform } from './bootstrap.js';
 import { gridEventHandlers } from './platform/gridEventHandlers.js';
 import { gridHandlerMeta } from './platform/hooksMeta.js';
@@ -30,8 +32,8 @@ function useSsrmMode(): boolean {
  *
  * Requires DataHubProvider ancestor (main.tsx) so useDataServices resolves.
  *
- * SSRM smoke: open with `?ssrm=1` to mount {@link HostedSsrmMarketsGrid}
- * against a seeded `stomp-ssrm` catalog row.
+ * SSRM smoke: open with `?ssrm=1` to mount the SSRM path of
+ * {@link StarGrid} against a seeded `stomp-ssrm` catalog row.
  */
 export function App() {
   const ssrmMode = useSsrmMode();
@@ -121,19 +123,31 @@ export function App() {
     };
   }, [configStore, userId, ssrmMode]);
 
+  // Identity + per-view id + ConfigService storage for <StarGrid> — same
+  // resolution the hosted wrappers ran, shaped for StaruiIdentityProvider.
+  const { gridId: instanceId, identity, ready } = useHostedStarui({
+    defaultGridId: ssrmMode ? 'stomp-ssrm-blotter' : 'stomp-blotter',
+    componentName: ssrmMode ? 'STOMP Positions (SSRM)' : 'STOMP Positions',
+    configManager: getPlatform().configManager,
+  });
+
+  if (!ready || !identity || !instanceId) return null;
+
   if (ssrmMode) {
     if (!ssrmProviderId) return null;
     return (
-      <HostedSsrmMarketsGrid
-        providerId={ssrmProviderId}
-        inlineCfg={stompSsrmProviderDraft.config}
-        title="STOMP Positions (SSRM)"
-        componentName="STOMP Positions (SSRM)"
-        defaultInstanceId="stomp-ssrm-blotter"
-        withStorage
-        configManager={getPlatform().configManager}
-        showProviderEditor={false}
-      />
+      <StaruiIdentityProvider identity={identity}>
+        <StarGrid
+          gridId="stomp-ssrm-blotter"
+          providerId={ssrmProviderId}
+          title="STOMP Positions (SSRM)"
+          fullBleed
+          advanced={{
+            instanceId,
+            inlineCfg: stompSsrmProviderDraft.config,
+          } as never}
+        />
+      </StaruiIdentityProvider>
     );
   }
 
@@ -169,20 +183,22 @@ export function App() {
   // (Library refs: MarketsGridContainer.tsx handleToolbarDateChange /
   //  reloadFromSource; host-data stomp.ts resolveStompDestinations.)
   return (
-    <HostedMarketsGrid
-      gridId="stomp-blotter"
-      componentName="STOMP Positions"
-      defaultInstanceId="stomp-blotter"
-      defaultLiveProviderId={providerId}
-      defaultHistoricalProviderId={historicalProviderId}
-      historicalDateAppDataRef="positions.asOfDate"
-      withStorage
-      configManager={getPlatform().configManager}
-      gridEventHandlers={gridEventHandlers}
-      handlerMeta={gridHandlerMeta}
-      showFiltersToolbar
-      showFormattingToolbar
-      showEditingToolbar
-    />
+    <StaruiIdentityProvider identity={identity}>
+      <StarGrid
+        gridId="stomp-blotter"
+        providerId={providerId}
+        fullBleed
+        advanced={{
+          instanceId,
+          defaultHistoricalProviderId: historicalProviderId,
+          historicalDateAppDataRef: 'positions.asOfDate',
+          gridEventHandlers,
+          handlerMeta: gridHandlerMeta,
+          showFiltersToolbar: true,
+          showFormattingToolbar: true,
+          showEditingToolbar: true,
+        } as never}
+      />
+    </StaruiIdentityProvider>
   );
 }

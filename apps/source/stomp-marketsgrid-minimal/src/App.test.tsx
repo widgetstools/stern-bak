@@ -39,7 +39,7 @@ describe('App', () => {
     expect(container.firstChild).toBeNull();
 
     await waitFor(() => {
-      expect(getOneByTestId('hosted-markets-grid')).toBeInTheDocument();
+      expect(getOneByTestId('star-grid')).toBeInTheDocument();
     });
   });
 
@@ -66,7 +66,7 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(getOneByTestId('hosted-markets-grid')).toBeInTheDocument();
+      expect(getOneByTestId('star-grid')).toBeInTheDocument();
     });
     expect(staruiTestState.configStore.save).not.toHaveBeenCalled();
   });
@@ -106,14 +106,14 @@ describe('App', () => {
     });
   });
 
-  it('renders HostedMarketsGrid with expected props after seeding', async () => {
+  it('renders the StarGrid CSRM path with expected props after seeding', async () => {
     const { App } = await import('./App.js');
     render(<App />);
 
     await waitFor(() => {
-      const grid = getOneByTestId('hosted-markets-grid');
+      const grid = getOneByTestId('star-grid');
       expect(grid).toHaveAttribute('data-grid-id', 'stomp-blotter');
-      expect(grid).toHaveAttribute('data-live-provider', STOMP_LIVE_PROVIDER_ID);
+      expect(grid).toHaveAttribute('data-provider-id', STOMP_LIVE_PROVIDER_ID);
       expect(grid).toHaveAttribute('data-historical-provider', STOMP_HISTORICAL_PROVIDER_ID);
     });
   });
@@ -129,12 +129,12 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(getOneByTestId('hosted-markets-grid')).toBeInTheDocument();
+      expect(getOneByTestId('star-grid')).toBeInTheDocument();
     });
     expect(staruiTestState.configStore.remove).not.toHaveBeenCalled();
   });
 
-  it('seeds stomp-ssrm and renders HostedSsrmMarketsGrid when ?ssrm=1', async () => {
+  it('seeds stomp-ssrm and renders the StarGrid SSRM path when ?ssrm=1', async () => {
     window.history.replaceState({}, '', '/?ssrm=1');
     staruiTestState.configStore.list.mockResolvedValue([]);
 
@@ -146,17 +146,15 @@ describe('App', () => {
         stompSsrmProviderDraft,
         'test-user',
       );
-      const grid = getOneByTestId('hosted-ssrm-markets-grid');
+      const grid = getOneByTestId('star-grid-ssrm');
       expect(grid).toHaveAttribute('data-provider-id', STOMP_SSRM_PROVIDER_ID);
     });
     expect(staruiTestState.configStore.list).toHaveBeenCalledWith('test-user', {
       subtype: 'stomp-ssrm',
     });
-    const grid = getOneByTestId('hosted-ssrm-markets-grid');
+    const grid = getOneByTestId('star-grid-ssrm');
     expect(grid).toHaveAttribute('data-has-inline-cfg', 'true');
-    expect(grid).toHaveAttribute('data-default-instance-id', 'stomp-ssrm-blotter');
-    expect(grid).toHaveAttribute('data-with-storage', 'true');
-    expect(grid).toHaveAttribute('data-has-config-manager', 'true');
+    expect(grid).toHaveAttribute('data-instance-id', 'stomp-ssrm-blotter');
   });
 
   it('does not update state after unmount', async () => {
@@ -173,6 +171,6 @@ describe('App', () => {
     resolveList([]);
 
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(container.querySelector('[data-testid="hosted-markets-grid"]')).toBeNull();
+    expect(container.querySelector('[data-testid="star-grid"]')).toBeNull();
   });
 });

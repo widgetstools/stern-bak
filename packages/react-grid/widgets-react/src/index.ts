@@ -33,10 +33,8 @@ export type {
 } from './hosted/index.js';
 export {
   HostedMarketsGrid,
-  HostedSsrmMarketsGrid,
   useGridContextLink,
 } from './hosted/index.js';
-export type { HostedSsrmMarketsGridProps } from './hosted/index.js';
 export {
   SsrmMarketsGridContainer,
   useSsrmProviderDataWiring,
