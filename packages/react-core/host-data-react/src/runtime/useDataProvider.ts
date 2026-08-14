@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ProviderClientAdapter, type IDataProvider } from '@wellsfargo-starui/data';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import { useDataServicesContext } from './DataServicesProvider.js';
 
 export interface UseDataProviderOpts {
   /** Draft cfg when the provider row is not in the catalog yet. */
-  inlineCfg?: ProviderConfig;
+  inlineCfg?: TransportConfig;
   /** Automatically call `start()` when `providerId` is set. Default `true`. */
   autoStart?: boolean;
   /**

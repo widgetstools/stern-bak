@@ -35,7 +35,7 @@ import {
   type AppDataMirror,
 } from '@wellsfargo-starui/data/runtime';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
-import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
+import type { DataProviderConfig, TransportConfig } from '@wellsfargo-starui/types';
 import {
   DataServicesProvider,
   useDataServicesContext,
@@ -282,7 +282,7 @@ export interface DataProvidersListView {
 }
 
 export function useDataProvidersList(
-  opts: { subtype?: ProviderConfig['providerType']; includeAppData?: boolean } = {},
+  opts: { subtype?: TransportConfig['providerType']; includeAppData?: boolean } = {},
 ): DataProvidersListView {
   const { client } = useDataServicesContext();
   const [view, setView] = useState<{ configs: readonly DataProviderConfig[]; loading: boolean; error?: string }>(
@@ -302,7 +302,7 @@ export function useDataProvidersList(
   useEffect(() => {
     let cancelled = false;
     setView((v) => ({ ...v, loading: v.configs.length === 0 }));
-    const listOpts: { subtype?: ProviderConfig['providerType']; includeAppData?: boolean } = {};
+    const listOpts: { subtype?: TransportConfig['providerType']; includeAppData?: boolean } = {};
     if (opts.subtype) listOpts.subtype = opts.subtype;
     if (opts.includeAppData) listOpts.includeAppData = true;
     client.listProviderConfigs(listOpts)
@@ -327,16 +327,16 @@ export function useDataProvidersList(
 // key minted a fresh cfg identity and cascaded a full detach/attach
 // through every consumer, even with zero templates in the cfg.)
 
-export function useResolvedCfg(cfg: ProviderConfig | null | undefined): ProviderConfig | null {
+export function useResolvedCfg(cfg: TransportConfig | null | undefined): TransportConfig | null {
   const { store, version, loaded } = useAppDataStore();
 
   // Template refs are a pure function of the cfg object.
   const refs = useMemo(() => (cfg ? collectTemplateRefs(cfg) : []), [cfg]);
 
   const lastRef = useRef<{
-    cfg: ProviderConfig;
+    cfg: TransportConfig;
     values: unknown[];
-    resolved: ProviderConfig;
+    resolved: TransportConfig;
   } | null>(null);
 
   return useMemo(() => {
@@ -411,7 +411,7 @@ export interface ProviderStreamHandle {
  */
 export function useProviderStream<T = unknown>(
   providerId: string | null | undefined,
-  cfg: ProviderConfig | null | undefined,
+  cfg: TransportConfig | null | undefined,
   listener: DataListener<T>,
 ): ProviderStreamHandle {
   const { client } = useDataServicesContext();

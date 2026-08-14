@@ -11,7 +11,7 @@ import { SharedWorkerDataServicesHub, type PortLike } from './SharedWorkerDataSe
 import { registerProvider } from '../providers/registry';
 import type { ProviderEmit, ProviderHandle } from '../providers/Provider';
 import type { Event } from '../protocol';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 
 interface CapturedPort extends PortLike {
   messages: Event[];
@@ -59,15 +59,15 @@ let emitRef: ProviderEmit | null = null;
 
 beforeEach(() => {
   emitRef = null;
-  registerProvider('mock-ssrm' as ProviderConfig['providerType'], (_cfg, emit) => {
+  registerProvider('mock-ssrm' as TransportConfig['providerType'], (_cfg, emit) => {
     emitRef = emit;
     const handle: ProviderHandle = { stop() {}, restart() {} };
     return handle;
   });
 });
 
-const ssrmCfg = (): ProviderConfig =>
-  ({ providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as ProviderConfig);
+const ssrmCfg = (): TransportConfig =>
+  ({ providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as TransportConfig);
 
 /** Tick payloads delivered to a port, in order. */
 function ssrmTicks(port: CapturedPort) {

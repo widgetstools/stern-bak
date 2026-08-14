@@ -22,12 +22,12 @@ import {
   SelectValue,
   Switch,
 } from '@wellsfargo-starui/react';
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { TransportConfig, StompProviderConfig } from '@wellsfargo-starui/types/shared';
 import { STOMP_TUNING_DEFAULTS, type StompSsrmProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export interface BehaviourFieldsProps {
-  cfg: ProviderConfig;
-  onChange(next: Partial<ProviderConfig>): void;
+  cfg: TransportConfig;
+  onChange(next: Partial<TransportConfig>): void;
 }
 
 /** Sentinel for "no conflation column" — Radix Select forbids empty-string values. */

@@ -1,4 +1,4 @@
-import type { ColumnDefinition, ProviderConfig, ProviderType } from '@wellsfargo-starui/types';
+import type { ColumnDefinition, TransportConfig, ProviderType } from '@wellsfargo-starui/types';
 import type { SharedWorkerDataServicesClient, SubscribeHandle } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import type { ProviderStatus } from '../runtime/protocol.js';
 import type { IDataProvider, Unsubscribe } from './IDataProvider.js';
@@ -8,7 +8,7 @@ export interface ProviderClientAdapterOpts {
   client: SharedWorkerDataServicesClient;
   providerId: string;
   /** Draft cfg when the provider row is not in the catalog yet. */
-  inlineCfg?: ProviderConfig;
+  inlineCfg?: TransportConfig;
 }
 
 export function resolveProviderCapabilities(providerType: ProviderType): ProviderCapabilities {
@@ -59,8 +59,8 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
   readonly id: string;
 
   private readonly client: SharedWorkerDataServicesClient;
-  private readonly inlineCfg?: ProviderConfig;
-  private resolvedConfig: ProviderConfig | null = null;
+  private readonly inlineCfg?: TransportConfig;
+  private resolvedConfig: TransportConfig | null = null;
   private handle: SubscribeHandle<T> | null = null;
   /** Reference to the last snapshot commit — not copied, not updated on live ticks. */
   private snapshotRows: readonly T[] = [];
@@ -158,7 +158,7 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
     return this.snapshotRows;
   }
 
-  getConfig(): ProviderConfig {
+  getConfig(): TransportConfig {
     if (!this.resolvedConfig) {
       throw new Error(
         `[ProviderClientAdapter] getConfig() before start() for providerId=${this.id}`,
@@ -167,12 +167,12 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
     return this.resolvedConfig;
   }
 
-  getConfigOrNull(): ProviderConfig | null {
+  getConfigOrNull(): TransportConfig | null {
     return this.resolvedConfig;
   }
 
   getColumnDefs(): readonly ColumnDefinition[] {
-    const config = this.resolvedConfig as (ProviderConfig & {
+    const config = this.resolvedConfig as (TransportConfig & {
       columnDefinitions?: ColumnDefinition[];
     }) | null;
     return config?.columnDefinitions ?? [];

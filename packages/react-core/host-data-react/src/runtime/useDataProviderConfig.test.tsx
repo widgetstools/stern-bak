@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import { useDataProviderConfig } from './index.js';
 
@@ -15,7 +15,7 @@ import { useDataProviderConfig } from './index.js';
  * the current cfg visible while the fresh row loads.
  */
 
-type Resolver = { resolve: (cfg: ProviderConfig) => void; reject: (e: Error) => void };
+type Resolver = { resolve: (cfg: TransportConfig) => void; reject: (e: Error) => void };
 
 function makeHarness() {
   const pending = new Map<string, Resolver[]>();
@@ -28,7 +28,7 @@ function makeHarness() {
     }),
     getProviderConfig: vi.fn(
       (id: string) =>
-        new Promise<ProviderConfig>((resolve, reject) => {
+        new Promise<TransportConfig>((resolve, reject) => {
           const list = pending.get(id) ?? [];
           list.push({ resolve, reject });
           pending.set(id, list);
@@ -47,7 +47,7 @@ function makeHarness() {
     dispose: vi.fn(),
   };
 
-  const resolveFetch = async (id: string, cfg: ProviderConfig) => {
+  const resolveFetch = async (id: string, cfg: TransportConfig) => {
     const list = pending.get(id) ?? [];
     pending.set(id, []);
     await act(async () => {
@@ -68,8 +68,8 @@ function makeHarness() {
   return { wrapper, resolveFetch, emitCatalogChange };
 }
 
-const cfgA = { providerType: 'stomp', url: 'ws://a' } as unknown as ProviderConfig;
-const cfgB = { providerType: 'stomp', url: 'ws://b' } as unknown as ProviderConfig;
+const cfgA = { providerType: 'stomp', url: 'ws://a' } as unknown as TransportConfig;
+const cfgB = { providerType: 'stomp', url: 'ws://b' } as unknown as TransportConfig;
 
 afterEach(() => cleanup());
 
@@ -107,7 +107,7 @@ describe('useDataProviderConfig — provider switch drops the stale cfg', () => 
     expect(result.current.cfg).toBe(cfgA);
     expect(result.current.loading).toBe(false);
 
-    const cfgA2 = { ...cfgA, url: 'ws://a2' } as unknown as ProviderConfig;
+    const cfgA2 = { ...cfgA, url: 'ws://a2' } as unknown as TransportConfig;
     await resolveFetch('prov-a', cfgA2);
     await waitFor(() => expect(result.current.cfg).toBe(cfgA2));
   });

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import type { IDataProvider, ProviderCapabilities, Unsubscribe } from '@wellsfargo-starui/data';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import { useDataProvider } from './useDataProvider.js';
@@ -36,7 +36,7 @@ function createMockProvider(providerId: string): IDataProvider & {
     refresh: vi.fn().mockResolvedValue(undefined),
     restart: vi.fn().mockResolvedValue(undefined),
     getData: vi.fn().mockReturnValue([]),
-    getConfig: vi.fn().mockReturnValue({ providerType: 'mock' } as ProviderConfig),
+    getConfig: vi.fn().mockReturnValue({ providerType: 'mock' } as TransportConfig),
     getColumnDefs: vi.fn().mockReturnValue([]),
     onRowsReceived: vi.fn().mockReturnValue(() => undefined),
     onSnapshotData: vi.fn().mockReturnValue(() => undefined),

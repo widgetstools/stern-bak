@@ -24,7 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@wellsfargo-starui/react';
 import { Database, Copy, Globe, Plus, Radio, Search, Trash2, TestTube2, Upload } from 'lucide-react';
-import type { DataProviderConfig, ProviderConfig, ProviderType } from '@wellsfargo-starui/types/shared';
+import type { DataProviderConfig, TransportConfig, ProviderType } from '@wellsfargo-starui/types/shared';
 import { getDefaultProviderConfig, validateProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataServices, useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 import { cloneProviderConfig } from './cloneProviderConfig.js';
@@ -113,7 +113,7 @@ export function DataProviderEditor({ userId, initialProviderId = null, onClose }
       providerId: undefined,
       name: 'untitled',
       providerType: type,
-      config: getDefaultProviderConfig(type) as ProviderConfig,
+      config: getDefaultProviderConfig(type) as TransportConfig,
       userId,
       public: false,
     };

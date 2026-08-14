@@ -13,7 +13,7 @@ import {
   getValueByPath,
   normalizeKeyColumns,
   validateProviderConfig,
-  type ProviderConfig,
+  type TransportConfig,
   type ProviderType,
 } from './dataProvider.js';
 
@@ -62,7 +62,7 @@ describe('getDefaultProviderConfig', () => {
 
 describe('validateProviderConfig', () => {
   it('reports an error when providerType is missing', () => {
-    const result = validateProviderConfig({} as ProviderConfig);
+    const result = validateProviderConfig({} as TransportConfig);
     expect(result.isValid).toBe(false);
     expect(result.errors).toEqual(['Provider type is required']);
   });
@@ -72,7 +72,7 @@ describe('validateProviderConfig', () => {
       providerType: 'stomp',
       websocketUrl: 'wss://feed/ws',
       listenerTopic: '/snapshot/positions/t1',
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
   });
 
@@ -80,7 +80,7 @@ describe('validateProviderConfig', () => {
     const result = validateProviderConfig({
       providerType: 'stomp',
       listenerTopic: '/snapshot/positions/t1',
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result.isValid).toBe(false);
     expect(result.errors).toEqual(['WebSocket URL is required for STOMP providers']);
   });
@@ -90,7 +90,7 @@ describe('validateProviderConfig', () => {
       providerType: 'stomp-ssrm',
       websocketUrl: 'ws://feed/ws',
       listenerTopic: '   ',
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result.isValid).toBe(false);
     expect(result.errors).toEqual(['Listener topic is required for STOMP providers']);
   });
@@ -100,7 +100,7 @@ describe('validateProviderConfig', () => {
       providerType: 'stomp',
       websocketUrl: 'https://feed/ws',
       listenerTopic: '/t',
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result.isValid).toBe(true);
     expect(result.warnings).toEqual([
       'WebSocket URL should typically start with ws:// or wss://',
@@ -110,7 +110,7 @@ describe('validateProviderConfig', () => {
   it('rejects a rest config missing baseUrl and endpoint — the transport requires both', () => {
     const result = validateProviderConfig({
       providerType: 'rest',
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result.isValid).toBe(false);
     expect(result.errors).toEqual([
       'Base URL is required for REST providers',
@@ -124,7 +124,7 @@ describe('validateProviderConfig', () => {
       baseUrl: 'ftp://host',
       endpoint: '/positions',
       pollInterval: 100,
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result.isValid).toBe(true);
     expect(result.warnings).toEqual([
       'Base URL should typically start with http:// or https://',
@@ -138,13 +138,13 @@ describe('validateProviderConfig', () => {
       baseUrl: 'https://host',
       endpoint: '/positions',
       pollInterval: 5000,
-    } as ProviderConfig);
+    } as TransportConfig);
     expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
   });
 
   it('has no per-type rules for mock / appdata', () => {
     for (const providerType of ['mock', 'appdata'] as const) {
-      const result = validateProviderConfig({ providerType } as ProviderConfig);
+      const result = validateProviderConfig({ providerType } as TransportConfig);
       expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
     }
   });

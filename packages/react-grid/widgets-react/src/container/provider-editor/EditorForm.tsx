@@ -24,7 +24,7 @@ import {
   Button, Input, Label, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Textarea,
 } from '@wellsfargo-starui/react';
 import { CheckCircle2, Columns3, Copy, Download, Loader2, X } from 'lucide-react';
-import type { ColumnDefinition, DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { ColumnDefinition, DataProviderConfig, TransportConfig } from '@wellsfargo-starui/types/shared';
 import { validateProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataServices } from '@wellsfargo-starui/react/data/runtime';
 import { exportProviderConfig } from './providerConfigIo.js';
@@ -82,14 +82,14 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
   // committed column list.
   const [pendingFieldsCols, setPendingFieldsCols] = useState<ColumnDefinition[] | null>(null);
 
-  const updateCfg = (patch: Partial<ProviderConfig>) => {
-    setProvider((p) => ({ ...p, config: { ...p.config, ...patch } as ProviderConfig }));
+  const updateCfg = (patch: Partial<TransportConfig>) => {
+    setProvider((p) => ({ ...p, config: { ...p.config, ...patch } as TransportConfig }));
   };
 
   // Direct column updates from ColumnsTab (rename, reorder, delete,
   // manual add) — no buffering for those.
   const updateColumns = (cols: ColumnDefinition[]) => {
-    updateCfg({ columnDefinitions: cols } as unknown as Partial<ProviderConfig>);
+    updateCfg({ columnDefinitions: cols } as unknown as Partial<TransportConfig>);
   };
 
   /**
@@ -138,7 +138,7 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
     if (next.length === 0) value = undefined;
     else if (next.length === 1) value = next[0];
     else value = [...next];
-    updateCfg({ keyColumn: value } as unknown as Partial<ProviderConfig>);
+    updateCfg({ keyColumn: value } as unknown as Partial<TransportConfig>);
   };
 
   const currentColumns = readColumns(provider.config);
@@ -326,7 +326,7 @@ function Header({
 // Stomp + Rest carry columnDefinitions on the cfg. The other transports
 // (mock / appdata) don't — but the editor still
 // needs a uniform read path. Cast through `unknown` and shape-check.
-function readColumns(cfg: ProviderConfig): ColumnDefinition[] {
+function readColumns(cfg: TransportConfig): ColumnDefinition[] {
   const maybe = (cfg as unknown as { columnDefinitions?: ColumnDefinition[] }).columnDefinitions;
   return Array.isArray(maybe) ? maybe : [];
 }
@@ -334,7 +334,7 @@ function readColumns(cfg: ProviderConfig): ColumnDefinition[] {
 // Same uniform-read pattern for the row-key configuration. Stomp + Rest
 // expose `keyColumn` (single string OR array of column names); other
 // transports don't carry it.
-function readKeyColumn(cfg: ProviderConfig): string | readonly string[] | undefined {
+function readKeyColumn(cfg: TransportConfig): string | readonly string[] | undefined {
   const maybe = (cfg as unknown as { keyColumn?: string | readonly string[] }).keyColumn;
   if (typeof maybe === 'string') return maybe;
   return Array.isArray(maybe) ? maybe : undefined;

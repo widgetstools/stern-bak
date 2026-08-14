@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { FieldNode, ColumnDefinition } from '@wellsfargo-starui/types/shared';
-import type { ProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { TransportConfig } from '@wellsfargo-starui/types/shared';
 import { FieldsTab, buildColumns } from './FieldsTab.js';
 
 const FIELDS: FieldNode[] = [
@@ -20,12 +20,12 @@ const FIELDS: FieldNode[] = [
   { path: 'symbol', name: 'symbol', type: 'string', nullable: false },
 ];
 
-const SAMPLE_CFG: ProviderConfig = {
+const SAMPLE_CFG: TransportConfig = {
   providerType: 'stomp',
   brokerUrl: 'ws://x',
   destination: '/topic/test',
   columnDefinitions: [],
-} as unknown as ProviderConfig;
+} as unknown as TransportConfig;
 
 function Harness({ onCols }: { onCols: (cols: ColumnDefinition[]) => void }) {
   // Mirrors EditorForm: a draft buffer sourced from `pending` when

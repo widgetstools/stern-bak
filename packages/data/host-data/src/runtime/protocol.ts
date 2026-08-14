@@ -11,7 +11,7 @@
  * late-joiner race that v1 needed cache replay to patch over.
  */
 
-import type { DataProviderConfig, ProviderConfig, ProviderStatus, ProviderType } from '@wellsfargo-starui/types';
+import type { DataProviderConfig, TransportConfig, ProviderStatus, ProviderType } from '@wellsfargo-starui/types';
 import type {
   ExpressionRule,
   SetFilterValuesRequest,
@@ -122,7 +122,7 @@ export interface AttachRequest {
    * Templates (`{{appdata.key}}`) are resolved on the client side
    * before the request is sent.
    */
-  cfg?: ProviderConfig;
+  cfg?: TransportConfig;
   /**
    * Optional restart payload. When provided AND the provider is
    * already running, the Hub calls `provider.restart(extra)` so
@@ -248,7 +248,7 @@ export interface HubProviderIntrospectRow {
    */
   keyDropCount?: number;
   /** Transport cfg held in the worker (runtime slot or catalog cache). */
-  cfg?: ProviderConfig;
+  cfg?: TransportConfig;
   /** Live subscriber registry for this provider (empty when not running). */
   subscribers?: readonly HubSubscriberIntrospectRow[];
   /** SSRM query-plane stats (`stomp-ssrm`/`mock-ssrm` providers only). */
@@ -798,4 +798,4 @@ export function isAppDataEvent(value: unknown): value is AppDataEvent {
 
 // ─── Re-exports for ergonomics ─────────────────────────────────────
 
-export type { DataProviderConfig, ProviderConfig, ProviderType };
+export type { DataProviderConfig, TransportConfig, ProviderType };

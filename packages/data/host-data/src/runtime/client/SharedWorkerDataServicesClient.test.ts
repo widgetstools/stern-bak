@@ -13,7 +13,7 @@ import { createInPageWiring, SharedWorkerDataServicesClient } from './SharedWork
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub';
 import { registerProvider } from '../providers/registry';
 import { isAppDataRequest, isRequest } from '../protocol';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../providers/Provider';
 import type { ProviderStats, ProviderStatus } from '../protocol';
 import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
@@ -31,7 +31,7 @@ let nextId = 1;
 beforeEach(() => {
   controllers.clear();
   nextId = 1;
-  registerProvider('mock' as ProviderConfig['providerType'], (cfg, emit) => {
+  registerProvider('mock' as TransportConfig['providerType'], (cfg, emit) => {
     const ctrl: TestController = { emit, stops: 0, restarts: [] };
     const key = (cfg as unknown as { __key?: string }).__key ?? `c-${nextId++}`;
     controllers.set(key, ctrl);
@@ -43,12 +43,12 @@ beforeEach(() => {
   });
 });
 
-const cfg = (key = 'c-1', overrides: Record<string, unknown> = {}): ProviderConfig => ({
+const cfg = (key = 'c-1', overrides: Record<string, unknown> = {}): TransportConfig => ({
   providerType: 'mock',
   __key: key,
   keyColumn: 'id',
   ...overrides,
-} as unknown as ProviderConfig);
+} as unknown as TransportConfig);
 
 interface Captured {
   deltas: Array<{ rows: readonly unknown[]; replace: boolean }>;

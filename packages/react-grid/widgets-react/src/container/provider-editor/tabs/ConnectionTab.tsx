@@ -10,7 +10,7 @@
 
 import { Button, ScrollArea } from '@wellsfargo-starui/react';
 import { CheckCircle2, Loader2, Plug, XCircle } from 'lucide-react';
-import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { TransportConfig, StompProviderConfig, StompSsrmProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { StompFields } from '../transports/StompFields.js';
 import { StompSsrmFields } from '../transports/StompSsrmFields.js';
 import { RestFields } from '../transports/RestFields.js';
@@ -19,8 +19,8 @@ import { AppDataFields } from '../transports/AppDataFields.js';
 import type { ProbeState } from '../useProviderProbe.js';
 
 export interface ConnectionTabProps {
-  cfg: ProviderConfig;
-  onCfgChange(next: Partial<ProviderConfig>): void;
+  cfg: TransportConfig;
+  onCfgChange(next: Partial<TransportConfig>): void;
   probe: ProbeState;
 }
 
@@ -60,7 +60,7 @@ export function ConnectionTab({ cfg, onCfgChange, probe }: ConnectionTabProps) {
   );
 }
 
-function Fields({ cfg, onChange }: { cfg: ProviderConfig; onChange(next: Partial<ProviderConfig>): void }) {
+function Fields({ cfg, onChange }: { cfg: TransportConfig; onChange(next: Partial<TransportConfig>): void }) {
   switch (cfg.providerType) {
     case 'stomp':
       return <StompFields cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
@@ -81,7 +81,7 @@ function Fields({ cfg, onChange }: { cfg: ProviderConfig; onChange(next: Partial
     default:
       return (
         <section className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-          No editor for "{(cfg as AppDataProviderConfig | ProviderConfig).providerType}" providers yet.
+          No editor for "{(cfg as AppDataProviderConfig | TransportConfig).providerType}" providers yet.
         </section>
       );
   }

@@ -3,7 +3,7 @@
  * Synced from the hub row cache; answers getRows / status / expressions.
  */
 import { composeRowId } from '@wellsfargo-starui/types';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import { SsrmServer } from './SsrmServer.js';
 import type { SsrmFlushEvent, ViewportInterestScope } from './SsrmServer.js';
 import type {
@@ -27,7 +27,7 @@ const COMPOSITE_KEY_FIELD = SSRM_COMPOSITE_KEY_FIELD;
 export interface SsrmPlaneOpts {
   /**
    * Trailing-edge flush window (ms), forwarded to {@link SsrmServer}.
-   * Defaults to the `publishWindowMs` declared on the SSRM `ProviderConfig`
+   * Defaults to the `publishWindowMs` declared on the SSRM `TransportConfig`
    * variant (`StompSsrmProviderConfig` / `MockSsrmProviderConfig`), or `0`
    * when absent. This only exists so callers that don't shape a full cfg
    * (tests) can override directly.
@@ -44,13 +44,13 @@ export interface SsrmPlaneOpts {
 export { isSsrmProviderType } from '@wellsfargo-starui/types';
 
 /**
- * Reads `publishWindowMs` off a `ProviderConfig` via honest discriminated-
+ * Reads `publishWindowMs` off a `TransportConfig` via honest discriminated-
  * union narrowing — the field only exists on the two SSRM cfg variants, so
  * a blind structural cast would silently type-check for non-SSRM configs
  * too. `undefined` for every other providerType (including SSRM types the
  * union hasn't been narrowed to, defensively).
  */
-function readPublishWindowMs(cfg: ProviderConfig): number | undefined {
+function readPublishWindowMs(cfg: TransportConfig): number | undefined {
   if (cfg.providerType === 'stomp-ssrm' || cfg.providerType === 'mock-ssrm') {
     return cfg.publishWindowMs;
   }
@@ -80,7 +80,7 @@ export class SsrmPlane {
   readonly keyColumn: string;
   private readonly cfgKeyColumn: string | readonly string[] | undefined;
 
-  constructor(cfg: ProviderConfig, opts: SsrmPlaneOpts = {}) {
+  constructor(cfg: TransportConfig, opts: SsrmPlaneOpts = {}) {
     const keyCol =
       'keyColumn' in cfg
         ? (cfg as { keyColumn?: string | readonly string[] }).keyColumn

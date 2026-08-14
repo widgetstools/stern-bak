@@ -13,7 +13,7 @@ import { useCallback, useState } from 'react';
 import { probeStomp, connectStomp, probeRest, probeMock, inferFields } from '@wellsfargo-starui/data';
 import { resolveCfg } from '@wellsfargo-starui/data/runtime';
 import { useAppDataStore } from '@wellsfargo-starui/react/data/runtime';
-import type { ProviderConfig, FieldNode } from '@wellsfargo-starui/types/shared';
+import type { TransportConfig, FieldNode } from '@wellsfargo-starui/types/shared';
 
 export interface ProbeState {
   testing: boolean;
@@ -27,7 +27,7 @@ export interface ProbeState {
   reset(): void;
 }
 
-export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
+export function useProviderProbe(cfg: TransportConfig | null): ProbeState {
   const { store: appDataStore } = useAppDataStore();
   const [state, setState] = useState<Omit<ProbeState, 'test' | 'infer' | 'reset'>>({
     testing: false,
@@ -39,7 +39,7 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
   });
 
   const resolveAppDataTokens = useCallback(
-    (input: ProviderConfig): ProviderConfig => {
+    (input: TransportConfig): TransportConfig => {
       // Probe path bypasses the React useResolvedCfg pipeline, so we
       // expand `{{name.key}}` against the AppData snapshot here.
       // `[bracket]` tokens are still resolved inside probeStomp.
@@ -123,7 +123,7 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
  * synthesises rows), which doubles as a reachability check.
  */
 async function testConnectionOnce(
-  cfg: ProviderConfig,
+  cfg: TransportConfig,
   opts: { maxRows: number; timeoutMs: number },
 ): Promise<{ ok: boolean; rows?: readonly unknown[]; error?: string }> {
   switch (cfg.providerType) {
@@ -145,7 +145,7 @@ async function testConnectionOnce(
  * here (unlike the connection test, which only needs the handshake).
  */
 async function probeOnce(
-  cfg: ProviderConfig,
+  cfg: TransportConfig,
   opts: { maxRows: number; timeoutMs: number },
 ): Promise<{ ok: boolean; rows?: readonly unknown[]; error?: string }> {
   switch (cfg.providerType) {

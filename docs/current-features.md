@@ -879,7 +879,11 @@ modules).
 
 - `PROVIDER_TYPES.STOMP_SSRM` (`'stomp-ssrm'`) + `StompSsrmProviderConfig` — STOMP feed with a SharedWorker SSRM query plane
 - `PROVIDER_TYPES.MOCK_SSRM` (`'mock-ssrm'`) + `MockSsrmProviderConfig` — in-worker mock feed with an SSRM query plane (lab / offline); optional persisted `columns` schema for SSRM grids and editors
-- Both carry `keyColumn` and participate in the `ProviderConfig` union, the subtype maps and the per-type config defaults
+- Both carry `keyColumn` and participate in the `TransportConfig` union (renamed from `ProviderConfig` — it is the transport-config union nested inside `DataProviderConfig.config`; a deprecated `ProviderConfig` alias survives one release) and the per-type config defaults. The dead componentSubType maps are deleted; `isSsrmProviderType` (now declared in `@wellsfargo-starui/types`) is THE CSRM/SSRM discriminator — never test the type string inline
+- `STOMP_TUNING_DEFAULTS` — the effective runtime defaults for the STOMP hub/wire knobs (throttle 25ms, chunk 500, reconnect 5000ms, heartbeat 4000ms, columnar wire format, publish window 0), single-sourced so the transport and the provider editor's controls can never disagree. Six dead Stomp fields deleted (snapshotTimeoutMs, manualTopics, stomp's dataType, messageRate, batchSize, autoStart); the interface carries connection / row-identity / tuning group banners
+- `validateProviderConfig` — validation with teeth: hard errors mirror what the transports require at attach (stomp: `websocketUrl` + `listenerTopic`; rest: `baseUrl` + `endpoint`), scheme/interval checks remain warnings. Wired into the provider editor's save (existing error pill) and JSON-import (alert) paths
+- `IDataProvider.getConfigOrNull?()` / `ISsrmDataProvider.getConfigOrNull?()` — null-safe config accessor (null pre-start); `getColumnDefs()` no longer inherits `getConfig()`'s pre-start throw. Consumers read config with plain null checks instead of try/catch probes
+- `SSRM_COMPOSITE_KEY_FIELD` — the `'__ssrmRowId'` composite-key sentinel, exported so client `getRowId` and the worker cache key can never drift
 
 #### Re-exports
 

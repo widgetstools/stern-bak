@@ -14,11 +14,11 @@ import { useState } from 'react';
 import { Badge, Button, Separator } from '@wellsfargo-starui/react';
 import { Loader2, RefreshCw, Square } from 'lucide-react';
 import { useDataServices, useProviderStats, type ProviderStats, type ProviderStatus } from '@wellsfargo-starui/react/data/runtime';
-import type { ProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { TransportConfig } from '@wellsfargo-starui/types/shared';
 
 export interface DiagnosticsTabProps {
   providerId: string | null;
-  cfg: ProviderConfig | null;
+  cfg: TransportConfig | null;
 }
 
 export function DiagnosticsTab({ providerId, cfg }: DiagnosticsTabProps) {
@@ -35,7 +35,7 @@ export function DiagnosticsTab({ providerId, cfg }: DiagnosticsTabProps) {
   return <Live providerId={providerId} cfg={cfg} />;
 }
 
-function Live({ providerId, cfg }: { providerId: string; cfg: ProviderConfig | null }) {
+function Live({ providerId, cfg }: { providerId: string; cfg: TransportConfig | null }) {
   const { client } = useDataServices();
   const [stats, setStats] = useState<ProviderStats | null>(null);
   const [stopping, setStopping] = useState(false);

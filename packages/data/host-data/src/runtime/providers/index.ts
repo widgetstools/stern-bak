@@ -14,7 +14,7 @@
  *
  * 1. Declare the config interface in
  *    `@wellsfargo-starui/types/dataProvider.ts` with
- *    `providerType: '<your-id>'` and add it to the `ProviderConfig`
+ *    `providerType: '<your-id>'` and add it to the `TransportConfig`
  *    union.
  * 2. Implement the factory in
  *    `runtime/providers/transports/<your-id>.ts` exporting

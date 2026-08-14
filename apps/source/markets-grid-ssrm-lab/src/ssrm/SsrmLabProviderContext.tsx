@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/react/data/runtime';
 import {
   MOCK_SSRM_CFG_VERSION,
@@ -17,7 +17,7 @@ import {
 
 export interface SsrmLabProviderValue {
   providerId: string;
-  inlineCfg: ProviderConfig;
+  inlineCfg: TransportConfig;
   seeding: boolean;
 }
 
@@ -52,7 +52,7 @@ export function SsrmLabProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SsrmLabProviderValue>(
     () => ({
       providerId: MOCK_SSRM_PROVIDER_ID,
-      inlineCfg: mockSsrmProviderDraft.config as ProviderConfig,
+      inlineCfg: mockSsrmProviderDraft.config as TransportConfig,
       seeding: !ready,
     }),
     [ready],

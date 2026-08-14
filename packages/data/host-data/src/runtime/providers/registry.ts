@@ -7,7 +7,7 @@
  * it — descriptors pay off at 8+).
  */
 
-import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig, StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from './Provider.js';
 import { resolveBracketCfg, type BracketCache } from '../template/bracketResolver.js';
 import { assertAppDataResolved, resolveCfg, type AppDataLookup } from '../template/resolver.js';
@@ -15,12 +15,12 @@ import { startMock } from './transports/mock.js';
 import { startStomp } from './transports/stomp.js';
 import { startRest } from './transports/rest.js';
 
-export type ProviderFactory<T extends ProviderConfig = ProviderConfig> = (
+export type ProviderFactory<T extends TransportConfig = TransportConfig> = (
   cfg: T,
   emit: ProviderEmit,
 ) => ProviderHandle;
 
-const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>> = {
+const factories: Partial<Record<TransportConfig['providerType'], ProviderFactory>> = {
   mock: startMock as ProviderFactory,
   /** Same mock generator; hub attaches an SSRM query plane separately. */
   'mock-ssrm': startMock as ProviderFactory,
@@ -50,7 +50,7 @@ export interface StartProviderOpts {
 }
 
 export function startProvider(
-  cfg: ProviderConfig,
+  cfg: TransportConfig,
   emit: ProviderEmit,
   opts?: StartProviderOpts,
 ): ProviderHandle {
@@ -83,7 +83,7 @@ export function startProvider(
  * defaults — useful for testing). Idempotent: last registration
  * wins.
  */
-export function registerProvider<T extends ProviderConfig>(
+export function registerProvider<T extends TransportConfig>(
   type: T['providerType'],
   factory: ProviderFactory<T>,
 ): void {

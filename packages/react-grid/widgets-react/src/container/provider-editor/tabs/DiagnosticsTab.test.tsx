@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { TransportConfig } from '@wellsfargo-starui/types/shared';
 import { DiagnosticsTab } from './DiagnosticsTab.js';
 
 const attach = vi.fn();
@@ -21,7 +21,7 @@ const CFG = {
   listenerTopic: '/topic/positions',
   requestMessage: '/app/positions',
   keyColumn: 'id',
-} as ProviderConfig;
+} as TransportConfig;
 
 describe('DiagnosticsTab', () => {
   beforeEach(() => {

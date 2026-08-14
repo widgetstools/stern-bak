@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import { useResolvedCfg } from './index.js';
 
@@ -64,7 +64,7 @@ afterEach(() => cleanup());
 describe('useResolvedCfg — identity stable unless a referenced key changes', () => {
   it('template-free cfg keeps its own identity through AppData churn', async () => {
     const { wrapper, set } = makeHarness({ ctx: { asOfDate: '2026-07-01' } });
-    const cfg = { providerType: 'stomp', url: 'ws://x' } as unknown as ProviderConfig;
+    const cfg = { providerType: 'stomp', url: 'ws://x' } as unknown as TransportConfig;
 
     const { result } = renderHook(() => useResolvedCfg(cfg), { wrapper });
     await waitFor(() => expect(result.current).toBe(cfg));
@@ -77,7 +77,7 @@ describe('useResolvedCfg — identity stable unless a referenced key changes', (
     const { wrapper, set } = makeHarness({
       ctx: { asOfDate: '2026-07-01', region: 'EMEA' },
     });
-    const cfg = { providerType: 'stomp', trigger: 'date={{ctx.asOfDate}}' } as unknown as ProviderConfig;
+    const cfg = { providerType: 'stomp', trigger: 'date={{ctx.asOfDate}}' } as unknown as TransportConfig;
 
     const { result } = renderHook(() => useResolvedCfg(cfg), { wrapper });
     await waitFor(() =>

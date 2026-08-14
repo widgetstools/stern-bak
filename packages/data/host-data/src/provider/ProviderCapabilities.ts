@@ -5,7 +5,7 @@ import type { ProviderType } from '@wellsfargo-starui/types';
  * transport. Populated by the hub adapter from resolved provider config.
  */
 export interface ProviderCapabilities {
-  /** Transport kind from the resolved {@link ProviderConfig}. */
+  /** Transport kind from the resolved {@link TransportConfig}. */
   readonly providerType: ProviderType;
   /**
    * Live row stream after the initial snapshot (STOMP, mock).

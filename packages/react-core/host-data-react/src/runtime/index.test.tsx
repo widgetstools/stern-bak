@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataServices, ProviderStats } from '@wellsfargo-starui/data/runtime';
-import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
+import type { DataProviderConfig, TransportConfig } from '@wellsfargo-starui/types';
 import { DataServicesProvider } from './DataServicesProvider.js';
 import {
   useAppData,
@@ -298,7 +298,7 @@ describe('useDataProvidersList', () => {
   it('forwards subtype and includeAppData as list options', async () => {
     const h = makeHarness();
     renderHook(
-      () => useDataProvidersList({ subtype: 'stomp' as ProviderConfig['providerType'], includeAppData: true }),
+      () => useDataProvidersList({ subtype: 'stomp' as TransportConfig['providerType'], includeAppData: true }),
       { wrapper: h.wrapper },
     );
 
@@ -340,7 +340,7 @@ describe('useDataProvidersList', () => {
 });
 
 describe('useProviderStream', () => {
-  const cfg = { providerType: 'stomp' } as unknown as ProviderConfig;
+  const cfg = { providerType: 'stomp' } as unknown as TransportConfig;
   const listener = () => ({ onDelta: vi.fn(), onStatus: vi.fn() });
 
   it('stays in loading and never attaches without a providerId or cfg', () => {

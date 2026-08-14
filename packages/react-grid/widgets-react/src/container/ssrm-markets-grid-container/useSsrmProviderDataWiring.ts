@@ -90,7 +90,10 @@ export function useSsrmProviderDataWiring(
         const rules = rulesRef.current;
         if (rules?.length) await provider.configureExpressions([...rules]);
         if (cancelled) return;
-        onStatus?.('Ready');
+        // Same word the status stream uses — previously this said 'Ready'
+        // while the stream said 'Live', and the strip showed whichever
+        // landed last.
+        onStatus?.('Live');
         setReady(true);
       } catch (err) {
         if (cancelled) return;

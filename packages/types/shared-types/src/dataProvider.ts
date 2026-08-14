@@ -332,13 +332,20 @@ export interface AppDataProviderConfig {
 /**
  * Union type for all provider configurations
  */
-export type ProviderConfig =
+export type TransportConfig =
   | StompProviderConfig
   | StompSsrmProviderConfig
   | RestProviderConfig
   | MockProviderConfig
   | MockSsrmProviderConfig
   | AppDataProviderConfig;
+
+/**
+ * @deprecated Renamed — this is the TRANSPORT config union nested inside
+ * `DataProviderConfig.config`. Import {@link TransportConfig}; the old
+ * name survives one release for external consumers.
+ */
+export type ProviderConfig = TransportConfig;
 
 /**
  * Provider capabilities
@@ -389,7 +396,7 @@ export interface DataProviderConfig {
   name: string;
   description?: string;
   providerType: ProviderType;
-  config: ProviderConfig;
+  config: TransportConfig;
   tags?: string[];
   isDefault?: boolean;
   userId: string;
@@ -454,7 +461,7 @@ export const STOMP_TUNING_DEFAULTS = {
   publishWindowMs: 0,
 };
 
-export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConfig>> = {
+export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<TransportConfig>> = {
   stomp: {
     providerType: 'stomp',
     listenerTopic: '',
@@ -518,14 +525,14 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
 /**
  * Helper function to get default config for a provider type
  */
-export function getDefaultProviderConfig(type: ProviderType): Partial<ProviderConfig> {
+export function getDefaultProviderConfig(type: ProviderType): Partial<TransportConfig> {
   return { ...DEFAULT_PROVIDER_CONFIGS[type] };
 }
 
 /**
  * Validate provider configuration
  */
-export function validateProviderConfig(config: ProviderConfig): ProviderValidationResult {
+export function validateProviderConfig(config: TransportConfig): ProviderValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 

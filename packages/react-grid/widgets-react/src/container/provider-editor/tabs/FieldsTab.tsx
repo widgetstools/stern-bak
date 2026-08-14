@@ -17,7 +17,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Button, Checkbox, Input, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, Label } from '@wellsfargo-starui/react';
 import { Database, Loader2, Search, RefreshCw, X } from 'lucide-react';
-import type { FieldNode, ProviderConfig, ColumnDefinition } from '@wellsfargo-starui/types/shared';
+import type { FieldNode, TransportConfig, ColumnDefinition } from '@wellsfargo-starui/types/shared';
 import { collectNonObjectLeaves, filterFields } from '@wellsfargo-starui/types/shared';
 
 const SAMPLE_SIZES = [50, 100, 200, 500] as const;
@@ -33,7 +33,7 @@ const VIRTUAL_THRESHOLD = 100;
 const OVERSCAN = 8;
 
 export interface FieldsTabProps {
-  cfg: ProviderConfig;
+  cfg: TransportConfig;
   inferredFields: FieldNode[];
   inferenceSummary: { rowsFetched: number; rowsUsed: number; fieldsDetected: number } | null;
   inferring: boolean;
@@ -399,7 +399,7 @@ function SampleSizePicker({ value, onChange }: { value: number; onChange(n: numb
   );
 }
 
-function EmptyInference({ cfg, sampleSize, onSampleSizeChange, onInfer, inferring, error }: { cfg: ProviderConfig; sampleSize: number; onSampleSizeChange(n: number): void; onInfer(): void; inferring: boolean; error: string | null }) {
+function EmptyInference({ cfg, sampleSize, onSampleSizeChange, onInfer, inferring, error }: { cfg: TransportConfig; sampleSize: number; onSampleSizeChange(n: number): void; onInfer(): void; inferring: boolean; error: string | null }) {
   void cfg;
   return (
     <div className="flex items-center justify-center h-full p-8">

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 
 const startMock = vi.fn(() => ({ stop: vi.fn(), restart: vi.fn() }));
 const startStomp = vi.fn(() => ({ stop: vi.fn(), restart: vi.fn() }));
@@ -19,7 +19,7 @@ const { startProvider, registerProvider } = await import('./registry.js');
 
 const emit = vi.fn();
 
-const mockCfg = (): ProviderConfig => ({
+const mockCfg = (): TransportConfig => ({
   providerType: 'mock',
   keyColumn: 'id',
   columnDefinitions: [{ field: 'id', headerName: 'ID' }],
@@ -41,7 +41,7 @@ describe('startProvider', () => {
 
   it('dispatches STOMP through startStomp even when appDataLookup is supplied', () => {
     const lookup = vi.fn();
-    const cfg: ProviderConfig = {
+    const cfg: TransportConfig = {
       providerType: 'stomp',
       keyColumn: 'id',
       columnDefinitions: [{ field: 'id', headerName: 'ID' }],
@@ -61,13 +61,13 @@ describe('startProvider', () => {
   });
 
   it('dispatches stomp-ssrm through the same startStomp factory', () => {
-    const cfg: ProviderConfig = {
+    const cfg: TransportConfig = {
       providerType: 'stomp-ssrm',
       keyColumn: 'id',
       columnDefinitions: [{ field: 'id', headerName: 'ID' }],
       websocketUrl: 'ws://localhost',
       listenerTopic: '/topic/x',
-    } as ProviderConfig;
+    } as TransportConfig;
 
     startProvider(cfg, emit);
 
@@ -80,7 +80,7 @@ describe('startProvider', () => {
   });
 
   it('dispatches mock-ssrm through the same startMock factory', () => {
-    const cfg: ProviderConfig = {
+    const cfg: TransportConfig = {
       providerType: 'mock-ssrm',
       dataType: 'positions',
       keyColumn: 'id',
@@ -96,12 +96,12 @@ describe('startProvider', () => {
   });
 
   it('throws when appData tokens remain unresolved for mock/rest providers', () => {
-    const cfg: ProviderConfig = {
+    const cfg: TransportConfig = {
       providerType: 'mock',
       keyColumn: 'id',
       columnDefinitions: [{ field: 'id', headerName: 'ID' }],
       brokerUrl: '{{missing.token}}',
-    } as ProviderConfig;
+    } as TransportConfig;
 
     expect(() =>
       startProvider(cfg, emit, { appDataLookup: () => undefined }),
@@ -109,7 +109,7 @@ describe('startProvider', () => {
   });
 
   it('resolves appData tokens before dispatching non-stomp factories', () => {
-    const cfg: ProviderConfig = {
+    const cfg: TransportConfig = {
       providerType: 'mock',
       keyColumn: 'id',
       columnDefinitions: [{ field: 'id', headerName: 'ID' }],

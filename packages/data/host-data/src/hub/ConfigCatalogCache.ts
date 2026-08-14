@@ -4,7 +4,7 @@
  */
 
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
+import type { DataProviderConfig, TransportConfig } from '@wellsfargo-starui/types';
 import {
   DataProviderConfigStore,
   type ListOptions,
@@ -63,7 +63,7 @@ export class ConfigCatalogCache {
   }
 
   /** Resolved transport cfg for provider attach. */
-  getProviderConfig(providerId: string): ProviderConfig | null {
+  getProviderConfig(providerId: string): TransportConfig | null {
     return this.byId.get(providerId)?.config ?? null;
   }
 

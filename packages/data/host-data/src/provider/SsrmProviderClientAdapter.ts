@@ -1,4 +1,4 @@
-import type { ColumnDefinition, ProviderConfig, ProviderType } from '@wellsfargo-starui/types';
+import type { ColumnDefinition, TransportConfig, ProviderType } from '@wellsfargo-starui/types';
 import type {
   SharedWorkerDataServicesClient,
   SubscribeHandle,
@@ -20,7 +20,7 @@ import { resolveProviderCapabilities } from './ProviderClientAdapter.js';
 export interface SsrmProviderClientAdapterOpts {
   client: SharedWorkerDataServicesClient;
   providerId: string;
-  inlineCfg?: ProviderConfig;
+  inlineCfg?: TransportConfig;
 }
 
 /**
@@ -32,8 +32,8 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   readonly id: string;
 
   private readonly client: SharedWorkerDataServicesClient;
-  private readonly inlineCfg?: ProviderConfig;
-  private resolvedConfig: ProviderConfig | null = null;
+  private readonly inlineCfg?: TransportConfig;
+  private resolvedConfig: TransportConfig | null = null;
   private handle: SubscribeHandle | null = null;
   private offSsrmTick: (() => void) | null = null;
 
@@ -123,7 +123,7 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
     await handle.snapshot;
   }
 
-  getConfig(): ProviderConfig {
+  getConfig(): TransportConfig {
     if (!this.resolvedConfig) {
       throw new Error(
         `[SsrmProviderClientAdapter] getConfig() before start() for providerId=${this.id}`,
@@ -132,12 +132,12 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
     return this.resolvedConfig;
   }
 
-  getConfigOrNull(): ProviderConfig | null {
+  getConfigOrNull(): TransportConfig | null {
     return this.resolvedConfig;
   }
 
   getColumnDefs(): readonly ColumnDefinition[] {
-    const config = this.resolvedConfig as (ProviderConfig & {
+    const config = this.resolvedConfig as (TransportConfig & {
       columnDefinitions?: ColumnDefinition[];
     }) | null;
     return config?.columnDefinitions ?? [];

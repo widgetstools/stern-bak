@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
-  ProviderConfig,
+  TransportConfig,
   StompProviderConfig,
   StompSsrmProviderConfig,
 } from '@wellsfargo-starui/types';
@@ -14,8 +14,8 @@ import {
   stompSsrmProviderDraft,
 } from './stompProvider.js';
 
-/** Narrows the catalog row's ProviderConfig union to the stomp shape. */
-function asStompConfig(config: ProviderConfig): StompProviderConfig {
+/** Narrows the catalog row's TransportConfig union to the stomp shape. */
+function asStompConfig(config: TransportConfig): StompProviderConfig {
   if (config.providerType !== 'stomp') {
     throw new Error(`expected a stomp provider config, got ${config.providerType}`);
   }

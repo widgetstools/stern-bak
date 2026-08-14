@@ -20,7 +20,7 @@
  *   - `hubIntrospect.ts` / `hubStats.ts` — diagnostics snapshots
  */
 
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig, StompProviderConfig } from '@wellsfargo-starui/types';
 import type {
   AttachRequest,
   DetachRequest,
@@ -473,7 +473,7 @@ export class SharedWorkerDataServicesHub {
     this.ssrmPlanes.delete(providerId);
   }
 
-  private ensureSsrmPlane(providerId: string, cfg: ProviderConfig): SsrmPlane | null {
+  private ensureSsrmPlane(providerId: string, cfg: TransportConfig): SsrmPlane | null {
     if (!isSsrmProviderType(cfg.providerType)) return null;
     const existing = this.ssrmPlanes.get(providerId);
     if (existing) return existing.plane;
@@ -684,7 +684,7 @@ export class SharedWorkerDataServicesHub {
   private traceStompAttachCfg(
     phase: string,
     providerId: string,
-    cfg: ProviderConfig | undefined,
+    cfg: TransportConfig | undefined,
     extra?: Record<string, unknown>,
   ): void {
     if (!cfg || cfg.providerType !== 'stomp') return;
@@ -699,7 +699,7 @@ export class SharedWorkerDataServicesHub {
     });
   }
 
-  private createProvider(providerId: string, cfg: ProviderConfig): ProviderSlot {
+  private createProvider(providerId: string, cfg: TransportConfig): ProviderSlot {
     const now = Date.now();
     const flags = cfg as {
       keyColumn?: string | readonly string[];
@@ -782,7 +782,7 @@ export class SharedWorkerDataServicesHub {
    * settings were edited: the running slot was created with the old cfg,
    * so a plain `restart()` would reconnect with stale values.
    */
-  private recreateProvider(providerId: string, cfg: ProviderConfig): ProviderSlot {
+  private recreateProvider(providerId: string, cfg: TransportConfig): ProviderSlot {
     const old = this.providers.get(providerId);
     // Drop the old slot from the registry first. The emit guard keys on
     // the currently-registered slot, so any in-flight frames from the

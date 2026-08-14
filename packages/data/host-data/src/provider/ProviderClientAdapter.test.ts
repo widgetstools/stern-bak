@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfigRow } from '@wellsfargo-starui/core/host/config';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import { createInPageWiring, SharedWorkerDataServicesClient } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import { SharedWorkerDataServicesHub, type PortLike } from '../runtime/worker/SharedWorkerDataServicesHub.js';
 import { registerProvider } from '../runtime/providers/registry.js';
@@ -19,7 +19,7 @@ const controllers = new Map<string, TestController>();
 
 beforeEach(() => {
   controllers.clear();
-  registerProvider('mock' as ProviderConfig['providerType'], (cfg, emit) => {
+  registerProvider('mock' as TransportConfig['providerType'], (cfg, emit) => {
     const ctrl: TestController = { emit, stops: 0, restarts: [] };
     const key = (cfg as unknown as { __testKey?: string }).__testKey ?? 'default';
     controllers.set(key, ctrl);
@@ -31,12 +31,12 @@ beforeEach(() => {
   });
 });
 
-const cfg = (testKey = 'default'): ProviderConfig => ({
+const cfg = (testKey = 'default'): TransportConfig => ({
   providerType: 'mock',
   __testKey: testKey,
   keyColumn: 'id',
   columnDefinitions: [{ field: 'id', headerName: 'ID' }],
-} as unknown as ProviderConfig);
+} as unknown as TransportConfig);
 
 function mockProviderRow(id: string, testKey = 'default'): AppConfigRow {
   return {

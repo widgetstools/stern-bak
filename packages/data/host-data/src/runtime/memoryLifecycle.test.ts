@@ -3,7 +3,7 @@
  * does not retain workers, timers, or hub listeners.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import { SharedWorkerDataServicesClient } from './client/SharedWorkerDataServicesClient.js';
 import { SharedWorkerDataServicesHub, type PortLike } from './worker/SharedWorkerDataServicesHub.js';
 import { registerProvider } from './providers/registry.js';
@@ -15,16 +15,16 @@ interface TestController {
 
 const controllers = new Map<string, TestController>();
 
-function cfg(): ProviderConfig {
+function cfg(): TransportConfig {
   return {
     providerType: 'mock',
     keyColumn: 'id',
-  } as unknown as ProviderConfig;
+  } as unknown as TransportConfig;
 }
 
 beforeEach(() => {
   controllers.clear();
-  registerProvider('mock' as ProviderConfig['providerType'], (_cfg, emit) => {
+  registerProvider('mock' as TransportConfig['providerType'], (_cfg, emit) => {
     const ctrl: TestController = { emit };
     controllers.set('default', ctrl);
     const handle: ProviderHandle = { stop() {}, restart() {} };

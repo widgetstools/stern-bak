@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { LOGGED_IN_USER_ID, type ProviderConfig } from '@wellsfargo-starui/types';
+import { LOGGED_IN_USER_ID, type TransportConfig } from '@wellsfargo-starui/types';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
 import { inferFields, resolveSsrmKeyColumn, type ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
@@ -57,7 +57,7 @@ export interface SsrmMarketsGridContainerProps extends Partial<
    * Optional transport cfg — skips the worker `get-config` round-trip
    * (demo / editor drafts). Hub attach still receives this cfg.
    */
-  inlineCfg?: ProviderConfig;
+  inlineCfg?: TransportConfig;
   title?: string;
   /** Optional MarketsGrid expression snapshot → worker rules. */
   expressionSnapshot?: Parameters<typeof toSsrmExpressionRules>[0];

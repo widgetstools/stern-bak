@@ -1,4 +1,4 @@
-import type { ColumnDefinition, ProviderConfig } from '@wellsfargo-starui/types';
+import type { ColumnDefinition, TransportConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus } from '../runtime/protocol.js';
 import type { ProviderCapabilities } from './ProviderCapabilities.js';
 
@@ -29,14 +29,14 @@ export interface IDataProvider<T = Record<string, unknown>> {
   /** Last snapshot commit by reference (not updated on live ticks). */
   getData(): readonly T[];
   /** Resolved provider configuration from hub catalog or attach cfg. */
-  getConfig(): ProviderConfig;
+  getConfig(): TransportConfig;
   /**
    * Null-safe config accessor — `null` until `start()` resolves the
    * config. Prefer this over wrapping `getConfig()` in try/catch.
    * Optional so bare test doubles stay valid; the client adapters
    * always implement it, and callers optional-chain (`?.() ?? null`).
    */
-  getConfigOrNull?(): ProviderConfig | null;
+  getConfigOrNull?(): TransportConfig | null;
   /** Column defs from config or inferred schema. */
   getColumnDefs(): readonly ColumnDefinition[];
 

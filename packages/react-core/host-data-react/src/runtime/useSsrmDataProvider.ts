@@ -3,12 +3,12 @@ import {
   SsrmProviderClientAdapter,
   type ISsrmDataProvider,
 } from '@wellsfargo-starui/data';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import { useDataServicesContext } from './DataServicesProvider.js';
 
 export interface UseSsrmDataProviderOpts {
-  inlineCfg?: ProviderConfig;
+  inlineCfg?: TransportConfig;
   autoStart?: boolean;
   trackStatus?: boolean;
 }

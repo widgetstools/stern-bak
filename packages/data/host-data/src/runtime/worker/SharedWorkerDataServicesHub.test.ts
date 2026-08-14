@@ -28,7 +28,7 @@ import { registerProvider } from '../providers/registry';
 import type { ProviderEmit, ProviderHandle } from '../providers/Provider';
 import type { Event, RowPatch } from '../protocol';
 import { decodeColumnar } from '../wire/columnarCodec';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { TransportConfig } from '@wellsfargo-starui/types';
 import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import {
   SUBSCRIBER_PING_TIMEOUT_MS,
@@ -113,7 +113,7 @@ const controllers = new Map<string, TestController>();
 
 beforeEach(() => {
   controllers.clear();
-  registerProvider('mock' as ProviderConfig['providerType'], (cfg, emit) => {
+  registerProvider('mock' as TransportConfig['providerType'], (cfg, emit) => {
     const ctrl: TestController = { emit, stopCount: 0, restartLog: [] };
     // Key controllers by providerType + name so multiple instances
     // in one test can be told apart.
@@ -126,8 +126,8 @@ beforeEach(() => {
   });
 });
 
-const cfg = (key = 'default', overrides: Record<string, unknown> = {}): ProviderConfig =>
-  ({ providerType: 'mock', __testKey: key, keyColumn: 'id', ...overrides } as unknown as ProviderConfig);
+const cfg = (key = 'default', overrides: Record<string, unknown> = {}): TransportConfig =>
+  ({ providerType: 'mock', __testKey: key, keyColumn: 'id', ...overrides } as unknown as TransportConfig);
 
 describe('SharedWorkerDataServicesHub — attach lifecycle', () => {
   it('first attach creates the provider and the listener immediately gets a replace + status', () => {
@@ -278,7 +278,7 @@ describe('SharedWorkerDataServicesHub — attach lifecycle', () => {
     // loading — and with the adopt-in-flight restart no longer
     // re-emitting via beginSnapshotPhase(), peer windows erratically
     // never learned a refresh had started.
-    registerProvider('mock' as ProviderConfig['providerType'], (c, emit) => {
+    registerProvider('mock' as TransportConfig['providerType'], (c, emit) => {
       const ctrl: TestController = { emit, stopCount: 0, restartLog: [] };
       controllers.set((c as unknown as { __testKey?: string }).__testKey ?? 'default', ctrl);
       emit({ status: 'loading' }); // synchronous, like startStomp/startRest
@@ -503,7 +503,7 @@ describe('SharedWorkerDataServicesHub — attach lifecycle', () => {
     // distinct rows.
     const hub = new SharedWorkerDataServicesHub();
     const port = makePort();
-    const compositeCfg = ({ providerType: 'mock', __testKey: 'composite', keyColumn: ['region', 'desk', 'instrumentId'] } as unknown as ProviderConfig);
+    const compositeCfg = ({ providerType: 'mock', __testKey: 'composite', keyColumn: ['region', 'desk', 'instrumentId'] } as unknown as TransportConfig);
     hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: compositeCfg });
     const ctrl = controllers.get('composite')!;
     port.messages.length = 0;
@@ -1334,7 +1334,7 @@ describe('SharedWorkerDataServicesHub — REST round-trip', () => {
     // The default registration in registry.ts uses global fetch; tests
     // need a stubbed response.
     const { startRest } = await import('../providers/transports/rest.js');
-    registerProvider('rest' as ProviderConfig['providerType'], (cfg, emit) =>
+    registerProvider('rest' as TransportConfig['providerType'], (cfg, emit) =>
       startRest(cfg as never, emit, {
         fetchImpl: async () =>
           new Response(JSON.stringify([{ id: 'r1', x: 1 }, { id: 'r2', x: 2 }]), { status: 200 }),
@@ -1350,7 +1350,7 @@ describe('SharedWorkerDataServicesHub — REST round-trip', () => {
       endpoint: '/positions',
       method: 'GET',
       keyColumn: 'id',
-    } as unknown as ProviderConfig;
+    } as unknown as TransportConfig;
 
     hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p-rest', mode: 'data', cfg: restCfg });
 
@@ -1381,7 +1381,7 @@ describe('SharedWorkerDataServicesHub — REST round-trip', () => {
 
     // Restore the mock factory the rest of the suite expects so other
     // tests in this file aren't disturbed by the REST registration.
-    registerProvider('mock' as ProviderConfig['providerType'], (cfg, emit) => {
+    registerProvider('mock' as TransportConfig['providerType'], (cfg, emit) => {
       const ctrl: TestController = { emit, stopCount: 0, restartLog: [] };
       controllers.set((cfg as unknown as { __testKey?: string }).__testKey ?? 'default', ctrl);
       return { stop() { ctrl.stopCount += 1; }, restart(extra) { ctrl.restartLog.push(extra); } };
@@ -1618,7 +1618,7 @@ interface SsrmIntrospectRow {
 describe('SharedWorkerDataServicesHub — SSRM plane stats in introspect', () => {
   it('carries the SSRM plane stats object on the provider introspect row', () => {
     let emitRef: ProviderEmit | null = null;
-    registerProvider('mock-ssrm' as ProviderConfig['providerType'], (_cfg, emit) => {
+    registerProvider('mock-ssrm' as TransportConfig['providerType'], (_cfg, emit) => {
       emitRef = emit;
       const handle: ProviderHandle = { stop() {}, restart() {} };
       return handle;
@@ -1628,7 +1628,7 @@ describe('SharedWorkerDataServicesHub — SSRM plane stats in introspect', () =>
 
     hub.handleRequest(port, {
       kind: 'attach', subId: 's1', providerId: 'p-ssrm', mode: 'data',
-      cfg: { providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as ProviderConfig,
+      cfg: { providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as TransportConfig,
     });
     emitRef?.({ rows: [{ id: 'a', px: 1 }], replace: true });
     // Two identical queries — the second is a memo hit.

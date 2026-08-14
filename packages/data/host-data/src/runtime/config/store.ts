@@ -24,7 +24,7 @@
  */
 
 import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
-import type { DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types';
+import type { DataProviderConfig, TransportConfig } from '@wellsfargo-starui/types';
 import {
   COMPONENT_TYPE_APPDATA,
   COMPONENT_TYPE_DATA_PROVIDER,
@@ -40,7 +40,7 @@ export interface ListOptions {
    * `componentSubType` matches are returned (used to scope the
    * MarketsGrid live-provider picker to STOMP-only, etc.).
    */
-  subtype?: ProviderConfig['providerType'];
+  subtype?: TransportConfig['providerType'];
   /**
    * Include AppData rows (`componentSubType: 'appdata'`) in the
    * result. Default `false` — the live-stream picker shouldn't show
@@ -168,7 +168,7 @@ function legacyAppDataRowToProvider(row: AppConfigRow): DataProviderConfig {
     name: row.displayText,
     description: payload.description as string | undefined,
     providerType: 'appdata',
-    config: { providerType: 'appdata', variables } as ProviderConfig,
+    config: { providerType: 'appdata', variables } as TransportConfig,
     userId: row.userId,
     public: row.userId === PUBLIC_USER_ID,
   };
@@ -183,7 +183,7 @@ function rowToProvider(row: AppConfigRow): DataProviderConfig {
     name: row.displayText,
     description: (meta.description as string | undefined) ?? undefined,
     providerType: row.componentSubType as DataProviderConfig['providerType'],
-    config: config as unknown as ProviderConfig,
+    config: config as unknown as TransportConfig,
     tags: (meta.tags as string[] | undefined) ?? undefined,
     isDefault: Boolean(meta.isDefault),
     userId: row.userId,
