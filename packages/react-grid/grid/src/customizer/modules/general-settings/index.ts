@@ -18,7 +18,7 @@
  */
 import type { GridOptions } from 'ag-grid-community';
 import type { Module, TransformContext } from '@wellsfargo-starui/core';
-import { INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from '@wellsfargo-starui/core';
+import { defineModule, INITIAL_GENERAL_SETTINGS, type GeneralSettingsState } from '@wellsfargo-starui/core';
 import { GridOptionsPanel } from './GridOptionsPanel';
 import {
   buildCellChangeFlashCss,
@@ -66,26 +66,16 @@ function buildRowSelectionOptions(
   };
 }
 
-export const generalSettingsModule: Module<GeneralSettingsState> = {
+export const generalSettingsModule: Module<GeneralSettingsState> = defineModule({
   id: GENERAL_SETTINGS_MODULE_ID,
   name: 'Grid Options',
-  code: '00',
+  category: 'options',
   schemaVersion: 6,
   priority: 0,
-
-  getInitialState: () => ({ ...INITIAL_GENERAL_SETTINGS }),
-
-  serialize: (state) => state,
-  deserialize: (raw) => ({
-    ...INITIAL_GENERAL_SETTINGS,
-    ...((raw as Partial<GeneralSettingsState> | null) ?? {}),
-  }),
-  // Additive migration: always fill current defaults, overlay stored
-  // values. New fields drop in transparently across version bumps.
-  migrate: (raw) =>
-    !raw || typeof raw !== 'object'
-      ? { ...INITIAL_GENERAL_SETTINGS }
-      : { ...INITIAL_GENERAL_SETTINGS, ...(raw as Partial<GeneralSettingsState>) },
+  // defineModule defaults: identity serialize, spread-over-initial
+  // deserialize AND migrate (additive — new fields fill from initial
+  // transparently across version bumps).
+  initialState: INITIAL_GENERAL_SETTINGS,
 
   transformGridOptions(opts: Partial<GridOptions>, s: GeneralSettingsState, ctx: TransformContext): Partial<GridOptions> {
     const flashCss = ctx.resources.css(CELL_CHANGE_FLASH_CSS_HANDLE);
@@ -351,7 +341,7 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
   // defaultColDef route correctly leaves in charge.
 
   SettingsPanel: GridOptionsPanel,
-};
+});
 
 export type { GeneralSettingsState };
 export { INITIAL_GENERAL_SETTINGS };

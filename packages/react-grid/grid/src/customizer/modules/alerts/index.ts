@@ -35,7 +35,7 @@ export const ALERTS_MODULE_ID = 'alerts';
 export const alertsModule: Module<AlertsState> = {
   id: ALERTS_MODULE_ID,
   name: 'Alerts',
-  code: '05',
+  category: 'styling',
   schemaVersion: 1,
   priority: 27,
 

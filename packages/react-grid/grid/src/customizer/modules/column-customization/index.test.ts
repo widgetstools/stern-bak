@@ -6,7 +6,6 @@ import { COLUMN_TEMPLATES_MODULE_ID } from '../column-templates';
 describe('columnCustomizationModule', () => {
   it('registers with expected metadata', () => {
     expect(columnCustomizationModule.id).toBe(COLUMN_CUSTOMIZATION_MODULE_ID);
-    expect(columnCustomizationModule.code).toBe('04');
     expect(columnCustomizationModule.priority).toBe(10);
     expect(columnCustomizationModule.dependencies).toContain(COLUMN_TEMPLATES_MODULE_ID);
     expect(columnCustomizationModule.SettingsPanel).toBeTruthy();

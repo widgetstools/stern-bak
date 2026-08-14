@@ -282,6 +282,13 @@ export interface PlatformHandle<S> {
 export interface Module<S = unknown> {
   readonly id: string;
   readonly name: string;
+  /**
+   * Settings-navigation category. Known ids (`options`, `columns`,
+   * `styling`, `editing`, `data`) bucket the module into that group of the
+   * customizer nav; anything else (or omitting it) lands the module in the
+   * trailing "More" group. Purely presentational — never persisted.
+   */
+  readonly category?: string;
   readonly schemaVersion: number;
   readonly dependencies?: readonly string[];
   readonly priority: number;
@@ -320,7 +327,6 @@ export interface Module<S = unknown> {
   // to the module (in `@wellsfargo-starui/grid-react`). Vanilla consumers can
   // ignore. Typed structurally as `(props) => unknown` so this file has
   // no React peer-dep.
-  readonly code?: string;
   SettingsPanel?: UIComponent<SettingsPanelProps>;
   ListPane?: UIComponent<ListPaneProps>;
   EditorPane?: UIComponent<EditorPaneProps>;

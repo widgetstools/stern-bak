@@ -14,7 +14,6 @@ describe('toolbarDateSettingsModule', () => {
 
   it('registers with expected metadata', () => {
     expect(toolbarDateSettingsModule.id).toBe(TOOLBAR_DATE_SETTINGS_MODULE_ID);
-    expect(toolbarDateSettingsModule.code).toBe('19');
     expect(toolbarDateSettingsModule.SettingsPanel).toBeTruthy();
   });
 

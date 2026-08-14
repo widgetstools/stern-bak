@@ -74,7 +74,7 @@ function reinjectHeaderCSS(css: CssHandle, groups: ColumnGroupNode[]): void {
 export const columnGroupsModule: Module<ColumnGroupsState> = {
   id: COLUMN_GROUPS_MODULE_ID,
   name: 'Column Groups',
-  code: '02',
+  category: 'columns',
   schemaVersion: 1,
   priority: 18,
 

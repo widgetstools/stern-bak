@@ -8,7 +8,6 @@ import { visualExcelModule } from './index';
 describe('visualExcelModule', () => {
   it('registers with expected metadata', () => {
     expect(visualExcelModule.id).toBe(VISUAL_EXCEL_MODULE_ID);
-    expect(visualExcelModule.code).toBe('11');
     expect(visualExcelModule.SettingsPanel).toBeTruthy();
   });
 

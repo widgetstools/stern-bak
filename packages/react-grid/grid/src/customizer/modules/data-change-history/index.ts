@@ -16,7 +16,7 @@ export { DATA_CHANGE_HISTORY_MODULE_ID };
 export const dataChangeHistoryModule: Module<DataChangeHistoryState> = {
   id: DATA_CHANGE_HISTORY_MODULE_ID,
   name: 'Edit History',
-  code: '10',
+  category: 'editing',
   schemaVersion: DATA_CHANGE_HISTORY_SCHEMA_VERSION,
   priority: 26,
 

@@ -24,6 +24,7 @@ export const INITIAL_TOOLBAR_VISIBILITY: ToolbarVisibilityState = { visible: {} 
 export const toolbarVisibilityModule: Module<ToolbarVisibilityState> = {
   id: TOOLBAR_VISIBILITY_MODULE_ID,
   name: 'Toolbar Visibility',
+  category: 'options',
   schemaVersion: 1,
   priority: 1000,
 

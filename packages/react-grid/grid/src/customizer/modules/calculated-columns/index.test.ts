@@ -8,7 +8,6 @@ import { calculatedColumnsModule } from './index';
 describe('calculatedColumnsModule', () => {
   it('registers with expected metadata', () => {
     expect(calculatedColumnsModule.id).toBe(CALCULATED_COLUMNS_MODULE_ID);
-    expect(calculatedColumnsModule.code).toBe('03');
     expect(calculatedColumnsModule.ListPane).toBeTruthy();
   });
 

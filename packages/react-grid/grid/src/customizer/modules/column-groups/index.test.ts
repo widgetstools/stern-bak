@@ -6,7 +6,6 @@ import type { ColumnGroupsState } from '@wellsfargo-starui/core';
 describe('columnGroupsModule', () => {
   it('registers with expected metadata', () => {
     expect(columnGroupsModule.id).toBe(COLUMN_GROUPS_MODULE_ID);
-    expect(columnGroupsModule.code).toBe('02');
     expect(columnGroupsModule.ListPane).toBeTruthy();
   });
 

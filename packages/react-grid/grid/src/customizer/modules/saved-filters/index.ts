@@ -61,6 +61,7 @@ function validateFilters(raw: unknown): unknown[] {
 export const savedFiltersModule: Module<SavedFiltersState> = {
   id: SAVED_FILTERS_MODULE_ID,
   name: 'Saved Filters',
+  category: 'data',
   // v1 → v2: added structural validation. The on-disk shape is
   // unchanged, but v1 snapshots may carry malformed entries (missing
   // `active`, null `filterModel`, etc.) — `migrate` runs them through

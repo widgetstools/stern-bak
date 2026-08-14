@@ -31,55 +31,21 @@ import {
  *     when the sheet is popped out.
  */
 
-interface ModuleGroupDef {
-  id: string;
-  label: string;
-  moduleIds: readonly string[];
-}
-
 /**
- * Category map. Order here is display order — both of the menus in the
- * bar and of the items inside each menu.
+ * Category display order + labels. Which category a module belongs to is
+ * the module's own `category` field (`Module.category`) — adding a module
+ * to a menu means declaring the category on the module, not editing this
+ * file.
  */
-const MODULE_GROUP_DEFS: readonly ModuleGroupDef[] = [
-  {
-    id: 'options',
-    label: 'Options',
-    moduleIds: [
-      'general-settings',
-      'toolbar-visibility',
-      'toolbar-date-settings',
-      'grid-state',
-    ],
-  },
-  {
-    id: 'columns',
-    label: 'Columns',
-    moduleIds: [
-      'column-customization',
-      'column-groups',
-      'calculated-columns',
-      'column-templates',
-    ],
-  },
-  {
-    id: 'styling',
-    label: 'Styling',
-    moduleIds: ['conditional-styling', 'alerts'],
-  },
-  {
-    id: 'editing',
-    label: 'Editing',
-    moduleIds: ['editing', 'data-change-history'],
-  },
-  {
-    id: 'data',
-    label: 'Data',
-    moduleIds: ['saved-filters', 'visual-excel'],
-  },
+const MODULE_GROUPS: readonly { id: string; label: string }[] = [
+  { id: 'options', label: 'Options' },
+  { id: 'columns', label: 'Columns' },
+  { id: 'styling', label: 'Styling' },
+  { id: 'editing', label: 'Editing' },
+  { id: 'data', label: 'Data' },
 ];
 
-/** Catch-all menu for module ids missing from the category map. */
+/** Catch-all menu for modules with an unknown or missing `category`. */
 const FALLBACK_GROUP = { id: 'more', label: 'More' } as const;
 
 export interface ModuleMenubarGroup {
@@ -89,30 +55,23 @@ export interface ModuleMenubarGroup {
 }
 
 /**
- * Buckets `modules` into the declared categories (declaration order, empty
- * categories dropped) with unknown module ids collected into a trailing
- * MORE group in their original registration order.
+ * Buckets `modules` by their `category` into the declared groups
+ * (declaration order, empty groups dropped; items keep registration
+ * order). Modules with no/unknown category — e.g. host-registered custom
+ * modules — collect into a trailing MORE group in registration order.
  */
 export function groupModulesForMenubar(modules: AnyModule[]): ModuleMenubarGroup[] {
-  const byId = new Map(modules.map((m) => [m.id, m]));
-  const claimed = new Set<string>();
+  const knownIds = new Set(MODULE_GROUPS.map((g) => g.id));
 
   const groups: ModuleMenubarGroup[] = [];
-  for (const def of MODULE_GROUP_DEFS) {
-    const members: AnyModule[] = [];
-    for (const id of def.moduleIds) {
-      const mod = byId.get(id);
-      if (mod) {
-        members.push(mod);
-        claimed.add(id);
-      }
-    }
+  for (const def of MODULE_GROUPS) {
+    const members = modules.filter((m) => m.category === def.id);
     if (members.length > 0) {
       groups.push({ id: def.id, label: def.label, modules: members });
     }
   }
 
-  const leftovers = modules.filter((m) => !claimed.has(m.id));
+  const leftovers = modules.filter((m) => !m.category || !knownIds.has(m.category));
   if (leftovers.length > 0) {
     groups.push({ ...FALLBACK_GROUP, modules: leftovers });
   }

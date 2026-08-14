@@ -30,7 +30,7 @@ export const COLUMN_CUSTOMIZATION_MODULE_ID = 'column-customization';
 export const columnCustomizationModule: Module<ColumnCustomizationState> = {
   id: COLUMN_CUSTOMIZATION_MODULE_ID,
   name: 'Column Settings',
-  code: '04',
+  category: 'columns',
   schemaVersion: 10,
   dependencies: [COLUMN_TEMPLATES_MODULE_ID],
   priority: 10,

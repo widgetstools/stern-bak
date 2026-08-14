@@ -5,7 +5,6 @@ import { conditionalStylingModule, CONDITIONAL_STYLING_MODULE_ID } from './index
 describe('conditionalStylingModule', () => {
   it('registers with expected metadata', () => {
     expect(conditionalStylingModule.id).toBe(CONDITIONAL_STYLING_MODULE_ID);
-    expect(conditionalStylingModule.code).toBe('01');
     expect(conditionalStylingModule.ListPane).toBeTruthy();
   });
 

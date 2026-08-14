@@ -1,5 +1,7 @@
 export { GridPlatform } from './GridPlatform';
 export type { GridPlatformOptions } from './GridPlatform';
+export { defineModule } from './defineModule';
+export type { DefineModuleOptions } from './defineModule';
 export { EventBus } from './EventBus';
 export { topoSortModules } from './topoSort';
 export { ApiHub } from './ApiHub';

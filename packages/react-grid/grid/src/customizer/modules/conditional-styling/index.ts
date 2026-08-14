@@ -53,7 +53,7 @@ const CSS_HANDLE_KEY = CONDITIONAL_STYLING_MODULE_ID;
 export const conditionalStylingModule: Module<ConditionalStylingState> = {
   id: CONDITIONAL_STYLING_MODULE_ID,
   name: 'Style Rules',
-  code: '01',
+  category: 'styling',
   schemaVersion: 1,
   priority: 20,
 

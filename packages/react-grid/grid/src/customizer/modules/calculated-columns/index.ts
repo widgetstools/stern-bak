@@ -42,7 +42,7 @@ const ALL_ROWS_CACHE_KEY = 'calculated-columns:allRows';
 export const calculatedColumnsModule: Module<CalculatedColumnsState> = {
   id: CALCULATED_COLUMNS_MODULE_ID,
   name: 'Calculated Columns',
-  code: '03',
+  category: 'columns',
   schemaVersion: 1,
   priority: 15,
 

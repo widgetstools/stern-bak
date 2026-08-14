@@ -437,8 +437,9 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   opens on **Grid Options** (`general-settings`) by default; module navigation
   is a grouped shadcn **Menubar** (`SettingsModuleMenubar`): five stable
   categories (Options / Columns / Styling / Editing / Data) each opening a
-  menu of module items, plus a trailing More menu for host-registered module
-  ids outside the category map and an active-module breadcrumb
+  menu of module items — membership is each module's own `Module.category`
+  field — plus a trailing More menu for modules with no/unknown category
+  (host-registered custom modules) and an active-module breadcrumb
   (`GROUP ▸ MODULE`) on the bar's right edge — the bar never overflows
   regardless of module count; menus portal above the drawer
   via `.ds-settings-module-popover` / `.ds-sheet-v2` z-index in `grid-chrome.css`;
@@ -920,6 +921,7 @@ modules).
 #### Platform runtime
 
 - `GridPlatform` — per-grid singleton (store, api, events, rows, resources, pipeline)
+- `defineModule()` — module-authoring helper: defaults `schemaVersion` (1), `priority` (100), `getInitialState` (clone of `initialState`), `serialize` (identity), `deserialize` **and** `migrate` (spread-over-initial — additive, never drops persisted state on a version bump); every default overridable. With `Module.category` (settings-nav group, replaces the deleted display-only `code` field), a minimal toggle module is `defineModule({ id, name, category, initialState, SettingsPanel })`
 - `EventBus<T>` — typed pub-sub (`emit`, `on`, `off`)
 - `ApiHub` — reactive `GridApi` (`attach`, `whenReady`, event subscriptions; `on` forwards the AG event object)
 - `RowChangeBus` (`platform.rows`, type `RowChangeSignal`) — shared, timer-coalesced row-change emitter. Reads the exact changed nodes from AG `asyncTransactionsFlushed` and emits one `RowChange` (`added`/`updated`/`removed` deltas, or `full` for sort/filter/`setRowData`; explicit `sortChanged`/`filterChanged` listeners keep the `full` classification even when the sort/filter shares a coalescing window with a streaming flush) per frame, so data-reactive modules (alerts, conditional-styling, filter counts) evaluate only changed rows instead of walking the whole grid on every streaming tick. Filter pill badge counts (`useFilterCounts` in `useFilterModel`) maintain per-filter row-id sets and adjust counts incrementally on delta emits

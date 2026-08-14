@@ -5,7 +5,6 @@ import { alertsModule, ALERTS_MODULE_ID } from './index';
 describe('alertsModule', () => {
   it('registers with expected metadata', () => {
     expect(alertsModule.id).toBe(ALERTS_MODULE_ID);
-    expect(alertsModule.code).toBe('05');
     expect(alertsModule.ListPane).toBeTruthy();
     expect(alertsModule.EditorPane).toBeTruthy();
   });

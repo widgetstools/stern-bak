@@ -21,6 +21,7 @@ export const COLUMN_TEMPLATES_MODULE_ID = 'column-templates';
 export const columnTemplatesModule: Module<ColumnTemplatesState> = {
   id: COLUMN_TEMPLATES_MODULE_ID,
   name: 'Templates',
+  category: 'columns',
   schemaVersion: 1,
   priority: 5,
 

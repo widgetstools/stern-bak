@@ -27,7 +27,7 @@ export { EDITING_MODULE_ID };
 export const editingModule: Module<EditingState> = {
   id: EDITING_MODULE_ID,
   name: 'Editing',
-  code: '06',
+  category: 'editing',
   schemaVersion: EDITING_SCHEMA_VERSION,
   // Priority slot of the former smart-edit module (22). The former
   // bulk-update/plus-minus/shortcuts slots (23-25) held no other

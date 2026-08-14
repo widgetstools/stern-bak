@@ -24,8 +24,10 @@ export {
   ResourceScope,
   CssInjector,
   PipelineRunner,
+  defineModule,
 } from './platform';
 export type {
+  DefineModuleOptions,
   GridPlatformOptions,
   AnyColDef,
   AnyModule,

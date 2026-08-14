@@ -5,16 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnyModule } from '@wellsfargo-starui/core';
 import { SettingsModuleMenubar } from './SettingsModuleMenubar';
 
-function mod(id: string, name = id): AnyModule {
-  return { id, name } as AnyModule;
+function mod(id: string, category: string | undefined, name = id): AnyModule {
+  return { id, name, category } as AnyModule;
 }
 
 describe('SettingsModuleMenubar — RTL', () => {
   const modules = [
-    mod('general-settings', 'Grid Options'),
-    mod('column-customization', 'Column Settings'),
-    mod('conditional-styling', 'Conditional Styling'),
-    mod('smart-edit', 'Smart Edit'),
+    mod('general-settings', 'options', 'Grid Options'),
+    mod('column-customization', 'columns', 'Column Settings'),
+    mod('conditional-styling', 'styling', 'Conditional Styling'),
+    mod('editing', 'editing', 'Editing'),
   ];
 
   it('renders grouped menubar triggers', () => {

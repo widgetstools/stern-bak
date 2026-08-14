@@ -23,7 +23,7 @@ export { exportVisualExcel, type VisualExcelExportOptions } from './exportVisual
 export const visualExcelModule: Module<VisualExcelState> = {
   id: VISUAL_EXCEL_MODULE_ID,
   name: 'Visual Excel',
-  code: '11',
+  category: 'data',
   schemaVersion: 1,
   priority: 21,
 

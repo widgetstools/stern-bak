@@ -1,4 +1,4 @@
-import type { Module } from '@wellsfargo-starui/core';
+import { defineModule, type Module } from '@wellsfargo-starui/core';
 import {
   INITIAL_TOOLBAR_DATE_SETTINGS,
   TOOLBAR_DATE_SETTINGS_MODULE_ID,
@@ -21,14 +21,15 @@ export {
 export { useToolbarDateSettingsBridge } from './useToolbarDateSettingsBridge';
 export { ToolbarDateSettingsPanel } from './ToolbarDateSettingsPanel';
 
-export const toolbarDateSettingsModule: Module<ToolbarDateSettingsState> = {
+export const toolbarDateSettingsModule: Module<ToolbarDateSettingsState> = defineModule({
   id: TOOLBAR_DATE_SETTINGS_MODULE_ID,
   name: 'Custom Settings',
-  code: '19',
-  schemaVersion: 1,
+  category: 'options',
   priority: 1002,
 
-  getInitialState: () => ({ ...INITIAL_TOOLBAR_DATE_SETTINGS }),
+  // defineModule defaults: schemaVersion 1, identity serialize,
+  // spread-over-initial deserialize + migrate.
+  initialState: INITIAL_TOOLBAR_DATE_SETTINGS,
 
   /** Nudges AG-Grid's external filter to re-run on cell/expression edits. */
   activate: activateRowExclusion,
@@ -43,17 +44,5 @@ export const toolbarDateSettingsModule: Module<ToolbarDateSettingsState> = {
     return { ...opts, ...buildExternalFilterOptions(opts, ctx) };
   },
 
-  serialize: (state) => state,
-
-  deserialize: (raw) => ({
-    ...INITIAL_TOOLBAR_DATE_SETTINGS,
-    ...((raw as Partial<ToolbarDateSettingsState> | null) ?? {}),
-  }),
-
-  migrate: (raw) =>
-    !raw || typeof raw !== 'object'
-      ? { ...INITIAL_TOOLBAR_DATE_SETTINGS }
-      : { ...INITIAL_TOOLBAR_DATE_SETTINGS, ...(raw as Partial<ToolbarDateSettingsState>) },
-
   SettingsPanel: ToolbarDateSettingsPanel,
-};
+});

@@ -27,6 +27,7 @@ export const GRID_STATE_MODULE_ID = 'grid-state';
 export const gridStateModule: Module<GridStateState> = {
   id: GRID_STATE_MODULE_ID,
   name: 'Grid State',
+  category: 'options',
   schemaVersion: GRID_STATE_SCHEMA_VERSION,
   priority: 200,
 
