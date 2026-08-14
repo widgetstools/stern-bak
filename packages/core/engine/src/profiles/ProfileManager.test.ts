@@ -629,6 +629,36 @@ describe('ProfileManager — export/import grid-level data (schemaVersion 2)', (
     manager.dispose();
   });
 
+  it('import-with-activate commits the per-view activeIdSource pointer (parity with load)', async () => {
+    const adapter = new MemoryAdapter();
+    const { platform } = makePlatform(adapter, 'grid-import-src');
+    const written: string[] = [];
+    const manager = new ProfileManager({
+      platform,
+      adapter,
+      disableAutoSave: true,
+      activeIdSource: {
+        read: async () => null,
+        write: async (id: string) => { written.push(id); },
+      },
+    });
+    await manager.boot();
+    written.length = 0;
+
+    const meta = await manager.import({
+      schemaVersion: 1,
+      kind: 'gc-profile',
+      exportedAt: new Date().toISOString(),
+      profile: { name: 'FromFile', gridId: 'grid-import-src', state: {} },
+    });
+
+    // Without this write, an OpenFin workspace restore reverted the user
+    // to the pre-import profile (customData still named the old id).
+    expect(written).toEqual([meta.id]);
+
+    manager.dispose();
+  });
+
   it('import of a v1 payload leaves grid-level data untouched and emits nothing', async () => {
     const adapter = new MemoryAdapter();
     const { platform } = makePlatform(adapter, 'grid-v1');

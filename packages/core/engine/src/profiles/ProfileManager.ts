@@ -754,6 +754,10 @@ export class ProfileManager {
       if (this.autoSave) await this.autoSave.flushNow();
       this.updateState({ activeId: id });
       writeActiveId(gridId, id);
+      // Commit the per-view pointer too — load/create/clone/remove all do.
+      // Without it, an OpenFin workspace restore reverted the user to the
+      // pre-import profile (customData still named the old id).
+      if (this.activeIdSource) await this.writeSourceId(id);
       this.dirtySuppressDepth++;
       try {
         this.platform.resetAll();

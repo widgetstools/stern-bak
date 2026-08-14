@@ -36,8 +36,8 @@ provider selection is **not** part of a profile — it lives in
 `gridLevelData` so a user can pin a provider once and try several
 profiles against it.
 
-Source: [`packages/shared/engine/src/persistence/StorageAdapter.ts`](../packages/shared/engine/src/persistence/StorageAdapter.ts),
-[`packages/shared/engine/src/profiles/types.ts`](../packages/shared/engine/src/profiles/types.ts).
+Source: [`packages/core/engine/src/persistence/StorageAdapter.ts`](../packages/core/engine/src/persistence/StorageAdapter.ts),
+[`packages/core/engine/src/profiles/types.ts`](../packages/core/engine/src/profiles/types.ts).
 
 ### Portable export (profile selector ⬇/⬆ buttons)
 
@@ -55,9 +55,9 @@ the live container update the picker/caption without a reload.
 change, or from a grid whose adapter has no grid-level data) still
 import — they simply leave the grid's existing `gridLevelData` alone.
 
-Source: [`packages/shared/engine/src/profiles/types.ts`](../packages/shared/engine/src/profiles/types.ts)
+Source: [`packages/core/engine/src/profiles/types.ts`](../packages/core/engine/src/profiles/types.ts)
 (`ExportedProfilePayload`),
-[`ProfileManager.export()` / `.import()`](../packages/shared/engine/src/profiles/ProfileManager.ts).
+[`ProfileManager.export()` / `.import()`](../packages/core/engine/src/profiles/ProfileManager.ts).
 Config-table import/export (whole `appConfig` rows, including the bundled
 `gridLevelData`) is a separate, row-level path — see the Config Browser
 and `importConfigBundle`.
@@ -82,7 +82,7 @@ layers:
    `gc-active-profile:<gridId>`. The default fallback used when no
    source is configured or when the source returns `null`.
 
-Source: [`packages/shared/engine/src/profiles/ProfileManager.ts:18-40`](../packages/shared/engine/src/profiles/ProfileManager.ts#L18-L40)
+Source: [`packages/core/engine/src/profiles/ProfileManager.ts:18-40`](../packages/core/engine/src/profiles/ProfileManager.ts#L18-L40)
 (`ActiveIdSource` interface and its JSDoc).
 
 ---
@@ -114,7 +114,7 @@ for the wrapper's wiring.
 
 ## 3. The boot sequence
 
-Source: [`ProfileManager.boot()`](../packages/shared/engine/src/profiles/ProfileManager.ts#L161).
+Source: [`ProfileManager.boot()`](../packages/core/engine/src/profiles/ProfileManager.ts#L161).
 
 ```
 1. Load Default row.
@@ -378,13 +378,13 @@ view and re-opened it in the same browser session", but not for
 
 | Concern | File |
 |---|---|
-| Profile orchestration class | [`packages/shared/engine/src/profiles/ProfileManager.ts`](../packages/shared/engine/src/profiles/ProfileManager.ts) |
+| Profile orchestration class | [`packages/core/engine/src/profiles/ProfileManager.ts`](../packages/core/engine/src/profiles/ProfileManager.ts) |
 | `ActiveIdSource` interface | Same file, lines 18-40 |
-| Profile types | [`packages/shared/engine/src/profiles/types.ts`](../packages/shared/engine/src/profiles/types.ts) |
-| Reserved-id + localStorage key | [`packages/shared/engine/src/persistence/StorageAdapter.ts`](../packages/shared/engine/src/persistence/StorageAdapter.ts) |
-| Memory adapter | [`packages/shared/engine/src/persistence/MemoryAdapter.ts`](../packages/shared/engine/src/persistence/MemoryAdapter.ts) |
-| LocalStorage bundle adapter | [`packages/shared/engine/src/persistence/LocalStorageBundleAdapter.ts`](../packages/shared/engine/src/persistence/LocalStorageBundleAdapter.ts) |
-| ConfigService factory | [`packages/data/host-config/src/profileStorage.ts`](../packages/data/host-config/src/profileStorage.ts) |
+| Profile types | [`packages/core/engine/src/profiles/types.ts`](../packages/core/engine/src/profiles/types.ts) |
+| Reserved-id + localStorage key | [`packages/core/engine/src/persistence/StorageAdapter.ts`](../packages/core/engine/src/persistence/StorageAdapter.ts) |
+| Memory adapter | [`packages/core/engine/src/persistence/MemoryAdapter.ts`](../packages/core/engine/src/persistence/MemoryAdapter.ts) |
+| LocalStorage bundle adapter | [`packages/core/engine/src/persistence/LocalStorageBundleAdapter.ts`](../packages/core/engine/src/persistence/LocalStorageBundleAdapter.ts) |
+| ConfigService factory | [`packages/core/host-config/src/profileStorage.ts`](../packages/core/host-config/src/profileStorage.ts) |
 | React binding (hook) | [`packages/react-grid/grid/src/customizer/hooks/useProfileManager.ts`](../packages/react-grid/grid/src/customizer/hooks/useProfileManager.ts) |
 | OpenFin per-view source | [`packages/react-grid/grid/src/widget/openfinViewProfile.ts`](../packages/react-grid/grid/src/widget/openfinViewProfile.ts) |
 | Profile selector UI | [`packages/react-grid/grid/src/widget/ProfileSelector.tsx`](../packages/react-grid/grid/src/widget/ProfileSelector.tsx) |
@@ -397,7 +397,7 @@ view and re-opened it in the same browser session", but not for
 
 ## 12. Tests covering the contract
 
-- [`packages/shared/engine/src/profiles/ProfileManager.test.ts`](../packages/shared/engine/src/profiles/ProfileManager.test.ts)
+- [`packages/core/engine/src/profiles/ProfileManager.test.ts`](../packages/core/engine/src/profiles/ProfileManager.test.ts)
   — state propagation, switch isolation, delete cycles, disposed
   guards, reload persistence, phantom-profile regressions, clone
   semantics.
