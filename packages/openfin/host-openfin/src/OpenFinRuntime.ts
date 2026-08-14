@@ -8,6 +8,9 @@ import type {
   Unsubscribe,
 } from '@wellsfargo-starui/types';
 import { THEME_STORAGE_KEY } from '@wellsfargo-starui/types';
+// Narrow subpath — pulls only the theme writer, none of the design-system
+// barrel's ag-grid/primeuix adapter imports (this is a vanilla runtime).
+import { applyTheme, getTheme } from '@wellsfargo-starui/design-system/apply-theme';
 import type { RuntimePort } from '@wellsfargo-starui/core/host';
 import type { IdentityOverrides } from '@wellsfargo-starui/core/host/browser';
 import { resolveOpenFinIdentity, getCurrentView, isOpenFin } from './identity.js';
@@ -322,15 +325,15 @@ export class OpenFinRuntime implements RuntimePort {
   }
 
   private writeTheme(theme: Theme): void {
-    if (typeof document !== 'undefined') {
-      try { document.documentElement.setAttribute('data-theme', theme); } catch { /* swallow */ }
-      try { document.documentElement.setAttribute('data-ag-theme-mode', theme); } catch { /* swallow */ }
-      // Defensive: some AG-Grid integrations read body.dataset.agThemeMode.
-      try { document.body.dataset['agThemeMode'] = theme; } catch { /* swallow */ }
-    }
-    if (typeof window !== 'undefined') {
-      try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch { /* swallow */ }
-    }
+    // Route through the design-system's applyTheme — the ONE theme writer.
+    // It stamps data-theme / data-ag-theme-mode / body.dataset.agThemeMode /
+    // the canonical THEME_STORAGE_KEY, AND keeps the sibling cvd/variant
+    // keys + data-variant consistent (spreading getTheme() preserves the
+    // user's cvd/variant choices across a runtime toggle) — previously a
+    // runtime toggle left data-variant stale (WORKLOG item 17).
+    try {
+      applyTheme({ ...getTheme(), theme });
+    } catch { /* swallow — non-DOM context */ }
   }
 
   private broadcastTheme(theme: Theme): void {

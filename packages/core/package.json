@@ -43,6 +43,7 @@
     "ag-grid-community": "^36.1.0"
   },
   "dependencies": {
+    "@wellsfargo-starui/design-system": "*",
     "@wellsfargo-starui/types": "*",
     "dexie": "^4.4.2",
     "ssf": "^0.11.2",

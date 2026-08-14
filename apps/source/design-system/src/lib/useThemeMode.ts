@@ -22,7 +22,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
   const toggle = useCallback(() => {
     setMode((prev) => {
       const next: ThemeMode = prev === 'dark' ? 'light' : 'dark';
-      applyTheme({ theme: next });
+      applyTheme({ ...getTheme(), theme: next }); // spread keeps cvd/variant
       return next;
     });
   }, []);

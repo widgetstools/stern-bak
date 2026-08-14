@@ -71,7 +71,7 @@ export function App() {
 
   const handleToggleTheme = useCallback(() => {
     const next: 'dark' | 'light' = isDark ? 'light' : 'dark';
-    applyTheme({ theme: next });
+    applyTheme({ ...getTheme(), theme: next }); // spread keeps cvd/variant
     setThemeState(next);
   }, [isDark]);
 

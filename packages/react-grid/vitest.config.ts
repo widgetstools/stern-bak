@@ -46,6 +46,13 @@ export default defineConfig({
               replacement: resolve(__dirname, '../design-system/icons-svg/dist/allIcons.js'),
             },
             {
+              // Subpath aliases MUST precede the bare package alias below —
+              // rollup-alias string finds are prefix matches (see WORKLOG
+              // sub-phase 6 "Bare source aliases prefix-match subpath imports").
+              find: '@wellsfargo-starui/design-system/apply-theme',
+              replacement: resolve(__dirname, '../design-system/design-system/dist/applyTheme.js'),
+            },
+            {
               find: '@wellsfargo-starui/design-system',
               replacement: resolve(__dirname, '../design-system/design-system/dist/index.js'),
             },

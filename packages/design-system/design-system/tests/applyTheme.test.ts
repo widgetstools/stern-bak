@@ -20,6 +20,16 @@ describe('applyTheme', () => {
     expect(document.documentElement.setAttribute).toHaveBeenCalledWith('data-theme', 'dark');
   });
 
+  it('stamps body.dataset.agThemeMode (the runtimes route their writes here)', () => {
+    (globalThis as any).document.body = { dataset: {} as Record<string, string> };
+    applyTheme({ theme: 'light' });
+    expect((globalThis as any).document.body.dataset.agThemeMode).toBe('light');
+  });
+
+  it('survives a missing document.body (early boot)', () => {
+    expect(() => applyTheme({ theme: 'dark' })).not.toThrow();
+  });
+
   it('sets data-theme="light" on <html>', () => {
     applyTheme({ theme: 'light' });
     expect(document.documentElement.setAttribute).toHaveBeenCalledWith('data-theme', 'light');

@@ -11,7 +11,7 @@ export function ThemeToggle() {
 
   const toggle = useCallback(() => {
     const next: 'dark' | 'light' = isDark ? 'light' : 'dark';
-    applyTheme({ theme: next });
+    applyTheme({ ...getTheme(), theme: next }); // spread keeps cvd/variant
     setTheme(next);
   }, [isDark]);
 

@@ -10,6 +10,7 @@ import {
   type DockProviderRegistration,
 } from "@openfin/workspace";
 import { THEME_STORAGE_KEY } from "@wellsfargo-starui/types";
+import { applyTheme, getTheme } from "@wellsfargo-starui/design-system/apply-theme";
 import { loadDockConfig, saveDockConfig } from './db';
 import {
   appsToEditorConfig,
@@ -1036,20 +1037,17 @@ function buildDock3Override() {
             void platform.Theme.setSelectedScheme(newScheme);
 
             // Side effects we own (SDK doesn't know about these):
-            //   • Provider window's data-theme attribute (drives our CSS vars)
-            //   • body.dataset.agThemeMode (some AG-Grid integrations read it)
-            //   • Persist to the canonical `starui:theme` storage key — same
-            //     key the `RuntimePort` implementations read/write so a
-            //     provider-window write is visible to child windows on next
-            //     boot.
+            //   • Local theme state via the design-system's applyTheme —
+            //     the ONE theme writer (data-theme, data-ag-theme-mode,
+            //     body.dataset.agThemeMode, the canonical `starui:theme`
+            //     key, and the sibling cvd/variant keys + data-variant —
+            //     previously left stale by this toggle, WORKLOG item 17).
             //   • Dock icon variants (we manage {dark, light} per icon)
             //   • IAB notify content child windows. Payload includes both
             //     `theme` (new schema) and `isDark` (legacy) so windows
             //     running pre-runtime-reducer code stay in sync.
             const themeStr = isDark ? "dark" : "light";
-            try { document.documentElement.setAttribute("data-theme", themeStr); } catch { /* */ }
-            try { document.body.dataset["agThemeMode"] = themeStr; } catch { /* */ }
-            try { localStorage.setItem(THEME_STORAGE_KEY, themeStr); } catch { /* */ }
+            try { applyTheme({ ...getTheme(), theme: themeStr }); } catch { /* non-DOM */ }
             await applyDock3Config();
             console.log(`[Dock3 theme] About to publish IAB '${IAB_THEME_CHANGED}' with { theme: '${themeStr}', isDark: ${isDark} } from uuid='${fin.me?.identity?.uuid}'.`);
             try {

@@ -12,6 +12,10 @@
       "types": "./design-system/dist/index.d.ts",
       "import": "./design-system/dist/index.js"
     },
+    "./apply-theme": {
+      "types": "./design-system/dist/applyTheme.d.ts",
+      "import": "./design-system/dist/applyTheme.js"
+    },
     "./css": "./design-system/dist/css/theme.css",
     "./styles.css": "./design-system/dist/css/styles.css",
     "./reset.css": "./design-system/dist/css/reset.css",

@@ -60,6 +60,13 @@ export function applyTheme(opts: ThemeOptions): void {
   document.documentElement.setAttribute('data-theme', opts.theme);
   // AG Grid v33+ theme modes read `data-ag-theme-mode` (see adapters/agGrid.ts).
   document.documentElement.setAttribute('data-ag-theme-mode', opts.theme);
+  // Defensive twin of the attribute above: some AG-Grid integrations read
+  // `body.dataset.agThemeMode`. This is THE single theme writer (the
+  // RuntimePort implementations and the dock toggle all route here), so
+  // the body stamp lives here too.
+  try {
+    document.body.dataset['agThemeMode'] = opts.theme;
+  } catch { /* body not ready */ }
   applyVariant(opts.variant, opts.theme);
   if (opts.cvd) {
     document.documentElement.setAttribute('data-cvd', 'on');

@@ -136,8 +136,9 @@ module or a different package provides it.
 
 #### Theme runtime
 
-- `applyTheme()` — toggle dark/light + CVD accessibility mode + light variant, persists to `localStorage`
+- `applyTheme()` — **the ONE theme writer**: stamps `data-theme` / `data-ag-theme-mode` / `body.dataset.agThemeMode` / `data-variant` / `data-cvd` and persists the canonical `starui:theme` + sibling `starui:cvd` / `starui:variant` keys. Every other writer routes here — `BrowserRuntime.setTheme`, `OpenFinRuntime.setTheme` (incl. their inbound broadcast handlers), the dock toggle, and `initWorkspace`'s boot re-stamp — so a runtime/dock toggle can no longer leave `data-variant`/cvd stale (closed WORKLOG item 17). Callers preserve cvd/variant with `applyTheme({ ...getTheme(), theme })`
 - `getTheme()` — read persisted theme with legacy key migration
+- `./apply-theme` subpath — narrow entry exporting only `applyTheme`/`getTheme` (+ theme types); what the vanilla runtimes import so they don't drag the root barrel's ag-grid/primeuix adapter imports into non-bundled contexts
 - `ThemeOptions` — `{ theme, cvd?, variant? }` shape; `variant`: `'clinical' | 'paper'` (light only; default `clinical`)
 - DOM: `data-theme="dark|light"`, optional `data-variant="clinical|paper"`, optional `data-cvd="on"`
 - Storage keys: `starui:theme` (canonical), `starui:cvd`, `starui:variant`, with `@wellsfargo-starui/theme` legacy migration

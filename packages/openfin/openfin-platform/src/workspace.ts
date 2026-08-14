@@ -5,6 +5,7 @@ import { Home, Storefront, type App } from "@openfin/workspace";
 import { init, getCurrentSync, ColorSchemeOptionType, type WorkspacePlatformOverrideCallback } from "@openfin/workspace-platform";
 import { createConfigManager, type ConfigManager } from "@wellsfargo-starui/core/host/config";
 import { THEME_STORAGE_KEY } from "@wellsfargo-starui/types";
+import { applyTheme, getTheme } from "@wellsfargo-starui/design-system/apply-theme";
 import {
   peekConfigManager,
   setConfigManager,
@@ -110,19 +111,16 @@ async function runThemeToggle(
 }
 
 /**
- * Flip the `[data-theme]` attribute on this window's documentElement.
- * Keeps the design-system CSS tokens (--bn-*, shadcn aliases, PrimeNG
- * preset via darkModeSelector '[data-theme="dark"]') in sync with the
- * dock's OpenFin theme toggle.
+ * Flip this window's theme via the design-system's `applyTheme` — the ONE
+ * theme writer. It stamps `[data-theme]` / `data-ag-theme-mode` /
+ * `body.dataset.agThemeMode` / the canonical `starui:theme` key, and keeps
+ * the sibling cvd/variant keys + `data-variant` consistent (spreading
+ * `getTheme()` preserves the user's cvd/variant across the dock toggle —
+ * previously left stale, WORKLOG item 17).
  */
 function applyLocalDataTheme(isDark: boolean): void {
   try {
-    const theme = isDark ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", theme);
-    document.body.dataset["agThemeMode"] = theme;
-    // Canonical `starui:theme` key — same key the `RuntimePort`
-    // implementations read/write so windows agree across reloads.
-    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch { /* non-browser or locked */ }
+    applyTheme({ ...getTheme(), theme: isDark ? "dark" : "light" });
   } catch {
     /* not running in a DOM-capable context */
   }
