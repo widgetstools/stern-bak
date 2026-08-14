@@ -106,11 +106,19 @@ export interface ColumnDefinition {
  */
 export interface StompProviderConfig {
   providerType: 'stomp';
+
+  // ─── Connection (read by the worker STOMP transport) ──────────────
   websocketUrl: string;
   listenerTopic: string;
   requestMessage?: string;
   requestBody?: string;
   snapshotEndToken?: string;
+  heartbeat?: {
+    outgoing?: number;
+    incoming?: number;
+  };
+
+  // ─── Row identity & grid-facing schema ────────────────────────────
   /**
    * Unique-row identity. A SINGLE column name keys rows by that one
    * field; an array of column names keys rows by the joined values
@@ -118,18 +126,10 @@ export interface StompProviderConfig {
    * Drives both the worker-side cache (Hub) and AG-Grid's `getRowId`.
    */
   keyColumn?: string | readonly string[];
-  snapshotTimeoutMs?: number;
-  manualTopics?: boolean;
-  dataType?: 'positions' | 'trades' | 'orders' | 'custom';
-  messageRate?: number;
-  batchSize?: number;
-  autoStart?: boolean;
-  heartbeat?: {
-    outgoing?: number;
-    incoming?: number;
-  };
   inferredFields?: FieldInfo[];
   columnDefinitions?: ColumnDefinition[];
+
+  // ─── Hub / wire tuning (defaults in STOMP_TUNING_DEFAULTS) ────────
   /**
    * Master on/off for live-update conflation. Defaults to ON
    * (`undefined` / `true`). Set `false` to deliver every live row
@@ -452,6 +452,28 @@ export interface ProviderTestResult {
 /**
  * Default provider configurations for quick setup
  */
+/**
+ * The EFFECTIVE runtime defaults for the STOMP hub/wire tuning knobs —
+ * the values the worker applies when a field is unset. Single-sourced so
+ * the transport, the hub, and the provider editor's placeholder text can
+ * never disagree (the editor previously showed "0 / JSON default" while
+ * the worker ran 25ms / columnar).
+ */
+export const STOMP_TUNING_DEFAULTS = {
+  /** Trailing-edge live fan-out window (ms). */
+  throttleMs: 25,
+  /** Rows per snapshot postMessage chunk. */
+  snapshotChunkSize: 500,
+  /** stompjs reconnectDelay (ms). */
+  reconnectInitialDelayMs: 5000,
+  /** Heartbeat interval, both directions (ms). */
+  heartbeatMs: 4000,
+  /** Binary hub→window codec — columnar unless explicitly 'json'. */
+  wireFormat: 'columnar' as const,
+  /** SSRM publish window (ms) — 0 = flush per tick. */
+  publishWindowMs: 0,
+};
+
 export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConfig>> = {
   stomp: {
     providerType: 'stomp',
@@ -459,11 +481,6 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     websocketUrl: '',
     snapshotEndToken: 'Success',
     requestBody: 'START',
-    snapshotTimeoutMs: 60000,
-    manualTopics: false,
-    dataType: 'positions',
-    messageRate: 1000,
-    autoStart: false,
     heartbeat: {
       outgoing: 4000,
       incoming: 4000
@@ -477,11 +494,6 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     websocketUrl: '',
     snapshotEndToken: 'Success',
     requestBody: 'START',
-    snapshotTimeoutMs: 60000,
-    manualTopics: false,
-    dataType: 'positions',
-    messageRate: 1000,
-    autoStart: false,
     blockSize: 100,
     heartbeat: {
       outgoing: 4000,

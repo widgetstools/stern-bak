@@ -4,6 +4,7 @@
  */
 import { Input, Label } from '@wellsfargo-starui/react';
 import type { StompSsrmProviderConfig } from '@wellsfargo-starui/types/shared';
+import { STOMP_TUNING_DEFAULTS } from '@wellsfargo-starui/types/shared';
 import { StompFields } from './StompFields.js';
 
 export interface StompSsrmFieldsProps {
@@ -41,6 +42,28 @@ export function StompSsrmFields({ cfg, onChange }: StompSsrmFieldsProps) {
           <p className="text-[11px] text-muted-foreground">
             Hint for AG Grid <code className="bg-muted px-1 rounded text-[10px]">cacheBlockSize</code>
             {' '}(worker pages by each getRows request).
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Publish window (ms)
+          </Label>
+          <Input
+            className="h-8 text-sm font-mono"
+            type="number"
+            min={0}
+            max={5000}
+            step={50}
+            value={cfg.publishWindowMs ?? STOMP_TUNING_DEFAULTS.publishWindowMs}
+            onChange={(e) => {
+              const v = Number(e.target.value) || 0;
+              onChange({ publishWindowMs: v > 0 ? v : undefined });
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Worker-side flush window for SSRM ticks — accumulate row updates and fan
+            them out at most once per window. Unset/0 = flush per tick. Previously
+            seed-file-only; a Restart applies changes.
           </p>
         </div>
       </section>

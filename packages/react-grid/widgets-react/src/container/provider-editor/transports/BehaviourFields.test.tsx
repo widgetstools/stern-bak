@@ -57,10 +57,12 @@ describe('BehaviourFields', () => {
     await user.click(screen.getByRole('switch', { name: /Thin field-level deltas/i }));
     await user.click(screen.getByRole('switch', { name: /Conflate updates/i }));
     await user.click(screen.getByRole('switch', { name: /Keep only column fields/i }));
-    const wireCombo = screen.getAllByRole('combobox').find((c) => c.textContent?.includes('JSON'))!;
+    // Unset wireFormat now DISPLAYS the effective runtime default
+    // (columnar) instead of lying with "JSON (default)".
+    const wireCombo = screen.getAllByRole('combobox').find((c) => c.textContent?.includes('Columnar'))!;
     await user.click(wireCombo);
-    await user.click(await screen.findByRole('option', { name: /Columnar/i }));
-    expect(onChange).toHaveBeenCalled();
+    await user.click(await screen.findByRole('option', { name: /^JSON$/i }));
+    expect(onChange).toHaveBeenCalledWith({ wireFormat: 'json' });
   });
 
   it('derives conflate options from inferred fields when column defs are absent', async () => {

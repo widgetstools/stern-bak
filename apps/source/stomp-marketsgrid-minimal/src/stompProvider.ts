@@ -74,10 +74,7 @@ const stompLive: StompProviderConfig = {
   requestMessage: liveRequestMessage,
   requestBody: '',
   snapshotEndToken: 'Success',
-  snapshotTimeoutMs: 60_000,
-  dataType: 'positions',
   keyColumn: 'positionId',
-  autoStart: false,
   // Snapshot flush frame size (rows per worker→client postMessage).
   // Smaller keeps each main-thread message under the long-task budget.
   snapshotChunkSize: 1000,

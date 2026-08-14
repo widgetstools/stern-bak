@@ -137,7 +137,6 @@ function cfg(overrides: Partial<StompProviderConfig> = {}): StompProviderConfig 
     requestBody: '',
     snapshotEndToken: 'Success',
     keyColumn: 'id',
-    snapshotTimeoutMs: 30000,
     ...overrides,
   } as StompProviderConfig;
 }

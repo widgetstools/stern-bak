@@ -58,6 +58,7 @@
  */
 
 import type { StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
+import { STOMP_TUNING_DEFAULTS } from '@wellsfargo-starui/types';
 
 /** STOMP wire config — CSRM `stomp` or SSRM `stomp-ssrm` share the same transport. */
 export type StompTransportConfig = StompProviderConfig | StompSsrmProviderConfig;
@@ -88,7 +89,7 @@ import { validateStompPathContract } from './stompPathContract.js';
  * Overridable per provider via `cfg.snapshotChunkSize` (settable in
  * code or the provider editor); this is the fallback default.
  */
-const SNAPSHOT_CHUNK_SIZE = 500;
+const SNAPSHOT_CHUNK_SIZE = STOMP_TUNING_DEFAULTS.snapshotChunkSize;
 
 // ─── Minimal structural type for the stompjs Client we use ────────
 
@@ -348,7 +349,7 @@ export function startStomp(
   // Default 25 ms conflation window: an unconfigured provider on a
   // 10k msg/sec feed otherwise ran bufferedDispatch in passthrough
   // mode — one emit → encode → fan-out PER MESSAGE.
-  const liveThrottleMs = throttleEnabled ? (cfg.throttleMs ?? 25) : 0;
+  const liveThrottleMs = throttleEnabled ? (cfg.throttleMs ?? STOMP_TUNING_DEFAULTS.throttleMs) : 0;
   // `uniqueKeys` only when the conflation MAP actually builds the
   // batch — with a zero window, bufferedDispatch passes rows through
   // un-conflated and the claim would be false.
@@ -550,7 +551,7 @@ export function startStomp(
     const generation = ++state.connectGeneration;
     state.receivingSnapshot = false;
     emit({ status: 'loading' });
-    const reconnectDelayMs = cfg.reconnect?.initialDelayMs ?? 5000;
+    const reconnectDelayMs = cfg.reconnect?.initialDelayMs ?? STOMP_TUNING_DEFAULTS.reconnectInitialDelayMs;
     trace(`start() gen=${generation} → loading`);
 
     let client: StompClient;
@@ -567,8 +568,8 @@ export function startStomp(
       client = factory({
         brokerURL: cfg.websocketUrl,
         reconnectDelay: reconnectDelayMs,
-        heartbeatIncoming: cfg.heartbeat?.incoming ?? 4000,
-        heartbeatOutgoing: cfg.heartbeat?.outgoing ?? 4000,
+        heartbeatIncoming: cfg.heartbeat?.incoming ?? STOMP_TUNING_DEFAULTS.heartbeatMs,
+        heartbeatOutgoing: cfg.heartbeat?.outgoing ?? STOMP_TUNING_DEFAULTS.heartbeatMs,
       });
     } catch (err) {
       emit({ status: 'error', error: err instanceof Error ? err.message : String(err) });
@@ -907,8 +908,8 @@ export async function connectStomp(
           brokerURL: resolvedCfg.websocketUrl,
           // A connection test must not auto-retry — fail fast.
           reconnectDelay: 0,
-          heartbeatIncoming: resolvedCfg.heartbeat?.incoming ?? 4000,
-          heartbeatOutgoing: resolvedCfg.heartbeat?.outgoing ?? 4000,
+          heartbeatIncoming: resolvedCfg.heartbeat?.incoming ?? STOMP_TUNING_DEFAULTS.heartbeatMs,
+          heartbeatOutgoing: resolvedCfg.heartbeat?.outgoing ?? STOMP_TUNING_DEFAULTS.heartbeatMs,
         });
       } catch (err) {
         finish({ ok: false, error: err instanceof Error ? err.message : String(err) });

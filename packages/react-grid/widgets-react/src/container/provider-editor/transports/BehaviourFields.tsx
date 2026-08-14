@@ -23,6 +23,7 @@ import {
   Switch,
 } from '@wellsfargo-starui/react';
 import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types/shared';
+import { STOMP_TUNING_DEFAULTS, type StompSsrmProviderConfig } from '@wellsfargo-starui/types/shared';
 
 export interface BehaviourFieldsProps {
   cfg: ProviderConfig;
@@ -32,9 +33,14 @@ export interface BehaviourFieldsProps {
 /** Sentinel for "no conflation column" — Radix Select forbids empty-string values. */
 const CONFLATE_NONE = '__none__';
 
+type StompLikeConfig = StompProviderConfig | StompSsrmProviderConfig;
+
 export function BehaviourFields({ cfg, onChange }: BehaviourFieldsProps) {
-  if (cfg.providerType === 'stomp') {
-    return <StompBehaviour cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
+  // stomp-ssrm runs the identical worker transport — every knob below is
+  // read off it too. Gating on 'stomp' alone made all nine tuning
+  // settings unreachable for SSRM providers.
+  if (cfg.providerType === 'stomp' || cfg.providerType === 'stomp-ssrm') {
+    return <StompBehaviour cfg={cfg as StompLikeConfig} onChange={onChange as (n: Partial<StompLikeConfig>) => void} />;
   }
   return (
     <section className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
@@ -44,13 +50,13 @@ export function BehaviourFields({ cfg, onChange }: BehaviourFieldsProps) {
 }
 
 /** Column names available for conflation, from column defs then inferred fields. */
-function conflateFieldOptions(cfg: StompProviderConfig): string[] {
+function conflateFieldOptions(cfg: StompLikeConfig): string[] {
   const fromCols = (cfg.columnDefinitions ?? []).map((c) => c.field);
   if (fromCols.length > 0) return [...new Set(fromCols)];
   return [...new Set((cfg.inferredFields ?? []).map((f) => f.path))];
 }
 
-function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(next: Partial<StompProviderConfig>): void }) {
+function StompBehaviour({ cfg, onChange }: { cfg: StompLikeConfig; onChange(next: Partial<StompLikeConfig>): void }) {
   const fieldOptions = conflateFieldOptions(cfg);
   // Both default ON: undefined / true → enabled, only explicit false disables.
   const throttleEnabled = cfg.throttleEnabled !== false;
@@ -68,7 +74,7 @@ function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(
             min={0}
             max={60_000}
             step={500}
-            value={cfg.reconnect?.initialDelayMs ?? 5000}
+            value={cfg.reconnect?.initialDelayMs ?? STOMP_TUNING_DEFAULTS.reconnectInitialDelayMs}
             onChange={(e) => onChange({
               reconnect: { ...(cfg.reconnect ?? {}), initialDelayMs: Number(e.target.value) || 0 },
             })}
@@ -102,15 +108,15 @@ function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(
             max={10_000}
             step={50}
             disabled={!throttleEnabled}
-            value={cfg.throttleMs ?? 0}
+            value={cfg.throttleMs ?? STOMP_TUNING_DEFAULTS.throttleMs}
             onChange={(e) => {
               const v = Number(e.target.value) || 0;
               onChange({ throttleMs: v > 0 ? v : undefined });
             }}
           />
           <p className="text-[11px] text-muted-foreground">
-            Coalesce live deltas into a trailing-edge burst every N ms. 0 = immediate
-            (no batching). Turn the switch off to fan out every delta immediately while
+            Coalesce live deltas into a trailing-edge burst every N ms (unset = 25 ms
+            default). Turn the switch off to fan out every delta immediately while
             keeping this value. Conflation below only applies when throttling is on.
           </p>
         </div>
@@ -178,7 +184,7 @@ function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(
             min={1}
             max={100_000}
             step={100}
-            value={cfg.snapshotChunkSize ?? 500}
+            value={cfg.snapshotChunkSize ?? STOMP_TUNING_DEFAULTS.snapshotChunkSize}
             onChange={(e) => {
               const v = Math.floor(Number(e.target.value) || 0);
               onChange({ snapshotChunkSize: v > 0 ? v : undefined });
@@ -192,15 +198,15 @@ function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground">Wire format</Label>
           <Select
-            value={cfg.wireFormat ?? 'json'}
-            onValueChange={(v) => onChange({ wireFormat: v === 'columnar' ? 'columnar' : undefined })}
+            value={cfg.wireFormat ?? STOMP_TUNING_DEFAULTS.wireFormat}
+            onValueChange={(v) => onChange({ wireFormat: v === 'json' ? 'json' : undefined })}
           >
             <SelectTrigger className="h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="json">JSON (default)</SelectItem>
-              <SelectItem value="columnar">Columnar (typed arrays)</SelectItem>
+              <SelectItem value="columnar">Columnar (typed arrays, default)</SelectItem>
+              <SelectItem value="json">JSON</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground">
