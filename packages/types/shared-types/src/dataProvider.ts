@@ -541,22 +541,34 @@ export function validateProviderConfig(config: ProviderConfig): ProviderValidati
     errors.push('Provider type is required');
   }
 
+  // Hard errors mirror what the transports actually require: the STOMP
+  // transport dials `websocketUrl` verbatim (transports/stomp.ts) and the
+  // REST transport refuses to start without `baseUrl` + `endpoint`
+  // (transports/rest.ts). Anything the transport would reject at attach
+  // time must be rejected at save time.
   switch (config.providerType) {
     case 'stomp':
     case 'stomp-ssrm': {
       const stompConfig = config as StompProviderConfig | StompSsrmProviderConfig;
-      if (stompConfig.websocketUrl && !stompConfig.websocketUrl.startsWith('ws://') && !stompConfig.websocketUrl.startsWith('wss://')) {
+      if (!stompConfig.websocketUrl || stompConfig.websocketUrl.trim().length === 0) {
+        errors.push('WebSocket URL is required for STOMP providers');
+      } else if (!stompConfig.websocketUrl.startsWith('ws://') && !stompConfig.websocketUrl.startsWith('wss://')) {
         warnings.push('WebSocket URL should typically start with ws:// or wss://');
       }
-      if (stompConfig.snapshotTimeoutMs && stompConfig.snapshotTimeoutMs < 1000) {
-        warnings.push('Snapshot timeout is very low (< 1 second)');
+      if (!stompConfig.listenerTopic || stompConfig.listenerTopic.trim().length === 0) {
+        errors.push('Listener topic is required for STOMP providers');
       }
       break;
     }
     case 'rest': {
       const restConfig = config as RestProviderConfig;
-      if (restConfig.baseUrl && !restConfig.baseUrl.startsWith('http://') && !restConfig.baseUrl.startsWith('https://')) {
+      if (!restConfig.baseUrl || restConfig.baseUrl.trim().length === 0) {
+        errors.push('Base URL is required for REST providers');
+      } else if (!restConfig.baseUrl.startsWith('http://') && !restConfig.baseUrl.startsWith('https://')) {
         warnings.push('Base URL should typically start with http:// or https://');
+      }
+      if (!restConfig.endpoint || restConfig.endpoint.trim().length === 0) {
+        errors.push('Endpoint is required for REST providers');
       }
       if (restConfig.pollInterval && restConfig.pollInterval < 1000) {
         warnings.push('Poll interval is very low (< 1 second), may cause high server load');

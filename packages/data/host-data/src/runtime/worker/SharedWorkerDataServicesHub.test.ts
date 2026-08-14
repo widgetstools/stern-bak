@@ -151,6 +151,36 @@ describe('SharedWorkerDataServicesHub — attach lifecycle', () => {
     expect(port.messages[0]).toMatchObject({ kind: 'status', status: 'error' });
   });
 
+  it('restart-with-cfg posts status:error instead of throwing when the new cfg is invalid', () => {
+    const hub = new SharedWorkerDataServicesHub();
+    const port = makePort();
+
+    // Boot a healthy provider first.
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg() });
+    port.messages.length = 0;
+
+    // Restart the RUNNING provider with a cfg whose type has no factory.
+    // Before the guard this threw straight through handleRequest — the
+    // worker's message handler died and the client hung in 'loading'.
+    expect(() =>
+      hub.handleRequest(port, {
+        kind: 'attach',
+        subId: 's2',
+        providerId: 'p1',
+        mode: 'data',
+        cfg: { providerType: 'no-such-transport' } as never,
+        // The restart-with-cfg branch gates on `extra` — the editor's
+        // Restart button always sends one.
+        extra: { restartRequestedAt: 1 },
+      }),
+    ).not.toThrow();
+    const err = port.messages.find(
+      (m) => m.kind === 'status' && (m as { status?: string }).status === 'error',
+    );
+    expect(err).toBeDefined();
+    expect((err as { error?: string }).error).toMatch(/No provider factory/i);
+  });
+
   it('late joiner gets the full cache as one replace delta', () => {
     const hub = new SharedWorkerDataServicesHub();
     const portA = makePort();

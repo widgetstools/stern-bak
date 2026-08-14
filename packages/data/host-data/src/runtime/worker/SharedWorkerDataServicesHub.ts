@@ -330,7 +330,23 @@ export class SharedWorkerDataServicesHub {
         this.traceStompAttachCfg('hub.attach RESTART+RECONFIG (running provider)', req.providerId, req.cfg, req.extra);
         // eslint-disable-next-line no-console
         console.log(`[v2/hub][trace] attach RESTART+RECONFIG provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
-        slot = this.recreateProvider(req.providerId, req.cfg);
+        // Same guard as the CREATE branch: recreateProvider rethrows on a
+        // bad cfg (unknown type, unresolved AppData tokens). Uncaught it
+        // would kill the worker's message handler with no status posted —
+        // the client then hangs in 'loading' forever. This is exactly the
+        // provider editor's restart-after-edit path.
+        try {
+          slot = this.recreateProvider(req.providerId, req.cfg);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          port.postMessage({
+            subId: req.subId,
+            kind: 'status',
+            status: 'error',
+            error: message,
+          } satisfies Event);
+          return;
+        }
         void slot.handle.restart(req.extra);
         slot.activeRestartExtra = req.extra;
         isRestartAttach = true;

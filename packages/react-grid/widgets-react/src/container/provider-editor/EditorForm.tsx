@@ -25,6 +25,7 @@ import {
 } from '@wellsfargo-starui/react';
 import { CheckCircle2, Columns3, Copy, Download, Loader2, X } from 'lucide-react';
 import type { ColumnDefinition, DataProviderConfig, ProviderConfig } from '@wellsfargo-starui/types/shared';
+import { validateProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataServices } from '@wellsfargo-starui/react/data/runtime';
 import { exportProviderConfig } from './providerConfigIo.js';
 import { useProviderProbe } from './useProviderProbe.js';
@@ -144,6 +145,14 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
   const currentKeyColumn = readKeyColumn(provider.config);
 
   const onSave = async () => {
+    // Reject what the transport would reject at attach time — a provider
+    // with no broker URL saves "successfully" today and fails later, in a
+    // different window, with no path back to this form.
+    const validation = validateProviderConfig(provider.config);
+    if (!validation.isValid) {
+      setSaveError(validation.errors.join('; '));
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {

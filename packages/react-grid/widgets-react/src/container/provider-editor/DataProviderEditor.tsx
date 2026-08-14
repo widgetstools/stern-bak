@@ -25,7 +25,7 @@ import {
 } from '@wellsfargo-starui/react';
 import { Database, Copy, Globe, Plus, Radio, Search, Trash2, TestTube2, Upload } from 'lucide-react';
 import type { DataProviderConfig, ProviderConfig, ProviderType } from '@wellsfargo-starui/types/shared';
-import { getDefaultProviderConfig } from '@wellsfargo-starui/types/shared';
+import { getDefaultProviderConfig, validateProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useDataServices, useDataProvidersList } from '@wellsfargo-starui/react/data/runtime';
 import { cloneProviderConfig } from './cloneProviderConfig.js';
 import { parseProviderConfigImport, type PortableProviderConfig } from './providerConfigIo.js';
@@ -139,6 +139,12 @@ export function DataProviderEditor({ userId, initialProviderId = null, onClose }
       portable = parseProviderConfigImport(await file.text());
     } catch (err) {
       window.alert(`Could not import provider: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    // Imported JSON is fully untrusted — parse checks only the envelope.
+    const validation = validateProviderConfig(portable.config);
+    if (!validation.isValid) {
+      window.alert(`Could not import provider: ${validation.errors.join('; ')}`);
       return;
     }
     try {

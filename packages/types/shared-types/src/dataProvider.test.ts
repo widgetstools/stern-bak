@@ -94,15 +94,35 @@ describe('validateProviderConfig', () => {
     const result = validateProviderConfig({
       providerType: 'stomp',
       websocketUrl: 'wss://feed/ws',
-      snapshotTimeoutMs: 60000,
+      listenerTopic: '/snapshot/positions/t1',
     } as ProviderConfig);
     expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
+  });
+
+  it('rejects a stomp config without a websocketUrl — the transport dials it verbatim', () => {
+    const result = validateProviderConfig({
+      providerType: 'stomp',
+      listenerTopic: '/snapshot/positions/t1',
+    } as ProviderConfig);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toEqual(['WebSocket URL is required for STOMP providers']);
+  });
+
+  it('rejects a stomp config with a blank listenerTopic', () => {
+    const result = validateProviderConfig({
+      providerType: 'stomp-ssrm',
+      websocketUrl: 'ws://feed/ws',
+      listenerTopic: '   ',
+    } as ProviderConfig);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toEqual(['Listener topic is required for STOMP providers']);
   });
 
   it('warns — but stays valid — on a non-ws stomp URL', () => {
     const result = validateProviderConfig({
       providerType: 'stomp',
       websocketUrl: 'https://feed/ws',
+      listenerTopic: '/t',
     } as ProviderConfig);
     expect(result.isValid).toBe(true);
     expect(result.warnings).toEqual([
@@ -110,42 +130,39 @@ describe('validateProviderConfig', () => {
     ]);
   });
 
-  it('warns on a sub-second stomp snapshot timeout', () => {
+  it('rejects a rest config missing baseUrl and endpoint — the transport requires both', () => {
     const result = validateProviderConfig({
-      providerType: 'stomp',
-      snapshotTimeoutMs: 500,
+      providerType: 'rest',
     } as ProviderConfig);
-    expect(result.warnings).toEqual(['Snapshot timeout is very low (< 1 second)']);
-  });
-
-  it('collects both stomp warnings at once', () => {
-    const result = validateProviderConfig({
-      providerType: 'stomp',
-      websocketUrl: 'http://feed',
-      snapshotTimeoutMs: 1,
-    } as ProviderConfig);
-    expect(result.warnings).toHaveLength(2);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toEqual([
+      'Base URL is required for REST providers',
+      'Endpoint is required for REST providers',
+    ]);
   });
 
   it('warns on a non-http rest base URL and a sub-second poll interval', () => {
     const result = validateProviderConfig({
       providerType: 'rest',
       baseUrl: 'ftp://host',
+      endpoint: '/positions',
       pollInterval: 100,
     } as ProviderConfig);
+    expect(result.isValid).toBe(true);
     expect(result.warnings).toEqual([
       'Base URL should typically start with http:// or https://',
       'Poll interval is very low (< 1 second), may cause high server load',
     ]);
   });
 
-  it('accepts an https rest base URL', () => {
+  it('accepts an https rest config with both required fields', () => {
     const result = validateProviderConfig({
       providerType: 'rest',
       baseUrl: 'https://host',
+      endpoint: '/positions',
       pollInterval: 5000,
     } as ProviderConfig);
-    expect(result.warnings).toBeUndefined();
+    expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
   });
 
   it('has no per-type rules for mock / appdata', () => {
