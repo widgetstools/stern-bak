@@ -1,6 +1,7 @@
-/* Design-system tokens + theme surfaces, then MarketsGrid chrome. */
-@import '@wellsfargo-starui/design-system/css';
-@import '@wellsfargo-starui/grid/styles.css';
+/* THE zero-config stylesheet: design tokens + self-hosted fonts + every
+   component's compiled utilities + the grid's chrome — the one styling
+   import an app with no Tailwind pipeline needs. */
+@import '@wellsfargo-starui/design-system/styles.css';
 
 html,
 body,

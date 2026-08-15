@@ -45,8 +45,7 @@ import {
   createMarketsGridLocalStorageStorage,
 } from '@wellsfargo-starui/grid';
 import { applyTheme, getTheme } from '@wellsfargo-starui/design-system';
-import '@wellsfargo-starui/design-system/styles.css';
-import '@wellsfargo-starui/grid/styles.css';
+import '@wellsfargo-starui/design-system/styles.css'; // tokens + fonts + component utilities + grid chrome
 
 const storage = createMarketsGridLocalStorageStorage();
 
@@ -134,12 +133,17 @@ createRoot(document.getElementById('root')!).render(
 );
 ```
 
-with a two-line stylesheet (`index.css`):
+with a one-line stylesheet (`index.css`):
 
 ```css
-@import '@wellsfargo-starui/design-system/css';
-@import '@wellsfargo-starui/grid/styles.css';
+@import '@wellsfargo-starui/design-system/styles.css';
 ```
+
+That single import is the zero-config stylesheet: design tokens +
+self-hosted fonts + every component's compiled utilities + the grid's
+chrome. (Apps that run their own Tailwind pipeline — like the other demo
+apps — import `…/design-system/css` + `…/grid/styles.css` instead and
+generate the component utilities themselves.)
 
 What the 27 lines buy: one upstream STOMP connection shared by every
 window, server-side row model paging from the SharedWorker's query plane,

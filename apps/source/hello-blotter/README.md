@@ -31,7 +31,7 @@ are declared anywhere.
 | File | What |
 |---|---|
 | `src/main.tsx` | the whole app — `createStarui` + `<StarGrid>` (27 lines) |
-| `src/index.css` | design-system tokens + grid chrome (2 imports) |
+| `src/index.css` | ONE import — the zero-config `design-system/styles.css` (tokens + fonts + component utilities + grid chrome) |
 | `index.html` | `<html data-theme="dark">` + the root div |
 | `vite.config.ts` | shared consumer Vite config (`{ worker: true }` for the SharedWorker) |
 
