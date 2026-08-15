@@ -96,12 +96,78 @@ pre-wired to the tokens) — not native `<input>` / `<select>` / `<textarea>`:
 import { Button, Tooltip, TooltipTrigger, TooltipContent } from '@wellsfargo-starui/react';
 ```
 
-### Live data (optional)
+### Live data — the whole platform in 27 lines
 
-To feed grids from a shared upstream connection, add
-`@wellsfargo-starui/data`: the SharedWorker owns one STOMP session per
-browser profile and fans snapshots + thin deltas out to every window. See
-[architecture.md § data services](./architecture.md#5-data-services).
+The north-star app is `apps/source/hello-blotter`: a live 20,000-row SSRM
+blotter in one 27-line file and two starui import specifiers. This is the
+recommended shape for a new app — `createStarui()` boots the platform
+(SharedWorker data hub, provider catalog, storage, identity) and
+`<StarGrid>` renders the grid, inferring its mode from the provider:
+
+```tsx
+import { createRoot } from 'react-dom/client';
+import { createStarui } from '@wellsfargo-starui/react/data/runtime';
+import { StarGrid } from '@wellsfargo-starui/grid/widgets';
+import './index.css';
+
+const starui = createStarui({
+  appId: 'HelloBlotter',
+  userId: 'demo',
+  providers: [{
+    providerId: 'dp-hello-positions', name: 'Positions (live)',
+    providerType: 'stomp-ssrm', userId: 'demo',
+    config: {
+      providerType: 'stomp-ssrm',
+      websocketUrl: 'ws://localhost:8081',
+      listenerTopic: '/snapshot/positions/trd1',
+      requestMessage: '/snapshot/positions/trd1/1000/10',
+      snapshotEndToken: 'Success',
+      keyColumn: 'positionId', publishWindowMs: 200,
+    },
+  }],
+});
+
+createRoot(document.getElementById('root')!).render(
+  <starui.Provider>
+    <StarGrid gridId="hello-blotter" providerId="dp-hello-positions" title="Positions" fullBleed />
+  </starui.Provider>,
+);
+```
+
+with a two-line stylesheet (`index.css`):
+
+```css
+@import '@wellsfargo-starui/design-system/css';
+@import '@wellsfargo-starui/grid/styles.css';
+```
+
+What the 27 lines buy: one upstream STOMP connection shared by every
+window, server-side row model paging from the SharedWorker's query plane,
+columns inferred from the feed (no `columnDefs`), the full customizer +
+profile persistence, dark/light theming, and workspace-save flushing under
+OpenFin. Notes:
+
+- `providers` seeds the catalog **create-if-missing** — the `providerId`
+  must be deterministic (random ids would re-seed a new row every launch),
+  and later edits in the Data Provider Editor survive reloads.
+- `<StarGrid>` infers its mode: a named SSRM provider → SSRM container; a
+  CSRM provider → CSRM container; `rowData` → static grid; neither → a
+  container whose provider is picked at runtime in the customizer.
+- The full provider-config field reference is
+  [provider-config.md](./provider-config.md); the AppData key/value layer
+  is [appdata.md](./appdata.md).
+
+**Run it against live data** (from this repo):
+
+```bash
+npm run app -- hello-blotter     # starts the STOMP fixture feed (:8081) + the app (:5177)
+```
+
+Open http://localhost:5177 — the blotter fills with a 20k-row snapshot and
+ticks live updates. The feed is `apps/source/stomp-view-server` (synthetic
+fixed-income positions over STOMP-with-WebSocket); the provider's
+`requestMessage` `/snapshot/positions/trd1/1000/10` asks for client id
+`trd1` at 1,000 row-updates/sec in batches of 10.
 
 ---
 
@@ -137,7 +203,7 @@ OpenFin launcher when asked:
 ```bash
 npm run app                                   # list apps + ports
 npm run app -- basic                          # one app, source track
-npm run app -- stomp-marketsgrid-minimal      # broker starts automatically
+npm run app -- hello-blotter                  # broker starts automatically
 npm run app -- star-demo --openfin            # dev server, then OpenFin platform
 npm run app -- markets-grid-lab --tarball     # the generated twin (:6300)
 ```
@@ -146,8 +212,11 @@ npm run app -- markets-grid-lab --tarball     # the generated twin (:6300)
 
 | App | Port | Purpose |
 |---|---|---|
+| `hello-blotter` | 5177 | **the north star** — live SSRM blotter in 27 lines (`createStarui` + `<StarGrid>`) |
 | `star-demo` | 5175 | OpenFin workspace demo; primary e2e target |
+| `star-demo-ssrm` | 5176 | star-demo's SSRM twin (`stomp-ssrm` provider) |
 | `markets-grid-lab` | 5300 | MarketsGrid editing / profiles lab |
+| `markets-grid-ssrm-lab` | 5320 | SSRM feature lab (mock-ssrm provider) |
 | `design-system` | 5310 | design-system showcase |
 | `stomp-marketsgrid-minimal` | 5213 | smallest STOMP → grid path |
 | `basic` | 5194 | tutorial — minimal grid host |

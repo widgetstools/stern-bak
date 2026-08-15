@@ -33,6 +33,7 @@ const APPS = {
   'basic':                     { port: 5194, broker: 'none' },
   'dataprovider-editor':       { port: 5193, broker: 'none' },
   'design-system':             { port: 5310, broker: 'none' },
+  'hello-blotter':             { port: 5177, broker: 'required' },
   'markets-grid-lab':          { port: 5300, broker: 'none' },
   'markets-grid-ssrm-lab':     { port: 5320, broker: 'none' },
   'star-demo':                 { port: 5175, broker: 'auto', openfin: true },
