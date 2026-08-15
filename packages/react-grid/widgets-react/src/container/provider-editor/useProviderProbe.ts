@@ -15,6 +15,43 @@ import { resolveCfg } from '@wellsfargo-starui/data/runtime';
 import { useAppDataStore } from '@wellsfargo-starui/react/data/runtime';
 import type { TransportConfig, FieldNode } from '@wellsfargo-starui/types/shared';
 
+/**
+ * How long the probe path waits for AppData to hydrate before giving up
+ * and going ahead anyway.
+ *
+ * AppData is a *nicety* here — it only supplies values for `{{name.key}}`
+ * tokens in the config. But `AppDataMirror.ready()` resolves solely when
+ * the hub's `appdata-snapshot` arrives, and `attach()` is fire-and-forget:
+ * no timeout, no retry, no reject path. So when that snapshot never landed
+ * (worker busy, attach lost, port recycled) `await ready()` never settled,
+ * and because it sits BEFORE the probe dispatch, `connectStomp`'s own 10s
+ * timeout was never reached either — the editor's Test Connection button
+ * sat on "Connecting…" indefinitely with no error. Browser-confirmed still
+ * spinning at 30s.
+ *
+ * Bounding it degrades gracefully: an unresolved token reads as `undefined`,
+ * exactly as it does on any pre-hydration read, and the probe's own timeout
+ * governs from there.
+ */
+const APPDATA_READY_TIMEOUT_MS = 3_000;
+
+/** `store.ready()`, but never pending for longer than the timeout above.
+ *  Always resolves — a rejected `ready()` is as non-fatal as a slow one. */
+function readyOrTimeout(store: { ready(): Promise<void> }): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, APPDATA_READY_TIMEOUT_MS);
+    const settle = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    try {
+      void store.ready().then(settle, settle);
+    } catch {
+      settle();
+    }
+  });
+}
+
 export interface ProbeState {
   testing: boolean;
   testResult: { success: boolean; rowCount?: number; error?: string } | null;
@@ -52,7 +89,7 @@ export function useProviderProbe(cfg: TransportConfig | null): ProbeState {
     if (!cfg) return;
     setState((s) => ({ ...s, testing: true, testResult: null }));
     try {
-      await appDataStore.ready();
+      await readyOrTimeout(appDataStore);
       const result = await testConnectionOnce(resolveAppDataTokens(cfg), { maxRows: 5, timeoutMs: 10_000 });
       setState((s) => ({
         ...s,
@@ -78,7 +115,7 @@ export function useProviderProbe(cfg: TransportConfig | null): ProbeState {
     const sampleSize = opts.sampleSize ?? 200;
     setState((s) => ({ ...s, inferring: true, inferenceError: null }));
     try {
-      await appDataStore.ready();
+      await readyOrTimeout(appDataStore);
       const fetchSize = Math.min(Math.max(sampleSize * 2, sampleSize + 50), 1000);
       const result = await probeOnce(resolveAppDataTokens(cfg), { maxRows: fetchSize, timeoutMs: 30_000 });
       if (!result.ok) {
