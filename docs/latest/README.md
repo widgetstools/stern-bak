@@ -9,6 +9,7 @@ The current documentation set for the StarUI (MarketsUI) platform.
 | [architecture.md](./architecture.md) | layer model, dependency graph, runtime host/port model, data services, build & consumption tracks — with diagrams | engineers + reviewers |
 | [packages.md](./packages.md) | per-package reference: role, export subpaths, peers | anyone importing a package |
 | [ssrm-engine.md](./ssrm-engine.md) | the transport-agnostic SSRM query/aggregation engine | engineers touching server-side row model |
+| [provider-config.md](./provider-config.md) | data-provider config reference — generated from the types | anyone authoring a provider |
 
 ## Related references (outside this set)
 

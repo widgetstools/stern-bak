@@ -180,13 +180,14 @@ export interface StompProviderConfig {
   /**
    * Wire codec for binary hub→window frames (snapshot replay, restart
    * broadcast, large live batches).
-   *   - `'json'` (default) — UTF-8 `JSON.stringify` bytes, decoded
-   *     with `JSON.parse`.
-   *   - `'columnar'` — typed-array columnar frames: numbers travel as
-   *     raw Float64 and booleans as bitmaps, cutting each window's
-   *     per-frame decode several-fold on number-heavy feeds. Frames
-   *     that don't qualify (non-object rows) fall back to JSON
-   *     per-chunk automatically.
+   *   - `'columnar'` (default — see `STOMP_TUNING_DEFAULTS.wireFormat`;
+   *     the hub runs columnar unless `'json'` is set explicitly) —
+   *     typed-array columnar frames: numbers travel as raw Float64 and
+   *     booleans as bitmaps, cutting each window's per-frame decode
+   *     several-fold on number-heavy feeds. Frames that don't qualify
+   *     (non-object rows) fall back to JSON per-chunk automatically.
+   *   - `'json'` — UTF-8 `JSON.stringify` bytes, decoded with
+   *     `JSON.parse`.
    */
   wireFormat?: 'json' | 'columnar';
   /**
