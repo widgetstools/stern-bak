@@ -3,8 +3,11 @@
 //
 //    dist/css/styles.css — THE import. Design tokens + self-hosted
 //                          @font-face + the minimal base rules our
-//                          utilities mechanically require + every
-//                          component's compiled Tailwind utilities +
+//                          utilities mechanically require (including
+//                          Tailwind's --tw-* variable defaults, without
+//                          which transform/ring/shadow/filter utilities
+//                          compute to their invalid/initial value) +
+//                          every component's compiled Tailwind utilities +
 //                          the grid's chrome CSS.
 //    dist/css/reset.css  — OPT-IN global normalisation (Tailwind
 //                          preflight). Restyles the CONSUMER's own
@@ -89,6 +92,40 @@ const FONTS = [
 
 function fail(msg: string): never {
   throw new Error(`[build-styles-css] ${msg}`);
+}
+
+/**
+ * Pull the Tailwind preflight rules that are 100% custom-property
+ * declarations (`--tw-translate-x`, `--tw-ring-color`, `--tw-blur`, …) out
+ * of a compiled `@tailwind base;` root. Every transform/ring/shadow/filter/
+ * backdrop-filter utility Tailwind emits composes its final property value
+ * from these `--tw-*` variables via `var(--tw-foo)` with NO fallback — if a
+ * variable is never set on an element, the whole shorthand (`transform`,
+ * `box-shadow`, `filter`, …) is invalid at computed-value time and the
+ * browser drops back to the property's initial value (e.g. `transform:
+ * none`). Preflight normally sets sane defaults for all of them on `*,
+ * ::before, ::after` (+ `::backdrop`) — but `styles.css` compiles with
+ * `preflight: false` so its opinionated margin/heading/list resets don't
+ * leak onto a consumer's own markup, and that turns off the var defaults
+ * too. Isolate ONLY those rules (rather than hand-copying Tailwind's
+ * variable list, which would silently drift on a version bump) by keeping
+ * whatever preflight rule is composed entirely of `--`-prefixed
+ * declarations — structurally, that is exactly (and only) this reset.
+ */
+function extractCustomPropertyDefaults(root: import('postcss').Root): string {
+  const kept: string[] = [];
+  root.walkRules((rule) => {
+    const decls = rule.nodes.filter((n) => n.type === 'decl');
+    if (decls.length === 0) return;
+    const allCustomProps = decls.every(
+      (n) => n.type === 'decl' && n.prop.startsWith('--'),
+    );
+    if (allCustomProps) kept.push(rule.toString());
+  });
+  if (kept.length === 0) {
+    fail('extractCustomPropertyDefaults found no --tw-* reset rules in preflight output — Tailwind version change?');
+  }
+  return kept.join('\n\n');
 }
 
 /**
@@ -249,6 +286,12 @@ async function main(): Promise<void> {
     .join('\n\n');
   const grid = await postcss([tailwindNesting, autoprefixer]).process(gridRaw, { from: undefined });
 
+  // 3b. The `--tw-*` var defaults preflight normally provides, isolated so
+  // transform/ring/shadow/filter utilities compute correctly without
+  // pulling in the rest of preflight's document reset. See the doc comment
+  // on extractCustomPropertyDefaults for why this is structurally required.
+  const customPropertyDefaults = extractCustomPropertyDefaults(reset.root);
+
   // 4. Tokens — strip the Google Fonts @import; we self-host now.
   const theme = readFileSync(resolve(pkgRoot, 'dist/css/theme.css'), 'utf8').replace(
     /@import url\('https:\/\/fonts\.googleapis\.com[^)]*'\);?/g,
@@ -284,6 +327,12 @@ async function main(): Promise<void> {
       '',
       MINIMAL_BASE,
       '',
+      '/* Tailwind preflight\'s --tw-* variable defaults (extracted — see',
+      '   extractCustomPropertyDefaults in build-styles-css.ts). Required for',
+      '   transform/ring/shadow/filter/backdrop-filter utilities to compute;',
+      '   without them e.g. `translate-x-[-50%]` resolves to `transform: none`. */',
+      customPropertyDefaults,
+      '',
       utilities.css,
       '',
       grid.css,
@@ -293,7 +342,7 @@ async function main(): Promise<void> {
 
   const kb = (s: string) => Math.round(Buffer.byteLength(s) / 1024);
   console.log(
-    `[build-styles-css] styles.css ${kb(fontFaces) + kb(theme) + kb(MINIMAL_BASE) + kb(utilities.css) + kb(grid.css)} KB · `
+    `[build-styles-css] styles.css ${kb(fontFaces) + kb(theme) + kb(MINIMAL_BASE) + kb(customPropertyDefaults) + kb(utilities.css) + kb(grid.css)} KB · `
       + `reset.css ${kb(reset.css)} KB · fonts ${FONTS.reduce((n, f) => n + f.files.length, 0)} woff2`,
   );
 }
