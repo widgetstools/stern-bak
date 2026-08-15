@@ -123,6 +123,16 @@ export function captureGridState(api: GridApi): SavedGridState {
 }
 
 /**
+ * Viewport-anchor retry bounds. An SSRM grid needs a handful of `modelUpdated`
+ * ticks before the row model extends to the saved index (block streaming); a
+ * client-side grid is settled on the first attempt and never spends these.
+ * Both bounds exist so an unreachable anchor stops re-scrolling rather than
+ * fighting the user — see the comment at the retry site.
+ */
+const VIEWPORT_RESTORE_MAX_ATTEMPTS = 20;
+const VIEWPORT_RESTORE_WINDOW_MS = 10_000;
+
+/**
  * Apply a previously-captured snapshot to a live grid. `api.setState()`
  * handles columns/filters/sort/pagination/selection etc. natively (retried
  * across the same cold-mount window as the column order/pinning restore
@@ -313,11 +323,46 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
     }
   }
 
-  // Viewport — wait for rows to render so ensureIndexVisible has something
-  // to scroll to.
+  // Viewport — the anchor can only be applied once the row model actually
+  // extends to the saved index.
+  //
+  // For a client-side grid that is true on the first microtask: every row is
+  // already in the model. For SSRM it is NOT. At `grid:ready` the count is 0,
+  // goes transiently to 1 (the loading placeholder row), and only reaches the
+  // real total once the datasource reports it — roughly half a second later.
+  //
+  // The old code sampled `getDisplayedRowCount()` ONCE to choose between a
+  // microtask attempt and a one-shot `firstDataRendered` fallback. On SSRM
+  // that single sample read 1, so it committed to the microtask branch, failed
+  // the `firstRowIndex < count` guard inside it, and never bound the fallback
+  // at all — the saved anchor was silently dropped on every SSRM cold mount
+  // while CSRM restored it fine. That is the same failure shape (one
+  // un-retried attempt against a grid that isn't populated yet) already fixed
+  // for `restoreNativeState` and `reorder` above, so it gets the same
+  // treatment: attempt on a microtask, again on `firstDataRendered`, and again
+  // on each `modelUpdated` until the anchor is actually on screen.
+  // Defaulted, not destructured bare: `deserialize` only validates `gridState`,
+  // so a legacy or hand-edited snapshot can reach here with no `viewportAnchor`
+  // at all. The old code read it inside `restoreViewport`'s try/catch and so
+  // tolerated that; this runs outside one, and the module's `activate` calls
+  // `applyGridState` unguarded — a throw here would take out the whole restore.
+  const { firstRowIndex = 0, leftColId = null, horizontalPixel = 0 } =
+    saved.viewportAnchor ?? {};
+
+  /** Anchor is on screen (or there was never anywhere to scroll) — stop. */
+  const viewportSettled = (): boolean => {
+    try {
+      if (firstRowIndex <= 0) return true;
+      const first = api.getFirstDisplayedRowIndex();
+      const last = api.getLastDisplayedRowIndex?.() ?? -1;
+      return first >= 0 && firstRowIndex >= first && firstRowIndex <= last;
+    } catch {
+      return false;
+    }
+  };
+
   const restoreViewport = () => {
     try {
-      const { firstRowIndex, leftColId, horizontalPixel } = saved.viewportAnchor;
       if (firstRowIndex >= 0 && firstRowIndex < api.getDisplayedRowCount()) {
         api.ensureIndexVisible(firstRowIndex, 'top');
       }
@@ -333,22 +378,34 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
     }
   };
 
-  try {
-    if (api.getDisplayedRowCount() > 0) {
-      queueMicrotask(restoreViewport);
-    } else {
-      const handler = () => {
-        restoreViewport();
-        try {
-          api.removeEventListener('firstDataRendered', handler);
-        } catch {
-          /* ignore */
-        }
-      };
-      api.addEventListener('firstDataRendered', handler);
+  queueMicrotask(restoreViewport);
+
+  // Bounded retry. Both limits matter: the attempt budget keeps a saved anchor
+  // that can never be reached (row since deleted, or now filtered out) from
+  // re-scrolling forever, and the deadline keeps us from yanking the viewport
+  // back if the user starts scrolling while blocks are still streaming in.
+  let viewportAttempts = VIEWPORT_RESTORE_MAX_ATTEMPTS;
+  const viewportDeadline = Date.now() + VIEWPORT_RESTORE_WINDOW_MS;
+  const retryViewport = () => {
+    if (viewportSettled() || viewportAttempts-- <= 0 || Date.now() > viewportDeadline) {
+      try {
+        api.removeEventListener('firstDataRendered', retryViewport);
+        api.removeEventListener('modelUpdated', retryViewport);
+      } catch {
+        /* ignore */
+      }
+      return;
     }
+    restoreViewport();
+  };
+  try {
+    // Both events, always — never either/or. `firstDataRendered` covers the
+    // cold client-side mount; `modelUpdated` is the one SSRM actually needs,
+    // since it fires again each time a block lands.
+    api.addEventListener('firstDataRendered', retryViewport);
+    api.addEventListener('modelUpdated', retryViewport);
   } catch {
-    /* ignore */
+    /* ignore — non-blocking */
   }
 }
 
