@@ -52,8 +52,29 @@ interface DedicatedWorkerLike {
  */
 export interface AdoptedPort {
   port: MessagePort;
-  /** Non-bootstrap messages received before adoption, in arrival order. */
+  /**
+   * Non-bootstrap messages received before adoption, in arrival order.
+   *
+   * Read AFTER `release()` and in the same synchronous turn as the hub's
+   * attach, so a caller that keeps appending right up to release loses
+   * nothing. Pass the live array, not a copy.
+   */
   buffered: readonly unknown[];
+  /**
+   * Detach the caller's temporary listener. Invoked synchronously
+   * immediately before the hub attaches its own — never earlier.
+   *
+   * The port is already `start()`ed by the time it gets here, and a started
+   * MessagePort DISCARDS messages that arrive with no listener attached
+   * (they are dispatched as events, not re-queued). Releasing early would
+   * therefore drop anything the client sends across the gap — and the gap
+   * is not small: `installSharedWorkerHub` awaits `hydrateCatalog()` +
+   * `hydrateAppData()`, two IndexedDB round-trips, before it can attach.
+   * Clients post `appdata-attach` immediately after connecting, so that is
+   * exactly what used to go missing, hanging `AppDataMirror.ready()`
+   * forever. Optional for back-compat with callers that pre-detached.
+   */
+  release?: () => void;
 }
 
 export interface InstallOpts extends SharedWorkerDataServicesHubOpts {
@@ -141,7 +162,13 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   // Adopt first, and replay each port's backlog immediately after attaching
   // it, so a client's pre-handover messages are still processed ahead of
   // anything it sends afterwards.
+  //
+  // release -> attach -> replay runs in ONE synchronous turn on purpose.
+  // Port messages are delivered as tasks, so nothing can be dispatched
+  // between two synchronous statements — that is what makes the handover
+  // gap-free. Do not introduce an await anywhere in this loop.
   for (const adopted of opts.adoptPorts ?? []) {
+    adopted.release?.();
     const portLike = attach(adopted.port);
     for (const data of adopted.buffered) dispatch(portLike, data);
   }

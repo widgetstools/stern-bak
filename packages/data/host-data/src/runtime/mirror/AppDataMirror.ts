@@ -51,6 +51,15 @@ function makeReqId(): string {
   return `req-${++nextReqId}-${Date.now()}`;
 }
 
+/**
+ * Attach-handshake retry bounds. Generous on purpose: a healthy hub answers
+ * in a few hundred ms, so these only ever spend on a genuinely lost message,
+ * and the retry stops the moment the snapshot lands. Bounded so a hub that
+ * is truly gone doesn't leave a timer re-posting to a dead port forever.
+ */
+const APPDATA_ATTACH_RETRY_MS = 2_000;
+const APPDATA_ATTACH_MAX_RETRIES = 5;
+
 export class AppDataMirror {
   private readonly subId: string;
   private readonly send: (req: AppDataRequest) => void;
@@ -64,6 +73,10 @@ export class AppDataMirror {
   private snapshotApplied = false;
   private readonly readyPromise: Promise<void>;
   private readyResolve: (() => void) | null = null;
+
+  private attachTimer: ReturnType<typeof setTimeout> | null = null;
+  private attachRetriesLeft = APPDATA_ATTACH_MAX_RETRIES;
+  private disposed = false;
 
   constructor(opts: AppDataMirrorOpts) {
     this.subId = opts.subId;
@@ -82,9 +95,44 @@ export class AppDataMirror {
    *
    * Idempotent. The client owns event routing; it calls this once
    * per mirror.
+   *
+   * Retried until the snapshot lands. `ready()` resolves from nowhere
+   * else, so a single dropped `appdata-attach` used to hang it — and
+   * every caller awaiting it — permanently. The known dropper was the
+   * SharedWorker port handover (`defaultEntry` left the port listener-less
+   * across hub hydration), fixed there too; this retry is the belt to that
+   * braces, covering any other way the message can go missing (port
+   * recycled, worker restarted mid-handshake). Safe because
+   * `HubAppDataService.handleAttach` is idempotent — it overwrites the
+   * listener entry and re-posts the snapshot — which a stuck browser
+   * session confirmed: a manual re-attach produced the snapshot in ~500ms.
    */
   async attach(): Promise<void> {
+    this.sendAttach();
+  }
+
+  private sendAttach(): void {
+    if (this.disposed || this.snapshotApplied) return;
     this.send({ kind: 'appdata-attach', subId: this.subId });
+    this.clearAttachTimer();
+    if (this.attachRetriesLeft <= 0) return;
+    this.attachTimer = setTimeout(() => {
+      this.attachTimer = null;
+      this.attachRetriesLeft -= 1;
+      this.sendAttach();
+    }, APPDATA_ATTACH_RETRY_MS);
+  }
+
+  private clearAttachTimer(): void {
+    if (this.attachTimer === null) return;
+    clearTimeout(this.attachTimer);
+    this.attachTimer = null;
+  }
+
+  /** Stop retrying the attach handshake. Called on detach / client close. */
+  dispose(): void {
+    this.disposed = true;
+    this.clearAttachTimer();
   }
 
   /**
@@ -244,6 +292,7 @@ export class AppDataMirror {
       this.byName.set(row.name, row);
     }
     this.snapshotApplied = true;
+    this.clearAttachTimer();
     this.readyResolve?.();
     this.fire();
   }

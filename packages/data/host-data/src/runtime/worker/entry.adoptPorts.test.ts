@@ -133,3 +133,63 @@ describe('installSharedWorkerHub — adoptPorts', () => {
     expect(received[0]).toMatchObject({ reqId: 'via-onconnect' });
   });
 });
+
+/**
+ * Handover timing. The caller's temporary listener has to survive the hub's
+ * hydration await, because the adopted port is already `start()`ed and a
+ * started MessagePort discards messages that land with no listener. Releasing
+ * before `hydrateCatalog()` / `hydrateAppData()` is what used to swallow the
+ * client's `appdata-attach` and hang `AppDataMirror.ready()` forever.
+ */
+describe('installSharedWorkerHub — handover is gap-free', () => {
+  it('releases the caller listener only after hydration, not before', async () => {
+    const channel = new MessageChannel();
+    const received = collect(channel.port1);
+
+    let openGate!: () => void;
+    const gate = new Promise<void>((resolve) => { openGate = resolve; });
+    const configManager = {
+      getConfigsByComponentTypesUnfiltered: async () => {
+        await gate;
+        return [];
+      },
+    };
+
+    const releasedAt: string[] = [];
+    const install = installSharedWorkerHub({
+      selfRef: { onconnect: null },
+      configManager: configManager as never,
+      adoptPorts: [
+        {
+          port: channel.port2,
+          buffered: [{ kind: 'hub-ready', reqId: 'early' }],
+          release: () => releasedAt.push('released'),
+        },
+      ],
+    });
+
+    // Hub is parked on hydration — the caller must still own the port.
+    await settle();
+    expect(releasedAt).toEqual([]);
+
+    openGate();
+    await install;
+
+    expect(releasedAt).toEqual(['released']);
+    await waitForCount(received, 1);
+    expect(received.map((m) => m.reqId)).toContain('early');
+  });
+
+  it('adopts ports that pass no release callback (back-compat)', async () => {
+    const channel = new MessageChannel();
+    const received = collect(channel.port1);
+
+    await installSharedWorkerHub({
+      selfRef: { onconnect: null },
+      adoptPorts: [{ port: channel.port2, buffered: [{ kind: 'hub-ready', reqId: 'no-release' }] }],
+    });
+
+    await waitForCount(received, 1);
+    expect(received[0]).toMatchObject({ kind: 'config-snapshot', reqId: 'no-release' });
+  });
+});

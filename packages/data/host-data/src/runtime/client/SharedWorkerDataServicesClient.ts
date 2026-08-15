@@ -806,6 +806,10 @@ export class SharedWorkerDataServicesClient {
     for (const [subId, m] of this.appDataMirrors) {
       if (m === mirror) {
         this.appDataMirrors.delete(subId);
+        // Stop the attach-retry timer before releasing the subscription —
+        // otherwise a mirror detached mid-handshake keeps re-posting
+        // `appdata-attach` to a port nobody is listening on.
+        m.dispose();
         if (!this.closed) this.sendAppData({ kind: 'appdata-detach', subId });
         return;
       }
@@ -836,7 +840,10 @@ export class SharedWorkerDataServicesClient {
         this.send({ kind: 'detach', subId });
       } catch { /* port may already be dead */ }
     }
-    for (const [subId] of this.appDataMirrors) {
+    for (const [subId, mirror] of this.appDataMirrors) {
+      // Kill the attach-retry timer first — the port is about to close, so
+      // a mirror still mid-handshake must not keep firing into it.
+      mirror.dispose();
       try {
         this.sendAppData({ kind: 'appdata-detach', subId });
       } catch { /* port may already be dead */ }

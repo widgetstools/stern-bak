@@ -346,3 +346,74 @@ describe('AppDataMirror — edge cases', () => {
     errSpy.mockRestore();
   });
 });
+
+/**
+ * The attach handshake is the mirror's only path to a snapshot, and
+ * `ready()` resolves nowhere else. It used to be strictly fire-and-forget:
+ * one `appdata-attach`, no ack, no timeout, no retry. When that single
+ * message was dropped — the SharedWorker port handover in `defaultEntry`
+ * had a listener-less window across hub hydration — `ready()` hung forever
+ * and every awaiting caller hung with it (the editor's Test Connection
+ * button sitting on "Connecting…").
+ *
+ * Browser-confirmed: on a page stuck that way the hub was alive the whole
+ * time — manually re-sending `appdata-attach` produced the snapshot in
+ * ~500ms. So a retry is both sufficient and safe: `HubAppDataService`
+ * handles attach idempotently (`listeners.set` + post snapshot).
+ */
+describe('AppDataMirror — attach retry', () => {
+  it('re-sends attach until the snapshot arrives, then stops', async () => {
+    vi.useFakeTimers();
+    try {
+      const sent: AppDataRequest[] = [];
+      const mirror = new AppDataMirror({
+        subId: 'sub-retry',
+        userId: 'u1',
+        send: (req) => { sent.push(req); },
+      });
+
+      await mirror.attach();
+      expect(sent.filter((r) => r.kind === 'appdata-attach')).toHaveLength(1);
+
+      // The hub never answers — the mirror must not sit silent forever.
+      await vi.advanceTimersByTimeAsync(30_000);
+      const beforeSnapshot = sent.filter((r) => r.kind === 'appdata-attach').length;
+      expect(beforeSnapshot).toBeGreaterThan(1);
+
+      // Snapshot lands: ready() resolves and retries stop.
+      mirror.handleEvent({
+        kind: 'appdata-snapshot',
+        subId: 'sub-retry',
+        rows: [],
+      } as unknown as AppDataEvent as never);
+      await expect(mirror.ready()).resolves.toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sent.filter((r) => r.kind === 'appdata-attach')).toHaveLength(beforeSnapshot);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops retrying attach once disposed', async () => {
+    vi.useFakeTimers();
+    try {
+      const sent: AppDataRequest[] = [];
+      const mirror = new AppDataMirror({
+        subId: 'sub-dispose',
+        userId: 'u1',
+        send: (req) => { sent.push(req); },
+      });
+
+      await mirror.attach();
+      await vi.advanceTimersByTimeAsync(10_000);
+      mirror.dispose();
+      const afterDispose = sent.filter((r) => r.kind === 'appdata-attach').length;
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sent.filter((r) => r.kind === 'appdata-attach')).toHaveLength(afterDispose);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

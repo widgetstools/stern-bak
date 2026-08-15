@@ -90,12 +90,26 @@ globalRef.onconnect = (ev) => {
   if (port) capture(port);
 };
 
-/** Detach our listeners and hand every captured port to the hub. */
+/**
+ * Hand every captured port to the hub.
+ *
+ * Our listener deliberately STAYS attached: `installSharedWorkerHub` awaits
+ * `hydrateCatalog()` + `hydrateAppData()` before it can attach its own, and
+ * these ports are already `start()`ed — a started MessagePort discards
+ * messages that arrive with no listener rather than re-queueing them. So
+ * detaching here would silently drop everything a client sent across that
+ * hydration window, which is precisely when clients send `appdata-attach`.
+ *
+ * Instead the hub calls `release()` synchronously immediately before it
+ * attaches, and reads the (live, still-growing) `buffered` array in the same
+ * turn. Nothing can slip through: port messages arrive as tasks.
+ */
 function takeCapturedPorts(): AdoptedPort[] {
-  const adopted = captured.map(({ port, buffered, listener }) => {
-    port.removeEventListener('message', listener);
-    return { port, buffered };
-  });
+  const adopted = captured.map(({ port, buffered, listener }) => ({
+    port,
+    buffered,
+    release: () => port.removeEventListener('message', listener),
+  }));
   captured.length = 0;
   return adopted;
 }
