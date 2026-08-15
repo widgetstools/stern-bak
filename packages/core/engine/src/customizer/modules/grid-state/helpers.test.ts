@@ -95,6 +95,42 @@ describe('applyGridState', () => {
     applyGridState(api as never, null as never);
     expect(api.setState).not.toHaveBeenCalled();
   });
+
+  it('retries setState on a microtask and again on firstDataRendered (cold-mount race)', async () => {
+    const api = makeApi();
+    const saved: SavedGridState = {
+      schemaVersion: GRID_STATE_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      gridState: { sort: { sortModel: [{ colId: 'ticker', sort: 'asc' }] } },
+      viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+    };
+
+    applyGridState(api as never, saved);
+    // Immediate synchronous call — covers the already-settled case.
+    expect(api.setState).toHaveBeenCalledTimes(1);
+
+    // Microtask attempt.
+    await Promise.resolve();
+    expect(api.setState).toHaveBeenCalledTimes(2);
+
+    // A saved column (e.g. an SSRM-inferred one) doesn't exist yet at either
+    // of the attempts above — simulate it finally arriving by firing
+    // firstDataRendered, the same event the column-order restore below
+    // waits on for exactly this reason.
+    const fireFirstDataRendered = (api.addEventListener as ReturnType<typeof vi.fn>).mock.calls
+      .find(([evt]) => evt === 'firstDataRendered')?.[1] as (() => void) | undefined;
+    expect(fireFirstDataRendered).toBeDefined();
+    fireFirstDataRendered!();
+    expect(api.setState).toHaveBeenCalledTimes(3);
+    // Every call carries the saved sort model — the column existing or not
+    // is AG-Grid's problem to silently no-op on, not this function's.
+    for (const call of api.setState.mock.calls) {
+      expect((call[0] as { sort?: unknown }).sort).toEqual(saved.gridState.sort);
+    }
+
+    // One-shot intent: the listener removes itself after firing once.
+    expect(api.removeEventListener).toHaveBeenCalledWith('firstDataRendered', fireFirstDataRendered);
+  });
 });
 
 describe('captureGridStateInto', () => {

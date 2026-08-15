@@ -124,8 +124,10 @@ export function captureGridState(api: GridApi): SavedGridState {
 
 /**
  * Apply a previously-captured snapshot to a live grid. `api.setState()`
- * handles columns/filters/sort/pagination/selection etc. natively; the
- * viewport anchor and quick-filter are replayed separately.
+ * handles columns/filters/sort/pagination/selection etc. natively (retried
+ * across the same cold-mount window as the column order/pinning restore
+ * below — see the comment on `restoreNativeState`); the viewport anchor and
+ * quick-filter are replayed separately.
  */
 export function applyGridState(api: GridApi, saved: SavedGridState): void {
   if (!api || !saved) return;
@@ -145,10 +147,40 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
   // shape as FiltersToolbar's sanitizeFilterModel.
   const cleanedState = sanitizeGridState(saved.gridState);
 
+  const restoreNativeState = () => {
+    try {
+      api.setState(cleanedState as Parameters<typeof api.setState>[0]);
+    } catch (err) {
+      console.warn('[grid-state] api.setState failed:', err);
+    }
+  };
+  // Sort/filter/pagination/selection restoration (everything `setState`
+  // covers) silently no-ops for any column that doesn't exist in the live
+  // grid yet. For SSRM grids with no declared columnDefinitions, columns
+  // are inferred asynchronously from a sampled block — the first
+  // (synchronous, on grid:ready/profile:loaded) call here can land before
+  // that inference resolves, and unlike column order/pinning/width below
+  // there was no second attempt, so a saved sort silently vanished on
+  // exactly the cold-mount timing this retries. Same dual-attempt shape as
+  // `reorder()`: immediate + a microtask (covers the common already-settled
+  // case) + one-shot on `firstDataRendered` (covers cold-mount, by which
+  // point inferred columns are guaranteed to exist). Re-calling `setState`
+  // is the idempotent, docs-sanctioned way to reconcile grid state, so a
+  // redundant successful call is a no-op, not a side effect.
+  restoreNativeState();
+  queueMicrotask(restoreNativeState);
   try {
-    api.setState(cleanedState as Parameters<typeof api.setState>[0]);
-  } catch (err) {
-    console.warn('[grid-state] api.setState failed:', err);
+    const onFDR = () => {
+      restoreNativeState();
+      try {
+        api.removeEventListener('firstDataRendered', onFDR);
+      } catch {
+        /* ignore */
+      }
+    };
+    api.addEventListener('firstDataRendered', onFDR);
+  } catch {
+    /* ignore — non-blocking */
   }
 
   // Explicit column-state restore — AG-Grid's `setState` silently drops
