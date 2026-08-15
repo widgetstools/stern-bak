@@ -481,6 +481,32 @@ describe('clearAllStylesInProfileReducer', () => {
     const next = clearAllStylesInProfileReducer()(undefined);
     expect(next.assignments).toEqual({});
   });
+
+  it('clears the scope=All global styles, not just assignments', () => {
+    // Paint the whole grid the way the toolbar's scope=All does.
+    let state = applyColorsReducer([], 'cell', { background: '#FFFFFF', text: '#111827' }, 'all')(EMPTY);
+    state = applyTypographyReducer([], 'header', { bold: true }, 'all')(state);
+    expect(state.globalCellStyle).toBeDefined();
+    expect(state.globalHeaderStyle).toBeDefined();
+
+    const next = clearAllStylesInProfileReducer()(state);
+    expect(next.assignments).toEqual({});
+    expect(next.globalCellStyle).toBeUndefined();
+    expect(next.globalHeaderStyle).toBeUndefined();
+    expect(next.globalCellNumberFormatter).toBeUndefined();
+    expect(next.globalCellDateFormatter).toBeUndefined();
+  });
+
+  it('clears when ONLY global styles are set (no per-column assignments)', () => {
+    // The pre-fix early-return made this exact case a no-op: a scope=All
+    // paint with zero per-column assignments was unclearable.
+    const state = applyColorsReducer([], 'cell', { background: '#FFFFFF' }, 'all')(EMPTY);
+    expect(Object.keys(state.assignments)).toHaveLength(0);
+
+    const next = clearAllStylesInProfileReducer()(state);
+    expect(next).not.toBe(state);
+    expect(next.globalCellStyle).toBeUndefined();
+  });
 });
 
 // ─── Template-ref cleanup after template deletion ──────────────────────

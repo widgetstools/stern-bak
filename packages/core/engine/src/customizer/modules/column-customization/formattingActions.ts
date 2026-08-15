@@ -603,6 +603,11 @@ export function clearAllStylesReducer(
  *   - All `assignments[*]` — every column's cellStyleOverrides,
  *     headerStyleOverrides, valueFormatterTemplate, templateIds,
  *     filter, rowGrouping, and any structural overrides.
+ *   - The four grid-wide fields the toolbar's scope=All writes:
+ *     `globalCellStyle`, `globalHeaderStyle`, `globalCellNumberFormatter`,
+ *     `globalCellDateFormatter`. (These previously SURVIVED clear-all —
+ *     so a scope=All paint was unclearable from the UI once the session's
+ *     undo stack was gone.)
  *
  * What it preserves:
  *   - The column-templates module (saved templates survive — users
@@ -621,8 +626,13 @@ export function clearAllStylesInProfileReducer(): (
 ) => ColumnCustomizationState {
   return (prev) => {
     const base: ColumnCustomizationState = prev ?? { assignments: {} };
-    if (Object.keys(base.assignments).length === 0) return base;
-    return { ...base, assignments: {} };
+    const hasGlobals =
+      base.globalCellStyle !== undefined ||
+      base.globalHeaderStyle !== undefined ||
+      base.globalCellNumberFormatter !== undefined ||
+      base.globalCellDateFormatter !== undefined;
+    if (Object.keys(base.assignments).length === 0 && !hasGlobals) return base;
+    return { assignments: {} };
   };
 }
 
