@@ -30,6 +30,10 @@ const FILES = [
   { md: 'getting-started.md', pdf: 'StarUI-Getting-Started.pdf', title: 'Getting Started' },
   { md: 'architecture.md', pdf: 'StarUI-Architecture.pdf', title: 'Architecture' },
   { md: 'packages.md', pdf: 'StarUI-Package-Reference.pdf', title: 'Package Reference' },
+  { md: 'ssrm-engine.md', pdf: 'StarUI-SSRM-Engine.pdf', title: 'SSRM Engine' },
+  { md: 'provider-config.md', pdf: 'StarUI-Provider-Config.pdf', title: 'Provider Config Reference' },
+  { md: 'appdata.md', pdf: 'StarUI-AppData.pdf', title: 'AppData' },
+  { md: 'openfin.md', pdf: 'StarUI-OpenFin.pdf', title: 'OpenFin' },
 ];
 const PDF_MAP = Object.fromEntries(FILES.map((f) => [f.md.toLowerCase(), f.pdf]));
 const TITLE_MAP = Object.fromEntries(FILES.map((f) => [f.md.toLowerCase(), f.title]));

@@ -6,7 +6,7 @@
 
 Related docs:
 
-- Design: [specs/2026-08-07-marketsgrid-ssrm-chrome-design.md](./specs/2026-08-07-marketsgrid-ssrm-chrome-design.md)
+- Design: [specs/2026-08-07-marketsgrid-ssrm-chrome-design.md](./marketsgrid-ssrm-chrome-design-2026-08-07.md)
 - Plan: `2026-08-07-marketsgrid-ssrm-chrome.md` (deleted — git history)
 
 ---

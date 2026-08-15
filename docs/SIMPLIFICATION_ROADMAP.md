@@ -1,8 +1,8 @@
 # Simplification roadmap — execution record
 
-**Branch:** `feature/simplify` (off `feature/ssrm`). **Status: Phases 0–6
-complete (39 commits + doc commits); Phase 7 remains.** All commits
-local/unpushed unless the log says otherwise.
+**Branch:** `feature/simplify` (off `feature/ssrm`). **Status: ALL PHASES
+(0–7) COMPLETE (47 commits + doc commits).** All commits local/unpushed
+unless the log says otherwise.
 
 The originating review found a ~130k-LOC framework whose irreducible
 feature set (AG Grid + live data feeds + no-code customization + saved
@@ -329,12 +329,53 @@ Manual-validation note: config-browser + provider editor render checks
 were done in a browser (star-demo routes); an OpenFin dock-opened
 config-browser window deserves one eyeball pass on the new theme.
 
-## Phase 7 — docs ⬜
+## Phase 7 — docs ✅ (8 commits)
 
-One getting-started ending in live data (hello-blotter), one
-architecture page, provider-config reference generated from the types,
-an AppData page, an OpenFin page. Delete every doc referencing
-nonexistent packages.
+`b893ddc` `b106f3a` `b3b21fd` `0e8c678` `325407b` `0c6d009` `3c5389b`
+(+ the final roadmap/PDF commit)
+
+- **Dead-subject deletion** (`b893ddc`): 13 files (~3,000 LOC) whose
+  SUBJECT no longer exists — archive/{BUILD,LIBS,PARITY,
+  consumer-app-sharedworker-and-tailwind, platform-hooks-demo,
+  E2E_STATUS, REFACTOR-platform-tool-views}.md, the two executed SSRM
+  superpowers plans, and four package READMEs documenting wrong package
+  names / deleted deps. `docs/superpowers/` dissolved — completed
+  inventory/plan/specs moved into `docs/archive/` under dated names.
+  Inbound links repointed. The plan's literal rule ("delete every doc
+  referencing nonexistent packages") was applied by SUBJECT — CLAUDE.md,
+  this roadmap, WORKLOG and the frozen archive reference deleted things
+  *on purpose* as the record of the deletions.
+- **Stale path/name refresh** (`b106f3a`): the WORKLOG-item-13 pass —
+  react-core/widgets-react → react-grid/…, packages/shared/* →
+  core/types real paths, host-data → data, apps/demos → apps/source,
+  demo-react honesty, apps README counts/ports, CLAUDE.md truth-ups
+  (ESLint boundary enforcement IS live; no Angular remains). WORKLOG
+  items 3 and 13 closed.
+- **docs/latest trued up** (`b3b21fd`): packages.md subpath tables now
+  match the real export maps (14 fictional subpaths dropped, missing
+  ones added); architecture.md sheds the deleted widget-framework model;
+  the SVG diagrams regenerated with corrected labels + the Phase-5
+  core → design-system edge; current-features drops five
+  deleted-package sections.
+- **Getting-started ends in live data** (`0e8c678`): the hello-blotter
+  walk-through (createStarui + StarGrid, 27 lines) ending in one command
+  that boots the fixture feed + app with ticking rows
+  (browser-verified); hello-blotter registered in run-app.mjs and given
+  the README it lacked.
+- **Provider-config reference GENERATED from the types** (`325407b`):
+  docs/latest/provider-config.md emitted by
+  scripts/gen-provider-config-reference.mjs (TS compiler API over
+  shared-types/dataProvider.ts — field tables cannot drift); includes
+  STOMP_TUNING_DEFAULTS, the validation-rules table, seed formats, and
+  honesty annotations on REST's four unconsumed fields. Fixed en route:
+  the `wireFormat` doc comment claimed a `'json'` default while the
+  runtime runs columnar.
+- **AppData page** (`0c6d009`) and **OpenFin page** (`3c5389b`) — both
+  net-new; docs/latest now indexes seven pages + ssrm-engine, each with
+  a regenerated PDF edition (nine PDFs).
+- Link hygiene: every relative link in the live docs resolves
+  (validator-checked); frozen-archive and in-app help-asset links were
+  deliberately left as-is.
 
 ---
 

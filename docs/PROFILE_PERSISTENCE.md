@@ -107,7 +107,7 @@ userId, gridId }` so adapter scope follows the props naturally.
 ConfigService factory automatically when you pass `withStorage` and
 resolves `appId`/`userId`/`instanceId` from OpenFin view `customData`
 (or props in browser mode). See
-[`packages/react-grid/widgets-react/src/hosted/README.md`](../packages/react-grid/widgets-react/src/hosted/README.md#persistence-model)
+the hosted integration layer (`packages/react-grid/widgets-react/src/hosted/` — its README was deleted with the hosted wrappers; `useHostedStarui.ts` carries the persistence-model docs now)
 for the wrapper's wiring.
 
 ---
@@ -223,7 +223,7 @@ The handler runs the same code path as the toolbar **Save** button —
 
 Source:
 [`packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts`](../packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts),
-[`packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx:160-184`](../packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx#L160-L184).
+[`packages/react-grid/widgets-react/src/hosted/useHostedStarui.ts`](../packages/react-grid/widgets-react/src/hosted/useHostedStarui.ts) (the hosted wrappers themselves were deleted in Phase 1).
 
 ### Mechanism B — `augmentSnapshotWithLiveCustomData`
 
@@ -346,7 +346,7 @@ next save/restore.
 
 If you need to re-bind state to late-mounting column defs, do it in
 a way that does **not** touch the pointer. The current container
-([`MarketsGridContainer.onReady`](../packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx#L358-L368))
+([`MarketsGridContainer.onReady`](../packages/react-grid/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx))
 does not call `loadProfile` for exactly this reason.
 
 ### Don't use `importProfile` as a way to "force the right Default"
@@ -384,14 +384,14 @@ view and re-opened it in the same browser session", but not for
 | Reserved-id + localStorage key | [`packages/core/engine/src/persistence/StorageAdapter.ts`](../packages/core/engine/src/persistence/StorageAdapter.ts) |
 | Memory adapter | [`packages/core/engine/src/persistence/MemoryAdapter.ts`](../packages/core/engine/src/persistence/MemoryAdapter.ts) |
 | LocalStorage bundle adapter | [`packages/core/engine/src/persistence/LocalStorageBundleAdapter.ts`](../packages/core/engine/src/persistence/LocalStorageBundleAdapter.ts) |
-| ConfigService factory | [`packages/core/host-config/src/profileStorage.ts`](../packages/core/host-config/src/profileStorage.ts) |
+| ConfigService factory | [`packages/core/host-config/src/profileBundle.ts`](../packages/core/host-config/src/profileBundle.ts) (`createConfigServiceStorage`) |
 | React binding (hook) | [`packages/react-grid/grid/src/customizer/hooks/useProfileManager.ts`](../packages/react-grid/grid/src/customizer/hooks/useProfileManager.ts) |
 | OpenFin per-view source | [`packages/react-grid/grid/src/widget/openfinViewProfile.ts`](../packages/react-grid/grid/src/widget/openfinViewProfile.ts) |
 | Profile selector UI | [`packages/react-grid/grid/src/widget/ProfileSelector.tsx`](../packages/react-grid/grid/src/widget/ProfileSelector.tsx) |
 | Workspace save channel | [`packages/openfin/openfin-platform/src/workspacePersistence.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.ts) |
-| Hosted wrapper save wiring | [`packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx`](../packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx), [`useWorkspaceSaveEvent.ts`](../packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts) |
+| Hosted save wiring | [`packages/react-grid/widgets-react/src/hosted/useHostedStarui.ts`](../packages/react-grid/widgets-react/src/hosted/useHostedStarui.ts), [`useWorkspaceSaveEvent.ts`](../packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts) |
 | Hosted identity resolution | [`packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts`](../packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts) |
-| Container mount + re-bind | [`packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx`](../packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx) |
+| Container mount + re-bind | [`packages/react-grid/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx`](../packages/react-grid/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx) |
 
 ---
 
@@ -404,8 +404,8 @@ view and re-opened it in the same browser session", but not for
 - [`packages/openfin/openfin-platform/src/workspacePersistence.test.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.test.ts)
   and [`workspacePersistence.workspaceSave.test.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.workspaceSave.test.ts)
   — workspace CRUD + the live-customData augmentation.
-- [`e2e/v2-profile-lifecycle.spec.ts`](../e2e/v2-profile-lifecycle.spec.ts),
-  [`v2-profile-isolation-*.spec.ts`](../e2e/),
-  [`v2-profile-stress.spec.ts`](../e2e/v2-profile-stress.spec.ts) —
+- [`apps/e2e/v2-profile-lifecycle.spec.ts`](../apps/e2e/v2-profile-lifecycle.spec.ts),
+  `v2-profile-isolation-*.spec.ts`,
+  [`v2-profile-stress.spec.ts`](../apps/e2e/v2-profile-stress.spec.ts) —
   end-to-end profile specs (currently red — they target the deleted
   `demo-react` app; see WORKLOG item 1).

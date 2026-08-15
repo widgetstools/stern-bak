@@ -270,7 +270,7 @@ rather than by *dependency profile*:
   `host-data` SharedWorker layer; `react-core` would force **`ag-grid-enterprise`**,
   a licensed product, on anyone using `widget-sdk` to author a widget. That undoes
   [`PACKAGING_CHANGELOG.md`](archive/PACKAGING_CHANGELOG.md) §6 and the verified promise
-  in [`EXTERNAL_CONSUMPTION.md`](./EXTERNAL_CONSUMPTION.md) §1.
+  in `EXTERNAL_CONSUMPTION.md` §1 (deleted — git history).
 
 The 21-package graph itself is a clean DAG, 9 layers deep — nothing is wrong with
 the packages. The misfiling is **`host-config`**: it sits at layer 3 with 8
