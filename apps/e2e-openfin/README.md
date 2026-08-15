@@ -4,13 +4,13 @@ OpenFin e2e harness — a Playwright runner attached over CDP to a real
 OpenFin runtime spawned via `@openfin/node-adapter`, driving the
 fully-configured **star-demo** reference workspace app.
 
-Targets `apps/demos/star-demo` (not the stripped `e2e-openfin-workspace`)
+Targets `apps/source/star-demo` (not the deleted `e2e-openfin-workspace`)
 because star-demo ships a real seeded STOMP data provider, the dock +
 provider window, and the dev test bridge — so blotters actually load and
 tick rows, which the multi-window guards assert.
 
-Replaces the legacy Vitest+bridge-channel harness archived at
-[`apps/demos/e2e-openfin-vitest/`](../apps/demos/e2e-openfin-vitest/).
+Replaces the legacy Vitest+bridge-channel harness (the deleted
+`e2e-openfin-vitest` app — git history).
 
 ## Run
 
@@ -29,7 +29,7 @@ npm --prefix e2e-openfin run test:e2e:headed
 ## How it works
 
 1. Playwright's `webServer` block boots two servers: the STOMP view
-   server ([`@wellsfargo-starui/stomp-view-server`](../apps/demos/stomp-view-server/),
+   server ([`@wellsfargo-starui/stomp-view-server`](../source/stomp-view-server/),
    `:8081`, health-checked at `/health`) and star-demo's Vite dev server
    (`:5175`, **DEV mode** so the test bridge installs).
 2. The `launchOpenFin` fixture calls `@openfin/node-adapter`'s `launch()`

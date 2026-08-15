@@ -1,9 +1,9 @@
 # Blotter performance roadmap (32 GB OpenFin multi-window targets)
 
 Forward-looking optimization backlog for the markets-grid ("blotter")
-data pipeline. **Nothing here is implemented yet** — it's the prioritized
-plan from a full pipeline audit. For what is *already done*, see
-[`hub-fanout-optimizations.md`](./hub-fanout-optimizations.md).
+data pipeline, from a full pipeline audit. Items marked ✅ have since
+shipped; the rest remain open. For the fan-out work that is *already
+done*, see [`hub-fanout-optimizations.md`](./hub-fanout-optimizations.md).
 
 ## Context
 
@@ -43,10 +43,10 @@ worst case for streaming.
    collapses repeated ticks on the same row, and the larger batches cross
    `LIVE_BIN_MIN_ROWS` (64) so the worker fan-out flips to binary (flat cost
    across windows) instead of per-listener structured clones. Reference:
-   `apps/demos/stomp-marketsgrid-minimal/src/stompProvider.ts` already does
+   `apps/source/stomp-marketsgrid-minimal/src/stompProvider.ts` already does
    `throttleMs: 100`, `conflateByKey: 'positionId'`.
 2. **`animateRows: false` by default** for streaming-friendly grids
-   (`packages/shared/engine/src/customizer/modules/general-settings/state.ts`).
+   (`packages/core/engine/src/customizer/modules/general-settings/state.ts`).
    Enable manually for non-tick UIs via Grid Options.
 3. **`projectFields: true`** (default off). Prunes rows to
    `columnDefinitions + keyColumn` at parse time — shrinks hub cache, wire
@@ -63,7 +63,7 @@ worst case for streaming.
    `useProviderDataWiring` — live ticks are skipped while `document.hidden`;
    one `provider.refresh()` cache replay runs on `visibilitychange` to visible.
    Wiring point:
-   `packages/react-core/widgets-react/src/container/markets-grid-container/useProviderDataWiring.ts`.
+   `packages/react-grid/widgets-react/src/container/markets-grid-container/useProviderDataWiring.ts`.
 6. **`thinDeltas: true` guidance for wide, sparse-update blotters.** Hub
    ships only changed top-level fields (`delta-patch`), cutting wire +
    decode. Costs the worker a `diffTopLevel` per row per frame — a win when
@@ -98,7 +98,7 @@ worst case for streaming.
 10. **Reconnect backoff is a documented TODO** — only
     `reconnect.initialDelayMs` is honored;
     `maxDelayMs`/`jitter`/`maxAttempts` are reserved/ignored
-    (`packages/shared/types/src/dataProvider.ts:199-213`). Resilience, not
+    (`packages/types/shared-types/src/dataProvider.ts:199-213`). Resilience, not
     steady-state perf.
 
 ---
@@ -108,16 +108,16 @@ worst case for streaming.
 | Concern | Location |
 |---------|----------|
 | `asyncTransactionWaitMillis={0}` | `packages/react-grid/grid/src/widget/MarketsGridSurface.tsx:138` |
-| `getRowId` | `packages/shared/engine/src/platform/GridPlatform.ts:74-76` |
-| Snapshot → `setGridOption('rowData')` | `packages/react-core/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx:751` |
-| Live → `applyTransactionAsync` | `packages/react-core/widgets-react/src/v2/markets-grid-container/applyProviderToGrid.ts:179` |
-| Snapshot id index (`markSnapshotLoaded`) | `packages/react-core/widgets-react/src/container/markets-grid-container/applyProviderToGrid.ts` |
+| `getRowId` | `packages/core/engine/src/platform/GridPlatform.ts:74-76` |
+| Snapshot → `setGridOption('rowData')` | `packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx:751` |
+| Live → `applyTransactionAsync` | `packages/react-grid/widgets-react/src/v2/markets-grid-container/applyProviderToGrid.ts:179` |
+| Snapshot id index (`markSnapshotLoaded`) | `packages/react-grid/widgets-react/src/container/markets-grid-container/applyProviderToGrid.ts` |
 | `LIVE_BIN_MIN_ROWS = 64` | `packages/data/host-data/src/runtime/worker/SharedWorkerDataServicesHub.ts:112` |
 | `LATE_JOIN_CHUNK_SIZE = 500` | `packages/data/host-data/src/runtime/worker/SharedWorkerDataServicesHub.ts:97` |
 | `bufferedDispatch` defaults | `packages/data/host-data/src/runtime/providers/transports/bufferedDispatch.ts:81-84` |
 | STOMP conflate/throttle wiring | `packages/data/host-data/src/runtime/providers/transports/stomp.ts:335-352` |
-| Perf cfg knobs (types) | `packages/shared/types/src/dataProvider.ts:127-214` |
-| General Settings perf defaults | `packages/shared/engine/src/customizer/modules/general-settings/state.ts:266-383` |
+| Perf cfg knobs (types) | `packages/types/shared-types/src/dataProvider.ts:127-214` |
+| General Settings perf defaults | `packages/core/engine/src/customizer/modules/general-settings/state.ts:266-383` |
 
 ## Provider config performance knobs (current defaults)
 

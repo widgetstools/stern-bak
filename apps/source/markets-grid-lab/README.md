@@ -24,8 +24,7 @@ npm test           # vitest (70% per-file coverage gate)
 | Profiles | Profiles (preset gallery → per-preset grid lens) |
 
 Toolbar flags exercised across tabs: `showFiltersToolbar`,
-`showFormattingToolbar`, `showEditingToolbar`, `showSmartEditToolbar`,
-`showBulkUpdateToolbar`, `showEditHistoryToolbar`, `showVisualExcelExport`,
+`showFormattingToolbar`, `showEditingToolbar`, `showVisualExcelExport`,
 `showProfileSelector`, `showSaveButton`, `showSettingsButton`.
 
 ## How it works

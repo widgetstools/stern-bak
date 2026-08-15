@@ -1,7 +1,9 @@
 # End-to-end tests
 
-Playwright suite for the demo apps (primary target `@wellsfargo-starui/demo-react` on
-:5190). Run with `npm run e2e`.
+Playwright suite for the demo apps (primary target **star-demo** on
+:5175; the labs pin :5300/:5320 and hello-blotter :5177). Run with
+`npm run e2e`. NOTE: ~34 `v2-*` specs still target the deleted
+`demo-react` app and fail at boot — see [`../E2E_STATUS.md`](../E2E_STATUS.md).
 
 ## Current shape
 

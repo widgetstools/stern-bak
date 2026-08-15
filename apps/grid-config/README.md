@@ -8,9 +8,8 @@ when working on the editors.
 
 ## Quick start
 
-1. Boot the demo: `npm run dev --workspace=@wellsfargo-starui/demo-react` (or any
-   other consumer that runs the MarketsGrid against the
-   `demo-blotter-v2` grid id).
+1. Boot a demo app that mounts a MarketsGrid (e.g. `npm run app -- star-demo`
+   from the repo root).
 2. Open the **Profile selector** in the primary toolbar.
 3. Click the **Import** button.
 4. Pick any `*.profile.json` file from this folder.

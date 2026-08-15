@@ -1,6 +1,6 @@
 # Lab demo profiles (importable JSON)
 
-Each feature tab under `apps/demos/markets-grid-lab` ships a **profile selector**
+Each feature tab under `apps/source/markets-grid-lab` ships a **profile selector**
 in the toolbar. On first visit, the active catalog profile is installed
 automatically (`lab-demo-profiles-v2:<gridId>` in `localStorage`).
 
@@ -22,7 +22,7 @@ or for sharing outside the app.
 Regenerate after editing catalogs:
 
 ```bash
-npx tsx apps/demos/markets-grid-lab/scripts/writeLabProfileJson.ts
+npx tsx apps/source/markets-grid-lab/scripts/writeLabProfileJson.ts
 ```
 
 To force a fresh install in the browser:

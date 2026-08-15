@@ -45,7 +45,7 @@ worker), CSRM uses the generic builder.
 
 ### `GridContextLinkConfig` options
 
-Defined in `packages/react-core/widgets-react/src/hosted/useGridContextLink.ts`.
+Defined in `packages/react-grid/widgets-react/src/hosted/useGridContextLink.ts`.
 
 The config is `{ enabled, mode, advanced? }` — the top level is the whole
 consumer surface; everything else is a typed expert block
@@ -80,8 +80,8 @@ consumer surface; everything else is a typed expert block
 | Two+ windows joined to the **same color** | The dock **Link** control joins each window to a color context group; only same-group windows exchange context. | Verify both show the same color; the link notifications print the channel for confirmation. |
 
 Outside an OpenFin runtime everything **degrades to a no-op** (no `fin`, no
-`window.fdc3`), so the hooks are safe to mount in a browser (`demo-react`, unit
-tests) without conditional code.
+`window.fdc3`), so the hooks are safe to mount in a plain browser tab and in
+unit tests without conditional code.
 
 ---
 
@@ -95,7 +95,7 @@ The only optional manifest entry is for the **FDC3 fallback** transport
 (`window.fdc3`, used only when interop is somehow unavailable). FDC3 is opt-in:
 
 ```jsonc
-// apps/demos/star-demo/public/platform/manifest.fin.json
+// apps/source/star-demo/public/platform/manifest.fin.json
 "platform": {
   "uuid": "star-demo",
   // …
@@ -124,7 +124,7 @@ registered in code by `initWorkspace()`.
 ## Where it's implemented
 
 All of the reusable implementation lives in
-`packages/react-core/widgets-react/src/hosted/` (exported from that package's
+`packages/react-grid/widgets-react/src/hosted/` (exported from that package's
 `./hosted` subpath barrel, `index.ts`).
 
 | File | Responsibility |
@@ -145,8 +145,8 @@ Supporting pieces outside `hosted/`:
 | `container/markets-grid-container/MarketsGridContainer.tsx` | Resolves `rowIdField` from the active provider's `keyColumn` (drives `getRowId`) and surfaces it via the `onRowIdFieldChange` callback so the host links off the same fields — no hardcoding. |
 | `packages/openfin/host-openfin/src/notifications.ts` | The single seam onto `@openfin/workspace/notifications`: `loadOpenFinNotificationsApi`, `dispatchOpenFinNotification`. |
 | `packages/openfin/openfin-platform/src/notifications.ts` | `registerNotifications()` — registers the Notification Center provider during `initWorkspace()`. |
-| `apps/demos/star-demo/src/views/BlottersMarketsGrid.tsx` | Demo wiring (`contextLink` prop). |
-| `apps/demos/star-demo/public/platform/manifest.fin.json` | Optional `fdc3InteropApi` defaults (see above). |
+| `apps/source/star-demo/src/views/BlottersMarketsGrid.tsx` | Demo wiring (`contextLink` prop). |
+| `apps/source/star-demo/public/platform/manifest.fin.json` | Optional `fdc3InteropApi` defaults (see above). |
 
 ---
 

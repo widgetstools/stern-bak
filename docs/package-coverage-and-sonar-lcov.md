@@ -21,7 +21,7 @@ The root `package.json` contains these relevant scripts:
 {
   "scripts": {
     "test:coverage": "node scripts/run-test-coverage.mjs",
-    "test": "node scripts/run-unit-tests-with-report.mjs"
+    "test": "npm run test:packages"
   }
 }
 ```
@@ -53,7 +53,7 @@ The root `package.json` contains these relevant scripts:
     coverage/lcov.info
     ```
 
-`scripts/run-unit-tests-with-report.mjs` is the fuller root test path used by `npm test`. It also passes explicit coverage reporters, merges LCOV files, writes JUnit output, runs app coverage, and prints an LCOV/Sonar-style coverage estimate.
+`npm test` at the root runs `test:packages` (turbo test across `packages/`). The per-file coverage gate is a separate run — `scripts/run-test-coverage.mjs` (see `docs/COVERAGE_PLAN.md`), which merges LCOV files and prints the Sonar-style coverage estimate.
 
 Turbo is configured in `turbo.json` so the `test` task keeps test and coverage outputs:
 
@@ -72,7 +72,7 @@ Turbo is configured in `turbo.json` so the `test` task keeps test and coverage o
 
 For a new package to produce LCOV and be included in the merged Sonar file, it needs to be in the root npm workspace and have a real Vitest test script.
 
-If the package is added under an existing workspace bucket such as `packages/react-core/*`, `packages/shared/*`, `packages/openfin/*`, `packages/react-ui/*`, or another existing glob in the root `workspaces` array, no root workspace change is needed.
+If the package is added under an existing workspace bucket listed in the root `workspaces` array (`packages/design-system`, `packages/react-grid`, `packages/data`, `packages/openfin`, `packages/react-core`, `packages/types`, `packages/core`), no root workspace change is needed.
 
 If the package is added under a brand-new bucket, add the bucket glob to the root `package.json` `workspaces` array.
 

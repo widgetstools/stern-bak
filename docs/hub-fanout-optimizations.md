@@ -1,6 +1,6 @@
 # SharedWorker Hub — High-Volume Fan-Out Optimizations
 
-How the `@wellsfargo-starui/host-data` SharedWorker hub publishes large snapshots
+How the `@wellsfargo-starui/data` SharedWorker hub publishes large snapshots
 and high-rate realtime streams to many subscriber windows, what was
 optimized, and the architectural trade-offs behind each choice.
 
@@ -241,4 +241,4 @@ Related code:
 - `packages/data/host-data/src/runtime/wire/rowDiff.ts` — top-level row diffing for thin deltas
 - `packages/data/host-data/src/runtime/providers/fieldProjection.ts` — field projection
 - `packages/data/host-data/src/runtime/protocol.ts` — wire events, `ProviderStats`, scalar `provider-running` RPC
-- `apps/demos/stomp-view-server/` — rate-budget live batcher (trigger rate honoured exactly; random rows × ≤15 hot fields), drain-paced snapshots, backpressure guard (test feed)
+- `apps/source/stomp-view-server/` — rate-budget live batcher (trigger rate honoured exactly; random rows × ≤15 hot fields), drain-paced snapshots, backpressure guard (test feed)

@@ -29,7 +29,7 @@ There are **two ConfigManager instances** in a running OpenFin deployment:
 
 | Instance | Lives on | Created by | Role |
 |----------|----------|------------|------|
-| **Main-thread ConfigManager** | Each window's main thread | `ensureConfigReady` (`@wellsfargo-starui/host-data`) | Profile/gridLevelData CRUD, provider catalog reads, Config Browser, dock/registry, workspace persistence. Passed into the hub as `mainThreadConfigManager`. |
+| **Main-thread ConfigManager** | Each window's main thread | `ensureConfigReady` (`@wellsfargo-starui/data`) | Profile/gridLevelData CRUD, provider catalog reads, Config Browser, dock/registry, workspace persistence. Passed into the hub as `mainThreadConfigManager`. |
 | **Worker ConfigManager** | The SharedWorker (`mkt-data-services:${appId}`) | `defaultEntry.ts` (`createConfigManager` + full `init()`) | Sole IndexedDB writer for the AppData mirror; backs the worker catalog cache; always full-seeds on cold start. |
 
 Both open the **same** `marketsui-config` IndexedDB database (IndexedDB is
@@ -57,13 +57,13 @@ populated (emptiness check).
 
 | Area | Path |
 |------|------|
-| ConfigManager class + factory | `packages/data/host-config/src/ConfigManager.ts` |
-| Row/option types | `packages/data/host-config/src/types.ts` |
-| Dexie schema | `packages/data/host-config/src/db.ts` |
-| Seeding + identity | `packages/data/host-config/src/normalizeSeedData.ts`, `seedDigest.ts` |
-| Profile StorageAdapter | `packages/data/host-config/src/profileStorage.ts`, `profileSet.ts`, `profiles.ts` |
-| Visibility / effective user | `packages/data/host-config/src/visibility.ts`, `effectiveUser.ts` |
-| REST client | `packages/data/host-config/src/client.ts` |
+| ConfigManager class + factory | `packages/core/host-config/src/ConfigManager.ts` |
+| Row/option types | `packages/core/host-config/src/types.ts` |
+| Dexie schema | `packages/core/host-config/src/db.ts` |
+| Seeding + identity | `packages/core/host-config/src/normalizeSeedData.ts`, `seedDigest.ts` |
+| Profile StorageAdapter | `packages/core/host-config/src/profileStorage.ts`, `profileSet.ts`, `profiles.ts` |
+| Visibility / effective user | `packages/core/host-config/src/visibility.ts`, `effectiveUser.ts` |
+| REST client | `packages/core/host-config/src/client.ts` |
 | Bootstrap (config-only + full) | `packages/data/host-data/src/bootstrap/ensurePlatformReady.ts` |
 | Bootstrap config + validation | `packages/data/host-data/src/bootstrap/PlatformBootstrapConfig.ts`, `resolvePlatformBootstrap.ts` |
 | Cross-window warm marker | `packages/data/host-data/src/bootstrap/platformWarmSession.ts`, `crossWindowStorage.ts` |
@@ -71,11 +71,11 @@ populated (emptiness check).
 | Worker entry | `packages/data/host-data/src/runtime/worker/defaultEntry.ts`, `entry.ts` |
 | React providers | `packages/data/host-data-react/src/runtime/DataHubProvider.tsx`, `DataServicesProvider.tsx` |
 | Provider catalog store | `packages/data/host-data/src/runtime/config/store.ts` |
-| Hosted identity | `packages/react-core/widgets-react/src/hosted/useHostedIdentity.ts`, `HostedMarketsGrid.tsx` |
+| Hosted identity | `packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts`, `HostedMarketsGrid.tsx` |
 | Workspace persistence | `packages/openfin/openfin-platform/src/workspacePersistence.ts`, `workspace.ts` |
 | Dock / registry | `packages/openfin/openfin-platform/src/db.ts`, `launch.ts`, `registryClone.ts` |
 | OpenFin config singleton | `packages/openfin/openfin-platform/src/config*` (`getConfigManager`, `peekConfigManager`, `setConfigManager`) |
-| Star-demo wiring | `apps/demos/star-demo/src/main.tsx`, `platformBootstrap.tsx`, `platform/Provider.tsx` |
+| Star-demo wiring | `apps/source/star-demo/src/main.tsx`, `platformBootstrap.tsx`, `platform/Provider.tsx` |
 
 ---
 
@@ -312,8 +312,8 @@ re-optimization must keep all of them working.
 | 10 | **Config import/export** | `workspace.ts`, `configImport.ts`, `ImportConfig.tsx`, `deployExport.ts` | bulk `appConfig` + auth tables | R/W | Dock Export/Import; Config Browser export | Full deployment backup/restore; scoped deploy export |
 | 11 | **Worker catalog cache** | `ConfigCatalogCache.ts`, `wireWorkerCatalogSync.ts` | reads `data-provider`/`appdata` | R + invalidate | Hub boot; provider save | Stream attach uses latest provider cfg; grid/profile saves do **not** invalidate catalog |
 | 12 | **ApplicationContext** | `ConfigManager.ts` | AppData row `ApplicationContext` | W on init / R via `getApplicationContext` | Platform init; impersonation | App id, user, roles/permissions available to hooks |
-| 13 | **Widget layouts** | `shared/widget/widgetLayouts.ts`, `widget-sdk/useWidget.ts` | `appConfig` · `simple-blotter-layout` · UUID | R/W | Widget lifecycle | Per-widget saved layouts |
-| 14 | **Legacy cleanup** | `HostedMarketsGrid.tsx` | `appConfig` · `marketsgrid-view-state::{instanceId}` | delete | Once per browser | Removes obsolete pre-consolidation rows |
+| 13 | **Widget layouts** | *(writers deleted — `widget-sdk` removed in the simplification; rows may persist in existing stores)* | `appConfig` · `simple-blotter-layout` · UUID | — | historical | Per-widget saved layouts |
+| 14 | **Legacy cleanup** | `useHostedStarui.ts` | `appConfig` · `marketsgrid-view-state::{instanceId}` | delete | Once per browser | Removes obsolete pre-consolidation rows |
 
 ### Critical end-to-end flows (acceptance checklist for re-optimization)
 
@@ -372,7 +372,7 @@ re-optimization must keep all of them working.
 - OpenFin suite (`e2e-openfin/`, CDP, `:5181`): `blotter-smoke` (committed);
   workspace-persistence / multi-blotter specs exist only as WIP on the
   abandoned branch.
-- Legacy Vitest OpenFin bridge (`apps/demos/e2e-openfin-vitest/`):
+- Legacy Vitest OpenFin bridge (the deleted `e2e-openfin-vitest` app — git history):
   workspace Storage CRUD via the `marketsui-test-bridge` channel.
 
 ### Coverage gaps relevant to this effort

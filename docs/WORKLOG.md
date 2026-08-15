@@ -1,6 +1,8 @@
 # Worklog — outstanding items
 
 > **2026-08-14 (feature/simplify):** `EXTERNAL_CONSUMPTION.md`, `MARKETSGRID_USAGE_GUIDE.md`, `STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md`, and the hosted-wrapper README were **deleted** — every one referenced packages, scripts, or apps that no longer exist. Phase 7 of the simplification roadmap rewrites consumer docs from scratch; `docs/latest/` remains the accurate set. Worklog entries below referring to those files are historical.
+>
+> **2026-08-14 (Phase 7):** the stale-docs refresh pass landed (former item 13 — closed): live docs' pre-collapse paths/names fixed, docs whose subject no longer exists deleted, `docs/superpowers/` dissolved into `docs/archive/`. Item 3 closed the same day: `host-data-angular` is deleted, not excluded.
 
 Single index of known-open work in this repo — which, since 2026-08-02, again
 includes the consumer/demo apps: the `stern-apps` repo was merged back
@@ -62,24 +64,6 @@ the same decision.
 
 ---
 
-## 3. `host-data-angular` is the last Angular package
-
-**Repo:** stern-bak · **Blocked on:** nothing — needs a decision only
-
-`packages/data/host-data-angular` survived the bucket deletion in `47c802a`
-because it sits in the `data` bucket. It is excluded from the pipeline:
-out of the root `workspaces`, and skipped by `SKIP_MEMBERS` in
-`scripts/pack-npm.mjs` and `ANGULAR_MEMBERS` in
-`scripts/gen-consumer-tsconfig.mjs`.
-
-Its `tsconfig.json` used to extend `angular-core/tsconfig.angular.json`; those
-three compiler options are now inlined so nothing dangles.
-
-**Done looks like:** either keep it (no action, it costs one skip entry in two
-scripts) or delete it — after which both skip mechanisms and the `data` bucket's
-individually-listed workspace members can collapse to a `packages/data/*` glob.
-
----
 
 ## 4. 25 icons cannot be recoloured or themed
 
@@ -688,41 +672,6 @@ branch); these judged-riskier items remain:
    trigger full-grid scans every tick; only partially covered by
    `blotter-performance-roadmap` Tier 4.
 
-## 13. Stale-but-live docs need a path/name refresh pass
-
-**Area:** `docs/` · **Blocked on:** nothing — mechanical
-
-The 2026-08-02 docs audit kept these files because they document live
-features, but each carries pre-collapse names/paths. One pass, per file:
-
-- `MARKETSGRID_USAGE_GUIDE.md` — §20 cheat sheet + §21 template table are
-  fully dead (`widgets-react`, `host-data-react/runtime`, `apps/demos/*`);
-  live names: `@wellsfargo-starui/grid/widgets`, `/widgets/hosted`,
-  `@wellsfargo-starui/react/data/runtime`.
-- `STOMP_DATAPROVIDER_MARKETSGRID_GUIDE.md` — prereqs still say
-  `npm run propagate` / install from `libs/`; Step 1 uses the deleted
-  `mcp-scaffold` (`pack:mcp` is not a script). Protocol half is accurate.
-- `EXTERNAL_CONSUMPTION.md` — §1 install names are pre-collapse; closing
-  note recommends `propagate`.
-- `PROFILE_PERSISTENCE.md`, `EXPRESSION_DSL.md`,
-  `blotter-performance-roadmap.md` — `packages/shared/engine` →
-  `packages/core/engine` (+ roadmap's `react-core/widgets-react` →
-  `react-grid/...`, `apps/demos/*` → `apps/source/*`, and its "nothing
-  implemented yet" header contradicting its own ✅ items).
-- `CONFIG_SERVICE_BASELINE.md` — `apps/demos/star-demo/*` paths;
-  `host-config`/`host-data` import names → `@wellsfargo-starui/core/host/config`
-  / `@wellsfargo-starui/data`.
-- `OPENFIN_GRID_LINKING.md` — `packages/react-core/widgets-react/...` →
-  `packages/react-grid/widgets-react/...`; `apps/demos/` → `apps/source/`.
-- `MEMORY_LEAK_AUDIT.md` (archived but current-content) —
-  `--workspace=@wellsfargo-starui/host-data` → `@wellsfargo-starui/data`.
-- `package-coverage-and-sonar-lcov.md` — cites nonexistent
-  `scripts/run-unit-tests-with-report.mjs`; bucket-glob advice predates the
-  seven explicit workspace paths.
-- `guides/design-system-upgrade-and-openfin-palette.md` — `apps/demos/*`,
-  `npm run build:apps`, link to the archived `BUILD.md`.
-- `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
-  `@wellsfargo-starui/data`.
 
 ## 14. First-run catalog read stalled once — class closed, forensic cause unproven
 

@@ -109,7 +109,6 @@ names in line with the symbols they export.
 | Constants module | `constants.ts` | `SCREAMING_SNAKE` for true constants; `camelCase` otherwise |
 | Barrel | `index.ts` | re-exports |
 | Folders | kebab-case | `data-provider-editor/` |
-| Angular files | Angular Style Guide kebab + role suffix | `class FooComponent`, `class FooService` in `*.component.ts`, `*.service.ts`, `*.module.ts`, `*.directive.ts`, `*.pipe.ts` |
 
 **Allowed in types/, core/ and react/ buckets**: `camelCase` and `PascalCase` only.
 No kebab. No snake.
@@ -214,8 +213,7 @@ Every UI component — new or updated — MUST:
 2. **Use the framework-matching primitive library:**
    - **React** → shadcn/ui (via `@wellsfargo-starui/react` + `@wellsfargo-starui/grid` customizer
      primitives). **No native `<input>` / `<textarea>` / `<select>`.**
-   - **Angular** → PrimeNG (themed via `@wellsfargo-starui/tokens-primeng`).
-     `pInputText`, `pButton`, `pDropdown`, `pDialog`, etc.
+     (All Angular packages are deleted; there is no PrimeNG surface.)
 
 3. **Be 100% dark/light compatible.** Every surface renders correctly
    under `[data-theme="dark"]` AND `[data-theme="light"]`. No hardcoded
@@ -228,8 +226,9 @@ one instead.
 
 ## Import boundary rules
 
-Enforced via convention (ESLint enforcement is a follow-up). See
-`docs/ARCHITECTURE.md` for the full layer diagram. Key rules:
+Enforced by `eslint.config.mjs` boundary zones (error level). See
+[`docs/latest/architecture.md`](./docs/latest/architecture.md) for the full
+layer diagram. Key rules:
 
 - Foundation packages (`types`, `design-system`) must
   not import from anywhere except each other.

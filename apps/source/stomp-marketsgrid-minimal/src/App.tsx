@@ -154,7 +154,7 @@ export function App() {
   // Wait until catalog rows exist and worker cache has been invalidated.
   if (!providerId || !historicalProviderId) return null;
 
-  // HostedMarketsGrid: cfg-free attach via defaultLiveProviderId; hub lazy-starts STOMP.
+  // StarGrid: cfg-free attach via the catalog provider row; hub lazy-starts STOMP.
   // withStorage + configManager: grid layout via main-thread ConfigManager from getPlatform().
   //
   // ─── Historical data: how the date picker drives the fetch ──────────

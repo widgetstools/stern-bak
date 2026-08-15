@@ -115,7 +115,7 @@ set STARUI_PLATFORM=C:\path\to\platform && npm install # Windows
 ## Commands
 
 ```bash
-npm run typecheck:source    # all 7 source-track apps
+npm run typecheck:source    # all source-track apps
 npm run build:source
 npm run typecheck:tarball
 npm run build:tarball
@@ -150,8 +150,8 @@ nothing.
 
 | Track | Apps | Ports |
 |---|---|---|
-| `source/` | 7 | 5175, 5193, 5194, 5213, 5300, 5310, 8081 |
-| `tarball/` | 6 | source port **+ 1000** (6175, 6193, …) so both tracks can run at once |
+| `source/` | 10 | 5175, 5176, 5177, 5193, 5194, 5213, 5300, 5310, 5320, 8081 |
+| `tarball/` | 7 (generated twins) | source port **+ 1000** (6175, 6193, …) so both tracks can run at once |
 
 **`tarball/` is generated — do not hand-edit it.**
 

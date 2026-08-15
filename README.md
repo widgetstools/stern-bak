@@ -32,8 +32,8 @@ stern-bak/                # @wellsfargo-starui/platform
 | Package | Role |
 |---|---|
 | `@wellsfargo-starui/types` | foundation contracts (depends on nothing) |
-| `@wellsfargo-starui/design-system` | tokens, themes, icons; shadcn/PrimeNG/AG-Grid adapters |
-| `@wellsfargo-starui/core` | vanilla-TS runtime: grid engine, host ports, Dexie config store, widget framework |
+| `@wellsfargo-starui/design-system` | tokens, themes, icons; the AG-Grid theme adapter |
+| `@wellsfargo-starui/core` | vanilla-TS runtime: grid engine, host ports, Dexie config store |
 | `@wellsfargo-starui/data` | SharedWorker data services — one STOMP connection, every window |
 | `@wellsfargo-starui/openfin` | OpenFin workspace shell + RuntimePort plugin (sole owner of `@openfin/core`) |
 | `@wellsfargo-starui/react` | shadcn/Radix primitives, widget SDK, host wrapper, data bindings |

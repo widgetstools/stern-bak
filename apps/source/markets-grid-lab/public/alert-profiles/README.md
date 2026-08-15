@@ -6,7 +6,7 @@
 Import via toolbar **profile selector → Import**. Regenerate current exports:
 
 ```bash
-npx tsx apps/demos/markets-grid-lab/scripts/writeLabProfileJson.ts
+npx tsx apps/source/markets-grid-lab/scripts/writeLabProfileJson.ts
 ```
 
 On first visit to the Alerts tab, profiles install automatically

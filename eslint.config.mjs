@@ -7,7 +7,7 @@
 //
 // Severity philosophy (see docs/blotter-performance-roadmap.md sibling plan):
 //   - Architecture import boundaries  -> `error` (the rules
-//     docs/ARCHITECTURE.md describe as non-negotiable).
+//     docs/latest/architecture.md describe as non-negotiable).
 //   - Style / size / `any` ceilings   -> `warn` (large pre-existing backlog;
 //     surfaced for incremental cleanup, never blocks CI on day one).
 import js from '@eslint/js';
@@ -16,7 +16,7 @@ import unicorn from 'eslint-plugin-unicorn';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
-// ── Architecture buckets (see docs/PACKAGE_ORGANIZATION.md) ──────────────
+// ── Architecture buckets (see docs/latest/packages.md) ───────────────────
 const FOUNDATION_GLOBS = [
   'packages/design-system/design-system/**/*.{ts,tsx}',
   'packages/design-system/icons-svg/**/*.{ts,tsx}',

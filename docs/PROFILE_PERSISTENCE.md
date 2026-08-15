@@ -107,7 +107,7 @@ userId, gridId }` so adapter scope follows the props naturally.
 ConfigService factory automatically when you pass `withStorage` and
 resolves `appId`/`userId`/`instanceId` from OpenFin view `customData`
 (or props in browser mode). See
-[`packages/react-core/widgets-react/src/hosted/README.md`](../packages/react-core/widgets-react/src/hosted/README.md#persistence-model)
+[`packages/react-grid/widgets-react/src/hosted/README.md`](../packages/react-grid/widgets-react/src/hosted/README.md#persistence-model)
 for the wrapper's wiring.
 
 ---
@@ -222,8 +222,8 @@ The handler runs the same code path as the toolbar **Save** button —
 — so all unsaved edits land on disk before the snapshot is taken.
 
 Source:
-[`packages/react-core/widgets-react/src/hosted/useWorkspaceSaveEvent.ts`](../packages/react-core/widgets-react/src/hosted/useWorkspaceSaveEvent.ts),
-[`packages/react-core/widgets-react/src/hosted/HostedMarketsGrid.tsx:160-184`](../packages/react-core/widgets-react/src/hosted/HostedMarketsGrid.tsx#L160-L184).
+[`packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts`](../packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts),
+[`packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx:160-184`](../packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx#L160-L184).
 
 ### Mechanism B — `augmentSnapshotWithLiveCustomData`
 
@@ -321,7 +321,7 @@ other's profiles.
 `HostedMarketsGrid` derives these from OpenFin view `customData` or
 from `defaultAppId`/`defaultUserId`/`defaultInstanceId` props in
 browser mode. See
-[`packages/react-core/widgets-react/src/hosted/useHostedIdentity.ts`](../packages/react-core/widgets-react/src/hosted/useHostedIdentity.ts).
+[`packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts`](../packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts).
 
 If `appId` or `userId` is missing **and** the adapter is the
 ConfigService factory, `<MarketsGrid>` throws at mount with a clear
@@ -346,7 +346,7 @@ next save/restore.
 
 If you need to re-bind state to late-mounting column defs, do it in
 a way that does **not** touch the pointer. The current container
-([`MarketsGridContainer.onReady`](../packages/react-core/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx#L358-L368))
+([`MarketsGridContainer.onReady`](../packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx#L358-L368))
 does not call `loadProfile` for exactly this reason.
 
 ### Don't use `importProfile` as a way to "force the right Default"
@@ -389,9 +389,9 @@ view and re-opened it in the same browser session", but not for
 | OpenFin per-view source | [`packages/react-grid/grid/src/widget/openfinViewProfile.ts`](../packages/react-grid/grid/src/widget/openfinViewProfile.ts) |
 | Profile selector UI | [`packages/react-grid/grid/src/widget/ProfileSelector.tsx`](../packages/react-grid/grid/src/widget/ProfileSelector.tsx) |
 | Workspace save channel | [`packages/openfin/openfin-platform/src/workspacePersistence.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.ts) |
-| Hosted wrapper save wiring | [`packages/react-core/widgets-react/src/hosted/HostedMarketsGrid.tsx`](../packages/react-core/widgets-react/src/hosted/HostedMarketsGrid.tsx), [`useWorkspaceSaveEvent.ts`](../packages/react-core/widgets-react/src/hosted/useWorkspaceSaveEvent.ts) |
-| Hosted identity resolution | [`packages/react-core/widgets-react/src/hosted/useHostedIdentity.ts`](../packages/react-core/widgets-react/src/hosted/useHostedIdentity.ts) |
-| Container mount + re-bind | [`packages/react-core/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx`](../packages/react-core/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx) |
+| Hosted wrapper save wiring | [`packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx`](../packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx), [`useWorkspaceSaveEvent.ts`](../packages/react-grid/widgets-react/src/hosted/useWorkspaceSaveEvent.ts) |
+| Hosted identity resolution | [`packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts`](../packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts) |
+| Container mount + re-bind | [`packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx`](../packages/react-grid/widgets-react/src/v2/markets-grid-container/MarketsGridContainer.tsx) |
 
 ---
 
@@ -407,4 +407,5 @@ view and re-opened it in the same browser session", but not for
 - [`e2e/v2-profile-lifecycle.spec.ts`](../e2e/v2-profile-lifecycle.spec.ts),
   [`v2-profile-isolation-*.spec.ts`](../e2e/),
   [`v2-profile-stress.spec.ts`](../e2e/v2-profile-stress.spec.ts) —
-  end-to-end against the `demo-react` ConfigService adapter.
+  end-to-end profile specs (currently red — they target the deleted
+  `demo-react` app; see WORKLOG item 1).

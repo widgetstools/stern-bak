@@ -6,7 +6,7 @@ How browser and OpenFin apps resolve **`appId`**, **`userId`**, and config-servi
 
 ## Unified shape
 
-Every runtime resolves the same TypeScript interface (`PlatformBootstrapConfig` from `@wellsfargo-starui/host-data`):
+Every runtime resolves the same TypeScript interface (`PlatformBootstrapConfig` from `@wellsfargo-starui/data`):
 
 | Field | Required | Purpose |
 |-------|----------|---------|
@@ -27,7 +27,7 @@ Seed AppData providers (entitlements, `SessionContext`, desk defaults) **after**
 ### App registry — `src/platform/appDataBootstrap.ts`
 
 ```typescript
-import type { AppDataBootstrapHookRegistry } from '@wellsfargo-starui/host-data';
+import type { AppDataBootstrapHookRegistry } from '@wellsfargo-starui/data';
 
 export const appDataBootstrapHooks: AppDataBootstrapHookRegistry = {
   'session-context': async (ctx) => {
@@ -96,8 +96,8 @@ Place at **`public/app-config.json`** (served as `/app-config.json`):
 import {
   resolvePlatformBootstrapFromJson,
   ensurePlatformReady,
-} from '@wellsfargo-starui/host-data';
-import workerAssetUrl from '@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url';
+} from '@wellsfargo-starui/data';
+import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
 
 const config = await resolvePlatformBootstrapFromJson('/app-config.json');
 export const platform = await ensurePlatformReady(config, {
@@ -142,8 +142,8 @@ View **`customData`** carries per-window `instanceId` only — **not** hub `appI
 
 ```typescript
 import { resolvePlatformBootstrapFromManifest } from '@wellsfargo-starui/openfin-platform/config';
-import { ensurePlatformReady } from '@wellsfargo-starui/host-data';
-import workerAssetUrl from '@wellsfargo-starui/host-data/assets/data-services-worker.mjs?url';
+import { ensurePlatformReady } from '@wellsfargo-starui/data';
+import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
 
 const config = await resolvePlatformBootstrapFromManifest();
 export const platform = await ensurePlatformReady(config, {
@@ -159,10 +159,10 @@ Pure helper for tests: `resolvePlatformBootstrapFromCustomSettings(customSetting
 
 ## Dev fallback
 
-Tests and local harnesses may use `DEV_PLATFORM_BOOTSTRAP` from `@wellsfargo-starui/host-data`:
+Tests and local harnesses may use `DEV_PLATFORM_BOOTSTRAP` from `@wellsfargo-starui/data`:
 
 ```typescript
-import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/host-data';
+import { DEV_PLATFORM_BOOTSTRAP } from '@wellsfargo-starui/data';
 // { appId: 'TestApp', userId: 'dev1', useRest: false }
 ```
 
@@ -195,7 +195,7 @@ Loaders throw `PlatformBootstrapConfigError` when validation fails.
 
 ---
 
-## Pilot app — `apps/demos/markets-grid-lab`
+## Pilot app — `apps/source/markets-grid-lab`
 
 Reference wiring (PR1b):
 

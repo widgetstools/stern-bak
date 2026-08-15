@@ -83,8 +83,7 @@ After a token upgrade, run design-system tests (`npm test -w @wellsfargo-starui/
 |---------|--------|------|
 | Tailwind v3 preset | `@wellsfargo-starui/design-system/tailwind` | `oklch(var(--token) / <alpha-value>)` colours, `h-control`, font sizes from `--text-*` |
 | AG Grid v33+ | `@wellsfargo-starui/design-system/adapters/ag-grid` | Single `staruiGridTheme` with light/dark `withParams`; reads `data-ag-theme-mode` |
-| shadcn bridge | `@wellsfargo-starui/design-system/shadcn` | Unified CSS generation |
-| PrimeNG | `@wellsfargo-starui/design-system/primeng` | Angular token preset |
+| shadcn bridge | *(the `./shadcn` subpath was cut in the barrel diet — components consume tokens via the Tailwind preset)* | Unified CSS generation |
 
 **Tailwind in apps:** PostCSS loads `tailwind.config.js` outside Vite, so apps use:
 
@@ -142,7 +141,7 @@ Primitives in `packages/react-ui/ui/src/components/` must:
 - Not hardcode hex / gray Tailwind (`bg-gray-900`, `h-8` for controls)
 - Resolve opacity via the preset’s `<alpha-value>` pattern on OKLCH vars
 
-After token changes, spot-check dark + light in `demo-react` or `star-demo`.
+After token changes, spot-check dark + light in `star-demo`.
 
 ### 3.3 Align AG Grid
 
@@ -266,7 +265,7 @@ If CSS is missing at init, `FALLBACK_OPENFIN_DARK_PALETTE` / `FALLBACK_OPENFIN_L
 
 ### 4.8 Persisted workspace layouts (`seed.json`)
 
-`apps/demos/star-demo/public/seed.json` may contain `_themeData.themes` with legacy hex palettes. That affects **saved layout chrome**, not the live `init()` palettes. After a palette migration, re-export seed or accept that old layouts carry stale `_themeData` until re-saved.
+`apps/source/star-demo/public/seed.json` may contain `_themeData.themes` with legacy hex palettes. That affects **saved layout chrome**, not the live `init()` palettes. After a palette migration, re-export seed or accept that old layouts carry stale `_themeData` until re-saved.
 
 ---
 
@@ -275,7 +274,7 @@ If CSS is missing at init, `FALLBACK_OPENFIN_DARK_PALETTE` / `FALLBACK_OPENFIN_L
 Some demos map OpenFin-injected vars to StarUI tokens:
 
 ```css
-/* apps/demos/star-demo/src/index.css */
+/* apps/source/star-demo/src/index.css */
 :root {
   --of-bg: var(--theme-background-primary, var(--ds-surface-ground));
   --of-fg: var(--theme-text-default, var(--ds-text-primary));
@@ -357,7 +356,7 @@ scripts/
   staruiTailwindPreset.cjs          # PostCSS-safe preset loader
   ensure-workspace-links.mjs        # Pre-build workspace symlinks
 
-apps/demos/star-demo/
+apps/source/star-demo/
   src/main.tsx                      # applyTheme before provider
   src/index.css                     # @import design-system/css
   src/platform/Provider.tsx           # initWorkspace()

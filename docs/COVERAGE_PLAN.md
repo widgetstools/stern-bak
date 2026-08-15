@@ -1,6 +1,11 @@
 # Coverage plan — 70% per file on lines, statements, functions and branches
 
-Branch: **`test/coverage-70`**
+Branch: originally **`test/coverage-70`** (merged; the gate now rides every branch)
+
+> Package names in the dated session tables below are **pre-collapse** —
+> `widget-sdk`, `widget`, `widget-browser`, `host-data-react`, … were later
+> merged into the seven bucket packages (see `docs/latest/packages.md`).
+> The history is kept as written.
 
 **The gate is met. Every file in every package is at or above 70% on all four metrics.**
 
