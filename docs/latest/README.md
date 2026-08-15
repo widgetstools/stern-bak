@@ -10,6 +10,7 @@ The current documentation set for the StarUI (MarketsUI) platform.
 | [packages.md](./packages.md) | per-package reference: role, export subpaths, peers | anyone importing a package |
 | [ssrm-engine.md](./ssrm-engine.md) | the transport-agnostic SSRM query/aggregation engine | engineers touching server-side row model |
 | [provider-config.md](./provider-config.md) | data-provider config reference — generated from the types | anyone authoring a provider |
+| [appdata.md](./appdata.md) | the AppData key/value layer — mirror, hooks, `{{name.key}}` templates, asOfDate | app + provider authors |
 
 ## Related references (outside this set)
 
