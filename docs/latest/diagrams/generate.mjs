@@ -117,14 +117,14 @@ function layerModel() {
       { t: '@wellsfargo-starui/grid', l: ['MarketsGrid · customizer · config browser · widgets'], mono: true },
     ]},
     { tier: 'react', label: 'React layer', boxes: [
-      { t: '@wellsfargo-starui/react', l: ['shadcn/Radix primitives · widget SDK · host wrapper · data bindings'], mono: true },
+      { t: '@wellsfargo-starui/react', l: ['shadcn/Radix primitives · workspace setup · data bindings (createStarui)'], mono: true },
     ]},
     { tier: 'services', label: 'Services', boxes: [
       { t: '@wellsfargo-starui/data', l: ['SharedWorker data services'], mono: true },
-      { t: '@wellsfargo-starui/openfin', l: ['workspace shell · RuntimePort plugin'], mono: true },
+      { t: '@wellsfargo-starui/openfin', l: ['workspace shell · OpenFinRuntime (RuntimePort)'], mono: true },
     ]},
     { tier: 'runtime', label: 'Core runtime', boxes: [
-      { t: '@wellsfargo-starui/core', l: ['grid engine · host ports · widget framework'], mono: true },
+      { t: '@wellsfargo-starui/core', l: ['grid engine · host ports · config store'], mono: true },
     ]},
     { tier: 'found', label: 'Foundation', boxes: [
       { t: '@wellsfargo-starui/design-system', l: ['tokens · themes · icons'], mono: true },
@@ -190,9 +190,11 @@ function depGraph() {
       b += arrow(x + BW + 2, Y + BH / 2, x + STEP - 4, Y + BH / 2);
     }
   });
-  // design-system branch: openfin needs the tokens; the tokens need only types.
+  // design-system branch: openfin AND core need the tokens (core \u2192 design-system
+  // is the Phase-5 one-theme-writer edge); the tokens need only types.
   b += box(475, 252, 190, 56, 'found', 'design-system', ['tokens \u00b7 themes \u00b7 icons'], { mono: true, titleSize: 13 });
   b += `<path d="M411,${Y + BH + 2} L411,280 L473,280" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
+  b += `<path d="M700,${Y + BH + 2} L700,250" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
   b += `<path d="M665,280 L885,280 L885,${Y + BH + 4}" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>\n`;
 
   b += bandLabel(28, 24, 'Package dependencies \u00b7 simplified to the essential arrows', TIER.product.label);
@@ -206,24 +208,24 @@ function depGraph() {
 function runtimeModel() {
   const W = 860, H = 420;
   let b = '';
-  b += bandLabel(28, 24, 'Runtime model · hosts, ports, widgets', TIER.product.label);
+  b += bandLabel(28, 24, 'Runtime model · hosts and ports', TIER.product.label);
 
   // Widget (top center)
-  b += box(310, 44, 240, 64, 'product', 'Widget', ['a grid · a panel · any embeddable unit', 'core/widget'], { titleSize: 13 });
+  b += box(310, 44, 240, 64, 'product', 'App surface', ['a grid · a panel · any view', 'StarGrid / MarketsGrid'], { titleSize: 13 });
   // Ports (middle)
   b += box(310, 168, 240, 58, 'runtime', 'Host ports', ['identity · theme · surface · data', 'core/host'], { mono: false });
   // Config store attached right
   b += box(620, 168, 200, 58, 'runtime', 'Config store', ['Dexie / IndexedDB', 'core/host/config'], {});
   // Adapters (bottom row)
-  b += box(120, 296, 260, 62, 'services', 'Browser adapter', ['plain browser tab', 'core/host/browser · core/widget/browser'], {});
-  b += box(480, 296, 260, 62, 'services', 'OpenFin RuntimePort plugin', ['workspace · dock · home · notifications', 'openfin/plugin · openfin/host'], {});
+  b += box(120, 296, 260, 62, 'services', 'Browser adapter', ['plain browser tab', 'core/host/browser (BrowserRuntime)'], {});
+  b += box(480, 296, 260, 62, 'services', 'OpenFinRuntime', ['workspace · dock · notifications', 'openfin/host'], {});
 
   b += arrow(430, 108, 430, 166, 'typed ports', { dx: 46 });
   b += elbow(550, 197, 618, 197, 'hv');
   b += arrow(370, 226, 256, 294);
   b += arrow(490, 226, 604, 294);
-  b += caption(28, H - 16, 'The same widget runs unchanged in a browser tab or inside an OpenFin workspace — the adapter provides the same ports.');
-  return svgDoc(W, H, b, 'StarUI host, port and widget runtime model');
+  b += caption(28, H - 16, 'The same app surface runs unchanged in a browser tab or inside an OpenFin workspace — the adapter provides the same ports.');
+  return svgDoc(W, H, b, 'StarUI host and port runtime model');
 }
 
 // ─── D4 · Data services ────────────────────────────────────────────
@@ -301,9 +303,9 @@ function overviewStack() {
   const W = 700, ROWS = [
     ['consumer', 'apps', 'yours + the bundled demos'],
     ['product', 'grid', 'MarketsGrid product surface'],
-    ['react', 'react', 'primitives · widget SDK'],
+    ['react', 'react', 'primitives · data bindings'],
     ['services', 'data · openfin', 'platform services'],
-    ['runtime', 'core', 'engine · host ports · widgets'],
+    ['runtime', 'core', 'engine · host ports · config store'],
     ['found', 'types · design-system', 'foundation'],
   ];
   const RH = 54, GAP = 16, X = 170, BW = 360;

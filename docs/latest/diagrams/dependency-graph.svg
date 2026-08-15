@@ -35,6 +35,7 @@
 <text x="570" y="277.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">design-system</text>
 <text x="570" y="291.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">tokens · themes · icons</text>
 <path d="M411,174 L411,280 L473,280" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
+<path d="M700,174 L700,250" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
 <path d="M665,280 L885,280 L885,176" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
 <text x="28" y="24" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="#0b6e54" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">PACKAGE DEPENDENCIES · SIMPLIFIED TO THE ESSENTIAL ARROWS</text>
 <text x="28" y="336" font-size="10.5" fill="#5d6b64" font-style="italic">An arrow means "depends on" — and every package also depends on everything reachable further along the</text>

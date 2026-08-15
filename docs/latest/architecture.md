@@ -68,7 +68,6 @@ stern-bak/                          # @wellsfargo-starui/platform
 │   ├── design-system/              #   @wellsfargo-starui/design-system
 │   ├── core/                       #   @wellsfargo-starui/core
 │   ├── data/                       #   @wellsfargo-starui/data
-│   │   └── host-data-angular/      #   (excluded from the pipeline)
 │   ├── openfin/                    #   @wellsfargo-starui/openfin
 │   ├── react-core/                 #   @wellsfargo-starui/react
 │   └── react-grid/                 #   @wellsfargo-starui/grid
@@ -83,28 +82,31 @@ stern-bak/                          # @wellsfargo-starui/platform
 └── tools/                          # repo-internal checks
 ```
 
-The build is **Turborepo 2** over npm 10 workspaces; every package builds with
-`rimraf dist && tsc`. `npm run build` also regenerates
+The build is **Turborepo 2** over npm 10 workspaces; every package's build
+starts by rimraf-ing its member `dist/` dirs then runs `tsc` per member
+(plus per-package asset steps — CSS builds, the worker bundle). `npm run
+build` also regenerates
 `tsconfig.consumer.json` — the generated `paths` map that lets any consumer
 typecheck against the repo without being inside it.
 
 ---
 
-## 4. Runtime architecture — hosts, ports and widgets
+## 4. Runtime architecture — hosts and ports
 
 The core runtime is framework-agnostic vanilla TypeScript. A **host** provides
-platform capabilities to **widgets** through typed **ports**; adapters plug the
-same contracts into different environments.
+platform capabilities to the app through typed **ports** (`RuntimePort`,
+`DataPort`); adapters plug the same contracts into different environments.
 
-![Host, port and widget runtime model](./diagrams/runtime-model.svg)
+![Host and port runtime model](./diagrams/runtime-model.svg)
 
-- **`types`** defines the port contracts (identity, theme, surface) and shared
-  widget-framework types, so every layer agrees on the same shapes.
+- **`types`** defines the port contracts (identity, theme, surface), so every
+  layer agrees on the same shapes.
 - **`core/host/config`** persists configuration through a Dexie (IndexedDB)
   store; profiles and grid state ride the same mechanism.
-- The **browser adapter** runs everything in a plain browser tab; the
-  **OpenFin plugin** provides the same ports inside an OpenFin workspace —
-  widgets don't change between the two.
+- The **browser adapter** (`BrowserRuntime`) runs everything in a plain
+  browser tab; **`OpenFinRuntime`** (from `@wellsfargo-starui/openfin/host`)
+  provides the same ports inside an OpenFin workspace — the app doesn't
+  change between the two.
 
 ---
 

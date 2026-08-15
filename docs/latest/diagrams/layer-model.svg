@@ -22,18 +22,18 @@
 <text x="28" y="291" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="#1f5670" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">REACT LAYER</text>
 <rect x="150" y="244" width="670" height="70" rx="3" fill="#eef6fa" stroke="#2c6e8f" stroke-width="1.4"/>
 <text x="485" y="276" text-anchor="middle" font-size="12.5" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">@wellsfargo-starui/react</text>
-<text x="485" y="290.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">shadcn/Radix primitives · widget SDK · host wrapper · data bindings</text>
+<text x="485" y="290.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">shadcn/Radix primitives · workspace setup · data bindings (createStarui)</text>
 <text x="28" y="393" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="#8a5f14" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">SERVICES</text>
 <rect x="150" y="346" width="325" height="70" rx="3" fill="#fdf6ea" stroke="#b07a1e" stroke-width="1.4"/>
 <text x="312.5" y="378" text-anchor="middle" font-size="12.5" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">@wellsfargo-starui/data</text>
 <text x="312.5" y="392.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">SharedWorker data services</text>
 <rect x="495" y="346" width="325" height="70" rx="3" fill="#fdf6ea" stroke="#b07a1e" stroke-width="1.4"/>
 <text x="657.5" y="378" text-anchor="middle" font-size="12.5" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">@wellsfargo-starui/openfin</text>
-<text x="657.5" y="392.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">workspace shell · RuntimePort plugin</text>
+<text x="657.5" y="392.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">workspace shell · OpenFinRuntime (RuntimePort)</text>
 <text x="28" y="495" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="#38476e" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">CORE RUNTIME</text>
 <rect x="150" y="448" width="670" height="70" rx="3" fill="#f0f3fa" stroke="#4a5d8f" stroke-width="1.4"/>
 <text x="485" y="480" text-anchor="middle" font-size="12.5" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">@wellsfargo-starui/core</text>
-<text x="485" y="494.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">grid engine · host ports · widget framework</text>
+<text x="485" y="494.5" text-anchor="middle" font-size="10.5" fill="#5d6b64">grid engine · host ports · config store</text>
 <text x="28" y="597" font-size="9.5" font-weight="700" letter-spacing="1.6" fill="#4d5751" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">FOUNDATION</text>
 <rect x="150" y="550" width="325" height="70" rx="3" fill="#f3f5f4" stroke="#6b7770" stroke-width="1.4"/>
 <text x="312.5" y="582" text-anchor="middle" font-size="12.5" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">@wellsfargo-starui/design-system</text>

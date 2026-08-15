@@ -14,8 +14,8 @@ browser. One component, production defaults.
 
 **A token-driven design system** — primitives, semantic tokens, themes and
 icons. Dark/light switching is one attribute flip (`data-theme` on `<html>`);
-adapters theme shadcn/ui, PrimeNG and AG Grid from the same token tree, so
-every surface in every framework agrees.
+the Tailwind preset themes the shadcn/ui primitives and the AG Grid adapter
+themes the grids from the same token tree, so every surface agrees.
 
 **Shared real-time data services** — a SharedWorker owns a single upstream
 STOMP connection and fans snapshots plus thin field-level deltas out to every

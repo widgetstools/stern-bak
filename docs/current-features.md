@@ -260,7 +260,7 @@ Per-renderer config types (`PillRendererConfig`,
 
 ## 2. React UI Controls
 
-### 2.1 `@wellsfargo-starui/react` (formerly `@wellsfargo-starui/react`)
+### 2.1 `@wellsfargo-starui/react`
 
 **Path:** `packages/react-core/ui`
 **Purpose:** shadcn/Radix React primitives themed via `@wellsfargo-starui/design-system`. Mandatory for any React UI in the monorepo (`<input>`/`<select>`/`<textarea>` forbidden — use these instead).
@@ -658,25 +658,7 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
 
 ## 4. React Core
 
-### 4.1 `@wellsfargo-starui/app`
-
-**Path:** `packages/react-core/app`
-**Purpose:** Declarative StarGridApp root — composes `GridHostContext` and provides React context for the grid + plugins.
-
-- `StarGridApp` — root component (providers, host context, children)
-- `StarGridAppProvider` — context provider for host, state, persistence, plugins, theme
-- `useStarGridApp` — read app state, plugins, instance metadata
-- `useStarGridHost` — read host context (runtime, storage, data, config)
-- `buildGridHostContext` — compose host context from `{ runtime, storage, data, config }`
-- `defineStarGridPlugin` — plugin registration (`StarGridPlugin`: `{ id, register?({ appId }) }`; `register` runs once at app mount)
-- `GridHostContext`, `createGridHostContext` — on `@wellsfargo-starui/core/host` (not re-exported from `@wellsfargo-starui/app`)
-- `StarGridAppState` — persisted app state (profile, layout, theme, toolbar, settings)
-- `StarGridAppOptions` — init config (appId, userId, host, storage, persistence mode, plugins)
-- `StarGridPersistence` + `storageFactoryForPersistence` — pluggable persistence adapters
-
----
-
-### 4.2 `@wellsfargo-starui/grid/widgets` (formerly `@wellsfargo-starui/grid/widgets`)
+### 4.1 `@wellsfargo-starui/grid/widgets`
 
 **Path:** `packages/react-grid/widgets-react`
 **Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
@@ -759,54 +741,7 @@ Embedded AG Grid tables (Columns tab, AppData fields) register modules via the s
 
 ---
 
-### 4.3 `@wellsfargo-starui/react/widget-sdk` (formerly `@wellsfargo-starui/react/widget-sdk`)
-
-**Path:** `packages/react-core/widget-sdk`
-**Purpose:** Star Widget SDK — React extensibility over `@wellsfargo-starui/core/widget`.
-
-#### Widget host runtime
-
-- `WidgetRegistry` — lazy-load registry for component discovery
-- `WidgetConfig` — id, name, icon, description, settings schema
-
-#### Widget integration hooks
-
-- `useWidget` — read config, context, props, send messages
-- `useSettingsScreen` — declare settings UI
-- `SettingsScreenDefinition` — declarative settings-form contract
-
-#### Extensibility
-
-- `SlotContent` — named-slot render function
-- `WidgetEnhancer` — lifecycle-wrapping HOC
-- `WidgetExtensionConfig` — extension config (target, slots, enhancers)
-- `renderSlot` — render slot with context + children
-- `createExtendedWidget` — HOC factory
-- `compose` — enhancer composition helper
-
-#### Config + layout persistence
-
-- `createConfigManager` — factory for `ConfigManager` (re-export from `@wellsfargo-starui/core/host/config`)
-- `BrowserAdapter` — re-export from `@wellsfargo-starui/core/widget/browser` for browser widget hosts
-- `ConfigManager` — CRUD over app/user/role configs
-- `getLayouts`, `saveLayout`, `loadLayout`, `deleteLayout`
-
----
-
-### 4.4 `@wellsfargo-starui/react/host` (formerly `@wellsfargo-starui/react/host`)
-
-**Path:** `packages/react-core/host-wrapper-react`
-**Purpose:** React seam (Seam #2) — bridges `RuntimePort` + `ConfigManager` into React context.
-
-- `HostContext` — React context (`runtime, configManager, instanceId, theme, onThemeChanged`)
-- `useHost` — hook to read host context
-- Reactive theme propagation from `RuntimePort`
-- Requires a caller-supplied `configManager: ConfigManager | Promise<ConfigManager>` (does not construct one)
-- `./host/test-bridge` subpath — `installTestBridge` for host-context mocking
-
----
-
-### 4.5 `@wellsfargo-starui/grid/config-browser` (formerly `@wellsfargo-starui/grid/config-browser`)
+### 4.2 `@wellsfargo-starui/grid/config-browser`
 
 **Path:** `packages/react-grid/config-browser`
 **Purpose:** Configuration-browser dev tool — view/search/import/export configs. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
@@ -845,7 +780,7 @@ Embedded AG Grid tables (Columns tab, AppData fields) register modules via the s
 
 ---
 
-### 4.6 `@wellsfargo-starui/react/workspace-setup` (formerly `@wellsfargo-starui/react/workspace-setup`)
+### 4.3 `@wellsfargo-starui/react/workspace-setup`
 
 **Path:** `packages/react-core/workspace-setup-react`
 **Purpose:** OpenFin workspace setup UI — dock config, registry, component picker.
@@ -1171,31 +1106,6 @@ modules).
 
 ---
 
-### 5.5 `@wellsfargo-starui/core/widget`
-
-**Path:** `packages/core/widget`
-**Purpose:** Framework-agnostic widget contract.
-
-- `PlatformAdapter` — abstract widget platform adapter
-- `ParentIdentity` — parent-window identity
-- `WidgetConfig` — id, type, props
-- `WidgetProps` — runtime widget props
-- `WidgetContext` — widget execution context
-- `SettingsScreenContext`, `SettingsScreenDefinition` — settings UI contract
-- `ActionContext` — action handler context
-- Layout persistence: `getLayouts`, `saveLayout`, `loadLayout`, `deleteLayout`
-
----
-
-### 5.6 `@wellsfargo-starui/core/widget/browser`
-
-**Path:** `packages/core/widget-browser`
-**Purpose:** Browser `PlatformAdapter` implementation.
-
-- `BrowserAdapter` — DOM + localStorage + postMessage-based adapter
-
----
-
 ## 6. Data Utilities
 
 ### 6.1 `@wellsfargo-starui/core/host/config`
@@ -1508,9 +1418,10 @@ modules).
 
 ---
 
-### 6.3 `@wellsfargo-starui/react/data` (formerly `@wellsfargo-starui/react/data`)
+### 6.3 `@wellsfargo-starui/react/data/runtime`
 
-**Path:** `packages/react-core/host-data-react`
+**Path:** `packages/react-core/host-data-react` (the bare `./data` subpath was
+cut in the Phase-4 barrel diet — `./data/runtime` is the public entry)
 **Purpose:** React bindings for `@wellsfargo-starui/data` — provider + focused hooks for data subscriptions.
 
 - `DataHubProvider` / `PlatformProvider` (alias) — hub-first provider; `platform` from `ensurePlatformReady()` or self-bootstrap via `bootstrapConfig` + `workerScriptUrl`; optional `hubInspector` mounts **Alt+Shift+S** dev drawer (default on in development)
@@ -1584,13 +1495,6 @@ modules).
 
 - `createAppDataServices()` — simplified factory
 - `CreateAppDataServicesOpts`
-
----
-
-### 6.4 `@wellsfargo-starui/host-data-angular`
-
-**Path:** `packages/data/host-data-angular`
-**Status:** **Scaffold.** Angular twin of `host-data-react` — implementation deferred. Exposes the marker `HOST_DATA_ANGULAR_SCAFFOLD = true`.
 
 ---
 
