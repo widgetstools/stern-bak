@@ -145,6 +145,12 @@ chrome. (Apps that run their own Tailwind pipeline — like the other demo
 apps — import `…/design-system/css` + `…/grid/styles.css` instead and
 generate the component utilities themselves.)
 
+> **Tailwind configuration is enforced at build time** — if your app imports
+> `@wellsfargo-starui/design-system/css`, the build will fail unless you have
+> `tailwindcss` installed and a `tailwind.config.js` (or `.ts`) file in your
+> app root. This prevents the silent failure of apps that forget to configure
+> Tailwind for the tokens-only CSS path.
+
 What the 27 lines buy: one upstream STOMP connection shared by every
 window, server-side row model paging from the SharedWorker's query plane,
 columns inferred from the feed (no `columnDefs`), the full customizer +
