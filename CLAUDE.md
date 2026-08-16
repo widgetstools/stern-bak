@@ -17,6 +17,10 @@ so demo apps never enter the package CI surface — see
 - [`docs/SIMPLIFICATION_ROADMAP.md`](./docs/SIMPLIFICATION_ROADMAP.md) — the
   simplification effort's execution record (phase status, constraints,
   deviations ledger); read this before touching anything the roadmap covers
+- [`docs/SSRM_PARITY_ROADMAP.md`](./docs/SSRM_PARITY_ROADMAP.md) — the SSRM/CSRM
+  behavioural-parity effort (11 phases, one per session). **Its binding
+  constraints govern any change to a customizer module that touches rows**:
+  modules go through the `platform.data` port and never branch on the row model
 - [`docs/WORKLOG.md`](./docs/WORKLOG.md) — **known-open items across both repos**; check
   before starting work so you don't rediscover a documented gap
 - [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md) — the 70%-per-file effort, split

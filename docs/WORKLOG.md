@@ -705,6 +705,12 @@ backstop now makes the event visible instead of silent.
 
 **Area:** `packages/data/host-data/src/runtime/ssrm/` · **Blocked on:** nothing — technical debt only
 
+> **2026-08-16:** the `QueryEngine.ts` 834-LOC item below is now owned by
+> [`docs/SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) Phase 1, which
+> touches that file and must take the tree-data split rather than growing it.
+> That roadmap also supersedes the framing of this entry's opening line — a
+> parity audit found 36 divergences, 21 of which **do** affect correctness.
+
 Deferred, non-blocking items from the ssrm-engine-hardening plan's final review; none affect correctness:
 
 - `packages/data/host-data/src/runtime/ssrm/QueryEngine.ts` is 834 LOC vs the repo's 800 ceiling (pre-existing; improved from 850 by the ExpressionRuleStore extraction) — split candidate: tree-data block builders.
@@ -748,3 +754,37 @@ Not repeated here to avoid two lists drifting — see
 
 Item 1 there refers to "in-repo demos", which now live under `apps/source/` —
 the fix belongs in those apps.
+
+---
+
+## 17. SSRM/CSRM behavioural parity — 36 divergences (2026-08-16)
+
+**Area:** `packages/core/engine/src/customizer/modules/`,
+`packages/data/host-data/src/runtime/ssrm/`,
+`packages/react-grid/widgets-react/src/container/` ·
+**Blocked on:** nothing — sequenced work
+**Plan:** [`docs/SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) (11 phases, one per session)
+
+A four-layer audit found SSRM and CSRM grids at parity in *chrome* and not in
+*behaviour*. Only five `ssrm` guards exist in all of
+`packages/react-grid/grid/src/widget/`, and nothing in the customizer is
+row-model aware — `PlatformHandle` has no row-model field
+(`platform/types.ts:263-278`) and the one place that anticipated one is a TODO
+(`useSsrmExpressionBridge.ts:61-62`). Sixteen modules therefore run their CSRM
+implementations against a ~2,000-row block cache.
+
+**10 findings produce confidently wrong output**, including Advanced Filter
+returning the entire unfiltered dataset (`ssrm/filter.ts:231`), nested-path
+columns broken across filter/sort/set-values, and aggregate calculated columns
+rendering a total that revises itself as the user scrolls. **11 are silent
+no-ops** — notably every editing write path, which funnels into
+`applyTransactionAsync` (`editing-core/applyPatches.ts:14`, a
+ClientSideRowModel-only API) while `EditJournal` records the edit as
+successful. **15 are container wiring gaps.**
+
+**Done looks like:** modules reach rows only through a `platform.data` port
+with CSRM and SSRM adapters behind one contract suite; no module branches on
+the row model (enforced by an ESLint rule in Phase 10); every control that
+cannot work in the current row model is disabled with a stated reason rather
+than silently no-oping. `docs/current-features.md` §366–390 currently
+overstates SSRM parity and is corrected per-phase.
