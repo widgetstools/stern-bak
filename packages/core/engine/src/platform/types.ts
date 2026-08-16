@@ -329,7 +329,17 @@ export interface DataCapabilities {
    *  reaches the code that orders or aggregates rows. False when that code
    *  lives on the far side of `postMessage`. */
   readonly supportsCustomComparator: CapabilityVerdict;
-  /** `scan` / `count` honour an AG-Grid `AdvancedFilterModel`. */
+  /**
+   * `scan` / `count` honour an AG-Grid `AdvancedFilterModel`.
+   *
+   * NOT a verdict on the feature itself. The server-side query plane has
+   * evaluated Advanced Filter trees since Phase 1 of the parity roadmap, so
+   * the GRID's rows are filtered correctly under either row model — what this
+   * reports is whether a figure computed THROUGH THIS PORT is scoped by it,
+   * which the server-side adapter cannot do while `getFilterModel()` returns
+   * only the column filters. A control that merely turns Advanced Filter on
+   * must not be disabled from this.
+   */
   readonly supportsAdvancedFilter: CapabilityVerdict;
   /** A confirmed `mutate` reaches the system of record, not just this grid's
    *  view of it. */
@@ -415,6 +425,10 @@ export interface SsrmDataSource {
     endRow?: number;
     filterModel?: Record<string, unknown> | null;
     quickFilterText?: string | null;
+    /** Fields the quick filter searches — the grid's own columns. Omitted
+     *  means every field, which is what the worker matched before the scope
+     *  existed. See `quickFilterColumnsOf`. */
+    quickFilterColumns?: string[] | null;
     sortModel?: Array<{ colId: string; sort: 'asc' | 'desc' }>;
   }): Promise<{ rowData: Record<string, unknown>[]; rowCount: number }>;
 
@@ -422,16 +436,22 @@ export interface SsrmDataSource {
     column: string;
     filterModel?: Record<string, unknown> | null;
     quickFilterText?: string | null;
+    quickFilterColumns?: string[] | null;
   }): Promise<string[]>;
 
   getStatusBar(req?: {
     filterModel?: Record<string, unknown> | null;
     quickFilterText?: string | null;
+    quickFilterColumns?: string[] | null;
     valueCols?: Array<{ field: string; aggFunc?: string | null }>;
   }): Promise<{
     totalRows: number;
     filteredRows: number;
-    aggregations: Array<{ field: string; value: number }>;
+    /** `value` is `null` when no row contributed one — a blank, not a zero.
+     *  The worker's fold is deliberate about that distinction (a 0 price
+     *  reads as data), and this port carries it through rather than
+     *  flattening it back to 0. */
+    aggregations: Array<{ field: string; value: number | null }>;
   }>;
 }
 

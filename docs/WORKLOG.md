@@ -705,15 +705,15 @@ backstop now makes the event visible instead of silent.
 
 **Area:** `packages/data/host-data/src/runtime/ssrm/` · **Blocked on:** nothing — technical debt only
 
-> **2026-08-16:** the `QueryEngine.ts` 834-LOC item below is now owned by
-> [`docs/SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) Phase 1, which
-> touches that file and must take the tree-data split rather than growing it.
+> **2026-08-16:** the `QueryEngine.ts` 834-LOC item is **closed** —
+> [`docs/SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) Phase 1 took the
+> documented tree-data split (`treeIndex.ts`); the engine is 744 LOC.
 > That roadmap also supersedes the framing of this entry's opening line — a
-> parity audit found 36 divergences, 21 of which **do** affect correctness.
+> parity audit found 36 divergences, 21 of which **do** affect correctness,
+> and Phase 1 closed seven of them inside this directory.
 
 Deferred, non-blocking items from the ssrm-engine-hardening plan's final review; none affect correctness:
 
-- `packages/data/host-data/src/runtime/ssrm/QueryEngine.ts` is 834 LOC vs the repo's 800 ceiling (pre-existing; improved from 850 by the ExpressionRuleStore extraction) — split candidate: tree-data block builders.
 - Snapshot arriving mid-window drops pendingCount from updatesAccumulated totals (SsrmServer.ts:396-415) — cosmetic counter drift under snapshot churn.
 - Any session's configureExpressions clears the whole shared order cache (QueryEngine.ts:161) — transient memo warm-up cost when many blotters push rules at mount; correctness unaffected.
 - engineBoundary.test.ts only matches static import specifiers; dynamic import('../worker/...') would slip through.
@@ -788,3 +788,31 @@ the row model (enforced by an ESLint rule in Phase 10); every control that
 cannot work in the current row model is disabled with a stated reason rather
 than silently no-oping. `docs/current-features.md` §366–390 currently
 overstates SSRM parity and is corrected per-phase.
+
+---
+
+## 18. `npm run lint:all` fails on a test-only member cycle in the types bucket
+
+**Found:** 2026-08-16, during SSRM parity Phase 1. **Pre-existing** — verified
+by stashing the phase's changes and re-running `node
+scripts/check-package-cycles.mjs` on the clean tree, which fails identically.
+
+```
+FAIL member-level imports (bucket subpaths + relative escapes): 1 cycle(s)
+  @wellsfargo-starui/types#types → @wellsfargo-starui/types#shared-types → @wellsfargo-starui/types#types
+```
+
+The forward edge is real and intended: `types/src/dataProvider.ts` (and
+`configuration.ts`, `fieldSelector.ts`) re-export from
+`@wellsfargo-starui/types/shared/*`, which is how the bucket keeps one
+definition behind two import paths. The back edge is a **test file** —
+`shared-types/src/themeKeyParity.test.ts:3` imports `../../types/src/index` to
+assert the two members' theme keys agree, i.e. exactly the kind of
+cross-member reach a parity test is for.
+
+So `check-package-cycles.mjs` walks `*.test.ts` when it collects member-escape
+edges, and a test-only edge is reported as a shipped cycle. `lint` itself is
+clean (0 errors, 369 warnings); `check:deps` is what fails, which takes
+`lint:all` down with it. Done looks like: the member walk skips test files (or
+the parity test reaches the sibling through the package's public
+`@wellsfargo-starui/types` specifier), and `lint:all` exits 0.

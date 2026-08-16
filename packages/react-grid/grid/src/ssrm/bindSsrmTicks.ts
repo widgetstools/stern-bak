@@ -93,6 +93,8 @@ export function bindSsrmTicks(
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingPurge = false;
   let unbound = false;
+  /** One warning per binding, not one per changed row per tick. */
+  let warnedFilterRefusal = false;
 
   const alive = (): boolean =>
     !unbound && api.isDestroyed?.() !== true;
@@ -141,7 +143,23 @@ export function bindSsrmTicks(
     ) {
       return false;
     }
-    return !fm || rowPassesFilter(row, fm);
+    if (!fm) return true;
+    try {
+      return rowPassesFilter(row, fm);
+    } catch (err) {
+      // The query plane REFUSES a filter model it cannot evaluate, and this
+      // client-side copy of the predicate refuses the same ones. Here that
+      // refusal must not drop the tick: this call only decides whether a
+      // changed row is worth pushing at the grid, and over-including is
+      // corrected by the next block load, where the refusal is raised for
+      // real and reaches the user. Under-including would silently freeze a
+      // live row.
+      if (!warnedFilterRefusal) {
+        warnedFilterRefusal = true;
+        console.warn('[ssrm] tick fan-out cannot evaluate the active filter', err);
+      }
+      return true;
+    }
   };
 
   const flashUpdatedCells = (

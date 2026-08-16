@@ -15,7 +15,7 @@
  */
 
 // ─── Platform runtime (framework-agnostic) ──────────────────────────────────
-export { GridPlatform, defineModule } from './platform';
+export { GridPlatform, defineModule, quickFilterColumnsOf } from './platform';
 export type {
   DefineModuleOptions,
   GridPlatformOptions,

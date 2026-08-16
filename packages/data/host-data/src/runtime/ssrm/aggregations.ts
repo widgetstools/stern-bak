@@ -1,4 +1,6 @@
+import { getPathAccessor } from "@wellsfargo-starui/types";
 import type { AggFunc, Row } from "./types.js";
+import { UnsupportedQueryError } from "./UnsupportedQueryError.js";
 
 export interface AggSpec {
   field: string;
@@ -31,12 +33,34 @@ function toNum(v: unknown): number | null {
   return null;
 }
 
-function normalizeAgg(raw: string | null | undefined): AggFunc {
-  const s = (raw ?? "sum").toLowerCase();
-  if (s === "min" || s === "max" || s === "avg" || s === "average" || s === "count") {
-    return s === "average" ? "avg" : (s as AggFunc);
+/**
+ * The aggregation a value column names.
+ *
+ * An unrecognised name is REJECTED, not folded into `sum`. AG Grid's own
+ * `first` / `last` land here, as does a custom aggregation the client tried to
+ * name: none of them is a sum, and reporting one as a sum is a wrong number
+ * presented with full confidence.
+ *
+ * A value column with no `aggFunc` at all keeps its long-standing default of
+ * `sum` — that is an absent choice, not an unrecognised one.
+ */
+function resolveAggFunc(raw: string | null | undefined): AggFunc {
+  if (raw == null) return "sum";
+  if (typeof raw !== "string") {
+    // A compiled `aggFunc` closure. It cannot cross `postMessage` at all, so
+    // reaching here means an in-process caller handed one over.
+    throw new UnsupportedQueryError(
+      "This grid aggregates on the server, so a custom aggregation written in " +
+        "this window cannot be applied. Use sum, min, max, avg or count.",
+    );
   }
-  return "sum";
+  const s = raw.toLowerCase();
+  if (s === "sum" || s === "min" || s === "max" || s === "count") return s;
+  if (s === "avg" || s === "average") return "avg";
+  throw new UnsupportedQueryError(
+    `This grid aggregates on the server, which does not provide the “${raw}” ` +
+      `aggregation. Use sum, min, max, avg or count.`,
+  );
 }
 
 /**
@@ -45,7 +69,9 @@ function normalizeAgg(raw: string | null | undefined): AggFunc {
  * applies delta updates for live ticks on the unfiltered universe.
  */
 export class AggregationEngine {
-  private specs: AggSpec[] = [];
+  /** Specs with their field accessor resolved once — a value column whose
+   *  field is a dot path aggregates the nested value, not `undefined`. */
+  private specs: Array<AggSpec & { read: (row: unknown) => unknown }> = [];
   private grand = new Map<string, AggState>();
   /** groupPath (joined by \0) → field → state */
   private groups = new Map<string, Map<string, AggState>>();
@@ -53,7 +79,8 @@ export class AggregationEngine {
   setSpecs(specs: AggSpec[]): void {
     this.specs = specs.map((s) => ({
       field: s.field,
-      aggFunc: normalizeAgg(s.aggFunc),
+      aggFunc: resolveAggFunc(s.aggFunc),
+      read: getPathAccessor(s.field),
     }));
   }
 
@@ -96,7 +123,7 @@ export class AggregationEngine {
     }
     for (const row of rows) {
       for (const spec of this.specs) {
-        this.applyValue(this.ensureField(this.grand, spec.field), row[spec.field], 1);
+        this.applyValue(this.ensureField(this.grand, spec.field), spec.read(row), 1);
       }
     }
     return this.grandAsRow();
@@ -111,7 +138,7 @@ export class AggregationEngine {
     for (const spec of this.specs) map.set(spec.field, emptyState());
     for (const row of rows) {
       for (const spec of this.specs) {
-        this.applyValue(this.ensureField(map, spec.field), row[spec.field], 1);
+        this.applyValue(this.ensureField(map, spec.field), spec.read(row), 1);
       }
     }
     this.groups.set(groupPath, map);
@@ -164,4 +191,4 @@ export function aggregateRows(rows: Iterable<Row>, specs: AggSpec[]): Row {
   return eng.rebuildGrand(rows);
 }
 
-export { normalizeAgg };
+export { resolveAggFunc };

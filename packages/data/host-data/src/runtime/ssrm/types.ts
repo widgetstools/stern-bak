@@ -25,6 +25,16 @@ export interface SsrmGetRowsRequest {
    * adapter injects it from the demo/app quick-filter input.
    */
   quickFilterText?: string | null;
+  /**
+   * Fields the quick filter searches — the requesting grid's own columns,
+   * hidden ones included only when `includeHiddenColumnsInQuickFilter` is on.
+   * CSRM searches columns, not raw row fields; one plane serves many grids
+   * with different column sets, so the scope travels with the query rather
+   * than being baked into the plane. Omitted ⇒ every field (this engine's
+   * long-standing behaviour, and the only honest answer when the caller has
+   * no column state to report).
+   */
+  quickFilterColumns?: string[] | null;
   /** Pivot result field separator (matches grid `serverSidePivotResultFieldSeparator`). */
   pivotResultFieldSeparator?: string;
 }
@@ -76,6 +86,8 @@ export interface SetFilterValuesRequest {
   filterModel?: Record<string, unknown> | null;
   /** Active quick-filter text (scopes uniques like CSRM). */
   quickFilterText?: string | null;
+  /** Quick-filter column scope — see {@link SsrmGetRowsRequest.quickFilterColumns}. */
+  quickFilterColumns?: string[] | null;
   /**
    * Optional group path to scope values to (colour-link publishing for a
    * selected group row whose descendants are not loaded client-side).

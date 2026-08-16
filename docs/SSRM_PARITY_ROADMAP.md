@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 1 / 11 phases done (Phase 0).**
+**Branch:** `feature/simplify`. **Status: 2 / 11 phases done (Phases 0–1).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -80,9 +80,9 @@ they are the defect this roadmap exists to remove.
 4. **The 9 confirmed-parity capabilities are regression targets, not
    untouchable code.** They may be refactored; they may not change behaviour.
    Each phase that touches one names it in its exit criteria.
-5. **Complexity ceilings hold** — 800 LOC / file, 80 LOC / function. Note that
-   `QueryEngine.ts` is already over at 834 (WORKLOG item 15); Phase 1 touches
-   it and should take the documented tree-data split rather than growing it.
+5. **Complexity ceilings hold** — 800 LOC / file, 80 LOC / function.
+   (`QueryEngine.ts` was over at 834; Phase 1 took the documented tree-data
+   split — `treeIndex.ts` — and it is 744.)
 6. OpenFin flows cannot be e2e'd headlessly here. Changes near `contextLink`
    and `onWorkspaceSave` ship with a manual-validation note.
 
@@ -244,7 +244,7 @@ down to make the suite green.
 
 ---
 
-## Phase 1 — query engine correctness ⬜
+## Phase 1 — query engine correctness ✅
 
 **Goal:** the SSRM query engine stops returning wrong answers for filter
 models, sorts and aggregations it accepts.
@@ -295,6 +295,72 @@ fixes themselves are independent).
 - `npm run bench:ssrm` shows no regression outside noise.
 
 **Closes:** T1-1, T1-2, T1-5, T1-7, T1-8, T1-9, T1-10.
+
+### What landed
+
+`packages/data/host-data/src/runtime/ssrm/` — `filter.ts` rewritten (advanced
+tree + explicit refusals + path accessors), `UnsupportedQueryError.ts`,
+`treeIndex.ts` (the WORKLOG-15 split: `QueryEngine.ts` 834 → 744),
+`aggregations.ts`, `quickFilter.ts`, `statusBar.ts`, `QueryEngine.ts`,
+`types.ts`, barrels. New `filter.test.ts` (65 cases — the operator matrix),
+`engineContract.test.ts` +18. Core: `platform/quickFilterColumns.ts` + test,
+`SsrmDataAdapter`, `platform/types.ts`, `portContract.test.ts` (117).
+Grid: `createSsrmDatasource.ts` + 6 tests, `createSsrmStatusBar.tsx`,
+`bindSsrmTicks.ts`. `npx turbo typecheck build test` green (`TURBO_EXIT=0`,
+21 tasks). `npm run bench:ssrm` within noise, two paths faster (cold sorted
+block 148.5 → 131.8 ms, grouped 54.5 → 46.3 ms — sort accessors resolve once
+per entry instead of per comparison); a quick-filter section was added to the
+bench, which had none.
+
+Five decisions the later phases inherit:
+
+1. **Advanced Filter is EVALUATED, not rejected.** The roadmap offered both;
+   constraint 1 decides it — CSRM is the reference and SSRM rises to meet it.
+   The tree is walkable with the operator matchers already present, and
+   rejecting would have blanked the grid for a feature the toggle in
+   `gridOptionsSchema.tsx:186` still offers. **Phase 6 must not disable that
+   toggle**: `capabilities.supportsAdvancedFilter` stays `false` because the
+   PORT cannot scope its own figures by a tree (`getFilterModel()` returns
+   only column filters), not because the feature is broken. Its reason string
+   and the capability's doc comment were rewritten to say exactly that.
+2. **Validation and evaluation are one walk.** `evaluateModel(row | null, …)`
+   validates when `row` is `null`, so the two can never drift; the combinators
+   are non-short-circuiting so a bad condition beside a satisfied one is still
+   reached. `assertFilterModelSupported` runs once per query before any scan —
+   the verdict reads the request, never the rows.
+3. **Relative-date presets are the one family refused.** `today`, `last7Days`,
+   `thisQuarter` and the other 19 are not in `DEFAULT_DATE_FILTER_OPTIONS` (a
+   column opts in), and evaluating them means re-deriving the grid's own
+   week/quarter boundaries. They previously returned ZERO rows silently. A
+   worker-side implementation with a defined week start is the follow-up.
+4. **The quick-filter column scope travels with the query.** One plane serves
+   grids with different column sets, so `RowStore`'s cached per-row aggregate
+   stays one all-fields string and acts as a PREFILTER (a search word never
+   spans two columns, so a row the cache rejects cannot match a narrower set);
+   only admitted rows pay for a scoped build. That is why the cache builder now
+   walks nested leaves — the superset property is what makes the prefilter
+   sound.
+5. **A custom `aggFunc` closure is dropped from the request, not rejected.**
+   It cannot cross `postMessage` at all (`DataCloneError` failed EVERY block,
+   not just the aggregated column), so the datasource strips those value
+   columns and warns once per column. The user-facing half is Phase 6's:
+   `supportsCustomComparator` already carries the copy.
+
+### Not closed here, deliberately
+
+- **`platform.data` still cannot carry an Advanced Filter tree** (decision 1).
+  `planFor` merges by column id; a tree needs a different composition, and
+  `distinct`'s "is this column filtered" check has no meaning against one.
+  Phase 6 owns it — the worker can already evaluate what the port would send.
+- **Filter-pill counts send no column scope.** `ssrmFilterCounts` gets its deps
+  from a context with no `GridApi` (`SsrmFilterCountsContext.tsx`), and Phase 2
+  routes that path through `platform.data.count()` — which has the `ApiHub` and
+  the scope with it. Adding a second wire here would be the parallel
+  implementation constraint 2 forbids.
+- **`filtersToolbarLogic.doesValueMatchFilter` still has no date arm** and
+  still treats an empty set filter as no restriction. Phase 2 collapses it onto
+  this engine's predicate; Phase 1 only deleted its private third copy of
+  `getValueByPath` (identical body) in favour of the repo's one.
 
 ---
 
@@ -755,4 +821,17 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 Record here when a phase's letter conflicts with a binding constraint and the
 honest version was implemented instead. Reference the commit.
 
-_(empty — nothing executed yet)_
+- **Phase 1 — Advanced Filter.** The phase text allowed "evaluate the tree or
+  reject it explicitly", and its own note pointed at rejecting (the Phase 0
+  capability already said `supportsAdvancedFilter: false`). Evaluating is what
+  landed, because binding constraint 1 says SSRM rises to meet CSRM and a
+  rejection would have disabled a feature the customizer still offers. The
+  capability stays `false` with rewritten copy — it describes the PORT's own
+  figures, not the grid's rows. See Phase 1 "What landed", decision 1.
+- **Phase 1 — two fixes outside the letter.** `computeStatusBar` folded once
+  for the whole `valueCols` list into a FIELD-keyed row, so asking for MIN(px)
+  and MAX(px) together returned the same number twice; it now folds once per
+  distinct aggregation. And `filtersToolbarLogic`'s private `getByPath` (a
+  third, byte-identical copy of `getValueByPath`) was deleted in favour of the
+  repo's one — the session brief forbade writing a fourth, and leaving a third
+  while adding uses of the real one would have been the same defect.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SsrmServer, type SsrmFlushEvent } from './index.js';
+import { SsrmServer, UnsupportedQueryError, type SsrmFlushEvent } from './index.js';
 import type { ICacheIngest } from './index.js';
 
 function fakeTimers() {
@@ -254,5 +254,293 @@ describe('cross-grid consistency acceptance', () => {
     expect(sumA).toBe(32);          // only the final value — never the spike
     expect(sumB).toBe(sumA);
     expect(sumBefore).toBe(30);
+  });
+});
+
+// ─── Query correctness (roadmap Phase 1) ───────────────────────────────────
+
+/**
+ * Everything below answers one question: does a query the UI can express come
+ * back with the RIGHT rows, or is it refused? Neither used to be guaranteed —
+ * an Advanced Filter returned the whole dataset, an unknown `aggFunc` became a
+ * sum, group rows came back in `Map` insertion order, and the quick filter
+ * searched columns the user had hidden.
+ */
+describe('query correctness', () => {
+  const seeded = (rows: Array<Record<string, unknown>>) => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot(rows);
+    return engine;
+  };
+
+  const BOOKS = [
+    { id: 'r1', book: 'A', desk: 'RATES', px: 30, quote: { bid: 3 } },
+    { id: 'r2', book: 'B', desk: 'FX', px: 10, quote: { bid: 1 } },
+    { id: 'r3', book: 'C', desk: 'RATES', px: 20, quote: { bid: 2 } },
+  ];
+
+  describe('Advanced Filter', () => {
+    it('filters, where it used to return every row', () => {
+      const engine = seeded(BOOKS);
+      const result = engine.getRows({
+        ...BASE,
+        filterModel: {
+          filterType: 'join',
+          type: 'OR',
+          conditions: [
+            { filterType: 'text', colId: 'book', type: 'equals', filter: 'A' },
+            { filterType: 'number', colId: 'px', type: 'lessThan', filter: 15 },
+          ],
+        },
+      });
+      expect(result.rowData.map((r) => r.id).sort()).toEqual(['r1', 'r2']);
+      expect(result.rowCount).toBe(2);
+    });
+
+    it('scopes the grand total to the tree it evaluated', () => {
+      const engine = seeded(BOOKS);
+      const { grandTotalData } = engine.getRows({
+        ...BASE,
+        valueCols: [{ field: 'px', aggFunc: 'sum' }],
+        filterModel: { filterType: 'text', colId: 'desk', type: 'equals', filter: 'RATES' },
+      });
+      expect(grandTotalData?.px).toBe(50);
+    });
+  });
+
+  describe('refusals', () => {
+    it('refuses an unknown filter option instead of substituting one', () => {
+      const engine = seeded(BOOKS);
+      expect(() =>
+        engine.getRows({
+          ...BASE,
+          filterModel: { book: { filterType: 'text', type: 'soundsLike', filter: 'A' } },
+        }),
+      ).toThrow(UnsupportedQueryError);
+    });
+
+    it('refuses an unknown aggFunc instead of reporting it as a sum', () => {
+      const engine = seeded(BOOKS);
+      expect(() =>
+        engine.getRows({ ...BASE, valueCols: [{ field: 'px', aggFunc: 'first' }] }),
+      ).toThrow(/does not provide/);
+    });
+
+    it('refuses on an EMPTY store too — the verdict reads the query, not the rows', () => {
+      const engine = new SsrmServer({ keyColumn: 'id' });
+      expect(() =>
+        engine.getRows({
+          ...BASE,
+          filterModel: { book: { filterType: 'text', type: 'soundsLike', filter: 'A' } },
+        }),
+      ).toThrow(UnsupportedQueryError);
+    });
+
+    it('refuses the same query through every entry point', () => {
+      const engine = seeded(BOOKS);
+      const filterModel = { book: { filterType: 'text', type: 'soundsLike', filter: 'A' } };
+      expect(() => engine.getSetFilterValues({ column: 'book', filterModel })).toThrow(
+        UnsupportedQueryError,
+      );
+      expect(() => engine.getStatusBar({ filterModel })).toThrow(UnsupportedQueryError);
+      expect(() => engine.getGrandTotal({ filterModel })).toThrow(UnsupportedQueryError);
+    });
+  });
+
+  describe('nested-path columns', () => {
+    it('filters, sorts, groups and aggregates on the nested value', () => {
+      const engine = seeded(BOOKS);
+      const sorted = engine.getRows({
+        ...BASE,
+        sortModel: [{ colId: 'quote.bid', sort: 'desc' }],
+      });
+      expect(sorted.rowData.map((r) => r.id)).toEqual(['r1', 'r3', 'r2']);
+
+      const filtered = engine.getRows({
+        ...BASE,
+        filterModel: {
+          'quote.bid': { filterType: 'number', type: 'greaterThan', filter: 1 },
+        },
+      });
+      expect(filtered.rowCount).toBe(2);
+
+      const total = engine.getRows({
+        ...BASE,
+        valueCols: [{ field: 'quote.bid', aggFunc: 'sum' }],
+      });
+      expect(total.grandTotalData?.['quote.bid']).toBe(6);
+    });
+
+    it('lists set-filter values from the nested value', () => {
+      const engine = seeded(BOOKS);
+      expect(engine.getSetFilterValues({ column: 'quote.bid' })).toEqual(['1', '2', '3']);
+    });
+  });
+
+  describe('group-row ordering', () => {
+    const GROUPED = {
+      ...BASE,
+      rowGroupCols: [{ id: 'book', field: 'book' }],
+      groupKeys: [],
+    };
+
+    it('orders by group key when the sort names a column group rows do not carry', () => {
+      // Insertion order here is C, A, B. Sorting group rows by a LEAF column
+      // read `undefined` on both sides, so every comparison returned 0 and the
+      // block came back in first-seen order.
+      const engine = seeded([
+        { id: 'r3', book: 'C', px: 20 },
+        { id: 'r1', book: 'A', px: 30 },
+        { id: 'r2', book: 'B', px: 10 },
+      ]);
+      const rows = engine.getRows({
+        ...GROUPED,
+        sortModel: [{ colId: 'px', sort: 'asc' }],
+      }).rowData;
+      expect(rows.map((r) => r.__ssrmGroupKey)).toEqual(['A', 'B', 'C']);
+    });
+
+    it('honours a sort on an aggregated value column, which group rows DO carry', () => {
+      const engine = seeded(BOOKS);
+      const rows = engine.getRows({
+        ...GROUPED,
+        valueCols: [{ field: 'px', aggFunc: 'sum' }],
+        sortModel: [{ colId: 'px', sort: 'desc' }],
+      }).rowData;
+      expect(rows.map((r) => r.__ssrmGroupKey)).toEqual(['A', 'C', 'B']);
+    });
+
+    it('honours a sort on the auto group column, which is how AG Grid reports one', () => {
+      const engine = seeded(BOOKS);
+      const rows = engine.getRows({
+        ...GROUPED,
+        sortModel: [{ colId: 'ag-Grid-AutoColumn', sort: 'desc' }],
+      }).rowData;
+      expect(rows.map((r) => r.__ssrmGroupKey)).toEqual(['C', 'B', 'A']);
+    });
+  });
+
+  describe('quick-filter column scope', () => {
+    const ROWS = [
+      { id: 'r1', book: 'ALPHA', trader: 'jones' },
+      { id: 'r2', book: 'BETA', trader: 'alpha' },
+    ];
+
+    it('searches only the columns the grid is showing', () => {
+      const engine = seeded(ROWS);
+      const all = engine.getRows({ ...BASE, quickFilterText: 'alpha' });
+      expect(all.rowCount).toBe(2);
+
+      const visibleOnly = engine.getRows({
+        ...BASE,
+        quickFilterText: 'alpha',
+        quickFilterColumns: ['book'],
+      });
+      expect(visibleOnly.rowData.map((r) => r.id)).toEqual(['r1']);
+    });
+
+    it('keeps the same scope for the status bar, so the counts agree', () => {
+      const engine = seeded(ROWS);
+      const scoped = { quickFilterText: 'alpha', quickFilterColumns: ['book'] };
+      expect(engine.getStatusBar(scoped).filteredRows).toBe(
+        engine.getRows({ ...BASE, ...scoped }).rowCount,
+      );
+      expect(engine.getStatusBar(scoped).totalRows).toBe(2);
+    });
+
+    it('an omitted scope keeps the all-fields behaviour', () => {
+      const engine = seeded(ROWS);
+      expect(engine.getRows({ ...BASE, quickFilterText: 'alpha' }).rowCount).toBe(2);
+    });
+
+    it('reaches nested values through the scope and through the cache alike', () => {
+      const engine = seeded([{ id: 'r1', quote: { venue: 'XETRA' } }]);
+      expect(engine.getRows({ ...BASE, quickFilterText: 'xetra' }).rowCount).toBe(1);
+      expect(
+        engine.getRows({
+          ...BASE,
+          quickFilterText: 'xetra',
+          quickFilterColumns: ['quote.venue'],
+        }).rowCount,
+      ).toBe(1);
+    });
+
+    it('memoises per scope — narrowing the columns is a different query', () => {
+      const engine = seeded(ROWS);
+      const wide = { ...BASE, quickFilterText: 'alpha' };
+      const narrow = { ...wide, quickFilterColumns: ['book'] };
+      expect(engine.getRows(wide).rowCount).toBe(2);
+      expect(engine.getRows(narrow).rowCount).toBe(1);
+      expect(engine.getRows(wide).rowCount).toBe(2);
+    });
+  });
+
+  describe('an empty fold is blank, not zero', () => {
+    it('reports null for a MIN over a column with no numeric values', () => {
+      // `computeStatusBar` used to finish with `Number(value ?? 0)`, undoing
+      // the fold's own deliberate null — a 0 price reads as data.
+      const engine = seeded([{ id: 'r1', note: 'alpha' }]);
+      const summary = engine.getStatusBar({ valueCols: [{ field: 'note', aggFunc: 'min' }] });
+      expect(summary.aggregations[0].value).toBeNull();
+    });
+
+    it('still counts to zero and sums to zero, which are real answers', () => {
+      const engine = seeded([{ id: 'r1', note: 'alpha' }]);
+      const summary = engine.getStatusBar({
+        valueCols: [{ field: 'note', aggFunc: 'sum' }],
+      });
+      expect(summary.aggregations[0].value).toBe(0);
+      expect(
+        engine.getStatusBar({ valueCols: [{ field: 'note', aggFunc: 'count' }] })
+          .aggregations[0].value,
+      ).toBe(1);
+    });
+
+    it('folds the SELECTED rows when the request names keys', () => {
+      const engine = seeded([
+        { id: 'r1', px: 10 },
+        { id: 'r2', px: 40 },
+        { id: 'r3', px: 100 },
+      ]);
+      const summary = engine.getStatusBar({
+        selectedKeys: ['r1', 'r2'],
+        valueCols: [{ field: 'px', aggFunc: 'sum', headerName: 'Notional' }],
+      });
+      expect(summary.selectedRows).toBe(2);
+      expect(summary.filteredRows).toBe(3);
+      expect(summary.aggregations[0]).toMatchObject({ value: 50, headerName: 'Notional' });
+    });
+
+    it('counts a selected row only while it still passes the filter', () => {
+      const engine = seeded([
+        { id: 'r1', book: 'A', px: 10 },
+        { id: 'r2', book: 'B', px: 40 },
+      ]);
+      const summary = engine.getStatusBar({
+        filterModel: { book: { filterType: 'text', type: 'equals', filter: 'A' } },
+        selectedKeys: ['r1', 'r2'],
+        valueCols: [{ field: 'px', aggFunc: 'sum' }],
+      });
+      expect(summary.selectedRows).toBe(1);
+      expect(summary.aggregations[0].value).toBe(10);
+    });
+
+    it('answers two aggregations over ONE column independently', () => {
+      // The fold's output row is keyed by field, so a single pass had the
+      // later spec overwrite the earlier one and both readings came back the
+      // same. A status bar naming a column twice is the ordinary case.
+      const engine = seeded([
+        { id: 'r1', px: 10 },
+        { id: 'r2', px: 40 },
+      ]);
+      const summary = engine.getStatusBar({
+        valueCols: [
+          { field: 'px', aggFunc: 'min' },
+          { field: 'px', aggFunc: 'max' },
+          { field: 'px', aggFunc: 'avg' },
+        ],
+      });
+      expect(summary.aggregations.map((a) => a.value)).toEqual([10, 40, 25]);
+    });
   });
 });

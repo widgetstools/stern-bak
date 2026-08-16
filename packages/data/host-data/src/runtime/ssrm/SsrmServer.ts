@@ -208,7 +208,7 @@ export class SsrmServer implements ICacheIngest {
   getGrandTotal(
     request: Pick<
       SsrmGetRowsRequest,
-      "filterModel" | "valueCols" | "quickFilterText"
+      "filterModel" | "valueCols" | "quickFilterText" | "quickFilterColumns"
     >,
   ): Row {
     return this.query.getGrandTotal(request);

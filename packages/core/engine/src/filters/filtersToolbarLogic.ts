@@ -6,7 +6,7 @@
  *
  * Every function in this file is:
  *   - synchronous
- *   - dependency-free (no AG-Grid imports, no React imports)
+ *   - free of AG-Grid and React imports
  *   - deterministic (identical inputs → identical outputs)
  *
  * These properties matter because the functions are called:
@@ -18,6 +18,7 @@
  *   - when pushing the merged active-saved-filters model into AG-Grid
  *     (`mergeFilterModels`)
  */
+import { getValueByPath } from '@wellsfargo-starui/types';
 
 // ─── ID generation ──────────────────────────────────────────────────────
 
@@ -238,23 +239,9 @@ export function doesRowMatchFilterModel(
   filterModel: Record<string, unknown>,
 ): boolean {
   for (const [col, filter] of Object.entries(filterModel)) {
-    if (!doesValueMatchFilter(getByPath(rowData, col), filter as Record<string, unknown>)) return false;
+    if (!doesValueMatchFilter(getValueByPath(rowData, col), filter as Record<string, unknown>)) return false;
   }
   return true;
-}
-
-// Read a value out of a row by AG-Grid column id. Column ids are often
-// dot-paths into nested row objects (e.g. `quote.bid`). A literal flat
-// key still wins first so rows with `{ "weird.key": … }` keep working.
-function getByPath(row: Record<string, unknown>, path: string): unknown {
-  if (Object.prototype.hasOwnProperty.call(row, path)) return row[path];
-  if (!path.includes('.')) return undefined;
-  let cursor: unknown = row;
-  for (const seg of path.split('.')) {
-    if (cursor == null || typeof cursor !== 'object') return undefined;
-    cursor = (cursor as Record<string, unknown>)[seg];
-  }
-  return cursor;
 }
 
 // ─── Filter-model normalization (compare-only) ──────────────────────────

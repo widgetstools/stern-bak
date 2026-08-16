@@ -38,5 +38,7 @@ export {
   parseQuickFilter,
   buildQuickFilterText,
   rowPassesQuickFilter,
+  rowPassesQuickFilterScoped,
 } from './quickFilter.js';
-export { rowPassesFilter } from './filter.js';
+export { assertFilterModelSupported, rowPassesFilter } from './filter.js';
+export { UnsupportedQueryError } from './UnsupportedQueryError.js';

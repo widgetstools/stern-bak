@@ -1,6 +1,7 @@
 import { useEffect, useState, type FunctionComponent } from 'react';
 import type { CustomStatusPanelProps } from 'ag-grid-react';
 import type { StatusPanelDef } from 'ag-grid-community';
+import { quickFilterColumnsOf } from '@wellsfargo-starui/core';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { StatusBarSummary } from '@wellsfargo-starui/data/runtime';
 
@@ -89,6 +90,12 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
         .getStatusBar({
           filterModel,
           quickFilterText: quickFilterText || null,
+          // Same column scope the datasource sends, so "filtered rows" counts
+          // the rows the grid is actually showing rather than rows matched on
+          // a column the user has hidden.
+          quickFilterColumns: quickFilterText
+            ? quickFilterColumnsOf(props.api) ?? null
+            : null,
         })
         .then((next) => {
           if (!cancelled && !props.api.isDestroyed?.()) setSummary(next);

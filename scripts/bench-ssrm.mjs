@@ -141,6 +141,21 @@ cold('grouped by book, cold', {
   valueCols: [{ field: numericCols[0], aggFunc: 'sum' }],
 });
 
+console.log('\nQuick filter (CSRM-parity substring search over the whole store)');
+// The unscoped path is one cached-string lookup per row. The scoped path adds
+// a per-row build over the named columns, but ONLY for rows the cached
+// (all-fields) string already admitted — the cache is a superset, so a row it
+// rejects cannot match a narrower column set either.
+const quickReq = { ...baseReq, quickFilterText: 'ALPHA' };
+const scopedCols = ['book', ...stringCols.slice(0, 7)];
+cold('quick filter, all fields, cold', quickReq);
+time('quick filter, all fields, warm', () => engine.getRows(quickReq), 20);
+cold('quick filter scoped to 8 columns, cold', {
+  ...quickReq,
+  quickFilterColumns: scopedCols,
+});
+cold('quick filter matching nothing, cold', { ...baseReq, quickFilterText: 'zzzznomatch' });
+
 console.log('\nScrolling one query (what a user actually does)');
 const scroll = (label) => {
   store.upsert([{ id: 'POS-1', [numericCols[0]]: Math.random() }]);

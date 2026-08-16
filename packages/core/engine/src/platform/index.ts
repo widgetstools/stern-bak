@@ -13,6 +13,7 @@ export { ResourceScope } from './ResourceScope';
 export { CssInjector } from './CssInjector';
 export { DirtyBus } from './DirtyBus';
 export { PipelineRunner } from './PipelineRunner';
+export { quickFilterColumnsOf } from './quickFilterColumns';
 
 export type {
   AnyColDef,

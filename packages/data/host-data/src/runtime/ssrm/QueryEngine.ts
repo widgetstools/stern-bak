@@ -1,11 +1,21 @@
-import { aggregateRows, normalizeAgg, type AggSpec } from "./aggregations.js";
+import { getPathAccessor } from "@wellsfargo-starui/types";
+import { aggregateRows, resolveAggFunc, type AggSpec } from "./aggregations.js";
 import { ExpressionRuleStore } from "./expressionRules.js";
-import { compareValues, rowPassesFilter } from "./filter.js";
+import {
+  assertFilterModelSupported,
+  compareValues,
+  rowPassesFilter,
+} from "./filter.js";
 import {
   parseQuickFilter,
-  rowPassesQuickFilter,
+  rowPassesQuickFilterScoped,
 } from "./quickFilter.js";
 import type { RowStore } from "./RowStore.js";
+import {
+  buildTreeIndex,
+  rowHasDetail,
+  treeKeyField,
+} from "./treeIndex.js";
 import type {
   DetailRowsRequest,
   EnrichedRow,
@@ -40,6 +50,14 @@ export interface QueryEngineOptions {
 export const DEFAULT_ORDER_CACHE_SIZE = 24;
 
 /**
+ * AG Grid's auto group column. A sort on the group column arrives under this
+ * id — never under the grouped field's own — so group rows would otherwise
+ * see a sort naming a column they do not carry and fall back to insertion
+ * order, ignoring the direction the user asked for.
+ */
+const AUTO_GROUP_COLUMN_ID = "ag-Grid-AutoColumn";
+
+/**
  * A materialised query order, valid only for the store revision it was built
  * from. Any ingest (snapshot, tick, removal) bumps the revision and strands
  * every entry, which is what keeps the cache from ever serving stale rows.
@@ -49,9 +67,25 @@ interface CachedEntry {
   value: unknown;
 }
 
+/** A sort entry with its field accessor resolved once, not per comparison. */
+interface SortEntry {
+  read: (row: unknown) => unknown;
+  sort: "asc" | "desc";
+}
+
 /**
  * SSRM query plane: filter → group → sort → page, plus set-filter values
  * and expression enrichment on returned blocks.
+ *
+ * Row values are read through the repo's cached path accessors, so a column
+ * whose field is a dot path (`quote.bid`) filters, sorts, groups and
+ * aggregates on the nested value the projector kept — see
+ * `providers/fieldProjection.ts`.
+ *
+ * Anything the engine cannot evaluate — an unknown filter operator, an
+ * unknown `aggFunc` — is REFUSED (`UnsupportedQueryError`), once per query
+ * and before any row is scanned. The alternative, which this replaced, was a
+ * `default:` arm that answered a different question and said nothing.
  */
 export class QueryEngine {
   private readonly store: RowStore;
@@ -134,11 +168,29 @@ export class QueryEngine {
       kind,
       request.filterModel ?? null,
       request.quickFilterText ?? '',
+      // Only when a quick filter is actually running: the column scope has no
+      // effect without one, and a 100-name array in every key would grow the
+      // hot path's string for nothing.
+      request.quickFilterText ? request.quickFilterColumns ?? null : null,
       request.sortModel ?? null,
       request.groupKeys ?? null,
       request.rowGroupCols?.map((c) => c.field) ?? null,
       extra ?? null,
     ]);
+  }
+
+  /**
+   * Refuse a query naming something this engine cannot evaluate, before any
+   * work happens. Deterministic by construction: it reads the request, never
+   * the rows, so an empty store refuses exactly what a full one does.
+   */
+  private static assertSupported(
+    request: Pick<SsrmGetRowsRequest, "filterModel" | "valueCols">,
+  ): void {
+    assertFilterModelSupported(request.filterModel);
+    for (const col of request.valueCols ?? []) {
+      if (col.field) resolveAggFunc(col.aggFunc);
+    }
   }
 
   /** Drops every memoised order. Called when expression rules change. */
@@ -167,6 +219,7 @@ export class QueryEngine {
   }
 
   getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
+    QueryEngine.assertSupported(request);
     if (this.tree?.enabled) {
       return this.treeBlock(request, sessionId);
     }
@@ -176,10 +229,7 @@ export class QueryEngine {
     const pivotCols = request.pivotCols ?? [];
     const pivoting = Boolean(request.pivotMode) || pivotCols.length > 0;
     const sep = request.pivotResultFieldSeparator ?? "_";
-    const filtered = this.collectFilteredCached(
-      request.filterModel,
-      request.quickFilterText,
-    );
+    const filtered = this.collectFilteredCached(request);
 
     // Both scan the whole filtered set and neither depends on the row window,
     // so without memoising they would re-run per block and cancel out the
@@ -224,9 +274,7 @@ export class QueryEngine {
     // Intermediate group level
     const groupCol = groupCols[groupKeys.length]!;
     const field = groupCol.field;
-    const scoped = filtered.filter((row) =>
-      groupKeys.every((gk, i) => String(row[groupCols[i]!.field] ?? "") === gk),
-    );
+    const scoped = this.scopeToGroupPath(filtered, groupCols, groupKeys);
 
     // Bucketing + per-group aggregation + sort is the expensive part and is
     // window-independent; the key carries the aggregation inputs because they
@@ -240,9 +288,10 @@ export class QueryEngine {
         sep,
       ]),
       () => {
+        const readGroup = getPathAccessor(field);
         const buckets = new Map<string, Row[]>();
         for (const row of scoped) {
-          const key = String(row[field] ?? "");
+          const key = String(readGroup(row) ?? "");
           let list = buckets.get(key);
           if (!list) {
             list = [];
@@ -268,7 +317,7 @@ export class QueryEngine {
           } as Row;
         });
 
-        return this.sortRows(built, request.sortModel, field);
+        return this.sortGroupRows(built, request.sortModel, field);
       },
     );
 
@@ -285,28 +334,32 @@ export class QueryEngine {
   }
 
   getSetFilterValues(req: SetFilterValuesRequest): string[] {
+    QueryEngine.assertSupported({ filterModel: req.filterModel });
     const fm = { ...(req.filterModel ?? {}) } as Record<string, unknown>;
     delete fm[req.column];
 
     const groupKeys = req.groupKeys;
     const groupCols = req.rowGroupCols ?? [];
+    const groupReaders = groupCols.map((c) => getPathAccessor(c.field ?? ""));
     const inGroupPath = (row: Row): boolean => {
       if (!groupKeys) return true;
       return groupKeys.every(
-        (gk, i) => String(row[groupCols[i]?.field ?? ""] ?? "") === gk,
+        (gk, i) => String(groupReaders[i]?.(row) ?? "") === gk,
       );
     };
 
     // Reuses the per-query memo (revision-bound), then narrows by group path
     // — a colour-link publish right after a block load pays no fresh scan.
-    const filtered = this.collectFilteredCached(
-      Object.keys(fm).length > 0 ? fm : null,
-      req.quickFilterText,
-    );
+    const filtered = this.collectFilteredCached({
+      filterModel: Object.keys(fm).length > 0 ? fm : null,
+      quickFilterText: req.quickFilterText,
+      quickFilterColumns: req.quickFilterColumns,
+    });
+    const readValue = getPathAccessor(req.column);
     const seen = new Set<string>();
     for (const row of filtered) {
       if (!inGroupPath(row)) continue;
-      const v = row[req.column];
+      const v = readValue(row);
       seen.add(v == null ? "" : String(v));
     }
     return [...seen].sort((a, b) => a.localeCompare(b));
@@ -315,13 +368,11 @@ export class QueryEngine {
   getGrandTotal(
     request: Pick<
       SsrmGetRowsRequest,
-      "filterModel" | "valueCols" | "quickFilterText"
+      "filterModel" | "valueCols" | "quickFilterText" | "quickFilterColumns"
     >,
   ): Row {
-    const filtered = this.collectFilteredCached(
-      request.filterModel,
-      request.quickFilterText,
-    );
+    QueryEngine.assertSupported(request);
+    const filtered = this.collectFilteredCached(request);
     return this.valueAgg(filtered, request);
   }
 
@@ -351,16 +402,17 @@ export class QueryEngine {
     const master = this.store.getRow(req.masterKey);
     if (req.detailField) {
       if (!master) return [];
-      const raw = master[req.detailField];
+      const raw = getPathAccessor(req.detailField)(master);
       return Array.isArray(raw) ? (raw as Row[]).map((r) => ({ ...r })) : [];
     }
     const parentField =
       req.detailParentField ??
       this.tree?.parentField ??
       "parentId";
+    const readParent = getPathAccessor(parentField);
     const out: Row[] = [];
     for (const row of this.store.iterate()) {
-      if (String(row[parentField] ?? "") === String(req.masterKey)) {
+      if (String(readParent(row) ?? "") === String(req.masterKey)) {
         out.push(this.enrich({ ...row }));
       }
     }
@@ -369,18 +421,16 @@ export class QueryEngine {
 
   // ── Tree data ───────────────────────────────────────────────────────
 
-  private treeKeyField(): string {
-    return this.tree?.keyField ?? this.store.keyColumn;
-  }
-
+  /**
+   * One block of a tree query. The index builders live in `treeIndex.ts`;
+   * what stays here is the part that shares sorting, aggregation and
+   * enrichment with every other block path.
+   */
   private treeBlock(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
-    const filtered = this.collectFilteredCached(
-      request.filterModel,
-      request.quickFilterText,
-    );
+    const filtered = this.collectFilteredCached(request);
     const groupKeys = request.groupKeys ?? [];
-    const keyField = this.treeKeyField();
-    const index = this.buildTreeIndex(filtered, keyField);
+    const keyField = treeKeyField(this.tree, this.store);
+    const index = buildTreeIndex(this.store, this.tree, filtered, keyField);
 
     let nodes: Row[];
     if (groupKeys.length === 0) {
@@ -392,12 +442,13 @@ export class QueryEngine {
 
     nodes = this.sortRows(nodes, request.sortModel, keyField);
 
+    const readKey = getPathAccessor(keyField);
     const start = request.startRow ?? 0;
     const end = request.endRow ?? nodes.length;
     const slice = nodes.slice(start, end).map((r) => {
-      const key = String(r[keyField] ?? "");
+      const key = String(readKey(r) ?? "");
       const childCount = (index.childrenOf.get(key) ?? []).length;
-      const hasDetail = this.rowHasDetail(r);
+      const hasDetail = rowHasDetail(r);
       const out: EnrichedRow = {
         ...this.enrich(r, sessionId),
         __ssrmTreeGroup: childCount > 0,
@@ -421,234 +472,36 @@ export class QueryEngine {
     };
   }
 
-  private rowHasDetail(row: Row): boolean {
-    for (const [k, v] of Object.entries(row)) {
-      if (k.startsWith("__")) continue;
-      if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object") {
-        return true;
-      }
-    }
-    return Boolean(row.__ssrmHasDetail);
-  }
-
-  private buildTreeIndex(
-    filtered: Row[],
-    keyField: string,
-  ): {
-    roots: Row[];
-    childrenOf: Map<string, Row[]>;
-  } {
-    const mode = this.tree?.mode ?? "parent";
-    if (mode === "path") {
-      return this.buildPathTreeIndex(filtered, keyField);
-    }
-    return this.buildParentTreeIndex(filtered, keyField);
-  }
-
-  private buildParentTreeIndex(
-    filtered: Row[],
-    keyField: string,
-  ): {
-    roots: Row[];
-    childrenOf: Map<string, Row[]>;
-  } {
-    const parentField = this.tree?.parentField ?? "parentId";
-
-    // Universe: filtered rows + their ancestors (so expand paths stay intact).
-    const byKey = new Map<string, Row>();
-    const matchKeys = new Set<string>();
-    for (const row of filtered) {
-      const k = row[keyField];
-      if (k == null) continue;
-      const key = String(k);
-      byKey.set(key, row);
-      matchKeys.add(key);
-    }
-    for (const key of [...matchKeys]) {
-      let parentId = byKey.get(key)?.[parentField];
-      while (parentId != null && parentId !== "") {
-        const pk = String(parentId);
-        if (byKey.has(pk)) {
-          parentId = byKey.get(pk)![parentField];
-          continue;
-        }
-        const ancestor = this.store.getRow(pk);
-        if (!ancestor) break;
-        byKey.set(pk, ancestor);
-        parentId = ancestor[parentField];
-      }
-    }
-
-    const childrenOf = new Map<string, Row[]>();
-    const roots: Row[] = [];
-
-    for (const [key, row] of byKey) {
-      const parentId = row[parentField];
-      if (parentId == null || parentId === "") {
-        roots.push(row);
-        continue;
-      }
-      const pk = String(parentId);
-      if (!byKey.has(pk)) {
-        // Orphan under current filter — surface as root.
-        roots.push(row);
-        continue;
-      }
-      let list = childrenOf.get(pk);
-      if (!list) {
-        list = [];
-        childrenOf.set(pk, list);
-      }
-      list.push(row);
-    }
-
-    // Matched parents expose all store children (CSRM-like expand-after-filter).
-    for (const pk of matchKeys) {
-      const kids: Row[] = [];
-      const seen = new Set<string>();
-      for (const row of this.store.iterate()) {
-        if (String(row[parentField] ?? "") !== pk) continue;
-        const ck = row[keyField];
-        if (ck == null) continue;
-        const cks = String(ck);
-        if (seen.has(cks)) continue;
-        seen.add(cks);
-        kids.push(byKey.get(cks) ?? row);
-      }
-      if (kids.length) childrenOf.set(pk, kids);
-    }
-
-    return { roots, childrenOf };
-  }
-
-  private buildPathTreeIndex(
-    filtered: Row[],
-    keyField: string,
-  ): {
-    roots: Row[];
-    childrenOf: Map<string, Row[]>;
-  } {
-    const pathField = this.tree?.pathField ?? "orgHierarchy";
-    const byKey = new Map<string, Row>();
-    const pathOf = new Map<string, string[]>();
-
-    const ensureRow = (row: Row): string | null => {
-      const k = row[keyField];
-      if (k == null) return null;
-      const key = String(k);
-      byKey.set(key, row);
-      const path = row[pathField];
-      if (Array.isArray(path)) pathOf.set(key, path.map(String));
-      return key;
-    };
-
-    for (const row of filtered) ensureRow(row);
-
-    // Pull ancestors by path prefix from the full store
-    for (const row of this.store.iterate()) {
-      const path = row[pathField];
-      if (!Array.isArray(path) || path.length === 0) continue;
-      const key = ensureRow(row);
-      if (!key) continue;
-    }
-
-    // Restrict to matches + ancestors (path prefixes of matches)
-    const matchKeys = new Set(
-      [...filtered]
-        .map((r) => (r[keyField] != null ? String(r[keyField]) : null))
-        .filter((k): k is string => k != null),
-    );
-    const keep = new Set<string>();
-    for (const mk of matchKeys) {
-      const path = pathOf.get(mk);
-      if (!path) {
-        keep.add(mk);
-        continue;
-      }
-      // Keep every node whose path is a prefix of this match path
-      for (const [key, p] of pathOf) {
-        if (p.length <= path.length && p.every((seg, i) => seg === path[i])) {
-          keep.add(key);
-        }
-      }
-    }
-
-    const childrenOf = new Map<string, Row[]>();
-    const roots: Row[] = [];
-
-    for (const key of keep) {
-      const row = byKey.get(key) ?? this.store.getRow(key);
-      if (!row) continue;
-      const path = pathOf.get(key) ?? [];
-      if (path.length <= 1) {
-        roots.push(row);
-        continue;
-      }
-      // Parent = node with path.slice(0,-1)
-      const parentPath = path.slice(0, -1);
-      let parentKey: string | null = null;
-      for (const [k, p] of pathOf) {
-        if (
-          p.length === parentPath.length &&
-          p.every((seg, i) => seg === parentPath[i])
-        ) {
-          parentKey = k;
-          break;
-        }
-      }
-      if (!parentKey) {
-        roots.push(row);
-        continue;
-      }
-      let list = childrenOf.get(parentKey);
-      if (!list) {
-        list = [];
-        childrenOf.set(parentKey, list);
-      }
-      list.push(row);
-    }
-
-    // Matched parents: include all store children under their path
-    for (const mk of matchKeys) {
-      const parentPath = pathOf.get(mk);
-      if (!parentPath) continue;
-      const kids: Row[] = [];
-      for (const [k, p] of pathOf) {
-        if (p.length !== parentPath.length + 1) continue;
-        if (!parentPath.every((seg, i) => seg === p[i])) continue;
-        const row = byKey.get(k) ?? this.store.getRow(k);
-        if (row) kids.push(row);
-      }
-      if (kids.length) childrenOf.set(mk, kids);
-    }
-
-    return { roots, childrenOf };
-  }
-
   /**
    * Filtered rows for a query, memoised per store revision. Every block of a
    * query — plus its grand total and pivot field collection — reuses one scan
    * instead of walking the whole store again.
    */
   private collectFilteredCached(
-    filterModel: SsrmGetRowsRequest["filterModel"],
-    quickFilterText?: string | null,
+    request: Pick<
+      SsrmGetRowsRequest,
+      "filterModel" | "quickFilterText" | "quickFilterColumns"
+    >,
   ): Row[] {
+    const quickFilterText = request.quickFilterText ?? "";
     const key = JSON.stringify([
       "filtered",
-      filterModel ?? null,
-      quickFilterText ?? "",
+      request.filterModel ?? null,
+      quickFilterText,
+      quickFilterText ? request.quickFilterColumns ?? null : null,
     ]);
-    return this.cachedOrder(key, () =>
-      this.collectFiltered(filterModel, quickFilterText),
-    );
+    return this.cachedOrder(key, () => this.collectFiltered(request));
   }
 
   private collectFiltered(
-    filterModel: SsrmGetRowsRequest["filterModel"],
-    quickFilterText?: string | null,
+    request: Pick<
+      SsrmGetRowsRequest,
+      "filterModel" | "quickFilterText" | "quickFilterColumns"
+    >,
   ): Row[] {
-    const parts = parseQuickFilter(quickFilterText);
+    const filterModel = request.filterModel;
+    const parts = parseQuickFilter(request.quickFilterText);
+    const columns = request.quickFilterColumns ?? null;
     const out: Row[] = [];
     // Quick-filter first (cached substring checks), then column filter model —
     // same effective result as CSRM, optimized for the hot path.
@@ -659,12 +512,32 @@ export class QueryEngine {
       return out;
     }
     for (const [key, row] of this.store.iterateEntries()) {
-      if (!rowPassesQuickFilter(this.store.getQuickFilterText(key), parts)) {
+      if (
+        !rowPassesQuickFilterScoped(
+          this.store.getQuickFilterText(key),
+          row,
+          parts,
+          columns,
+        )
+      ) {
         continue;
       }
       if (rowPassesFilter(row, filterModel)) out.push(row);
     }
     return out;
+  }
+
+  /** Rows under a group path — `groupKeys[i]` matched against `rowGroupCols[i]`. */
+  private scopeToGroupPath(
+    filtered: Row[],
+    groupCols: NonNullable<SsrmGetRowsRequest["rowGroupCols"]>,
+    groupKeys: string[],
+  ): Row[] {
+    if (groupKeys.length === 0) return filtered;
+    const readers = groupCols.map((c) => getPathAccessor(c.field));
+    return filtered.filter((row) =>
+      groupKeys.every((gk, i) => String(readers[i]?.(row) ?? "") === gk),
+    );
   }
 
   private leafBlock(
@@ -678,17 +551,11 @@ export class QueryEngine {
     // window — so every block of one query reuses this single ordered array.
     const rows = this.cachedOrder(
       QueryEngine.queryKey(request, "leaf"),
-      () => {
-        let scoped = filtered;
-        if (groupKeys.length > 0) {
-          scoped = filtered.filter((row) =>
-            groupKeys.every(
-              (gk, i) => String(row[groupCols[i]!.field] ?? "") === gk,
-            ),
-          );
-        }
-        return this.sortRows(scoped, request.sortModel);
-      },
+      () =>
+        this.sortRows(
+          this.scopeToGroupPath(filtered, groupCols, groupKeys),
+          request.sortModel,
+        ),
     );
     const start = request.startRow ?? 0;
     const end = request.endRow ?? rows.length;
@@ -717,18 +584,18 @@ export class QueryEngine {
     nextGroupIndex: number,
   ): number {
     if (nextGroupIndex >= groupCols.length) return rows.length;
-    const field = groupCols[nextGroupIndex]!.field;
+    const read = getPathAccessor(groupCols[nextGroupIndex]!.field);
     const keys = new Set<string>();
-    for (const row of rows) keys.add(String(row[field] ?? ""));
+    for (const row of rows) keys.add(String(read(row) ?? ""));
     return keys.size;
   }
 
   private pivotKey(
     row: Row,
-    pivotCols: NonNullable<SsrmGetRowsRequest["pivotCols"]>,
+    readers: Array<(row: unknown) => unknown>,
     sep: string,
   ): string {
-    return pivotCols.map((c) => String(row[c.field] ?? "")).join(sep);
+    return readers.map((read) => String(read(row) ?? "")).join(sep);
   }
 
   private collectPivotResultFields(
@@ -738,8 +605,9 @@ export class QueryEngine {
     sep: string,
   ): string[] {
     if (!pivotCols.length || !(request.valueCols?.length ?? 0)) return [];
+    const readers = pivotCols.map((c) => getPathAccessor(c.field));
     const keys = new Set<string>();
-    for (const row of rows) keys.add(this.pivotKey(row, pivotCols, sep));
+    for (const row of rows) keys.add(this.pivotKey(row, readers, sep));
     const fields: string[] = [];
     const sortedKeys = [...keys].sort((a, b) => a.localeCompare(b));
     for (const pk of sortedKeys) {
@@ -759,9 +627,10 @@ export class QueryEngine {
     sep: string,
   ): Row {
     if (!pivotCols.length) return this.valueAgg(rows, request);
+    const readers = pivotCols.map((c) => getPathAccessor(c.field));
     const buckets = new Map<string, Row[]>();
     for (const row of rows) {
-      const key = this.pivotKey(row, pivotCols, sep);
+      const key = this.pivotKey(row, readers, sep);
       let list = buckets.get(key);
       if (!list) {
         list = [];
@@ -787,29 +656,70 @@ export class QueryEngine {
       .filter((v) => v.field)
       .map((v) => ({
         field: v.field,
-        aggFunc: normalizeAgg(v.aggFunc),
+        aggFunc: resolveAggFunc(v.aggFunc),
       }));
     if (specs.length === 0) return {};
     return aggregateRows(rows, specs);
   }
 
+  /**
+   * Order group rows.
+   *
+   * A group row carries the group field, its aggregated value columns and the
+   * `__ssrm*` internals — nothing else. Sorting it by the LEAF sort model
+   * read `undefined` on both sides for every other column, so the comparator
+   * returned 0 and the block came back in `Map` first-seen order: the same
+   * query, ordered by whichever rows happened to arrive first.
+   *
+   * So only the sort entries the group rows can actually answer are applied,
+   * with the group key as the tie-break — and a sort on the auto group column
+   * is redirected to the field it stands for, which is how AG Grid reports a
+   * click on the group column header.
+   */
+  private sortGroupRows(
+    rows: Row[],
+    sortModel: SsrmGetRowsRequest["sortModel"],
+    groupField: string,
+  ): Row[] {
+    const carried = new Set<string>();
+    for (const row of rows) {
+      for (const key of Object.keys(row)) carried.add(key);
+    }
+    const applicable = (sortModel ?? [])
+      .map((s) =>
+        s.colId === AUTO_GROUP_COLUMN_ID ? { ...s, colId: groupField } : s,
+      )
+      .filter((s) => carried.has(s.colId));
+    return this.sortRows(rows, applicable, groupField);
+  }
+
+  /**
+   * Sort by the model's entries, falling back to (and tie-breaking on)
+   * `fallbackField` so the order is total — two rows that tie on every sorted
+   * column keep a stable position across blocks of the same query.
+   */
   private sortRows(
     rows: Row[],
     sortModel: SsrmGetRowsRequest["sortModel"],
     fallbackField?: string,
   ): Row[] {
-    if (!sortModel || sortModel.length === 0) {
-      if (!fallbackField) return rows;
+    const entries: SortEntry[] = (sortModel ?? []).map((s) => ({
+      read: getPathAccessor(s.colId),
+      sort: s.sort,
+    }));
+    const fallback = fallbackField ? getPathAccessor(fallbackField) : null;
+    if (entries.length === 0) {
+      if (!fallback) return rows;
       return [...rows].sort((a, b) =>
-        compareValues(a[fallbackField], b[fallbackField], "asc"),
+        compareValues(fallback(a), fallback(b), "asc"),
       );
     }
     return [...rows].sort((a, b) => {
-      for (const s of sortModel) {
-        const c = compareValues(a[s.colId], b[s.colId], s.sort);
+      for (const entry of entries) {
+        const c = compareValues(entry.read(a), entry.read(b), entry.sort);
         if (c !== 0) return c;
       }
-      return 0;
+      return fallback ? compareValues(fallback(a), fallback(b), "asc") : 0;
     });
   }
 

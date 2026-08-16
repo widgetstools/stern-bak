@@ -23,6 +23,7 @@
 import { getValueByPath } from '@wellsfargo-starui/types';
 import { doesRowMatchFilterModel } from '../filters/filtersToolbarLogic';
 import { beginFold, finishFold, foldValue } from './foldColumn';
+import { quickFilterColumnsOf } from './quickFilterColumns';
 import {
   assemblePatchRows,
   indicesBetween,
@@ -90,8 +91,9 @@ const SSRM_CAPABILITIES: DataCapabilities = {
   supportsAdvancedFilter: {
     supported: false,
     reason:
-      'Advanced Filter is evaluated in this window, and this grid filters on the ' +
-      'server. Use the column filters, which the server applies to every row.',
+      'Counts and totals here are calculated from the column filters. The ' +
+      'Advanced Filter narrows the rows this grid shows, but is not applied to ' +
+      'these figures — use the column filters if the two need to agree.',
   },
   mutationsReachSource: {
     supported: false,
@@ -275,7 +277,7 @@ export class SsrmDataAdapter implements GridDataPort {
 
   private async distinctByRpc(
     colId: string,
-    request: { filterModel: Record<string, unknown> | null; quickFilterText: string | null },
+    request: SourceRequest,
     limit: number | undefined,
   ): Promise<DistinctResult> {
     let values: string[];
@@ -347,15 +349,19 @@ export class SsrmDataAdapter implements GridDataPort {
    * one-round-trip path still serves every query without an overlap.
    */
   private planFor(query: DataQuery): {
-    request: {
-      filterModel: Record<string, unknown> | null;
-      quickFilterText: string | null;
-    };
+    request: SourceRequest;
     residual: Record<string, unknown> | null;
   } {
     const extra = query.filterModel ?? {};
     if (query.scope !== 'filtered') {
-      return { request: { filterModel: nonEmpty(extra), quickFilterText: null }, residual: null };
+      return {
+        request: {
+          filterModel: nonEmpty(extra),
+          quickFilterText: null,
+          quickFilterColumns: null,
+        },
+        residual: null,
+      };
     }
 
     const applied = this.hub.use((api) => api.getFilterModel(), null) ?? {};
@@ -365,8 +371,18 @@ export class SsrmDataAdapter implements GridDataPort {
       if (colId in applied) residual[colId] = model;
       else merged[colId] = model;
     }
+    const quickFilterText = this.quickFilterText();
     return {
-      request: { filterModel: nonEmpty(merged), quickFilterText: this.quickFilterText() },
+      request: {
+        filterModel: nonEmpty(merged),
+        quickFilterText,
+        // The grid's own column scope, so the port's idea of "the rows the
+        // user is looking at" is the grid's — a quick filter that skips a
+        // hidden column here has to skip it there too.
+        quickFilterColumns: quickFilterText
+          ? this.hub.use((api) => quickFilterColumnsOf(api) ?? null, null)
+          : null,
+      },
       residual: nonEmpty(residual),
     };
   }
@@ -382,6 +398,13 @@ export class SsrmDataAdapter implements GridDataPort {
     const key = getValueByPath(data, this.keyColumn) ?? data.__ssrmGroupKey;
     return key == null ? '' : String(key);
   }
+}
+
+/** The scope half of every RPC this adapter makes. */
+interface SourceRequest {
+  filterModel: Record<string, unknown> | null;
+  quickFilterText: string | null;
+  quickFilterColumns: string[] | null;
 }
 
 function nonEmpty(model: Record<string, unknown>): Record<string, unknown> | null {

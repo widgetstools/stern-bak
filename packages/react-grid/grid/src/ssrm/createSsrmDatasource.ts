@@ -2,6 +2,7 @@ import type {
   IServerSideDatasource,
   IServerSideGetRowsParams,
 } from 'ag-grid-community';
+import { quickFilterColumnsOf } from '@wellsfargo-starui/core';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { SsrmGetRowsRequest } from '@wellsfargo-starui/data/runtime';
 
@@ -53,6 +54,35 @@ function hasFilterOf(req: SsrmGetRowsRequest): boolean {
 }
 
 /**
+ * Value columns whose `aggFunc` is a compiled closure, dropped.
+ *
+ * AG Grid builds the request with `aggFunc: col.aggFunc` — the column's live
+ * value, which for a custom aggregation is a FUNCTION. A function cannot be
+ * structured-cloned, so posting the request to the SharedWorker threw
+ * `DataCloneError` and every block of the grid failed to load, not just the
+ * aggregated column.
+ *
+ * The column is dropped rather than sent as a name the worker would reject,
+ * because dropping it costs one column's aggregate and rejecting it costs the
+ * whole grid. The reason the user sees belongs to the control that offered the
+ * custom aggregation — `DataCapabilities.supportsCustomComparator` carries the
+ * copy ("Sorting and aggregation run on the server for this grid…"), which
+ * Phase 6 renders beside it.
+ */
+function withSerialisableAggFuncs(
+  valueCols: SsrmGetRowsRequest['valueCols'],
+  onDropped: (field: string) => void,
+): SsrmGetRowsRequest['valueCols'] {
+  if (!valueCols?.length) return valueCols;
+  const kept = valueCols.filter((col) => {
+    if (typeof col.aggFunc !== 'function') return true;
+    onDropped(col.field ?? col.id ?? '(unnamed column)');
+    return false;
+  });
+  return kept.length === valueCols.length ? valueCols : kept;
+}
+
+/**
  * AG Grid server-side datasource backed by {@link ISsrmDataProvider}.
  */
 export function createSsrmDatasource(
@@ -61,14 +91,31 @@ export function createSsrmDatasource(
 ): IServerSideDatasource {
   const keyColumn = options.keyColumn ?? 'id'; // aligned with every other keyColumn default (was 'positionId' — a latent split-default trap; the wired surface always passes an explicit value)
   const pivotSep = options.pivotResultFieldSeparator ?? '_';
+  const warnedCustomAgg = new Set<string>();
   return {
     getRows(params: IServerSideGetRowsParams): void {
       const base = params.request as unknown as SsrmGetRowsRequest;
       const quickFilterText = options.getQuickFilterText?.() ?? '';
+      // Only with an active quick filter: without one the scope changes
+      // nothing, and it would churn the worker's per-query memo key on every
+      // column show/hide.
+      const quickFilterColumns = quickFilterText
+        ? quickFilterColumnsOf(params.api)
+        : undefined;
       const req: SsrmGetRowsRequest = {
         ...base,
+        valueCols: withSerialisableAggFuncs(base.valueCols, (field) => {
+          if (warnedCustomAgg.has(field)) return;
+          warnedCustomAgg.add(field);
+          console.warn(
+            `[ssrm] custom aggregation on “${field}” cannot run on the server — ` +
+              'the expression is compiled in this window and does not cross the ' +
+              'worker boundary. The column is served without an aggregate.',
+          );
+        }),
         pivotResultFieldSeparator: pivotSep,
         ...(quickFilterText ? { quickFilterText } : {}),
+        ...(quickFilterColumns ? { quickFilterColumns } : {}),
       };
       void provider
         .getRows(req)
@@ -98,6 +145,11 @@ export function createSsrmDatasource(
         .catch((err) => {
           if (err instanceof Error && err.message === 'superseded') return;
           if (params.api.isDestroyed?.()) return;
+          // Includes the query plane's explicit refusals (`UnsupportedQueryError`
+          // — an operator or aggregation it cannot evaluate). Its message is
+          // user-facing copy naming the limit and the alternative; it arrives
+          // here as the RPC's error string rather than as a block of rows
+          // filtered by something else.
           console.error('[ssrm] getRows failed', err);
           params.fail();
         });

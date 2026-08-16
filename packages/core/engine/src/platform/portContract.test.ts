@@ -19,10 +19,12 @@
  * What this suite pins is the CONTRACT: scope, result envelopes, `complete`,
  * `missing` / `rejected`, and the capability answers each adapter gives.
  *
- * The three cases named `divergence:` are deliberate. They record where the
- * two sides genuinely differ today, with the phase that closes each — a
+ * The cases named `divergence:` are deliberate. They record where the two
+ * sides genuinely differ today, with the phase that closes each — a
  * documented gap the suite will catch if it ever changes silently, rather
- * than an assertion quietly relaxed to make the run green.
+ * than an assertion quietly relaxed to make the run green. Phase 1 closed the
+ * empty-fold one: its case is gone and the parity assertion sits with the
+ * other `aggregate` cases below.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
@@ -182,9 +184,17 @@ function makeFakeSsrmSource(rows: TestRow[]) {
         calls.getStatusBar += 1;
         const matched = select(req?.filterModel);
         const aggregations = (req?.valueCols ?? []).map((v) => {
+          // The worker counts a number or a numeric string, and NOTHING else —
+          // `Number(null)` being 0 is exactly the coercion its `toNum` avoids,
+          // and copying it here would hide the empty-fold answer below.
           const nums = matched
-            .map((r) => Number(r[v.field]))
-            .filter((n) => Number.isFinite(n));
+            .map((r) => r[v.field])
+            .filter(
+              (raw): raw is number | string =>
+                (typeof raw === 'number' && Number.isFinite(raw)) ||
+                (typeof raw === 'string' && raw.trim() !== '' && !Number.isNaN(Number(raw))),
+            )
+            .map(Number);
           const fold = () => {
             switch (v.aggFunc) {
               case 'min': return nums.length ? Math.min(...nums) : null;
@@ -194,9 +204,10 @@ function makeFakeSsrmSource(rows: TestRow[]) {
               default: return nums.reduce((a, b) => a + b, 0);
             }
           };
-          // The worker's `computeStatusBar` coerces with `Number(x ?? 0)` —
-          // see the `divergence:` case below.
-          return { field: v.field, value: Number(fold() ?? 0) };
+          // `computeStatusBar` carries the fold's own `null` through — a
+          // blank, not a zero. It used to finish with `Number(x ?? 0)`, which
+          // is what made the two adapters disagree on an empty fold.
+          return { field: v.field, value: fold() };
         });
         return { totalRows: rows.length, filteredRows: matched.length, aggregations };
       },
@@ -394,6 +405,32 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
         }),
       ).resolves.toEqual({ value: 40, complete: true });
     });
+
+    it('reports an empty fold as blank, not as zero', async () => {
+      // `note` holds no numeric value at all. A 0 here would read as a price
+      // of zero; `null` reads as "nothing to fold". The server-side side of
+      // this used to answer 0, because `computeStatusBar` finished with
+      // `Number(value ?? 0)` and undid the worker's own deliberate null.
+      await expect(fx.port.aggregate('note', 'min')).resolves.toEqual({
+        value: null,
+        complete: true,
+      });
+      await expect(fx.port.aggregate('note', 'avg')).resolves.toEqual({
+        value: null,
+        complete: true,
+      });
+    });
+
+    it('still folds count and sum to real zeroes', async () => {
+      await expect(fx.port.aggregate('note', 'count')).resolves.toEqual({
+        value: 5,
+        complete: true,
+      });
+      await expect(fx.port.aggregate('note', 'sum')).resolves.toEqual({
+        value: 0,
+        complete: true,
+      });
+    });
   });
 
   describe('distinct', () => {
@@ -490,6 +527,76 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
         ok: true,
       });
       expect(fx.transactions).toEqual([]);
+    });
+  });
+
+  /**
+   * The filter-model surface, at the PORT level: an operator a caller puts in
+   * a `DataQuery` narrows both adapters the same way.
+   *
+   * The worker's own operator matrix — every AG Grid option, the Advanced
+   * Filter tree, and the explicit refusals — is pinned where it actually runs,
+   * in `host-data`'s `filter.test.ts` and `engineContract.test.ts`. What this
+   * proves is narrower and still worth having: a module that hands the port a
+   * filter model gets the same answer whichever row model it is running on.
+   *
+   * Date models are deliberately absent: the shared client predicate has no
+   * date arm at all (`filtersToolbarLogic.doesValueMatchFilter` falls through
+   * to match-all), so both adapters here would agree on a wrong answer. That
+   * predicate is Phase 2's to collapse onto the worker's.
+   */
+  describe('filter-model surface', () => {
+    const countWith = (filterModel: Record<string, unknown>) =>
+      fx.port.count({ filterModel });
+
+    it.each([
+      ['contains', 'lph', 2],
+      ['notContains', 'lph', 3],
+      ['equals', 'alpha', 2],
+      ['notEqual', 'alpha', 3],
+      ['startsWith', 'al', 2],
+      ['endsWith', 'ta', 1],
+    ] as const)('text %s narrows to %s rows', async (type, filter, expected) => {
+      await expect(countWith({ note: { filterType: 'text', type, filter } })).resolves
+        .toMatchObject({ count: expected });
+    });
+
+    it.each([
+      ['equals', 30, undefined, 1],
+      ['notEqual', 30, undefined, 4],
+      ['lessThan', 30, undefined, 2],
+      ['lessThanOrEqual', 30, undefined, 3],
+      ['greaterThan', 30, undefined, 2],
+      ['greaterThanOrEqual', 30, undefined, 3],
+      ['inRange', 20, 40, 3],
+    ] as const)('number %s narrows to %s rows', async (type, filter, filterTo, expected) => {
+      await expect(
+        countWith({ px: { filterType: 'number', type, filter, filterTo } }),
+      ).resolves.toMatchObject({ count: expected });
+    });
+
+    it('joins a combined condition list with the operator it names', async () => {
+      const conditions = [
+        { filterType: 'number', type: 'lessThan', filter: 20 },
+        { filterType: 'number', type: 'greaterThan', filter: 40 },
+      ];
+      await expect(
+        countWith({ px: { filterType: 'number', operator: 'OR', conditions } }),
+      ).resolves.toMatchObject({ count: 2 });
+      await expect(
+        countWith({ px: { filterType: 'number', operator: 'AND', conditions } }),
+      ).resolves.toMatchObject({ count: 0 });
+    });
+
+    it('ANDs the tabs of a multi filter', async () => {
+      await expect(
+        countWith({
+          note: {
+            filterType: 'multi',
+            filterModels: [{ filterType: 'text', type: 'contains', filter: 'a' }, null],
+          },
+        }),
+      ).resolves.toMatchObject({ count: 4 });
     });
   });
 
@@ -632,23 +739,6 @@ describe('divergence: distinct values are string-projected server-side (Phase 6)
     const ssrm = await makeSsrm().port.distinct('note');
     expect([...csrm.values].sort()).toEqual(['alpha', 'delta', 'gamma', null]);
     expect([...ssrm.values].sort()).toEqual(['', 'alpha', 'delta', 'gamma']);
-  });
-});
-
-describe('divergence: an empty fold is blank client-side, zero server-side (Phase 1)', () => {
-  it('min over a column with no numeric values', async () => {
-    // `computeStatusBar` finishes with `Number(aggRow[field] ?? 0)`, which
-    // turns the worker's own deliberate `null` ("blank, not zero — a 0 price
-    // reads as data") back into 0. The fix belongs with Phase 1, which owns
-    // `ssrm/aggregations.ts`; this case fails the day it lands, by design.
-    await expect(makeCsrm().port.aggregate('note', 'min')).resolves.toEqual({
-      value: null,
-      complete: true,
-    });
-    await expect(makeSsrm().port.aggregate('note', 'min')).resolves.toEqual({
-      value: 0,
-      complete: true,
-    });
   });
 });
 
