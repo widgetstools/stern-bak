@@ -8,25 +8,63 @@ import type { AllRowsEntry } from '@wellsfargo-starui/core';
  * virtual columns must (a) run ONLY when some virtual column calls an
  * aggregate function — row-local columns ride AG-Grid's own change
  * detection — and (b) coalesce any number of same-frame flushes into a
- * single repaint. Snapshot invalidation stays synchronous either way.
+ * single repaint. The snapshot refill runs on the data event either way.
  */
 
 type VirtualCol = { colId: string; headerName: string; expression: string };
 
-function makeHarness(virtualColumns: VirtualCol[]) {
+interface HarnessOptions {
+  /** The port's answer to "do the ids I can walk span the dataset". False is
+   *  a server-side grid: walking there would page the whole dataset across
+   *  `postMessage` to rebuild a snapshot the source has already folded. */
+  canAddressUnloadedRows?: boolean;
+  /** Rows the port hands to the visitor, and whether it covered the scope. */
+  rows?: Record<string, unknown>[];
+  complete?: boolean;
+}
+
+function makeHarness(virtualColumns: VirtualCol[], options: HarnessOptions = {}) {
+  const {
+    canAddressUnloadedRows = true,
+    rows = [{ price: 1, notional: 10 }, { price: 2, notional: 20 }],
+    complete = true,
+  } = options;
   const refreshCells = vi.fn();
   const api = { refreshCells };
   const listeners = new Map<string, () => void>();
+  const readyHandlers: Array<() => void> = [];
   const cache = new WeakMap<object, AllRowsEntry>();
   const engine = new ExpressionEngine();
+
+  // Mirrors CsrmDataAdapter: `scan` is async by signature but visits every
+  // row synchronously inside the call. The module depends on that — it is
+  // what keeps the first paint of an aggregate cell correct.
+  const scan = vi.fn(async (visit: (row: { id: string; data: Record<string, unknown> }) => unknown) => {
+    let scanned = 0;
+    for (const data of rows) {
+      scanned += 1;
+      if (visit({ id: String(scanned), data }) === false) break;
+    }
+    return { scanned, stopped: false, complete };
+  });
 
   const platform = {
     api: {
       api,
+      onReady: (cb: () => void) => {
+        readyHandlers.push(cb);
+        return () => {};
+      },
       on: (event: string, cb: () => void) => {
         listeners.set(event, cb);
         return () => listeners.delete(event);
       },
+    },
+    data: {
+      capabilities: {
+        canAddressUnloadedRows: { supported: canAddressUnloadedRows, reason: '' },
+      },
+      scan,
     },
     getState: () => ({ virtualColumns }),
     resources: {
@@ -38,7 +76,7 @@ function makeHarness(virtualColumns: VirtualCol[]) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dispose = calculatedColumnsModule.activate!(platform as any);
   const fire = (event = 'rowDataUpdated') => listeners.get(event)?.();
-  return { refreshCells, cache, api, fire, dispose };
+  return { refreshCells, cache, api, fire, dispose, scan, readyHandlers };
 }
 
 describe('calculatedColumnsModule.activate — refresh gating + coalescing', () => {
@@ -91,19 +129,78 @@ describe('calculatedColumnsModule.activate — refresh gating + coalescing', () 
     dispose();
   });
 
-  it('invalidates the allRows snapshot synchronously on every flush', () => {
-    const { cache, api, fire, dispose } = makeHarness([
-      { colId: 'net', headerName: 'Net', expression: '[price] * [qty]' },
+  it('refills the allRows snapshot through the port, in time for the same tick', () => {
+    const { cache, api, fire, dispose, scan } = makeHarness([
+      { colId: 'total', headerName: 'Total', expression: 'SUM([notional])' },
     ]);
     const entry: AllRowsEntry = {
-      rows: [{ price: 1 }],
-      columnArrays: new Map([['price', [1]]]),
+      rows: [{ price: 999 }],
+      columnArrays: new Map([['price', [999]]]),
+      aggregates: new Map(),
     };
     cache.set(api, entry);
     fire();
-    expect(entry.rows).toEqual([]);
-    expect(entry.columnArrays.size).toBe(0);
+    // No await: a port holding every row visits synchronously, so the fresh
+    // rows are readable by anything that runs before the frame — a sort, a
+    // filter, an export, or the very first paint.
+    expect(scan).toHaveBeenCalledTimes(1);
+    expect(cache.get(api)?.rows).toEqual([{ price: 1, notional: 10 }, { price: 2, notional: 20 }]);
+    expect(cache.get(api)?.columnArrays.size).toBe(0);
     dispose();
+  });
+
+  it('restores the previous snapshot when the port could not cover the scope', async () => {
+    const { cache, api, fire, dispose } = makeHarness(
+      [{ colId: 'total', headerName: 'Total', expression: 'SUM([notional])' }],
+      { complete: false },
+    );
+    const previous = [{ price: 999, notional: 999 }];
+    cache.set(api, { rows: previous, columnArrays: new Map(), aggregates: new Map() });
+    fire();
+    await Promise.resolve();
+    await Promise.resolve();
+    // An older total is not the defect; a total of a partial walk is.
+    expect(cache.get(api)?.rows).toBe(previous);
+    dispose();
+  });
+
+  it('does not page an unreachable dataset — the source has already folded it', () => {
+    const { fire, dispose, scan } = makeHarness(
+      [{ colId: 'total', headerName: 'Total', expression: 'SUM([notional])' }],
+      { canAddressUnloadedRows: false },
+    );
+    fire();
+    expect(scan).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('refills once the grid is ready, before any data event arrives', () => {
+    const { readyHandlers, scan, dispose } = makeHarness([
+      { colId: 'total', headerName: 'Total', expression: 'SUM([notional])' },
+    ]);
+    expect(scan).not.toHaveBeenCalled();
+    readyHandlers.forEach((fn) => fn());
+    expect(scan).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it('never walks for a row-local column — those ride AG-Grid change detection', () => {
+    const { fire, dispose, scan } = makeHarness([
+      { colId: 'net', headerName: 'Net', expression: '[price] * [qty]' },
+    ]);
+    fire();
+    expect(scan).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('clears the snapshot on dispose', () => {
+    const { cache, api, fire, dispose } = makeHarness([
+      { colId: 'total', headerName: 'Total', expression: 'SUM([notional])' },
+    ]);
+    fire();
+    expect(cache.get(api)?.rows.length).toBe(2);
+    dispose();
+    expect(cache.get(api)?.rows).toEqual([]);
   });
 
   it('does nothing with zero virtual columns', () => {
@@ -158,10 +255,15 @@ describe('calculatedColumnsModule.activate — refresh gating + coalescing', () 
     const platform = {
       api: {
         api: null,
+        onReady: () => () => {},
         on: (event: string, cb: () => void) => {
           listeners.set(event, cb);
           return () => listeners.delete(event);
         },
+      },
+      data: {
+        capabilities: { canAddressUnloadedRows: { supported: true, reason: '' } },
+        scan: async () => ({ scanned: 0, stopped: false, complete: true }),
       },
       getState: () => ({
         virtualColumns: [{ colId: 'total', headerName: 'Total', expression: 'SUM([x])' }],

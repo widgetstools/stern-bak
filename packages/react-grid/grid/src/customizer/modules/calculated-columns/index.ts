@@ -15,6 +15,8 @@ import {
 import { astUsesAggregateFunctions } from '@wellsfargo-starui/core';
 import {
   buildVirtualColDef,
+  fillAllRowsSnapshot,
+  getAllRowsSnapshot,
   invalidateAllRowsCache,
   type AllRowsEntry,
 } from '@wellsfargo-starui/core';
@@ -71,10 +73,17 @@ export const calculatedColumnsModule: Module<CalculatedColumnsState> = {
    *   every rendered virtual cell per flush repainted the whole
    *   viewport 10-40×/sec for nothing.
    * - The refresh is rAF-coalesced: many flushes per frame collapse to
-   *   one repaint. Snapshot INVALIDATION stays synchronous so any
+   *   one repaint. The snapshot REFILL stays on the data event so any
    *   read between flush and repaint (sort, filter, export) sees fresh
    *   data; only the repaint is deferred. rAF suspending on hidden
    *   windows is fine here — a hidden grid repaints on reveal.
+   *
+   * The refill goes through `platform.data.scan` rather than `forEachNode`,
+   * so what counts as "every row" is the port's answer and not the client-
+   * side row model's. The client-side adapter visits synchronously inside
+   * the call (its `scan` is `forEachNode` under an async signature), which
+   * is why the snapshot is fresh for the very first paint exactly as it was
+   * before this went through the port.
    */
   activate(platform: PlatformHandle<CalculatedColumnsState>): () => void {
     const cache = platform.resources.cache<GridApi, AllRowsEntry>(ALL_ROWS_CACHE_KEY);
@@ -111,12 +120,48 @@ export const calculatedColumnsModule: Module<CalculatedColumnsState> = {
       catch { /* teardown window */ }
     };
 
+    /**
+     * Refill the cross-row snapshot the aggregate expressions fold over.
+     *
+     * Gated on `canAddressUnloadedRows` — the port's own answer to "is a walk
+     * of every row meaningful from here". Where it holds, `scan` is the same
+     * `forEachNode` walk this module always made. Where it does not, walking
+     * would page an entire server-side dataset across `postMessage` on every
+     * data event to rebuild a snapshot the source has already folded for us:
+     * those rows arrive with the calculated fields stamped on, and
+     * `buildVirtualColDef`'s valueGetter returns them without ever reading
+     * this snapshot. Same capability, same question, as the filter pills.
+     */
+    const refillSnapshot = (api: GridApi): void => {
+      if (!platform.data.capabilities.canAddressUnloadedRows.supported) return;
+      const previous = getAllRowsSnapshot(api, cache);
+      const rows: Record<string, unknown>[] = [];
+      // Installed as soon as the call RETURNS, not when it settles: a port
+      // that holds every row visits synchronously inside `scan`, so the
+      // snapshot is complete here and the first paint of an aggregate cell
+      // reads the same rows it read before this went through the port.
+      // `complete: false` puts the previous snapshot back rather than leaving
+      // a partial one — a wrong total is the defect, and an older total is
+      // not one.
+      const pending = platform.data.scan((row) => {
+        rows.push(row.data);
+      });
+      fillAllRowsSnapshot(api, cache, rows);
+      void pending
+        .then((result) => {
+          if (!result.complete) fillAllRowsSnapshot(api, cache, previous);
+        })
+        .catch(() => {
+          fillAllRowsSnapshot(api, cache, previous);
+        });
+    };
+
     const onDataEvent = () => {
       const api = platform.api.api;
       if (!api) return;
-      invalidateAllRowsCache(api, cache);
       if (platform.getState().virtualColumns.length === 0) return;
       if (!hasAggregateColumns()) return;
+      refillSnapshot(api);
       if (rafHandle !== null) return;
       rafHandle = typeof requestAnimationFrame === 'function'
         ? requestAnimationFrame(flushRefresh)
@@ -124,11 +169,14 @@ export const calculatedColumnsModule: Module<CalculatedColumnsState> = {
     };
 
     const disposers = [
+      platform.api.onReady(onDataEvent),
       platform.api.on('cellValueChanged', onDataEvent),
       platform.api.on('rowValueChanged', onDataEvent),
       platform.api.on('rowDataUpdated', onDataEvent),
     ];
     return () => {
+      const api = platform.api.api;
+      if (api) invalidateAllRowsCache(api, cache);
       if (rafHandle !== null && typeof cancelAnimationFrame === 'function') {
         cancelAnimationFrame(rafHandle);
         rafHandle = null;

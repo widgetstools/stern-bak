@@ -13,8 +13,7 @@ import type { EvaluationContext, ExpressionNode, FunctionDefinition } from './ty
 import {
   applyBinary,
   applyUnary,
-  buildCallArgs,
-  invokeFunction,
+  evaluateCall,
   isTruthy,
   resolveColumnRef,
   resolveVariable,
@@ -103,10 +102,7 @@ export function compileToFunction(
       }
       const argNodes = node.args;
       const argFns = argNodes.map((arg) => compileToFunction(arg, functions));
-      return (ctx) => {
-        const args = buildCallArgs(fn, argNodes, ctx, (_arg, i) => argFns[i](ctx));
-        return invokeFunction(fn, name, args, ctx);
-      };
+      return (ctx) => evaluateCall(fn, name, argNodes, ctx, (_arg, i) => argFns[i](ctx));
     }
 
     default:

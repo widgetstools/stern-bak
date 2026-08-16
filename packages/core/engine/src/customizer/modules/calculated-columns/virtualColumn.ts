@@ -9,9 +9,17 @@
  *
  * Column-wide aggregates (`SUM([price])`, `AVG([yield])`) need the full
  * row snapshot. Each GridApi gets ONE cached snapshot via
- * `ResourceScope.cache`; the module's `activate()` wires invalidation
- * through the ApiHub's rowDataUpdated / modelUpdated / cellValueChanged
- * events.
+ * `ResourceScope.cache`, FILLED BY THE MODULE'S `activate()` through
+ * `platform.data.scan` — this file no longer walks the row model itself.
+ * That matters because `forEachNode` answers for the client-side row model
+ * and returns a ~2,000-row block cache under the server-side one, which is
+ * how `SUM([price])` ends up revising itself as the user scrolls.
+ *
+ * The other half of that fix is `readComputedField`: a source that has
+ * already evaluated the expression over the WHOLE dataset stamps the fields
+ * it computed onto each row, and this `valueGetter` returns those verbatim
+ * rather than evaluating a second time. Where nothing stamps — every
+ * client-side grid — the expression is evaluated here exactly as before.
  */
 import type {
   CellClassParams,
@@ -24,6 +32,7 @@ import type {
 // name creates a barrel self-cycle (and, from a tarball, resolves to a
 // SECOND copy of the barrel via the package self-reference).
 import type { ExpressionEngineLike } from '../../../platform/types';
+import { NOT_COMPUTED, readComputedField } from '../../../platform/computedFields';
 import {
   excelFormatColorResolver,
   valueFormatterFromTemplate,
@@ -41,30 +50,52 @@ export interface AllRowsEntry {
    * the full row set per refresh.
    */
   columnArrays: Map<string, unknown[]>;
+  /**
+   * Memoized RESULTS of whole-column folds, where {@link columnArrays}
+   * memoizes their input. Same lifecycle; see
+   * `EvaluationContext.allRowsAggregateCache` for why both are needed.
+   */
+  aggregates: Map<string, unknown>;
 }
 
+/**
+ * The rows a column-wide aggregate folds over. A pure READ — the walk that
+ * fills it belongs to the module's `activate()`, which does it through
+ * `platform.data.scan` so the port decides what "every row" means. Empty
+ * until the first fill (and where the port declines to page an unloaded
+ * dataset, which is the case a stamping source answers instead).
+ */
 export function getAllRowsSnapshot(
   api: GridApi | null | undefined,
   cache: WeakMap<GridApi, AllRowsEntry>,
 ): Record<string, unknown>[] {
   if (!api) return [];
-  let entry = cache.get(api);
-  if (entry && entry.rows.length) return entry.rows;
+  return cache.get(api)?.rows ?? [];
+}
+
+/**
+ * Install a freshly-walked row set and drop the per-column memo built from
+ * the previous one.
+ *
+ * The swap is atomic on purpose: the old snapshot stays readable right up to
+ * the moment the new one is complete, so an aggregate never renders against a
+ * half-filled set. (Clearing first and refilling would blink every aggregate
+ * cell to 0 on every data event.)
+ */
+export function fillAllRowsSnapshot(
+  api: GridApi | null | undefined,
+  cache: WeakMap<GridApi, AllRowsEntry>,
+  rows: Record<string, unknown>[],
+): void {
+  if (!api) return;
+  const entry = cache.get(api);
   if (!entry) {
-    entry = { rows: [], columnArrays: new Map() };
-    cache.set(api, entry);
+    cache.set(api, { rows, columnArrays: new Map(), aggregates: new Map() });
+    return;
   }
-  try {
-    const rows: Record<string, unknown>[] = [];
-    api.forEachNode((node) => {
-      if (node.data) rows.push(node.data as Record<string, unknown>);
-    });
-    entry.rows = rows;
-  } catch {
-    entry.rows = [];
-  }
+  entry.rows = rows;
   entry.columnArrays.clear();
-  return entry.rows;
+  entry.aggregates.clear();
 }
 
 /** Column-array memo tied to the CURRENT snapshot generation. */
@@ -76,6 +107,15 @@ export function getAllRowsColumnCache(
   return cache.get(api)?.columnArrays;
 }
 
+/** Folded-aggregate memo tied to the CURRENT snapshot generation. */
+export function getAllRowsAggregateCache(
+  api: GridApi | null | undefined,
+  cache: WeakMap<GridApi, AllRowsEntry>,
+): Map<string, unknown> | undefined {
+  if (!api) return undefined;
+  return cache.get(api)?.aggregates;
+}
+
 export function invalidateAllRowsCache(
   api: GridApi | null | undefined,
   cache: WeakMap<GridApi, AllRowsEntry>,
@@ -85,6 +125,7 @@ export function invalidateAllRowsCache(
   if (entry) {
     entry.rows = [];
     entry.columnArrays.clear();
+    entry.aggregates.clear();
   }
 }
 
@@ -132,6 +173,12 @@ export function buildVirtualColDef(
         if (group && agg !== undefined) return agg;
         return null;
       }
+      // The source may already have evaluated this expression — over the
+      // WHOLE dataset, not the rows this window holds. Where it has, that
+      // answer is the authoritative one and re-deriving it here is exactly
+      // the bug: a block-cache `SUM([price])` that changes as you scroll.
+      const computed = readComputedField(params.data, v.colId);
+      if (computed !== NOT_COMPUTED) return computed;
       if (!ast) return null;
       try {
         return engine.evaluate(ast, {
@@ -149,10 +196,12 @@ export function buildVirtualColDef(
           // maps the snapshot once; every other rendered cell of the
           // column reuses the array until the next invalidation.
           get allRowsColumnCache() {
-            // Ensure the snapshot (and thus generation) is current
-            // before handing out its memo.
-            getAllRowsSnapshot(params.api as GridApi, cache);
             return getAllRowsColumnCache(params.api as GridApi, cache);
+          },
+          // …and the fold's RESULT, so the second cell of an aggregate
+          // column does not re-reduce the array the first one just built.
+          get allRowsAggregateCache() {
+            return getAllRowsAggregateCache(params.api as GridApi, cache);
           },
         });
       } catch {

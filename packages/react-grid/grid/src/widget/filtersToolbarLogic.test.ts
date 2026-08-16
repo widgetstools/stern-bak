@@ -47,9 +47,34 @@ describe('generateLabel', () => {
 });
 
 describe('doesValueMatchFilter', () => {
-  it('match-all when filter is not a recognised shape', () => {
-    expect(doesValueMatchFilter(1, {})).toBe(true);
-    expect(doesValueMatchFilter(1, { filterType: 'date' })).toBe(true);
+  // Phase 2 of the SSRM parity roadmap collapsed this predicate onto the query
+  // plane's. These three cases used to pin the loser's readings — an
+  // unrecognised shape and a date filter both matched everything, and an empty
+  // set filter counted the whole dataset into the badge of a pill that shows
+  // nothing. The full operator matrix lives beside the implementation, in
+  // `core/engine/src/filters/filterPredicate.test.ts`; what is asserted here is
+  // that the grid's re-export is that implementation.
+  it('refuses a shape it cannot read rather than matching everything', () => {
+    expect(() => doesValueMatchFilter(1, {})).toThrow();
+    // A date filter with no operator is a shape, not a match-all…
+    expect(() => doesValueMatchFilter(1, { filterType: 'date' })).toThrow();
+  });
+
+  it('evaluates date filters, which this predicate used to ignore', () => {
+    expect(
+      doesValueMatchFilter('2026-03-05T09:30:00', {
+        filterType: 'date',
+        type: 'greaterThan',
+        dateFrom: '2026-03-01 00:00:00',
+      }),
+    ).toBe(true);
+    expect(
+      doesValueMatchFilter('2026-02-05T09:30:00', {
+        filterType: 'date',
+        type: 'greaterThan',
+        dateFrom: '2026-03-01 00:00:00',
+      }),
+    ).toBe(false);
   });
 
   it('set filter — membership', () => {
@@ -61,8 +86,13 @@ describe('doesValueMatchFilter', () => {
     ).toBe(false);
   });
 
-  it('set filter with empty values matches everything (no filter)', () => {
-    expect(doesValueMatchFilter('anything', { filterType: 'set', values: [] })).toBe(true);
+  it('set filter with nothing selected matches NO rows', () => {
+    // What the grid shows when the user clears every tick box, so what the
+    // pill badge must count.
+    expect(doesValueMatchFilter('anything', { filterType: 'set', values: [] })).toBe(false);
+    // A `set` entry with no `values` key at all is still no restriction — AG
+    // Grid hands that shape back mid-edit.
+    expect(doesValueMatchFilter('anything', { filterType: 'set' })).toBe(true);
   });
 
   it('text filter — contains / equals / startsWith / endsWith', () => {

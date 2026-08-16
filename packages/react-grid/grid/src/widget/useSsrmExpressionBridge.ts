@@ -23,6 +23,16 @@ const PUSH_DEBOUNCE_MS = 25;
  * seeds `moduleStates` from the module list alone, so presets like
  * reduced module lists legitimately omit all three. Treat a missing module as
  * "contributes no rules" rather than throwing through the host's render.
+ *
+ * No `editableRules` here, and that is not an omission: nothing in the
+ * customizer authors an editability EXPRESSION. Editability is a boolean
+ * throughout — `general-settings.defaultEditable`, `column-templates`'
+ * per-column `editable`, `column-customization`'s resolved override — and a
+ * boolean needs no plane to evaluate it. `MarketsGridExpressionSnapshot`
+ * still carries `editableRules` because a host composing a snapshot directly
+ * is a supported path, and both ends of it now work: `toSsrmExpressionRules`
+ * emits `kind: 'editable'`, the plane evaluates it, and the surface's column
+ * bindings gate the cell on the result.
  */
 function buildExpressionSnapshot(
   calculated: CalculatedColumnsState | undefined,
@@ -54,11 +64,22 @@ function buildExpressionSnapshot(
 }
 
 /**
- * Live bridge from MarketsGrid customizer expression modules → SSRM worker plane.
- * Worker owns calc/style/alerts evaluation; this hook only pushes rule config.
+ * Live bridge from MarketsGrid customizer expression modules → SSRM worker
+ * plane. This hook only pushes rule config; the plane evaluates.
  *
- * SSRM: client module `activate()` still runs for authoring UI — follow-up:
- * gate client-side row mutation when `platform.ssrmMode` is set (see final-branch-review #2).
+ * The client modules' `activate()` still runs, and should: they own the
+ * authoring UI, and conditional-styling's own pass is the RICHER of the two
+ * (flash, indicators, glyph animation and timed activations have no plane
+ * equivalent) and is correct under either row model, because its expressions
+ * are row-local against the row in hand.
+ *
+ * Calculated columns are the one place the two genuinely competed, and the
+ * plane now wins there by construction rather than by a flag: rows arrive
+ * with the fields it computed stamped on them (`COMPUTED_FIELDS_KEY`), and
+ * `buildVirtualColDef`'s valueGetter returns those instead of re-deriving a
+ * column-wide aggregate from whichever ~2,000 rows the block cache holds.
+ * That is what the `platform.ssrmMode` flag this comment used to promise
+ * would have been for — and a flag is exactly what the port exists to avoid.
  */
 export function useSsrmExpressionBridge(
   provider: ISsrmDataProvider | null | undefined,

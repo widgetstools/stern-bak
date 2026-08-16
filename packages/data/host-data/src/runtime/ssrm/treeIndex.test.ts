@@ -270,7 +270,7 @@ describe('tree blocks through the query engine', () => {
         ...BASE,
         filterModel: { name: { filterType: 'text', type: 'soundsLike', filter: 'a' } },
       }),
-    ).toThrow(/does not support/);
+    ).toThrow(/“soundsLike”/);
   });
 });
 

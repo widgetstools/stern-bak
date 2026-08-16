@@ -36,7 +36,13 @@ import { ensureAgGridModules } from './ensureAgGridModules';
 import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
 import { createSsrmStatusBar, mapNativeStatusBarToSsrm } from '../ssrm/createSsrmStatusBar.js';
-import { ssrmAlertRowClass, ssrmGetChildCount } from '../ssrm/expressionBindings.js';
+import {
+  ssrmAlertRowClass,
+  ssrmGetChildCount,
+  withSsrmDefaultColDef,
+  withSsrmExpressionBindings,
+  type SsrmBindableColDef,
+} from '../ssrm/expressionBindings.js';
 import { withSsrmSetFilterValues } from '../ssrm/ssrmSetFilterValues.js';
 import { BlankLoadingCellRenderer } from '../ssrm/BlankLoadingCellRenderer.js';
 import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
@@ -148,13 +154,18 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     [provider, cacheBlockSizeProp],
   );
 
-  // Set-filter panels list the column's full domain from the worker cache —
-  // without this they show only the values present in loaded blocks.
+  // Two worker-backed column decorations, in one place:
+  //  - set-filter panels list the column's full domain from the worker cache
+  //    (without this they show only the values present in loaded blocks);
+  //  - `cellStyle` / `editable` pick up the worker's per-cell enrichment
+  //    (`__ssrmStyle` / `__ssrmEditable`), which nothing consumed before.
   const ssrmColumnDefs = useMemo(
     () =>
-      withSsrmSetFilterValues(
-        columnDefs as Parameters<typeof withSsrmSetFilterValues>[0],
-        { provider },
+      withSsrmExpressionBindings(
+        withSsrmSetFilterValues(
+          columnDefs as Parameters<typeof withSsrmSetFilterValues>[0],
+          { provider },
+        ) as SsrmBindableColDef[],
       ),
     [columnDefs, provider],
   );
@@ -274,6 +285,21 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     defaultColDef,
   ]);
 
+  // The editable gate has to sit on `defaultColDef` as well as on the columns
+  // that declare their own — `general-settings` writes editability to the
+  // defaults, and a per-column wrapper would shadow it. Whichever of the two
+  // sources actually reaches the grid is the one decorated, so the wrapper is
+  // never applied twice.
+  const ssrmDefaultColDef = useMemo(
+    () =>
+      withSsrmDefaultColDef(
+        (hostOverrides.defaultColDef
+          ?? (pipelineGridOptions as { defaultColDef?: unknown }).defaultColDef) as
+          SsrmBindableColDef | undefined,
+      ),
+    [hostOverrides, pipelineGridOptions],
+  );
+
   // ── Late-bound key column ─────────────────────────────────────────
   //
   // `keyColumn` starts as the fallback 'id' and resolves (e.g. to
@@ -364,6 +390,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         {...hostOverrides}
         theme={theme}
         columnDefs={ssrmColumnDefs as never}
+        defaultColDef={ssrmDefaultColDef as never}
         rowModelType="serverSide"
         cacheBlockSize={cacheBlockSize}
         maxBlocksInCache={20}

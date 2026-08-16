@@ -108,6 +108,81 @@ test.describe('SSRM viewport ticks', () => {
   });
 });
 
+/**
+ * A calculated column that AGGREGATES is a fold over the whole dataset, and the
+ * grid holds ~2,000 of its rows at a time. Evaluated from the block cache it
+ * silently answers a different question in every scroll position — an average
+ * of "whatever is loaded" presented as the average of everything.
+ *
+ * The lab's live profile seeds `AVG([midPrice])` for exactly this assertion.
+ * The value is allowed to MOVE (the feed ticks), but at any one instant every
+ * rendered row must agree, and the value must not step when a different block
+ * is what happens to be loaded.
+ */
+test.describe('SSRM aggregate calculated columns', () => {
+  test.setTimeout(120_000);
+
+  const AGG_COLUMN = 'avgMid';
+
+  /** The calculated column is appended after the provider's own, so it sits
+   *  off the right edge — and AG Grid renders only the columns inside the
+   *  horizontal viewport. Scroll it into the DOM before reading. */
+  async function scrollToAggregateColumn(page: Page): Promise<void> {
+    await page.locator(VIEWPORT).evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+    });
+    await page.waitForTimeout(500);
+  }
+
+  /** Every rendered row's value for the aggregate column, as numbers. */
+  async function aggregateValues(page: Page): Promise<number[]> {
+    const texts = await page
+      .locator(`${GRID} .ag-cell[col-id="${AGG_COLUMN}"]`)
+      .evaluateAll((cells) => cells.map((c) => c.textContent?.trim() ?? '').filter((v) => v !== ''));
+    return texts.map((t) => Number(t.replace(/[^0-9.\-]/g, '')));
+  }
+
+  test('reads the same in every row, at every scroll position', async ({ page }) => {
+    await openLiveTab(page);
+
+    // The mock feed is 500 rows in 100-row blocks around a mid of ~100 with a
+    // per-instrument spread of several points. A fold over one block would sit
+    // roughly `sd/sqrt(100)` away from the dataset fold — tenths, not
+    // ten-thousandths — and would step every time a different block loaded.
+    // A tenth of a point is therefore far below "wrong" and far above the
+    // drift a live feed produces between two block fetches.
+    const TOLERANCE = 0.1;
+    const samples: number[] = [];
+
+    for (const top of [0, 6_000, 12_000, 0]) {
+      await scrollGrid(page, top);
+      await scrollToAggregateColumn(page);
+      const values = await aggregateValues(page);
+      expect(values.length, `expected the aggregate column at scrollTop=${top}`).toBeGreaterThan(0);
+      // A real average of a price column. Catches the other way this can go
+      // wrong: folding an EMPTY row set, which the expression language answers
+      // with 0 rather than with a blank.
+      for (const v of values) {
+        expect(Number.isFinite(v) && v > 1, `implausible aggregate ${v} at scrollTop=${top}`).toBe(true);
+      }
+
+      // Within one viewport: rows from two different blocks are rendered
+      // together, and a block-cache fold would give each block its own answer.
+      const withinView = Math.max(...values) - Math.min(...values);
+      expect(withinView, `aggregate disagreed within the viewport at scrollTop=${top}: ${values.join(', ')}`)
+        .toBeLessThan(TOLERANCE);
+      samples.push(values[0]);
+    }
+
+    // Across positions: the whole point is that loading a different block does
+    // not move the number. The feed ticks, so it may drift a little; it must
+    // not STEP.
+    const drift = Math.max(...samples) - Math.min(...samples);
+    expect(drift, `aggregate drifted across scroll positions: ${samples.join(', ')}`)
+      .toBeLessThan(TOLERANCE);
+  });
+});
+
 test.describe('SSRM console health', () => {
   test.setTimeout(120_000);
 

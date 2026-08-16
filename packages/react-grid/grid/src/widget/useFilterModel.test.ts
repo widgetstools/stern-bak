@@ -30,6 +30,21 @@ import {
 import { useFilterModel } from './useFilterModel';
 import type { SavedFilter } from './types';
 
+/**
+ * Settle a pill-count recompute.
+ *
+ * Counts go through `platform.data` since Phase 2 of the SSRM parity roadmap,
+ * and every port method is async — the server-side adapter crosses
+ * `postMessage` and the signature does not pretend otherwise. So a badge is
+ * one or more microtasks behind the render that asked for it, even under the
+ * client-side adapter, which resolves without ever yielding to a timer.
+ */
+async function settleCounts(): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+  });
+}
+
 // ─── Fake GridApi harness ──────────────────────────────────────────────
 
 interface FakeApiHarness {
@@ -226,7 +241,7 @@ describe('useFilterModel — AG-Grid wiring', () => {
   let platform: GridPlatform;
   beforeEach(() => { platform = makePlatform(); });
 
-  it('updates filter counts incrementally on asyncTransactionsFlushed', () => {
+  it('updates filter counts incrementally on asyncTransactionsFlushed', async () => {
     vi.useFakeTimers();
     try {
       seedFilters(platform, [{
@@ -247,6 +262,7 @@ describe('useFilterModel — AG-Grid wiring', () => {
       platform.onGridReady(fake.api);
 
       const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+      await settleCounts();
       expect(result.current.filterCounts.a).toBe(1);
 
       nodes[1] = { id: 'r2', data: { side: 'BUY' } };
@@ -465,7 +481,7 @@ describe('useFilterModel — AG-Grid wiring', () => {
     expect(setFilterModel).toHaveBeenCalled();
   });
 
-  it('recomputes filter counts when rows are present', () => {
+  it('recomputes filter counts when rows are present', async () => {
     seedFilters(platform, [{
       id: 'a',
       label: 'A',
@@ -487,7 +503,86 @@ describe('useFilterModel — AG-Grid wiring', () => {
     platform.onGridReady(api);
 
     const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    await settleCounts();
     expect(result.current.filterCounts.a).toBe(1);
+  });
+
+  it('counts every pill against the whole dataset, ignoring the applied filter', async () => {
+    // ONE meaning for the badge in both row models: rows in the dataset that
+    // match THIS pill, so a number cannot move because a different pill was
+    // toggled on. `forEachNodeAfterFilter` is deliberately not consulted.
+    seedFilters(platform, [
+      {
+        id: 'buy',
+        label: 'BUY',
+        active: true,
+        filterModel: { side: { filterType: 'text', type: 'equals', filter: 'BUY' } },
+      },
+      {
+        id: 'none',
+        label: 'Nothing selected',
+        active: false,
+        filterModel: { side: { filterType: 'set', values: [] } },
+      },
+    ]);
+
+    const fake = makeFakeApi();
+    const nodes = [
+      { id: 'r1', data: { side: 'BUY' } },
+      { id: 'r2', data: { side: 'SELL' } },
+      { id: 'r3', data: { side: 'BUY' } },
+    ];
+    const api = {
+      ...fake.api,
+      forEachNode: (fn: (node: { id: string; data: Record<string, unknown> }) => void) => {
+        for (const node of nodes) fn(node);
+      },
+      forEachNodeAfterFilter: () => {
+        throw new Error('pill counts must not read the applied filter');
+      },
+    } as unknown as GridApi;
+    platform.onGridReady(api);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    await settleCounts();
+    expect(result.current.filterCounts.buy).toBe(2);
+    // A set filter with nothing selected shows no rows, so its badge is 0 —
+    // it used to read as "no restriction" and report the whole dataset.
+    expect(result.current.filterCounts.none).toBe(0);
+  });
+
+  it('over-counts a pill it cannot evaluate rather than reporting zero', async () => {
+    // The shared predicate REFUSES an operator it cannot evaluate. On this hot
+    // path a refusal must not drop work: the query path raises it for real.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      seedFilters(platform, [{
+        id: 'bad',
+        label: 'Bad',
+        active: false,
+        filterModel: { side: { filterType: 'text', type: 'soundsLike', filter: 'BUY' } },
+      }]);
+
+      const fake = makeFakeApi();
+      const nodes = [
+        { id: 'r1', data: { side: 'BUY' } },
+        { id: 'r2', data: { side: 'SELL' } },
+      ];
+      const api = {
+        ...fake.api,
+        forEachNode: (fn: (node: { id: string; data: Record<string, unknown> }) => void) => {
+          for (const node of nodes) fn(node);
+        },
+      } as GridApi;
+      platform.onGridReady(api);
+
+      const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+      await settleCounts();
+      expect(result.current.filterCounts.bad).toBe(2);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('addFromLive is a no-op when live model duplicates an existing pill', () => {

@@ -24,7 +24,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { GridApi, IRowNode } from 'ag-grid-community';
+import type { GridApi } from 'ag-grid-community';
 import type { RowChange } from '@wellsfargo-starui/core';
 import {
   useGridApi,
@@ -33,7 +33,6 @@ import {
   type SavedFiltersState,
 } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import {
-  doesRowMatchFilterModel,
   generateLabel,
   isNewFilter,
   makeId,
@@ -41,8 +40,7 @@ import {
   subtractFilterModel,
 } from './filtersToolbarLogic';
 import type { SavedFilter } from './types';
-import { computeSsrmFilterCounts } from './ssrmFilterCounts.js';
-import { useSsrmFilterCountsDeps } from './SsrmFilterCountsContext.js';
+import { computeFilterPillCounts, patchPillCounts } from './filterPillCounts.js';
 
 // ─── AG-Grid v35 shape repair ──────────────────────────────────────────
 //
@@ -254,21 +252,37 @@ function useFilterNormalization(): {
  *  - incremental delta updates on streaming ticks (changed rows only)
  *  - `firstDataRendered` (cold-mount: data arrives after the
  *    toolbar renders once with empty counts)
+ *
+ * Both the badge number and its meaning come from `platform.data` — see
+ * `filterPillCounts.ts`, which owns the one scope both row models count in and
+ * the capability that decides whether match sets are meaningful. This hook
+ * owns only what is stateful: publishing, staleness, and the delta patch.
+ *
+ * The recompute is asynchronous because the port is (the server-side adapter
+ * crosses `postMessage`), so every result carries a generation stamp and a
+ * late answer to a superseded question is dropped rather than published.
  */
 function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number> {
   const platform = useGridPlatform();
   const [filterCounts, setFilterCounts] = useState<Record<string, number>>({});
   const filterCountsRef = useRef<Record<string, number>>({});
   const matchSetsRef = useRef<Map<string, Set<string>>>(new Map());
-  // Non-null under SSRM: pills count against the whole worker cache, not
-  // the loaded blocks a forEachNode scan would see.
-  const ssrmCountsDeps = useSsrmFilterCountsDeps();
 
   useEffect(() => {
     const disposers: Array<() => void> = [];
+    let disposed = false;
+    let generation = 0;
+
     disposers.push(
-      platform.api.onReady((liveApi) => {
+      platform.api.onReady(() => {
+        const publish = (next: Record<string, number>) => {
+          if (filterCountsEqual(filterCountsRef.current, next)) return;
+          filterCountsRef.current = next;
+          setFilterCounts(next);
+        };
+
         const clearCounts = () => {
+          generation += 1;
           if (Object.keys(filterCountsRef.current).length === 0) return;
           matchSetsRef.current = new Map();
           filterCountsRef.current = {};
@@ -280,43 +294,14 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
             clearCounts();
             return;
           }
-          if (ssrmCountsDeps) {
-            // SSRM: the worker filters the whole cache and returns rowCount
-            // per pill; client match-sets stay empty so incremental tick
-            // updates route back here instead of patching stale sets.
-            void computeSsrmFilterCounts(filters, ssrmCountsDeps).then((next) => {
-              matchSetsRef.current = new Map();
-              if (filterCountsEqual(filterCountsRef.current, next)) return;
-              filterCountsRef.current = next;
-              setFilterCounts(next);
-            });
-            return;
-          }
-          const matchSets = new Map<string, Set<string>>();
-          const next: Record<string, number> = {};
-          for (const f of filters) {
-            matchSets.set(f.id, new Set());
-            next[f.id] = 0;
-          }
-          try {
-            liveApi.forEachNode((n) => {
-              const data = n.data as Record<string, unknown> | undefined;
-              const rowId = n.id;
-              if (!data || typeof rowId !== 'string') return;
-              for (const f of filters) {
-                if (doesRowMatchFilterModel(data, f.filterModel)) {
-                  matchSets.get(f.id)!.add(rowId);
-                  next[f.id] += 1;
-                }
-              }
-            });
-          } catch {
-            /* api mid-teardown */
-          }
-          matchSetsRef.current = matchSets;
-          if (filterCountsEqual(filterCountsRef.current, next)) return;
-          filterCountsRef.current = next;
-          setFilterCounts(next);
+          const gen = ++generation;
+          void computeFilterPillCounts(platform.data, filters).then((result) => {
+            // A recompute the filters list or an unmount has already
+            // superseded must not overwrite the current answer.
+            if (disposed || gen !== generation) return;
+            matchSetsRef.current = result.matchSets;
+            publish(result.counts);
+          });
         };
 
         const applyRowChange = (change: RowChange) => {
@@ -324,44 +309,27 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
             clearCounts();
             return;
           }
+          // No match sets means no delta is possible — under the server-side
+          // row model that is every emit, which is the cost Phase 5 of the
+          // parity roadmap removes.
           if (change.full || matchSetsRef.current.size === 0) {
             fullRecompute();
             return;
           }
 
-          const matchSets = matchSetsRef.current;
-          const next = { ...filterCountsRef.current };
-          let changed = false;
-
-          const touchNode = (node: IRowNode, removed: boolean) => {
-            const rowId = node.id;
-            if (typeof rowId !== 'string') return;
-            const data = node.data as Record<string, unknown> | undefined;
-            for (const f of filters) {
-              const set = matchSets.get(f.id);
-              if (!set) continue;
-              const was = set.has(rowId);
-              const now = !removed && !!data && doesRowMatchFilterModel(data, f.filterModel);
-              if (was === now) continue;
-              changed = true;
-              if (now) {
-                set.add(rowId);
-                next[f.id] = (next[f.id] ?? 0) + 1;
-              } else {
-                set.delete(rowId);
-                next[f.id] = Math.max(0, (next[f.id] ?? 0) - 1);
-              }
-            }
-          };
-
-          for (const node of change.removed) touchNode(node, true);
-          for (const node of change.added) touchNode(node, false);
-          for (const node of change.updated) touchNode(node, false);
-
-          if (!changed) return;
-          if (filterCountsEqual(filterCountsRef.current, next)) return;
-          filterCountsRef.current = next;
-          setFilterCounts(next);
+          const patched = patchPillCounts(
+            change,
+            filters,
+            matchSetsRef.current,
+            filterCountsRef.current,
+          );
+          if (!patched) return;
+          // A delta answers about rows the grid just changed, so it is never
+          // stale in the way an in-flight full recompute is — but a full
+          // recompute still in flight would land on top of it. Bumping the
+          // generation drops that one instead.
+          generation += 1;
+          publish(patched);
         };
 
         fullRecompute();
@@ -369,8 +337,11 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
         disposers.push(platform.api.on('firstDataRendered', fullRecompute));
       }),
     );
-    return () => { for (const d of disposers) d(); };
-  }, [platform, filters, ssrmCountsDeps]);
+    return () => {
+      disposed = true;
+      for (const d of disposers) d();
+    };
+  }, [platform, filters]);
 
   return filterCounts;
 }

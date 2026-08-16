@@ -20,7 +20,11 @@
  */
 import type { GridApi, IRowNode } from 'ag-grid-community';
 import { getValueByPath } from '@wellsfargo-starui/types';
-import { doesRowMatchFilterModel } from '../filters/filtersToolbarLogic';
+import {
+  assertFilterModelSupported,
+  doesRowMatchFilterModel,
+} from '../filters/filterPredicate';
+import { UnsupportedQueryError } from '../filters/UnsupportedQueryError';
 import { beginFold, finishFold, foldValue } from './foldColumn';
 import type { ApiHub } from './types';
 import {
@@ -81,7 +85,7 @@ export class CsrmDataAdapter implements GridDataPort {
     if (!api) return { scanned: 0, stopped: false, complete: false };
     let scanned = 0;
     let stopped = false;
-    forEachRow(api, query, ({ row }) => {
+    const complete = forEachRow(api, query, ({ row }) => {
       scanned += 1;
       if (visit(row) === false) {
         stopped = true;
@@ -89,7 +93,7 @@ export class CsrmDataAdapter implements GridDataPort {
       }
       return true;
     });
-    return { scanned, stopped, complete: true };
+    return { scanned, stopped, complete };
   }
 
   async distinct(colId: string, options: DistinctOptions = {}): Promise<DistinctResult> {
@@ -102,7 +106,7 @@ export class CsrmDataAdapter implements GridDataPort {
     const values: unknown[] = [];
     let truncated = false;
 
-    forEachRow(api, options.query ?? {}, ({ node }) => {
+    const complete = forEachRow(api, options.query ?? {}, ({ node }) => {
       // `getCellValue` — not the raw field — so a column backed by a
       // valueGetter (a calculated column) lists what the user sees. The
       // worker's `getSetFilterValues` answers from rows it has already
@@ -119,7 +123,7 @@ export class CsrmDataAdapter implements GridDataPort {
       return true;
     });
 
-    return { values, stringProjected: false, complete: !truncated };
+    return { values, stringProjected: false, complete: complete && !truncated };
   }
 
   async aggregate(
@@ -130,22 +134,22 @@ export class CsrmDataAdapter implements GridDataPort {
     const api = this.hub.api;
     if (!api) return { value: null, complete: false };
     const fold = beginFold();
-    forEachRow(api, query, ({ row }) => {
+    const complete = forEachRow(api, query, ({ row }) => {
       foldValue(fold, getValueByPath(row.data, colId));
       return true;
     });
-    return { value: finishFold(fold, fn), complete: true };
+    return { value: complete ? finishFold(fold, fn) : null, complete };
   }
 
   async count(query: DataQuery = {}): Promise<CountResult> {
     const api = this.hub.api;
     if (!api) return { count: 0, complete: false };
     let count = 0;
-    forEachRow(api, query, () => {
+    const complete = forEachRow(api, query, () => {
       count += 1;
       return true;
     });
-    return { count, complete: true };
+    return { count, complete };
   }
 
   async getRowsById(ids: readonly string[]): Promise<RowsByIdResult> {
@@ -192,25 +196,41 @@ export class CsrmDataAdapter implements GridDataPort {
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
 /**
- * Walk the rows `query` addresses. `fn` returns `false` to stop.
+ * Walk the rows `query` addresses. `fn` returns `false` to stop. Returns
+ * whether the walk covered the scope it was asked for — the `complete` every
+ * read result carries.
  *
  * `scope: 'filtered'` is `forEachNodeAfterFilter` — AG-Grid's own answer,
  * quick-filter text included. `scope: 'all'` is `forEachNode`. An extra
- * `filterModel` is ANDed on top with `doesRowMatchFilterModel`, the predicate
- * the filter pills already count with (Phase 2 collapses it and the worker's
- * onto one implementation; this adapter follows it there without changing).
+ * `filterModel` is ANDed on top with `doesRowMatchFilterModel`, the ONE
+ * predicate the query plane evaluates blocks with.
  *
  * This combination is the reference the server-side adapter has to match —
  * per-row AND, in both scopes, with no restriction on which columns the extra
  * model may name.
+ *
+ * A model the predicate cannot evaluate is REFUSED before the first row, not
+ * per row: the verdict must read the request, so an empty grid rejects exactly
+ * what a full one does. The refusal surfaces as `complete: false` rather than
+ * as a throw, because that is the channel every port method already has and
+ * every caller already reads — and because "the port could not look" is
+ * precisely what it means.
  */
 function forEachRow(
   api: GridApi,
   query: DataQuery,
   fn: (visited: VisitedRow) => boolean,
-): void {
+): boolean {
   const filterModel = query.filterModel;
   const hasExtraFilter = !!filterModel && Object.keys(filterModel).length > 0;
+  if (hasExtraFilter) {
+    try {
+      assertFilterModelSupported(filterModel);
+    } catch (err) {
+      if (err instanceof UnsupportedQueryError) return false;
+      throw err;
+    }
+  }
   let stop = false;
 
   const each = (node: IRowNode): void => {
@@ -230,6 +250,7 @@ function forEachRow(
   } catch {
     /* api mid-teardown — the caller's `complete` still reports what ran */
   }
+  return true;
 }
 
 function safeKey(value: unknown): string {

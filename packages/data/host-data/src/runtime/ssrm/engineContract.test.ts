@@ -220,6 +220,82 @@ describe('per-session expression rules', () => {
   });
 });
 
+/**
+ * The defect this closes: an aggregate calculated column is a fold over the
+ * DATASET, and both places that evaluated it were folding something smaller —
+ * the grid its ~2,000-row block cache, the plane the single row it happened to
+ * be enriching. Two answers, both wrong, and the grid's revised itself as the
+ * user scrolled.
+ *
+ * The assertion is scroll invariance: every block of the same query reports the
+ * same total, and it is the total of all 1,000 rows rather than of the 100 in
+ * the block.
+ */
+describe('aggregate calculated columns are dataset-wide', () => {
+  const ROWS = 1_000;
+  const seededEngine = () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot(
+      Array.from({ length: ROWS }, (_, i) => ({ id: `r${i}`, book: i % 2 ? 'A' : 'B', px: i })),
+    );
+    return engine;
+  };
+  const EXPECTED_SUM = (ROWS * (ROWS - 1)) / 2;
+
+  it('reports the same total in the first block, a middle block and the last', () => {
+    const engine = seededEngine();
+    engine.configureExpressions([
+      { id: 'c1', kind: 'calculated', field: 'bookTotal', expression: 'SUM([px])' },
+    ]);
+    const totalsIn = (startRow: number) =>
+      new Set(
+        engine
+          .getRows({ ...BASE, startRow, endRow: startRow + 100 })
+          .rowData.map((r) => r.bookTotal),
+      );
+
+    for (const start of [0, 500, ROWS - 100]) {
+      expect(totalsIn(start)).toEqual(new Set([EXPECTED_SUM]));
+    }
+  });
+
+  it('folds the whole store, not the rows a filter or a page narrowed it to', () => {
+    const engine = seededEngine();
+    engine.configureExpressions([
+      { id: 'c1', kind: 'calculated', field: 'allPx', expression: 'SUM([px])' },
+    ]);
+    // A filtered query still reports the dataset-wide total: `forEachNode` on
+    // the client-side row model is unfiltered too, and the same expression must
+    // not mean two different things across the two row models.
+    const filtered = engine.getRows({
+      ...BASE,
+      endRow: 10,
+      filterModel: { book: { filterType: 'text', type: 'equals', filter: 'A' } },
+    });
+    expect(filtered.rowData[0].allPx).toBe(EXPECTED_SUM);
+  });
+
+  it('follows the data — a tick moves the total on every row', () => {
+    const engine = new SsrmServer({ keyColumn: 'id' });
+    engine.replaceSnapshot([{ id: 'a', px: 10 }, { id: 'b', px: 20 }]);
+    engine.configureExpressions([
+      { id: 'c1', kind: 'calculated', field: 't', expression: 'SUM([px])' },
+    ]);
+    expect(engine.getRows({ ...BASE }).rowData.map((r) => r.t)).toEqual([30, 30]);
+    engine.upsert([{ id: 'a', px: 110 }]);
+    expect(engine.getRows({ ...BASE }).rowData.map((r) => r.t)).toEqual([130, 130]);
+  });
+
+  it('stamps the fields it computed so the grid returns them instead of re-deriving', () => {
+    const engine = seededEngine();
+    engine.configureExpressions([
+      { id: 'c1', kind: 'calculated', field: 'bookTotal', expression: 'SUM([px])' },
+    ]);
+    const row = engine.getRows({ ...BASE, endRow: 1 }).rowData[0];
+    expect(row.__ssrmCalculated).toEqual(['bookTotal']);
+  });
+});
+
 describe('cross-grid consistency acceptance', () => {
   const CRITERIA = {
     ...BASE,

@@ -132,7 +132,7 @@ export {
   rowPassesQuickFilter,
   rowPassesQuickFilterScoped,
   assertFilterModelSupported,
-  rowPassesFilter,
+  doesRowMatchFilterModel,
   UnsupportedQueryError,
   resolveSsrmKeyColumn,
   SSRM_COMPOSITE_KEY_FIELD,

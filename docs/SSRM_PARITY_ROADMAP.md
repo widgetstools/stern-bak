@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 2 / 11 phases done (Phases 0–1).**
+**Branch:** `feature/simplify`. **Status: 4 / 11 phases done (Phases 0–3).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -360,11 +360,13 @@ Five decisions the later phases inherit:
 - **`filtersToolbarLogic.doesValueMatchFilter` still has no date arm** and
   still treats an empty set filter as no restriction. Phase 2 collapses it onto
   this engine's predicate; Phase 1 only deleted its private third copy of
-  `getValueByPath` (identical body) in favour of the repo's one.
+  `getValueByPath` (identical body) in favour of the repo's one. *(Closed by
+  Phase 2 — the predicate moved to `core/engine/src/filters/filterPredicate.ts`
+  and this file's copy was deleted.)*
 
 ---
 
-## Phase 2 — one filter predicate ⬜
+## Phase 2 — one filter predicate ✅
 
 **Goal:** delete the three-sources-of-truth problem. One implementation of
 "does this row match this filter model", consumed by the worker engine and the
@@ -402,9 +404,115 @@ client counter alike.
 
 **Closes:** T2-10, and the root divergence behind T1-9.
 
+### What landed
+
+`packages/core/engine/src/filters/` — `filterPredicate.ts` (the one
+implementation), `UnsupportedQueryError.ts` (moved from the query plane),
+`filterPredicate.test.ts` (the 65-case operator matrix, moved from
+`host-data`, +28). `filtersToolbarLogic.ts` lost its predicate and kept
+everything else. Adapters: `CsrmDataAdapter`, `SsrmDataAdapter`,
+`portContract.test.ts` (117 → 139, dates and refusals added, the stale
+"date models are deliberately absent" note deleted). Query plane:
+`filter.ts` and `UnsupportedQueryError.ts` DELETED, `QueryEngine.ts`,
+`statusBar.ts`, `aggregations.ts` and both barrels now import from core.
+Grid: `filterPillCounts.ts` + test (new), `useFilterModel.ts`,
+`bindSsrmTicks.ts`, `MarketsGrid.tsx`; `ssrmFilterCounts.ts`,
+`ssrmFilterCounts.test.ts` and `SsrmFilterCountsContext.tsx` DELETED.
+
+`npx turbo typecheck build test` green (`TURBO_EXIT=0`, 21 tasks, 5884 passing
+/ 1 skipped). `node scripts/check-package-cycles.mjs` reports the same single
+pre-existing cycle (WORKLOG 18) and no new one — the query plane's
+`data → core` edge already existed. ESLint: 0 errors across the touched
+directories; the `max-lines-per-function` warnings in `useFilterModel.ts` went
+from four (104/96/90/82) to one (82, pre-existing and untouched).
+
+`npm run bench:ssrm` — no regression; the predicate is on the per-row hot path,
+so this was measured against a same-session baseline rather than Phase 1's
+recorded numbers (that machine was quieter). Stash → rebuild → bench gives HEAD
+cold sorted block **154.3 ms**, grouped **52.6**, filtered+sorted **53.1**,
+20-block scroll **161**, 2000-row tick **23.0**; Phase 2 over two runs gives
+**145.6 / 146.8**, **52.2 / 50.7**, **55.8 / 51.5**, **149 / 149**, **22.9 /
+22.9**. Every path is within noise or slightly ahead. The worker bundle also
+shrank, 753,082 → 750,730 bytes: the plane's own copy is gone and the predicate
+arrives once through the core barrel it already imported.
+
+**Placement.** `core/engine`, not `types/shared-types` as the phase text
+guessed. `shared-types` is in `FOUNDATION_GLOBS` (`eslint.config.mjs:20-24`)
+and may import only design-system/types, but the predicate needs
+`getPathAccessor` from `types/types/src/rowPath.ts` — a real
+shared-types → types#types edge, i.e. the member cycle WORKLOG 18 tolerates
+only because it is test-only. `ENGINE_GLOBS` restricts framework adapters and
+`@openfin/*` only, `packages/data/**` sits in the default zone, `data` already
+declares `@wellsfargo-starui/core` as a dependency, and the worker's own
+`ssrm/QueryEngine.ts` already imported `ExpressionEngine` from it — so the
+edge this needs is one that already exists and already bundles.
+
+Six decisions the later phases inherit:
+
+1. **One name, not two.** `rowPassesFilter` and `doesRowMatchFilterModel` were
+   the same function under two names; the public core name won and
+   `@wellsfargo-starui/data/ssrm-engine` re-exports it. A re-export is not a
+   second implementation; an alias would have been a second name for one
+   thing, which is what constraint 2 forbids. `compareValues` moved with the
+   predicate rather than staying behind — it shares `asNum`/`asDateMs`, and a
+   sort that typed `'20'` differently from the filter that admitted the row
+   would put it outside its own range.
+2. **The seven divergences, resolved.** Worker reading kept for five: empty set
+   filter matches no rows; dates evaluate; Advanced Filter trees walk; unknown
+   operators are refused; `''` is blank on a number column. CSRM reading kept
+   for one: `blank`/`notBlank` TRIM, because AG Grid's own `isBlank` trims and
+   AG Grid is the reference. The seventh — multi-filter joins — was a
+   non-difference in practice (AG Grid's multi model carries no `operator`, so
+   both ANDed); honouring an explicit `operator` is kept as the superset.
+3. **A refusal is decided per call site, never blanket-caught.** The port
+   adapters report it as `complete: false` — the channel Phase 0 built to
+   separate "found nothing" from "could not look" — and raise it BEFORE the
+   walk, so the verdict reads the request and an empty grid refuses what a full
+   one does. The two hot paths that must not drop work over-include and warn
+   once: `bindSsrmTicks`'s tick fan-out (unchanged, it set the precedent) and
+   the pill badges. Under-including would silently hide rows; the query path
+   raises the refusal for real, where it reaches the user.
+4. **Badge semantics: the CSRM meaning, both models.** A badge counts rows in
+   the whole dataset matching that pill's own model — `scope: 'all'`, so
+   neither the applied filter nor the quick-filter text narrows it. SSRM folded
+   the quick filter in and CSRM did not; constraint 1 makes CSRM the reference,
+   and it is also the only reading where two pills' badges are comparable to
+   each other. Documented in `docs/current-features.md` §361 and §383.
+5. **Counts route through the port, and the CSRM delta path survives — by
+   CAPABILITY, not by row model.** `canAddressUnloadedRows` is exactly the
+   question "is a set of row ids spanning the dataset meaningful here". Where
+   it holds, ONE `platform.data.scan({ scope: 'all' })` builds every pill's
+   count and match set together — the same single walk the hook always made,
+   so CSRM pays what it paid. Where it does not, one `count` per pill and no
+   match sets, because a scan there would page the whole dataset across
+   `postMessage` on every recompute. Routing counts through `count()` for both
+   would have cost CSRM a full N-pill recompute per streaming tick; that is
+   what "must not silently delete the CSRM delta path" was guarding.
+6. **The recompute is async now, and stale answers are dropped.** Every port
+   method crosses a possible worker boundary, so a badge is microtasks behind
+   the render that asked for it. `useFilterCounts` stamps each recompute with a
+   generation and discards a late answer to a superseded question — including
+   a full recompute that would otherwise land on top of a newer delta.
+
+### Not closed here, deliberately
+
+- **The SSRM pill-count RPC storm is still one call per pill per emit.** With
+  no match sets, every `RowChange` falls through to a full recompute. Phase 5
+  owns it and its exit criterion already names it; this phase moved the path
+  onto the port so Phase 5 has one place to change. `filterPillCounts.ts`'s
+  header comment is the hand-off in writing.
+- **`platform.data` still cannot carry an Advanced Filter tree** (Phase 1
+  decision 1, unchanged). The predicate walks one; `planFor` still merges by
+  column id. Phase 6 owns it.
+- **`useFilterCounts` reads `capabilities`, which is a capability branch, not a
+  row-model branch.** It is in `grid/src/widget/`, outside the
+  `customizer/modules/**` scope constraint 3 governs and Phase 10's ESLint rule
+  will police. Flagged here so Phase 10 decides deliberately rather than
+  discovering it.
+
 ---
 
-## Phase 3 — expression and enrichment unification ⬜
+## Phase 3 — expression and enrichment unification ✅
 
 **Goal:** the worker's full-dataset evaluation becomes authoritative for
 calculated columns, conditional styling, alerts and editability. Duplicate
@@ -449,6 +557,191 @@ client evaluation stops.
   SSRM bindings comes back empty.
 
 **Closes:** T1-3, T1-4, T1-6, T2-6, T2-7.
+
+### What landed
+
+Core: `platform/computedFields.ts` (the stamp's key + reader, shared with the
+query plane), `platform/index.ts`, `index.ts`, `customizer/index.ts`,
+`expression/evalOps.ts` (`evaluateCall`), `expression/evaluator.ts`,
+`expression/compileToFunction.ts`, `expression/types.ts`,
+`customizer/modules/calculated-columns/virtualColumn.ts` + test. Query plane:
+`ssrm/expressionRules.ts` (`AggregateScope`, `usesAggregates`, the stamp),
+`ssrm/QueryEngine.ts` (`aggregateScope`), `ssrm/types.ts`,
+`expressionRules.test.ts` +14, `engineContract.test.ts` +4. Grid:
+`ssrm/expressionBindings.ts` (`withSsrmExpressionBindings`,
+`withSsrmDefaultColDef`, `ssrmEditable` fixed) + new test (15),
+`widget/MarketsGridSsrmSurface.tsx`, `widget/useSsrmExpressionBridge.ts`,
+`customizer/modules/calculated-columns/index.ts` + test,
+`customizer/modules/alerts/runtime/activate.ts` + test +4, both barrels.
+Apps: the lab's live profile seeds an `AVG([midPrice])` column and
+`ssrm-viewport-ticks.spec.ts` asserts scroll invariance on it. Bench: a
+`Calculated columns` section, which had none.
+
+`npx turbo typecheck build test` green (`TURBO_EXIT=0`, 21 tasks, 5929 passing
+/ 1 skipped, up from 5884). ESLint: 0 errors across the touched directories.
+`node scripts/check-package-cycles.mjs`: the same single pre-existing cycle
+(WORKLOG 18), no new one. E2E: `ssrm-viewport-ticks` 4/4,
+`star-demo-ssrm-smoke` 1 passed + 2 self-skipped (:8081 down).
+
+`npm run bench:ssrm`, same-session baseline → after (this machine):
+replaceSnapshot **1805 → 1787 ms**, sorted block cold **142.7 → 141.3**,
+filtered+sorted **51.1 → 48.0**, grouped **48.5 → 47.8**, quick filter
+**48.9 → 48.2**, 20-block scroll **138 → 137**, 2000-row tick **23.6 → 23.2**,
+plane heap 108 MB unchanged. Every path within noise. The new section:
+`none configured` **0.0 ms**, `row-local, warm` **1.6**, `aggregate, cold`
+**160.5** (the once-per-revision store pass, on top of the sorted-block
+rebuild the `cold` harness forces), `aggregate, warm` **1.7** — i.e. an
+aggregate column costs the same per block as a row-local one once its
+revision is warm.
+
+Six decisions the later phases inherit:
+
+1. **The premise this phase was written on is false, and the fix changed
+   shape because of it.** The brief said the worker already had the right
+   answer and the client was overwriting it. It did not: `enrich` built its
+   context with no `allRows`, so the evaluator's aggregate path
+   (`evalOps.buildCallArgs`, gated on `ctx.allRows`) never engaged and
+   `SUM([px])` returned *that row's* px. Both sides were wrong — the client
+   per block, the plane per row — and on a one-row dataset the plane's answer
+   is indistinguishable from a correct one, which is why it survived. So the
+   fix is not subtraction: the plane had to be *made* authoritative
+   (`AggregateScope`, bound to the store revision) before the client could
+   stop competing. `expressionRules.test.ts` pins the old behaviour as a
+   named divergence so it cannot come back quietly.
+2. **The client stops competing via a STAMP, not a flag.** Enriched rows
+   carry `__ssrmCalculated` — the fields the source computed — and the
+   `valueGetter` returns those verbatim. A stamped LIST beats "the field is
+   present": an expression may legitimately evaluate to `undefined`, a
+   calculated column's id may collide with a real field, and rules reach the
+   plane on a 25 ms debounce so early blocks carry nothing and must fall
+   back. `COMPUTED_FIELDS_KEY` lives in core beside `SsrmDataSource`, for the
+   same reason that does — `data` depends on `core`, so the plane imports the
+   key rather than core importing the plane's row type. One definition, both
+   ends, and no module asks which row model it is running under.
+3. **`platform.data.aggregate()` is the WRONG route for this, and the phase
+   text's instruction to use it was not followed.** See the deviations ledger:
+   the port's fold and the expression language's aggregate functions have
+   deliberately different numeric semantics, so substituting one for the other
+   would have changed every CLIENT-side grid's `AVG` / `COUNT` / `MIN` / `MAX`
+   calculated column. The port is still the route for the client's cross-row
+   snapshot — `scan`, whose semantics match exactly — but the fold itself
+   stays in the expression engine, on both sides.
+4. **Memoising a fold's INPUT is not memoising the fold.** `allRowsColumnCache`
+   already existed and was not enough: `SUM` runs `flat().map().reduce()` —
+   three passes and two 100k allocations — once per row it is evaluated for.
+   Tolerable for the ~40 rows a viewport paints, ruinous for a 100-row block
+   (**223 ms**, measured, before `allRowsAggregateCache`; **1.7 ms** after).
+   The memo lives in `evalOps.evaluateCall`, the one call path the interpreter
+   and the compiled closure share, so it cannot apply to one and not the
+   other, and it keys only calls whose arguments are ALL column refs — those
+   are row-independent by construction. Both row models supply the cache.
+5. **`ssrmEditable` had no caller because binding it would have broken every
+   grid.** It answered `false` for any row carrying no verdict — which is
+   every row of every grid that has never pushed an `editable` rule. An
+   `editable` rule GATES editing, so "no opinion" is now `true` and
+   `withSsrmDefaultColDef` ANDs it with the column's own verdict. The split
+   between `withSsrmExpressionBindings` (columns) and `withSsrmDefaultColDef`
+   (defaults) is not cosmetic: a property declared on a column def shadows
+   `defaultColDef` entirely, and `general-settings` writes editability to the
+   DEFAULTS — so wrapping every column unconditionally would have replaced
+   `defaultColDef.editable: true` with a wrapper whose base is `undefined`,
+   i.e. made every such grid read-only. Columns are wrapped only where they
+   declare the property; the defaults are wrapped always.
+6. **Phantom row-change alerts close on a capability, not a row model.**
+   `runFullPass` diffed `snapshotRowIds(api)` against `knownRowIds` — cache
+   membership read as dataset membership, so every scroll fired ROW_ADDED /
+   ROW_REMOVED. The question "is a set of row ids spanning the dataset
+   meaningful here" is exactly `canAddressUnloadedRows`, which is what Phase 2
+   decision 5 used for the same question. Where it does not hold the pass
+   skips the id walk entirely (a saving, not just a guard). It also stops
+   deleting the previous-value baselines of rows that merely scrolled out —
+   the brief asked whether re-entry produces a phantom *value* change and the
+   answer is no, but the opposite defect was there: the baseline was dropped,
+   so a genuine change across the gap re-seeded silently instead of firing.
+   Under SSRM `knownRowIds` is now maintained only from real transaction
+   deltas, which Phase 5 makes non-empty.
+
+### Not closed here, deliberately
+
+- **T1-4 — filter / sort / group on calculated columns.** It is in this
+  phase's `Closes` line but not in its scope text, and it is not reachable
+  from here. The plane's memoised order-cache entries hold RAW rows by
+  design and every call site enriches the sliced page *after* paging
+  (`QueryEngine.ts`, `enrich`'s doc comment) — which is what makes one memo
+  entry safe to share across sessions with different rules. Filtering or
+  sorting on a calculated field therefore needs an enriched view that is
+  per-session AND incremental (a per-query enrich is O(rows × rules) on
+  every distinct filter; materialising into `RowStore` is wrong because
+  rules are per-session and the store is shared). That is a data-plane
+  change of Phase 1's size, and `QueryEngine.ts` is at **777 / 800** after
+  this phase. It needs its own session.
+- **T2-6 — the alerts bell undercounts.** Not closable without a new
+  worker→client channel. `__ssrmAlert` is written by `enrich`, which runs
+  only on rows the plane is HANDING OVER — so a worker-detected alert is
+  only ever present on a row the client already has, and wiring it to the
+  dispatcher would not raise the count by one. A real fix is the plane
+  detecting an alert on any row in its store and notifying, i.e. an RPC that
+  does not exist; Phase 0's rule is that adding one is later-phase work.
+  Phase 5 owns the delta channel this would ride on.
+- **The client conditional-styling pass was NOT dropped**, contrary to the
+  phase text. It is not a duplicate: it emits `cellClassRules` carrying flash,
+  indicators, glyph animation and timed activations, none of which the plane
+  has, and its expressions are row-local against the row in hand so it is
+  correct under either row model. It is also the only consumer the customizer
+  feeds — `buildExpressionSnapshot` pushes conditional-styling PREDICATES as
+  `kind: 'style'` rules, and `ExpressionRuleStore` only records a style when
+  the expression returns an object or a colour string, so a boolean predicate
+  sets `__ssrmStyle` to nothing at all. `ssrmCellStyle` is therefore wired as
+  the *host-composed-snapshot* path (a rule returning a style object now
+  reaches the cell, merged over the column's own), not as a replacement for
+  the module.
+- **`editableRules` has no producer**, and none was invented. Editability is
+  a boolean everywhere in the customizer (`general-settings.defaultEditable`,
+  `column-templates` `editable`, `column-customization`'s resolved override)
+  and a boolean needs no plane. The OUTPUT end of the circuit — which is what
+  lived in this repo and was missing — is closed. An editability *expression*
+  is a product decision, not a parity gap.
+
+### Corrections to this phase's own text, for the record
+
+- The customizer modules are MIRRORED: `core/engine/src/customizer/modules/**`
+  holds state and transforms, `react-grid/grid/src/customizer/modules/**` the
+  React + AG Grid runtime. Every `forEachNode` this phase names is in the
+  react-grid half; `calculated-columns/virtualColumn.ts` is in core. **Phase
+  10's ESLint rule, scoped to the core glob alone, would have caught exactly
+  one of them** — and after this phase, zero, because that one is fixed. See
+  the Phase 10 note below.
+- `expressionBindings.ts` is `react-grid/grid/src/ssrm/`, not under
+  `host-data`. The TODO is `useSsrmExpressionBridge.ts:60-61`, not `:61-62`.
+  The phantom-alert diff is `activate.ts:204-213`.
+- **`getAllRowsSnapshot` is NOT public API** and had no consumer outside its
+  own module and test — it is absent from both `customizer/index.ts` and the
+  engine barrel, which export only `buildVirtualColDef`,
+  `invalidateAllRowsCache` and the `AllRowsEntry` type. It is on the barrel
+  now, alongside `fillAllRowsSnapshot`, because the fill and the read are two
+  halves of one contract.
+
+### Note for Phase 10 — the ESLint rule's scope
+
+Binding constraint 3 and Phase 10's rule both name only
+`packages/core/engine/src/customizer/modules/**`. Three things now sit
+outside it and each needs a deliberate answer, not a discovery:
+
+1. `packages/react-grid/grid/src/customizer/modules/**` is the other half of
+   every module. It still holds direct `forEachNode` calls, and two of them
+   should SURVIVE the rule with a reason rather than be migrated:
+   `alerts/runtime/activate.ts`'s value-delta scan and
+   `conditional-styling/runtime/timedActivations.ts`'s full pass both compare
+   against baselines the session has observed, so a row nobody has seen has
+   nothing to compare against and paging the dataset to reach it would cost a
+   full transfer to learn nothing. Widen the glob AND allow an annotated
+   exemption, or the rule will force a change that is strictly worse.
+2. `grid/src/widget/` reads `capabilities` in `useFilterCounts` (Phase 2) and
+   now in nothing else. That is a capability branch, not a row-model branch,
+   and it is correct.
+3. `getDisplayedRowCount` / `getDisplayedRowAtIndex` are named by the rule but
+   have their port equivalents in `getRowsInRange`; `bindSsrmTicks` and the
+   surfaces legitimately call row-model APIs and are not modules.
 
 ---
 
@@ -766,7 +1059,7 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T1-1 | Advanced Filter returns the entire unfiltered dataset | 1 |
 | T1-2 | Nested-path columns broken in filter / sort / set-values | 1 |
 | T1-3 | Aggregate calculated columns wrong, revise on scroll | 3 |
-| T1-4 | Filter / sort / group on calculated columns match everything | 3 |
+| T1-4 | Filter / sort / group on calculated columns match everything | ~~3~~ → **open**, see Phase 3 "Not closed here" |
 | T1-5 | Quick filter searches hidden columns | 1 |
 | T1-6 | Row-change alerts fire phantom adds / removes | 3 |
 | T1-7 | Unknown `aggFunc` silently becomes `sum` | 1 |
@@ -778,7 +1071,7 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T2-3 | Conditional-styling header indicators never light | 6 |
 | T2-4 | Row-exclusion DSL excludes nothing | 6 |
 | T2-5 | Restored quick-filter text never re-queries (3 sites) | 10 |
-| T2-6 | Alerts bell undercounts | 3 |
+| T2-6 | Alerts bell undercounts | ~~3~~ → **5**, needs a worker→client alert channel |
 | T2-7 | `ssrmCellStyle` / `ssrmEditable` have no caller | 3 |
 | T2-8 | Bulk-update dropdown iterates server count against stubs | 6 |
 | T2-9 | Delta hot path dead; every tick a full pass | 5 |
@@ -813,7 +1106,7 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 | Status-bar show/hide owned by the surface | Phase 10 |
 | Worker-backed status-bar and filter-pill counts | Phases 2, 5 |
 | Quick-filter matching semantics | Phases 1, 2 |
-| Server-side grouping / aggregation / pivoting | Phases 1, 3 |
+| Server-side grouping / aggregation / pivoting | Phases 1, 3 — held: `engineContract.test.ts` grouped/agg cases green, `grouped by book, cold` 48.5 → 47.8 ms |
 | SSRM column inference from sampled rows | Phase 9 |
 
 ## Deviations ledger
@@ -828,6 +1121,35 @@ honest version was implemented instead. Reference the commit.
   rejection would have disabled a feature the customizer still offers. The
   capability stays `false` with rewritten copy — it describes the PORT's own
   figures, not the grid's rows. See Phase 1 "What landed", decision 1.
+- **Phase 3 — aggregate resolution does NOT go through `platform.data.aggregate()`.**
+  The phase text says "route aggregate resolution through
+  `platform.data.aggregate()`". It was not, because the port's fold and the
+  expression language's aggregate functions answer differently ON PURPOSE, and
+  the port's version is not the one a calculated column has ever used:
+  `foldColumn` counts every row and returns `null` for an empty fold, while
+  `functions.ts` coerces non-numerics to 0 (`COUNT` counts non-null values,
+  `AVG` divides by ALL rows, `MIN`/`MAX` let a non-numeric 0 win, an empty
+  fold is 0). On any column containing a null — routine in markets data — the
+  two disagree. Substituting the port's fold would therefore have silently
+  changed every CLIENT-side grid's `AVG` / `COUNT` / `MIN` / `MAX` calculated
+  column, which is binding constraint 1 in the direction it explicitly
+  forbids. The port is still the route for the cross-row SNAPSHOT — `scan`,
+  whose row set and order match `forEachNode` exactly — and the fold stays in
+  the expression engine on both sides, which is also what makes the two row
+  models agree. Neither `DataAggFunc` nor `foldColumn` was touched. And the
+  port could not have served the whole surface anyway: `MEDIAN`, `STDEV`,
+  `VARIANCE` and `DISTINCT_COUNT` have no fold there, and Phase 0's rule is
+  that a sixth key must be traceable to a phase rather than added on demand.
+  See Phase 3 "What landed", decisions 3 and 4.
+- **Phase 3 — the conditional-styling client pass was kept.** The phase text
+  says "drop the duplicate client pass under SSRM". Dropping it would have
+  lost flash, indicators, glyph animation and timed activations, which the
+  plane has no equivalent for — constraint 1. It is also not a duplicate:
+  `buildExpressionSnapshot` pushes styling PREDICATES into a rule kind that
+  records a style only for an object or colour-string return, so
+  `__ssrmStyle` was never populated from the customizer at all. `ssrmCellStyle`
+  is wired as the host-composed-snapshot path instead. See Phase 3 "Not
+  closed here".
 - **Phase 1 — two fixes outside the letter.** `computeStatusBar` folded once
   for the whole `valueCols` list into a FIELD-keyed row, so asking for MIN(px)
   and MAX(px) together returned the same number twice; it now folds once per

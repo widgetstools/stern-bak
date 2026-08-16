@@ -77,6 +77,8 @@ export {
   ssrmCellStyle,
   ssrmAlertRowClass,
   ssrmEditable,
+  withSsrmExpressionBindings,
+  withSsrmDefaultColDef,
   createSsrmStatusBar,
   mapNativeStatusBarToSsrm,
   SsrmRowsStatusPanel,

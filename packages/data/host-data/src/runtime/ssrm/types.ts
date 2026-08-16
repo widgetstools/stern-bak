@@ -112,6 +112,15 @@ export interface StyleResult {
 }
 
 export interface EnrichedRow extends Row {
+  /**
+   * Fields on this row that the QUERY PLANE computed — the `calculated`
+   * expression rules configured for the asking session. The grid returns
+   * these verbatim instead of re-evaluating the expression against the rows
+   * its block cache happens to hold. Key and reader live in
+   * `@wellsfargo-starui/core` (`COMPUTED_FIELDS_KEY` / `readComputedField`)
+   * so both ends share one definition.
+   */
+  __ssrmCalculated?: readonly string[];
   __ssrmStyle?: StyleResult;
   __ssrmAlert?: boolean | string;
   __ssrmEditable?: Record<string, boolean> | boolean;

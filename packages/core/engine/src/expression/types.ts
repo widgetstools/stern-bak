@@ -103,11 +103,12 @@ export interface EvaluationContext {
   oldValue?: unknown;
   newValue?: unknown;
   /**
-   * Optional: every row currently loaded into the grid. Populated by the
-   * calculated-columns `valueGetter` (via `api.forEachNode`). Enables
-   * column-wide aggregation semantics — e.g. `SUM([price])` reads this
-   * array and returns the total across the whole dataset instead of just
-   * the current row's price scalar. Falls back to scalar when omitted.
+   * Optional: every row of the dataset. Supplied by whoever HOLDS them —
+   * the calculated-columns module through `platform.data.scan` on the client
+   * side, the query plane from its own row store on the server side. Enables
+   * column-wide aggregation semantics: `SUM([price])` reads this array and
+   * returns the total across the whole dataset instead of the current row's
+   * price scalar. Falls back to scalar when omitted.
    */
   allRows?: ReadonlyArray<Record<string, unknown>>;
   /**
@@ -119,6 +120,25 @@ export interface EvaluationContext {
    * supplier owns invalidation — clear it whenever `allRows` changes.
    */
   allRowsColumnCache?: Map<string, unknown[]>;
+  /**
+   * Optional second companion to {@link allRows}: memoizes the RESULT of a
+   * whole-column fold, where {@link allRowsColumnCache} only memoizes its
+   * input.
+   *
+   * The two are different costs and only one of them was ever paid down.
+   * `SUM([price])` over 100k rows still ran `flat().map(toNum).reduce()` —
+   * three full passes and two 100k-element allocations — once per row it was
+   * evaluated for. Cheap enough when that meant the ~40 rows a viewport
+   * paints; ruinous when it meant a 100-row block of a server-side query
+   * (measured at 223 ms per block before this cache, 1.7 ms after).
+   *
+   * Only a call whose arguments are ALL direct column refs is memoized: those
+   * are row-independent by construction, so one answer is every row's answer.
+   * `[price] / SUM([price])` still varies per row — its `SUM` sub-call is
+   * cached, its division is not. Same lifecycle as `allRowsColumnCache`: the
+   * supplier clears both whenever `allRows` changes.
+   */
+  allRowsAggregateCache?: Map<string, unknown>;
 }
 
 // ─── Function Registry ───────────────────────────────────────────────────────

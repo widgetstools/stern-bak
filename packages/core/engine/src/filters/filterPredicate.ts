@@ -1,0 +1,645 @@
+/**
+ * "Does this row match this filter model" — the ONE implementation.
+ *
+ * Three used to exist and disagree: the server-side query plane's
+ * `rowPassesFilter`, this file's ancestor in `filtersToolbarLogic.ts`, and AG
+ * Grid's own. The first two are now this module, consumed by the worker query
+ * engine, both {@link GridDataPort} adapters, the filter-pill badges and the
+ * server-side tick fan-out alike. A repo-wide grep finds no second.
+ *
+ * TWO SHAPES arrive here, both under `filterModel`:
+ *
+ *  - the COLUMN MAP (`{ [colId]: model }`) AG Grid sends for column filters;
+ *  - the ADVANCED FILTER TREE (`{ filterType: 'join', … }`) it sends *instead*
+ *    when Advanced Filter is enabled — ag-grid-enterprise builds the request
+ *    with `isAdvFilterEnabled() ? getAdvFilterModel() : getFilterModel()`, so
+ *    the two are mutually exclusive, never merged.
+ *
+ * NOTHING FALLS THROUGH. An operator this file cannot evaluate raises
+ * {@link UnsupportedQueryError} instead of substituting a different one: a
+ * query that quietly widens to "every row" or narrows to "no rows" is the
+ * defect class this module exists to remove. Callers that must not drop work
+ * on a refusal catch it and OVER-include, warn once, and let the query path
+ * raise it for real — never under-include, which hides rows silently.
+ *
+ * Evaluation and validation are ONE walk, not two that can drift: pass neither
+ * a row nor a fixed value and every operator is resolved while nothing is
+ * evaluated. {@link assertFilterModelSupported} is that call. The combinators
+ * are deliberately NON-short-circuiting so an unsupported leaf is reached —
+ * and therefore rejected — whatever the data says about the leaf beside it.
+ *
+ * Values are read with the repo's `getPathAccessor` (the compiled sibling of
+ * `getValueByPath`, same semantics, cached per path), so a column whose field
+ * is a dot path into a nested object filters on the value the projector
+ * actually kept — see `providers/fieldProjection.ts`.
+ */
+import { getPathAccessor } from '@wellsfargo-starui/types';
+import { UnsupportedQueryError } from './UnsupportedQueryError';
+
+type Row = Record<string, unknown>;
+type FilterModel = Record<string, unknown>;
+type Condition = Record<string, unknown>;
+
+/**
+ * A value supplied directly instead of read off a row — the
+ * {@link doesValueMatchFilter} entry point. Boxed so `undefined` is a value
+ * and not "no value": the row walk passes `null` here and allocates nothing,
+ * which matters because it runs once per row on the query plane's hot path.
+ */
+interface FixedValue {
+  readonly value: unknown;
+}
+
+/** How a single condition is evaluated, once its shape has been read. */
+type SimpleKind = 'set' | 'number' | 'date' | 'boolean' | 'text';
+
+/**
+ * The operator matrices AG Grid's own filters emit, per kind.
+ *
+ * `empty` is AG Grid's placeholder for a condition the user has not finished
+ * filling in. The grid does not apply one, so it restricts nothing here —
+ * listed explicitly because "restricts nothing" must be a decision, never a
+ * default arm.
+ *
+ * Absent on purpose: AG Grid's relative-date PRESETS (`today`, `last7Days`,
+ * `thisQuarter`, … — `ISimpleFilterModelPresetType`). They are not in
+ * `DEFAULT_DATE_FILTER_OPTIONS`, so a column opts into them, and evaluating
+ * them here would mean re-deriving week/quarter boundaries the grid resolves
+ * with its own calendar. They are rejected with copy naming the alternative.
+ */
+const TEXT_OPS: ReadonlySet<string> = new Set([
+  'contains',
+  'notContains',
+  'equals',
+  'notEqual',
+  'startsWith',
+  'endsWith',
+  'blank',
+  'notBlank',
+  'empty',
+]);
+const SCALAR_OPS: ReadonlySet<string> = new Set([
+  'equals',
+  'notEqual',
+  'lessThan',
+  'lessThanOrEqual',
+  'greaterThan',
+  'greaterThanOrEqual',
+  'inRange',
+  'blank',
+  'notBlank',
+  'empty',
+]);
+const BOOLEAN_OPS: ReadonlySet<string> = new Set([
+  'true',
+  'false',
+  'blank',
+  'notBlank',
+  'empty',
+]);
+
+const OPS: Record<SimpleKind, ReadonlySet<string>> = {
+  set: new Set(),
+  text: TEXT_OPS,
+  number: SCALAR_OPS,
+  date: SCALAR_OPS,
+  boolean: BOOLEAN_OPS,
+};
+
+/** Relative-date options, named in the rejection so the copy is specific. */
+const DATE_PRESETS: ReadonlySet<string> = new Set([
+  'today', 'yesterday', 'tomorrow',
+  'thisWeek', 'lastWeek', 'nextWeek',
+  'thisMonth', 'lastMonth', 'nextMonth',
+  'thisQuarter', 'lastQuarter', 'nextQuarter',
+  'thisYear', 'lastYear', 'nextYear',
+  'yearToDate',
+  'last7Days', 'last30Days', 'last90Days',
+  'last6Months', 'last12Months', 'last24Months',
+]);
+
+/**
+ * AG Grid's own `isBlank`: null / undefined, or a string that is nothing but
+ * whitespace. `0` and `false` are values, not blanks.
+ *
+ * The whitespace half is why this is a function and not `v == null || v ===
+ * ''` — a cell holding `"  "` reads as blank in a client-side grid, so it has
+ * to read as blank on the server-side plane too, which trimmed nothing before
+ * the two predicates were collapsed.
+ */
+function isBlankValue(v: unknown): boolean {
+  if (v == null) return true;
+  return typeof v === 'string' && v.trim() === '';
+}
+
+function asNum(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v))) {
+    return Number(v);
+  }
+  return null;
+}
+
+function textMatch(value: unknown, filter: string, type: string): boolean {
+  const s = value == null ? '' : String(value).toLowerCase();
+  const f = (filter ?? '').toLowerCase();
+  switch (type) {
+    case 'equals':
+      return s === f;
+    case 'notEqual':
+      return s !== f;
+    case 'startsWith':
+      return s.startsWith(f);
+    case 'endsWith':
+      return s.endsWith(f);
+    case 'notContains':
+      return !s.includes(f);
+    case 'contains':
+      return s.includes(f);
+    case 'blank':
+      return isBlankValue(value);
+    case 'notBlank':
+      return !isBlankValue(value);
+    case 'empty':
+      return true;
+    default:
+      throw unsupportedOperator('text', type);
+  }
+}
+
+/**
+ * `blank` here is "no number", not "no characters": a cell holding `''`, `'—'`
+ * or `null` all read as blank on a number column. Reading it off `Number(v)`
+ * instead — the way the client-side copy did — made `''` a zero and therefore
+ * NOT blank, which is the opposite answer.
+ */
+function numberMatch(
+  value: unknown,
+  filter: number | null | undefined,
+  filterTo: number | null | undefined,
+  type: string,
+): boolean {
+  const n = asNum(value);
+  switch (type) {
+    case 'blank':
+      return n == null;
+    case 'notBlank':
+      return n != null;
+    case 'equals':
+      return n != null && filter != null && n === filter;
+    case 'notEqual':
+      return n == null || filter == null || n !== filter;
+    case 'lessThan':
+      return n != null && filter != null && n < filter;
+    case 'lessThanOrEqual':
+      return n != null && filter != null && n <= filter;
+    case 'greaterThan':
+      return n != null && filter != null && n > filter;
+    case 'greaterThanOrEqual':
+      return n != null && filter != null && n >= filter;
+    case 'inRange':
+      return (
+        n != null &&
+        filter != null &&
+        filterTo != null &&
+        n >= filter &&
+        n <= filterTo
+      );
+    case 'empty':
+      return true;
+    default:
+      throw unsupportedOperator('number', type);
+  }
+}
+
+/**
+ * AG Grid set filter:
+ * - missing / null values ⇒ no restriction (a `{ filterType: 'set' }` with no
+ *   `values` key is a shape AG Grid itself can hand back mid-edit — see
+ *   `agGridSetFilterValidateGuard.ts`)
+ * - empty array `[]` ⇒ nothing selected ⇒ match NO rows, which is what the
+ *   grid shows when the user clears every tick box. The client-side copy read
+ *   it as "no restriction" and counted the whole dataset into a badge for a
+ *   pill that displays nothing.
+ * - non-empty ⇒ row value must be in the list
+ */
+function setMatch(value: unknown, values: unknown[] | null | undefined): boolean {
+  if (values == null) return true;
+  if (values.length === 0) return false;
+  const s = value == null ? null : String(value);
+  // AG Grid may include null for blanks
+  return values.some((v) => {
+    if (v == null || v === '') return s == null || s === '';
+    return String(v) === s;
+  });
+}
+
+function asDateMs(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) {
+    const t = v.getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const s = String(v).trim();
+  if (!s) return null;
+  // Prefer ISO / `YYYY-MM-DD` prefix (AG Grid dateFrom often includes time).
+  const t = Date.parse(s);
+  if (!Number.isNaN(t)) return t;
+  return null;
+}
+
+/** Calendar day key in local time for date equals/inRange. */
+function dayKey(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function dateMatch(
+  value: unknown,
+  dateFrom: unknown,
+  dateTo: unknown,
+  type: string,
+): boolean {
+  const n = asDateMs(value);
+  const from = asDateMs(dateFrom);
+  const to = asDateMs(dateTo);
+  switch (type) {
+    case 'blank':
+      return n == null;
+    case 'notBlank':
+      return n != null;
+    case 'equals':
+      return n != null && from != null && dayKey(n) === dayKey(from);
+    case 'notEqual':
+      return n == null || from == null || dayKey(n) !== dayKey(from);
+    case 'lessThan':
+      return n != null && from != null && n < from;
+    case 'lessThanOrEqual':
+      return n != null && from != null && n <= from;
+    case 'greaterThan':
+      return n != null && from != null && n > from;
+    case 'greaterThanOrEqual':
+      return n != null && from != null && n >= from;
+    case 'inRange': {
+      if (n == null || from == null || to == null) return false;
+      // Inclusive range on calendar days (AG Grid date filter feel).
+      return dayKey(n) >= dayKey(from) && dayKey(n) <= dayKey(to);
+    }
+    case 'empty':
+      return true;
+    default:
+      throw unsupportedOperator('date', type);
+  }
+}
+
+/**
+ * Advanced Filter's boolean column condition. `1`/`0` and the strings
+ * `'true'`/`'false'` count as booleans — flag columns on a markets feed
+ * arrive as either, and a column the user sees as a tick box must filter
+ * like one.
+ */
+function asBool(v: unknown): boolean | null {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return Number.isFinite(v) ? v !== 0 : null;
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+  }
+  return null;
+}
+
+function booleanMatch(value: unknown, type: string): boolean {
+  switch (type) {
+    case 'true':
+      return asBool(value) === true;
+    case 'false':
+      return asBool(value) === false;
+    case 'blank':
+      return isBlankValue(value);
+    case 'notBlank':
+      return !isBlankValue(value);
+    case 'empty':
+      return true;
+    default:
+      throw unsupportedOperator('boolean', type);
+  }
+}
+
+// ─── Rejections ───────────────────────────────────────────────────────────
+
+function unsupportedOperator(kind: string, type: unknown): UnsupportedQueryError {
+  const named = typeof type === 'string' && type ? `“${type}”` : 'an unnamed option';
+  if (typeof type === 'string' && DATE_PRESETS.has(type)) {
+    return new UnsupportedQueryError(
+      `This filter cannot be evaluated here, because the relative date ` +
+        `option ${named} depends on the grid's own calendar. Pick an explicit ` +
+        `date or date range instead.`,
+    );
+  }
+  return new UnsupportedQueryError(
+    `This filter cannot be evaluated here, because the ${kind} filter option ` +
+      `${named} is not one this grid supports. Choose one of the standard ` +
+      `${kind} filter options.`,
+  );
+}
+
+function unsupportedShape(colId: string, model: Condition): UnsupportedQueryError {
+  const ft = typeof model.filterType === 'string' ? `“${model.filterType}”` : 'no type';
+  const where = colId ? `on “${colId}”` : 'on that column';
+  return new UnsupportedQueryError(
+    `This filter cannot be evaluated here, because the filter ${where} (${ft}) ` +
+      `is not a shape this grid recognises. Clear that column's filter, or use ` +
+      `one of the standard text, number, date or set filters.`,
+  );
+}
+
+// ─── The walk ─────────────────────────────────────────────────────────────
+
+/**
+ * Resolve the operator a condition names, rejecting anything outside the
+ * kind's matrix. Every leaf goes through here, so a missing `type` is a
+ * rejection too — an operator-less condition has no defensible reading, and
+ * guessing one is exactly the substitution this module removes.
+ */
+function operatorOf(colId: string, kind: SimpleKind, model: Condition): string {
+  const type = model.type;
+  if (typeof type === 'string' && OPS[kind].has(type)) return type;
+  if (typeof type === 'string') throw unsupportedOperator(kind, type);
+  throw unsupportedShape(colId, model);
+}
+
+/**
+ * Which matcher a single condition belongs to. Explicit `filterType` first
+ * (AG Grid always sets it, including the Advanced Filter's `bigint`,
+ * `dateString`, `dateTime`, `dateTimeString` and `object` variants), then the
+ * payload-shape inference this engine has always applied to hand-built and
+ * older persisted models.
+ */
+function kindOf(model: Condition): SimpleKind | null {
+  const ft = model.filterType;
+  if (ft === 'set' || Array.isArray(model.values)) return 'set';
+  // `bigint` filters carry their value as a string; `asNum` reads it. Values
+  // beyond IEEE-754 range lose precision — the alternative is a second
+  // numeric path, and no feed in this repo emits one.
+  if (ft === 'number' || ft === 'bigint') return 'number';
+  if (ft === 'date' || ft === 'dateString' || ft === 'dateTime' || ft === 'dateTimeString') {
+    return 'date';
+  }
+  if (ft === 'boolean') return 'boolean';
+  if (ft === 'text' || ft === 'object') return 'text';
+  if (ft !== undefined) return null;
+  if (typeof model.filter === 'number') return 'number';
+  if (model.dateFrom !== undefined || model.dateTo !== undefined) return 'date';
+  if (typeof model.filter === 'string') return 'text';
+  if (model.type === 'blank' || model.type === 'notBlank') return 'text';
+  return null;
+}
+
+/** True when this walk is resolving shapes and operators only. */
+function isValidateOnly(row: Row | null, fixed: FixedValue | null): boolean {
+  return row === null && fixed === null;
+}
+
+/**
+ * Evaluate one leaf condition, or — in validate-only mode — resolve its shape
+ * and operator and evaluate nothing. Validation and evaluation therefore
+ * reject exactly the same inputs, because they are the same code path.
+ */
+function evaluateSimple(
+  row: Row | null,
+  fixed: FixedValue | null,
+  colId: string,
+  model: Condition,
+): boolean {
+  const kind = kindOf(model);
+  if (kind === null) throw unsupportedShape(colId, model);
+  if (kind === 'set') {
+    // A set filter carries values, never an operator.
+    if (isValidateOnly(row, fixed)) return true;
+    return setMatch(valueOf(row, fixed, colId), model.values as unknown[]);
+  }
+  const type = operatorOf(colId, kind, model);
+  if (isValidateOnly(row, fixed)) return true;
+  const value = valueOf(row, fixed, colId);
+  switch (kind) {
+    case 'number':
+      return numberMatch(value, asNum(model.filter), asNum(model.filterTo), type);
+    case 'date':
+      return dateMatch(
+        value,
+        model.dateFrom ?? model.filter,
+        model.dateTo ?? model.filterTo,
+        type,
+      );
+    case 'boolean':
+      return booleanMatch(value, type);
+    case 'text':
+      return textMatch(value, String(model.filter ?? ''), type);
+  }
+}
+
+function valueOf(row: Row | null, fixed: FixedValue | null, colId: string): unknown {
+  if (fixed !== null) return fixed.value;
+  return getPathAccessor(colId)(row);
+}
+
+/**
+ * The AND/OR a combined or multi-filter entry names.
+ *
+ * AG Grid's own `agMultiColumnFilter` carries neither key and therefore ANDs
+ * its tabs, which is its documented runtime semantics. `operator` is read
+ * because combined text/number/date filters carry it, and `type` because the
+ * Advanced Filter's `join` nodes do — honouring what the model says beats
+ * hardcoding AND and getting an OR wrong.
+ */
+function joinOf(model: Condition): 'AND' | 'OR' {
+  return String(model.operator ?? model.type ?? 'AND').toUpperCase() === 'OR'
+    ? 'OR'
+    : 'AND';
+}
+
+/**
+ * Combine branch results WITHOUT short-circuiting: every branch is evaluated,
+ * so an unsupported condition sitting beside a satisfied one is still
+ * reached, and still rejected. Condition arrays hold one or two entries —
+ * evaluating both costs nothing measurable and buys a rejection that does not
+ * depend on the data.
+ */
+function combine(join: 'AND' | 'OR', results: boolean[]): boolean {
+  if (results.length === 0) return true;
+  return join === 'OR' ? results.some(Boolean) : results.every(Boolean);
+}
+
+/**
+ * One column's entry in the column map: a multi-filter envelope, a combined
+ * condition list, or a single condition.
+ */
+function evaluateModel(
+  row: Row | null,
+  fixed: FixedValue | null,
+  colId: string,
+  model: unknown,
+): boolean {
+  // A cleared column. AG Grid drops the key rather than nulling it, but a
+  // profile persisted by an older build can still carry one, and "no filter"
+  // is the only reading it has — persisted state keeps loading.
+  if (model == null) return true;
+  if (typeof model !== 'object') throw unsupportedShape(colId, { filterType: model });
+  const m = model as Condition;
+
+  // Join / multi / combined filters (AG Grid 28+)
+  if (
+    (m.filterType === 'multi' || m.filterType === 'join') &&
+    Array.isArray(m.filterModels ?? m.conditions)
+  ) {
+    const parts = (m.filterModels ?? m.conditions) as unknown[];
+    const models = parts.filter((p) => p != null);
+    if (models.length === 0) return true;
+    return combine(
+      joinOf(m),
+      models.map((fm) => evaluateModel(row, fixed, colId, fm)),
+    );
+  }
+
+  // Simple filter with multiple conditions (text/number/date).
+  const conditions = conditionListOf(m);
+  if (conditions) {
+    return combine(
+      joinOf(m),
+      conditions.map((fm) => evaluateModel(row, fixed, colId, fm)),
+    );
+  }
+
+  return evaluateSimple(row, fixed, colId, m);
+}
+
+/**
+ * A combined filter's condition list. Modern AG Grid sends `conditions`;
+ * models persisted by older versions carry only `condition1` / `condition2`.
+ * Both keep working — persisted user state always keeps loading.
+ */
+function conditionListOf(m: Condition): Condition[] | null {
+  if (Array.isArray(m.conditions) && m.conditions.length > 0) {
+    return m.conditions as Condition[];
+  }
+  const legacy = [m.condition1, m.condition2].filter(
+    (c): c is Condition => c != null && typeof c === 'object',
+  );
+  return legacy.length > 0 ? legacy : null;
+}
+
+/**
+ * Whether the top-level model is an Advanced Filter tree rather than the
+ * column map. The two are mutually exclusive in the request AG Grid builds,
+ * and only the tree carries `filterType` (or `colId`) at its root — a column
+ * map's own keys are column ids.
+ */
+function isAdvancedFilterModel(model: FilterModel): boolean {
+  if (model.filterType === 'join') return true;
+  return typeof model.colId === 'string' && typeof model.filterType === 'string';
+}
+
+function evaluateAdvanced(
+  row: Row | null,
+  fixed: FixedValue | null,
+  model: Condition,
+): boolean {
+  if (model.filterType === 'join') {
+    const conditions = Array.isArray(model.conditions)
+      ? (model.conditions as unknown[])
+      : [];
+    const branches = conditions.filter((c) => c != null && typeof c === 'object');
+    if (branches.length === 0) return true;
+    return combine(
+      joinOf(model),
+      branches.map((c) => evaluateAdvanced(row, fixed, c as Condition)),
+    );
+  }
+  const colId = typeof model.colId === 'string' ? model.colId : '';
+  if (!colId) throw unsupportedShape('', model);
+  return evaluateSimple(row, fixed, colId, model);
+}
+
+function walk(
+  row: Row | null,
+  fixed: FixedValue | null,
+  filterModel: FilterModel | null | undefined,
+): boolean {
+  if (!filterModel) return true;
+  if (isAdvancedFilterModel(filterModel)) return evaluateAdvanced(row, fixed, filterModel);
+  for (const [colId, model] of Object.entries(filterModel)) {
+    if (!evaluateModel(row, fixed, colId, model)) return false;
+  }
+  return true;
+}
+
+// ─── Public surface ───────────────────────────────────────────────────────
+
+/**
+ * Evaluate an AG Grid filterModel — column map or Advanced Filter tree —
+ * against a row.
+ *
+ * Throws {@link UnsupportedQueryError} for input it cannot evaluate; callers
+ * that scan should {@link assertFilterModelSupported} first so the rejection
+ * is raised once, before the scan, rather than on whichever row happens to
+ * reach the leaf.
+ */
+export function doesRowMatchFilterModel(
+  rowData: Row,
+  filterModel: FilterModel | null | undefined,
+): boolean {
+  return walk(rowData, null, filterModel);
+}
+
+/**
+ * Evaluate ONE column's filter entry against a value already read out of a
+ * row. Same walk, same refusals — only the value source differs, which is why
+ * a caller that has the value in hand cannot get a different answer from a
+ * caller that has the row.
+ */
+export function doesValueMatchFilter(value: unknown, filter: FilterModel): boolean {
+  return evaluateModel(null, { value }, '', filter);
+}
+
+/**
+ * Reject a filter model this predicate cannot evaluate, BEFORE any row is
+ * scanned — so the answer never depends on which rows the source happens to
+ * hold, and an empty source rejects exactly what a full one does.
+ */
+export function assertFilterModelSupported(
+  filterModel: FilterModel | null | undefined,
+): void {
+  walk(null, null, filterModel);
+}
+
+/**
+ * Order two cell values, typed the way the predicate types them: numeric when
+ * both read as numbers, chronological when both read as dates, `localeCompare`
+ * otherwise.
+ *
+ * It lives beside the predicate because it shares `asNum` / `asDateMs` — a
+ * sort that decided `'20'` was a string while the filter decided it was 20
+ * would put a row outside the range its own filter admitted.
+ */
+export function compareValues(
+  a: unknown,
+  b: unknown,
+  dir: 'asc' | 'desc',
+): number {
+  const mul = dir === 'asc' ? 1 : -1;
+  if (a == null && b == null) return 0;
+  if (a == null) return -1 * mul;
+  if (b == null) return 1 * mul;
+  const na = asNum(a);
+  const nb = asNum(b);
+  if (na != null && nb != null) return (na - nb) * mul;
+  const da = asDateMs(a);
+  const db = asDateMs(b);
+  if (da != null && db != null) return (da - db) * mul;
+  return String(a).localeCompare(String(b)) * mul;
+}

@@ -1,9 +1,9 @@
 import type { GridApi } from 'ag-grid-community';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
+import { doesRowMatchFilterModel } from '@wellsfargo-starui/core';
 import {
   buildQuickFilterText,
   parseQuickFilter,
-  rowPassesFilter,
   rowPassesQuickFilter,
   type Row,
 } from '@wellsfargo-starui/data/runtime';
@@ -145,11 +145,11 @@ export function bindSsrmTicks(
     }
     if (!fm) return true;
     try {
-      return rowPassesFilter(row, fm);
+      return doesRowMatchFilterModel(row, fm);
     } catch (err) {
       // The query plane REFUSES a filter model it cannot evaluate, and this
-      // client-side copy of the predicate refuses the same ones. Here that
-      // refusal must not drop the tick: this call only decides whether a
+      // is literally the same predicate, so it refuses the same ones. Here
+      // that refusal must not drop the tick: this call only decides whether a
       // changed row is worth pushing at the grid, and over-including is
       // corrected by the next block load, where the refusal is raised for
       // real and reaches the user. Under-including would silently freeze a

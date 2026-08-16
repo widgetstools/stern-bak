@@ -1,11 +1,6 @@
 import { getPathAccessor } from "@wellsfargo-starui/types";
 import { aggregateRows, resolveAggFunc, type AggSpec } from "./aggregations.js";
-import { ExpressionRuleStore } from "./expressionRules.js";
-import {
-  assertFilterModelSupported,
-  compareValues,
-  rowPassesFilter,
-} from "./filter.js";
+import { ExpressionRuleStore, type AggregateScope } from "./expressionRules.js";
 import {
   parseQuickFilter,
   rowPassesQuickFilterScoped,
@@ -26,7 +21,12 @@ import type {
   SsrmGetRowsResult,
   TreeDataConfig,
 } from "./types.js";
-import { ExpressionEngine } from "@wellsfargo-starui/core";
+import {
+  assertFilterModelSupported,
+  compareValues,
+  doesRowMatchFilterModel,
+  ExpressionEngine,
+} from "@wellsfargo-starui/core";
 
 export interface QueryEngineOptions {
   store: RowStore;
@@ -94,6 +94,9 @@ export class QueryEngine {
   /** Insertion-ordered = LRU. Keyed by query shape, never by row window. */
   private readonly orderCache = new Map<string, CachedEntry>();
   private orderCacheSize: number;
+  /** Whole-store aggregate view for calculated columns, bound to the store
+   *  revision that built it. See {@link aggregateScope}. */
+  private aggScope: { revision: number; scope: AggregateScope } | null = null;
   /** Observability — see {@link getMemoStats}. */
   private memoHits = 0;
   private memoMisses = 0;
@@ -507,7 +510,7 @@ export class QueryEngine {
     // same effective result as CSRM, optimized for the hot path.
     if (parts.length === 0) {
       for (const row of this.store.iterate()) {
-        if (rowPassesFilter(row, filterModel)) out.push(row);
+        if (doesRowMatchFilterModel(row, filterModel)) out.push(row);
       }
       return out;
     }
@@ -522,7 +525,7 @@ export class QueryEngine {
       ) {
         continue;
       }
-      if (rowPassesFilter(row, filterModel)) out.push(row);
+      if (doesRowMatchFilterModel(row, filterModel)) out.push(row);
     }
     return out;
   }
@@ -739,6 +742,36 @@ export class QueryEngine {
    * session could read back.
    */
   private enrich(row: Row, sessionId?: string): EnrichedRow {
-    return this.exprRules.enrich(row, sessionId);
+    return this.exprRules.enrich(row, sessionId, this.aggregateScope(sessionId));
+  }
+
+  /**
+   * The whole-store view a column-wide calculated column folds over
+   * (`SUM([price])`), or `undefined` when this session has no such rule.
+   *
+   * Scope is the WHOLE store, unfiltered — the client-side row model's
+   * `forEachNode` snapshot is unfiltered too, and the same expression must not
+   * mean "total of everything" in one grid and "total of what's showing" in
+   * the other.
+   *
+   * Bound to the store revision, so a tick rebuilds it exactly once and every
+   * enriched row of every block in between shares one pass per column. The
+   * scope object identity is what carries that sharing — rebuilding it per row
+   * would re-map the column per row.
+   */
+  private aggregateScope(sessionId?: string): AggregateScope | undefined {
+    if (!this.exprRules.usesAggregates(sessionId)) return undefined;
+    const revision = this.store.getRevision();
+    if (!this.aggScope || this.aggScope.revision !== revision) {
+      this.aggScope = {
+        revision,
+        scope: {
+          allRows: [...this.store.iterate()],
+          allRowsColumnCache: new Map<string, unknown[]>(),
+          allRowsAggregateCache: new Map<string, unknown>(),
+        },
+      };
+    }
+    return this.aggScope.scope;
   }
 }

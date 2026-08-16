@@ -11,6 +11,9 @@ export {
   ssrmCellStyle,
   ssrmAlertRowClass,
   ssrmEditable,
+  withSsrmExpressionBindings,
+  withSsrmDefaultColDef,
+  type SsrmBindableColDef,
 } from './expressionBindings.js';
 export {
   createSsrmStatusBar,

@@ -15,7 +15,14 @@
  */
 
 // ─── Platform runtime (framework-agnostic) ──────────────────────────────────
-export { GridPlatform, defineModule, quickFilterColumnsOf } from './platform';
+export {
+  GridPlatform,
+  defineModule,
+  quickFilterColumnsOf,
+  COMPUTED_FIELDS_KEY,
+  NOT_COMPUTED,
+  readComputedField,
+} from './platform';
 export type {
   DefineModuleOptions,
   GridPlatformOptions,
@@ -155,6 +162,8 @@ export type {
 // ─── Customizer module logic (framework-agnostic) ────────────────────────────
 export {
   buildVirtualColDef,
+  fillAllRowsSnapshot,
+  getAllRowsSnapshot,
   invalidateAllRowsCache,
   applyAssignments,
   reinjectCSS,
@@ -368,11 +377,20 @@ export {
   makeId,
   generateLabel,
   formatFilterModel,
-  doesValueMatchFilter,
-  doesRowMatchFilterModel,
   filterModelsEqual,
   mergeFilterModels,
   subtractFilterModel,
   isNewFilter,
   type SavedFilterShape,
 } from './filters/filtersToolbarLogic';
+
+// ─── The one filter predicate ────────────────────────────────────────────────
+// Shared with the SharedWorker query plane (`@wellsfargo-starui/data`), which
+// re-exports these rather than carrying a second implementation.
+export {
+  doesRowMatchFilterModel,
+  doesValueMatchFilter,
+  assertFilterModelSupported,
+  compareValues,
+} from './filters/filterPredicate';
+export { UnsupportedQueryError } from './filters/UnsupportedQueryError';

@@ -14,6 +14,11 @@ export { CssInjector } from './CssInjector';
 export { DirtyBus } from './DirtyBus';
 export { PipelineRunner } from './PipelineRunner';
 export { quickFilterColumnsOf } from './quickFilterColumns';
+export {
+  COMPUTED_FIELDS_KEY,
+  NOT_COMPUTED,
+  readComputedField,
+} from './computedFields';
 
 export type {
   AnyColDef,

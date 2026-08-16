@@ -156,6 +156,29 @@ cold('quick filter scoped to 8 columns, cold', {
 });
 cold('quick filter matching nothing, cold', { ...baseReq, quickFilterText: 'zzzznomatch' });
 
+console.log('\nCalculated columns (expression enrichment on returned blocks)');
+// A column-wide aggregate is a fold over the DATASET, so the plane materialises
+// the store once per revision and memoises the folded column — the block then
+// costs the same as a row-local one. What the numbers have to show is that the
+// per-revision pass is paid ONCE, not once per block: `aggregate, warm` reuses
+// the same revision, `aggregate, cold` ticks first and rebuilds it.
+//
+// A grid with NO calculated column must pay none of this, which is what the
+// `none` line is for — it is the configuration every other section above runs
+// under.
+const calcReq = { ...baseReq, sortModel };
+time('none configured', () => engine.getRows(calcReq), 20);
+engine.configureExpressions([
+  { id: 'c-local', kind: 'calculated', field: 'calcLocal', expression: `[${numericCols[0]}] * 2` },
+]);
+time('row-local, warm', () => engine.getRows(calcReq), 20);
+engine.configureExpressions([
+  { id: 'c-agg', kind: 'calculated', field: 'calcTotal', expression: `SUM([${numericCols[0]}])` },
+]);
+cold('aggregate, cold (one store pass)', calcReq);
+time('aggregate, warm (memoised column)', () => engine.getRows(calcReq), 20);
+engine.configureExpressions([]);
+
 console.log('\nScrolling one query (what a user actually does)');
 const scroll = (label) => {
   store.upsert([{ id: 'POS-1', [numericCols[0]]: Math.random() }]);

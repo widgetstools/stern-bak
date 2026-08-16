@@ -195,6 +195,128 @@ describe('activateAlerts', () => {
     platform.destroy();
   });
 
+  /**
+   * Scrolling a server-side grid evicts blocks and loads others. The full
+   * pass used to read that churn as rows arriving and leaving the DATASET,
+   * so a ROW_ADDED / ROW_REMOVED rule fired on every scroll — on cache
+   * membership, never on data.
+   *
+   * The port answers whether the ids a full pass can see span the dataset;
+   * where they do not, the diff does not run. Nothing here asks which row
+   * model is mounted.
+   */
+  describe('row-change alerts vs. a partially-loaded dataset', () => {
+    /** Enough of the worker plane's shape for the port to bind. Never called:
+     *  what is under test is the capability the binding implies. */
+    const unloadableSource = () => ({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 0 }),
+        getSetFilterValues: async () => [],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    });
+
+    const rowChangePlatform = (gridId: string, event: 'ROW_ADDED' | 'ROW_REMOVED') => {
+      const platform = new GridPlatform({ gridId, modules: [alertsModule] });
+      platform.store.setModuleState('alerts', () => ({
+        ...INITIAL_ALERTS,
+        settings: enabledSettings(),
+        rules: [{
+          id: `rc-${event}`,
+          name: event,
+          enabled: true,
+          priority: 0,
+          severity: 'info' as const,
+          trigger: { kind: 'rowChange' as const, event },
+          message: event,
+          channels: ['badge' as const],
+        }],
+      }));
+      return platform;
+    };
+
+    it('fires nothing when a block scrolls out of the cache', () => {
+      const platform = rowChangePlatform('alerts-ssrm-out', 'ROW_REMOVED');
+      platform.data.bindSsrm(unloadableSource() as never);
+      const api = makeApi([{ id: 'r1', data: { price: 1 } }]);
+      platform.onGridReady(api as never);
+
+      api.setNodes([]); // the block the user scrolled away from
+      for (const fn of api.listeners.get('sortChanged') ?? []) fn();
+      vi.runAllTimers();
+
+      expect(platform.store.getModuleState('alerts').history).toHaveLength(0);
+      platform.destroy();
+    });
+
+    it('fires nothing when a block scrolls in', () => {
+      const platform = rowChangePlatform('alerts-ssrm-in', 'ROW_ADDED');
+      platform.data.bindSsrm(unloadableSource() as never);
+      const api = makeApi([{ id: 'r1', data: { price: 1 } }]);
+      platform.onGridReady(api as never);
+
+      api.setNodes([
+        { id: 'r1', data: { price: 1 } },
+        { id: 'r2', data: { price: 2 } },
+        { id: 'r3', data: { price: 3 } },
+      ]);
+      for (const fn of api.listeners.get('sortChanged') ?? []) fn();
+      vi.runAllTimers();
+
+      expect(platform.store.getModuleState('alerts').history).toHaveLength(0);
+      platform.destroy();
+    });
+
+    it('still fires where the ids DO span the dataset — the reference behaviour', () => {
+      const platform = rowChangePlatform('alerts-csrm-out', 'ROW_REMOVED');
+      const api = makeApi([{ id: 'r1', data: { price: 1 } }]);
+      platform.onGridReady(api as never);
+
+      api.setNodes([]);
+      for (const fn of api.listeners.get('sortChanged') ?? []) fn();
+      vi.runAllTimers();
+
+      expect(platform.store.getModuleState('alerts').history).toHaveLength(1);
+      platform.destroy();
+    });
+
+    it('keeps a scrolled-out row\'s baseline, so a change across the gap still fires', () => {
+      const platform = new GridPlatform({ gridId: 'alerts-ssrm-baseline', modules: [alertsModule] });
+      platform.store.setModuleState('alerts', () => ({
+        ...INITIAL_ALERTS,
+        settings: enabledSettings(),
+        rules: [{
+          id: 'dc1',
+          name: 'Price moved',
+          enabled: true,
+          priority: 0,
+          severity: 'info' as const,
+          trigger: { kind: 'dataChange' as const, expression: '[price] > 50' },
+          message: 'price moved',
+          channels: ['badge' as const],
+        }],
+      }));
+      platform.data.bindSsrm(unloadableSource() as never);
+      const api = makeApi([{ id: 'r1', data: { price: 1, qty: 1 } }]);
+      platform.onGridReady(api as never);
+
+      // Observe the row once, then scroll it out and back with a new value.
+      for (const fn of api.listeners.get('sortChanged') ?? []) fn();
+      vi.runAllTimers();
+      api.setNodes([]);
+      for (const fn of api.listeners.get('sortChanged') ?? []) fn();
+      vi.runAllTimers();
+      api.setNodes([{ id: 'r1', data: { price: 999, qty: 1 } }]);
+      for (const fn of api.listeners.get('sortChanged') ?? []) fn();
+      vi.runAllTimers();
+
+      // The baseline survived the eviction, so the move is seen as a move —
+      // dropping it re-seeded silently and the alert never fired.
+      expect(platform.store.getModuleState('alerts').history).toHaveLength(1);
+      platform.destroy();
+    });
+  });
+
   it('skips row subscription when no enabled rules', () => {
     const platform = new GridPlatform({ gridId: 'alerts-idle', modules: [alertsModule] });
     platform.store.setModuleState('alerts', () => ({

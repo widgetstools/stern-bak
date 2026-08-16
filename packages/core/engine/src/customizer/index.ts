@@ -4,7 +4,13 @@
  */
 
 export * from './modules/calculated-columns/state.js';
-export { buildVirtualColDef, invalidateAllRowsCache, type AllRowsEntry } from './modules/calculated-columns/virtualColumn.js';
+export {
+  buildVirtualColDef,
+  fillAllRowsSnapshot,
+  getAllRowsSnapshot,
+  invalidateAllRowsCache,
+  type AllRowsEntry,
+} from './modules/calculated-columns/virtualColumn.js';
 
 export { INITIAL_COLUMN_CUSTOMIZATION } from './modules/column-customization/state.js';
 export type {

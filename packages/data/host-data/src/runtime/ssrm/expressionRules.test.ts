@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ExpressionEngine } from '@wellsfargo-starui/core';
+import { COMPUTED_FIELDS_KEY, ExpressionEngine } from '@wellsfargo-starui/core';
 import { ExpressionRuleStore } from './expressionRules.js';
 import type { ExpressionRule } from './types.js';
 
@@ -207,6 +207,136 @@ describe('ExpressionRuleStore', () => {
       const out = store.enrich({ id: 'a', px: 10 }, 'sessA');
       expect(out.s).toBeUndefined();
       expect(out.g).toBe(20);
+    });
+  });
+
+  // ── Column-wide aggregates ────────────────────────────────────────────
+  //
+  // These use the REAL engine: what is under test is how the evaluator's
+  // aggregate path (`evalOps.buildCallArgs`) resolves `[col]`, and the fake
+  // engine's table of closures cannot express that.
+
+  describe('aggregate calculated columns', () => {
+    const store = () => new ExpressionRuleStore(new ExpressionEngine());
+    const dataset = [{ px: 10 }, { px: 20 }, { px: 30 }];
+    const scope = () => ({
+      allRows: dataset,
+      allRowsColumnCache: new Map<string, unknown[]>(),
+      allRowsAggregateCache: new Map<string, unknown>(),
+    });
+
+    it('folds the WHOLE dataset, not the row it is enriching', () => {
+      const s = store();
+      s.configure([calcRule('c1', 'total', 'SUM([px])')]);
+      // Same answer on every row — that is what "the same value at any
+      // scroll position" means once these rows reach a grid.
+      for (const row of dataset) {
+        expect(s.enrich({ ...row }, undefined, scope()).total).toBe(60);
+      }
+    });
+
+    it('without the scope it degrades to the row\'s own value — the defect', () => {
+      // Pinned deliberately: this is what every SSRM block returned before
+      // the scope existed, and it is indistinguishable from a correct total
+      // on a one-row dataset.
+      const s = store();
+      s.configure([calcRule('c1', 'total', 'SUM([px])')]);
+      expect(s.enrich({ px: 10 }).total).toBe(10);
+    });
+
+    it('reuses one column pass across every row of a block', () => {
+      const s = store();
+      s.configure([calcRule('c1', 'total', 'SUM([px])')]);
+      const shared = scope();
+      for (const row of dataset) s.enrich({ ...row }, undefined, shared);
+      expect(shared.allRowsColumnCache.get('px')).toEqual([10, 20, 30]);
+      expect(shared.allRowsColumnCache.size).toBe(1);
+    });
+
+    it('folds the column ONCE per block, not once per row', () => {
+      // Memoising the column ARRAY without memoising the fold left every row
+      // of a 100-row block re-reducing a 100,000-element array — 223 ms per
+      // block, measured. The result cache is what makes it 1.7.
+      const s = store();
+      s.configure([calcRule('c1', 'total', 'SUM([px])')]);
+      const shared = scope();
+      s.enrich({ px: 10 }, undefined, shared);
+      expect([...shared.allRowsAggregateCache.values()]).toEqual([60]);
+    });
+
+    it('caches the aggregate sub-call but not the row-local arithmetic around it', () => {
+      const s = store();
+      s.configure([calcRule('c1', 'share', '[px] / SUM([px])')]);
+      const shared = scope();
+      expect(s.enrich({ px: 30 }, undefined, shared).share).toBe(0.5);
+      expect(s.enrich({ px: 10 }, undefined, shared).share).toBeCloseTo(1 / 6);
+      expect([...shared.allRowsAggregateCache.values()]).toEqual([60]);
+    });
+
+    it('keeps two folds of the same column apart', () => {
+      const s = store();
+      s.configure([
+        calcRule('c1', 'lo', 'MIN([px])'),
+        calcRule('c2', 'hi', 'MAX([px])'),
+      ]);
+      const out = s.enrich({ px: 20 }, undefined, scope());
+      expect(out.lo).toBe(10);
+      expect(out.hi).toBe(30);
+    });
+
+    it('does not memoise a fold whose arguments are literals', () => {
+      // `aggregateColumnRefs` is true for MIN, but `MIN(5, 2, 9)` is a plain
+      // vararg reducer over its own arguments — nothing column-wide to cache.
+      const s = store();
+      s.configure([calcRule('c1', 'm', 'MIN(5, 2, 9)')]);
+      const shared = scope();
+      expect(s.enrich({ px: 1 }, undefined, shared).m).toBe(2);
+      expect(shared.allRowsAggregateCache.size).toBe(0);
+    });
+
+    it('usesAggregates is per session and drives whether a scope is needed', () => {
+      const s = store();
+      s.configure([calcRule('g', 'g', '[px] * 2')]);
+      s.configure([calcRule('a', 'a', 'AVG([px])')], 'sessA');
+      expect(s.usesAggregates()).toBe(false);
+      expect(s.usesAggregates('sessA')).toBe(true);
+      // A session with no rules of its own inherits the global verdict.
+      expect(s.usesAggregates('sessB')).toBe(false);
+    });
+
+    it('a row-local rule set never asks for a scope', () => {
+      const s = store();
+      s.configure([calcRule('c1', 'total', '[px] * 2')]);
+      expect(s.usesAggregates()).toBe(false);
+      expect(s.enrich({ px: 10 }).total).toBe(20);
+    });
+  });
+
+  describe('computed-field stamp', () => {
+    it('names the calculated fields it produced', () => {
+      const s = new ExpressionRuleStore(fakeEngine({ DOUBLE: (ctx) => (ctx.data.px as number) * 2 }));
+      s.configure([calcRule('c1', 'total', 'DOUBLE')]);
+      expect(s.enrich({ px: 10 })[COMPUTED_FIELDS_KEY]).toEqual(['total']);
+    });
+
+    it('stamps nothing when no rule produces a field', () => {
+      const s = new ExpressionRuleStore(fakeEngine({ RED: () => 'red' }));
+      s.configure([{ id: 's1', expression: 'RED', kind: 'style' }]);
+      expect(s.enrich({ px: 10 })[COMPUTED_FIELDS_KEY]).toBeUndefined();
+    });
+
+    it('omits a field whose expression failed to compile', () => {
+      const s = new ExpressionRuleStore(fakeEngine({ OK: () => 1 }));
+      s.configure([calcRule('c1', 'good', 'OK'), calcRule('c2', 'bad', 'UNREGISTERED')]);
+      expect(s.enrich({ px: 10 })[COMPUTED_FIELDS_KEY]).toEqual(['good']);
+    });
+
+    it('is one shared array across rows, not a per-row allocation', () => {
+      const s = new ExpressionRuleStore(fakeEngine({ DOUBLE: () => 1 }));
+      s.configure([calcRule('c1', 'total', 'DOUBLE')]);
+      expect(s.enrich({ px: 1 })[COMPUTED_FIELDS_KEY]).toBe(
+        s.enrich({ px: 2 })[COMPUTED_FIELDS_KEY],
+      );
     });
   });
 });

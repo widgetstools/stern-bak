@@ -42,7 +42,6 @@ import { MarketsGridSurface } from './MarketsGridSurface';
 import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface';
 import { resolveMarketsGridSurfaceKind } from './MarketsGridHost';
 import { resolveSsrmWithQuickFilter } from './resolveSsrmWithQuickFilter.js';
-import { SsrmFilterCountsProvider } from './SsrmFilterCountsContext.js';
 import { useSsrmExpressionBridge } from './useSsrmExpressionBridge.js';
 import { useSsrmDataBinding } from './useSsrmDataBinding';
 import type { MarketsGridSsrmProps } from './types';
@@ -373,7 +372,6 @@ function MarketsGridInner<TData = unknown>(
     <ProviderGridHostProvider value={providerGridHost ?? null}>
     <GridEventBindingsHostProvider value={gridEventBindingsHost ?? null}>
       <GridProvider platform={shell.platform}>
-      <SsrmFilterCountsProvider ssrm={ssrm}>
       <GeneralSettingsProvider value={shell.generalSettings}>
       <MarketsGridSsrmExpressionBridge ssrm={shell.ssrm} />
       <MarketsGridHost
@@ -431,7 +429,6 @@ function MarketsGridInner<TData = unknown>(
         includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
       />
       </GeneralSettingsProvider>
-      </SsrmFilterCountsProvider>
     </GridProvider>
     </GridEventBindingsHostProvider>
     </ProviderGridHostProvider>
@@ -473,7 +470,6 @@ function MarketsGridCoreInner<TData = unknown>(
 
   return (
     <GridProvider platform={shell.platform}>
-      <SsrmFilterCountsProvider ssrm={ssrm}>
       <GeneralSettingsProvider value={shell.generalSettings}>
         <MarketsGridSsrmExpressionBridge ssrm={ssrm} />
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
@@ -517,7 +513,6 @@ function MarketsGridCoreInner<TData = unknown>(
           )}
         </div>
       </GeneralSettingsProvider>
-      </SsrmFilterCountsProvider>
     </GridProvider>
   );
 }

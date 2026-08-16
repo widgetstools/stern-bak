@@ -31,7 +31,7 @@ import type { GridApi } from 'ag-grid-community';
 import { ApiHub } from './ApiHub';
 import { CsrmDataAdapter } from './CsrmDataAdapter';
 import { SsrmDataAdapter } from './SsrmDataAdapter';
-import { doesRowMatchFilterModel } from '../filters/filtersToolbarLogic';
+import { doesRowMatchFilterModel } from '../filters/filterPredicate';
 import type { DataQuery, DataRow, GridDataPort, RowPatch } from './types';
 
 // ─── The dataset both adapters answer from ─────────────────────────────────
@@ -41,14 +41,17 @@ interface TestRow extends Record<string, unknown> {
   book: string;
   px: number;
   note: string | null;
+  /** AG-Grid's own serialised date form, which `Date.parse` reads as LOCAL
+   *  time — the clock both the row value and the day comparison use. */
+  when: string | null;
 }
 
 const ROWS: TestRow[] = [
-  { id: 'r0', book: 'A', px: 10, note: 'alpha' },
-  { id: 'r1', book: 'B', px: 20, note: null },
-  { id: 'r2', book: 'A', px: 30, note: 'gamma' },
-  { id: 'r3', book: 'C', px: 40, note: 'alpha' },
-  { id: 'r4', book: 'B', px: 50, note: 'delta' },
+  { id: 'r0', book: 'A', px: 10, note: 'alpha', when: '2026-03-01 09:00:00' },
+  { id: 'r1', book: 'B', px: 20, note: null, when: '2026-03-05 09:00:00' },
+  { id: 'r2', book: 'A', px: 30, note: 'gamma', when: '2026-03-05 17:00:00' },
+  { id: 'r3', book: 'C', px: 40, note: 'alpha', when: '2026-03-09 09:00:00' },
+  { id: 'r4', book: 'B', px: 50, note: 'delta', when: null },
 ];
 
 /** Rows AG-Grid reports as passing the applied filter, for `scope: 'filtered'`. */
@@ -484,7 +487,9 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
       const promise = fx.port.mutate([{ rowId: 'r1', fields: { px: 999 } }]);
       fx.settle();
       await expect(promise).resolves.toEqual({ applied: ['r1'], rejected: [], ok: true });
-      expect(fx.transactions).toEqual([[{ id: 'r1', book: 'B', px: 999, note: null }]]);
+      expect(fx.transactions).toEqual([
+        [{ id: 'r1', book: 'B', px: 999, note: null, when: '2026-03-05 09:00:00' }],
+      ]);
     });
 
     it('merges patches for one row into a single full-row update', async () => {
@@ -496,7 +501,7 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
       await promise;
       expect(fx.transactions).toHaveLength(1);
       expect(fx.transactions[0]).toEqual([
-        { id: 'r1', book: 'B', px: 1, note: 'edited' },
+        { id: 'r1', book: 'B', px: 1, note: 'edited', when: '2026-03-05 09:00:00' },
       ]);
     });
 
@@ -534,16 +539,16 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
    * The filter-model surface, at the PORT level: an operator a caller puts in
    * a `DataQuery` narrows both adapters the same way.
    *
-   * The worker's own operator matrix — every AG Grid option, the Advanced
-   * Filter tree, and the explicit refusals — is pinned where it actually runs,
-   * in `host-data`'s `filter.test.ts` and `engineContract.test.ts`. What this
-   * proves is narrower and still worth having: a module that hands the port a
-   * filter model gets the same answer whichever row model it is running on.
+   * The operator matrix itself — every AG Grid option, the Advanced Filter
+   * tree, and the explicit refusals — is pinned where the predicate lives, in
+   * `filters/filterPredicate.test.ts`. What this proves is narrower and still
+   * worth having: a module that hands the port a filter model gets the same
+   * answer whichever row model it is running on.
    *
-   * Date models are deliberately absent: the shared client predicate has no
-   * date arm at all (`filtersToolbarLogic.doesValueMatchFilter` falls through
-   * to match-all), so both adapters here would agree on a wrong answer. That
-   * predicate is Phase 2's to collapse onto the worker's.
+   * Dates are here since Phase 2. They used to be absent because the client
+   * predicate had no date arm and fell through to match-all, so both adapters
+   * would have agreed on a wrong answer; there is one predicate now, and it
+   * evaluates them.
    */
   describe('filter-model surface', () => {
     const countWith = (filterModel: Record<string, unknown>) =>
@@ -588,6 +593,21 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
       ).resolves.toMatchObject({ count: 0 });
     });
 
+    it.each([
+      ['equals', '2026-03-05 00:00:00', undefined, 2],
+      ['notEqual', '2026-03-05 00:00:00', undefined, 3],
+      ['lessThan', '2026-03-05 00:00:00', undefined, 1],
+      ['greaterThan', '2026-03-05 00:00:00', undefined, 3],
+      ['greaterThanOrEqual', '2026-03-05 00:00:00', undefined, 3],
+      ['inRange', '2026-03-05 00:00:00', '2026-03-09 00:00:00', 3],
+      ['blank', undefined, undefined, 1],
+      ['notBlank', undefined, undefined, 4],
+    ] as const)('date %s narrows to %s rows', async (type, dateFrom, dateTo, expected) => {
+      await expect(
+        countWith({ when: { filterType: 'date', type, dateFrom, dateTo } }),
+      ).resolves.toMatchObject({ count: expected });
+    });
+
     it('ANDs the tabs of a multi filter', async () => {
       await expect(
         countWith({
@@ -597,6 +617,41 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
           },
         }),
       ).resolves.toMatchObject({ count: 4 });
+    });
+
+    it('a set filter with nothing selected matches no rows, in both models', async () => {
+      // The client predicate read `values: []` as "no restriction" and counted
+      // the whole dataset. Empty-BUT-COMPLETE is the honest answer, and the
+      // `complete` flag is what separates it from "could not look".
+      await expect(countWith({ book: { filterType: 'set', values: [] } })).resolves.toEqual({
+        count: 0,
+        complete: true,
+      });
+    });
+
+    it('refuses an operator neither side can evaluate, as complete: false', async () => {
+      // The refusal must be a REFUSAL, not a count: a widened "everything" or a
+      // narrowed "nothing" answers confidently and wrongly. `complete: false`
+      // is the port's channel for "could not look", and both adapters raise it
+      // for the same input — the client-side one because it evaluates the model
+      // itself, the server-side one because it declines before the round trip.
+      const refused = { note: { filterType: 'text', type: 'soundsLike', filter: 'a' } };
+      await expect(fx.port.count({ filterModel: refused })).resolves.toEqual({
+        count: 0,
+        complete: false,
+      });
+      await expect(fx.port.aggregate('px', 'sum', { filterModel: refused })).resolves.toEqual({
+        value: null,
+        complete: false,
+      });
+      const { result } = await scanRows(fx.port, { filterModel: refused });
+      expect(result).toEqual({ scanned: 0, stopped: false, complete: false });
+    });
+
+    it('refuses a relative-date preset rather than answering zero rows', async () => {
+      await expect(
+        fx.port.count({ filterModel: { when: { filterType: 'date', type: 'last7Days' } } }),
+      ).resolves.toEqual({ count: 0, complete: false });
     });
   });
 
@@ -760,7 +815,9 @@ describe('an unloaded row is refused with the capability’s own copy', () => {
       { rowId: 'r2', reason: fx.port.capabilities.canAddressUnloadedRows.reason },
     ]);
     expect(result.ok).toBe(false);
-    expect(fx.transactions).toEqual([[{ id: 'r1', book: 'B', px: 1, note: null }]]);
+    expect(fx.transactions).toEqual([
+      [{ id: 'r1', book: 'B', px: 1, note: null, when: '2026-03-05 09:00:00' }],
+    ]);
   });
 });
 

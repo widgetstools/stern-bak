@@ -12,15 +12,24 @@
  *
  * Rejection is asserted the same way for both halves: the model is refused
  * BEFORE the scan (`assertFilterModelSupported`) and refused again if a row
- * reaches it (`rowPassesFilter`), because validation and evaluation are one
- * walk with a `row === null` mode, not two that can drift.
+ * reaches it (`doesRowMatchFilterModel`), because validation and evaluation
+ * are one walk with a validate-only mode, not two that can drift.
+ *
+ * The suite moved here from the query plane in Phase 2, when the client's
+ * second predicate was collapsed onto this one. `describe('the seven the two
+ * predicates disagreed on')` at the bottom pins each resolved difference, so a
+ * regression toward either old reading fails by name.
  */
 import { describe, expect, it } from 'vitest';
-import { assertFilterModelSupported, compareValues, rowPassesFilter } from './filter.js';
-import { UnsupportedQueryError } from './UnsupportedQueryError.js';
-import type { Row } from './types.js';
+import {
+  assertFilterModelSupported,
+  compareValues,
+  doesRowMatchFilterModel,
+  doesValueMatchFilter,
+} from './filterPredicate';
+import { UnsupportedQueryError } from './UnsupportedQueryError';
 
-const ROW: Row = {
+const ROW: Record<string, unknown> = {
   id: 'r1',
   book: 'Alpha',
   px: 20,
@@ -31,20 +40,20 @@ const ROW: Row = {
 };
 
 const passes = (model: unknown): boolean =>
-  rowPassesFilter(ROW, model as Record<string, unknown>);
+  doesRowMatchFilterModel(ROW, model as Record<string, unknown>);
 
 /** Both halves of the contract: refused up front AND refused per row. */
 function expectRefused(model: unknown): void {
   const fm = model as Record<string, unknown>;
   expect(() => assertFilterModelSupported(fm)).toThrow(UnsupportedQueryError);
-  expect(() => rowPassesFilter(ROW, fm)).toThrow(UnsupportedQueryError);
+  expect(() => doesRowMatchFilterModel(ROW, fm)).toThrow(UnsupportedQueryError);
 }
 
 /** Accepted models are validated silently and answer a boolean. */
 function expectAccepted(model: unknown): void {
   const fm = model as Record<string, unknown>;
   expect(() => assertFilterModelSupported(fm)).not.toThrow();
-  expect(typeof rowPassesFilter(ROW, fm)).toBe('boolean');
+  expect(typeof doesRowMatchFilterModel(ROW, fm)).toBe('boolean');
 }
 
 describe('text filter — all 8 options AG Grid offers', () => {
@@ -318,7 +327,7 @@ describe('nested-path columns', () => {
 
   it('prefers a literal flat key, matching the repo’s path accessor', () => {
     expect(
-      rowPassesFilter(
+      doesRowMatchFilterModel(
         { 'quote.bid': 99, quote: { bid: 7 } },
         { 'quote.bid': { filterType: 'number', type: 'equals', filter: 99 } },
       ),
@@ -352,9 +361,118 @@ describe('nothing falls through', () => {
   });
 
   it('an absent filter model restricts nothing', () => {
-    expect(rowPassesFilter(ROW, null)).toBe(true);
-    expect(rowPassesFilter(ROW, undefined)).toBe(true);
+    expect(doesRowMatchFilterModel(ROW, null)).toBe(true);
+    expect(doesRowMatchFilterModel(ROW, undefined)).toBe(true);
     expect(() => assertFilterModelSupported(null)).not.toThrow();
+  });
+});
+
+describe('the seven the two predicates disagreed on', () => {
+  // Phase 2 collapsed `filtersToolbarLogic`'s client-side copy onto this one.
+  // Each case below is a point where they gave different answers; the comment
+  // names which reading won and why. A regression toward the other fails here
+  // by name rather than as a mysterious count.
+
+  it('1. an empty set filter matches NO rows, not every row', () => {
+    // The client read `values: []` as "no restriction" and counted the whole
+    // dataset into the badge of a pill that displays nothing.
+    expect(passes({ book: { filterType: 'set', values: [] } })).toBe(false);
+    expect(doesValueMatchFilter('Alpha', { filterType: 'set', values: [] })).toBe(false);
+  });
+
+  it('2. text blank/notBlank trim, the way AG Grid’s own isBlank does', () => {
+    // The client trimmed, the query plane did not. AG Grid trims, and AG Grid
+    // is the reference — so a cell holding "  " is blank on both sides now.
+    const row = { pad: '  ', zero: 0 };
+    const blank = { filterType: 'text', type: 'blank' };
+    expect(doesRowMatchFilterModel(row, { pad: blank })).toBe(true);
+    expect(doesRowMatchFilterModel(row, { pad: { ...blank, type: 'notBlank' } })).toBe(false);
+    // `0` is a value, not a blank.
+    expect(doesRowMatchFilterModel(row, { zero: blank })).toBe(false);
+  });
+
+  it('3. dates evaluate instead of falling through to match-all', () => {
+    // The client had no date arm at all: every date filter matched every row.
+    expect(passes({ when: { filterType: 'date', type: 'lessThan', dateFrom: '2026-03-06 00:00:00' } })).toBe(true);
+    expect(passes({ when: { filterType: 'date', type: 'lessThan', dateFrom: '2026-03-01 00:00:00' } })).toBe(false);
+  });
+
+  it('4. an Advanced Filter tree is walked, not iterated as a column map', () => {
+    // `Object.entries` over a tree treats `filterType` / `colId` as column ids
+    // and returns the entire unfiltered dataset.
+    expect(passes({ filterType: 'text', colId: 'book', type: 'contains', filter: 'zzz' })).toBe(false);
+  });
+
+  it('5. an unknown operator is refused, not silently accepted', () => {
+    expectRefused({ book: { filterType: 'text', type: 'soundsLike', filter: 'a' } });
+    expect(() =>
+      doesValueMatchFilter('a', { filterType: 'text', type: 'soundsLike', filter: 'a' }),
+    ).toThrow(UnsupportedQueryError);
+  });
+
+  it('6. an empty string is BLANK on a number column, not zero', () => {
+    // `Number('')` is 0, so the client read an empty cell as notBlank — and as
+    // equal to a filter of 0.
+    const row = { qty: '' };
+    expect(doesRowMatchFilterModel(row, { qty: { filterType: 'number', type: 'blank' } })).toBe(true);
+    expect(doesRowMatchFilterModel(row, { qty: { filterType: 'number', type: 'notBlank' } })).toBe(false);
+    expect(doesRowMatchFilterModel(row, { qty: { filterType: 'number', type: 'equals', filter: 0 } })).toBe(false);
+  });
+
+  it('7. a multi filter ANDs its tabs, and honours an operator when one is set', () => {
+    // AG Grid's own multi filter carries no operator and ANDs — unchanged. The
+    // client HARDCODED the AND, so a model that did name OR was read as AND.
+    const tabs = [
+      { filterType: 'text', type: 'startsWith', filter: 'Al' },
+      { filterType: 'text', type: 'endsWith', filter: 'zz' },
+    ];
+    expect(passes({ book: { filterType: 'multi', filterModels: tabs } })).toBe(false);
+    expect(passes({ book: { filterType: 'multi', operator: 'OR', filterModels: tabs } })).toBe(true);
+  });
+});
+
+describe('doesValueMatchFilter', () => {
+  // Same walk, value supplied directly instead of read off a row — so a caller
+  // holding the value cannot get a different answer from one holding the row.
+  it('agrees with the row walk on the same column entry', () => {
+    const entry = { filterType: 'text', type: 'contains', filter: 'lph' };
+    expect(doesValueMatchFilter('Alpha', entry)).toBe(passes({ book: entry }));
+    expect(doesValueMatchFilter('Beta', entry)).toBe(false);
+  });
+
+  it('handles set, number, date, boolean and combined entries', () => {
+    expect(doesValueMatchFilter('BUY', { filterType: 'set', values: ['BUY', 'SELL'] })).toBe(true);
+    expect(doesValueMatchFilter(12, { filterType: 'number', type: 'greaterThan', filter: 10 })).toBe(true);
+    expect(
+      doesValueMatchFilter('2026-03-05T09:30:00', {
+        filterType: 'date', type: 'equals', dateFrom: '2026-03-05 00:00:00',
+      }),
+    ).toBe(true);
+    expect(doesValueMatchFilter(1, { filterType: 'boolean', type: 'true' })).toBe(true);
+    expect(
+      doesValueMatchFilter('Hello', {
+        filterType: 'text',
+        operator: 'OR',
+        conditions: [
+          { filterType: 'text', type: 'equals', filter: 'Hello' },
+          { filterType: 'text', type: 'equals', filter: 'Bye' },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it('refuses a shape it cannot read rather than answering true', () => {
+    expect(() => doesValueMatchFilter('x', { filterType: 'geo' })).toThrow(UnsupportedQueryError);
+    expect(() => doesValueMatchFilter('x', {})).toThrow(UnsupportedQueryError);
+  });
+
+  it('names the column generically when there is no column to name', () => {
+    try {
+      doesValueMatchFilter('x', { filterType: 'geo' });
+      throw new Error('expected a refusal');
+    } catch (err) {
+      expect((err as UnsupportedQueryError).reason).toContain('on that column');
+    }
   });
 });
 

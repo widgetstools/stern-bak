@@ -12,13 +12,19 @@
  * These properties matter because the functions are called:
  *   - on every `filterChanged` event to decide whether the "+" button
  *     should enable (`filterModelsEqual`)
- *   - on every `modelUpdated` / `rowDataUpdated` to recompute per-pill
- *     row counts (`doesRowMatchFilterModel`)
  *   - on "+" click to synthesize a pill label (`generateLabel`)
  *   - when pushing the merged active-saved-filters model into AG-Grid
  *     (`mergeFilterModels`)
+ *
+ * What is NOT here any more: `doesValueMatchFilter` /
+ * `doesRowMatchFilterModel`. Those were this file's own reading of AG-Grid's
+ * filter semantics, and it disagreed with the server-side query plane's on
+ * seven points (empty set filters, `blank` whitespace, dates, Advanced Filter
+ * trees, unknown operators, `blank` on a number column, and multi-filter
+ * joins). They now live in `filterPredicate.ts` — ONE implementation, shared
+ * with the query plane — and are re-exported under the same names from the
+ * package barrel.
  */
-import { getValueByPath } from '@wellsfargo-starui/types';
 
 // ─── ID generation ──────────────────────────────────────────────────────
 
@@ -145,103 +151,6 @@ export function formatFilterModel(
     parts.push(`${col}: ${JSON.stringify(f)}`);
   }
   return parts.join(' AND ');
-}
-
-// ─── Row-match helpers ──────────────────────────────────────────────────
-//
-// Mirrors AG-Grid's filter semantics for set / text / number filters so
-// per-pill row counts can be computed WITHOUT activating each filter in
-// turn. Used by the count badge inside each pill.
-
-export function doesValueMatchFilter(
-  value: unknown,
-  filter: Record<string, unknown>,
-): boolean {
-  if (!filter || typeof filter !== 'object' || !filter.filterType) return true;
-  const filterType = filter.filterType as string;
-
-  // Multi-filter envelope (agMultiColumnFilter and our synthetic
-  // streamSafeMulti* kinds): combine sub-filter slot models with AND
-  // semantics — same as AG-Grid's runtime. Null slots are skipped (no
-  // condition imposed). All non-null slots must match for the row to
-  // pass. Without this branch the matcher fell through to `return true`
-  // for every row, so per-pill count badges always showed the total
-  // row count instead of the matched count.
-  if (filterType === 'multi') {
-    const subModels = (filter.filterModels as unknown[] | undefined) ?? [];
-    for (const sub of subModels) {
-      if (sub == null) continue;
-      if (!doesValueMatchFilter(value, sub as Record<string, unknown>)) return false;
-    }
-    return true;
-  }
-
-  if (filterType === 'set') {
-    const vals = (filter.values as unknown[] | undefined) ?? [];
-    if (vals.length === 0) return true;
-    const strVal = value == null ? null : String(value);
-    return vals.some((v) => (v == null ? strVal == null : String(v) === strVal));
-  }
-
-  if (filterType === 'text') {
-    const strVal = value == null ? '' : String(value).toLowerCase();
-    const filterVal = filter.filter == null ? '' : String(filter.filter).toLowerCase();
-    if (filter.operator && Array.isArray(filter.conditions)) {
-      const results = (filter.conditions as Record<string, unknown>[]).map((c) =>
-        doesValueMatchFilter(value, { ...c, filterType: 'text' }),
-      );
-      return filter.operator === 'AND' ? results.every(Boolean) : results.some(Boolean);
-    }
-    switch (filter.type) {
-      case 'contains': return strVal.includes(filterVal);
-      case 'notContains': return !strVal.includes(filterVal);
-      case 'equals': return strVal === filterVal;
-      case 'notEqual': return strVal !== filterVal;
-      case 'startsWith': return strVal.startsWith(filterVal);
-      case 'endsWith': return strVal.endsWith(filterVal);
-      case 'blank': return value == null || String(value).trim() === '';
-      case 'notBlank': return value != null && String(value).trim() !== '';
-      default: return true;
-    }
-  }
-
-  if (filterType === 'number') {
-    const numVal = value == null ? NaN : Number(value);
-    const filterNum = filter.filter == null ? NaN : Number(filter.filter);
-    const filterTo = filter.filterTo == null ? NaN : Number(filter.filterTo);
-    if (filter.operator && Array.isArray(filter.conditions)) {
-      const results = (filter.conditions as Record<string, unknown>[]).map((c) =>
-        doesValueMatchFilter(value, { ...c, filterType: 'number' }),
-      );
-      return filter.operator === 'AND' ? results.every(Boolean) : results.some(Boolean);
-    }
-    switch (filter.type) {
-      case 'equals': return numVal === filterNum;
-      case 'notEqual': return numVal !== filterNum;
-      case 'greaterThan': return numVal > filterNum;
-      case 'greaterThanOrEqual': return numVal >= filterNum;
-      case 'lessThan': return numVal < filterNum;
-      case 'lessThanOrEqual': return numVal <= filterNum;
-      case 'inRange': return numVal >= filterNum && numVal <= filterTo;
-      case 'blank': return value == null || Number.isNaN(numVal);
-      case 'notBlank': return value != null && !Number.isNaN(numVal);
-      default: return true;
-    }
-  }
-
-  // Date / unknown filterType — fall through to match-all. Keeps the count
-  // optimistic for unsupported shapes rather than reporting zero.
-  return true;
-}
-
-export function doesRowMatchFilterModel(
-  rowData: Record<string, unknown>,
-  filterModel: Record<string, unknown>,
-): boolean {
-  for (const [col, filter] of Object.entries(filterModel)) {
-    if (!doesValueMatchFilter(getValueByPath(rowData, col), filter as Record<string, unknown>)) return false;
-  }
-  return true;
 }
 
 // ─── Filter-model normalization (compare-only) ──────────────────────────

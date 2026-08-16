@@ -193,13 +193,31 @@ export function activateAlerts(
   };
 
   /**
-   * Full pass (structural change — sort/filter/setRowData): re-detect row
-   * add/remove via id-set diff and re-scan every row for cell deltas. Rare and
-   * user-driven, never the streaming hot path.
+   * Is the set of rows this grid materialises the same set as the dataset?
+   *
+   * `canAddressUnloadedRows` is exactly that question, and it is the ONE thing
+   * a full pass has to know before it may treat "an id I can no longer see" as
+   * "a row that left". Where the two sets differ — a grid paging blocks in and
+   * out as the user scrolls — the id-set diff reports every scroll as a burst
+   * of arrivals and departures, and every ROW_ADDED / ROW_REMOVED rule fires
+   * on cache churn rather than on data. This is a capability branch, not a
+   * row-model branch: the module never asks which row model produced it.
    */
-  const runFullPass = (rules: AlertsState['rules']): void => {
-    const api = platform.api.api;
-    if (!api) return;
+  const idsSpanDataset = (): boolean =>
+    platform.data.capabilities.canAddressUnloadedRows.supported;
+
+  /**
+   * Reconcile the observed-row set on a full pass, and dispatch ROW_ADDED /
+   * ROW_REMOVED where the diff is meaningful.
+   *
+   * Where it is not, the pass does no id bookkeeping at all: real arrivals and
+   * departures reach `runDelta` from the transaction, the baselines of rows
+   * that merely scrolled out are KEPT (dropping them is why a genuine change
+   * across a scroll-out and back never fired), and the whole-grid id walk is
+   * skipped rather than run for an answer that would be discarded.
+   */
+  const reconcileRowMembership = (api: GridApi, rules: AlertsState['rules']): void => {
+    if (!idsSpanDataset()) return;
 
     const next = snapshotRowIds(api);
     if (hasEnabledRowChangeRules(rules)) {
@@ -211,6 +229,24 @@ export function activateAlerts(
     }
     for (const id of knownRowIds) if (!next.has(id)) prevValues.deleteRow(id);
     knownRowIds = next;
+  };
+
+  /**
+   * Full pass (structural change — sort/filter/setRowData): re-detect row
+   * add/remove via id-set diff and re-scan every row for cell deltas. Rare and
+   * user-driven, never the streaming hot path.
+   *
+   * The value-delta scan walks the rows this grid holds, and deliberately no
+   * further: a dataChange / relativeChange rule compares against a baseline
+   * this session observed, so a row nobody has ever seen has nothing to
+   * compare against and paging the dataset to reach it would cost a full
+   * transfer to learn nothing.
+   */
+  const runFullPass = (rules: AlertsState['rules']): void => {
+    const api = platform.api.api;
+    if (!api) return;
+
+    reconcileRowMembership(api, rules);
 
     const partitioned = partitionEnabledRules(rules);
     if (partitioned.dataChange.length === 0 && partitioned.relativeChange.length === 0) return;

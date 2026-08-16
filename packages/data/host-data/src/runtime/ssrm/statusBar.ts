@@ -1,5 +1,8 @@
 import { aggregateRows, resolveAggFunc, type AggSpec } from "./aggregations.js";
-import { assertFilterModelSupported, rowPassesFilter } from "./filter.js";
+import {
+  assertFilterModelSupported,
+  doesRowMatchFilterModel,
+} from "@wellsfargo-starui/core";
 import {
   parseQuickFilter,
   rowPassesQuickFilterScoped,
@@ -74,7 +77,7 @@ export function computeStatusBar(
     ) {
       continue;
     }
-    if (rowPassesFilter(row, request.filterModel)) {
+    if (doesRowMatchFilterModel(row, request.filterModel)) {
       filteredRows++;
       filtered.push(row);
     }

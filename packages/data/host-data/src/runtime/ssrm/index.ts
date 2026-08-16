@@ -40,5 +40,13 @@ export {
   rowPassesQuickFilter,
   rowPassesQuickFilterScoped,
 } from './quickFilter.js';
-export { assertFilterModelSupported, rowPassesFilter } from './filter.js';
-export { UnsupportedQueryError } from './UnsupportedQueryError.js';
+// The filter predicate and its refusal type live in `@wellsfargo-starui/core`
+// (`filters/filterPredicate.ts`) — ONE implementation, shared with the client
+// so a pill badge and a block query cannot disagree about what a filter means.
+// Re-exported here because this barrel is the query plane's public surface.
+export {
+  assertFilterModelSupported,
+  compareValues,
+  doesRowMatchFilterModel,
+  UnsupportedQueryError,
+} from '@wellsfargo-starui/core';

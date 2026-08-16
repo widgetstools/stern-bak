@@ -2,8 +2,7 @@ import type { ExpressionNode, EvaluationContext, FunctionDefinition } from './ty
 import {
   applyBinary,
   applyUnary,
-  buildCallArgs,
-  invokeFunction,
+  evaluateCall,
   isTruthy,
   resolveColumnRef,
   resolveVariable,
@@ -78,7 +77,6 @@ export class Evaluator {
   private evaluateCall(name: string, argNodes: ExpressionNode[], ctx: EvaluationContext): unknown {
     const fn = this.functions.get(name.toUpperCase());
     if (!fn) throw new Error(`Unknown function: ${name}`);
-    const args = buildCallArgs(fn, argNodes, ctx, (arg) => this.evaluate(arg, ctx));
-    return invokeFunction(fn, name, args, ctx);
+    return evaluateCall(fn, name, argNodes, ctx, (arg) => this.evaluate(arg, ctx));
   }
 }

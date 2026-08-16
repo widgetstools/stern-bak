@@ -21,7 +21,11 @@
  * the UI renders verbatim.
  */
 import { getValueByPath } from '@wellsfargo-starui/types';
-import { doesRowMatchFilterModel } from '../filters/filtersToolbarLogic';
+import {
+  assertFilterModelSupported,
+  doesRowMatchFilterModel,
+} from '../filters/filterPredicate';
+import { UnsupportedQueryError } from '../filters/UnsupportedQueryError';
 import { beginFold, finishFold, foldValue } from './foldColumn';
 import { quickFilterColumnsOf } from './quickFilterColumns';
 import {
@@ -128,6 +132,15 @@ export class SsrmDataAdapter implements GridDataPort {
     query: DataQuery = {},
   ): Promise<ScanResult> {
     const plan = this.planFor(query);
+    // The residual is the half of the caller's model the RPC could not carry,
+    // so this side has to evaluate it — and therefore this side has to be able
+    // to refuse it. Raised once, before the first page: the verdict reads the
+    // request, never the rows. The worker refuses its own half the same way,
+    // and both arrive here as `complete: false` — the port's honest channel for
+    // "could not look", which is not the same answer as "found nothing".
+    if (plan.residual && !supported(plan.residual)) {
+      return { scanned: 0, stopped: false, complete: false };
+    }
     let scanned = 0;
     let fetched = 0;
 
@@ -187,6 +200,7 @@ export class SsrmDataAdapter implements GridDataPort {
   ): Promise<AggregateResult> {
     const plan = this.planFor(query);
     if (plan.residual) return this.aggregateByScan(colId, fn, query);
+    if (!supported(plan.request.filterModel)) return { value: null, complete: false };
     try {
       const summary = await this.source.getStatusBar({
         ...plan.request,
@@ -203,8 +217,9 @@ export class SsrmDataAdapter implements GridDataPort {
     const plan = this.planFor(query);
     if (plan.residual) {
       const scan = await this.scan(() => {}, query);
-      return { count: scan.scanned, complete: scan.complete };
+      return { count: scan.complete ? scan.scanned : 0, complete: scan.complete };
     }
+    if (!supported(plan.request.filterModel)) return { count: 0, complete: false };
     try {
       // A zero-row block: the plane filters the whole row store and answers
       // with `rowCount` alone.
@@ -409,4 +424,23 @@ interface SourceRequest {
 
 function nonEmpty(model: Record<string, unknown>): Record<string, unknown> | null {
   return Object.keys(model).length > 0 ? model : null;
+}
+
+/**
+ * Whether the shared predicate can evaluate this model at all.
+ *
+ * Asking here as well as at the worker is not a second check of the same
+ * thing: it saves a round trip whose only possible answer is the refusal this
+ * side already knows, and it keeps the two halves of a split query — the
+ * request and its residual — held to one standard.
+ */
+function supported(model: Record<string, unknown> | null): boolean {
+  if (!model) return true;
+  try {
+    assertFilterModelSupported(model);
+    return true;
+  } catch (err) {
+    if (err instanceof UnsupportedQueryError) return false;
+    throw err;
+  }
 }

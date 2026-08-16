@@ -1,6 +1,6 @@
 import { getPathAccessor } from "@wellsfargo-starui/types";
 import type { AggFunc, Row } from "./types.js";
-import { UnsupportedQueryError } from "./UnsupportedQueryError.js";
+import { UnsupportedQueryError } from "@wellsfargo-starui/core";
 
 export interface AggSpec {
   field: string;

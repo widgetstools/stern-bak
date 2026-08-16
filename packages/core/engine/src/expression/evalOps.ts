@@ -133,3 +133,38 @@ export function invokeFunction(
   }
   return fn.evaluate(args, ctx);
 }
+
+/**
+ * Build args and dispatch, memoizing whole-column folds.
+ *
+ * The one call path both the interpreter and the compiled closure take, so
+ * the aggregate memo cannot apply to one and not the other.
+ *
+ * A call is memoizable when the function folds column refs AND every argument
+ * IS a column ref: nothing in it can then depend on the row being evaluated,
+ * so its answer is the same for every row of this `allRows` generation. That
+ * is the whole saving — the fold itself, not just the column read.
+ */
+export function evaluateCall(
+  fn: FunctionDefinition,
+  name: string,
+  argNodes: readonly ExpressionNode[],
+  ctx: EvaluationContext,
+  evalArg: (node: ExpressionNode, index: number) => unknown,
+): unknown {
+  const memo = fn.aggregateColumnRefs && ctx.allRows ? ctx.allRowsAggregateCache : undefined;
+  if (!memo || argNodes.length === 0 || !argNodes.every((a) => a.type === 'columnRef')) {
+    return invokeFunction(fn, name, buildCallArgs(fn, argNodes, ctx, evalArg), ctx);
+  }
+  // NUL-separated: a column id is a user-facing field path and may contain a
+  // space, a dot or a comma, so any of those as a separator would let
+  // `SUM([a b], [c])` and `SUM([a], [b c])` collide on one key and answer
+  // each other's question. NUL can appear in neither half.
+  const key = `${name.toUpperCase()}\0${argNodes
+    .map((a) => (a as { columnId: string }).columnId)
+    .join('\0')}`;
+  if (memo.has(key)) return memo.get(key);
+  const value = invokeFunction(fn, name, buildCallArgs(fn, argNodes, ctx, evalArg), ctx);
+  memo.set(key, value);
+  return value;
+}

@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  doesRowMatchFilterModel,
-  doesValueMatchFilter,
   filterModelsEqual,
   formatFilterModel,
   generateLabel,
@@ -42,43 +40,11 @@ describe('formatFilterModel', () => {
   });
 });
 
-describe('doesValueMatchFilter', () => {
-  it('matches set, text, number, and multi-filter envelopes', () => {
-    expect(doesValueMatchFilter('BUY', { filterType: 'set', values: ['BUY'] })).toBe(true);
-    expect(doesValueMatchFilter('abc', { filterType: 'text', type: 'contains', filter: 'b' })).toBe(true);
-    expect(doesValueMatchFilter(12, { filterType: 'number', type: 'greaterThan', filter: 10 })).toBe(true);
-    expect(
-      doesValueMatchFilter('x', {
-        filterType: 'multi',
-        filterModels: [
-          null,
-          { filterType: 'text', type: 'equals', filter: 'x' },
-        ],
-      }),
-    ).toBe(true);
-  });
-
-  it('returns true for unknown filter types', () => {
-    expect(doesValueMatchFilter('x', { filterType: 'custom' })).toBe(true);
-  });
-});
-
-describe('doesRowMatchFilterModel', () => {
-  it('ANDs column filters and reads nested paths', () => {
-    const row = { quote: { bid: 10 }, side: 'BUY' };
-    expect(
-      doesRowMatchFilterModel(row, {
-        side: { filterType: 'set', values: ['BUY'] },
-        'quote.bid': { filterType: 'number', type: 'greaterThan', filter: 5 },
-      }),
-    ).toBe(true);
-    expect(
-      doesRowMatchFilterModel(row, {
-        'quote.bid': { filterType: 'number', type: 'greaterThan', filter: 99 },
-      }),
-    ).toBe(false);
-  });
-});
+// `doesValueMatchFilter` / `doesRowMatchFilterModel` moved out of this module
+// in Phase 2 of the SSRM parity roadmap — they are the shared predicate now,
+// and their suite moved with them to `filterPredicate.test.ts`. The two blocks
+// that used to sit here asserted a second reading of AG-Grid's semantics; a
+// second reading is the thing that phase deleted.
 
 describe('filterModelsEqual', () => {
   it('treats empty models as equal and ignores set value order', () => {
@@ -149,18 +115,6 @@ describe('isNewFilter and subtractFilterModel', () => {
     ).toEqual({
       price: { filterType: 'number', type: 'greaterThan', filter: 10 },
     });
-  });
-
-  it('matches text and number filter operator branches', () => {
-    expect(doesValueMatchFilter('abc', { filterType: 'text', type: 'notContains', filter: 'z' })).toBe(true);
-    expect(doesValueMatchFilter('abc', { filterType: 'text', type: 'notEqual', filter: 'xyz' })).toBe(true);
-    expect(doesValueMatchFilter('abc', { filterType: 'text', type: 'startsWith', filter: 'a' })).toBe(true);
-    expect(doesValueMatchFilter('abc', { filterType: 'text', type: 'endsWith', filter: 'c' })).toBe(true);
-    expect(doesValueMatchFilter('', { filterType: 'text', type: 'blank' })).toBe(true);
-    expect(doesValueMatchFilter('x', { filterType: 'text', type: 'notBlank' })).toBe(true);
-    expect(doesValueMatchFilter(5, { filterType: 'number', type: 'lessThanOrEqual', filter: 5 })).toBe(true);
-    expect(doesValueMatchFilter(5, { filterType: 'number', type: 'inRange', filter: 1, filterTo: 10 })).toBe(true);
-    expect(doesValueMatchFilter(null, { filterType: 'number', type: 'blank' })).toBe(true);
   });
 
   it('formatFilterModel handles blank ops, multi-filter slots, and unknown shapes', () => {
