@@ -6,6 +6,9 @@ export { EventBus } from './EventBus';
 export { topoSortModules } from './topoSort';
 export { ApiHub } from './ApiHub';
 export { RowChangeBus } from './RowChangeBus';
+export { GridDataHub } from './GridDataHub';
+export { CsrmDataAdapter } from './CsrmDataAdapter';
+export { SsrmDataAdapter } from './SsrmDataAdapter';
 export { ResourceScope } from './ResourceScope';
 export { CssInjector } from './CssInjector';
 export { DirtyBus } from './DirtyBus';
@@ -37,4 +40,25 @@ export type {
   SettingsPanelProps,
   Store,
   TransformContext,
+  // Data port
+  AggregateResult,
+  CapabilityVerdict,
+  CountResult,
+  DataAggFunc,
+  DataCapabilities,
+  DataQuery,
+  DataResult,
+  DataRow,
+  DataScope,
+  DistinctOptions,
+  DistinctResult,
+  GridDataPort,
+  MutationRejection,
+  MutationResult,
+  RowPatch,
+  RowsByIdResult,
+  RowsInRangeResult,
+  ScanResult,
+  SsrmDataBinding,
+  SsrmDataSource,
 } from './types';

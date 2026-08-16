@@ -44,6 +44,7 @@ import { resolveMarketsGridSurfaceKind } from './MarketsGridHost';
 import { resolveSsrmWithQuickFilter } from './resolveSsrmWithQuickFilter.js';
 import { SsrmFilterCountsProvider } from './SsrmFilterCountsContext.js';
 import { useSsrmExpressionBridge } from './useSsrmExpressionBridge.js';
+import { useSsrmDataBinding } from './useSsrmDataBinding';
 import type { MarketsGridSsrmProps } from './types';
 
 export { DEFAULT_MODULES } from './modules';
@@ -140,6 +141,10 @@ function useMarketsGridShell<TData>(
     [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef, ssrm],
   );
 
+  // `platform.data` reads and writes through the SharedWorker query plane
+  // whenever this grid is server-side.
+  const ssrmDataBinding = useSsrmDataBinding(ssrm);
+
   const { platform, columnDefs, gridOptions, onGridReady, onGridPreDestroyed } = useGridHost({
     gridId,
     rowIdField,
@@ -147,6 +152,7 @@ function useMarketsGridShell<TData>(
     baseColumnDefs: baseColumnDefs as never,
     appData: resolvedAppData,
     hostOverrideKeys,
+    ssrm: ssrmDataBinding,
   });
 
   const internalTheme = useGridTheme();

@@ -160,6 +160,293 @@ export interface RowChangeSignal {
   subscribe(fn: (change: RowChange) => void): () => void;
 }
 
+// ─── Grid data port ───────────────────────────────────────────────────────
+
+/**
+ * One row as the data port hands it out.
+ *
+ * `data` is the live row object — AG-Grid's `node.data` under the client-side
+ * row model, the worker's block row under the server-side one. Treat it as
+ * read-only and write through {@link GridDataPort.mutate}.
+ */
+export interface DataRow {
+  readonly id: string;
+  readonly data: Record<string, unknown>;
+}
+
+/**
+ * Which rows an operation addresses.
+ *
+ *  - `'all'` — every row in the dataset. The grid's applied filter model and
+ *    quick-filter text are ignored. Under the server-side row model this is
+ *    the whole worker row store, NOT the ~2,000-row block cache.
+ *  - `'filtered'` — only rows passing the filter model and quick-filter text
+ *    the grid has applied right now.
+ */
+export type DataScope = 'all' | 'filtered';
+
+/**
+ * What an operation runs over: a scope, plus an optional extra filter model
+ * ANDed on top of it.
+ *
+ * The shape is whatever a CLIENT-SIDE grid can express, because that is the
+ * reference behaviour — the server-side adapter rises to meet it, never the
+ * other way round. `{ scope: 'filtered', filterModel }` therefore means what
+ * it reads as: rows the user is looking at that ALSO match `filterModel`.
+ * Where the worker's RPCs cannot carry that (a filter model naming a column
+ * the grid is already filtering on cannot be merged — merging replaces the
+ * applied entry rather than intersecting it), the server-side adapter pages
+ * the rows and applies the remainder itself. Correct first, cheap second.
+ *
+ * Consumers in the parity roadmap: pill counts filter the whole dataset by a
+ * hypothetical model (`{ filterModel }`), distinct-value dropdowns and header
+ * indicators read what the user is looking at (`{ scope: 'filtered' }`).
+ */
+export interface DataQuery {
+  /** Defaults to `'all'`. */
+  readonly scope?: DataScope;
+  /** An AG-Grid filter model every row must additionally match. */
+  readonly filterModel?: Record<string, unknown> | null;
+}
+
+/** The aggregations both adapters implement. Deliberately the same five the
+ *  worker's `AggFunc` union carries — a sixth here would be a function one
+ *  side cannot compute. */
+export type DataAggFunc = 'sum' | 'min' | 'max' | 'avg' | 'count';
+
+/**
+ * Every read result carries `complete`. It answers "did this cover the scope
+ * it was asked for", which is NOT the same question as "how many rows came
+ * back" — an empty-but-complete answer means the dataset really is empty,
+ * while an empty-and-incomplete one means the port could not look (grid
+ * unmounted, source detached, limit hit). Silently conflating the two is the
+ * class of defect this port exists to remove.
+ */
+export interface DataResult {
+  readonly complete: boolean;
+}
+
+export interface ScanResult extends DataResult {
+  /** How many rows the visitor saw. */
+  readonly scanned: number;
+  /** The visitor returned `false` and the scan ended early, by request. */
+  readonly stopped: boolean;
+}
+
+export interface DistinctResult extends DataResult {
+  /**
+   * Distinct values in SOURCE ORDER — the port takes no view on ordering, so
+   * sort at the call site when order matters. (The two sources sort
+   * differently: AG-Grid yields row order, the worker yields
+   * `localeCompare`d strings. Normalising here would mean a comparator that
+   * duplicates the one `resolveColumnDistinctValues` already owns.)
+   */
+  readonly values: readonly unknown[];
+  /**
+   * The source could only supply STRING projections of the column's values.
+   * True for the server-side adapter: its `getSetFilterValues` RPC returns
+   * `string[]` and collapses null/undefined to `''`. Consumers that write a
+   * chosen value back into a typed field must coerce.
+   */
+  readonly stringProjected: boolean;
+}
+
+export interface AggregateResult extends DataResult {
+  /** `null` when no row contributed a numeric value — a blank, not a zero.
+   *  `count` legitimately reaches 0 and `sum` keeps its additive identity. */
+  readonly value: number | null;
+}
+
+export interface CountResult extends DataResult {
+  readonly count: number;
+}
+
+export interface RowsByIdResult {
+  readonly rows: readonly DataRow[];
+  /** Ids the port could not resolve. Under the server-side row model these
+   *  are rows outside the loaded block window — see
+   *  {@link DataCapabilities.canAddressUnloadedRows}. */
+  readonly missing: readonly string[];
+}
+
+export interface RowsInRangeResult {
+  readonly rows: readonly DataRow[];
+  /** Displayed indices that resolved to a loading stub or to nothing. */
+  readonly missingIndices: readonly number[];
+}
+
+/** One row's worth of intent. The adapter — not the caller — decides how to
+ *  turn it into a transaction, because that is the row-model-specific part. */
+export interface RowPatch {
+  readonly rowId: string;
+  /** Field name → new value. Fields absent here keep their current value. */
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+
+export interface MutationRejection {
+  readonly rowId: string;
+  /** User-facing copy naming why the row did not change. */
+  readonly reason: string;
+}
+
+export interface MutationResult {
+  /** Row ids the grid confirmed. An edit journal may record ONLY these. */
+  readonly applied: readonly string[];
+  readonly rejected: readonly MutationRejection[];
+  /** `rejected.length === 0`. */
+  readonly ok: boolean;
+}
+
+/**
+ * One capability answer. Carries its own user-facing reason so a disabled
+ * control and its tooltip come from the same place — a `false` with no
+ * explanation is the silent no-op this roadmap exists to remove.
+ */
+export interface CapabilityVerdict {
+  readonly supported: boolean;
+  /** Empty when `supported`. Otherwise names the limit AND what the user can
+   *  do instead — it is rendered verbatim. */
+  readonly reason: string;
+}
+
+/**
+ * What this grid can do RIGHT NOW. A value, not a method: modules read it
+ * during render to decide whether a control is usable, and never branch on
+ * which row model produced it.
+ *
+ * Each key is here because a phase of the parity roadmap needs it. Nothing
+ * is added speculatively — a capability that is always `true` on both
+ * adapters is dead weight, and a per-call `complete` flag beats a static one.
+ */
+export interface DataCapabilities {
+  /** Reads addressed by row id or by displayed index resolve for ANY row in
+   *  the dataset, not only the ones currently materialised. */
+  readonly canAddressUnloadedRows: CapabilityVerdict;
+  /** AG-Grid's own Excel/CSV export covers the full dataset. It does not go
+   *  through this port — the verdict exists so the control can warn. */
+  readonly exportCoversFullDataset: CapabilityVerdict;
+  /** A JavaScript closure — a custom `comparator`, a compiled `aggFunc` —
+   *  reaches the code that orders or aggregates rows. False when that code
+   *  lives on the far side of `postMessage`. */
+  readonly supportsCustomComparator: CapabilityVerdict;
+  /** `scan` / `count` honour an AG-Grid `AdvancedFilterModel`. */
+  readonly supportsAdvancedFilter: CapabilityVerdict;
+  /** A confirmed `mutate` reaches the system of record, not just this grid's
+   *  view of it. */
+  readonly mutationsReachSource: CapabilityVerdict;
+}
+
+export interface DistinctOptions {
+  readonly query?: DataQuery;
+  /** Stop after this many distinct values. `complete: false` reports the
+   *  truncation; WHICH values survive is source-dependent. */
+  readonly limit?: number;
+}
+
+/**
+ * The one way a module reads or writes rows.
+ *
+ * Modules stop calling `forEachNode` / `getDisplayedRowAtIndex` /
+ * `applyTransactionAsync` — those are ClientSideRowModel APIs that degrade to
+ * a block-cache window (or to nothing) under the server-side row model, which
+ * is how a customizer ends up confidently reporting a wrong total or
+ * accepting an edit that never lands. Two adapters implement this port, one
+ * per row model, and they are held to one shared contract suite
+ * (`portContract.test.ts`) so they cannot drift apart the way the three
+ * hand-written filter predicates in this repo did.
+ *
+ * This is the same move `rows: RowChangeSignal` already made for change
+ * notification, extended to read and write. **No module may branch on the row
+ * model** — where a capability genuinely cannot exist, {@link capabilities}
+ * says so with a reason the UI renders, never a silent no-op.
+ *
+ * Every method is async: the server-side adapter crosses a worker boundary
+ * and the signature must not pretend otherwise.
+ *
+ * COST — `scan` walks the scope. Under the server-side row model that pages
+ * the whole dataset across `postMessage`. Prefer `aggregate`, `count` and
+ * `distinct`, which the worker answers in ONE round trip.
+ */
+export interface GridDataPort {
+  readonly capabilities: DataCapabilities;
+
+  /** Visit every row in `query`. Return `false` from `visit` to stop early —
+   *  an early stop is a success (`stopped: true`), not an incomplete scan. */
+  scan(visit: (row: DataRow) => boolean | void, query?: DataQuery): Promise<ScanResult>;
+
+  /** Distinct values held in one column. */
+  distinct(colId: string, options?: DistinctOptions): Promise<DistinctResult>;
+
+  /** Fold one column to a single number. */
+  aggregate(colId: string, fn: DataAggFunc, query?: DataQuery): Promise<AggregateResult>;
+
+  /** How many rows `query` matches. */
+  count(query?: DataQuery): Promise<CountResult>;
+
+  /** Rows by id. Batched — one round trip, however many ids. */
+  getRowsById(ids: readonly string[]): Promise<RowsByIdResult>;
+
+  /** Rows by displayed index, both bounds inclusive. */
+  getRowsInRange(startIndex: number, endIndex: number): Promise<RowsInRangeResult>;
+
+  /** Apply row patches. The result names exactly what landed and what did
+   *  not — callers record or roll back from it, never from the call itself
+   *  having returned. */
+  mutate(patches: readonly RowPatch[]): Promise<MutationResult>;
+}
+
+// ─── Server-side data source (structural) ─────────────────────────────────
+
+/**
+ * The worker RPCs {@link GridDataPort}'s server-side adapter calls.
+ *
+ * Declared structurally HERE, in core, for the same reason
+ * {@link AppDataLookup} is: `@wellsfargo-starui/data` depends on
+ * `@wellsfargo-starui/core`, so core cannot import it back. The real
+ * `ISsrmDataProvider` satisfies this shape; the grid layer passes one in.
+ *
+ * It lists only what the adapter uses today. Adding an RPC is later-phase
+ * work — where the port has no RPC to stand on, the adapter reports the gap
+ * through `capabilities` instead of faking an answer.
+ */
+export interface SsrmDataSource {
+  getRows(req: {
+    startRow?: number;
+    endRow?: number;
+    filterModel?: Record<string, unknown> | null;
+    quickFilterText?: string | null;
+    sortModel?: Array<{ colId: string; sort: 'asc' | 'desc' }>;
+  }): Promise<{ rowData: Record<string, unknown>[]; rowCount: number }>;
+
+  getSetFilterValues(req: {
+    column: string;
+    filterModel?: Record<string, unknown> | null;
+    quickFilterText?: string | null;
+  }): Promise<string[]>;
+
+  getStatusBar(req?: {
+    filterModel?: Record<string, unknown> | null;
+    quickFilterText?: string | null;
+    valueCols?: Array<{ field: string; aggFunc?: string | null }>;
+  }): Promise<{
+    totalRows: number;
+    filteredRows: number;
+    aggregations: Array<{ field: string; value: number }>;
+  }>;
+}
+
+/** How a grid tells the platform it is running server-side. */
+export interface SsrmDataBinding {
+  readonly source: SsrmDataSource;
+  /** Field carrying each row's key. Defaults to `'id'` — the same default
+   *  every other keyColumn in this repo takes. */
+  readonly keyColumn?: string;
+  /** Live quick-filter text. AG-Grid does not send `quickFilterText` for the
+   *  server-side row model, so the surface supplies it. Falls back to the
+   *  grid option when omitted. */
+  readonly getQuickFilterText?: () => string;
+}
+
 // ─── Resource scope ───────────────────────────────────────────────────────
 
 export interface CssHandle {
@@ -268,6 +555,10 @@ export interface PlatformHandle<S> {
   /** Shared, rAF-coalesced row-change signal. Subscribe here instead of
    *  wiring a private `modelUpdated` listener that walks every row per tick. */
   readonly rows: RowChangeSignal;
+  /** Read + write rows. Call this instead of reaching for `forEachNode` /
+   *  `applyTransactionAsync` — those answer for the client-side row model
+   *  only, and a module must never branch on which one is running. */
+  readonly data: GridDataPort;
   /** Read + write THIS module's state. */
   getState(): S;
   setState(updater: (prev: S) => S): void;

@@ -376,6 +376,7 @@ Per-renderer config types (`PillRendererConfig`,
 - The customizer's Grid Options → STATUS BAR card fully applies to SSRM grids: `mapNativeStatusBarToSsrm()` maps the card's native panel selection onto the worker-backed SSRM panels (the three count components are replaced — same markup/labels, whole-cache numbers — while selected count, aggregation, and custom panels pass through with their align/order), SHOW STATUS BAR toggles work live in BOTH directions without a grid remount — the surface always gives AG Grid a status-bar container (empty panel list when off, since AG Grid only creates the container at init and keeps it when cleared at runtime) and drives the strip's visibility explicitly, so off truly hides the strip and re-enabling on a grid that booted with the bar off still works, and live card edits re-apply via the surface's own `setGridOption('statusBar', …)` push — a value is recorded as applied only when it actually reached a live grid api, with a catch-up push at gridReady, so selections that land while the grid is still initialising (profile hydration routinely beats grid init) are never silently dropped. `statusBar` joins `hostOverrideKeys` for every SSRM grid so `useGridHost`'s generic option sync can never overwrite the worker-backed panels with native ones; a `statusBar` passed as a host prop keeps its historical prepend-onto-the-pack behaviour
 - `toSsrmExpressionRules()` — maps customizer calculated-column / conditional-style / alert expressions to worker rule payloads
 - `useSsrmExpressionBridge()` — pushes those rules to the worker plane. Two lifecycle guarantees: it **never announces an empty rule set it has not first populated** (the plane is keyed per `providerId`, so a second grid mounting with no rules would otherwise wipe the first grid's calculated columns, styling and alerts), and it **re-pushes on provider recovery** — a restart disposes the plane and its rules while nothing in the hook's deps changes, so it subscribes to `onStatus` and re-sends on `loading`/`error` → `ready`
+- `useSsrmDataBinding()` / `useSsrmDataBindingSync()` — hand the grid's `ISsrmDataProvider` to `platform.data` (engine `SsrmDataBinding`) so every module reads and writes through the worker query plane. The binding is what moves, not the platform: it re-points on a provider swap and unbinds when the grid falls back to the client-side row model, without a platform rebuild
 - `ssrmGetChildCount`, `ssrmCellStyle`, `ssrmAlertRowClass`, `ssrmEditable` — grid-option bindings backed by worker-evaluated expressions
 - Quick filter routes into SSRM query state rather than AG Grid's client-side filter; the toolbar push triggers `refreshServerSide({ purge: true })`
 - **Set-filter panels list the column's whole domain** — `withSsrmSetFilterValues` (applied by `MarketsGridSsrmSurface` to every filterable leaf column, header groups included) wires async `filterParams.values` to `provider.getSetFilterValues({ column })`, so the panel shows all distinct values in the worker cache rather than the loaded blocks; `refreshValuesOnOpen` re-fetches per open, and a failed worker call reports `[]` instead of breaking the panel
@@ -887,7 +888,36 @@ modules).
 
 - `GridPlatform` — per-grid singleton (store, api, events, rows, resources, pipeline)
 - `defineModule()` — module-authoring helper: defaults `schemaVersion` (1), `priority` (100), `getInitialState` (clone of `initialState`), `serialize` (identity), `deserialize` **and** `migrate` (spread-over-initial — additive, never drops persisted state on a version bump); every default overridable. With `Module.category` (settings-nav group, replaces the deleted display-only `code` field), a minimal toggle module is `defineModule({ id, name, category, initialState, SettingsPanel })`
-- `GridPlatformOptions` — `gridId, modules, rowIdField, appData`
+- `GridPlatformOptions` — `gridId, modules, rowIdField, appData, ssrm`
+- `platform.data` (`GridDataPort`) — the one row read/write surface modules
+  use instead of `forEachNode` / `getDisplayedRowAtIndex` /
+  `applyTransactionAsync`. `scan`, `distinct`, `aggregate`, `count`,
+  `getRowsById`, `getRowsInRange`, `mutate` — all async, all scoped by
+  `DataQuery` (`'all'` = the whole dataset, `'filtered'` = what the grid is
+  showing, plus an optional `filterModel` ANDed on top of either). Every read
+  result carries `complete`, which separates "the answer is empty" from "the
+  port could not look"; `mutate` returns `applied` / `rejected` row ids so a
+  caller records only what landed. `capabilities` is a live value of
+  `CapabilityVerdict`s (`canAddressUnloadedRows`, `exportCoversFullDataset`,
+  `supportsCustomComparator`, `supportsAdvancedFilter`,
+  `mutationsReachSource`), each carrying user-facing copy for a control that
+  has to disable itself
+- `CsrmDataAdapter` / `SsrmDataAdapter` — the two implementations, over
+  AG-Grid's client-side row model and over the SharedWorker query plane's
+  existing `getRows` / `getSetFilterValues` / `getStatusBar` RPCs
+  respectively. CSRM behaviour is the reference and the port's shape follows
+  it: where an RPC cannot carry a query (a filter model naming an
+  already-filtered column, distinct values over a column whose own filter
+  `getSetFilterValues` strips), `SsrmDataAdapter` pages `getRows` and applies
+  the residual predicate itself rather than the port narrowing to what the
+  worker can do. Held to one shared suite (`platform/portContract.test.ts`)
+  that runs every case against both. No module branches on the row model
+- `foldColumn.ts` — the shared numeric fold behind `aggregate`, mirroring the
+  worker's `ssrm/aggregations.ts` (core cannot import `data`, which depends on
+  core); the contract suite asserts the two agree
+- `GridDataHub` — the stable `platform.data` reference; `bindSsrm` /
+  `unbindSsrm` re-point it when a provider binds, swaps or fails, without
+  rebuilding the platform
 - Internal machinery reachable through a `GridPlatform` instance (no longer
   exported from the barrel — the Phase-6 curation removed every root-barrel
   name with zero importers outside the engine): `EventBus` (`platform.events`,

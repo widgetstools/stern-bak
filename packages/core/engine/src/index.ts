@@ -40,6 +40,27 @@ export type {
   SettingsPanelProps,
   Store,
   TransformContext,
+  // Data port — `platform.data`, one surface over both row models.
+  AggregateResult,
+  CapabilityVerdict,
+  CountResult,
+  DataAggFunc,
+  DataCapabilities,
+  DataQuery,
+  DataResult,
+  DataRow,
+  DataScope,
+  DistinctOptions,
+  DistinctResult,
+  GridDataPort,
+  MutationRejection,
+  MutationResult,
+  RowPatch,
+  RowsByIdResult,
+  RowsInRangeResult,
+  ScanResult,
+  SsrmDataBinding,
+  SsrmDataSource,
 } from './platform';
 
 // ─── Store + auto-save ──────────────────────────────────────────────────────

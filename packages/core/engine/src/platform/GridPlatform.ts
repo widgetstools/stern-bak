@@ -3,6 +3,7 @@ import { composeRowId } from '@wellsfargo-starui/types';
 import { createGridStore } from '../store/createGridStore';
 import { ApiHub } from './ApiHub';
 import { EventBus } from './EventBus';
+import { GridDataHub } from './GridDataHub';
 import { PipelineRunner } from './PipelineRunner';
 import { ResourceScope } from './ResourceScope';
 import { RowChangeBus } from './RowChangeBus';
@@ -14,6 +15,7 @@ import type {
   PlatformEventMap,
   PlatformHandle,
   SerializedState,
+  SsrmDataBinding,
   Store,
   TransformContext,
 } from './types';
@@ -37,6 +39,16 @@ export interface GridPlatformOptions {
    * empty value lists — features tied to AppData simply don't render.
    */
   appData?: AppDataLookup;
+  /**
+   * Server-side data plane. When set, `platform.data` reads and writes
+   * through the SharedWorker query plane instead of AG-Grid's client-side row
+   * model. Omit for a client-side grid.
+   *
+   * Also bindable after construction — `platform.data.bindSsrm(...)` — because
+   * the platform is built before the grid mounts and outlives a provider
+   * swap.
+   */
+  ssrm?: SsrmDataBinding;
 }
 
 /**
@@ -57,6 +69,7 @@ export class GridPlatform {
   readonly resources: ResourceScope;
   readonly events: EventBus<PlatformEventMap>;
   readonly rows: RowChangeBus;
+  readonly data: GridDataHub;
 
   private readonly pipeline: PipelineRunner;
   private readonly modules: AnyModule[];
@@ -79,6 +92,8 @@ export class GridPlatform {
     this.events = new EventBus<PlatformEventMap>();
     this.api = new ApiHub();
     this.rows = new RowChangeBus(this.api);
+    this.data = new GridDataHub(this.api);
+    if (opts.ssrm) this.data.bindSsrm(opts.ssrm);
     this.resources = new ResourceScope(opts.gridId, { appData: opts.appData });
     this.pipeline = new PipelineRunner();
 
@@ -185,6 +200,7 @@ export class GridPlatform {
       resources: this.resources,
       events: this.events,
       rows: this.rows,
+      data: this.data,
       getState: () => this.store.getModuleState<S>(module.id),
       setState: (updater) => this.store.setModuleState<S>(module.id, updater),
       getModuleState: <T,>(id: string) => this.store.getModuleState<T>(id),

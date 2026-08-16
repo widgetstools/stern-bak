@@ -1,7 +1,7 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** TBD (off `feature/simplify`). **Status: NOT STARTED (0 / 11
-phases).** Phases are written to be picked up cold, one per session.
+**Branch:** `feature/simplify`. **Status: 1 / 11 phases done (Phase 0).**
+Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
 *chrome* and not in *behaviour*. Only five `ssrm` guards exist in the whole
@@ -120,7 +120,7 @@ that overlap. Then re-verify the phase's cited file:line before editing.
 
 ---
 
-## Phase 0 — the data port ⬜
+## Phase 0 — the data port ✅
 
 **Goal:** `platform.data` exists, both adapters pass one shared contract suite,
 and no module has changed. Pure addition; behaviour identical before and after.
@@ -168,6 +168,79 @@ and no module has changed. Pure addition; behaviour identical before and after.
   against all six.
 
 **Closes:** none (enabler for 21 findings).
+
+### What landed
+
+`packages/core/engine/src/platform/` — `types.ts` (port + capability + IO
+types), `CsrmDataAdapter.ts`, `SsrmDataAdapter.ts`, `GridDataHub.ts`,
+`gridApiRows.ts`, `portContract.test.ts` (76 cases, every one run against both
+adapters), `GridDataHub.test.ts`. Grid side:
+`widget/useSsrmDataBinding.ts` + test, two one-line call sites in
+`useGridHost.ts` and `MarketsGrid.tsx`. Zero changes under
+`customizer/modules/**`. `npx turbo typecheck build test` green
+(`TURBO_EXIT=0`).
+
+Four decisions the later phases inherit:
+
+1. **`DataQuery`'s shape is whatever a CSRM grid can express.** A scope plus
+   an extra `filterModel` ANDed on top, in either scope, with no restriction
+   on which columns the extra model may name — because that is what
+   `forEachNodeAfterFilter` + a per-row predicate does, and CSRM is the
+   reference. The port was briefly drafted as a union forbidding
+   `{ scope: 'filtered', filterModel }` because the worker's RPCs cannot carry
+   it (filter models merge by column id, so an overlapping entry REPLACES the
+   applied one instead of intersecting it). That was shaping the port to the
+   weaker side and was reverted. `SsrmDataAdapter.planFor` now splits a query
+   into the request the worker can honour and a **residual** predicate it
+   applies per row while paging — the same fallback `distinct` already used.
+   One-round-trip stays the path for every query without an overlap.
+2. **`complete` per call, not a `scanCoversFullDataset` capability.** It
+   separates "the answer is empty" from "the port could not look" (grid
+   unmounted, source detached, limit hit), which a static flag cannot. The
+   capability set is 5 keys, each traceable to a phase; nothing speculative.
+3. **`capabilities` values are `CapabilityVerdict`s, not booleans** — each
+   carries the user-facing reason Phase 6 renders. A `false` with no copy is
+   just a politer silent no-op.
+4. **`mutate` takes patches, not assembled rows,** and settles on AG Grid's
+   flush callback. The adapter owns row assembly because that is the
+   row-model-specific part; `applied` / `rejected` is what Phase 4's journal
+   records from.
+
+### Divergences the contract suite now pins (not closed here)
+
+Each has a `divergence:` case in `portContract.test.ts` naming its phase, so
+it fails loudly the day it changes rather than drifting again:
+
+- **`distinct` is string-projected server-side.** `getSetFilterValues` returns
+  `string[]` and collapses null to `''`. `DistinctResult.stringProjected`
+  reports it; Phase 6 coerces when writing a chosen value into a typed field.
+- **An empty fold is `null` client-side, `0` server-side.**
+  `computeStatusBar` ends with `Number(aggRow[field] ?? 0)`, undoing the
+  worker's own deliberate `null` ("a 0 price reads as data"). Belongs to
+  Phase 1, which owns `ssrm/aggregations.ts`.
+- **`getSetFilterValues` deletes the requested column's own filter entry** —
+  correct for a set-filter panel, wrong for "values among the displayed
+  rows". The SSRM adapter detects the overlap and falls back to a paged
+  `getRows` scan. Both RPCs already existed; nothing was invented. Phase 6
+  may want a scoped RPC to make the cheap path always available.
+
+### One mirrored implementation, deliberately
+
+`foldColumn.ts` mirrors `ssrm/aggregations.ts`. Core cannot import
+`@wellsfargo-starui/data` (data depends on core), and AG Grid has no "fold
+this column over every row" API, so a client-side fold is unavoidable. Both
+adapters share the one copy — CSRM always, SSRM on the residual path. The
+contract suite is what keeps the mirror honest: it asserts both adapters
+return the same number for the same dataset.
+
+### Direction of parity, restated
+
+CSRM behaviour is the reference at every level, including the port's own
+shape. Where the two adapters differ today, CSRM holds the better answer and
+SSRM is the one that has to rise: `aggregate` returns `null` for an empty fold
+client-side and `0` server-side (Phase 1); `distinct` returns typed values
+client-side and string projections server-side (Phase 6). Nothing was levelled
+down to make the suite green.
 
 ---
 

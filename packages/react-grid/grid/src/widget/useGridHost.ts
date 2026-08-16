@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GridOptions, GridReadyEvent } from 'ag-grid-community';
-import { GridPlatform, type AnyColDef, type AnyModule, type AppDataLookup } from '@wellsfargo-starui/core';
+import {
+  GridPlatform,
+  type AnyColDef,
+  type AnyModule,
+  type AppDataLookup,
+  type SsrmDataBinding,
+} from '@wellsfargo-starui/core';
 import { shouldSkipGridOptionSync } from './gridSurfaceOptions';
+import { useSsrmDataBindingSync } from './useSsrmDataBinding';
 import { functionOptionValuesEqual, gridOptionValuesEqual } from './gridOptionCompare';
 
 /**
@@ -90,6 +97,7 @@ export function useGridHost(opts: {
   rowIdField?: string | readonly string[];
   appData?: AppDataLookup;
   hostOverrideKeys?: ReadonlySet<string>;
+  ssrm?: SsrmDataBinding;
 }) {
   const platformRef = useRef<GridPlatform | null>(null);
   if (!platformRef.current) {
@@ -98,10 +106,12 @@ export function useGridHost(opts: {
       modules: opts.modules,
       rowIdField: opts.rowIdField,
       appData: opts.appData,
+      ssrm: opts.ssrm,
     });
   }
   const platform = platformRef.current;
   const hostOverrideKeys = opts.hostOverrideKeys ?? new Set<string>();
+  useSsrmDataBindingSync(platform, opts.ssrm);
 
   // A single "state changed" tick drives pipeline re-runs. Coalesce bursts
   // (profile deserialize touches every module) into one rAF tick per frame.
