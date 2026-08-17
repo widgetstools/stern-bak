@@ -794,14 +794,33 @@ plus `useCapability` / `useCapabilityGate` put the capability copy on screen:
 the bulk-update distinct dropdown reads through `platform.data.distinct()`,
 Excel export confirms its scope, header paint and row exclusion disable with a
 stated reason, and the custom aggregation expression closes Phase 1's
-hand-off)*. **15 are container wiring gaps.**
+hand-off)*. **15 are container wiring gaps** *(closed by Phases 7–10: the SSRM
+container now `extends Omit<MarketsGridProps, …>` and spreads the rest, so
+`StarGrid.advanced` reaches it; caption, grid events, `appData`, `adminActions`,
+`onError` and Config Browser routing all match CSRM; the loading overlay,
+provider-failure shell and historical-date round trip landed in Phase 8; and a
+provider's declared `columnDefinitions` reach the grid intact in Phase 9)*.
 
-**Done looks like:** modules reach rows only through a `platform.data` port
-with CSRM and SSRM adapters behind one contract suite; no module branches on
-the row model (enforced by an ESLint rule in Phase 10); every control that
-cannot work in the current row model is disabled with a stated reason rather
-than silently no-oping. `docs/current-features.md` §366–390 currently
-overstates SSRM parity and is corrected per-phase.
+**Status: 11 / 11 phases complete (2026-08-17).** `npm run lint:all` now fails
+on a customizer module that touches the row model directly —
+`no-restricted-properties` over both halves of `customizer/modules/**`, with
+ten annotated exemptions each naming why it is about the grid's DISPLAY rather
+than the dataset. `docs/current-features.md` §366–390 was corrected phase by
+phase.
+
+**Four findings remain open and need their own sessions**, each recorded in
+the roadmap with its scope:
+- **T1-4** (filter / sort / group on calculated columns), **T2-4's real fix**
+  (row exclusion at the source) and **an SSRM edit surviving a block refetch**
+  all want ONE thing — a per-session predicate `QueryEngine` applies before it
+  pages. `QueryEngine.ts` is at 777 / 800, so that session starts with a split.
+- **T2-6** (the alerts bell undercounts) needs a new worker→client notify
+  channel carrying hits rather than rows, addressed by `sessionId`, across
+  three packages plus a new protocol message.
+- **Post-write edit rejection** has no surface: `sonner` is packaged and no
+  `<Toaster />` is mounted anywhere in `packages/`.
+- **Two windows on one historical provider** still fight for its single
+  snapshot — architectural, equally true of CSRM.
 
 ---
 

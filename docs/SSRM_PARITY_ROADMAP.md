@@ -1,6 +1,9 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 10 / 11 phases done (Phases 0–9).**
+**Branch:** `feature/simplify`. **Status: 11 / 11 phases done. The roadmap is complete.**
+
+Four findings remain open and are recorded as needing their own sessions — see
+[Finding index](#finding-index) and the "Still open" section under Phase 10.
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -1919,7 +1922,7 @@ Four decisions the last phase inherits:
 
 ---
 
-## Phase 10 — hygiene, guardrails, and the reverse gap ⬜
+## Phase 10 — hygiene, guardrails, and the reverse gap ✅
 
 **Goal:** the remaining small defects close, and the architecture becomes
 self-enforcing so this class of drift cannot silently return.
@@ -1975,6 +1978,138 @@ self-enforcing so this class of drift cannot silently return.
 **Closes:** T2-5, T3-14, T3-15, the CSRM status-bar reverse gap, and the
 `groupHideColumnsUntilExpanded` bonus.
 
+### What landed
+
+**The ESLint rule.** `eslint.config.mjs` gains an `error`-level
+`no-restricted-properties` over `CUSTOMIZER_MODULE_GLOBS` — **both** halves of
+every module, per Phase 3's note — banning `forEachNode`,
+`forEachNodeAfterFilter`, `applyTransactionAsync`, `getDisplayedRowAtIndex` and
+`getDisplayedRowCount`, each with a message naming its `platform.data`
+replacement. Ten existing call sites carry an annotated
+`// eslint-disable-next-line no-restricted-properties` with a reason; a new
+unannotated one fails, verified by dropping a probe file into each module glob
+(errors) and into `grid/src/widget/` (silent).
+
+Other work: `core/engine/src/platform/applyQuickFilterText.ts` + test (T2-5,
+four call sites); `grid/src/widget/useStatusBarStrip.ts` + test (the reverse
+gap, both surfaces); `MarketsGridSurface.tsx` and `MarketsGridSsrmSurface.tsx`
+rewired onto it; `MarketsGrid.tsx` (surface key T3-14, and `statusBar` joins
+`hostOverrideKeys` for every grid); `marketsGrid-core.css` (`.alert-row`);
+`SsrmMarketsGridContainer.tsx` (shadcn `Button`, design-system border tokens,
+locale); `createSsrmStatusBar.tsx` (locale); `general-settings/index.ts` +
+`gridOptionsSchema.tsx` (the `groupHideColumnsUntilExpanded` bonus).
+
+`npx turbo typecheck build`: exit 0. Tests per package, serially: types 171,
+design-system 355, data 703, core **1300**, openfin 483, react 523, grid **329
+files / 2578 passing + 1 skipped** — **6113 passing / 1 skipped** in total,
+from 6102. (The first serialised run lost one react-grid worker to the
+documented `Worker exited unexpectedly` pool failure; every test that ran
+passed, and a re-run at load ~9 was clean.) **ESLint repo-wide: 0 errors, 363
+warnings — byte-identical to the pre-phase set**, with the new error-level rule
+active and every exemption annotated. `node scripts/check-package-cycles.mjs`:
+the same single pre-existing cycle (WORKLOG 18). E2E **8 / 8** with :8081 up.
+
+Five decisions, and two things the roadmap asked for that turned out to be
+already true:
+
+1. **`no-restricted-properties`, not `no-restricted-syntax`, and the reason is
+   a trap this config file already documents for a different rule.** The core
+   rules REPLACE rather than merge across config objects, and the
+   native-element block owns `no-restricted-syntax` for every `.tsx` under
+   `packages/react-grid/**` — which includes module panels. A second
+   `no-restricted-syntax` entry scoped to the module globs would have silently
+   switched the native `<input>` / `<select>` / `<textarea>` checks OFF for
+   exactly those files. `no-restricted-properties` is also the better fit: it
+   restricts the property wherever it is accessed, so `api.forEachNode`,
+   `params.api.forEachNode` and a destructured `{ forEachNode }` all report.
+2. **Nothing was migrated to the port, and that is the point.** All ten sites
+   are exempt with a reason, and each reason is the same shape: the call is
+   about the grid's DISPLAY, not the dataset. The viewport-anchor retry asks
+   "has the row model grown far enough to scroll there yet", which under SSRM
+   must stay false until blocks load — that is what makes the ladder retry.
+   Smart edit's and bulk update's collectors address the cells the USER dragged
+   over, by display index. Alerts and timed activations compare against
+   baselines this session observed, so a row nobody has seen has nothing to
+   compare to. Header paint is already gated on `canAddressUnloadedRows`, so it
+   only runs where the two answers coincide. Phase 3's note predicted exactly
+   this and warned that a rule without an exemption path would force changes
+   that are strictly worse; it would have.
+3. **The rule's value is prospective, and the exemptions are the
+   documentation.** It catches nothing today by construction. What it does is
+   stop the next module from reaching for `forEachNode` without arguing for it
+   in a comment — and `reportUnusedDisableDirectives` (already on) means an
+   exemption that stops being needed gets flagged rather than rotting.
+4. **The reverse gap is one shared hook, and the CSRM half needed a change of
+   ownership, not a patch.** `useGridHost`'s sync iterates
+   `Object.entries(gridOptions)`, so a key that DISAPPEARS is never visited —
+   and `statusBar` disappears when SHOW STATUS BAR is toggled off. Pushing
+   `undefined` would not have helped either: AG Grid creates the status-bar
+   container only when the option is set at INIT and keeps it when cleared at
+   runtime. So the fix is the one SSRM already had — always hand the grid a
+   container, own the strip's visibility — extracted to `useStatusBarStrip` and
+   given to both surfaces, with `statusBar` joining `hostOverrideKeys`
+   unconditionally so the generic sync cannot fight it. This is the one place
+   the roadmap sanctioned changing CSRM behaviour, and it is why the direction
+   is called a REVERSE gap.
+5. **`groupHideColumnsUntilExpanded` was two defects, not one.** The stale
+   comment was right that it should not have been emitted under AG-Grid 35.1
+   and wrong for the current tree: 36.1 declares it and reads it as
+   `_isGroupMultiAutoColumn(gos) && gos.get(…) && _isClientSideRowModel(gos)`.
+   So emitting it fixes the client-side grid — and makes it a *silent no-op*
+   under the server-side one, which is a Tier-2 defect the same change had to
+   close. It now carries Phase 6's `capability` container in the opposite
+   direction (`expect: true`), which is what finally makes the panel's own
+   "CSRM only" label load-bearing.
+
+### Two bullets that were already satisfied
+
+- **"Contract suite as a CI gate, not an optional run."** `portContract.test.ts`
+  is a plain vitest file under `engine/src/platform/` with no exclusion
+  anywhere, so it has always run under `npm test` / `turbo test` — the gate the
+  bullet asks for. Nothing was added; inventing a second harness for it would
+  have been the parallel implementation constraint 2 forbids.
+- **`docs/current-features.md` §366–390.** The correction was done phase by
+  phase from Phase 7 onward, as the working method requires, so there was no
+  block of overstatement left to fix here.
+
+### Still open — four items, each needing its own session
+
+None of these are Phase 10's to close, and all four are recorded so the next
+session starts from a scope rather than a rediscovery.
+
+1. **T1-4, T2-4's real fix, and an SSRM edit surviving a block refetch collapse
+   onto ONE thing**: a per-session predicate `QueryEngine` applies before it
+   pages. Filtering / sorting / grouping on a calculated column, excluding rows
+   at the source so counts and paging agree, and an edit overlay the plane's
+   own filter and sort consult are the same machinery seen from three angles.
+   `QueryEngine.ts` is at **777 / 800**, so that session opens with a split.
+2. **T2-6 — the alerts bell undercounts.** Needs a new worker→client message
+   kind carrying HITS (row key + rule id) rather than rows, evaluated per
+   session in the plane and addressed by `sessionId`, plus a dedupe against
+   `__ssrmAlert` on rows the client already holds. Three packages and a
+   protocol message; scoped in full in Phase 5's "Not closed here".
+3. **Post-write edit rejection has no surface.** `EditApplyResult.rejected`
+   reaches every call site and bulk update renders the one refusal it can see
+   before the write, but a refusal that happens AFTER the fact has nowhere to
+   go: `sonner` is packaged in `@wellsfargo-starui/react` and **no `<Toaster />`
+   is mounted anywhere in `packages/`**. Mounting one means deciding its portal
+   container, its theming and its behaviour inside an OpenFin view.
+4. **Two windows on one historical provider fight for its single snapshot.**
+   The last restart wins for both. Architectural, equally true of CSRM, and it
+   wants the same per-session overlay as (1).
+
+Two smaller items joined the list while this phase ran, both recorded rather
+than fixed because neither is Phase 10's subject:
+
+- **The CSRM container silently drops a host `onSavingChange`** — it sits in
+  `marketsGridProps` and is overridden after the spread. The SSRM container
+  chains instead (Phase 8). A real silent no-op in the reference container.
+- **The SSRM status-bar panels always render "filtered of total"** rather than
+  AG Grid's pagination-aware range. Only diverges when pagination is on
+  (`general-settings` does emit it); closing it needs a `paginationChanged`
+  subscription and a page-range render path — a feature, not hygiene. The
+  hardcoded `'en-US'` half of that bullet IS fixed.
+
 ---
 
 ## Finding index
@@ -1998,7 +2133,7 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T2-2 | Excel export silently truncated | 6 ✅ |
 | T2-3 | Conditional-styling header indicators never light | 6 ✅ |
 | T2-4 | Row-exclusion DSL excludes nothing | 6 ✅ |
-| T2-5 | Restored quick-filter text never re-queries (3 sites) | 10 |
+| T2-5 | Restored quick-filter text never re-queries (3 sites) | 10 ✅ |
 | T2-6 | Alerts bell undercounts | ~~3~~ → ~~5~~ → **open**, scoped in Phase 5 "Not closed here" |
 | T2-7 | `ssrmCellStyle` / `ssrmEditable` have no caller | 3 |
 | T2-8 | Bulk-update dropdown iterates server count against stubs | 6 ✅ |
@@ -2018,8 +2153,8 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T3-11 | Config Browser unreachable outside OpenFin | 7 ✅ |
 | T3-12 | No `adminActions`, no `onError` | 7 ✅ |
 | T3-13 | `modules` prop ignored | 7 ✅ |
-| T3-14 | Surface key mismatch between Host and Core | 10 |
-| T3-15 | SSRM chrome violates UI stack rules | 10 |
+| T3-14 | Surface key mismatch between Host and Core | 10 ✅ |
+| T3-15 | SSRM chrome violates UI stack rules | 10 ✅ |
 
 ## Parity regression targets
 
@@ -2031,7 +2166,7 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 | Simple-filter operator matrix (text 8/8, number 9/9, date 7+) | Phases 1, 2 |
 | Grid-state restore retry ladders (cold-mount window) | Phases 7, 8 — held: `grid-state` untouched; the SSRM surface still mounts once per provider, and the container still mounts the grid pre-ready (the loading overlay sits OVER that grid, it does not replace it) |
 | Tree data + master-detail server-side | Phase 1 |
-| Status-bar show/hide owned by the surface | Phase 10 |
+| Status-bar show/hide owned by the surface | Phase 10 — held, and EXTENDED to the client-side surface, which had the same bug in reverse |
 | Worker-backed status-bar and filter-pill counts | Phases 2, 5 — held: badge meaning unchanged (`filterPillCounts.test.ts` parity case green), the delta only removes round trips |
 | Quick-filter matching semantics | Phases 1, 2 |
 | Server-side grouping / aggregation / pivoting | Phases 1, 3 — held: `engineContract.test.ts` grouped/agg cases green, `grouped by book, cold` 48.5 → 47.8 ms |
