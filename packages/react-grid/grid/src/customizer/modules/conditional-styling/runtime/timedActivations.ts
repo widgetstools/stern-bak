@@ -252,6 +252,11 @@ export function createTimedActivations(
       // Full pass — onReady seed and structural changes (sort/filter/
       // setRowData). The only place liveness pruning is sound.
       const activeRowIds = new Set<string>();
+      // DISPLAY, not dataset: timed activations track when THIS SESSION
+      // first saw a row match, so a row it has never rendered has no clock
+      // to start. Phase 3's note names this as an exemption that should
+      // survive the rule rather than be migrated.
+      // eslint-disable-next-line no-restricted-properties
       api.forEachNode((node) => {
         const rowId = processNode(node);
         if (rowId) activeRowIds.add(rowId);

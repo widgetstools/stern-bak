@@ -26,6 +26,46 @@ const ENGINE_GLOBS = ['packages/core/engine/**/*.{ts,tsx}'];
 const REACT_GRID_GLOBS = ['packages/react-grid/**/*.{ts,tsx}'];
 const OPENFIN_GLOBS = ['packages/openfin/**/*.{ts,tsx}'];
 
+// ── Customizer modules: no direct row-model access ──────────────────────
+//
+// Both halves of every module — `core/engine` holds state + transforms,
+// `react-grid/grid` the React + AG-Grid runtime — because a rule scoped to
+// the engine alone would police the half with the fewest violations.
+const CUSTOMIZER_MODULE_GLOBS = [
+  'packages/core/engine/src/customizer/modules/**/*.{ts,tsx}',
+  'packages/react-grid/grid/src/customizer/modules/**/*.{ts,tsx}',
+];
+
+// The AG-Grid APIs that answer "what rows are there" from the CLIENT-side
+// row model, paired with the `platform.data` method that answers the same
+// question for both. A module reaching for the left column silently means
+// "whatever this grid happens to hold", which under the server-side row
+// model is a ~2,000-row window of a possibly-100,000-row dataset.
+//
+// `no-restricted-properties`, NOT `no-restricted-syntax`: the core rules
+// REPLACE rather than merge across config objects, and the native-element
+// block below already owns `no-restricted-syntax` for every `.tsx` under
+// `packages/react-grid/**` — which includes module panels. A second
+// `no-restricted-syntax` entry here would silently switch the native
+// `<input>` / `<select>` / `<textarea>` checks off for exactly those files.
+const ROW_MODEL_APIS = [
+  ['forEachNode', 'platform.data.scan(visit)'],
+  ['forEachNodeAfterFilter', "platform.data.scan(visit, { scope: 'filtered' })"],
+  ['applyTransactionAsync', 'platform.data.mutate(patches)'],
+  ['getDisplayedRowAtIndex', 'platform.data.getRowsInRange(start, end)'],
+  ['getDisplayedRowCount', 'platform.data.count()'],
+];
+
+const ROW_MODEL_RESTRICTIONS = ROW_MODEL_APIS.map(([property, replacement]) => ({
+  property,
+  message:
+    `\`${property}\` reads the client-side row model, so it sees only the rows this grid `
+    + `happens to hold. Use \`${replacement}\`, which answers for both row models. `
+    + `If this call is genuinely about the grid's DISPLAY rather than the dataset — a `
+    + `viewport anchor, a baseline the session has observed — disable this rule on the `
+    + `line with a comment saying which.`,
+}));
+
 // Anything that is NOT one of the specially-scoped buckets above. Kept in sync
 // so every package file matches exactly one `no-restricted-imports` config
 // (the core rule replaces rather than merges across config objects).
@@ -222,5 +262,20 @@ export default tseslint.config(
     files: ['packages/**/*.{ts,tsx}'],
     ignores: DEFAULT_IGNORES,
     rules: { 'no-restricted-imports': restrict(OPENFIN_CORE) },
+  },
+
+  // Binding constraint 3 of the SSRM parity effort, made mechanical: no
+  // customizer module reads or writes the row model directly. Tests are
+  // exempt — a module's own suite legitimately drives a stub grid api.
+  {
+    files: CUSTOMIZER_MODULE_GLOBS,
+    ignores: [
+      'packages/**/*.{test,spec}.{ts,tsx}',
+      'packages/**/__tests__/**',
+      'packages/**/__mocks__/**',
+    ],
+    rules: {
+      'no-restricted-properties': ['error', ...ROW_MODEL_RESTRICTIONS],
+    },
   },
 );

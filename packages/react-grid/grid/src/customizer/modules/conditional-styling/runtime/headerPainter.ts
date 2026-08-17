@@ -124,6 +124,11 @@ export function createHeaderPainter(
         return false;
       }
       let match = false;
+      // DISPLAY, not dataset: this whole painter is gated on
+      // `capabilities.canAddressUnloadedRows` by `useHeaderPaintGate`, so it
+      // only ever runs where the grid DOES hold every row and the two
+      // answers coincide. Phase 6 disabled the control everywhere else.
+      // eslint-disable-next-line no-restricted-properties
       api.forEachNodeAfterFilter((node) => {
         if (match) return;
         const data = node.data ?? {};

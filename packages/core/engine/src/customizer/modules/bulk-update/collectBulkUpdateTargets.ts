@@ -74,6 +74,10 @@ function collectFromRange(
     const rowTo = Math.max(start, end);
 
     for (let ri = rowFrom; ri <= rowTo; ri += 1) {
+      // DISPLAY, not dataset: the range is the cells the USER dragged over,
+      // addressed by display index. Rows it cannot reach are REPORTED
+      // (`unreachable`) rather than skipped, which is the parity fix — see Phase 4.
+      // eslint-disable-next-line no-restricted-properties
       const rowNode = api.getDisplayedRowAtIndex(ri);
       // A loading stub answers with a node carrying no `data`. It is selected
       // and it will not be updated — report it rather than skipping quietly.
@@ -125,6 +129,9 @@ function collectFromFocus(
   const colId = focused.column.getColId?.();
   if (!colId) return;
 
+  // DISPLAY, not dataset: the FOCUSED cell is a display coordinate; unreachable is
+  // still reported.
+  // eslint-disable-next-line no-restricted-properties
   const rowNode = api.getDisplayedRowAtIndex(focused.rowIndex);
   if (!rowNode?.data) {
     unreachable.add(focused.rowIndex);

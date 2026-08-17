@@ -8,6 +8,7 @@
 import type { GridApi } from 'ag-grid-community';
 // Relative on purpose — package self-imports create a barrel cycle.
 import type { Store } from '../../../platform/types';
+import { applyQuickFilterText } from '../../../platform/applyQuickFilterText';
 import {
   GRID_STATE_SCHEMA_VERSION,
   type GridStateState,
@@ -316,11 +317,10 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
   }
 
   if (saved.quickFilter !== undefined) {
-    try {
-      api.setGridOption('quickFilterText', saved.quickFilter);
-    } catch {
-      /* ignore */
-    }
+    // Not a bare setGridOption: under the server-side row model the term has
+    // to purge loaded blocks or the restored search renders as a filled-in
+    // box over unfiltered rows.
+    applyQuickFilterText(api, saved.quickFilter);
   }
 
   // Viewport — the anchor can only be applied once the row model actually
@@ -363,6 +363,11 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
 
   const restoreViewport = () => {
     try {
+      // DISPLAY, not dataset: "has the row model grown far enough to scroll there
+      // yet" is the whole question. The dataset's count says nothing about it —
+      // under the server-side row model this deliberately stays false until blocks
+      // load, which is what makes the retry ladder retry.
+      // eslint-disable-next-line no-restricted-properties
       if (firstRowIndex >= 0 && firstRowIndex < api.getDisplayedRowCount()) {
         api.ensureIndexVisible(firstRowIndex, 'top');
       }

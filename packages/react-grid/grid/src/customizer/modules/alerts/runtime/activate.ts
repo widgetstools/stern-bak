@@ -62,6 +62,11 @@ function hasEnabledRowChangeRules(rules: ReadonlyArray<{ enabled: boolean; trigg
 function snapshotRowIds(api: GridApi): Set<string> {
   const ids = new Set<string>();
   try {
+    // DISPLAY, not dataset: this seeds the per-session PREVIOUS-VALUE
+    // baselines a value-change alert compares against. A row nobody has
+    // observed has nothing to compare to, so paging the dataset here would
+    // cost a full transfer to learn nothing. Phase 3 note 1.
+    // eslint-disable-next-line no-restricted-properties
     api.forEachNode((node) => {
       const id = resolveRowId(node);
       if (id) ids.add(id);
@@ -253,6 +258,9 @@ export function activateAlerts(
     const watchedCols = getWatchedCols(api, rules);
     if (watchedCols.size === 0) return;
     try {
+      // DISPLAY, not dataset: the full pass compares each row against the
+      // baseline this session recorded for it — see above.
+      // eslint-disable-next-line no-restricted-properties
       api.forEachNode((node) => scanNode(node, partitioned, watchedCols));
     } catch {
       /* grid mid-teardown */
@@ -306,6 +314,8 @@ export function activateAlerts(
         if (dataChange.length > 0 || relativeChange.length > 0) {
           const watchedCols = getWatchedCols(api, rules);
           if (watchedCols.size > 0) {
+            // DISPLAY, not dataset: same session-baseline scan.
+            // eslint-disable-next-line no-restricted-properties
             api.forEachNode((node) => {
               const id = resolveRowId(node);
               if (!id) return;

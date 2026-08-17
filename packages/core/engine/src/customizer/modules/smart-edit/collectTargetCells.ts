@@ -51,6 +51,11 @@ export function collectTargetCells(
     const rowTo = Math.max(start, end);
 
     for (let ri = rowFrom; ri <= rowTo; ri += 1) {
+      // DISPLAY, not dataset: the range is the cells the USER dragged over,
+      // addressed by display index. A row outside the loaded window has no cell to
+      // edit, so the port's dataset-wide answer would name rows the user never
+      // selected.
+      // eslint-disable-next-line no-restricted-properties
       const rowNode = api.getDisplayedRowAtIndex(ri);
       if (!rowNode?.data) continue;
       const data = rowNode.data;
@@ -93,6 +98,9 @@ export function collectFocusedCell(
   const colId = focused.column.getColId?.();
   if (!colId) return [];
 
+  // DISPLAY, not dataset: the FOCUSED cell is a display coordinate; there is no
+  // dataset equivalent.
+  // eslint-disable-next-line no-restricted-properties
   const rowNode = api.getDisplayedRowAtIndex(focused.rowIndex);
   if (!rowNode?.data) return [];
 
