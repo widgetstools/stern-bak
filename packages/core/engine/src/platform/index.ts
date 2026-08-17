@@ -14,6 +14,7 @@ export { CssInjector } from './CssInjector';
 export { DirtyBus } from './DirtyBus';
 export { PipelineRunner } from './PipelineRunner';
 export { quickFilterColumnsOf } from './quickFilterColumns';
+export { applyQuickFilterText } from './applyQuickFilterText';
 export {
   COMPUTED_FIELDS_KEY,
   NOT_COMPUTED,

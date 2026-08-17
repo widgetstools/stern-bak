@@ -20,7 +20,7 @@ import {
   type GridStateState,
   type SavedGridState,
 } from '@wellsfargo-starui/core';
-import { applyGridState } from '@wellsfargo-starui/core';
+import { applyGridState, applyQuickFilterText } from '@wellsfargo-starui/core';
 
 export const GRID_STATE_MODULE_ID = 'grid-state';
 
@@ -56,10 +56,12 @@ export const gridStateModule: Module<GridStateState> = {
       // not module transforms).
       try {
         api.setState({});
-        api.setGridOption('quickFilterText', '');
       } catch (err) {
         console.warn('[grid-state] failed to reset live grid:', err);
       }
+      // Separate from setState's try: clearing the term has to purge under
+      // the server-side row model, and a setState failure must not skip it.
+      applyQuickFilterText(api, '');
     });
 
     return () => {

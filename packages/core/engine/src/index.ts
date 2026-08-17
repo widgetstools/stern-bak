@@ -19,6 +19,7 @@ export {
   GridPlatform,
   defineModule,
   quickFilterColumnsOf,
+  applyQuickFilterText,
   COMPUTED_FIELDS_KEY,
   NOT_COMPUTED,
   readComputedField,

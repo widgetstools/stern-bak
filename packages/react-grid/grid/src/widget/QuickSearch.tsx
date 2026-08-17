@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { Search, X } from 'lucide-react';
 import { Button, Input } from '@wellsfargo-starui/react';
+import { applyQuickFilterText } from '@wellsfargo-starui/core';
 import { useOptionalGridPlatform } from '../customizer/hooks/GridProvider';
 
 /**
@@ -53,12 +54,7 @@ export function QuickSearch() {
 
   const pushToGrid = useCallback(
     (next: string) => {
-      if (!api) return;
-      api.setGridOption('quickFilterText', next);
-      // SSRM does not re-run getRows on quickFilterText alone — purge refresh.
-      if (api.getGridOption?.('rowModelType') === 'serverSide') {
-        api.refreshServerSide?.({ purge: true });
-      }
+      applyQuickFilterText(api, next);
     },
     [api],
   );
@@ -94,7 +90,10 @@ export function QuickSearch() {
   // The grid API arrives asynchronously (after `onGridReady`). If the user
   // somehow typed before it was ready, replay the current term once it lands.
   useEffect(() => {
-    if (api && text) api.setGridOption('quickFilterText', text);
+    // Same push the debounced path takes — a replayed term has to purge
+    // under the server-side row model too, or the box shows a search the
+    // rows do not reflect.
+    if (api && text) applyQuickFilterText(api, text);
     // Only re-run when the api reference changes — `text` is intentionally
     // omitted so this doesn't double-apply on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
