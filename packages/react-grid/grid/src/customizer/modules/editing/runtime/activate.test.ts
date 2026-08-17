@@ -4,13 +4,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EditingState } from '@wellsfargo-starui/core';
 import { INITIAL_EDITING } from '@wellsfargo-starui/core';
+import { makeFakeEditPlatform } from '../../../editing/applyAndRecord.test.js';
 import { activateEditing } from './activate.js';
 
 type Handler = (e: { event?: Event }) => void | Promise<void>;
 
 function makeApi(overrides: Record<string, unknown> = {}) {
   let cellKeyDownHandler: Handler | null = null;
-  const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
+  // The grid answers the SELECTION reads; the write goes through the port,
+  // which is why this fake carries no transaction API at all.
+  const port = makeFakeEditPlatform({ r1: { id: 'r1', qty: 10 } });
   const api = {
     getEditingCells: () => [],
     getCellRanges: () => [],
@@ -21,7 +24,6 @@ function makeApi(overrides: Record<string, unknown> = {}) {
       getColDef: () => ({ editable: true, field: 'qty', cellDataType: 'number' }),
     }),
     getCellValue: () => 10,
-    applyTransactionAsync,
     addEventListener: (name: string, fn: Handler) => {
       if (name === 'cellKeyDown') cellKeyDownHandler = fn;
     },
@@ -30,7 +32,8 @@ function makeApi(overrides: Record<string, unknown> = {}) {
   };
   return {
     api,
-    applyTransactionAsync,
+    data: port.platform.data,
+    mutations: port.mutations,
     fire: (key: string) => {
       const event = {
         key,
@@ -57,9 +60,10 @@ function makeState(patch: {
   };
 }
 
-function makePlatform(state: EditingState, api: unknown) {
+function makePlatform(state: EditingState, api: unknown, data: unknown) {
   return {
     gridId: 'g1',
+    data,
     getState: () => state,
     getModuleState: () => {
       throw new Error('missing');
@@ -76,41 +80,41 @@ function makePlatform(state: EditingState, api: unknown) {
 
 describe('activateEditing — +/- arbitration', () => {
   it('smart-edit increments on + when plus-minus is disabled', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     const state = makeState({ smartEdit: { enabled: true, incrementStep: 2 } });
-    const dispose = activateEditing(makePlatform(state, api) as never);
+    const dispose = activateEditing(makePlatform(state, api, data) as never);
     const event = await fire('+');
-    expect(applyTransactionAsync).toHaveBeenCalled();
+    expect(mutations).toHaveLength(1);
     expect(event.preventDefault).toHaveBeenCalled();
     dispose();
   });
 
   it('smart-edit handles - as subtract and = as increment', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     const state = makeState({ smartEdit: { enabled: true, incrementStep: 3 } });
-    const dispose = activateEditing(makePlatform(state, api) as never);
+    const dispose = activateEditing(makePlatform(state, api, data) as never);
     await fire('-');
     await fire('=');
-    expect(applyTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(mutations).toHaveLength(2);
     dispose();
   });
 
   it('plus-minus owns +/- when enabled — smart-edit does not fire', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     // pm enabled with no nudges: keys are claimed but nothing applies —
     // matches the pre-merge behavior where smart-edit yielded entirely.
     const state = makeState({
       smartEdit: { enabled: true, incrementStep: 2 },
       plusMinus: { settings: { enabled: true, recordHistory: true }, nudges: [] },
     });
-    const dispose = activateEditing(makePlatform(state, api) as never);
+    const dispose = activateEditing(makePlatform(state, api, data) as never);
     await fire('+');
-    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    expect(mutations).toEqual([]);
     dispose();
   });
 
   it('plus-minus applies a matching nudge', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     const state = makeState({
       plusMinus: {
         settings: { enabled: true, recordHistory: true },
@@ -119,9 +123,9 @@ describe('activateEditing — +/- arbitration', () => {
         ],
       },
     });
-    const dispose = activateEditing(makePlatform(state, api) as never);
+    const dispose = activateEditing(makePlatform(state, api, data) as never);
     const event = await fire('+');
-    expect(applyTransactionAsync).toHaveBeenCalled();
+    expect(mutations).toHaveLength(1);
     expect(event.stopPropagation).toHaveBeenCalled();
     dispose();
   });
@@ -129,33 +133,33 @@ describe('activateEditing — +/- arbitration', () => {
   it('ignores keys while a cell editor is open, and when both are disabled', async () => {
     const editing = makeApi({ getEditingCells: () => [{}] });
     const state = makeState({ smartEdit: { enabled: true } });
-    activateEditing(makePlatform(state, editing.api) as never);
+    activateEditing(makePlatform(state, editing.api, editing.data) as never);
     await editing.fire('+');
-    expect(editing.applyTransactionAsync).not.toHaveBeenCalled();
+    expect(editing.mutations).toEqual([]);
 
     const disabled = makeApi();
-    activateEditing(makePlatform(makeState({ smartEdit: { enabled: false } }), disabled.api) as never);
+    activateEditing(makePlatform(makeState({ smartEdit: { enabled: false } }), disabled.api, disabled.data) as never);
     await disabled.fire('+');
-    expect(disabled.applyTransactionAsync).not.toHaveBeenCalled();
+    expect(disabled.mutations).toEqual([]);
   });
 
   it('survives getEditingCells throwing during teardown', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi({
+    const { api, data, mutations, fire } = makeApi({
       getEditingCells: () => {
         throw new Error('teardown');
       },
       getFocusedCell: () => null as never,
     });
     const state = makeState({ smartEdit: { enabled: true } });
-    activateEditing(makePlatform(state, api) as never);
+    activateEditing(makePlatform(state, api, data) as never);
     await fire('+');
-    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    expect(mutations).toEqual([]);
   });
 });
 
 describe('activateEditing — letter shortcuts', () => {
   it('applies a matching letter shortcut', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     const state = makeState({
       shortcuts: {
         settings: { enabled: true, recordHistory: true },
@@ -172,38 +176,38 @@ describe('activateEditing — letter shortcuts', () => {
         ],
       },
     });
-    const dispose = activateEditing(makePlatform(state, api) as never);
+    const dispose = activateEditing(makePlatform(state, api, data) as never);
     const event = await fire('d');
-    expect(applyTransactionAsync).toHaveBeenCalled();
+    expect(mutations).toHaveLength(1);
     expect(event.preventDefault).toHaveBeenCalled();
     expect(event.stopPropagation).toHaveBeenCalled();
     dispose();
   });
 
   it('ignores letters when the shortcuts slice is disabled', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     const state = makeState({
       shortcuts: { settings: { enabled: false, recordHistory: true }, shortcuts: [] },
     });
-    activateEditing(makePlatform(state, api) as never);
+    activateEditing(makePlatform(state, api, data) as never);
     await fire('d');
-    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    expect(mutations).toEqual([]);
   });
 
   it('non-matching letters claim the key but apply nothing', async () => {
-    const { api, applyTransactionAsync, fire } = makeApi();
+    const { api, data, mutations, fire } = makeApi();
     const state = makeState({
       shortcuts: { settings: { enabled: true, recordHistory: true }, shortcuts: [] },
     });
-    activateEditing(makePlatform(state, api) as never);
+    activateEditing(makePlatform(state, api, data) as never);
     await fire('z');
-    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    expect(mutations).toEqual([]);
   });
 
   it('detaches the listener on dispose', () => {
     const removeEventListener = vi.fn();
-    const { api, handlerAttached } = makeApi({ removeEventListener });
-    const dispose = activateEditing(makePlatform(makeState({}), api) as never);
+    const { api, data, handlerAttached } = makeApi({ removeEventListener });
+    const dispose = activateEditing(makePlatform(makeState({}), api, data) as never);
     expect(handlerAttached()).toBe(true);
     dispose();
     expect(removeEventListener).toHaveBeenCalledWith('cellKeyDown', expect.any(Function));

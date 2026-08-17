@@ -1,52 +1,54 @@
-import type { GridApi } from 'ag-grid-community';
 import {
-  applyForwardPatches,
   buildNudgePatches,
   type BuildNudgePatchesOptions,
+  type EditApplyResult,
   type EditJournal,
+  type EditPlatform,
   type NudgeDirection,
 } from '@wellsfargo-starui/core';
-import { withJournalApplyGuard } from '../../../editing/journalApplyGuard.js';
+import { applyAndRecord, cellCountLabel } from '../../../editing/applyAndRecord.js';
 
 export interface ApplyPlusMinusOptions {
-  rowIdField?: string;
   journal?: EditJournal | null;
-  journalApplyGridId?: string;
   journalLabel?: string;
 }
 
+/**
+ * Nudge every selected cell by the step its matching rule declares.
+ *
+ * The rule is matched against the whole ROW (`resolveNudgeForCell` evaluates a
+ * predicate over it), so this reads the rows first — through the port, one
+ * batched call, rather than `api.getRowNode` per cell. A row the port cannot
+ * address contributes no patch, exactly as an unmatched rule does.
+ */
 export async function applyPlusMinusNudge(
-  api: GridApi,
+  platform: EditPlatform,
   options: Omit<BuildNudgePatchesOptions, 'getRowData'> & {
     getRowData?: BuildNudgePatchesOptions['getRowData'];
   },
   applyOptions: ApplyPlusMinusOptions = {},
-): Promise<number> {
-  const rowIdField = applyOptions.rowIdField ?? 'id';
-  const getRowData =
-    options.getRowData ??
-    ((rowId: string) => api.getRowNode(rowId)?.data as Record<string, unknown> | undefined);
+): Promise<EditApplyResult> {
+  const getRowData = options.getRowData ?? (await readRows(platform, options.cells));
 
   const patches = buildNudgePatches({ ...options, getRowData });
-  if (patches.length === 0) return 0;
+  return applyAndRecord(platform, patches, applyOptions.journal, {
+    source: 'plus-minus',
+    label: (applied) => {
+      if (applyOptions.journalLabel) return applyOptions.journalLabel;
+      const dir = options.direction === 'increment' ? '+' : '−';
+      return `Nudge ${dir} · ${cellCountLabel(applied)}`;
+    },
+  });
+}
 
-  const apply = () => applyForwardPatches(api as never, patches, rowIdField);
-  if (applyOptions.journalApplyGridId) {
-    await withJournalApplyGuard(applyOptions.journalApplyGridId, apply);
-  } else {
-    await apply();
-  }
-
-  if (applyOptions.journal) {
-    const dir = options.direction === 'increment' ? '+' : '−';
-    applyOptions.journal.record({
-      source: 'plus-minus',
-      label: applyOptions.journalLabel ?? `Nudge ${dir} · ${patches.length} cell${patches.length === 1 ? '' : 's'}`,
-      patches,
-    });
-  }
-
-  return patches.length;
+async function readRows(
+  platform: EditPlatform,
+  cells: BuildNudgePatchesOptions['cells'],
+): Promise<BuildNudgePatchesOptions['getRowData']> {
+  const ids = [...new Set(cells.map((cell) => cell.rowId))];
+  const { rows } = await platform.data.getRowsById(ids);
+  const byId = new Map(rows.map((row) => [row.id, row.data]));
+  return (rowId: string) => byId.get(rowId);
 }
 
 export type { NudgeDirection };

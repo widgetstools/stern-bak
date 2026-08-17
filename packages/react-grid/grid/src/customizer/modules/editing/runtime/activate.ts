@@ -55,9 +55,9 @@ export function activateEditing(platform: PlatformHandle<EditingState>): () => v
             state.plusMinus.settings.recordHistory,
           );
           await applyPlusMinusNudge(
-            api,
+            platform,
             { cells, direction, nudges: state.plusMinus.nudges, engine },
-            { journal: record ? journal : null, journalApplyGridId: platform.gridId },
+            { journal: record ? journal : null },
           );
           return;
         }
@@ -71,9 +71,8 @@ export function activateEditing(platform: PlatformHandle<EditingState>): () => v
             'smart-edit',
             state.smartEdit.settings.recordHistory,
           );
-          await applyEdits(api, cells, direction === 'decrement' ? 'subtract' : 'add', state.smartEdit.settings.incrementStep, {
+          await applyEdits(platform, cells, direction === 'decrement' ? 'subtract' : 'add', state.smartEdit.settings.incrementStep, {
             journal: record ? journal : null,
-            journalApplyGridId: platform.gridId,
           });
         }
         return;
@@ -91,9 +90,9 @@ export function activateEditing(platform: PlatformHandle<EditingState>): () => v
           state.shortcuts.settings.recordHistory,
         );
         await applyShortcutEdit(
-          api,
+          platform,
           { cells, key: ke.key, shortcuts: state.shortcuts.shortcuts },
-          { journal: record ? journal : null, journalApplyGridId: platform.gridId },
+          { journal: record ? journal : null },
         );
       }
     };

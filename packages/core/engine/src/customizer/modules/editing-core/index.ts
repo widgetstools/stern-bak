@@ -1,6 +1,6 @@
 export * from './types.js';
 export { buildPatchesFromTargets, dedupePatches } from './buildPatches.js';
-export { buildRowUpdatesFromPatches, type PatchDirection } from './buildRowUpdates.js';
+export { buildRowPatches, type PatchDirection } from './buildRowPatches.js';
 export { applyPatches, applyForwardPatches } from './applyPatches.js';
 export { previewPatches } from './previewPatches.js';
 export { defaultEditValidator, combineValidators } from './validation.js';

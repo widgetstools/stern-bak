@@ -150,7 +150,13 @@ export {
   assertSingleColumnSelection,
   EditJournal,
 } from './modules/editing-core/index.js';
-export type { CellPatch, EditSource, EditJournalEntry, EditGridWriter } from './modules/editing-core/index.js';
+export type {
+  CellPatch,
+  EditSource,
+  EditJournalEntry,
+  EditApplyResult,
+  EditPlatform,
+} from './modules/editing-core/index.js';
 
 export {
   deserializeDataChangeHistoryState,
@@ -168,7 +174,11 @@ export type {
 export { INITIAL_BULK_UPDATE } from './modules/bulk-update/state.js';
 export type { BulkUpdateSettings, BulkUpdateState } from './modules/bulk-update/state.js';
 export { bulkUpdateValueKind } from './modules/bulk-update/isBulkUpdateCellType.js';
-export { collectBulkUpdateTargets, type BulkUpdateTarget } from './modules/bulk-update/collectBulkUpdateTargets.js';
+export {
+  collectBulkUpdateTargets,
+  type BulkUpdateSelection,
+  type BulkUpdateTarget,
+} from './modules/bulk-update/collectBulkUpdateTargets.js';
 export { buildBulkUpdatePatchesFromRaw } from './modules/bulk-update/applyBulkUpdate.js';
 export { resolveColumnDistinctValues } from './modules/bulk-update/resolveColumnDistinctValues.js';
 

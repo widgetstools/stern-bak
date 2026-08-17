@@ -1,31 +1,24 @@
-import type { EditGridWriter } from '@wellsfargo-starui/core';
-import type { EditJournal } from '@wellsfargo-starui/core';
+import type { EditJournal, EditPlatform } from '@wellsfargo-starui/core';
 import { withJournalApplyGuard } from './journalApplyGuard.js';
 
 export async function journalUndo(
-  platform: { gridId: string },
+  platform: EditPlatform,
   journal: EditJournal,
-  api: EditGridWriter,
-  rowIdField = 'id',
 ): Promise<boolean> {
-  return withJournalApplyGuard(platform.gridId, () => journal.undo(api, rowIdField));
+  return withJournalApplyGuard(platform.gridId, () => journal.undo(platform.data));
 }
 
 export async function journalRedo(
-  platform: { gridId: string },
+  platform: EditPlatform,
   journal: EditJournal,
-  api: EditGridWriter,
-  rowIdField = 'id',
 ): Promise<boolean> {
-  return withJournalApplyGuard(platform.gridId, () => journal.redo(api, rowIdField));
+  return withJournalApplyGuard(platform.gridId, () => journal.redo(platform.data));
 }
 
 export async function journalUndoEntry(
-  platform: { gridId: string },
+  platform: EditPlatform,
   journal: EditJournal,
-  api: EditGridWriter,
   entryId: string,
-  rowIdField = 'id',
 ): Promise<boolean> {
-  return withJournalApplyGuard(platform.gridId, () => journal.undoEntry(api, entryId, rowIdField));
+  return withJournalApplyGuard(platform.gridId, () => journal.undoEntry(platform.data, entryId));
 }

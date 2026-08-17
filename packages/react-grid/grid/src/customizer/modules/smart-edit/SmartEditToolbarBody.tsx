@@ -105,10 +105,9 @@ export function SmartEditToolbarBody({ layout = 'standalone' }: EditingToolbarSe
       if (!guard.ok) return;
     }
 
-    await applyEdits(api, targets, op, value, {
+    await applyEdits(platform, targets, op, value, {
       journal: journalRecording.record ? journalRecording.journal : null,
       patches,
-      journalApplyGridId: platform.gridId,
     });
   }, [platform, settings.settings.enabled, settings.settings.enforceSingleColumn, journalRecording]);
 

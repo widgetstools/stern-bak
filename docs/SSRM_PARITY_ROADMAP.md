@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 4 / 11 phases done (Phases 0–3).**
+**Branch:** `feature/simplify`. **Status: 5 / 11 phases done (Phases 0–4).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -745,7 +745,7 @@ outside it and each needs a deliberate answer, not a discovery:
 
 ---
 
-## Phase 4 — editing writes through the port ⬜
+## Phase 4 — editing writes through the port ✅
 
 **Goal:** an edit either lands or is refused. It is never recorded as
 successful without landing.
@@ -772,14 +772,173 @@ successful without landing.
   `continue`s past undefined rows) — surface it through `capabilities` for
   Phase 6 and return an explicit partial result the caller can act on.
 
-**Exit**
+**Exit** *(the worker-cache half was rewritten — see decision 1 below and the
+deviations ledger)*
 
-- An edit applied on an SSRM grid is visible in the grid and in the worker
-  cache; an edit that cannot apply is refused with a reason and absent from
-  the journal.
+- An edit applied on an SSRM grid is visible in the grid and confirmed by the
+  port; an edit that cannot apply is refused with a reason and absent from the
+  journal.
+- That the shared plane keeps its own copy and will replace the edit on the
+  next refresh is carried by `capabilities.mutationsReachSource`, which Phase 6
+  renders. It is not silent.
 - Undo/redo round-trips correctly in both modes.
 
 **Closes:** T2-1.
+
+### What landed
+
+Core: `customizer/modules/editing-core/` — `applyPatches.ts` (takes a
+`GridDataPort`, returns `EditApplyResult`), `buildRowPatches.ts` (new;
+`buildRowUpdates.ts` DELETED), `types.ts` (`EditPlatform`, `EditApplyResult`;
+`EditGridWriter` DELETED), `EditJournal.ts`, `index.ts`;
+`bulk-update/collectBulkUpdateTargets.ts` (`BulkUpdateSelection`);
+`platform/computedFields.ts` (`CLIENT_EDITED_FIELDS_KEY`, `markClientEdited`,
+`hasClientEdits`), `platform/gridApiRows.ts`, `platform/CsrmDataAdapter.ts`,
+`calculated-columns/virtualColumn.ts`; both barrels. Grid:
+`customizer/editing/applyAndRecord.ts` (new — the shared write-and-record
+spine), `journalUndoRedo.ts`, the four funnels
+(`smart-edit/runtime/applyEdits.ts`, `bulk-update/runtime/applyBulkUpdateEdits.ts`,
+`shortcuts/runtime/applyShortcutEdit.ts`, `plus-minus/runtime/applyPlusMinusNudge.ts`),
+`editing/runtime/activate.ts`, `SmartEditToolbarBody.tsx`,
+`BulkUpdateToolbarBody.tsx`, `useBulkUpdateSelection.ts`,
+`EditHistoryToolbarBody.tsx`, `DataChangeHistoryPanel.tsx`. Tests:
+`applyPatches.test.ts` rewritten, `applyAndRecord.test.ts` new (13),
+`portContract.test.ts` +2, `virtualColumn.test.ts` +2, `bulkUpdate.test.ts` +2,
+`editingCore.test.ts` +3, and the five funnel/undo-redo suites re-pointed at
+the port.
+
+`npx turbo typecheck build test`: 20 / 21 tasks green, **6011 passing / 1
+skipped** (types 171, design-system 355, data 703, core 1287, openfin 483,
+react 523, grid 2489). The one failure is environmental, not a regression —
+see the note below. ESLint: 0 errors across the touched directories (the
+`max-lines-per-function` warnings there are pre-existing and unchanged in
+count). `node scripts/check-package-cycles.mjs`: the same single pre-existing
+cycle (WORKLOG 18), no new one. E2E: **7 / 7 passed**, none self-skipped
+(:8081 was up) — including Phase 3's `SSRM aggregate calculated columns ›
+reads the same in every row, at every scroll position`, which is the spec a
+mistake in this phase's stamp handling would have broken.
+
+`npm run bench:ssrm`, same-session baseline → after (this machine):
+replaceSnapshot **1808 → 1828 ms**, sorted block cold **167.0 → 143.0**,
+filtered+sorted **56.4 → 50.9**, grouped **53.2 → 53.6**, quick filter
+**49.7 → 49.9**, quick filter scoped **69.1 → 63.7**, row-local warm
+**1.7 → 1.6**, aggregate cold **163.9 → 169.1**, aggregate warm **1.7 → 2.0**,
+20-block scroll **153 → 144**, 2000-row tick **23.2 → 23.2**, plane heap 108 MB
+and total heap 879 MB unchanged. Within noise in both directions, which is what
+this phase should show: it changes the WRITE path, and the plane has none.
+
+**A verification hazard worth knowing about.** This machine ran at load average
+15–51 (other processes) and turbo's parallel vitest produced failures that are
+NOT real: `[vitest-pool]: Failed to start forks worker`, and synchronous tests
+reporting 188 s / 534 s / 602 s durations before a 5–15 s timeout. Three
+different files flaked this way across runs — `QueryEngine.test.ts`,
+`ProviderGridHostSection.test.tsx`, `ValueFormatBand.test.tsx` — none touched
+by this phase, and each passed standalone in 2–6 s. Check `uptime` and
+`pgrep -f "vitest run"` (for a stale run competing with yours) before
+attributing a failure to a change.
+
+Six decisions the later phases inherit:
+
+1. **The exit criterion's "and in the worker cache" was rewritten, not
+   implemented, and that was the phase's central call.** There is no write RPC:
+   `SsrmDataAdapter` stands on `getRows` / `getSetFilterValues` /
+   `getStatusBar`, and `applyServerSideTransaction` reaches the grid's block
+   cache only. Adding one is permitted by Phase 0's rule but wrong here for a
+   reason bigger than cost: **the plane's `RowStore` is per-provider and shared
+   by every grid attached to it** — `ExpressionRuleStore` is session-keyed
+   precisely because "one `QueryEngine` serves every grid attached to its
+   provider". Writing an edit into that store would make one window's
+   uncommitted edit appear in every other window's grid, which a CSRM grid does
+   not do (its transaction takes a COPY of the row; the hub cache is untouched)
+   and which nobody asked for. Constraint 1 says SSRM rises to meet CSRM, not
+   past it. A correct write path is a per-SESSION overlay the plane's filter,
+   sort, aggregate and quick-filter all consult — the same machinery T1-4 needs
+   and was deferred for, with `QueryEngine.ts` at 777 / 800. So the honest
+   statement of today's behaviour is the one Phase 0 already wrote into
+   `mutationsReachSource`: the edit changes this grid, and the shared service
+   replaces it on the next tick or block refetch for that row.
+2. **`EditGridWriter` is gone, and with it the invented row.**
+   `buildRowUpdatesFromPatches` merged patches onto a row it read from a
+   `GridApi` and, when the grid did not hold that row, synthesised
+   `{ [rowIdField]: rowId }` for AG-Grid to drop silently. Row assembly is the
+   row-model-specific half and belongs to the adapters (`assemblePatchRows`),
+   which REPORT what they cannot address. What is left, `buildRowPatches`, is
+   pure grouping and touches no grid — so `rowIdField` disappeared from the
+   whole write path along with the behaviour it drove.
+3. **The funnels take an `EditPlatform`, not a `GridApi`.** `{ gridId, data }`,
+   satisfied structurally by both `PlatformHandle` and `GridPlatform`. That
+   removed the `journalApplyGridId` OPTION: every caller already passed it, and
+   an optional guard against double-recording is a shape where one caller
+   forgets. `applyAndRecord` is the one spine all four share — guard, write,
+   record `result.applied` — so "the journal records only what landed" is one
+   line in one place rather than four copies of a convention.
+4. **Confirmation is per CELL, refusal is per ROW.** The port speaks row ids;
+   journal entries, preview tables and undo stacks are keyed on cell patches.
+   `applyPatches` maps the port's `applied` row ids back onto the caller's
+   patches, so a partly-refused write journals exactly the cells that changed —
+   and the entry's LABEL is built from those, because "· 3 cells" over an entry
+   holding two is the same lie in miniature. Labels are therefore
+   `(applied) => string`, not a string.
+5. **The timeline moves only when the write does.** `undo` / `redo` /
+   `undoEntry` used to pop the stack and then await a transaction that resolved
+   before anything was written — so under SSRM, where nothing was ever written,
+   the whole stack could be walked without a value changing. They now apply
+   first and move the stack as a consequence; `undoEntry` stops at the first
+   entry the grid refuses rather than walking past it, because continuing would
+   restore an older value over a newer one that is still applied. CSRM is
+   unaffected: there, every addressable row applies.
+6. **A client edit voids the source's claim over the row it rewrote — for
+   row-local columns only.** Phase 3 made enriched rows carry
+   `__ssrmCalculated`, and `assemblePatchRows` spreads the existing row, so the
+   stamp SURVIVES a patch: edit a source column and the row keeps a computed
+   value derived from a number that is no longer on it. The obvious fix —
+   strip the stamped fields on mutate — is **actively harmful for aggregates**,
+   which is why it was not taken. `SUM([price])` is the same number on every
+   row; one edit moves it for all of them equally, so the edited row is not
+   specially wrong. Meanwhile the client's cross-row snapshot is deliberately
+   EMPTY under SSRM (`refillSnapshot` returns early on
+   `canAddressUnloadedRows`), so falling back would fold nothing and paint that
+   one row's total as **0** beside neighbours showing the real total. So the
+   port MARKS what the edit wrote (`__ssrmClientEdited`, written only onto a
+   row that already carries a stamp, so client-side rows stay free of `__ssrm*`
+   bookkeeping) and `buildVirtualColDef` — which is where the expression is —
+   decides: `astUsesAggregateFunctions` once at build time, row-local
+   re-evaluates, column-wide keeps the source's answer. The marker is
+   self-clearing: the plane's next enrichment builds a fresh row from its own
+   store copy, which never saw the patch.
+
+### Not closed here, deliberately
+
+- **An SSRM edit still does not survive a block refetch or a tick on its row.**
+  Decision 1 explains why the fix is a session-scoped overlay in the plane and
+  not a write RPC into a shared store. `mutationsReachSource` carries the copy;
+  Phase 6 renders it. This is the honest scope of "editing works under SSRM"
+  today and the roadmap should not read as more.
+- **Nothing surfaces a REJECTION to the user yet.** `EditApplyResult.rejected`
+  carries the port's copy to every call site, and bulk update acts on the one
+  refusal it can see before the write (an unreachable row in the selection).
+  Turning a post-write refusal into a toast or a strip is Phase 6's job — the
+  same split Phase 1 made when it left `supportsCustomComparator`'s copy for
+  Phase 6 to render.
+- **One window where a client-side write settles neither way.** `mutate` now
+  awaits AG-Grid's flush callback, and a grid destroyed inside the ~50 ms
+  `asyncTransactionWaitMillis` window after the transaction was accepted never
+  fires it — so the promise never settles and `journalApplyGuard` keeps that
+  grid id marked, which would suppress cell-editor recording on a remount under
+  the SAME id. The reachable half of this — a destroyed grid THROWING on the
+  call — is closed here and pinned by a shared contract case (both adapters
+  refuse rather than reject; the client-side one had no `try` at all, where the
+  server-side one already did). The never-fires half needs a settle-on-teardown
+  signal the port does not have; `clearJournalApplyGuardRegistry` exists but is
+  wired to nothing outside tests.
+- **`collectTargetCells` and `resolveColumnDistinctValues` still read the row
+  model directly.** Smart edit's selection reader has the same
+  `getDisplayedRowAtIndex` shape bulk update's did; it was left alone because
+  its range is the cells the user has selected and a stub there yields no
+  target either way — but it reports no count, so a smart edit over a range
+  spanning unloaded rows is still quietly narrower than the selection.
+  `resolveColumnDistinctValues` is named in Phase 6's scope. Both are in the
+  react-grid half of the mirror, which Phase 10's ESLint note already flags.
 
 ---
 
@@ -1150,6 +1309,31 @@ honest version was implemented instead. Reference the commit.
   `__ssrmStyle` was never populated from the customizer at all. `ssrmCellStyle`
   is wired as the host-composed-snapshot path instead. See Phase 3 "Not
   closed here".
+- **Phase 4 — the exit criterion's "and in the worker cache" was rewritten.**
+  The phase text required an SSRM edit to be visible in the grid AND in the
+  worker cache, which needs a write RPC that does not exist. It was not added,
+  and not only for cost: the plane's `RowStore` is per-provider and shared by
+  every grid attached to it, so an edit written there would appear in every
+  other window's grid — a behaviour a CSRM grid does not have (its transaction
+  takes a copy of the row; the hub cache is untouched), i.e. constraint 1 in
+  the direction it does not license. The correct version is a per-SESSION edit
+  overlay that the plane's filter, sort, aggregate and quick-filter all
+  consult, which is the same per-session incremental view T1-4 needs and was
+  deferred for, against a `QueryEngine.ts` already at 777 / 800. What landed
+  instead is the honest statement Phase 0 had already written:
+  `mutationsReachSource: false`, with copy saying the shared service replaces
+  the edit on the next refresh — rendered by Phase 6, never silent. See Phase 4
+  "What landed", decision 1.
+- **Phase 4 — the stamped fields were NOT stripped on mutate.** The session
+  brief offered "strip the stamped fields on mutate, or route the edit so the
+  plane re-enriches". Routing is decision 1's write RPC, and stripping is worse
+  than the defect for column-wide folds: the client's cross-row snapshot is
+  empty under SSRM by design, so a stripped `SUM([price])` re-evaluates to 0 on
+  the edited row alone while every neighbour shows the real total — a new
+  confidently-wrong output in place of a value that is one edit stale on every
+  row equally. What landed marks the edited fields and lets
+  `buildVirtualColDef` judge per column, because that is where the expression
+  is. See Phase 4 "What landed", decision 6.
 - **Phase 1 — two fixes outside the letter.** `computeStatusBar` folded once
   for the whole `valueCols` list into a FIELD-keyed row, so asking for MIN(px)
   and MAX(px) together returned the same number twice; it now folds once per

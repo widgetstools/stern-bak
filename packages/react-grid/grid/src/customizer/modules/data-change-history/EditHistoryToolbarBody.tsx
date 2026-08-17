@@ -23,15 +23,11 @@ export function EditHistoryToolbarBody({ layout = 'standalone' }: EditingToolbar
   const [history] = useModuleState<DataChangeHistoryState>(DATA_CHANGE_HISTORY_MODULE_ID);
 
   const handleUndo = useCallback(async () => {
-    const api = platform.api.api;
-    if (!api) return;
-    await journalUndo(platform, journal, api as never);
+    await journalUndo(platform, journal);
   }, [journal, platform]);
 
   const handleRedo = useCallback(async () => {
-    const api = platform.api.api;
-    if (!api) return;
-    await journalRedo(platform, journal, api as never);
+    await journalRedo(platform, journal);
   }, [journal, platform]);
 
   const entryCount = journalUndoStackSize(journal);

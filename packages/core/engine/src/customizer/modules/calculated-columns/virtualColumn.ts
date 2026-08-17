@@ -32,7 +32,12 @@ import type {
 // name creates a barrel self-cycle (and, from a tarball, resolves to a
 // SECOND copy of the barrel via the package self-reference).
 import type { ExpressionEngineLike } from '../../../platform/types';
-import { NOT_COMPUTED, readComputedField } from '../../../platform/computedFields';
+import {
+  hasClientEdits,
+  NOT_COMPUTED,
+  readComputedField,
+} from '../../../platform/computedFields';
+import { astUsesAggregateFunctions } from '../../../expression/usesAggregates';
 import {
   excelFormatColorResolver,
   valueFormatterFromTemplate,
@@ -138,6 +143,14 @@ export function buildVirtualColDef(
   try { ast = engine.parse(v.expression); }
   catch { ast = null; }
 
+  // Decided ONCE, at build time — the valueGetter runs per cell per refresh.
+  // Column-wide folds answer the same number for every row, so one row's edit
+  // does not make that row's copy specially wrong; a row-local expression's
+  // does. See `CLIENT_EDITED_FIELDS_KEY`.
+  let foldsWholeColumn = false;
+  try { foldsWholeColumn = ast ? astUsesAggregateFunctions(ast) : false; }
+  catch { foldsWholeColumn = false; }
+
   const formatFn = v.valueFormatterTemplate
     ? valueFormatterFromTemplate(v.valueFormatterTemplate)
     : null;
@@ -177,8 +190,16 @@ export function buildVirtualColDef(
       // WHOLE dataset, not the rows this window holds. Where it has, that
       // answer is the authoritative one and re-deriving it here is exactly
       // the bug: a block-cache `SUM([price])` that changes as you scroll.
+      //
+      // Unless a client edit has since rewritten this row: the source's
+      // answer was computed from values that are no longer on it, and for a
+      // row-local expression this side can recompute it exactly. A fold over
+      // the whole column keeps the source's answer — it moved for every row,
+      // not this one, and the client's cross-row snapshot is empty here.
       const computed = readComputedField(params.data, v.colId);
-      if (computed !== NOT_COMPUTED) return computed;
+      if (computed !== NOT_COMPUTED && (foldsWholeColumn || !hasClientEdits(params.data))) {
+        return computed;
+      }
       if (!ast) return null;
       try {
         return engine.evaluate(ast, {

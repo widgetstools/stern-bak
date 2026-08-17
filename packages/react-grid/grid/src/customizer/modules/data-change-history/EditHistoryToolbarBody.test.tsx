@@ -12,7 +12,12 @@ import { EditHistoryToolbarBody } from './EditHistoryToolbarBody';
 import { dataChangeHistoryModule } from './index';
 
 function makeMockApi() {
-  const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
+  // Settles on AG-Grid's flush CALLBACK, which is what the port waits for —
+  // `applyTransactionAsync` itself returns void, and awaiting that is what let
+  // an unlanded edit be recorded as one that landed.
+  const applyTransactionAsync = vi.fn(
+    (_tx: unknown, onFlush?: () => void) => { onFlush?.(); },
+  );
   return {
     applyTransactionAsync,
     getRowNode: () => ({ data: { id: 'r1', qty: 1 } }),

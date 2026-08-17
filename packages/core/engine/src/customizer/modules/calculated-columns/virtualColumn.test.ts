@@ -8,7 +8,10 @@ import {
   getAllRowsSnapshot,
   invalidateAllRowsCache,
 } from './virtualColumn.js';
-import { COMPUTED_FIELDS_KEY } from '../../../platform/computedFields.js';
+import {
+  CLIENT_EDITED_FIELDS_KEY,
+  COMPUTED_FIELDS_KEY,
+} from '../../../platform/computedFields.js';
 import type { VirtualColumnDef } from './state.js';
 
 const engine = new ExpressionEngine();
@@ -166,6 +169,59 @@ describe('buildVirtualColDef', () => {
     };
     expect(getter({ data: scrolledToTop, api })).toBe(1_000_000);
     expect(getter({ data: scrolledToBottom, api })).toBe(1_000_000);
+  });
+
+  // ── After a client edit ────────────────────────────────────────────────
+  //
+  // `assemblePatchRows` merges an edit onto a copy of the existing row, so the
+  // source's stamp SURVIVES the patch. These two say what that has to mean —
+  // and they disagree with each other on purpose, because the two families of
+  // expression are stale in different ways.
+
+  it('re-evaluates a ROW-LOCAL column on a row a client edit rewrote', () => {
+    const col = buildVirtualColDef(virtual(), engine, cache);
+    const getter = col.valueGetter as (p: { data: Record<string, unknown> }) => unknown;
+    // The source computed 6 from price 2 · qty 3; the user then set price 5.
+    // Believing the stamp here renders a product of a number that is no longer
+    // on the row, and nothing anywhere would notice.
+    expect(
+      getter({
+        data: {
+          price: 5,
+          qty: 3,
+          total: 6,
+          [COMPUTED_FIELDS_KEY]: ['total'],
+          [CLIENT_EDITED_FIELDS_KEY]: ['price'],
+        },
+      }),
+    ).toBe(15);
+  });
+
+  it('keeps the source’s answer for a COLUMN-WIDE fold on an edited row', () => {
+    const col = buildVirtualColDef(virtual({ expression: 'SUM([price])' }), engine, cache);
+    const api = apiStub();
+    // Empty, as it is under the server-side row model: filling it would page
+    // the whole dataset per data event. Re-evaluating here would fold nothing
+    // and paint this one row's total as 0 beside neighbours showing the real
+    // one — strictly worse than a total that is one edit out of date, which
+    // every row is equally.
+    fillAllRowsSnapshot(api, cache, []);
+    const getter = col.valueGetter as (p: {
+      data: Record<string, unknown>;
+      api: GridApi;
+    }) => unknown;
+
+    expect(
+      getter({
+        data: {
+          price: 5,
+          total: 1_000_000,
+          [COMPUTED_FIELDS_KEY]: ['total'],
+          [CLIENT_EDITED_FIELDS_KEY]: ['price'],
+        },
+        api,
+      }),
+    ).toBe(1_000_000);
   });
 
   it('honours a computed value of undefined — an answer, not an absence', () => {

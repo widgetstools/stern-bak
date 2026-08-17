@@ -380,6 +380,8 @@ Per-renderer config types (`PillRendererConfig`,
 - `ssrmGetChildCount`, `ssrmAlertRowClass` — grid-option bindings backed by worker-evaluated expressions, bound directly by `MarketsGridSsrmSurface`
 - `ssrmCellStyle`, `ssrmEditable` — the per-COLUMN half of the same enrichment, reached through `withSsrmExpressionBindings(columnDefs)` + `withSsrmDefaultColDef(defaultColDef)`, which `MarketsGridSsrmSurface` applies alongside `withSsrmSetFilterValues`. Both COMPOSE rather than replace: a worker `__ssrmStyle` merges *over* the column's own `cellStyle` (so a calculated column's Excel colour tag and column-customization's overrides survive), and `__ssrmEditable` is ANDed with the column's own verdict (a rule can lock a cell the column allows, never unlock one it forbids). The split across the two helpers is what makes that correct against AG Grid's merge order — a property declared on a column def shadows `defaultColDef` entirely, so columns are wrapped only where they *declare* the property and `defaultColDef` is wrapped always. `ssrmEditable` treats "no verdict on this row" as `true`, not `false`: the earlier `false` is why binding it would have made every grid without an `editable` rule read-only, and why it had no caller
 - **Calculated columns are evaluated ONCE, by whoever holds the whole dataset.** The query plane stamps the fields it computed onto each row it returns (`__ssrmCalculated`; key + reader are `COMPUTED_FIELDS_KEY` / `readComputedField` in `@wellsfargo-starui/core`, so both ends share one definition), and `buildVirtualColDef`'s `valueGetter` returns those verbatim instead of re-deriving them. Column-wide aggregates (`SUM([price])`, `AVG([mid])`) therefore read the same at any scroll position; previously the grid folded its ~2,000-row block cache and the number revised itself as the user scrolled. A source that stamps nothing — every client-side grid — is evaluated locally exactly as before
+- **Editing works on a server-side grid, and says what it cannot do.** Every editing funnel writes through `platform.data.mutate()`, which the server-side adapter answers with `applyServerSideTransaction` (the CSRM adapter keeps `applyTransactionAsync`, now settled on AG Grid's flush callback rather than on the call returning). Previously all five write paths reached `applyTransactionAsync` — a ClientSideRowModel API — so an SSRM edit changed nothing while the journal recorded it as done. Refusals are reported per row with user-facing copy: a row outside the loaded block window carries `capabilities.canAddressUnloadedRows.reason`, a block still loading gets "the grid is still loading those rows". `capabilities.mutationsReachSource` is **false** under SSRM — the shared data service keeps its own copy of the row and replaces the edit on the next tick or block refetch for that row; making an edit survive that needs a worker write path, which does not exist yet (roadmap Phase 4 record)
+- **A client edit voids the source's claim over the row it rewrote.** `assemblePatchRows` merges an edit onto a copy of the existing row, so the `__ssrmCalculated` stamp survives it; the port marks the fields the edit wrote (`__ssrmClientEdited`, `CLIENT_EDITED_FIELDS_KEY`, written only on a row that carries a stamp) and `buildVirtualColDef` re-judges the claim per column: a **row-local** calculated column (`[price] * [qty]`) re-evaluates from the row in hand, a **column-wide fold** (`SUM([price])`) keeps the source's number. The asymmetry is the point — one edit moves a fold's answer for every row equally, while the client's cross-row snapshot is empty under SSRM by design, so re-evaluating there would paint the edited row's total as 0 beside neighbours showing the real one
 - Quick filter routes into SSRM query state rather than AG Grid's client-side filter; the toolbar push triggers `refreshServerSide({ purge: true })`. The request carries the grid's visible column scope (`quickFilterColumns`, honouring `includeHiddenColumnsInQuickFilter`) so a term no longer matches on a column the user has hidden — see the SSRM query-plane section
 - **Set-filter panels list the column's whole domain** — `withSsrmSetFilterValues` (applied by `MarketsGridSsrmSurface` to every filterable leaf column, header groups included) wires async `filterParams.values` to `provider.getSetFilterValues({ column })`, so the panel shows all distinct values in the worker cache rather than the loaded blocks; `refreshValuesOnOpen` re-fetches per open, and a failed worker call reports `[]` instead of breaking the panel
 - **Filter-pill badges count the whole cache** — `computeFilterPillCounts` routes every pill through `platform.data.count({ scope: 'all', filterModel })`, which the server-side adapter answers with a zero-row block (`startRow: 0, endRow: 0` → `rowCount` with nothing materialised) against the whole worker row store, not the loaded blocks a `forEachNode` scan would see. The quick filter is deliberately NOT folded in: the badge means the same thing in both row models, and that meaning is the client-side one (roadmap binding constraint 1). Applied pill filters and the quick filter still evaluate worker-side for the GRID's rows, via `setFilterModel` / SSRM query state
@@ -572,7 +574,17 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
   seam on `GridPlatform.deserializeAll` — version-tolerant, so lab profiles
   stamped `v: 1` for smart-edit (previously dropped at load) now load too.
   React wiring: `recordEdit.ts` (`resolveEditRecording`), `useEditJournal`,
-  `journalUndoRedo`, `journalApplyGuard`, `editJournalScope`. Unified
+  `journalUndoRedo`, `journalApplyGuard`, `editJournalScope`,
+  `applyAndRecord.ts`. **Every write goes through `platform.data.mutate()`** —
+  the four funnels (`applyEdits`, `applyBulkUpdateEdits`, `applyShortcutEdit`,
+  `applyPlusMinusNudge`) and the journal's own undo/redo take an `EditPlatform`
+  (`{ gridId, data }`), not a `GridApi`, and return an `EditApplyResult`
+  (`applied` cell patches / `rejected` rows with reasons / `ok`). The journal
+  records ONLY `applied`, so an edit the grid refuses is absent from the
+  history panel and from the undo stack; undo/redo move the stack only when the
+  write lands. This is what makes editing work on a server-side grid at all —
+  `applyTransactionAsync` is client-side-only, so the previous path was inert
+  there while still reporting success.
   **`EditingToolbar`** row composes edit-history, smart-edit, and bulk-update
   segments plus `EditingToolbarKeyboardMenu` hints; plus/minus and shortcuts
   are keyboard-only (no toolbar segment). Host opt-in: `showEditingToolbar`.
@@ -599,6 +611,8 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
   or monitor undo, increments on redo).
   Settings: suspend recording, max stack depth, unify undo (disables AG Grid
   `undoRedoCellEditing`), per-source record toggles (cell editor on by default).
+  Entries record the cells that actually changed: a partly-refused edit is
+  journaled with the surviving patches only, and its label counts those.
   In-cell edits are journaled via wrapped `valueSetter` on editable columns (AG Grid
   35 may omit `cellValueChanged` on inline commit); `cellValueChanged` remains a
   fallback listener when the event fires.
@@ -606,8 +620,13 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
   Smart Edit–only history demo in `public/lab-profiles/smart-edit/se-04-history.json`.
 - **Bulk Update** — replace all selected cells in one column with the same
   value (text, number, date). Distinct-value dropdown, confirm threshold,
-  single-column guard, journal integration. Settings: **Editing** panel,
-  Bulk Update section.
+  single-column guard, journal integration. `collectBulkUpdateTargets` returns a
+  `BulkUpdateSelection` (`targets` + `unreachableRows`): a selected row the grid
+  holds no data for — a range reaching past the loaded block window on a
+  server-side grid — is counted rather than skipped, the toolbar meta shows
+  "n not loaded", and the confirm dialog always opens with
+  `capabilities.canAddressUnloadedRows.reason` so the update is never silently
+  partial. Settings: **Editing** panel, Bulk Update section.
   Lab: **Bulk Update** tab (`lab-bulk-update`) and unified **Editing** tab.
 - **Plus / Minus** — keyboard +/- nudge rules with per-column increment/decrement
   steps and optional expression gates. Takes over +/- keys from Smart Edit when
@@ -983,10 +1002,14 @@ modules).
 
 - `HistoryStack` — vanilla undo/redo (module state snapshots)
 - `HistoryStackOptions` — `maxSize`
-- **Editing core** — `EditJournal`, `CellPatch`, `EditSource`, `buildPatchesFromTargets`,
-  `applyForwardPatches`, `previewPatches`, `assertSingleColumnSelection`,
-  `BuildNudgePatchesOptions` — cell-patch journal for row data edits (one user
-  action = one undo step)
+- **Editing core** — `EditJournal`, `CellPatch`, `EditSource`, `EditPlatform`,
+  `EditApplyResult`, `buildPatchesFromTargets`, `applyForwardPatches`,
+  `previewPatches`, `assertSingleColumnSelection`, `BuildNudgePatchesOptions` —
+  cell-patch journal for row data edits (one user action = one undo step).
+  `applyForwardPatches(port, patches)` writes through `platform.data.mutate()`
+  and reports what landed; `EditGridWriter` and `buildRowUpdatesFromPatches`
+  are gone, replaced by `buildRowPatches` (grouping only — row assembly belongs
+  to the port's adapters)
 - **Smart edit** — `applyNumericOp`, `collectTargetCells`,
   `applySmartEditColDefTransforms`, `INITIAL_SMART_EDIT` (internal since
   Phase 6: `parseMagnitudeSuffix`, `deserializeSmartEditState`)
@@ -994,7 +1017,7 @@ modules).
   `deserializeDataChangeHistoryState`, `INITIAL_DATA_CHANGE_HISTORY` — profile
   settings for the edit-history module (session-only stacks; settings-only persistence)
 - **Bulk update** — `BulkUpdateSettings`, `collectBulkUpdateTargets`,
-  `resolveColumnDistinctValues`, `INITIAL_BULK_UPDATE` — replace-all-selected
+  `BulkUpdateSelection`, `resolveColumnDistinctValues`, `INITIAL_BULK_UPDATE` — replace-all-selected
   with one value (internal since Phase 6: `buildBulkUpdatePatches`,
   `parseBulkUpdateValue`, `deserializeBulkUpdateState`)
 - **Plus / minus** — `buildNudgePatches`,

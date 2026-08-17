@@ -38,6 +38,7 @@ import {
   EditingToolbarApplyButton,
   EditingToolbarSegment,
 } from '../../../widget/editingToolbar/EditingToolbarPrimitives';
+import { cellCountLabel } from '../../editing/applyAndRecord';
 import { useBulkUpdateSelection } from './useBulkUpdateSelection';
 import { applyBulkUpdateEdits, resolveBulkUpdateTargets } from './runtime/applyBulkUpdateEdits';
 
@@ -49,9 +50,16 @@ function formatDistinctLabel(value: unknown): string {
 export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarSegmentProps) {
   const platform = useGridPlatform();
   const [settings] = useEditingSlice('bulkUpdate');
-  const { count, cells } = useBulkUpdateSelection();
+  const { count, cells, unreachableRows } = useBulkUpdateSelection();
   const [value, setValue] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // The port's own copy for "rows outside the loaded range can't be reached" —
+  // one reason string, written once, rendered verbatim wherever the limit
+  // bites. A capability read, not a row-model branch.
+  const unreachableReason = unreachableRows > 0
+    ? platform.data.capabilities.canAddressUnloadedRows.reason
+    : '';
 
   const columnGuard = useMemo(() => {
     if (!settings.settings.enforceSingleColumn) return { ok: true as const };
@@ -83,7 +91,7 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
     const api = platform.api.api;
     if (!api || !settings.settings.enabled || !value.trim()) return;
 
-    const targets = resolveBulkUpdateTargets(api);
+    const { targets } = resolveBulkUpdateTargets(api);
     if (targets.length === 0) return;
 
     if (settings.settings.enforceSingleColumn) {
@@ -92,10 +100,10 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
     }
 
     const colLabel = targets[0]?.field ?? 'cells';
-    await applyBulkUpdateEdits(api, targets, value, {
+    await applyBulkUpdateEdits(platform, targets, value, {
       journal: journalRecording.record ? journalRecording.journal : null,
-      journalLabel: `Bulk set ${colLabel} → ${value.trim()} · ${targets.length} cell${targets.length === 1 ? '' : 's'}`,
-      journalApplyGridId: platform.gridId,
+      journalLabel: (applied) =>
+        `Bulk set ${colLabel} → ${value.trim()} · ${cellCountLabel(applied)}`,
     });
   }, [platform, settings.settings.enabled, settings.settings.enforceSingleColumn, value, journalRecording]);
 
@@ -103,7 +111,7 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
     const api = platform.api.api;
     if (!api || !settings.settings.enabled || !value.trim()) return;
 
-    const targets = resolveBulkUpdateTargets(api);
+    const { targets, unreachableRows: unreachable } = resolveBulkUpdateTargets(api);
     if (targets.length === 0) return;
 
     if (settings.settings.enforceSingleColumn) {
@@ -111,9 +119,13 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
       if (!guard.ok) return;
     }
 
+    // Confirm whenever the selection reaches past what the grid holds, however
+    // small it is: the user is about to change fewer rows than they selected,
+    // and that is exactly the outcome they cannot see for themselves.
     if (
-      settings.settings.confirmThreshold > 0
-      && targets.length > settings.settings.confirmThreshold
+      unreachable > 0
+      || (settings.settings.confirmThreshold > 0
+        && targets.length > settings.settings.confirmThreshold)
     ) {
       setConfirmOpen(true);
       return;
@@ -183,7 +195,16 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
         layout={layout}
         label="Bulk"
         data-testid="bulk-update-toolbar"
-        meta={<span data-testid="bulk-update-count">{count} selected</span>}
+        meta={(
+          <span data-testid="bulk-update-count">
+            {count} selected
+            {unreachableRows > 0 && (
+              <span data-testid="bulk-update-unreachable">
+                {' · '}{unreachableRows} not loaded
+              </span>
+            )}
+          </span>
+        )}
       >
         {valueInput}
         {distinctPicker}
@@ -197,6 +218,8 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
           </TooltipTrigger>
           {!columnGuard.ok ? (
             <TooltipContent>Select cells in a single column only</TooltipContent>
+          ) : unreachableReason ? (
+            <TooltipContent>{unreachableReason}</TooltipContent>
           ) : (
             <TooltipContent>Apply bulk update</TooltipContent>
           )}
@@ -207,8 +230,15 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Apply bulk update?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription data-testid="bulk-update-confirm-description">
               This will update {count} cells. Continue?
+              {unreachableReason && (
+                <>
+                  {' '}
+                  {unreachableRows} selected {unreachableRows === 1 ? 'row is' : 'rows are'} not
+                  loaded and will not change. {unreachableReason}
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

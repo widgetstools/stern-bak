@@ -1,3 +1,5 @@
+import type { GridDataPort, MutationRejection } from '../../../platform/types.js';
+
 /** Framework-agnostic cell patch for undo/redo journal entries. */
 export interface CellPatch {
   rowId: string;
@@ -41,8 +43,34 @@ export interface EditPreviewResult {
   validPatches: CellPatch[];
 }
 
-/** Minimal grid writer for patch apply — no AG Grid import in engine. */
-export interface EditGridWriter {
-  getRowNode(id: string): { data?: Record<string, unknown> } | undefined;
-  applyTransactionAsync(update: { update: Record<string, unknown>[] }): Promise<void>;
+/**
+ * What a write funnel needs from the platform.
+ *
+ * `data` is the ONLY way an edit reaches rows — `applyTransactionAsync` is a
+ * ClientSideRowModel API, so a funnel that held a `GridApi` would be inert on
+ * a server-side grid while still reporting a count its journal recorded from.
+ * `gridId` keys the apply guard that stops `cellValueChanged` re-recording a
+ * patch this funnel is in the middle of applying.
+ *
+ * Both `PlatformHandle` and `GridPlatform` satisfy this structurally, so a
+ * caller passes whichever it already holds.
+ */
+export interface EditPlatform {
+  readonly gridId: string;
+  readonly data: GridDataPort;
+}
+
+/**
+ * What actually happened to a set of cell patches.
+ *
+ * `applied` is the subset the port CONFIRMED — the journal records only these,
+ * which is the whole point of routing writes through the port: an edit that
+ * did not land must not appear in the history panel. `rejected` carries the
+ * port's user-facing copy, one entry per row that did not change.
+ */
+export interface EditApplyResult {
+  readonly applied: readonly CellPatch[];
+  readonly rejected: readonly MutationRejection[];
+  /** `rejected.length === 0`. */
+  readonly ok: boolean;
 }

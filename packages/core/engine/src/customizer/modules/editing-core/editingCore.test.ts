@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { EditJournal } from './EditJournal.js';
+import { makeFakePort } from './applyPatches.test.js';
 import { previewPatches } from './previewPatches.js';
 import { assertSingleColumnSelection } from './selectionGuards.js';
 
@@ -48,10 +49,7 @@ describe('previewPatches', () => {
 describe('EditJournal', () => {
   it('records and undoes an entry', async () => {
     const journal = new EditJournal({ limit: 10 });
-    const api = {
-      getRowNode: () => ({ data: { id: 'r1', qty: 200 } }),
-      applyTransactionAsync: vi.fn().mockResolvedValue(undefined),
-    };
+    const { port } = makeFakePort({ r1: { id: 'r1', qty: 200 } });
     journal.record({
       source: 'smart-edit',
       label: '×2',
@@ -60,10 +58,51 @@ describe('EditJournal', () => {
     expect(journal.canUndo).toBe(true);
     expect(journal.undoStackSize).toBe(1);
     expect(journal.entries).toHaveLength(1);
-    await journal.undo(api);
+    await journal.undo(port);
     expect(journal.undoStackSize).toBe(0);
     expect(journal.entries).toHaveLength(1);
     expect(journal.canRedo).toBe(true);
+  });
+
+  /**
+   * The timeline moves only when the write does. Before this phase `undo` had
+   * already popped the stack by the time it awaited a transaction that was
+   * inert under the server-side row model, so the cursor walked backwards over
+   * values that never changed.
+   */
+  it('leaves the stack alone when the grid refuses the undo', async () => {
+    const journal = new EditJournal({ limit: 10 });
+    const fx = makeFakePort({ r1: { id: 'r1', qty: 200 } });
+    fx.refuseWhen(() => 'The grid is still loading those rows from the server.');
+
+    journal.record({
+      source: 'smart-edit',
+      label: '×2',
+      patches: [{ rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 100, newValue: 200 }],
+    });
+
+    expect(await journal.undo(fx.port)).toBe(false);
+    expect(journal.undoStackSize).toBe(1);
+    expect(journal.canUndo).toBe(true);
+    expect(journal.canRedo).toBe(false);
+    expect(fx.rows.r1).toEqual({ id: 'r1', qty: 200 });
+  });
+
+  it('leaves the stack alone when the grid refuses the redo', async () => {
+    const journal = new EditJournal({ limit: 10 });
+    const fx = makeFakePort({ r1: { id: 'r1', qty: 200 } });
+    journal.record({
+      source: 'smart-edit',
+      label: '×2',
+      patches: [{ rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 100, newValue: 200 }],
+    });
+    await journal.undo(fx.port);
+    expect(journal.canRedo).toBe(true);
+
+    fx.refuseWhen(() => 'The grid is still loading those rows from the server.');
+    expect(await journal.redo(fx.port)).toBe(false);
+    expect(journal.canRedo).toBe(true);
+    expect(journal.canUndo).toBe(false);
   });
 
   it('does not record when suspended', () => {
@@ -80,18 +119,7 @@ describe('EditJournal', () => {
 
   it('undoEntry cascades newer edits and restores redo order', async () => {
     const journal = new EditJournal({ limit: 10 });
-    const data: Record<string, Record<string, unknown>> = {
-      r1: { id: 'r1', qty: 100 },
-    };
-    const api = {
-      getRowNode: (id: string) => ({ data: data[id] }),
-      applyTransactionAsync: vi.fn(async ({ update }: { update: Record<string, unknown>[] }) => {
-        for (const row of update) {
-          const id = row.id as string;
-          data[id] = { ...data[id], ...row };
-        }
-      }),
-    };
+    const { port, rows: data } = makeFakePort({ r1: { id: 'r1', qty: 100 } });
 
     const a = journal.record({
       source: 'smart-edit',
@@ -112,28 +140,55 @@ describe('EditJournal', () => {
     expect(data.r1!.qty).toBe(100);
     data.r1!.qty = 400;
 
-    await journal.undoEntry(api, a.id);
+    await journal.undoEntry(port, a.id);
     expect(data.r1!.qty).toBe(100);
     expect(journal.canUndo).toBe(false);
     expect(journal.canRedo).toBe(true);
     expect(journal.canUndoEntry(a.id)).toBe(false);
 
-    await journal.redo(api);
+    await journal.redo(port);
     expect(data.r1!.qty).toBe(200);
 
-    await journal.redo(api);
+    await journal.redo(port);
     expect(data.r1!.qty).toBe(300);
 
-    await journal.redo(api);
+    await journal.redo(port);
     expect(data.r1!.qty).toBe(400);
+  });
+
+  it('undoEntry stops at the first entry the grid refuses', async () => {
+    const journal = new EditJournal({ limit: 10 });
+    const fx = makeFakePort({ r1: { id: 'r1', qty: 300 }, r2: { id: 'r2', qty: 1 } });
+
+    const a = journal.record({
+      source: 'smart-edit',
+      label: 'A on r1',
+      patches: [{ rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 100, newValue: 200 }],
+    })!;
+    journal.record({
+      source: 'smart-edit',
+      label: 'B on r2 — the one that will be refused',
+      patches: [{ rowId: 'r2', colId: 'qty', field: 'qty', oldValue: 0, newValue: 1 }],
+    });
+    journal.record({
+      source: 'smart-edit',
+      label: 'C on r1',
+      patches: [{ rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 200, newValue: 300 }],
+    });
+
+    fx.refuseWhen((rowId) => (rowId === 'r2' ? 'That row is still loading.' : null));
+
+    expect(await journal.undoEntry(fx.port, a.id)).toBe(true);
+    // C came off; B was refused, so A stays applied and stays undoable.
+    expect(fx.rows.r1).toEqual({ id: 'r1', qty: 200 });
+    expect(journal.canUndoEntry(a.id)).toBe(true);
+    expect(journal.undoStackSize).toBe(2);
+    expect(journal.canRedo).toBe(true);
   });
 
   it('canUndoEntry reflects undo stack membership', async () => {
     const journal = new EditJournal();
-    const api = {
-      getRowNode: () => ({ data: { id: 'r1', qty: 1 } }),
-      applyTransactionAsync: vi.fn().mockResolvedValue(undefined),
-    };
+    const { port } = makeFakePort({ r1: { id: 'r1', qty: 1 } });
     const first = journal.record({
       source: 'cell-editor',
       label: 'first',
@@ -148,7 +203,7 @@ describe('EditJournal', () => {
     expect(journal.canUndoEntry(first.id)).toBe(true);
     expect(journal.canUndoEntry(second.id)).toBe(true);
 
-    await journal.undo(api);
+    await journal.undo(port);
     expect(journal.canUndoEntry(second.id)).toBe(false);
     expect(journal.canUndoEntry(first.id)).toBe(true);
   });

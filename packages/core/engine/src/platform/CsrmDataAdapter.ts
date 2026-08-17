@@ -64,6 +64,7 @@ const CSRM_CAPABILITIES: DataCapabilities = {
 };
 
 const NOT_MOUNTED = 'The grid is not ready yet.';
+const WRITE_FAILED = 'The grid could not take that edit. Nothing was changed.';
 
 interface VisitedRow {
   node: IRowNode;
@@ -181,9 +182,30 @@ export class CsrmDataAdapter implements GridDataPort {
     // Resolve on AG-Grid's flush callback: the transaction is asynchronous by
     // design (it batches with every other one in the frame), so "it returned"
     // and "it landed" are different moments.
-    await new Promise<void>((resolve) => {
-      api.applyTransactionAsync({ update: assembled.map((a) => a.row) }, () => resolve());
-    });
+    //
+    // A grid torn down between the read above and this call throws here. That
+    // has to become a REFUSAL, not a rejected promise: every caller reads the
+    // result to decide what to record, and one that threw instead would leave
+    // an editing funnel with nothing to record from and an unhandled rejection
+    // in a click handler. The server-side adapter already answers this way.
+    try {
+      await new Promise<void>((resolve, reject) => {
+        try {
+          api.applyTransactionAsync({ update: assembled.map((a) => a.row) }, () => resolve());
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      });
+    } catch {
+      return {
+        applied: [],
+        rejected: [
+          ...rejected,
+          ...assembled.map((a) => ({ rowId: a.rowId, reason: WRITE_FAILED })),
+        ],
+        ok: false,
+      };
+    }
 
     return {
       applied: assembled.map((a) => a.rowId),

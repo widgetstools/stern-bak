@@ -1,5 +1,6 @@
 import { applyPatches } from './applyPatches.js';
-import type { CellPatch, EditGridWriter, EditJournalEntry, EditSource } from './types.js';
+import type { CellPatch, EditApplyResult, EditJournalEntry, EditSource } from './types.js';
+import type { GridDataPort } from '../../../platform/types.js';
 
 export interface EditJournalOptions {
   /** Max undo/redo stack depth. Default 50. */
@@ -109,26 +110,39 @@ export class EditJournal {
     return entry;
   }
 
-  async undo(api: EditGridWriter, rowIdField = 'id'): Promise<boolean> {
-    const entry = this.past.pop();
+  /**
+   * The timeline moves only when the grid takes the write.
+   *
+   * These used to pop the stack and then `await` a transaction whose promise
+   * resolved before anything had been written, so a refused undo still moved
+   * the cursor — and on a server-side grid, where NOTHING was ever written,
+   * the whole stack could be walked without a single value changing. The apply
+   * now comes first and the stack move is its consequence.
+   */
+  async undo(port: GridDataPort): Promise<boolean> {
+    const entry = this.past[this.past.length - 1];
     if (!entry) return false;
+    const result = await applyPatches(port, entry.patches, 'undo');
+    if (!landed(entry, result)) return false;
+    this.past.pop();
     this.future.push(entry);
     if (this.future.length > this.limit) {
       this.future = this.future.slice(this.future.length - this.limit);
     }
-    await applyPatches(api, entry.patches, 'undo', rowIdField);
     this.notify();
     return true;
   }
 
-  async redo(api: EditGridWriter, rowIdField = 'id'): Promise<boolean> {
-    const entry = this.future.pop();
+  async redo(port: GridDataPort): Promise<boolean> {
+    const entry = this.future[this.future.length - 1];
     if (!entry) return false;
+    const result = await applyPatches(port, entry.patches, 'redo');
+    if (!landed(entry, result)) return false;
+    this.future.pop();
     this.past.push(entry);
     if (this.past.length > this.limit) {
       this.past = this.past.slice(this.past.length - this.limit);
     }
-    await applyPatches(api, entry.patches, 'redo', rowIdField);
     this.notify();
     return true;
   }
@@ -138,21 +152,32 @@ export class EditJournal {
     return this.past.some((entry) => entry.id === entryId);
   }
 
-  /** Undo this entry and every edit after it — moves the timeline to just before it. */
-  async undoEntry(api: EditGridWriter, entryId: string, rowIdField = 'id'): Promise<boolean> {
+  /**
+   * Undo this entry and every edit after it — moves the timeline to just
+   * before it.
+   *
+   * Newest first, and it STOPS at the first entry the grid refuses rather than
+   * walking past it: the entries are ordered, so continuing would restore an
+   * older value over a newer one that is still applied.
+   */
+  async undoEntry(port: GridDataPort, entryId: string): Promise<boolean> {
     const idx = this.past.findIndex((entry) => entry.id === entryId);
     if (idx < 0) return false;
 
     const toUndo = this.past.slice(idx);
-    this.past = this.past.slice(0, idx);
+    const undone: EditJournalEntry[] = [];
 
     for (let i = toUndo.length - 1; i >= 0; i -= 1) {
-      await applyPatches(api, toUndo[i]!.patches, 'undo', rowIdField);
+      const entry = toUndo[i]!;
+      const result = await applyPatches(port, entry.patches, 'undo');
+      if (!landed(entry, result)) break;
+      undone.push(entry);
     }
+    if (undone.length === 0) return false;
 
-    for (let i = toUndo.length - 1; i >= 0; i -= 1) {
-      this.future.push(toUndo[i]!);
-    }
+    this.past = this.past.slice(0, this.past.length - undone.length);
+    // Same order the loop undid them in, so `redo` pops the oldest first.
+    for (const entry of undone) this.future.push(entry);
     if (this.future.length > this.limit) {
       this.future = this.future.slice(this.future.length - this.limit);
     }
@@ -160,4 +185,15 @@ export class EditJournal {
     this.notify();
     return true;
   }
+}
+
+/**
+ * Did this entry's undo/redo actually reach the grid?
+ *
+ * An entry with no patches cannot be recorded (see {@link EditJournal.record})
+ * but is treated as trivially applied so a hand-constructed one can never
+ * wedge the stack.
+ */
+function landed(entry: EditJournalEntry, result: EditApplyResult): boolean {
+  return entry.patches.length === 0 || result.applied.length > 0;
 }

@@ -71,9 +71,10 @@ describe('collectBulkUpdateTargets', () => {
         rowNode.data?.currency,
       getFocusedCell: () => null,
     };
-    const targets = collectBulkUpdateTargets(api, (d) => String(d.id));
+    const { targets, unreachableRows } = collectBulkUpdateTargets(api, (d) => String(d.id));
     expect(targets).toHaveLength(2);
     expect(targets[0]?.field).toBe('currency');
+    expect(unreachableRows).toBe(0);
   });
 
   it('skips non-editable numeric-only restriction — allows text not boolean', () => {
@@ -90,7 +91,7 @@ describe('collectBulkUpdateTargets', () => {
       getCellValue: () => true,
       getFocusedCell: () => null,
     };
-    expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toHaveLength(0);
+    expect(collectBulkUpdateTargets(api, (d) => String(d.id)).targets).toHaveLength(0);
   });
 
   it('falls back to focused cell when range yields nothing', () => {
@@ -104,7 +105,7 @@ describe('collectBulkUpdateTargets', () => {
       getCellValue: () => 5,
       getFocusedCell: () => ({ rowIndex: 2, column: { getColId: () => 'qty' } }),
     };
-    const targets = collectBulkUpdateTargets(api, (d) => String(d.id));
+    const { targets } = collectBulkUpdateTargets(api, (d) => String(d.id));
     expect(targets).toEqual([{ rowId: 'r2', colId: 'qty', field: 'qty', value: 5, cellDataType: 'number' }]);
   });
 
@@ -133,7 +134,7 @@ describe('collectBulkUpdateTargets', () => {
       getCellValue: () => 1,
       getFocusedCell: () => null,
     };
-    expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toHaveLength(0);
+    expect(collectBulkUpdateTargets(api, (d) => String(d.id)).targets).toHaveLength(0);
   });
 
   it('honors editable false and function editable returning false', () => {
@@ -150,7 +151,7 @@ describe('collectBulkUpdateTargets', () => {
     expect(collectBulkUpdateTargets({
       ...base,
       getColumn: () => ({ getColDef: () => ({ editable: false, field: 'qty', cellDataType: 'number' }) }),
-    }, (d) => String(d.id))).toHaveLength(0);
+    }, (d) => String(d.id)).targets).toHaveLength(0);
 
     expect(collectBulkUpdateTargets({
       ...base,
@@ -161,7 +162,7 @@ describe('collectBulkUpdateTargets', () => {
           cellDataType: 'number',
         }),
       }),
-    }, (d) => String(d.id))).toHaveLength(0);
+    }, (d) => String(d.id)).targets).toHaveLength(0);
   });
 
   it('dedupes the same cell across overlapping ranges', () => {
@@ -185,7 +186,50 @@ describe('collectBulkUpdateTargets', () => {
       getCellValue: () => 1,
       getFocusedCell: () => null,
     };
-    expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toHaveLength(1);
+    expect(collectBulkUpdateTargets(api, (d) => String(d.id)).targets).toHaveLength(1);
+  });
+
+  /**
+   * A range under the server-side row model is expressed in displayed indices
+   * spanning the whole dataset; only a window of it is materialised. The rows
+   * outside that window used to be a bare `continue` — the update applied to
+   * the rest and reported that count as the whole job.
+   */
+  it('counts selected rows the grid holds no data for', () => {
+    const api = {
+      getCellRanges: () => [{
+        columns: [{ getColId: () => 'qty' }],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 3 },
+      }],
+      // Rows 1 and 2 are loading stubs: a node, but no data.
+      getDisplayedRowAtIndex: (i: number) =>
+        i === 1 || i === 2 ? { id: undefined, data: undefined } : { id: `r${i}`, data: { id: `r${i}`, qty: i } },
+      getColumn: () => ({
+        getColDef: () => ({ editable: true, field: 'qty', cellDataType: 'number' }),
+      }),
+      getCellValue: ({ rowNode }: { rowNode: { data?: { qty?: number } } }) => rowNode.data?.qty,
+      getFocusedCell: () => null,
+    };
+    const { targets, unreachableRows } = collectBulkUpdateTargets(api, (d) => String(d.id));
+    expect(targets.map((t) => t.rowId)).toEqual(['r0', 'r3']);
+    expect(unreachableRows).toBe(2);
+  });
+
+  it('counts an unreachable focused row too', () => {
+    const api = {
+      getCellRanges: () => [],
+      getDisplayedRowAtIndex: () => ({ id: undefined, data: undefined }),
+      getColumn: () => ({
+        getColDef: () => ({ editable: true, field: 'qty', cellDataType: 'number' }),
+      }),
+      getCellValue: () => 1,
+      getFocusedCell: () => ({ rowIndex: 7, column: { getColId: () => 'qty' } }),
+    };
+    expect(collectBulkUpdateTargets(api, (d) => String(d.id))).toEqual({
+      targets: [],
+      unreachableRows: 1,
+    });
   });
 });
 

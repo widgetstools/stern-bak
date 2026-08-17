@@ -777,10 +777,13 @@ implementations against a ~2,000-row block cache.
 returning the entire unfiltered dataset (`ssrm/filter.ts:231`), nested-path
 columns broken across filter/sort/set-values, and aggregate calculated columns
 rendering a total that revises itself as the user scrolls. **11 are silent
-no-ops** — notably every editing write path, which funnels into
+no-ops** — notably every editing write path, which funnelled into
 `applyTransactionAsync` (`editing-core/applyPatches.ts:14`, a
-ClientSideRowModel-only API) while `EditJournal` records the edit as
-successful. **15 are container wiring gaps.**
+ClientSideRowModel-only API) while `EditJournal` recorded the edit as
+successful *(closed by Phase 4 — writes go through `platform.data.mutate()`
+and the journal records only confirmed cells; an SSRM edit still does not
+survive a block refetch, which needs a per-session edit overlay in the query
+plane — see the phase's decision 1)*. **15 are container wiring gaps.**
 
 **Done looks like:** modules reach rows only through a `platform.data` port
 with CSRM and SSRM adapters behind one contract suite; no module branches on

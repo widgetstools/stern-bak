@@ -27,6 +27,23 @@ export interface BulkUpdateTarget {
   cellDataType?: string;
 }
 
+/**
+ * What a selection actually reaches.
+ *
+ * `unreachableRows` counts selected rows the grid could not produce data for.
+ * Under the server-side row model that is a row inside the selected range but
+ * outside the loaded block window — the range is expressed in DISPLAYED
+ * indices, which span the whole dataset, while only a window of it is
+ * materialised. This used to be a bare `continue`: the update applied to the
+ * loaded rows, reported that count as the whole job, and the user had no way
+ * to know the rest were skipped. Silently partially applying is the defect;
+ * counting them is what lets the caller say so.
+ */
+export interface BulkUpdateSelection {
+  readonly targets: BulkUpdateTarget[];
+  readonly unreachableRows: number;
+}
+
 function isEditable(
   editable: boolean | ((p: unknown) => boolean) | undefined,
   rowNode: unknown,
@@ -47,6 +64,7 @@ function collectFromRange(
   getRowId: (data: Record<string, unknown>) => string,
   seen: Set<string>,
   out: BulkUpdateTarget[],
+  unreachable: Set<number>,
 ): void {
   const ranges = api.getCellRanges() ?? [];
   for (const range of ranges) {
@@ -57,7 +75,12 @@ function collectFromRange(
 
     for (let ri = rowFrom; ri <= rowTo; ri += 1) {
       const rowNode = api.getDisplayedRowAtIndex(ri);
-      if (!rowNode?.data) continue;
+      // A loading stub answers with a node carrying no `data`. It is selected
+      // and it will not be updated — report it rather than skipping quietly.
+      if (!rowNode?.data) {
+        unreachable.add(ri);
+        continue;
+      }
       const data = rowNode.data;
       const rowId = rowNode.id ?? getRowId(data);
 
@@ -94,6 +117,7 @@ function collectFromFocus(
   getRowId: (data: Record<string, unknown>) => string,
   seen: Set<string>,
   out: BulkUpdateTarget[],
+  unreachable: Set<number>,
 ): void {
   const focused = api.getFocusedCell();
   if (!focused) return;
@@ -102,7 +126,10 @@ function collectFromFocus(
   if (!colId) return;
 
   const rowNode = api.getDisplayedRowAtIndex(focused.rowIndex);
-  if (!rowNode?.data) return;
+  if (!rowNode?.data) {
+    unreachable.add(focused.rowIndex);
+    return;
+  }
 
   const column = api.getColumn(colId);
   if (!column) return;
@@ -130,12 +157,13 @@ function collectFromFocus(
 export function collectBulkUpdateTargets(
   api: BulkUpdateGridReader,
   getRowId: (data: Record<string, unknown>) => string,
-): BulkUpdateTarget[] {
+): BulkUpdateSelection {
   const seen = new Set<string>();
   const out: BulkUpdateTarget[] = [];
-  collectFromRange(api, getRowId, seen, out);
+  const unreachable = new Set<number>();
+  collectFromRange(api, getRowId, seen, out, unreachable);
   if (out.length === 0) {
-    collectFromFocus(api, getRowId, seen, out);
+    collectFromFocus(api, getRowId, seen, out, unreachable);
   }
-  return out;
+  return { targets: out, unreachableRows: unreachable.size };
 }

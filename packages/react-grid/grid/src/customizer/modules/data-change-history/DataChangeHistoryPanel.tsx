@@ -56,9 +56,7 @@ function DataChangeHistoryPanelInner() {
   };
 
   const undoEntry = useCallback(async (entryId: string) => {
-    const api = platform.api.api;
-    if (!api) return;
-    await journalUndoEntry(platform, journal, api as never, entryId);
+    await journalUndoEntry(platform, journal, entryId);
   }, [journal, platform]);
 
   return (

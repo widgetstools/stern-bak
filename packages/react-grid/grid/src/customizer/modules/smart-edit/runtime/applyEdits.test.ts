@@ -1,38 +1,26 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { EditJournal } from '@wellsfargo-starui/core';
+import { makeFakeEditPlatform } from '../../../editing/applyAndRecord.test.js';
 import { applyEdits, buildSmartEditPatches, resolveTargetCells } from './applyEdits.js';
 
 describe('applyEdits', () => {
-  it('applies transaction updates', async () => {
-    const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({
-        data: { id: 'r1', qty: 100, ticker: 'ABC' },
-      }),
-    } as never;
-    const count = await applyEdits(
-      api,
+  it('writes the computed values through the port', async () => {
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', qty: 100, ticker: 'ABC' } });
+    const result = await applyEdits(
+      fx.platform,
       [{ rowId: 'r1', colId: 'qty', field: 'qty', value: 100 }],
       'multiply',
       2,
     );
-    expect(count).toBe(1);
-    expect(applyTransactionAsync).toHaveBeenCalledWith({
-      update: [{ id: 'r1', qty: 200, ticker: 'ABC' }],
-    });
+    expect(result.applied).toHaveLength(1);
+    expect(fx.mutations).toEqual([[{ rowId: 'r1', fields: { qty: 200 } }]]);
+    expect(fx.rows.r1).toEqual({ id: 'r1', qty: 200, ticker: 'ABC' });
   });
 
-  it('merges multiple cell edits on the same row', async () => {
-    const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({
-        data: { id: 'r1', qty: 100, midPrice: 50, ticker: 'ABC' },
-      }),
-    } as never;
+  it('merges multiple cell edits on the same row into one row patch', async () => {
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', qty: 100, midPrice: 50, ticker: 'ABC' } });
     await applyEdits(
-      api,
+      fx.platform,
       [
         { rowId: 'r1', colId: 'qty', field: 'qty', value: 100 },
         { rowId: 'r1', colId: 'midPrice', field: 'midPrice', value: 50 },
@@ -40,36 +28,26 @@ describe('applyEdits', () => {
       'set',
       0,
     );
-    expect(applyTransactionAsync).toHaveBeenCalledWith({
-      update: [{ id: 'r1', qty: 0, midPrice: 0, ticker: 'ABC' }],
-    });
+    expect(fx.mutations).toEqual([[{ rowId: 'r1', fields: { qty: 0, midPrice: 0 } }]]);
   });
 
-  it('returns 0 when no valid updates', async () => {
-    const applyTransactionAsync = vi.fn();
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({ data: { id: 'r1', qty: 100 } }),
-    } as never;
-    const count = await applyEdits(
-      api,
+  it('applies nothing when no valid updates', async () => {
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', qty: 100 } });
+    const result = await applyEdits(
+      fx.platform,
       [{ rowId: 'r1', colId: 'qty', field: 'qty', value: 'bad' }],
       'multiply',
       2,
     );
-    expect(count).toBe(0);
-    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    expect(result.applied).toEqual([]);
+    expect(fx.mutations).toEqual([]);
   });
 
   it('records journal entry when journal provided', async () => {
-    const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({ data: { id: 'r1', qty: 100 } }),
-    } as never;
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', qty: 100 } });
     const journal = new EditJournal();
     await applyEdits(
-      api,
+      fx.platform,
       [{ rowId: 'r1', colId: 'qty', field: 'qty', value: 100 }],
       'multiply',
       2,
@@ -77,6 +55,22 @@ describe('applyEdits', () => {
     );
     expect(journal.canUndo).toBe(true);
     expect(journal.entries[0]?.source).toBe('smart-edit');
+  });
+
+  it('records nothing when the port refuses the row', async () => {
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', qty: 100 } });
+    fx.refuseWhen(() => 'That row is not loaded.');
+    const journal = new EditJournal();
+    const result = await applyEdits(
+      fx.platform,
+      [{ rowId: 'r1', colId: 'qty', field: 'qty', value: 100 }],
+      'multiply',
+      2,
+      { journal },
+    );
+    expect(result.ok).toBe(false);
+    expect(journal.entries).toEqual([]);
+    expect(journal.canUndo).toBe(false);
   });
 
   it('buildSmartEditPatches returns cell patches', () => {

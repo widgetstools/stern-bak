@@ -9,7 +9,12 @@ import { SmartEditToolbarBody } from './SmartEditToolbarBody';
 import { editingModule } from '../editing';
 
 function makeMockApi() {
-  const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
+  // Settles on AG-Grid's flush CALLBACK, which is what the port waits for —
+  // `applyTransactionAsync` itself returns void, and awaiting that is what let
+  // an unlanded edit be recorded as one that landed.
+  const applyTransactionAsync = vi.fn(
+    (_tx: unknown, onFlush?: () => void) => { onFlush?.(); },
+  );
   return {
     applyTransactionAsync,
     getRowNode: (id: string) => ({
@@ -93,7 +98,7 @@ describe('SmartEditToolbarBody', () => {
     await waitFor(() => {
       expect(api.applyTransactionAsync).toHaveBeenCalledWith({
         update: [{ id: 'r1', qty: 100, ticker: 'ABC' }],
-      });
+      }, expect.any(Function));
     });
   });
 
@@ -134,7 +139,7 @@ describe('SmartEditToolbarBody', () => {
     await waitFor(() => {
       expect(api.applyTransactionAsync).toHaveBeenCalledWith({
         update: [{ id: 'r1', qty: 42, ticker: 'ABC' }],
-      });
+      }, expect.any(Function));
     });
   });
 

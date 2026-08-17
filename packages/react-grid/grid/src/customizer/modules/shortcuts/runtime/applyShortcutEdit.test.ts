@@ -1,14 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { defaultShortcut, EditJournal } from '@wellsfargo-starui/core';
+import { makeFakeEditPlatform } from '../../../editing/applyAndRecord.test.js';
 import { applyShortcutEdit } from './applyShortcutEdit.js';
 
 describe('applyShortcutEdit', () => {
-  it('applies shortcut patches', async () => {
-    const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({ data: { id: 'r1', quantityFace: 2500 } }),
-    } as never;
+  it('applies shortcut patches through the port', async () => {
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', quantityFace: 2500 } });
     const shortcuts = [{
       ...defaultShortcut('×100'),
       shortcutKey: 'h',
@@ -17,8 +14,8 @@ describe('applyShortcutEdit', () => {
       scope: { columnIds: ['quantityFace'] },
     }];
 
-    const count = await applyShortcutEdit(
-      api,
+    const result = await applyShortcutEdit(
+      fx.platform,
       {
         cells: [{ rowId: 'r1', colId: 'quantityFace', field: 'quantityFace', value: 2500 }],
         key: 'h',
@@ -26,16 +23,12 @@ describe('applyShortcutEdit', () => {
       },
     );
 
-    expect(count).toBe(1);
-    expect(applyTransactionAsync).toHaveBeenCalled();
+    expect(result.applied).toHaveLength(1);
+    expect(fx.rows.r1).toEqual({ id: 'r1', quantityFace: 250000 });
   });
 
   it('records journal with shortcut label', async () => {
-    const applyTransactionAsync = vi.fn().mockResolvedValue(undefined);
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({ data: { id: 'r1', quantityFace: 10 } }),
-    } as never;
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', quantityFace: 10 } });
     const journal = new EditJournal();
     const shortcuts = [{
       ...defaultShortcut('Add 5'),
@@ -46,7 +39,7 @@ describe('applyShortcutEdit', () => {
     }];
 
     await applyShortcutEdit(
-      api,
+      fx.platform,
       {
         cells: [{ rowId: 'r1', colId: 'quantityFace', field: 'quantityFace', value: 10 }],
         key: 'M',
@@ -59,20 +52,17 @@ describe('applyShortcutEdit', () => {
     expect(journal.entries[0]?.label).toContain('M');
   });
 
-  it('returns 0 when no shortcut matches', async () => {
-    const applyTransactionAsync = vi.fn();
-    const api = {
-      applyTransactionAsync,
-      getRowNode: () => ({ data: { id: 'r1', quantityFace: 10 } }),
-    } as never;
-    const count = await applyShortcutEdit(
-      api,
+  it('applies nothing when no shortcut matches', async () => {
+    const fx = makeFakeEditPlatform({ r1: { id: 'r1', quantityFace: 10 } });
+    const result = await applyShortcutEdit(
+      fx.platform,
       {
         cells: [{ rowId: 'r1', colId: 'quantityFace', field: 'quantityFace', value: 10 }],
         key: 'z',
         shortcuts: [],
       },
     );
-    expect(count).toBe(0);
+    expect(result.applied).toEqual([]);
+    expect(fx.mutations).toEqual([]);
   });
 });

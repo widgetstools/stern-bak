@@ -13,6 +13,7 @@
  * two from drifting on the part they genuinely share.
  */
 import type { GridApi } from 'ag-grid-community';
+import { markClientEdited } from './computedFields';
 import type {
   DataRow,
   MutationRejection,
@@ -84,9 +85,17 @@ export interface AssembledRows {
  * step is unavoidable — and it is precisely the step that needs the current
  * row. A caller that assembled rows itself would have to read them itself,
  * which is the row-model-specific knowledge the port exists to hold.
+ *
+ * Because the merge starts from the existing row, anything the SOURCE stamped
+ * on it survives the patch — including `__ssrmCalculated`, the claim that this
+ * row already carries computed values. `markClientEdited` records which fields
+ * the edit overwrote so the claim can be re-judged against the new row rather
+ * than believed; see `platform/computedFields.ts` for why that beats deleting
+ * the stamp outright.
  */
 export function assemblePatchRows(api: GridApi, patches: readonly RowPatch[]): AssembledRows {
   const byRowId = new Map<string, Record<string, unknown>>();
+  const editedFields = new Map<string, string[]>();
   const missing = new Set<string>();
 
   for (const patch of patches) {
@@ -100,10 +109,17 @@ export function assemblePatchRows(api: GridApi, patches: readonly RowPatch[]): A
       }
       row = { ...(existing as Record<string, unknown>) };
       byRowId.set(patch.rowId, row);
+      editedFields.set(patch.rowId, []);
     }
+    const edited = editedFields.get(patch.rowId)!;
     for (const [field, value] of Object.entries(patch.fields)) {
       row[field] = value;
+      edited.push(field);
     }
+  }
+
+  for (const [rowId, row] of byRowId) {
+    markClientEdited(row, editedFields.get(rowId) ?? []);
   }
 
   return {

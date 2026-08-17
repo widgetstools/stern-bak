@@ -32,6 +32,7 @@ import { ApiHub } from './ApiHub';
 import { CsrmDataAdapter } from './CsrmDataAdapter';
 import { SsrmDataAdapter } from './SsrmDataAdapter';
 import { doesRowMatchFilterModel } from '../filters/filterPredicate';
+import { CLIENT_EDITED_FIELDS_KEY, COMPUTED_FIELDS_KEY } from './computedFields';
 import type { DataQuery, DataRow, GridDataPort, RowPatch } from './types';
 
 // ─── The dataset both adapters answer from ─────────────────────────────────
@@ -71,7 +72,10 @@ interface FakeNode {
  * honours APPLIED_FILTER — that is AG-Grid's job in production, so the fake
  * takes it as given rather than re-deriving it.
  */
-function makeFakeGrid(rows: TestRow[], opts: { stubIndices?: number[] } = {}) {
+function makeFakeGrid(
+  rows: TestRow[],
+  opts: { stubIndices?: number[]; throwOnWrite?: boolean } = {},
+) {
   const stubs = new Set(opts.stubIndices ?? []);
   const nodes: FakeNode[] = rows.map((data, i) => ({
     id: data.id,
@@ -105,6 +109,8 @@ function makeFakeGrid(rows: TestRow[], opts: { stubIndices?: number[] } = {}) {
       tx: { update: Record<string, unknown>[] },
       callback: () => void,
     ) {
+      // What a destroyed grid does to either transaction API.
+      if (opts.throwOnWrite) throw new Error('Grid is destroyed');
       transactions.push(tx.update);
       // Deferred on purpose: the port's promise must settle on the FLUSH, not
       // on the call returning. A fake that invoked the callback synchronously
@@ -112,6 +118,7 @@ function makeFakeGrid(rows: TestRow[], opts: { stubIndices?: number[] } = {}) {
       pendingFlush = callback;
     },
     applyServerSideTransaction(tx: { update: Record<string, unknown>[] }) {
+      if (opts.throwOnWrite) throw new Error('Grid is destroyed');
       transactions.push(tx.update);
       return { status: 'Applied' };
     },
@@ -229,10 +236,30 @@ interface Fixture {
   settle: () => void;
 }
 
-type MakeFixture = (opts?: { stubIndices?: number[] }) => Fixture;
+type MakeFixture = (opts?: FixtureOptions) => Fixture;
+
+interface FixtureOptions {
+  stubIndices?: number[];
+  /** The grid throws on write — what a destroyed one does. */
+  throwOnWrite?: boolean;
+  /** Give every row the stamp a server-side source writes when it has already
+   *  evaluated the grid's calculated columns over the whole dataset. */
+  stampComputed?: boolean;
+}
+
+/** Rows as a stamping source would hand them over. */
+function seedRows(opts: FixtureOptions): TestRow[] {
+  const rows = cloneRows();
+  if (!opts.stampComputed) return rows;
+  for (const row of rows) {
+    row.total = row.px * 2;
+    row[COMPUTED_FIELDS_KEY] = ['total'];
+  }
+  return rows;
+}
 
 const makeCsrm: MakeFixture = (opts = {}) => {
-  const rows = cloneRows();
+  const rows = seedRows(opts);
   const grid = makeFakeGrid(rows, opts);
   const hub = new ApiHub();
   hub.attach(grid.api);
@@ -245,7 +272,7 @@ const makeCsrm: MakeFixture = (opts = {}) => {
 };
 
 const makeSsrm: MakeFixture = (opts = {}) => {
-  const rows = cloneRows();
+  const rows = seedRows(opts);
   const grid = makeFakeGrid(rows, opts);
   const hub = new ApiHub();
   hub.attach(grid.api);
@@ -532,6 +559,49 @@ describe.each(ADAPTERS)('grid data port contract — %s', (_name, make) => {
         ok: true,
       });
       expect(fx.transactions).toEqual([]);
+    });
+
+    /**
+     * The merge starts from the row the grid holds, so anything a SOURCE
+     * stamped on it rides along — including its claim to have already computed
+     * the calculated columns. Marking the fields the edit wrote is what lets
+     * `buildVirtualColDef` re-judge that claim against the row it now has.
+     */
+    it('marks the fields it wrote on a row the source had stamped', async () => {
+      const stamped = make({ stampComputed: true });
+      const promise = stamped.port.mutate([{ rowId: 'r1', fields: { px: 999 } }]);
+      stamped.settle();
+      await promise;
+
+      expect(stamped.transactions[0]?.[0]).toMatchObject({
+        id: 'r1',
+        px: 999,
+        [COMPUTED_FIELDS_KEY]: ['total'],
+        [CLIENT_EDITED_FIELDS_KEY]: ['px'],
+      });
+    });
+
+    /**
+     * Every caller reads the RESULT to decide what to record. An adapter that
+     * threw instead would leave an editing funnel with nothing to record from
+     * and an unhandled rejection inside a click handler.
+     */
+    it('refuses rather than throwing when the grid rejects the write outright', async () => {
+      const broken = make({ throwOnWrite: true });
+      const result = await broken.port.mutate([{ rowId: 'r1', fields: { px: 1 } }]);
+      expect(result.applied).toEqual([]);
+      expect(result.ok).toBe(false);
+      expect(result.rejected[0]?.rowId).toBe('r1');
+      expect(result.rejected[0]?.reason).not.toBe('');
+      expect(broken.transactions).toEqual([]);
+    });
+
+    it('leaves an unstamped row free of the marker — nothing would read it', async () => {
+      const promise = fx.port.mutate([{ rowId: 'r1', fields: { px: 999 } }]);
+      fx.settle();
+      await promise;
+
+      expect(fx.transactions[0]?.[0]).not.toHaveProperty(CLIENT_EDITED_FIELDS_KEY);
     });
   });
 
