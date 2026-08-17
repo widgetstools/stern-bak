@@ -28,6 +28,7 @@ import {
   type GridEventBindingsHostApi,
 } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { useEditWriteBack } from '../customizer/hooks/useEditWriteBack.js';
+import { GridToastSurface } from './GridToastSurface.js';
 import type { MarketsGridHandle, MarketsGridProps } from './types';
 import { isMarketsGridLocalStorageStorageFactory } from './createMarketsGridLocalStorageStorage';
 import { useGridHost } from './useGridHost';
@@ -380,6 +381,7 @@ function MarketsGridInner<TData = unknown>(
       <GridProvider platform={shell.platform}>
       <GeneralSettingsProvider value={shell.generalSettings}>
       <MarketsGridSsrmExpressionBridge ssrm={shell.ssrm} />
+      <GridToastSurface />
       <MarketsGridHost
         rowData={rowData ?? []}
         ssrm={ssrm}
@@ -483,6 +485,7 @@ function MarketsGridCoreInner<TData = unknown>(
     <GridProvider platform={shell.platform}>
       <GeneralSettingsProvider value={shell.generalSettings}>
         <MarketsGridSsrmExpressionBridge ssrm={ssrm} />
+        <GridToastSurface />
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
           {surfaceKind === 'ssrm' && ssrm ? (
             <MarketsGridSsrmSurface

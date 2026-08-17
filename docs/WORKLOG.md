@@ -959,7 +959,7 @@ against multiple adapters), `filterPredicate.test.ts` (40),
 
 ---
 
-## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17)
+## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — 1 / 4 DONE
 
 **Area:** `packages/data/host-data/src/runtime/ssrm/`,
 `packages/data/host-data/src/runtime/worker/`,
@@ -983,12 +983,24 @@ roadmap's numbering. Two commits since it was written changed what remains:
   listens** — a rejected edit reverts silently. That is why the smallest phase
   is scheduled first.
 
-**Phase 11** (small, no entry) — mount a toast surface and wire `onFailure` to
-it, distinguishing reverted from stuck; fix `MarketsGridContainer.tsx:748`
-dropping the host's `onSavingChange` (the SSRM container already chains it
-correctly at `SsrmMarketsGridContainer.tsx:490-493`); make the SSRM row-count
-panels pagination-aware (`createSsrmStatusBar.tsx` contains no reference to
-pagination at all).
+**Phase 11 — DONE 2026-08-17.** `GridToastSurface` (sonner; shadcn's
+`useToast` holds `TOAST_LIMIT = 1`, so its second message evicts the first)
+mounts once per document from `MarketsGrid`/`MarketsGridCore`, and
+`reportEditFailure` raises two toasts — reverted expires, **stuck does not**.
+`MarketsGridContainer` chains the host's `onSavingChange` instead of dropping
+it (latent: nothing in the tree passed it, said so in the record rather than
+inflated). **The pagination finding was NOT A DEFECT** and closed as such:
+AG Grid's native count components never consult pagination — `_getTotalRowCount`
+/ `_getFilteredRowCount` walk the whole model — so the SSRM panels were already
+right and a page-aware version would have been the divergence; verified by
+mounting a real CSRM grid at `pagination: true` and reading the DOM, now pinned
+by `createSsrmStatusBar.pagination.test.tsx`. Establishing that surfaced two
+divergences that WERE real, both fixed: the filtered panel's label is
+AG Grid's own default "Filtered", and it hides while `filtered === total` as
+`FilteredRowsComp` does. **Open, recorded not banked:** no e2e — no app in
+`apps/` registers an `editWriteBack`, so no browser path can produce a refused
+write; and `MarketsGridContainer.tsx` sits at 825 lines against the 800 ceiling
+(already 815 at `df48fdf`, one of 28 files in `packages/` currently over).
 
 **Phase 12** (full, no entry) — the session layer reaches the client. **Opens
 by splitting `QueryEngine.ts`, which is at 895 lines against the 800 ceiling**
@@ -1008,5 +1020,6 @@ its single snapshot*. Architectural, and **CSRM behaves identically**, so it
 is not a parity finding. Reopen as a product decision about historical
 providers if it ever matters.
 
-**Estimate: 3 full sessions + 1 small one.** Phases 11, 12 and 14 have no
-entry dependency and can run in any order; only Phase 13 is gated.
+**Estimate: 3 full sessions remaining** (the small one is done). Phases 12 and
+14 have no entry dependency and can run in either order; only Phase 13 is
+gated, on Phase 12.

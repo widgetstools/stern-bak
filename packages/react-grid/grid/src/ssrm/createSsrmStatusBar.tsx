@@ -47,8 +47,23 @@ type SsrmCountVariant = 'totalAndFiltered' | 'total' | 'filtered';
  * component. The native components read the client row model, which under
  * SSRM never knows the unfiltered cache total — so all three counts come
  * from `provider.getStatusBar`, which scans the whole worker RowStore.
- * Markup mirrors AG Grid's own panels (same ag-status-* classes + labels:
- * "Rows: a of b", "Total Rows: n", "Filtered Rows: n").
+ *
+ * **Whole-dataset counts are the parity answer, including with pagination on.**
+ * AG Grid's own three count components (ag-grid-enterprise 36.1.0,
+ * `statusBar/providedPanels/`) contain no reference to pagination anywhere:
+ * `_getTotalRowCount` walks `rowModel.forEachNode` and `_getFilteredRowCount`
+ * walks `rowModel.forEachNodeAfterFilter`, both of which traverse the whole
+ * model — `forEachDisplayedNode`/`rowsToDisplay`, the paginated view, is never
+ * consulted. A CSRM grid with `pagination: true` therefore shows the same
+ * numbers it shows with pagination off, and so must these. Pinned by
+ * `createSsrmStatusBar.pagination.test.tsx`, which mounts a real CSRM grid
+ * either way and compares.
+ *
+ * Markup mirrors AG Grid's own panels — same `ag-status-*` classes, same
+ * labels ("Rows: a of b", "Total Rows: n", "Filtered: n"), and the same
+ * visibility rule on the filtered panel, which AG Grid hides while nothing is
+ * narrowing the set (`FilteredRowsComp.onDataChanged` →
+ * `setDisplayed(total !== filtered)`).
  */
 function makeSsrmCountPanel(variant: SsrmCountVariant): FunctionComponent<PanelProps> {
   return function SsrmCountPanel(props: PanelProps) {
@@ -152,8 +167,21 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
 
   const filtered = summary?.filteredRows ?? 0;
   const total = summary?.totalRows ?? 0;
+
+  // AG Grid's `FilteredRowsComp` displays itself only while a filter is
+  // narrowing the set. Rendering unconditionally made an unfiltered SSRM grid
+  // claim "Filtered: 20,000" beside "Total Rows: 20,000" — a panel asserting a
+  // filter that is not there, which CSRM never shows. Hidden before the first
+  // summary arrives too: until the counts are known there is nothing to
+  // compare, and flashing the panel for one frame is its own small lie.
+  if (variant === 'filtered' && (summary == null || filtered === total)) {
+    return null;
+  }
+
+  // "Filtered", not "Filtered Rows" — the native default is
+  // `getLocaleTextFunc()('filteredRows', 'Filtered')`.
   const label =
-    variant === 'total' ? 'Total Rows' : variant === 'filtered' ? 'Filtered Rows' : 'Rows';
+    variant === 'total' ? 'Total Rows' : variant === 'filtered' ? 'Filtered' : 'Rows';
   const panelClass =
     variant === 'total'
       ? 'ag-status-panel-total-row-count'
@@ -171,11 +199,17 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
             ? formatCommas(filtered)
             : `${formatCommas(filtered)} of ${formatCommas(total)}`;
 
+  // The literal spaces reproduce AG Grid's own element template, which emits
+  //   <div> <span>Rows</span> :&nbsp;<span>25</span> </div>
+  // — JSX would otherwise strip them and render "Rows: 25" beside a native
+  // "Selected : 3" in the same strip, since `MarketsGridSsrmSurface` merges
+  // these panels with the native ones rather than replacing the whole bar.
+  // Same reason `formatCommas` defers to the runtime locale.
   return (
     <div className={`ag-status-panel ${panelClass} ag-status-name-value`}>
-      <span className="ag-status-name">{label}</span>
-      :&nbsp;
-      <span className="ag-status-name-value-value">{value}</span>
+      {' '}
+      <span className="ag-status-name">{label}</span> :&nbsp;
+      <span className="ag-status-name-value-value">{value}</span>{' '}
     </div>
   );
 };

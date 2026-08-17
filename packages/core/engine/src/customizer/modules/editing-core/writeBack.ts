@@ -67,7 +67,11 @@ export interface EditWriteBack {
   readonly submit: SubmitEdits;
   /**
    * Called once per refused submission, after the revert has been attempted.
-   * The grid has no opinion about how to surface this; supply one.
+   *
+   * Optional because telling the user is not the app's job: the React grid
+   * raises its own toast for every failure, distinguishing `rolledBack` from
+   * `stuck`. Supply this for what the app wants to *do* about it — telemetry,
+   * a retry queue — not for whether the user finds out.
    */
   readonly onFailure?: (failure: EditWriteBackFailure) => void;
 }

@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { EditWriteBack, GridPlatform } from '@wellsfargo-starui/core';
 import { registerEditWriteBack } from '../editing/editWriteBack.js';
+import { reportEditFailure } from '../editing/editFailureToast.js';
 
 export function useEditWriteBack(
   platform: GridPlatform,
@@ -21,7 +22,16 @@ export function useEditWriteBack(
   const forwarder = useMemo<EditWriteBack>(
     () => ({
       submit: (submission) => latest.current?.submit(submission),
-      onFailure: (failure) => latest.current?.onFailure?.(failure),
+      // The toast is the platform's, the handler is the app's, and the app's
+      // runs either way — `finally` so a throw from the surface cannot take
+      // the consumer's telemetry down with it.
+      onFailure: (failure) => {
+        try {
+          reportEditFailure(failure);
+        } finally {
+          latest.current?.onFailure?.(failure);
+        }
+      },
     }),
     [],
   );

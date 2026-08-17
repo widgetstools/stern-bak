@@ -27,3 +27,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
 };
 
 export { Toaster };
+
+// The imperative half of the same surface. Re-exported here rather than let
+// each consumer `import { toast } from 'sonner'` directly, so the toaster and
+// the call that fills it stay one dependency with one entry point.
+export { toast } from 'sonner';

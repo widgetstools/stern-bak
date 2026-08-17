@@ -1,6 +1,6 @@
 # SSRM parity completion — the four findings the roadmap left open
 
-**Branch:** `feature/simplify`. **Status: 0 / 4 phases done.**
+**Branch:** `feature/simplify`. **Status: 1 / 4 phases done** (Phase 11 ✅).
 
 [`SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) closed 32 of 36 audit
 findings across 11 phases and recorded four as needing their own sessions. This
@@ -38,7 +38,7 @@ sequencing below differs from the roadmap's own note:
 
 ---
 
-## Phase 11 — a refused write is visible, and two panels stop lying
+## Phase 11 — a refused write is visible, and two panels stop lying ✅
 
 **Goal:** every failure this platform already detects reaches the user.
 
@@ -89,6 +89,113 @@ the parity effort set out to remove.
 
 **Closes:** post-write edit rejection surface; two bugs found during Phases
 7–10 and recorded rather than fixed.
+
+### Record (2026-08-17)
+
+**Survey answers, none of them assumed.**
+
+1. **Which toast system — sonner.** Both are exported and both are already
+   used: `SonnerToaster` (`ui/src/index.ts:83`) has **zero** consumers, and
+   shadcn's `Toaster` + `toast` is what `apps/source/design-system/src/App.tsx:148`
+   mounts. Sonner wins on one disqualifying fact rather than taste:
+   `use-toast.tsx` sets `TOAST_LIMIT = 1`, so its reducer's `ADD_TOAST` slices
+   the queue to one and the stuck message would **evict** the reverted one —
+   the exact collapse this phase forbids, arrived at by a different route.
+   (Its `TOAST_REMOVE_DELAY = 1000000` is a second problem: ~17 minutes.) No
+   third pattern was introduced: sonner's `toast` is re-exported from the same
+   barrel as its toaster, as `sonnerToast`, because `use-toast` already owns
+   the plain name. The duplication is untouched, not deepened.
+2. **Mount point — the grid shell, `MarketsGrid` *and* `MarketsGridCore`,**
+   both of which already call `useEditWriteBack`. Not the containers (two
+   containers, two decisions) and not the app (leaving it to the app is what
+   produced a revert path with nothing on the other end). **Two toasters were
+   checked for, before and after**: sonner keeps its queue in module state and
+   every mounted toaster renders all of it, so `GridToastSurface` orders its
+   instances and only `live[0]` renders — pinned by a three-grid case and an
+   owner-unmount handover case. On the portal: an OpenFin view is created with
+   `platform.createView({ url })` (`openfin-platform/src/launch.ts:117,350`) —
+   its own webcontents, its own document. One toaster per document is therefore
+   one per view, which is the wanted behaviour and confirmed rather than
+   assumed.
+3. **What the natives render with pagination on — whole-dataset counts, and
+   the finding as written is NOT A DEFECT.** In ag-grid-enterprise 36.1.0 the
+   word "pagination" does not appear anywhere in the statusBar module:
+   `_getTotalRowCount` walks `rowModel.forEachNode` and `_getFilteredRowCount`
+   walks `forEachNodeAfterFilter`, both whole-model traversals;
+   `forEachDisplayedNode`/`rowsToDisplay` — the paginated view — is never
+   consulted. Verified by mounting a real CSRM grid at
+   `pagination: true, paginationPageSize: 10` over 25 rows and reading the DOM:
+   "Rows : 25", "Total Rows : 25". **Making the SSRM panels page-aware would
+   have been the divergence.** The exit criterion is met by a test that pins
+   agreement both ways rather than by a change.
+   Establishing that surfaced **two divergences that are real**, and those are
+   fixed: the filtered panel's label is AG Grid's own default **"Filtered"**,
+   not "Filtered Rows"; and `FilteredRowsComp` calls
+   `setDisplayed(total !== filtered)`, i.e. AG Grid **hides** that panel while
+   nothing is narrowing — so an unfiltered SSRM grid was showing
+   "Filtered Rows: 20,000" beside "Total Rows: 20,000", asserting a filter that
+   was not there. The panels also now reproduce the native template's
+   surrounding whitespace (` Rows : 25 `), because
+   `MarketsGridSsrmSurface:192-194` merges them into one strip **with** native
+   panels — the same reason `formatCommas` defers to the runtime locale.
+4. **Is the `onSavingChange` drop reachable — no, and the record says so.**
+   Nothing in `packages/` or `apps/` passes `onSavingChange` to
+   `MarketsGridContainer`; the only host-side passer in the tree is a test, and
+   it targets the SSRM container. The bug is real (the prop is public,
+   `MarketsGridContainerProps extends Omit<MarketsGridProps, …>`, and the
+   explicit prop after the spread silently overwrote it) but was latent. Fixed
+   by adopting `SsrmMarketsGridContainer`'s existing chain, not a second
+   pattern, and pinned by a test **verified to fail against the old line**.
+
+**Deliberate decisions worth contesting later.**
+
+- **The toast fires for every failure, whether or not the app supplied
+  `onFailure`,** and the app's handler still runs (`try/finally`, so a throwing
+  surface cannot take the consumer's telemetry with it). The alternative —
+  toast only when the app supplied nothing — would make "does the user find
+  out" depend on whether the app wanted telemetry. `EditWriteBack.onFailure`'s
+  doc comment in core said "the grid has no opinion about how to surface this",
+  which is now false; it was corrected in the same change.
+- **The stuck toast never expires** (`duration: Infinity`, with `closeButton`
+  on the toaster so it can be dismissed). It means the grid is showing a value
+  the server refused and could not take back; letting that scroll away on an
+  8-second timer would be a quieter version of the bug being fixed.
+
+**Verification.** `npx turbo typecheck build` exit 0. Package tests serially at
+`--maxWorkers=2`, all measured before the change as well as after — **no
+environmental failures occurred this session, so none are being written off as
+such**:
+
+| Package | Before | After |
+|---|---|---|
+| `core` | 1316 / 122 files | 1316 |
+| `react-grid` | 2602 + 1 skipped / 329 files | **2631** + 1 skipped / 334 files |
+| `data` | 718 | 718 |
+| `react-core` | 523 | 523 |
+| `design-system` | 355 | 355 |
+| `openfin` | 483 | 483 |
+| `types` | 171 | 171 |
+
+The +29 in `react-grid` is exactly the five new files (11 + 6 + 6 + 4 + 2);
+nothing else moved. ESLint compared per file against `HEAD` via
+`git show HEAD:<path> | npx eslint --stdin --stdin-filename <path>`: every
+touched file 0 → 0, every new file 0. `check-package-cycles` and `check:rtl`
+pass. The diff was grepped for `#[0-9a-f]{3,8}` — no new hex, in CSS or
+anywhere else.
+
+**Not done, and why.**
+
+- **No e2e spec.** `grep -rn editWriteBack apps/` returns nothing: no demo app
+  registers a write-back, so there is no browser path that can produce a
+  refused write to drive. Adding one means building a demo write service that
+  refuses — real work, and not this phase's. Recorded rather than skipped
+  silently.
+- **`MarketsGridContainer.tsx` is 825 lines, over the 800 ceiling.** It was
+  **already 815 at `df48fdf`**, and is one of 28 files in `packages/` currently
+  over. This phase added 10 lines to it and trimmed them back to 8; it did not
+  open a container split, which would be a refactor of the file this phase is
+  fixing a bug in. Phase 12 already opens by paying the same debt down on
+  `QueryEngine.ts` — the container belongs in that queue, not in this one.
 
 ---
 
@@ -273,7 +380,7 @@ it ever matters; do not carry it as a parity gap.
 
 | Phase | Session | Entry | Closes |
 |---|---|---|---|
-| 11 — a refused write is visible | small | none | rejection surface + 2 bugs |
+| 11 — a refused write is visible ✅ | small | none | rejection surface + 2 bugs (the pagination one was not a defect) |
 | 12 — session layer reaches the client | full | none | T2-4 real fix, edit survives refetch |
 | 13 — calculated columns | full | Phase 12 | T1-4 |
 | 14 — alerts bell | full | none | T2-6 |

@@ -297,8 +297,13 @@ Per-renderer config types (`PillRendererConfig`,
 #### Feedback & overlays
 
 - `Alert`, `AlertDialog`, `Dialog`, `Drawer` (vaul), `HoverCard`, `Popover`, `Tooltip` (`TooltipProvider`, `TooltipTrigger`, `TooltipContent`)
-- `Toast`, `Toaster`, `useToast` (Radix/sonner)
-- `SonnerToaster` — sonner provider
+- `Toast`, `Toaster`, `useToast` (Radix)
+- `SonnerToaster`, `sonnerToast` — sonner's toaster and its imperative
+  `toast(...)` API, exported as a pair so a consumer needs one dependency and
+  one entry point. Prefixed because `useToast` above already owns the plain
+  `toast` name; the grid's own failure surface uses sonner because shadcn's
+  `useToast` reducer holds `TOAST_LIMIT = 1`, so a second message evicts the
+  first rather than stacking
 
 #### Trading-specific composites
 
@@ -381,6 +386,22 @@ Per-renderer config types (`PillRendererConfig`,
 - `useFilterModel` — filter-model persistence + mutation; per-pill counts route through `platform.data` (`filterPillCounts.ts`) in BOTH row models. A badge counts rows in the whole dataset matching that pill's own model (`scope: 'all'`) — neither the applied filter nor the quick-filter text narrows it, so two pills' badges stay comparable. Where `capabilities.canAddressUnloadedRows` holds (client-side row model), one `scan` pass establishes every row's membership; where it does not (server-side), one `count` per pill establishes none and the membership FILLS from the deltas themselves. Both patch from a `RowChangeBus` delta on a streaming tick, because the only thing a patch needs is the changed row's own prior membership: the badge counts the whole dataset, a changed row is one row of it, so a flip moves the total by exactly one. The first tick to touch a row records it and costs one recompute; every later tick on that row is answered without leaving the client, so a live blotter's cost decays to nothing instead of being one worker round trip per pill per emit (`useFilterModel.test.ts` counts it: ten ticks over one row cost 22 round trips before, 4 after). A pill whose model the shared predicate refuses over-counts and warns once rather than reading zero
 - `useGridTheme` — resolves AG Grid theme from `data-theme`
 - `ensureAgGridModules(modules?)` — one-shot AG Grid module registration (full `AllEnterpriseModule` by default, optional subset) + dev validations + the set-filter validate guard; on the package `.` barrel so embedded grids (provider editor Columns/AppData tables) share it instead of forking their own registrar
+- `GridToastSurface` — **the only toaster mounted anywhere under `packages/`**,
+  rendered by `MarketsGrid` and `MarketsGridCore` rather than left to the app,
+  because the failure it exists for (a refused write) is raised through the
+  per-grid write-back registry that no application code can reach. Sonner keeps
+  its queue in module state and every mounted toaster renders all of it, so the
+  instances order themselves and only the first live one renders a
+  `SonnerToaster`; when it unmounts the next takes over, so N grids in one
+  window get one surface and never zero. `document.body` is the right portal
+  under OpenFin too — a view is a `platform.createView({ url })` webcontents
+  with its own document, so one-per-document is one-per-view, which is what is
+  wanted: a rejected edit belongs to the window that made it. Theme comes from
+  `data-theme` on `<html>` (MutationObserver, live), NOT from sonner's
+  `theme="system"`, which reads `prefers-color-scheme` and would paint a light
+  toast over a dark grid whenever the two disagree; colours resolve through the
+  shadcn sonner block's `bg-background` / `text-foreground` / `border-border`
+  tokens, with sonner's own `richColors` deliberately off (hardcoded HSL)
 - `grid-chrome.css` — container/toolbar layout
 
 #### Server-side row model (SSRM)
@@ -395,7 +416,7 @@ Per-renderer config types (`PillRendererConfig`,
 - SSRM grids get CSRM's full customizer DATA PROVIDER card (`SsrmMarketsGridContainer` supplies `ProviderGridHostApi` via `providerGridHost`): pick the LIVE and HISTORICAL providers from the catalog, toggle Live/Hist mode, set the historical as-of date, and run Refresh view / Reload from source / Edit provider — selection persists per gridId through the same `useGridLevelPersistence` grid-level row as CSRM (save-before-switch flushes customizer edits via `saveAll()`), the container rebinds `useSsrmDataProvider` to the chosen id (prop `providerId` is the default live provider, `defaultHistoricalProviderId` seeds the HISTORICAL slot), and historical reloads forward `{ asOfDate }` through `provider.restart`
 - SSRM admin menu carries CSRM's refresh pair ahead of the data-infra actions — `refresh-view` ("Refresh view": `refreshServerSide({purge})` against the worker plane, no upstream I/O) and `reload-from-source` ("Reload from source": `provider.restart({__refresh})`, which refreshes every subscribed grid via the ready transition)
 - **Both surfaces own `statusBar`** (`useStatusBarStrip`): AG Grid creates the status-bar container only when the option is set at INIT and keeps it when cleared at runtime, so "bar off" is an empty panel list rather than `undefined`, and the strip's visibility is the surface's. `statusBar` joins `hostOverrideKeys` for every grid so the generic post-mount sync never fights it — which is what closes the **CSRM reverse gap**: that sync iterates `Object.entries(gridOptions)`, so the key DISAPPEARING when SHOW STATUS BAR is toggled off was never visited and never pushed, and the client-side bar stayed visible. A value is recorded as applied only once it reaches a live api, with a catch-up push at gridReady, so a change that lands during grid init (profile hydration routinely beats it) is never swallowed
-- `createSsrmStatusBar()` / `SsrmRowsStatusPanel` / `SsrmTotalRowsStatusPanel` / `SsrmFilteredRowsStatusPanel` / `SSRM_STATUS_CONTEXT_KEY` — AG Grid default-status-bar parity under SSRM (`SsrmStatusBarConfig`, `SsrmStatusBarContext`): total-and-filtered (left), total / filtered / native selected (center), native `agAggregationComponent` range aggregations (right). The three count panels call `provider.getStatusBar` (full worker-cache scan) with AG Grid's own markup/classes/labels, because the native count components only see the client row model; the aggregation panel is the built-in — the selected cell range is always loaded client-side. Refresh is tick-driven: after the initial load, each `provider.onSsrmTick` fires a load throttled to `refreshThrottleMs` (leading edge + at most one trailing per window, default 150 ms — a burst of ticks yields at most 2 loads), with a slow 2 s `setInterval` fallback for providers without ticks or a missed edge, replacing the old free-running `setInterval(load, refreshThrottleMs)` poll
+- `createSsrmStatusBar()` / `SsrmRowsStatusPanel` / `SsrmTotalRowsStatusPanel` / `SsrmFilteredRowsStatusPanel` / `SSRM_STATUS_CONTEXT_KEY` — AG Grid default-status-bar parity under SSRM (`SsrmStatusBarConfig`, `SsrmStatusBarContext`): total-and-filtered (left), total / filtered / native selected (center), native `agAggregationComponent` range aggregations (right). The three count panels call `provider.getStatusBar` (full worker-cache scan) with AG Grid's own markup/classes/labels, because the native count components only see the client row model; the aggregation panel is the built-in — the selected cell range is always loaded client-side. **Whole-dataset counts are the parity answer with pagination ON as well as off**: AG Grid's natives derive from `rowModel.forEachNode` / `forEachNodeAfterFilter`, both whole-model walks, and never touch `rowsToDisplay` — so a page-aware SSRM panel would be the divergence, not the fix (`createSsrmStatusBar.pagination.test.tsx` mounts a real CSRM grid both ways and compares the rendered strings). Two divergences that WERE real are closed with it: the filtered panel is now labelled **"Filtered"** (AG Grid's own default is `getLocaleTextFunc()('filteredRows', 'Filtered')`, and no `localeText` is supplied anywhere in this repo) and **renders nothing while `filtered === total`**, matching `FilteredRowsComp`'s `setDisplayed(total !== filtered)` — an unfiltered SSRM grid used to assert "Filtered Rows: 20,000" beside "Total Rows: 20,000", a filter that was not there. The panels also reproduce the native template's surrounding whitespace, since `MarketsGridSsrmSurface` merges them into one strip with native panels rather than replacing the whole bar. Refresh is tick-driven: after the initial load, each `provider.onSsrmTick` fires a load throttled to `refreshThrottleMs` (leading edge + at most one trailing per window, default 150 ms — a burst of ticks yields at most 2 loads), with a slow 2 s `setInterval` fallback for providers without ticks or a missed edge, replacing the old free-running `setInterval(load, refreshThrottleMs)` poll
 - The customizer's Grid Options → STATUS BAR card fully applies to SSRM grids: `mapNativeStatusBarToSsrm()` maps the card's native panel selection onto the worker-backed SSRM panels (the three count components are replaced — same markup/labels, whole-cache numbers — while selected count, aggregation, and custom panels pass through with their align/order), SHOW STATUS BAR toggles work live in BOTH directions without a grid remount — the surface always gives AG Grid a status-bar container (empty panel list when off, since AG Grid only creates the container at init and keeps it when cleared at runtime) and drives the strip's visibility explicitly, so off truly hides the strip and re-enabling on a grid that booted with the bar off still works, and live card edits re-apply via the surface's own `setGridOption('statusBar', …)` push — a value is recorded as applied only when it actually reached a live grid api, with a catch-up push at gridReady, so selections that land while the grid is still initialising (profile hydration routinely beats grid init) are never silently dropped. `statusBar` joins `hostOverrideKeys` for every SSRM grid so `useGridHost`'s generic option sync can never overwrite the worker-backed panels with native ones; a `statusBar` passed as a host prop keeps its historical prepend-onto-the-pack behaviour
 - `toSsrmExpressionRules()` — maps customizer calculated-column / conditional-style / alert expressions to worker rule payloads
 - `useSsrmExpressionBridge()` — pushes those rules to the worker plane. Two lifecycle guarantees: it **never announces an empty rule set it has not first populated** (the plane is keyed per `providerId`, so a second grid mounting with no rules would otherwise wipe the first grid's calculated columns, styling and alerts), and it **re-pushes on provider recovery** — a restart disposes the plane and its rules while nothing in the hook's deps changes, so it subscribes to `onStatus` and re-sends on `loading`/`error` → `ready`. It emits no `editableRules`: nothing in the customizer authors an editability *expression* (editability is a boolean throughout — `general-settings.defaultEditable`, per-column `editable`), and a boolean needs no plane to evaluate it. `MarketsGridExpressionSnapshot` still carries the field for hosts composing a snapshot directly, and that path now works end to end
@@ -1090,7 +1111,19 @@ modules).
   reverting nor retracting is reachable from application code, which is why
   the platform owns them while the POST stays the app's. No hook can break the
   revert: `retract` runs before the revert, and a throwing `retract`,
-  `rollback` or `onFailure` is contained
+  `rollback` or `onFailure` is contained. `onFailure` is optional because
+  telling the user is not the app's job — the React grid raises its own toast
+  (below); supply it for what the app wants to *do* about the refusal
+- **A refused write is visible** — `reportEditFailure` / `describeEditFailure` /
+  `EditFailureMessage` (`grid`, internal) turn an `EditWriteBackFailure` into
+  **two** toasts, never one: `rolledBack` non-empty raises "Edit rejected —
+  reverted" (expires on its own — the screen is honest again), `stuck`
+  non-empty raises "Edit rejected — NOT reverted" with **no expiry**, because
+  the cell still shows a value the server refused and only the user can decide
+  what to do. Both name the affected fields (up to three, then "and N more")
+  and carry the service's own reason when it threw an `Error` or a string,
+  truncated at 120 chars. Raised for every failure whether or not the app
+  supplied `onFailure`, and the app's handler runs either way
 - **Smart edit** — `applyNumericOp`, `collectTargetCells`,
   `applySmartEditColDefTransforms`, `INITIAL_SMART_EDIT` (internal since
   Phase 6: `parseMagnitudeSuffix`, `deserializeSmartEditState`)

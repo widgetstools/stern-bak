@@ -487,9 +487,8 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   }, [onOpenConfigBrowser]);
 
   // Profile writes drive the same overlay, with "Saving…" copy. The host's
-  // own `onSavingChange` is CHAINED rather than replaced — MarketsGridContainer
-  // overrides it after its spread and silently drops the host's, which is a
-  // separate defect (noted for Phase 10) and not one worth copying.
+  // own `onSavingChange` is CHAINED rather than replaced; MarketsGridContainer
+  // dropped the host's here and now chains it the same way (Phase 11).
   const hostOnSavingChange = marketsGridProps.onSavingChange;
   const handleSavingChange = useCallback((saving: boolean) => {
     setIsSavingProfile(saving);

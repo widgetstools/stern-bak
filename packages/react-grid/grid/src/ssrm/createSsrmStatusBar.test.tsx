@@ -52,10 +52,14 @@ describe('createSsrmStatusBar default parity', () => {
     expect(document.querySelector('.ag-status-panel-total-row-count')).toBeTruthy();
   });
 
-  it('Filtered Rows panel shows the worker filtered count', async () => {
+  // Label is "Filtered", not "Filtered Rows": AG Grid's own default is
+  // `getLocaleTextFunc()('filteredRows', 'Filtered')` and no `localeText` is
+  // supplied anywhere in this repo. See `createSsrmStatusBar.pagination.test.tsx`,
+  // which reads it off a real CSRM grid rather than off the library source.
+  it('Filtered panel shows the worker filtered count', async () => {
     render(<SsrmFilteredRowsStatusPanel api={api} provider={provider} />);
     await waitFor(() => expect(screen.getByText('1,234')).toBeInTheDocument());
-    expect(screen.getByText('Filtered Rows')).toBeInTheDocument();
+    expect(screen.getByText('Filtered')).toBeInTheDocument();
     expect(document.querySelector('.ag-status-panel-filtered-row-count')).toBeTruthy();
   });
 

@@ -80,7 +80,10 @@ export * from './components/dialog.js';
 export * from './components/drawer.js';
 export * from './components/hover-card.js';
 export * from './components/popover.js';
-export { Toaster as SonnerToaster } from './components/sonner.js';
+// Sonner and shadcn's own toast both live here. Prefixed rather than plain
+// `toast` because `./components/use-toast.js` below already owns that name —
+// the duplication predates this export and is not resolved by it.
+export { Toaster as SonnerToaster, toast as sonnerToast } from './components/sonner.js';
 export * from './components/toast.js';
 export * from './components/toaster.js';
 export * from './components/tooltip.js';

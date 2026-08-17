@@ -406,6 +406,15 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // snapshot loading overlay component for visual consistency, just
   // with a "Saving…" caption.
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  // CHAINED, not replaced: the host's `onSavingChange` arrives in the
+  // `marketsGridProps` rest, and the explicit prop after the spread below used
+  // to overwrite it — silently, the prop being optional. Same shape
+  // `SsrmMarketsGridContainer` uses.
+  const hostOnSavingChange = (marketsGridProps as MarketsGridProps<TData>).onSavingChange;
+  const handleSavingChange = useCallback((saving: boolean) => {
+    setIsSavingProfile(saving);
+    hostOnSavingChange?.(saving);
+  }, [hostOnSavingChange]);
   // True when the live provider stops or the transport disconnects.
   // Grid data may be stale; MarketsGrid shows a flashing banner and
   // disables cell editing until status returns to ready.
@@ -745,7 +754,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
             adminActions={adminActionsWithDataInfra}
             caption={effectiveCaption}
             onCaptionChange={handleCaptionChange}
-            onSavingChange={setIsSavingProfile}
+            onSavingChange={handleSavingChange}
             dataStale={providerDisconnected}
             dataStaleMessage={dataStaleMessage}
             historicalViewMode={isHistoricalView}
