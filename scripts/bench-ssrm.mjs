@@ -71,8 +71,25 @@ function makeRows() {
   return out;
 }
 
-const row = (label, value, unit) =>
+/** Every measurement, for the sweep driver. `row()` is the single funnel —
+ *  `time()` reports through it too — so capturing here catches all of them. */
+const results = {};
+let section = 'general';
+
+const row = (label, value, unit) => {
+  const n = Number(value);
+  results[`${section} / ${label}`] = {
+    value: Number.isFinite(n) ? n : String(value),
+    unit,
+  };
   console.log(`  ${label.padEnd(46)} ${String(value).padStart(7)} ${unit}`);
+};
+
+/** Print a section heading and tag subsequent measurements with it. */
+const heading = (name) => {
+  section = name;
+  console.log(`\n${name}`);
+};
 
 function time(label, fn, runs = 1) {
   fn();
@@ -87,7 +104,7 @@ console.log(`\nSSRM plane benchmark — ${ROWS} rows x ${COLS} cols, ${BLOCK}-ro
 
 const rows = makeRows();
 
-console.log('Ingest');
+heading('Ingest');
 const beforeStore = heapMB();
 const store = new RowStore({ keyColumn: 'id' });
 const t0 = performance.now();
@@ -112,7 +129,7 @@ const filterModel = {
   book: { filterType: 'text', type: 'equals', filter: 'ALPHA' },
 };
 
-console.log('\nBlocks (cold = first block of a query, warm = later blocks)');
+heading('Blocks (cold = first block of a query, warm = later blocks)');
 // Each cold measurement mutates the store first so the order cache misses.
 const cold = (label, req) =>
   time(label, () => {
@@ -141,7 +158,7 @@ cold('grouped by book, cold', {
   valueCols: [{ field: numericCols[0], aggFunc: 'sum' }],
 });
 
-console.log('\nQuick filter (CSRM-parity substring search over the whole store)');
+heading('Quick filter (CSRM-parity substring search over the whole store)');
 // The unscoped path is one cached-string lookup per row. The scoped path adds
 // a per-row build over the named columns, but ONLY for rows the cached
 // (all-fields) string already admitted — the cache is a superset, so a row it
@@ -156,7 +173,7 @@ cold('quick filter scoped to 8 columns, cold', {
 });
 cold('quick filter matching nothing, cold', { ...baseReq, quickFilterText: 'zzzznomatch' });
 
-console.log('\nCalculated columns (expression enrichment on returned blocks)');
+heading('Calculated columns (expression enrichment on returned blocks)');
 // A column-wide aggregate is a fold over the DATASET, so the plane materialises
 // the store once per revision and memoises the folded column — the block then
 // costs the same as a row-local one. What the numbers have to show is that the
@@ -179,7 +196,19 @@ cold('aggregate, cold (one store pass)', calcReq);
 time('aggregate, warm (memoised column)', () => engine.getRows(calcReq), 20);
 engine.configureExpressions([]);
 
-console.log('\nScrolling one query (what a user actually does)');
+heading('Set-filter domain (full-store distinct scan, no block window)');
+// The set-filter panel lists a column's WHOLE domain, so this is one scan of
+// every row per open — the shape with no block window to amortise it, and the
+// one a columnar layout would change most. Low cardinality (5 books) vs high
+// (997 distinct) separates the scan cost from the Set-building cost.
+const distinct = (label, column, extra = {}) =>
+  time(label, () => engine.getSetFilterValues({ column, ...extra }), 5);
+
+distinct('low cardinality (5 distinct)', 'book');
+distinct('high cardinality (997 distinct)', stringCols[0]);
+distinct('high cardinality, filtered', stringCols[0], { filterModel });
+
+heading('Scrolling one query (what a user actually does)');
 const scroll = (label) => {
   store.upsert([{ id: 'POS-1', [numericCols[0]]: Math.random() }]);
   const t = performance.now();
@@ -195,7 +224,7 @@ const scroll = (label) => {
 };
 scroll('20 sorted blocks, one tick at the start');
 
-console.log('\nLive ticks');
+heading('Live ticks');
 const tick = (n) => {
   const payload = rows.slice(0, n).map((r) => ({
     ...r,
@@ -207,7 +236,7 @@ tick(100);
 tick(500);
 tick(2000);
 
-console.log('\nWindowed publish (25 frames of an 800-row tick: passthrough vs 200ms window)');
+heading('Windowed publish (25 frames of an 800-row tick: passthrough vs 200ms window)');
 
 /** One-shot `setTimeout` fake, matching `engineContract.test.ts`'s `fakeTimers()`. */
 function fakeTimers() {
@@ -263,4 +292,13 @@ row(
   'x',
 );
 
-console.log(`\n  total heap ${heapMB().toFixed(0)} MB\n`);
+section = 'summary';
+row('total heap', heapMB().toFixed(0), 'MB');
+console.log('');
+
+// Machine-readable tail for `bench:ssrm:sweep`, which runs this script once
+// per dataset size in its OWN process — heap figures are only meaningful
+// against a fresh heap.
+if (process.env.BENCH_JSON) {
+  console.log(`__BENCH_JSON__${JSON.stringify({ rows: ROWS, cols: COLS, block: BLOCK, results })}`);
+}

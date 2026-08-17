@@ -888,3 +888,74 @@ the parity test reaches the sibling through the package's public
 `@wellsfargo-starui/types` specifier), and `lint:all` exits 0.
 
 </details>
+
+---
+
+## 19. How far does the SSRM query plane scale? — MEASURED 2026-08-17
+
+**Why:** a proposal to rewrite the query plane as a Rust/WASM component. Every
+one of the 36 SSRM parity findings was a WIRING defect — not one was "too
+slow" — so the case for a rewrite rests entirely on scale, and nobody had
+measured it. `npm run bench:ssrm:sweep` runs `bench-ssrm.mjs` once per dataset
+size in its own process (heap figures need a fresh heap) and reports growth
+factors so superlinear behaviour is visible rather than inferred.
+
+**Conditions:** node, 40 columns, machine load 4–8, `--max-old-space-size=12288`.
+Node only — no browser, no AG Grid, no React — so a real tab hits every ceiling
+below *sooner*, not later.
+
+| metric | 100k | 250k | 500k | 1M | growth (10× rows) |
+|---|---|---|---|---|---|
+| ingest (`replaceSnapshot`) | 586 ms | 1461 | 2960 | 6174 | 10.5× |
+| **store heap** | **41 MB** | **98** | **197** | **393** | **9.6×** |
+| sorted block, cold | 127 ms | 423 | 975 | 2135 | 16.9× |
+| filtered + sorted, cold | 46 ms | 144 | 304 | 688 | 14.9× |
+| grouped, cold | 48 ms | 121 | 244 | 574 | 12.1× |
+| quick filter, cold | 25 ms | 78 | 178 | 427 | 17.3× |
+| full-store fold (`SUM`) | 153 ms | 440 | 1009 | 2413 | 15.8× |
+| distinct scan (997 values) | 18 ms | 45 | 74 | 173 | 9.8× |
+| 20-block scroll | 143 ms | 415 | 905 | 2274 | 15.9× |
+| **2000-row tick** | **6.9 ms** | **7.4** | **7.5** | **7.6** | **1.1×** |
+| total heap | 278 MB | 676 | 1344 | 2681 | 9.6× |
+
+### Conclusion: no cliff, and the binding constraint is MEMORY, not CPU
+
+**Nothing falls over.** 1M rows × 40 cols completes every operation with no
+OOM. The 15–17× growth flagged on the sort-based paths is not a cliff — 10×
+rows under n·log n is ~12×, and the rest is cache behaviour at a larger working
+set. Quadratic would have been 100×.
+
+**The streaming path is size-independent.** A 2000-row tick costs 6.9 ms at
+100k and 7.6 ms at 1M — 1.1× for 10× the data. That is what a live blotter
+does all day, and it does not care how big the store is.
+
+**Memory is what runs out first.** Total heap reaches 2.7 GB at 1M rows *in
+node*. Add a browser, AG Grid and React and 1M rows is not viable at any
+engine speed. Store heap is a clean linear 41 MB → 393 MB.
+
+**Where interactivity goes:** cold sort and 20-block scroll cross ~1 s between
+250k and 500k. Comfortable at 100k (127 ms / 143 ms), fine at 250k
+(423 / 415), degrading at 500k (975 / 905), poor at 1M (2135 / 2274).
+
+### Recommendation: the sweep does not justify a Rust/WASM engine today
+
+At the sizes this platform actually runs, the plane is comfortable. Revisit
+**only** if a real requirement for 500k+ rows in a browser appears — and note
+that the argument then is **columnar memory layout, not raw speed**: a typed
+columnar store could plausibly cut the 393 MB store heap by a large factor,
+which is the ceiling that binds, whereas the CPU numbers at 500k are
+inconvenient rather than disqualifying.
+
+The three open findings (T1-4, row exclusion at source, edit overlay) remain
+the WRONG justification for a rewrite — they are ~2 sessions of JavaScript
+against the existing plane.
+
+**If it is ever revisited:** build one operation behind a third
+`GridDataPort` adapter, keep the JS engine, and run both against the existing
+conformance suites — `portContract.test.ts` (49 cases, already written to run
+against multiple adapters), `filterPredicate.test.ts` (40),
+`engineContract.test.ts` (37). Do not port the expression DSL
+(`core/engine/src/expression/`, ~2,030 lines) in a spike; size it separately.
+
+**Re-run with:** `npm run bench:ssrm:sweep` ·
+`SWEEP_ROWS=… SWEEP_COLS=… SWEEP_HEAP_MB=… npm run bench:ssrm:sweep`

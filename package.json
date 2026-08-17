@@ -26,6 +26,7 @@
     "test": "npm run test:packages",
     "test:coverage": "node scripts/run-test-coverage.mjs",
     "bench:ssrm": "node --expose-gc --max-old-space-size=8192 scripts/bench-ssrm.mjs",
+    "bench:ssrm:sweep": "node scripts/bench-ssrm-sweep.mjs",
     "check:coverage": "node scripts/check-package-coverage.mjs",
     "check:rtl": "node scripts/check-react-testing-library.mjs",
     "check:coverage:report": "node scripts/check-package-coverage.mjs --report",
