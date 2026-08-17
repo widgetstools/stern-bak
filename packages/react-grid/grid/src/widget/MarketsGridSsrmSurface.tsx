@@ -33,6 +33,7 @@ import { buildStreamSafeComponents } from './buildStreamSafeComponents';
 import { measureNativeScrollbarWidth } from './nativeScrollbarWidth';
 import { useRestoreCellFocusOnWindowFocus } from './useRestoreCellFocusOnWindowFocus';
 import { ensureAgGridModules } from './ensureAgGridModules';
+import { useOptionalGridPlatform } from '../customizer/hooks/GridProvider';
 import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
 import { createSsrmStatusBar, mapNativeStatusBarToSsrm } from '../ssrm/createSsrmStatusBar.js';
@@ -250,6 +251,9 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
 
   const apiRef = useRef<GridApi<TData> | null>(null);
   const unbindRef = useRef<(() => void) | null>(null);
+  // Optional: the surface renders standalone in tests and in a bare embed.
+  // Inside `MarketsGrid` it is always under a `<GridProvider>`.
+  const platform = useOptionalGridPlatform();
 
   const unbindTicks = useCallback(() => {
     unbindRef.current?.();
@@ -331,9 +335,14 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         keyColumn: keyColumnRef.current,
         flash: false,
         getQuickFilterText,
+        // The tick binding is the platform's only delta source under this row
+        // model — `applyServerSideTransaction` fires no flush event for
+        // `RowChangeBus` to hear. `null` only when the surface is mounted
+        // outside a `<GridProvider>`, which has no subscribers either.
+        rows: platform?.rows,
       });
     },
-    [provider, getQuickFilterText, unbindTicks],
+    [provider, getQuickFilterText, unbindTicks, platform],
   );
 
   const handleGridReady = useCallback(

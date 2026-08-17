@@ -33,7 +33,28 @@ import { CsrmDataAdapter } from './CsrmDataAdapter';
 import { SsrmDataAdapter } from './SsrmDataAdapter';
 import { doesRowMatchFilterModel } from '../filters/filterPredicate';
 import { CLIENT_EDITED_FIELDS_KEY, COMPUTED_FIELDS_KEY } from './computedFields';
-import type { DataQuery, DataRow, GridDataPort, RowPatch } from './types';
+import type {
+  DataQuery,
+  DataRow,
+  GridDataPort,
+  RowChangeSink,
+  RowNodeDelta,
+  RowPatch,
+} from './types';
+
+/**
+ * A recording {@link RowChangeSink}.
+ *
+ * Only the server-side adapter takes one: `applyServerSideTransaction` fires
+ * no event, so it reports its writes by hand, where `applyTransactionAsync`
+ * produces an `asyncTransactionsFlushed` the bus hears on its own. The two
+ * mechanisms give subscribers the same delta, which is why this suite pins
+ * the RESULT of a write on both sides and the reporting on neither.
+ */
+function sink(): RowChangeSink & { deltas: RowNodeDelta[] } {
+  const deltas: RowNodeDelta[] = [];
+  return { deltas, transactionApplied: (d) => { deltas.push(d); } };
+}
 
 // ─── The dataset both adapters answer from ─────────────────────────────────
 
@@ -278,7 +299,7 @@ const makeSsrm: MakeFixture = (opts = {}) => {
   hub.attach(grid.api);
   const { source } = makeFakeSsrmSource(rows);
   return {
-    port: new SsrmDataAdapter(hub, { source, keyColumn: 'id' }),
+    port: new SsrmDataAdapter(hub, { source, keyColumn: 'id' }, sink()),
     rows,
     transactions: grid.transactions,
     settle: () => {},
@@ -765,7 +786,7 @@ describe('unmounted grid', () => {
       const port: GridDataPort =
         kind === 'csrm'
           ? new CsrmDataAdapter(hub)
-          : new SsrmDataAdapter(hub, { source: makeFakeSsrmSource([]).source });
+          : new SsrmDataAdapter(hub, { source: makeFakeSsrmSource([]).source }, sink());
       const { rows, missing } = await port.getRowsById(['r1']);
       expect(rows).toEqual([]);
       expect(missing).toEqual(['r1']);
@@ -786,7 +807,7 @@ describe('unmounted grid', () => {
 
   it('the server-side adapter still reads: the worker holds the data, not the grid', async () => {
     const { source } = makeFakeSsrmSource(cloneRows());
-    const port = new SsrmDataAdapter(new ApiHub(), { source, keyColumn: 'id' });
+    const port = new SsrmDataAdapter(new ApiHub(), { source, keyColumn: 'id' }, sink());
     await expect(port.count()).resolves.toEqual({ count: 5, complete: true });
   });
 });
@@ -804,7 +825,7 @@ describe('a failing source is reported, never answered with a zero', () => {
     ['distinct', (p: GridDataPort) => p.distinct('book')],
     ['scan', (p: GridDataPort) => p.scan(() => {})],
   ] as const)('%s comes back incomplete', async (_name, call) => {
-    const port = new SsrmDataAdapter(new ApiHub(), { source: broken });
+    const port = new SsrmDataAdapter(new ApiHub(), { source: broken }, sink());
     await expect(call(port)).resolves.toMatchObject({ complete: false });
   });
 });
@@ -818,7 +839,7 @@ describe('server-side pagination', () => {
       note: null,
     }));
     const { source, calls } = makeFakeSsrmSource(rows);
-    const port = new SsrmDataAdapter(new ApiHub(), { source, keyColumn: 'id' });
+    const port = new SsrmDataAdapter(new ApiHub(), { source, keyColumn: 'id' }, sink());
 
     const seen = new Set<string>();
     const result = await port.scan((row) => void seen.add(row.id));
@@ -833,7 +854,7 @@ describe('server-side pagination', () => {
       id: `p${i}`, book: 'A', px: i, note: null,
     }));
     const { source, calls } = makeFakeSsrmSource(rows);
-    const port = new SsrmDataAdapter(new ApiHub(), { source, keyColumn: 'id' });
+    const port = new SsrmDataAdapter(new ApiHub(), { source, keyColumn: 'id' }, sink());
     await port.scan(() => false);
     expect(calls.getRows).toBe(1);
   });
@@ -901,7 +922,7 @@ describe('divergence: distinct over a column the user has filtered (Phase 6)', (
     const grid = makeFakeGrid(cloneRows());
     const hub = new ApiHub();
     hub.attach(grid.api);
-    const port = new SsrmDataAdapter(hub, { source, keyColumn: 'id' });
+    const port = new SsrmDataAdapter(hub, { source, keyColumn: 'id' }, sink());
 
     const { values } = await port.distinct('book', { query: { scope: 'filtered' } });
     expect([...values]).toEqual(['A']);
@@ -914,7 +935,7 @@ describe('divergence: distinct over a column the user has filtered (Phase 6)', (
     const grid = makeFakeGrid(cloneRows());
     const hub = new ApiHub();
     hub.attach(grid.api);
-    const port = new SsrmDataAdapter(hub, { source, keyColumn: 'id' });
+    const port = new SsrmDataAdapter(hub, { source, keyColumn: 'id' }, sink());
 
     const { values } = await port.distinct('note', { query: { scope: 'filtered' } });
     expect([...values].sort()).toEqual(['alpha', 'gamma']);

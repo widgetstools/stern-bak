@@ -3,7 +3,13 @@ import type { GridApi } from 'ag-grid-community';
 import { ApiHub } from './ApiHub';
 import { GridDataHub } from './GridDataHub';
 import { GridPlatform } from './GridPlatform';
-import type { SsrmDataSource } from './types';
+import type { RowChangeSink, RowNodeDelta, SsrmDataSource } from './types';
+
+/** A recording {@link RowChangeSink} — where an adapter reports its writes. */
+function sink(): RowChangeSink & { deltas: RowNodeDelta[] } {
+  const deltas: RowNodeDelta[] = [];
+  return { deltas, transactionApplied: (d) => { deltas.push(d); } };
+}
 
 /** A grid holding one row, enough to tell the two adapters apart by answer. */
 function fakeApi(): GridApi {
@@ -15,6 +21,7 @@ function fakeApi(): GridApi {
     getGridOption: () => '',
     getRowNode: () => node,
     getDisplayedRowAtIndex: () => node,
+    applyServerSideTransaction: () => ({ status: 'Applied', update: [node] }),
   } as unknown as GridApi;
 }
 
@@ -35,7 +42,7 @@ describe('GridDataHub', () => {
   it('answers from the client-side row model until a server-side source is bound', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api);
+    const hub = new GridDataHub(api, sink());
 
     await expect(hub.count()).resolves.toEqual({ count: 1, complete: true });
     expect(hub.capabilities.canAddressUnloadedRows.supported).toBe(true);
@@ -44,7 +51,7 @@ describe('GridDataHub', () => {
   it('routes at the worker plane once bound — including its capabilities', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api);
+    const hub = new GridDataHub(api, sink());
 
     hub.bindSsrm({ source: fakeSource(99), keyColumn: 'id' });
 
@@ -56,7 +63,7 @@ describe('GridDataHub', () => {
   it('re-binds to a replacement provider without the platform being rebuilt', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api);
+    const hub = new GridDataHub(api, sink());
 
     hub.bindSsrm({ source: fakeSource(10) });
     await expect(hub.count()).resolves.toMatchObject({ count: 10 });
@@ -68,7 +75,7 @@ describe('GridDataHub', () => {
   it('falls back to the client-side row model when the source detaches', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api);
+    const hub = new GridDataHub(api, sink());
 
     hub.bindSsrm({ source: fakeSource(99) });
     hub.unbindSsrm();
@@ -78,7 +85,7 @@ describe('GridDataHub', () => {
   });
 
   it('is one stable reference across a re-bind — modules capture it in activate()', () => {
-    const hub = new GridDataHub(new ApiHub());
+    const hub = new GridDataHub(new ApiHub(), sink());
     const captured = hub;
     hub.bindSsrm({ source: fakeSource(1) });
     hub.unbindSsrm();
@@ -88,7 +95,7 @@ describe('GridDataHub', () => {
   it('forwards reads and writes rather than answering them itself', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api);
+    const hub = new GridDataHub(api, sink());
     hub.bindSsrm({ source: fakeSource(3), keyColumn: 'id' });
 
     // `distinct` reaches the worker RPC…
@@ -105,6 +112,38 @@ describe('GridDataHub', () => {
     await expect(hub.scan((r) => void scanned.push(r.id))).resolves.toMatchObject({
       complete: true,
     });
+  });
+
+  it('hands the row-change sink to the server-side adapter, so a write is not silent', async () => {
+    const api = new ApiHub();
+    api.attach(fakeApi());
+    const rows = sink();
+    const hub = new GridDataHub(api, rows);
+    hub.bindSsrm({ source: fakeSource(3), keyColumn: 'id' });
+
+    await expect(hub.mutate([{ rowId: 'r1', fields: { px: 2 } }])).resolves.toMatchObject({
+      applied: ['r1'],
+    });
+
+    // `applyServerSideTransaction` fires no flush event, so this report is the
+    // ONLY way alerts, timed activations and the filter badges learn the row
+    // moved. Under the client-side adapter the flush event carries it and
+    // nothing is reported by hand — hence no sink on that side at all.
+    expect(rows.deltas).toHaveLength(1);
+    expect(rows.deltas[0].update?.map((n) => n.id)).toEqual(['r1']);
+  });
+
+  it('re-binding carries the same sink to the replacement adapter', async () => {
+    const api = new ApiHub();
+    api.attach(fakeApi());
+    const rows = sink();
+    const hub = new GridDataHub(api, rows);
+
+    hub.bindSsrm({ source: fakeSource(1) });
+    hub.bindSsrm({ source: fakeSource(2) });
+    await hub.mutate([{ rowId: 'r1', fields: { px: 3 } }]);
+
+    expect(rows.deltas).toHaveLength(1);
   });
 });
 

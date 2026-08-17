@@ -57,7 +57,9 @@ vi.mock('./useRestoreCellFocusOnWindowFocus.js', () => ({
   useRestoreCellFocusOnWindowFocus: () => {},
 }));
 
+import { GridPlatform } from '@wellsfargo-starui/core';
 import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface.js';
+import { GridProvider } from '../customizer/hooks/GridProvider.js';
 import { SsrmFilteredRowsStatusPanel } from '../ssrm/createSsrmStatusBar.js';
 
 describe('MarketsGridSsrmSurface', () => {
@@ -104,6 +106,46 @@ describe('MarketsGridSsrmSurface', () => {
       expect(bindSsrmTicks).toHaveBeenCalled();
       expect(onReady).toHaveBeenCalled();
     });
+  });
+
+  it('gives the tick binding the platform as its row-change sink', async () => {
+    // `applyServerSideTransaction` fires no flush event, so the tick binding
+    // is the platform's ONLY delta source under this row model. Wiring it is
+    // one optional option away from being forgotten — this is the pin.
+    const provider = {
+      id: 'p-ssrm-rows',
+      getConfig: () => ({ blockSize: 100, keyColumn: 'positionId' }),
+      getColumnDefs: () => [],
+    } as never;
+    const platform = new GridPlatform({ gridId: 'ssrm-rows', modules: [] });
+    const gridRef = createRef<AgGridReact>();
+
+    render(
+      <GridProvider platform={platform}>
+        <MarketsGridSsrmSurface
+          gridRef={gridRef}
+          gridOptions={{}}
+          hostOverrideKeys={new Set()}
+          theme={undefined}
+          columnDefs={[{ field: 'positionId' }]}
+          ssrm={{ provider, keyColumn: 'positionId' }}
+          sideBar={false}
+          statusBar={undefined}
+          defaultColDef={undefined}
+          onGridReady={() => {}}
+          onGridPreDestroyed={() => {}}
+        />
+      </GridProvider>,
+    );
+
+    await waitFor(() => {
+      expect(bindSsrmTicks).toHaveBeenCalledWith(
+        provider,
+        expect.anything(),
+        expect.objectContaining({ rows: platform.rows }),
+      );
+    });
+    platform.destroy();
   });
 });
 

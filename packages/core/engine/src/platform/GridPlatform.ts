@@ -92,7 +92,10 @@ export class GridPlatform {
     this.events = new EventBus<PlatformEventMap>();
     this.api = new ApiHub();
     this.rows = new RowChangeBus(this.api);
-    this.data = new GridDataHub(this.api);
+    // The port reports its own server-side writes to the bus: they reach the
+    // grid through `applyServerSideTransaction`, which fires no flush event
+    // for the bus to hear. The client-side adapter needs no such wiring.
+    this.data = new GridDataHub(this.api, this.rows);
     if (opts.ssrm) this.data.bindSsrm(opts.ssrm);
     this.resources = new ResourceScope(opts.gridId, { appData: opts.appData });
     this.pipeline = new PipelineRunner();

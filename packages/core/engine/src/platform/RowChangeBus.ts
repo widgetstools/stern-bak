@@ -1,6 +1,6 @@
 import type { AsyncTransactionsFlushedEvent, IRowNode, RowNodeTransaction } from 'ag-grid-community';
 import type { ApiHub } from './ApiHub';
-import type { RowChange, RowChangeSignal } from './types';
+import type { RowChange, RowChangeSignal, RowChangeSink, RowNodeDelta } from './types';
 
 /**
  * The platform's single, shared, timer-coalesced row-change emitter.
@@ -16,6 +16,11 @@ import type { RowChange, RowChangeSignal } from './types';
  *   - reads the exact changed nodes from AG's `asyncTransactionsFlushed`
  *     event (what `applyTransactionAsync` produces every streaming flush), so
  *     subscribers can evaluate ONLY the rows that actually changed;
+ *   - takes the same delta by hand, through {@link RowChangeBus.transactionApplied},
+ *     from whoever applied a transaction AG-Grid does not announce —
+ *     `applyServerSideTransaction` returns its changed nodes and fires no
+ *     flush event, so without this the server-side row model had no delta
+ *     source at all and every streaming tick classified as `full`;
  *   - coalesces a burst of flushes/updates within one task into a single emit,
  *     so N transactions in a frame cost ONE subscriber pass;
  *   - marks structural changes (sort / filter / `setRowData`) as `full` so
@@ -29,7 +34,7 @@ import type { RowChange, RowChangeSignal } from './types';
  *
  * Lifecycle: `start()` on grid-ready (api attached), `dispose()` on destroy.
  */
-export class RowChangeBus implements RowChangeSignal {
+export class RowChangeBus implements RowChangeSignal, RowChangeSink {
   private readonly handlers = new Set<(change: RowChange) => void>();
   private disposers: Array<() => void> = [];
   private timerId: ReturnType<typeof setTimeout> | null = null;
@@ -39,7 +44,7 @@ export class RowChangeBus implements RowChangeSignal {
   private readonly pendingAdded = new Map<string, IRowNode>();
   private readonly pendingUpdated = new Map<string, IRowNode>();
   private readonly pendingRemoved = new Map<string, IRowNode>();
-  private sawFlush = false;
+  private sawDelta = false;
   private sawStructural = false;
   private sawExplicitStructural = false;
 
@@ -48,6 +53,31 @@ export class RowChangeBus implements RowChangeSignal {
   subscribe(fn: (change: RowChange) => void): () => void {
     this.handlers.add(fn);
     return () => this.handlers.delete(fn);
+  }
+
+  /**
+   * Report the rows a transaction AG-Grid does not announce just changed.
+   *
+   * `applyServerSideTransaction` hands its caller the exact nodes it touched
+   * and fires no flush event, so the caller is the only one who can say what
+   * moved. Both server-side writers report here: the streaming tick binding
+   * and the data port's `mutate`. The client-side row model needs none of
+   * this — `applyTransactionAsync` fires `asyncTransactionsFlushed`, which
+   * this bus already hears.
+   *
+   * An EMPTY delta is not reported as one. A caller's report is a claim, and
+   * "I applied a transaction that changed nothing" must not downgrade a
+   * `modelUpdated` sharing the same coalescing window from a structural pass
+   * to a delta carrying no rows — the exact both-ways-wrong emit this method
+   * exists to remove. (`asyncTransactionsFlushed` is judged differently on
+   * purpose: it is AG-Grid stating that the async queue drained, which only a
+   * transaction produces.)
+   */
+  transactionApplied(delta: RowNodeDelta): void {
+    if (!this.started) return;
+    if (!this.trackDelta(delta)) return;
+    this.sawDelta = true;
+    this.schedule();
   }
 
   /** Begin listening. Idempotent. Called by GridPlatform once the api attaches. */
@@ -87,21 +117,29 @@ export class RowChangeBus implements RowChangeSignal {
   private onFlushed(event?: unknown): void {
     const results = (event as AsyncTransactionsFlushedEvent | undefined)?.results;
     if (Array.isArray(results)) {
-      for (const result of results) {
-        const tx = result as Partial<RowNodeTransaction>;
-        if (tx.update) for (const node of tx.update) this.track(this.pendingUpdated, node);
-        if (tx.add) for (const node of tx.add) this.track(this.pendingAdded, node);
-        if (tx.remove) for (const node of tx.remove) this.track(this.pendingRemoved, node);
-      }
+      for (const result of results) this.trackDelta(result as Partial<RowNodeTransaction>);
     }
-    this.sawFlush = true;
+    this.sawDelta = true;
     this.schedule();
   }
 
+  /** Accumulate one transaction's nodes. Returns whether any row was in it. */
+  private trackDelta(delta: RowNodeDelta): boolean {
+    let any = false;
+    if (delta.update) for (const node of delta.update) any = this.track(this.pendingUpdated, node) || any;
+    if (delta.add) for (const node of delta.add) any = this.track(this.pendingAdded, node) || any;
+    if (delta.remove) for (const node of delta.remove) any = this.track(this.pendingRemoved, node) || any;
+    return any;
+  }
+
   private onStructural(): void {
-    // `modelUpdated` / `rowDataUpdated` fire after a flush too — only treat the
-    // frame as a `full` (structural) change when NO flush carried a delta. A
-    // pure sort / filter / setRowData lands here with no preceding flush.
+    // `modelUpdated` / `rowDataUpdated` fire after a flush too — and under the
+    // server-side row model `applyServerSideTransaction` fires `modelUpdated`
+    // and nothing else. Only treat the frame as a `full` (structural) change
+    // when NO delta was carried or reported. A pure sort / filter /
+    // setRowData lands here with neither; a server-side block refetch lands
+    // here with neither too, which is exactly right — a refetch replaces rows
+    // wholesale and no per-row delta describes it.
     // (Sort/filter coinciding WITH a flush is covered by the explicit
     // listeners; a `setRowData` replace coinciding with a flush in the same
     // window remains delta-classified — the reload path that produces that
@@ -115,9 +153,11 @@ export class RowChangeBus implements RowChangeSignal {
     this.schedule();
   }
 
-  private track(map: Map<string, IRowNode>, node: IRowNode): void {
+  private track(map: Map<string, IRowNode>, node: IRowNode): boolean {
     const id = node?.id;
-    if (typeof id === 'string') map.set(id, node);
+    if (typeof id !== 'string') return false;
+    map.set(id, node);
+    return true;
   }
 
   private schedule(): void {
@@ -129,7 +169,7 @@ export class RowChangeBus implements RowChangeSignal {
   }
 
   private flush(): void {
-    const full = this.sawExplicitStructural || (this.sawStructural && !this.sawFlush);
+    const full = this.sawExplicitStructural || (this.sawStructural && !this.sawDelta);
     const change: RowChange = {
       added: [...this.pendingAdded.values()],
       updated: [...this.pendingUpdated.values()],
@@ -147,7 +187,7 @@ export class RowChangeBus implements RowChangeSignal {
     this.pendingAdded.clear();
     this.pendingUpdated.clear();
     this.pendingRemoved.clear();
-    this.sawFlush = false;
+    this.sawDelta = false;
     this.sawStructural = false;
     this.sawExplicitStructural = false;
   }

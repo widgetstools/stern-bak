@@ -315,6 +315,49 @@ describe('activateAlerts', () => {
       expect(platform.store.getModuleState('alerts').history).toHaveLength(1);
       platform.destroy();
     });
+
+    /**
+     * Server-side transaction deltas used to be empty ALWAYS — nothing fed
+     * them — so `runDelta`'s row add/remove path was unreachable under this
+     * row model and the id-set diff above was the only thing that could
+     * fire. Now the tick binding and the port both report what they changed,
+     * so this path runs for the first time. It is the same mechanism that
+     * produced phantom alerts from cache churn, told apart by a different
+     * question: the id-set diff infers arrival from "an id I cannot see",
+     * a transaction STATES it.
+     */
+    it('a tick that updates rows fires no ROW_ADDED', () => {
+      const platform = rowChangePlatform('alerts-ssrm-tick-update', 'ROW_ADDED');
+      platform.data.bindSsrm(unloadableSource() as never);
+      const api = makeApi([{ id: 'r1', data: { price: 1 } }]);
+      platform.onGridReady(api as never);
+
+      for (let i = 0; i < 5; i++) {
+        platform.rows.transactionApplied({
+          update: [{ id: 'r1', data: { price: 1 + i } }] as never,
+        });
+        vi.runAllTimers();
+      }
+
+      expect(platform.store.getModuleState('alerts').history).toHaveLength(0);
+      platform.destroy();
+    });
+
+    it('a row genuinely entering the query fires exactly one', () => {
+      const platform = rowChangePlatform('alerts-ssrm-tick-add', 'ROW_ADDED');
+      platform.data.bindSsrm(unloadableSource() as never);
+      const api = makeApi([{ id: 'r1', data: { price: 1 } }]);
+      platform.onGridReady(api as never);
+
+      platform.rows.transactionApplied({ add: [{ id: 'r2', data: { price: 2 } }] as never });
+      vi.runAllTimers();
+      // Later ticks on the same row are updates, not a second arrival.
+      platform.rows.transactionApplied({ update: [{ id: 'r2', data: { price: 3 } }] as never });
+      vi.runAllTimers();
+
+      expect(platform.store.getModuleState('alerts').history).toHaveLength(1);
+      platform.destroy();
+    });
   });
 
   it('skips row subscription when no enabled rules', () => {

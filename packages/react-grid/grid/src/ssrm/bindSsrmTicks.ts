@@ -1,6 +1,6 @@
 import type { GridApi } from 'ag-grid-community';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
-import { doesRowMatchFilterModel } from '@wellsfargo-starui/core';
+import { doesRowMatchFilterModel, type RowChangeSink } from '@wellsfargo-starui/core';
 import {
   buildQuickFilterText,
   parseQuickFilter,
@@ -26,6 +26,22 @@ export interface BindSsrmTicksOptions {
   flash?: boolean;
   /** Current quick-filter text (for empty-viewport "row entered filter" checks). */
   getQuickFilterText?: () => string;
+  /**
+   * Where each patch-in-place transaction reports the rows it changed —
+   * `platform.rows` in a wired grid.
+   *
+   * `applyServerSideTransaction` returns the exact nodes it touched and fires
+   * no event anything can subscribe to, so this binding is the ONLY delta
+   * source the server-side row model has. Without it every subscriber
+   * (alerts, timed activations, the filter-pill badges) sees a structural
+   * `full` change per tick and falls back to a whole-grid pass — the cost
+   * `RowChangeBus` exists to remove.
+   *
+   * Optional because this function is public API and a caller driving a bare
+   * `GridApi` has no platform to report to. The wired path is
+   * `MarketsGridSsrmSurface`, whose test pins that it passes one.
+   */
+  rows?: RowChangeSink;
 }
 
 type TickApi = Pick<
@@ -162,10 +178,10 @@ export function bindSsrmTicks(
     }
   };
 
+  type TransactionResult = ReturnType<TickApi['applyServerSideTransaction']>;
+
   const flashUpdatedCells = (
-    rowNodes: NonNullable<
-      ReturnType<TickApi['applyServerSideTransaction']>
-    >['update'],
+    rowNodes: NonNullable<TransactionResult>['update'],
     columns: string[] | undefined,
   ) => {
     if (!alive() || options?.flash === false || !rowNodes?.length) return;
@@ -179,6 +195,22 @@ export function bindSsrmTicks(
     } catch {
       /* destroyed */
     }
+  };
+
+  /**
+   * One place where "this tick changed these rows" is handled: report the
+   * delta to the platform, then flash it.
+   *
+   * Report BEFORE flashing so a `flashCells` throw on a grid torn down
+   * mid-tick cannot swallow the delta — the two are independent and the
+   * subscribers are the load-bearing half.
+   */
+  const onTransactionApplied = (
+    result: TransactionResult,
+    columns: string[] | undefined,
+  ) => {
+    if (result) options?.rows?.transactionApplied(result);
+    flashUpdatedCells(result?.update, columns);
   };
 
   // Recovery purge: the transport rebuilds its snapshot after a broker
@@ -261,7 +293,7 @@ export function bindSsrmTicks(
           const result = api.applyServerSideTransaction({
             update: visibleRows,
           });
-          flashUpdatedCells(result?.update, event.columns);
+          onTransactionApplied(result, event.columns);
           if (grouping) scheduleRefresh(false, sortThrottleMs);
           return;
         } catch {
@@ -278,7 +310,7 @@ export function bindSsrmTicks(
             const result = api.applyServerSideTransaction({
               update: visibleRows,
             });
-            flashUpdatedCells(result?.update, event.columns);
+            onTransactionApplied(result, event.columns);
           } catch {
             /* refresh recovers */
           }

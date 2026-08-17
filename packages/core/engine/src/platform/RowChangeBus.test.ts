@@ -170,6 +170,114 @@ describe('RowChangeBus', () => {
     expect(seen).toEqual([1]);
   });
 
+  // ─── The server-side delta seam ─────────────────────────────────────────
+  //
+  // `applyServerSideTransaction` changes rows, returns the nodes it touched
+  // and fires only `modelUpdated` — indistinguishable from a block refetch.
+  // Whoever applied it is the only one who can say what moved, so it reports
+  // here. Without this the server-side row model had NO delta source: every
+  // tick classified `full` with three empty arrays, which is both costs at
+  // once — subscribers pay the whole-grid pass and learn nothing.
+
+  it('a reported transaction is a delta, not a structural change', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const got: RowChange[] = [];
+    bus.subscribe((c) => got.push(c));
+
+    // Exactly the shape a server-side tick produces: the transaction's own
+    // `modelUpdated`, and the result reported by its caller.
+    bus.transactionApplied({ update: [{ id: 'a', data: { x: 1 } }] as never });
+    fire('modelUpdated');
+    await nextFrame();
+
+    expect(got).toHaveLength(1);
+    expect(got[0].full).toBe(false);
+    expect(got[0].updated.map((n) => n.id)).toEqual(['a']);
+  });
+
+  it('coalesces reported transactions with flushed ones, deduping by row id', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const got: RowChange[] = [];
+    bus.subscribe((c) => got.push(c));
+
+    fire('asyncTransactionsFlushed', flushResult([{ id: 'a', data: { x: 1 } }]));
+    bus.transactionApplied({ update: [{ id: 'a', data: { x: 2 } }] as never });
+    bus.transactionApplied({ add: [{ id: 'b' }] as never, remove: [{ id: 'c' }] as never });
+    await nextFrame();
+
+    expect(got).toHaveLength(1);
+    expect(got[0].updated).toHaveLength(1);
+    expect((got[0].updated[0] as { data?: { x?: number } }).data?.x).toBe(2);
+    expect(got[0].added.map((n) => n.id)).toEqual(['b']);
+    expect(got[0].removed.map((n) => n.id)).toEqual(['c']);
+  });
+
+  it('an EMPTY report does not downgrade a structural change to a rowless delta', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const got: RowChange[] = [];
+    bus.subscribe((c) => got.push(c));
+
+    // A refused transaction returns a result with no nodes. Believing it
+    // would produce the worst emit there is: not `full`, and carrying
+    // nothing — subscribers skip their structural pass over a change they
+    // were never told about.
+    bus.transactionApplied({ update: [] });
+    bus.transactionApplied({});
+    fire('modelUpdated');
+    await nextFrame();
+
+    expect(got).toHaveLength(1);
+    expect(got[0].full).toBe(true);
+  });
+
+  it('a sort landing with a reported transaction still classifies as full', async () => {
+    const hub = new ApiHub();
+    const { api, fire } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const got: RowChange[] = [];
+    bus.subscribe((c) => got.push(c));
+
+    bus.transactionApplied({ update: [{ id: 'a' }] as never });
+    fire('sortChanged');
+    await nextFrame();
+
+    expect(got[0].full).toBe(true);
+    expect(got[0].updated.map((n) => n.id)).toEqual(['a']);
+  });
+
+  it('ignores a report before start and after dispose', async () => {
+    const hub = new ApiHub();
+    const { api } = makeFakeApi();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    const got: RowChange[] = [];
+    bus.subscribe((c) => got.push(c));
+
+    bus.transactionApplied({ update: [{ id: 'early' }] as never });
+    await nextFrame();
+    expect(got).toHaveLength(0);
+
+    bus.start();
+    bus.dispose();
+    bus.transactionApplied({ update: [{ id: 'late' }] as never });
+    await nextFrame();
+    expect(got).toHaveLength(0);
+  });
+
   it('rowDataUpdated alone marks structural and unsubscribe stops delivery', async () => {
     const hub = new ApiHub();
     const { api, fire } = makeFakeApi();

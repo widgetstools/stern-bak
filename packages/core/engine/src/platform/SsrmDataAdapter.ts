@@ -48,6 +48,7 @@ import type {
   GridDataPort,
   MutationRejection,
   MutationResult,
+  RowChangeSink,
   RowPatch,
   RowsByIdResult,
   RowsInRangeResult,
@@ -114,9 +115,17 @@ export class SsrmDataAdapter implements GridDataPort {
   private readonly keyColumn: string;
   private readonly getQuickFilterText?: () => string;
 
+  /**
+   * `rows` is how a write reaches the row-change subscribers. Under the
+   * client-side row model an edit produces an `asyncTransactionsFlushed` the
+   * bus hears by itself, so alerts, timed activations and the filter badges
+   * all see it; `applyServerSideTransaction` fires nothing equivalent, and
+   * without this report the same edit would be silent to every one of them.
+   */
   constructor(
     private readonly hub: ApiHub,
     binding: SsrmDataBinding,
+    private readonly rows: RowChangeSink,
   ) {
     this.source = binding.source;
     this.keyColumn = binding.keyColumn ?? 'id';
@@ -262,7 +271,11 @@ export class SsrmDataAdapter implements GridDataPort {
     // block still loading.
     let status: string | undefined;
     try {
-      status = api.applyServerSideTransaction({ update: assembled.map((a) => a.row) })?.status;
+      const result = api.applyServerSideTransaction({ update: assembled.map((a) => a.row) });
+      status = result?.status;
+      // The nodes the store actually touched — the only description of this
+      // write anything downstream will ever get.
+      if (result) this.rows.transactionApplied(result);
     } catch {
       status = undefined;
     }

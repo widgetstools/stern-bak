@@ -32,6 +32,7 @@ import type {
   DistinctResult,
   GridDataPort,
   MutationResult,
+  RowChangeSink,
   RowPatch,
   RowsByIdResult,
   RowsInRangeResult,
@@ -43,14 +44,22 @@ export class GridDataHub implements GridDataPort {
   private readonly csrm: CsrmDataAdapter;
   private ssrm: SsrmDataAdapter | null = null;
 
-  constructor(private readonly hub: ApiHub) {
+  /**
+   * `rows` is where the server-side adapter reports what its writes changed.
+   * The client-side adapter takes no sink: `applyTransactionAsync` fires
+   * `asyncTransactionsFlushed` and the bus hears that itself.
+   */
+  constructor(
+    private readonly hub: ApiHub,
+    private readonly rows: RowChangeSink,
+  ) {
     this.csrm = new CsrmDataAdapter(hub);
   }
 
   /** Route reads and writes at the server-side plane. Idempotent per
    *  binding; pass a new binding when the provider is replaced. */
   bindSsrm(binding: SsrmDataBinding): void {
-    this.ssrm = new SsrmDataAdapter(this.hub, binding);
+    this.ssrm = new SsrmDataAdapter(this.hub, binding, this.rows);
   }
 
   /** Fall back to the client-side row model. */

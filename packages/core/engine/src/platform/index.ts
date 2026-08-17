@@ -42,6 +42,8 @@ export type {
   ResourceScope as IResourceScope,
   RowChange,
   RowChangeSignal,
+  RowChangeSink,
+  RowNodeDelta,
   SerializedState,
   SettingsPanelProps,
   Store,

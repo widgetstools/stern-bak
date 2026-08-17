@@ -160,6 +160,44 @@ export interface RowChangeSignal {
   subscribe(fn: (change: RowChange) => void): () => void;
 }
 
+/**
+ * The rows one transaction changed, in AG-Grid's own shape.
+ *
+ * Structurally what `applyServerSideTransaction` returns and what a
+ * `RowNodeTransaction` carries, so a caller hands its result straight over
+ * rather than repackaging it into a third shape.
+ */
+export interface RowNodeDelta {
+  readonly add?: ReadonlyArray<IRowNode> | null;
+  readonly update?: ReadonlyArray<IRowNode> | null;
+  readonly remove?: ReadonlyArray<IRowNode> | null;
+}
+
+/**
+ * The WRITE half of the row-change signal — how a delta AG-Grid does not
+ * announce reaches {@link RowChangeSignal}'s subscribers.
+ *
+ * WHY IT EXISTS — the bus reads its deltas from `asyncTransactionsFlushed`,
+ * which only `applyTransactionAsync` (client-side row model) fires.
+ * `applyServerSideTransaction` fires nothing of the kind: it changes rows and
+ * leaves `modelUpdated` as the only trace, which is indistinguishable from a
+ * block refetch. So every server-side tick used to classify as a `full`
+ * structural change carrying three empty arrays — subscribers paid the
+ * whole-grid pass AND learned nothing about what moved.
+ *
+ * Deliberately NOT on {@link RowChangeSignal}: modules receive the signal and
+ * must only ever read it. This is the same containment `GridDataHub.bindSsrm`
+ * uses — the binding surface is on the concrete class the platform owns, not
+ * on the interface it hands to modules.
+ */
+export interface RowChangeSink {
+  /**
+   * Report the rows a transaction just changed. The caller has already
+   * applied it; this only tells the bus what moved.
+   */
+  transactionApplied(delta: RowNodeDelta): void;
+}
+
 // ─── Grid data port ───────────────────────────────────────────────────────
 
 /**

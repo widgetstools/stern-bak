@@ -43,6 +43,8 @@ export type {
   PlatformEventMap,
   PlatformHandle,
   RowChange,
+  RowChangeSink,
+  RowNodeDelta,
   SerializedState,
   SettingsPanelProps,
   Store,
