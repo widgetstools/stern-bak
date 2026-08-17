@@ -28,6 +28,12 @@ vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
 });
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+  useDataServices: () => ({
+    client: {
+      isProviderRunning: async () => true,
+      waitForProviderRunning: async () => true,
+    },
+  }),
   useSsrmDataProvider: () => ({ provider: fakeProvider, error: null }),
   useDataProvidersList: () => ({ configs: [], loading: false, refresh: () => {} }),
   useAppDataStore: () => ({

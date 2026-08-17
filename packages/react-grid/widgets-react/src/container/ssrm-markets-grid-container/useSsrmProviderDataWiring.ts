@@ -9,6 +9,18 @@ export interface UseSsrmProviderDataWiringParams {
   onStatus?: (text: string) => void;
   onError?: (error: Error) => void;
   setLoadRowCount?: (count: number | undefined) => void;
+  /**
+   * Cold-start override, used for a historical restore. The plane's provider
+   * slot is shared by every window, so a window restoring into historical
+   * mode has to decide between attaching to a running slot and restarting it
+   * with an as-of overlay — a decision that needs the hub client and the
+   * resolved provider id, both of which the CONTAINER holds. When omitted the
+   * hook just calls `provider.start()`.
+   *
+   * Must be referentially stable: this hook keys its effect on it, and an
+   * unstable identity restarts the provider on every render.
+   */
+  startProvider?: (provider: ISsrmDataProvider) => Promise<void>;
 }
 
 export interface UseSsrmProviderDataWiringResult {
@@ -35,6 +47,7 @@ export function useSsrmProviderDataWiring(
     onStatus,
     onError,
     setLoadRowCount,
+    startProvider,
   } = params;
 
   const [ready, setReady] = useState(false);
@@ -85,7 +98,7 @@ export function useSsrmProviderDataWiring(
     void (async () => {
       try {
         onStatus?.('Connecting…');
-        await provider.start();
+        await (startProvider ? startProvider(provider) : provider.start());
         if (cancelled) return;
         const rules = rulesRef.current;
         if (rules?.length) await provider.configureExpressions([...rules]);
@@ -123,7 +136,7 @@ export function useSsrmProviderDataWiring(
       }, 0);
       delayedStops.set(provider, timer);
     };
-  }, [provider, onStatus, onError, setLoadRowCount]);
+  }, [provider, onStatus, onError, setLoadRowCount, startProvider]);
 
   useEffect(() => {
     if (!provider || !expressionRules || !ready) return;

@@ -21,22 +21,24 @@ const captured = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
 const runtime = vi.hoisted(() => ({ openFin: false }));
 
 const fakeProvider = vi.hoisted(() => {
-  const statusHandlers: Array<(s: string) => void> = [];
+  const statusHandlers: Array<(s: string, err?: string) => void> = [];
   return {
     getConfig: () => ({ keyColumn: 'positionId' }),
     getConfigOrNull: () => ({ keyColumn: 'positionId' }),
     getColumnDefs: () => [{ field: 'positionId' }],
     getSetFilterValues: vi.fn(async () => []),
-    // Raw provider status stream — what the container's stale tracking
-    // subscribes to (NOT the wiring hook's display-text onStatus).
-    onStatus: (h: (s: string) => void) => {
+    // Raw provider status stream — what the container's load / stale
+    // tracking subscribes to (NOT the wiring hook's display-text onStatus).
+    // Carries the second `error` argument the real stream carries.
+    onStatus: (h: (s: string, err?: string) => void) => {
       statusHandlers.push(h);
       return () => {
         const i = statusHandlers.indexOf(h);
         if (i >= 0) statusHandlers.splice(i, 1);
       };
     },
-    emitStatus: (s: string) => [...statusHandlers].forEach((h) => h(s)),
+    emitStatus: (s: string, err?: string) =>
+      [...statusHandlers].forEach((h) => h(s, err)),
   };
 });
 
@@ -59,6 +61,12 @@ vi.mock('@wellsfargo-starui/openfin/host', async (importOriginal) => ({
 }));
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+  useDataServices: () => ({
+    client: {
+      isProviderRunning: async () => true,
+      waitForProviderRunning: async () => true,
+    },
+  }),
   useSsrmDataProvider: (id: string | null) => {
     providerHook.ids.push(id);
     return { provider: id ? fakeProvider : null, error: null };
@@ -66,11 +74,14 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useAppDataStore: () => ({
     store: { get: vi.fn(), set: vi.fn(), list: () => [], subscribe: () => () => {} },
   }),
+  // `providerId` is the real key on `DataProviderConfig` — the DATA PROVIDER
+  // card reads `p.providerId`, and so does the container's overlay copy. This
+  // fixture used a bare `id`, which no production code looks at.
   useDataProvidersList: () => ({
     configs: [
-      { id: 'p1', name: 'P One' },
-      { id: 'p2', name: 'P Two' },
-      { id: 'hist-1', name: 'Historical One' },
+      { providerId: 'p1', name: 'P One' },
+      { providerId: 'p2', name: 'P Two' },
+      { providerId: 'hist-1', name: 'Historical One' },
     ],
     loading: false,
     refresh: () => {},
@@ -80,13 +91,17 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
 const wiring = vi.hoisted(() => ({
   onStatus: null as ((s: string) => void) | null,
   params: [] as unknown[],
+  // The real hook reports `ready` only once `start()` resolves. Tests that
+  // exercise the loading overlay flip this to false so the overlay is driven
+  // by the provider's status stream, as it is in production.
+  ready: true,
 }));
 
 vi.mock('./useSsrmProviderDataWiring.js', () => ({
   useSsrmProviderDataWiring: (params: { onStatus?: (s: string) => void }) => {
     wiring.onStatus = params.onStatus ?? null;
     wiring.params.push(params);
-    return { ready: true };
+    return { ready: wiring.ready };
   },
 }));
 
@@ -107,6 +122,7 @@ beforeEach(() => {
   wiring.params.length = 0;
   providerHook.ids.length = 0;
   runtime.openFin = false;
+  wiring.ready = true;
 });
 
 describe('SsrmMarketsGridContainer prop forwarding', () => {
@@ -255,24 +271,37 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
 
     act(() => {
       fakeProvider.emitStatus('ready');
-      fakeProvider.emitStatus('error');
+      fakeProvider.emitStatus('error', 'socket closed');
     });
     await waitFor(() => expect(captured.props.dataStale).toBe(true));
+    // Once the feed HAS delivered, staleness is the honest word for it.
+    expect(captured.props.dataStaleMessage).toMatch(/Live SSRM feed disconnected/);
+    expect(captured.props.dataStaleMessage).toMatch(/socket closed/);
 
     act(() => {
       fakeProvider.emitStatus('loading');
       fakeProvider.emitStatus('ready');
     });
     await waitFor(() => expect(captured.props.dataStale).toBe(false));
+    expect(captured.props.dataStaleMessage).toBeUndefined();
   });
 
-  it('does not flag stale for errors before the first ready (cold connect retries)', async () => {
+  // An error BEFORE the first ready used to be suppressed entirely, on a
+  // "cold-connect retries stay silent" reading that also left a provider
+  // which never connects showing an empty grid and no explanation (T3-5).
+  // It now reports, with copy that does not claim data went stale — there
+  // was never any data — and points at the panel that can repair it.
+  it('reports a never-connected provider with repair copy, not a staleness claim', async () => {
     render(<SsrmMarketsGridContainer providerId="p1" />);
     await waitFor(() => expect(captured.props.dataStale).toBe(false));
     act(() => {
-      fakeProvider.emitStatus('error');
+      fakeProvider.emitStatus('error', 'broker unreachable');
     });
-    expect(captured.props.dataStale).toBe(false);
+    await waitFor(() => expect(captured.props.dataStale).toBe(true));
+    expect(captured.props.dataStaleMessage).toMatch(/Cannot load data from this provider/);
+    expect(captured.props.dataStaleMessage).toMatch(/broker unreachable/);
+    expect(captured.props.dataStaleMessage).toMatch(/Custom Settings/);
+    expect(captured.props.dataStaleMessage).not.toMatch(/stale/i);
   });
 
   it('keeps onStatus a stable reference across renders (unstable identity restarts the provider)', async () => {
@@ -447,7 +476,9 @@ describe('SsrmMarketsGridContainer host surface', () => {
     expect(captured.props.rowData).toEqual([]);
     expect(captured.props.rowIdField).toBe('positionId');
     expect(captured.props.columnDefs).toBeDefined();
-    expect(captured.props.dataStaleMessage).toMatch(/Live SSRM feed disconnected/);
+    // Nothing is wrong yet, so there is no banner message to carry.
+    expect(captured.props.dataStale).toBe(false);
+    expect(captured.props.dataStaleMessage).toBeUndefined();
   });
 
   it('keeps the ssrm object referentially stable across unrelated re-renders', async () => {
@@ -549,6 +580,8 @@ describe('SsrmMarketsGridContainer host surface', () => {
   // T3-8: the toolbar renders an editable caption unconditionally, so a
   // static caption with no change handler let the user edit a label that
   // died on remount.
+  //
+  // (T3-4 / T3-5 live in the lifecycle describe below.)
   it('persists a caption edit and chains the host handler', async () => {
     const onCaptionChange = vi.fn();
     render(
@@ -568,8 +601,8 @@ describe('SsrmMarketsGridContainer host surface', () => {
 describe('SsrmMarketsGridContainer provider-grid-host (customizer Custom Settings)', () => {
   type HostApi = {
     available: boolean;
-    liveProviders: ReadonlyArray<{ id: string }>;
-    historicalProviders: ReadonlyArray<{ id: string }>;
+    liveProviders: ReadonlyArray<{ providerId?: string }>;
+    historicalProviders: ReadonlyArray<{ providerId?: string }>;
     liveProviderId: string | null;
     historicalProviderId: string | null;
     mode: string;
@@ -587,7 +620,7 @@ describe('SsrmMarketsGridContainer provider-grid-host (customizer Custom Setting
     render(<SsrmMarketsGridContainer providerId="p1" />);
     await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
     expect(host().available).toBe(true);
-    expect(host().liveProviders.map((c) => c.id)).toEqual(['p1', 'p2', 'hist-1']);
+    expect(host().liveProviders.map((c) => c.providerId)).toEqual(['p1', 'p2', 'hist-1']);
     expect(host().historicalProviders.length).toBe(3);
     expect(host().liveProviderId).toBe('p1');
     expect(host().mode).toBe('live');
@@ -649,5 +682,107 @@ describe('SsrmMarketsGridContainer provider-grid-host (customizer Custom Setting
       host().onEditProvider('p2');
     });
     expect(await screen.findByTestId('inline-editor')).toBeTruthy();
+  });
+});
+
+/**
+ * Container lifecycle (roadmap Phase 8 / T3-4, T3-5). Before this, an SSRM
+ * grid's only load feedback was a status strip that defaults OFF, so the
+ * default hosted configuration showed grid chrome over an empty viewport for
+ * the whole snapshot load and said nothing at all when the provider failed.
+ */
+describe('SsrmMarketsGridContainer lifecycle', () => {
+  const overlay = () => screen.queryByRole('status');
+
+  // Production shape: `ready` is false until `start()` resolves, so the
+  // overlay's visibility is decided by the provider's status stream.
+  beforeEach(() => { wiring.ready = false; });
+
+  // A transport need not expose `onStatus` at all — the subscription is
+  // optional-chained. `ready` from the wiring hook is the second settle
+  // signal, so such a provider does not sit under a blocking overlay forever.
+  it('settles on a started provider even with no status stream', async () => {
+    const holder = fakeProvider as { onStatus?: unknown };
+    const saved = holder.onStatus;
+    holder.onStatus = undefined;
+    wiring.ready = true;
+    try {
+      render(<SsrmMarketsGridContainer providerId="p1" />);
+      await waitFor(() => expect(captured.props.gridId).toBe('p1'));
+      expect(overlay()).toBeNull();
+    } finally {
+      holder.onStatus = saved;
+    }
+  });
+
+  it('overlays the grid until the first load settles, naming the provider', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.gridId).toBe('p1'));
+    expect(overlay()).toBeTruthy();
+    expect(overlay()!.getAttribute('aria-label')).toMatch(/Loading P One/);
+
+    act(() => { fakeProvider.emitStatus('ready'); });
+    await waitFor(() => expect(overlay()).toBeNull());
+  });
+
+  // The overlay takes pointer events across the whole grid INCLUDING the
+  // toolbar, so leaving it up on a failed provider would take away the only
+  // route to repairing that provider. An error settles the first load.
+  it('resolves the overlay on a provider error so the toolbar stays reachable', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(overlay()).toBeTruthy());
+    act(() => { fakeProvider.emitStatus('error', 'broker unreachable'); });
+    await waitFor(() => expect(overlay()).toBeNull());
+    // …and the banner is what reports it, on the mounted grid.
+    expect(captured.props.dataStale).toBe(true);
+    expect(captured.props.adminActions).toBeDefined();
+  });
+
+  it('brings the overlay back with Refreshing copy for a post-ready re-snapshot', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.gridId).toBe('p1'));
+    act(() => { fakeProvider.emitStatus('ready'); });
+    await waitFor(() => expect(overlay()).toBeNull());
+
+    act(() => { fakeProvider.emitStatus('loading'); });
+    await waitFor(() => expect(overlay()).toBeTruthy());
+    expect(overlay()!.getAttribute('aria-label')).toMatch(/Refreshing P One/);
+
+    act(() => { fakeProvider.emitStatus('ready'); });
+    await waitFor(() => expect(overlay()).toBeNull());
+  });
+
+  it('shows Saving… while a profile is written and chains the host handler', async () => {
+    const onSavingChange = vi.fn();
+    render(<SsrmMarketsGridContainer providerId="p1" onSavingChange={onSavingChange} />);
+    await waitFor(() => expect(captured.props.onSavingChange).toBeDefined());
+    act(() => { fakeProvider.emitStatus('ready'); });
+    await waitFor(() => expect(overlay()).toBeNull());
+
+    act(() => (captured.props.onSavingChange as (s: boolean) => void)(true));
+    await waitFor(() => expect(overlay()).toBeTruthy());
+    expect(overlay()!.getAttribute('aria-label')).toMatch(/Saving…/);
+    expect(onSavingChange).toHaveBeenCalledWith(true);
+
+    act(() => (captured.props.onSavingChange as (s: boolean) => void)(false));
+    await waitFor(() => expect(overlay()).toBeNull());
+  });
+
+  // T3-5's literal case: no provider adapter at all. The grid still mounts —
+  // on a sentinel row key, with the data-infra actions but no refresh pair —
+  // because repairing the provider is the only thing the user can do here.
+  it('mounts a no-provider shell that keeps the customizer reachable', async () => {
+    render(<SsrmMarketsGridContainer providerId="" />);
+    await waitFor(() => expect(captured.props.rowIdField).toBe('__none__'));
+    expect(captured.props.ssrm).toBeUndefined();
+    expect(captured.props.columnDefs).toEqual([]);
+    expect(captured.props.dataStale).toBe(true);
+    expect(captured.props.dataStaleMessage).toMatch(/No data provider is bound/);
+    expect((captured.props.providerGridHost as { available: boolean }).available).toBe(true);
+    expect((captured.props.adminActions as Array<{ id: string }>).map((a) => a.id)).toEqual([
+      'data-provider-editor',
+      'config-browser',
+    ]);
+    expect(overlay()).toBeNull();
   });
 });

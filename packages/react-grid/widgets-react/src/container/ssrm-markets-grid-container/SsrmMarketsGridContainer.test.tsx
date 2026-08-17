@@ -34,6 +34,12 @@ vi.mock('@wellsfargo-starui/grid', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+  useDataServices: () => ({
+    client: {
+      isProviderRunning: async () => true,
+      waitForProviderRunning: async () => true,
+    },
+  }),
   useDataProvidersList: () => ({ configs: [], loading: false, refresh: () => {} }),
   useAppDataStore: () => ({
     store: { get: vi.fn(), set: vi.fn(), list: () => [], subscribe: () => () => {} },
