@@ -94,7 +94,24 @@ export const GRID_OPTIONS_SCHEMA: readonly BandSchema[] = [
       },
       { kind: 'bool', key: 'rowGroupPanelSuppressSort', label: 'PANEL NO-SORT', hint: 'Suppress sort indicators + actions on row-group-panel chips', testId: 'go-row-group-panel-suppress-sort' },
       { kind: 'bool', key: 'groupHideOpenParents', label: 'HIDE OPEN PARENTS', testId: 'go-group-hide-open-parents' },
-      { kind: 'bool', key: 'groupHideColumnsUntilExpanded', label: 'HIDE UNTIL EXPAND', hint: 'Hide deeper group columns until a parent is expanded (CSRM only)', testId: 'go-group-hide-until-expanded' },
+      {
+        // AG-Grid reads this as
+        // `_isGroupMultiAutoColumn(gos) && gos.get(…) && _isClientSideRowModel(gos)`
+        // — so it does nothing at all where rows arrive from a server. The
+        // label already said "CSRM only"; this is what makes the label do
+        // work. (It also needs `groupDisplayType: 'multipleColumns'`, which
+        // is a SETTING rather than a row-model fact, so it is not gated here.)
+        kind: 'capability',
+        capability: 'canAddressUnloadedRows',
+        expect: true,
+        unavailableReason:
+          'This grid loads rows from a server as you scroll, and AG Grid applies '
+          + 'this setting only to grids that hold every row. Use the Columns tool '
+          + 'panel to hide the group columns you do not want.',
+        fields: [
+          { kind: 'bool', key: 'groupHideColumnsUntilExpanded', label: 'HIDE UNTIL EXPAND', hint: 'Hide deeper group columns until a parent is expanded · needs multiple group columns', testId: 'go-group-hide-until-expanded' },
+        ],
+      },
       { kind: 'bool', key: 'showOpenedGroup', label: 'SHOW OPENED', hint: 'Display the open group in the group column for non-group rows', testId: 'go-show-opened-group' },
       {
         kind: 'select', key: 'groupHideParentOfSingleChild', label: 'SINGLE-CHILD FLATTEN',

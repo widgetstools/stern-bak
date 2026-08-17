@@ -211,12 +211,14 @@ export const generalSettingsModule: Module<GeneralSettingsState> = defineModule(
       groupHideOpenParents: s.groupHideOpenParents,
       suppressAggFuncInHeader: s.suppressAggFuncInHeader,
       showOpenedGroup: s.showOpenedGroup,
-      // groupHideColumnsUntilExpanded is intentionally NOT emitted —
-      // AG-Grid 35.1.0 doesn't recognise it (logs an "invalid
-      // gridOptions property" warning) and there's no like-for-like
-      // replacement. The state is still tracked + shown in the
-      // settings panel so the toggle is preserved if AG-Grid adds
-      // it back in a later minor.
+      // Emitted since the v36 bump. The old comment here said AG-Grid
+      // 35.1.0 did not recognise it; ag-grid-community 36.1 declares it
+      // (`gridOptions.d.ts`) and reads it as
+      // `_isGroupMultiAutoColumn(gos) && gos.get(...) && _isClientSideRowModel(gos)`
+      // — so it is live on a client-side grid using multiple auto group
+      // columns, and inert under the server-side row model, which is why
+      // the panel gates the control on `canAddressUnloadedRows`.
+      groupHideColumnsUntilExpanded: s.groupHideColumnsUntilExpanded,
       groupHideParentOfSingleChild: s.groupHideParentOfSingleChild,
       groupAllowUnbalanced: s.groupAllowUnbalanced,
       groupMaintainOrder: s.groupMaintainOrder,

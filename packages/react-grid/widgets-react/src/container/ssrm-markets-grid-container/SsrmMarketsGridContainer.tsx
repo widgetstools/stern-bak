@@ -36,6 +36,7 @@ import {
   type ProviderGridHostApi,
   type StorageAdapterFactory,
 } from '@wellsfargo-starui/grid';
+import { Button } from '@wellsfargo-starui/react';
 import { isOpenFin } from '@wellsfargo-starui/openfin/host';
 import {
   useAppDataStore,
@@ -611,15 +612,17 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             display: 'flex',
             justifyContent: 'flex-end',
             padding: '4px 12px',
-            borderBottom: '1px solid var(--border, #333)',
+            borderBottom: '1px solid var(--ds-border-primary)',
           }}
         >
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => handleProviderEdit(activeProviderId ?? providerId)}
           >
             Edit provider
-          </button>
+          </Button>
         </div>
       ) : null}
       <div style={BODY_STYLE}>
@@ -631,11 +634,11 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
               padding: '2px 12px',
               fontSize: 12,
               opacity: 0.85,
-              borderBottom: '1px solid var(--border, #333)',
+              borderBottom: '1px solid var(--ds-border-primary)',
             }}
           >
             {statusText}
-            {loadRowCount != null ? ` · ${loadRowCount.toLocaleString('en-US')}` : ''}
+            {loadRowCount != null ? ` · ${loadRowCount.toLocaleString()}` : ''}
           </div>
         ) : null}
         {/* Mounted as soon as the provider adapter exists — before start()

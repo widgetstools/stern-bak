@@ -125,19 +125,19 @@ function useMarketsGridShell<TData>(
         statusBar,
         defaultColDef,
       });
-      // SSRM: the surface owns `statusBar` end-to-end — it maps the
-      // customizer's native panel selection onto worker-backed panels
-      // and pushes updates itself. The generic post-mount option sync
-      // must never write the raw native panel set (native count
-      // components only see loaded blocks under SSRM).
-      if (ssrm) {
-        const withStatusBar = new Set(keys);
-        withStatusBar.add('statusBar');
-        return withStatusBar;
-      }
-      return keys;
+      // BOTH surfaces own `statusBar` end-to-end (see `useStatusBarStrip`).
+      // The server-side one maps the customizer's native panel selection
+      // onto worker-backed panels, and the generic post-mount sync must
+      // never write the raw native set there (native count components only
+      // see loaded blocks). The client-side one needs ownership for a
+      // different reason: that sync iterates `Object.entries(gridOptions)`,
+      // so the key DISAPPEARING when SHOW STATUS BAR is toggled off was
+      // never visited and never pushed, and the bar stayed visible.
+      const withStatusBar = new Set(keys);
+      withStatusBar.add('statusBar');
+      return withStatusBar;
     },
-    [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef, ssrm],
+    [rowHeight, headerHeight, animateRows, sideBar, statusBar, defaultColDef],
   );
 
   // `platform.data` reads and writes through the SharedWorker query plane
@@ -475,7 +475,14 @@ function MarketsGridCoreInner<TData = unknown>(
         <div className={className} style={shell.rootStyle} data-grid-id={gridId}>
           {surfaceKind === 'ssrm' && ssrm ? (
             <MarketsGridSsrmSurface
-              key={`ssrm:${ssrm.provider.id}:${ssrm.keyColumn ?? 'id'}`}
+              // Keyed on the PROVIDER only, exactly as `MarketsGridHost` keys
+              // it. Appending the key column remounted the whole grid the
+              // moment `keyColumn` resolved from its 'id' fallback — which is
+              // precisely what the surface's late-bound key column exists to
+              // avoid (`getRowId` is init-only, so the surface captures a
+              // function that reads a ref and rebinds the datasource + ticks
+              // in place). T3-14.
+              key={`ssrm:${ssrm.provider.id}`}
               gridRef={gridRef}
               gridOptions={shell.gridOptions}
               hostOverrideKeys={shell.hostOverrideKeys}

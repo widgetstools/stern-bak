@@ -21,6 +21,7 @@
 import {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   type CSSProperties,
@@ -34,6 +35,11 @@ import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
 import { buildStreamSafeComponents } from './buildStreamSafeComponents';
 import { measureNativeScrollbarWidth } from './nativeScrollbarWidth';
 import { useRestoreCellFocusOnWindowFocus } from './useRestoreCellFocusOnWindowFocus';
+import {
+  useStatusBarStrip,
+  type StatusBarApiLike,
+  type StatusBarValue,
+} from './useStatusBarStrip';
 
 export interface MarketsGridSurfaceProps<TData> {
   readonly gridRef: RefObject<AgGridReact<TData> | null>;
@@ -84,6 +90,59 @@ function surfacePropsEqual<TData>(
   );
 }
 
+/**
+ * The surface's status-bar option, extracted so `MarketsGridSurface` stays
+ * under the 80-line function ceiling. A host `statusBar` prop wins;
+ * otherwise the module pipeline's value, read from the RAW options because
+ * `statusBar` is stripped from the pipeline spread for every grid now (it
+ * joined `hostOverrideKeys` unconditionally so the generic post-mount sync
+ * cannot fight the surface). `undefined` = SHOW STATUS BAR toggled off.
+ */
+function useSurfaceStatusBar<TData>({
+  statusBar,
+  hostOverrideKeys,
+  gridOptions,
+  gridRef,
+  rootRef,
+  onGridReady,
+}: {
+  statusBar: MarketsGridSurfaceProps<TData>['statusBar'];
+  hostOverrideKeys: ReadonlySet<string>;
+  gridOptions: Record<string, unknown>;
+  gridRef: RefObject<AgGridReact<TData> | null>;
+  rootRef: RefObject<HTMLDivElement | null>;
+  onGridReady: MarketsGridSurfaceProps<TData>['onGridReady'];
+}) {
+  const merged = useMemo<StatusBarValue | undefined>(() => {
+    if (hostOverrideKeys.has('statusBar') && statusBar != null) {
+      return statusBar as StatusBarValue;
+    }
+    return (gridOptions as { statusBar?: StatusBarValue }).statusBar;
+  }, [hostOverrideKeys, statusBar, gridOptions]);
+
+  const { statusBarProp, pushStatusBar } = useStatusBarStrip({
+    statusBar: merged,
+    rootRef,
+    getApi: () => (gridRef.current?.api ?? null) as StatusBarApiLike | null,
+  });
+
+  useEffect(() => {
+    pushStatusBar();
+  }, [merged, pushStatusBar]);
+
+  // Catch-up: a value that landed while the grid was still initialising
+  // never reached an api, so re-push once one exists.
+  const handleGridReady = useCallback(
+    (event: Parameters<typeof onGridReady>[0]) => {
+      pushStatusBar();
+      onGridReady(event);
+    },
+    [onGridReady, pushStatusBar],
+  );
+
+  return { statusBarProp, onGridReady: handleGridReady };
+}
+
 export const MarketsGridSurface = memo(function MarketsGridSurface<TData>({
   gridRef,
   gridOptions,
@@ -129,7 +188,9 @@ export const MarketsGridSurface = memo(function MarketsGridSurface<TData>({
     if (hostOverrideKeys.has('headerHeight')) out.headerHeight = headerHeight;
     if (hostOverrideKeys.has('animateRows')) out.animateRows = animateRows;
     if (hostOverrideKeys.has('sideBar')) out.sideBar = sideBar;
-    if (hostOverrideKeys.has('statusBar')) out.statusBar = statusBar;
+    // `statusBar` is deliberately absent — the surface owns that option
+    // end to end now (see `useStatusBarStrip`), so it must not also arrive
+    // through the generic override spread.
     if (hostOverrideKeys.has('defaultColDef')) out.defaultColDef = defaultColDef;
     return out;
   }, [
@@ -138,9 +199,17 @@ export const MarketsGridSurface = memo(function MarketsGridSurface<TData>({
     headerHeight,
     animateRows,
     sideBar,
-    statusBar,
     defaultColDef,
   ]);
+
+  const { statusBarProp, onGridReady: handleGridReady } = useSurfaceStatusBar({
+    statusBar,
+    hostOverrideKeys,
+    gridOptions,
+    gridRef,
+    rootRef: surfaceRootRef,
+    onGridReady,
+  });
 
   return (
     <div ref={surfaceRootRef} style={SURFACE_STYLE}>
@@ -169,7 +238,8 @@ export const MarketsGridSurface = memo(function MarketsGridSurface<TData>({
         scrollbarWidth={measureNativeScrollbarWidth()}
         components={streamSafeComponents}
         getContextMenuItems={getContextMenuItems}
-        onGridReady={onGridReady}
+        statusBar={statusBarProp}
+        onGridReady={handleGridReady}
         onGridPreDestroyed={onGridPreDestroyed}
       />
     </div>

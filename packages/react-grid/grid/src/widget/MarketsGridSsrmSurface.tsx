@@ -30,6 +30,11 @@ import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
 import { buildStreamSafeComponents } from './buildStreamSafeComponents';
 import { measureNativeScrollbarWidth } from './nativeScrollbarWidth';
 import { useRestoreCellFocusOnWindowFocus } from './useRestoreCellFocusOnWindowFocus';
+import {
+  useStatusBarStrip,
+  type StatusBarApiLike,
+  type StatusBarValue,
+} from './useStatusBarStrip';
 import { ensureAgGridModules } from './ensureAgGridModules';
 import { useOptionalGridPlatform } from '../customizer/hooks/GridProvider';
 import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
@@ -47,17 +52,6 @@ import { BlankLoadingCellRenderer } from '../ssrm/BlankLoadingCellRenderer.js';
 import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
 
 const SURFACE_STYLE: CSSProperties = { flex: 1 };
-
-/** Sentinel: "no statusBar value has reached the grid api yet" — forces
- *  the gridReady catch-up push to apply whatever is latest. */
-const STATUS_BAR_UNPUSHED = Symbol('statusBar-unpushed');
-
-/** "Bar off" is an EMPTY panel list, never `undefined`: AG Grid only
- *  creates the status-bar container when the option is set at init, and
- *  keeps the container when the option is cleared at runtime. Passing an
- *  empty list at init + toggling the strip's visibility below makes
- *  SHOW STATUS BAR work in both directions without a grid remount. */
-const EMPTY_STATUS_BAR = { statusPanels: [] as never[] };
 
 export interface MarketsGridSsrmSurfaceProps<TData> {
   readonly gridRef: RefObject<AgGridReact<TData> | null>;
@@ -212,32 +206,19 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     });
   }, [statusBar, hostOverrideKeys, statusPack, pipelineStatusBarJson, provider, getQuickFilterText]);
 
-  // `statusBar` is skipped by useGridHost's generic option sync for SSRM
-  // grids (the raw native panels must never land), so the surface pushes
-  // its own mapped value. A value is recorded as applied ONLY when it
-  // actually reached a live grid api — recording before the api check
-  // silently swallowed any change that landed while the grid was still
-  // initialising (profile hydration routinely beats gridReady), which
-  // made customizer STATUS BAR edits apply intermittently. gridReady
-  // runs a catch-up push so everything from that window lands.
-  const latestStatusBarRef = useRef<unknown>(mergedStatusBar);
-  latestStatusBarRef.current = mergedStatusBar;
-  const appliedStatusBarRef = useRef<unknown>(STATUS_BAR_UNPUSHED);
-  const pushStatusBar = useCallback(() => {
-    if (Object.is(appliedStatusBarRef.current, latestStatusBarRef.current)) return;
-    const api = apiRef.current as unknown as {
-      isDestroyed?: () => boolean;
-      setGridOption?: (key: string, value: unknown) => void;
-    } | null;
-    if (!api || api.isDestroyed?.()) return;
-    appliedStatusBarRef.current = latestStatusBarRef.current;
-    const next = latestStatusBarRef.current as typeof EMPTY_STATUS_BAR | undefined;
-    api.setGridOption?.('statusBar', next ?? EMPTY_STATUS_BAR);
-    // AG Grid keeps (or re-fills) the container element; the strip's
-    // visibility is ours. Hidden entirely when the card toggles the bar off.
-    const strip = surfaceRootRef.current?.querySelector('.ag-status-bar') as HTMLElement | null;
-    if (strip) strip.style.display = next && next.statusPanels.length > 0 ? '' : 'none';
-  }, []);
+  // Declared before the status-bar block below, which reads both.
+  const apiRef = useRef<GridApi<TData> | null>(null);
+  const surfaceRootRef = useRef<HTMLDivElement | null>(null);
+
+  // `statusBar` is skipped by useGridHost's generic option sync (the raw
+  // native panels must never land here), so the surface owns the option —
+  // see `useStatusBarStrip` for why a disappearing key needs that.
+  const { statusBarProp, pushStatusBar } = useStatusBarStrip({
+    statusBar: mergedStatusBar as StatusBarValue | undefined,
+    rootRef: surfaceRootRef,
+    getApi: () => apiRef.current as unknown as StatusBarApiLike | null,
+  });
+
   useEffect(() => {
     pushStatusBar();
   }, [mergedStatusBar, pushStatusBar]);
@@ -252,7 +233,6 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     [statusPack.context, pipelineGridOptions.context],
   );
 
-  const apiRef = useRef<GridApi<TData> | null>(null);
   const unbindRef = useRef<(() => void) | null>(null);
   // Optional: the surface renders standalone in tests and in a bare embed.
   // Inside `MarketsGrid` it is always under a `<GridProvider>`.
@@ -263,7 +243,6 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     unbindRef.current = null;
   }, []);
 
-  const surfaceRootRef = useRef<HTMLDivElement | null>(null);
   const getGridApi = useCallback(() => gridRef.current?.api ?? null, [gridRef]);
   useRestoreCellFocusOnWindowFocus(surfaceRootRef, getGridApi);
 
@@ -410,7 +389,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         getRowClass={ssrmAlertRowClass}
         getRowId={getRowId}
         loadingCellRenderer={BlankLoadingCellRenderer}
-        statusBar={mergedStatusBar ?? EMPTY_STATUS_BAR}
+        statusBar={statusBarProp}
         context={mergedContext}
         maintainColumnOrder
         cellSelection={true}

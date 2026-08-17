@@ -187,3 +187,38 @@
   }
 }
 
+
+/* ── Server-side alert rows ──────────────────────────────────────────
+ *
+ * `ssrmAlertRowClass` (grid/src/ssrm/expressionBindings.ts) stamps
+ * `alert-row` on any row the worker plane flagged with `__ssrmAlert`.
+ * The class was emitted with no rule anywhere in the package, so a
+ * worker-detected alert was invisible in the grid — the one surface it
+ * could reach without the notify channel T2-6 still needs.
+ *
+ * Scoped under `.ag-root-wrapper` so it cannot leak, and deliberately
+ * NOT renamed: an unstyled class a library emits is exactly what a host
+ * would already be targeting, and renaming would silently drop their
+ * rule. A host stylesheet loaded after this one still wins.
+ *
+ * Tinted background + an inset left marker rather than a border, so the
+ * row height never shifts as alerts come and go under a live feed, and
+ * the colour comes from `--ds-accent-warning` with no hex fallback —
+ * the same UI rule this phase is enforcing elsewhere.
+ */
+.ag-root-wrapper .ag-row.alert-row {
+  background-color: color-mix(
+    in srgb,
+    var(--ds-accent-warning) 14%,
+    transparent
+  );
+  box-shadow: inset 2px 0 0 0 var(--ds-accent-warning);
+}
+
+.ag-root-wrapper .ag-row.alert-row.ag-row-hover {
+  background-color: color-mix(
+    in srgb,
+    var(--ds-accent-warning) 22%,
+    transparent
+  );
+}

@@ -30,8 +30,14 @@ type PanelProps = CustomStatusPanelProps & {
   getQuickFilterText?: () => string;
 };
 
+/**
+ * Grouped digits in the VIEWER's locale, not a hardcoded `'en-US'`.
+ * AG-Grid's own count components format through the runtime locale, so
+ * pinning one made the worker-backed panels the only numbers on the strip
+ * that ignored it — 1.234 vs 1,234 beside each other in de-DE.
+ */
 function formatCommas(n: number): string {
-  return Math.trunc(n).toLocaleString('en-US');
+  return Math.trunc(n).toLocaleString();
 }
 
 type SsrmCountVariant = 'totalAndFiltered' | 'total' | 'filtered';
