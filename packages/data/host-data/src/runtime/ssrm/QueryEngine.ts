@@ -2,10 +2,13 @@ import { getPathAccessor } from "@wellsfargo-starui/types";
 import { aggregateRows, resolveAggFunc, type AggSpec } from "./aggregations.js";
 import { ExpressionRuleStore, type AggregateScope } from "./expressionRules.js";
 import {
+  buildQuickFilterText,
   parseQuickFilter,
+  rowPassesQuickFilter,
   rowPassesQuickFilterScoped,
 } from "./quickFilter.js";
 import type { RowStore } from "./RowStore.js";
+import { SessionOverlay, type SessionQueryState } from "./SessionOverlay.js";
 import {
   buildTreeIndex,
   rowHasDetail,
@@ -90,6 +93,9 @@ interface SortEntry {
 export class QueryEngine {
   private readonly store: RowStore;
   private readonly exprRules: ExpressionRuleStore;
+  /** Per-session edits and row exclusions — see {@link SessionOverlay}. */
+  private readonly overlay: SessionOverlay;
+  private detachTick: (() => void) | null = null;
   private tree: TreeDataConfig | null = null;
   /** Insertion-ordered = LRU. Keyed by query shape, never by row window. */
   private readonly orderCache = new Map<string, CachedEntry>();
@@ -103,9 +109,28 @@ export class QueryEngine {
 
   constructor(options: QueryEngineOptions) {
     this.store = options.store;
+    this.overlay = new SessionOverlay(options.store.keyColumn);
     this.exprRules = new ExpressionRuleStore(options.expressionEngine);
     this.tree = options.tree ?? null;
     this.orderCacheSize = options.orderCacheSize ?? DEFAULT_ORDER_CACHE_SIZE;
+
+    // Source wins. When the store re-delivers a row, its values are the truth
+    // for the FIELDS it carried, so those patches are dropped — per field, so
+    // a tick that moves `price` does not silently discard a pending edit to a
+    // different column of the same row. The listener is a no-op while no
+    // session holds an overlay, which is the normal case.
+    this.detachTick = options.store.onTick((event) => {
+      if (!this.overlay.active) return;
+      if (event.keys?.length) this.overlay.onSourceRows(event.keys, event.columns);
+      // A snapshot replaces everything, so nothing pending survives it.
+      else if (event.type === "snapshot") this.overlay.clearAll();
+    });
+  }
+
+  /** Detach the store listener. Idempotent. */
+  dispose(): void {
+    this.detachTick?.();
+    this.detachTick = null;
   }
 
   /**
@@ -161,14 +186,23 @@ export class QueryEngine {
     return this.memo(key, build);
   }
 
-  /** Everything that changes *which* rows match, and in what order. */
+  /**
+   * Everything that changes *which* rows match, and in what order — INCLUDING
+   * the requesting session's own overlay. Every order derived from a query has
+   * to carry it: a session's pending edits and exclusions change the row set
+   * and its order, so an entry built for one session is not an answer for
+   * another. `sessionIdentity` is `''` for a session with no overlay, which is
+   * almost all of them, and those keep sharing one entry.
+   */
   private static queryKey(
     request: SsrmGetRowsRequest,
     kind: string,
     extra?: unknown,
+    sessionIdentity = "",
   ): string {
     return JSON.stringify([
       kind,
+      sessionIdentity,
       request.filterModel ?? null,
       request.quickFilterText ?? '',
       // Only when a quick filter is actually running: the column scope has no
@@ -219,6 +253,43 @@ export class QueryEngine {
   /** Drops one session's own rules (called on session detach). Global rules are untouched. */
   clearSessionExpressions(sessionId: string): void {
     this.exprRules.clearSession(sessionId);
+    this.overlay.clear(sessionId);
+  }
+
+  /**
+   * Record a session's pending edits, so its own queries see them and a block
+   * refetch stops discarding them.
+   *
+   * Deliberately NOT written into the shared `RowStore`: that store is
+   * per-provider and shared by every grid attached to it, so an edit written
+   * there would appear in every other window — which a client-side grid does
+   * not do (its transaction takes a copy of the row) and which nobody asked
+   * for. Roadmap Phase 4, decision 1.
+   */
+  setSessionPatches(
+    sessionId: string,
+    patches: ReadonlyArray<{ key: string; fields: Row }>,
+  ): void {
+    this.overlay.setPatches(sessionId, patches);
+  }
+
+  /** Forget a session's edits — all, or just the named rows. */
+  clearSessionPatches(sessionId: string, keys?: readonly string[]): void {
+    this.overlay.clearPatches(sessionId, keys);
+  }
+
+  /**
+   * Install a session's row-exclusion predicate — `true` EXCLUDES the row.
+   * Applied before paging, so counts, totals and scroll position agree with
+   * what the user sees; the client-side external filter it replaces could
+   * never do that under this row model, because AG-Grid only consults
+   * `doesExternalFilterPass` from its client-side filtering stage.
+   */
+  setSessionExclude(
+    sessionId: string,
+    exclude: ((row: Row) => boolean) | null,
+  ): void {
+    this.overlay.setExclude(sessionId, exclude);
   }
 
   getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
@@ -232,7 +303,10 @@ export class QueryEngine {
     const pivotCols = request.pivotCols ?? [];
     const pivoting = Boolean(request.pivotMode) || pivotCols.length > 0;
     const sep = request.pivotResultFieldSeparator ?? "_";
-    const filtered = this.collectFilteredCached(request);
+    // One identity for every cache key this query derives — '' when the
+    // session has no overlay, which keeps clean sessions on the shared entries.
+    const sessionKey = this.overlay.stateFor(sessionId)?.identity ?? "";
+    const filtered = this.collectFilteredCached(request, sessionId);
 
     // Both scan the whole filtered set and neither depends on the row window,
     // so without memoising they would re-run per block and cancel out the
@@ -243,7 +317,7 @@ export class QueryEngine {
             pivotCols.map((c) => c.field),
             request.valueCols ?? null,
             sep,
-          ]),
+          ], sessionKey),
           () => this.collectPivotResultFields(filtered, pivotCols, request, sep),
         )
       : undefined;
@@ -256,7 +330,7 @@ export class QueryEngine {
               pivotCols.map((c) => c.field),
               pivoting,
               sep,
-            ]),
+            ], sessionKey),
             () =>
               pivoting
                 ? this.pivotAggregate(filtered, pivotCols, request, sep)
@@ -289,7 +363,7 @@ export class QueryEngine {
         pivotCols.map((c) => c.field),
         pivoting,
         sep,
-      ]),
+      ], sessionKey),
       () => {
         const readGroup = getPathAccessor(field);
         const buckets = new Map<string, Row[]>();
@@ -485,15 +559,22 @@ export class QueryEngine {
       SsrmGetRowsRequest,
       "filterModel" | "quickFilterText" | "quickFilterColumns"
     >,
+    sessionId?: string,
   ): Row[] {
     const quickFilterText = request.quickFilterText ?? "";
+    const session = this.overlay.stateFor(sessionId);
     const key = JSON.stringify([
       "filtered",
       request.filterModel ?? null,
       quickFilterText,
       quickFilterText ? request.quickFilterColumns ?? null : null,
+      // Empty for a session with no overlay, which is almost every grid — so
+      // clean sessions keep sharing one entry, exactly as before. Only a
+      // session that actually edits or excludes forks the cache, and only for
+      // as long as it holds state.
+      session?.identity ?? "",
     ]);
-    return this.cachedOrder(key, () => this.collectFiltered(request));
+    return this.cachedOrder(key, () => this.collectFiltered(request, session));
   }
 
   private collectFiltered(
@@ -501,11 +582,47 @@ export class QueryEngine {
       SsrmGetRowsRequest,
       "filterModel" | "quickFilterText" | "quickFilterColumns"
     >,
+    session: SessionQueryState | null,
   ): Row[] {
     const filterModel = request.filterModel;
     const parts = parseQuickFilter(request.quickFilterText);
     const columns = request.quickFilterColumns ?? null;
     const out: Row[] = [];
+
+    // The session's own view of the data — its pending edits merged in, its
+    // excluded rows dropped — established BEFORE the filter model runs, so an
+    // edited value filters and sorts on the value the user can see, and an
+    // excluded row is absent from counts and paging alike rather than being
+    // hidden after the fact.
+    if (session) {
+      for (const [key, row] of this.store.iterateEntries()) {
+        const view = session.view(row);
+        if (session.excluded(view)) continue;
+        if (parts.length > 0) {
+          // An unpatched row keeps the store's cached aggregate, which acts
+          // as a prefilter. A PATCHED row's cache is stale and the cache is
+          // only sound as a prefilter when it is a superset — an edit can add
+          // a matching value the cached string never had — so the patched
+          // row's text is rebuilt from the view instead.
+          const passes =
+            view === row
+              ? rowPassesQuickFilterScoped(
+                  this.store.getQuickFilterText(key),
+                  row,
+                  parts,
+                  columns,
+                )
+              : rowPassesQuickFilter(
+                  buildQuickFilterText(view, columns ?? undefined),
+                  parts,
+                );
+          if (!passes) continue;
+        }
+        if (doesRowMatchFilterModel(view, filterModel)) out.push(view);
+      }
+      return out;
+    }
+
     // Quick-filter first (cached substring checks), then column filter model —
     // same effective result as CSRM, optimized for the hot path.
     if (parts.length === 0) {
@@ -550,10 +667,11 @@ export class QueryEngine {
     groupKeys: string[],
     sessionId?: string,
   ): SsrmGetRowsResult {
+    const sessionKey = this.overlay.stateFor(sessionId)?.identity ?? "";
     // Scoping + sorting depend only on the query shape, never on the row
     // window — so every block of one query reuses this single ordered array.
     const rows = this.cachedOrder(
-      QueryEngine.queryKey(request, "leaf"),
+      QueryEngine.queryKey(request, "leaf", null, sessionKey),
       () =>
         this.sortRows(
           this.scopeToGroupPath(filtered, groupCols, groupKeys),
@@ -566,7 +684,7 @@ export class QueryEngine {
     const groupData =
       (request.valueCols?.length ?? 0) > 0
         ? this.memo(
-            QueryEngine.queryKey(request, "leafAgg", request.valueCols ?? null),
+            QueryEngine.queryKey(request, "leafAgg", request.valueCols ?? null, sessionKey),
             () => this.valueAgg(rows, request),
           )
         : undefined;
