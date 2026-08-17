@@ -42,8 +42,31 @@ vi.mock('./resolveMarketsGridHost.js', () => ({
 }));
 
 import { MarketsGridCore } from './MarketsGrid.js';
+import { ensureAgGridModules } from './ensureAgGridModules.js';
 
 describe('MarketsGridCore SSRM routing', () => {
+  // Roadmap Phase 7 / T3-13: the host's `agGridModules` reaches the global
+  // registry under SSRM exactly as it does under CSRM. The surface no longer
+  // hands the grid instance its own `[AllEnterpriseModule]`, which used to
+  // make a reduced list inert.
+  it('registers the host agGridModules for a server-side grid', () => {
+    const provider = { id: 'p-modules' } as never;
+    const agGridModules = [{ moduleName: 'ServerSideRowModelModule' }] as never;
+    vi.mocked(ensureAgGridModules).mockClear();
+
+    render(
+      <MarketsGridCore
+        gridId="g-modules"
+        ssrm={{ provider, keyColumn: 'id' }}
+        agGridModules={agGridModules}
+        columnDefs={[]}
+        rowData={[]}
+      />,
+    );
+
+    expect(ensureAgGridModules).toHaveBeenCalledWith(agGridModules);
+  });
+
   it('mounts MarketsGridSsrmSurface when ssrm.provider is set', async () => {
     const provider = { id: 'p-core' } as never;
     const gridRef = createRef<AgGridReact>();

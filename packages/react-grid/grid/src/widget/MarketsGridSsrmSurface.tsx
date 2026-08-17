@@ -24,9 +24,7 @@ import type {
   GetContextMenuItems,
   GridApi,
   GridReadyEvent,
-  Module,
 } from 'ag-grid-community';
-import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import type { MarketsGridProps, MarketsGridSsrmProps } from './types';
 import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
 import { buildStreamSafeComponents } from './buildStreamSafeComponents';
@@ -47,9 +45,6 @@ import {
 import { withSsrmSetFilterValues } from '../ssrm/ssrmSetFilterValues.js';
 import { BlankLoadingCellRenderer } from '../ssrm/BlankLoadingCellRenderer.js';
 import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
-
-/** AG Grid 35+: pass modules to the grid instance (plus global registry). */
-const SSRM_AG_GRID_MODULES: Module[] = [AllEnterpriseModule];
 
 const SURFACE_STYLE: CSSProperties = { flex: 1 };
 
@@ -141,6 +136,14 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   onGridPreDestroyed,
   includeAllStreamSafeFilters = true,
 }: MarketsGridSsrmSurfaceProps<TData>) {
+  // Fallback for a surface mounted OUTSIDE `MarketsGrid` (tests, bare
+  // embeds). Under `MarketsGrid` the shell has already called this with the
+  // host's `agGridModules`, and registration latches after the first call,
+  // so this is a no-op there. Deliberately no grid-INSTANCE `modules` prop:
+  // instance modules are additive, so the `[AllEnterpriseModule]` that used
+  // to sit on `<AgGridReact>` handed every SSRM grid the full bundle and
+  // made a reduced `agGridModules` silently inert. The global registry is
+  // the single source, exactly as `MarketsGridSurface` has always done it.
   ensureAgGridModules();
 
   const { provider, keyColumn = 'id', getQuickFilterText, cacheBlockSize: cacheBlockSizeProp } = ssrm;
@@ -418,7 +421,6 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         getContextMenuItems={getContextMenuItems}
         onGridReady={handleGridReady}
         onGridPreDestroyed={handleGridPreDestroyed}
-        modules={SSRM_AG_GRID_MODULES}
       />
     </div>
   );

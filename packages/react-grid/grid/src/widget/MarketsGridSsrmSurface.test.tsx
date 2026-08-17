@@ -147,6 +147,44 @@ describe('MarketsGridSsrmSurface', () => {
     });
     platform.destroy();
   });
+
+  // Roadmap Phase 7 / T3-13. Grid-instance `modules` are ADDITIVE to the
+  // global registry, so the `[AllEnterpriseModule]` this surface used to
+  // pass handed every SSRM grid the full bundle and made a reduced
+  // `agGridModules` prop silently inert. `MarketsGridSurface` never had an
+  // instance list; the global registry (`ensureAgGridModules`, called by the
+  // MarketsGrid shell with the host's list) is the single source for both.
+  it('passes no grid-instance module list — the global registry is the only source', async () => {
+    const provider = {
+      id: 'p-ssrm-modules',
+      getConfig: () => ({ blockSize: 100, keyColumn: 'positionId' }),
+      getColumnDefs: () => [],
+    } as never;
+    const gridRef = createRef<AgGridReact>();
+
+    render(
+      <MarketsGridSsrmSurface
+        gridRef={gridRef}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'positionId' }]}
+        ssrm={{ provider, keyColumn: 'positionId' }}
+        sideBar={false}
+        statusBar={undefined}
+        defaultColDef={undefined}
+        onGridReady={() => {}}
+        onGridPreDestroyed={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      const props = (globalThis as Record<string, unknown>).__ssrmSurfaceProps as
+        Record<string, unknown>;
+      expect(props.rowModelType).toBe('serverSide');
+      expect('modules' in props).toBe(false);
+    });
+  });
 });
 
 it('replaces the "Loading..." block renderer with a blank one (fast thumb scrolls)', () => {
