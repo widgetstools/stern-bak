@@ -191,7 +191,7 @@ export {
   bulkUpdateValueKind,
   collectBulkUpdateTargets,
   buildBulkUpdatePatchesFromRaw,
-  resolveColumnDistinctValues,
+  compareDistinctValues,
   buildNudgePatches,
   applyPlusMinusColDefTransforms,
   buildShortcutPatches,

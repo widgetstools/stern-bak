@@ -48,10 +48,15 @@ export class GridDataHub implements GridDataPort {
    * `rows` is where the server-side adapter reports what its writes changed.
    * The client-side adapter takes no sink: `applyTransactionAsync` fires
    * `asyncTransactionsFlushed` and the bus hears that itself.
+   *
+   * `events` is how a capability CHANGE reaches the UI. Reading through a
+   * getter is what makes the answer current; announcing the change is what
+   * makes a rendered control notice.
    */
   constructor(
     private readonly hub: ApiHub,
     private readonly rows: RowChangeSink,
+    private readonly events: CapabilityChangeSink,
   ) {
     this.csrm = new CsrmDataAdapter(hub);
   }
@@ -60,11 +65,14 @@ export class GridDataHub implements GridDataPort {
    *  binding; pass a new binding when the provider is replaced. */
   bindSsrm(binding: SsrmDataBinding): void {
     this.ssrm = new SsrmDataAdapter(this.hub, binding, this.rows);
+    this.announce();
   }
 
   /** Fall back to the client-side row model. */
   unbindSsrm(): void {
+    if (this.ssrm === null) return;
     this.ssrm = null;
+    this.announce();
   }
 
   /** The live adapter. Not exposed on {@link GridDataPort} — a module that
@@ -104,4 +112,20 @@ export class GridDataHub implements GridDataPort {
   mutate(patches: readonly RowPatch[]): Promise<MutationResult> {
     return this.active.mutate(patches);
   }
+
+  private announce(): void {
+    this.events.emit('data:capabilitiesChanged', { gridId: this.events.gridId });
+  }
+}
+
+/**
+ * The slice of the platform the hub needs to announce a capability change.
+ *
+ * Narrowed on purpose: the hub takes the ability to say one thing, not the
+ * whole event bus. A hub that could emit `profile:loaded` would be a hub that
+ * could be mistaken for a place profile logic belongs.
+ */
+export interface CapabilityChangeSink {
+  readonly gridId: string;
+  emit(event: 'data:capabilitiesChanged', payload: { gridId: string }): void;
 }

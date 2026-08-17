@@ -24,6 +24,7 @@ import {
 import { Switch } from '@wellsfargo-starui/react';
 import { Select } from '../../ui/NativeOptionsSelect';
 import type { GeneralSettingsState } from '@wellsfargo-starui/core';
+import { useCapabilityGate, type CapabilityName } from '../../hooks/useCapability';
 
 // ─── Row primitive ────────────────────────────────────────────────────
 //
@@ -41,16 +42,18 @@ export type { SettingsRowProps as RowProps } from '../../ui/SettingsPanel';
 // come from the Cockpit `--ck-*` token system on `.ds-sheet-v2` so the
 // look is unchanged from v2-baseline.
 
-export function BoolControl({ checked, onChange, testId }: {
+export function BoolControl({ checked, onChange, testId, disabled }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   testId?: string;
+  disabled?: boolean;
 }) {
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center' }}>
       <Switch
         checked={checked}
         onCheckedChange={onChange}
+        disabled={disabled}
         data-testid={testId}
       />
     </div>
@@ -63,18 +66,21 @@ export function NumberControl({
   min,
   suffix,
   testId,
+  disabled,
 }: {
   value: number;
   onChange: (v: number) => void;
   min?: number;
   suffix?: string;
   testId?: string;
+  disabled?: boolean;
 }) {
   return (
     <IconInput
       value={String(value)}
       numeric
       suffix={suffix}
+      disabled={disabled}
       onCommit={(raw) => {
         const n = Number(raw);
         if (!Number.isFinite(n)) return;
@@ -100,6 +106,7 @@ function OptNumberControl({
   suffix,
   testId,
   placeholder = 'auto',
+  disabled,
 }: {
   value: number | undefined;
   onChange: (v: number | undefined) => void;
@@ -108,6 +115,7 @@ function OptNumberControl({
   suffix?: string;
   testId?: string;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
     <IconInput
@@ -115,6 +123,7 @@ function OptNumberControl({
       numeric
       suffix={suffix}
       placeholder={placeholder}
+      disabled={disabled}
       onCommit={(raw) => {
         if (raw.trim() === '') return onChange(undefined);
         const n = Number(raw);
@@ -134,17 +143,20 @@ function TextControl({
   onChange,
   placeholder,
   testId,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   testId?: string;
+  disabled?: boolean;
 }) {
   return (
     <IconInput
       value={value}
       onCommit={onChange}
       placeholder={placeholder}
+      disabled={disabled}
       data-testid={testId}
       className="max-w-[280px]"
     />
@@ -180,16 +192,19 @@ function SelectControl<T extends string | undefined | boolean | number>({
   onChange,
   options,
   testId,
+  disabled,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: ReadonlyArray<{ value: T; label: string }>;
   testId?: string;
+  disabled?: boolean;
 }) {
   return (
     <Select
       value={encode(value)}
       onChange={(e) => onChange(decode<T>(e.target.value, options))}
+      disabled={disabled}
       data-testid={testId}
       style={{ maxWidth: 240, flex: '1 1 auto' }}
     >
@@ -245,6 +260,31 @@ export type Field =
       fields: ReadonlyArray<Field>;
     }
   | {
+      /**
+       * Fields AG-Grid only honours where a `platform.data` capability holds.
+       *
+       * The panel emits every grid option to whichever surface is mounted, so
+       * an option the row model ignores is a control that accepts input and
+       * does nothing — the silent no-op this roadmap phase exists to remove.
+       * Declaring the requirement here rather than branching keeps the module
+       * free of row-model knowledge (binding constraint 3): it names the
+       * condition, and the platform answers it.
+       *
+       * Fields stay VISIBLE and become disabled, with the verdict's own
+       * user-facing copy taking over the hint. Hiding them would lose a
+       * setting the user has already saved, and would make the panel's
+       * contents depend on which grid it was opened over.
+       */
+      kind: 'capability';
+      capability: CapabilityName;
+      /** Which side of the verdict these fields need. Default `true`. */
+      expect?: boolean;
+      /** Control-specific copy. Defaults to the verdict's own wording, and is
+       *  the only copy available in the `expect: false` direction. */
+      unavailableReason?: string;
+      fields: ReadonlyArray<Field>;
+    }
+  | {
       /** Custom control escape hatch. Renders an arbitrary React element.
        *  Used for the one-off PAGINATION page-size + auto row where the
        *  row's right column contains two controls side-by-side. */
@@ -268,6 +308,13 @@ export interface FieldRendererProps {
   field: Field;
   state: GeneralSettingsState;
   update: <K extends StateKey>(key: K, value: GeneralSettingsState[K]) => void;
+  /** Set by an enclosing `capability` container whose requirement is unmet.
+   *  Threaded through containers so a nested field is disabled too. */
+  disabled?: boolean;
+  /** The reason copy that container carries, shown in place of the field's
+   *  own hint — the panel's hint slot already means "what this control does",
+   *  and for a control that cannot act, the reason IS that. */
+  disabledHint?: string;
 }
 
 // ─── Renderer ─────────────────────────────────────────────────────────
@@ -295,6 +342,7 @@ export function collectFieldKeys(
         break;
       case 'subsection':
       case 'conditional':
+      case 'capability':
         out.push(...collectFieldKeys(f.fields));
         break;
       case 'custom':
@@ -308,36 +356,41 @@ export function FieldRenderer({
   field,
   state,
   update,
+  disabled,
+  disabledHint,
 }: FieldRendererProps) {
+  const hintOf = (own?: string) => (disabled && disabledHint ? disabledHint : own);
   switch (field.kind) {
     case 'bool': {
       const stored = state[field.key] as boolean;
       const shown = field.invert ? !stored : stored;
       return (
-        <Row label={field.label} hint={field.hint} control={
+        <Row label={field.label} hint={hintOf(field.hint)} control={
           <BoolControl
             checked={shown}
             onChange={(v) => update(field.key, (field.invert ? !v : v) as GeneralSettingsState[typeof field.key])}
             testId={field.testId}
+            disabled={disabled}
           />
         } />
       );
     }
     case 'num':
       return (
-        <Row label={field.label} hint={field.hint} control={
+        <Row label={field.label} hint={hintOf(field.hint)} control={
           <NumberControl
             value={state[field.key]}
             onChange={(v) => update(field.key, v as GeneralSettingsState[typeof field.key])}
             min={field.min}
             suffix={field.suffix}
             testId={field.testId}
+            disabled={disabled}
           />
         } />
       );
     case 'optNum':
       return (
-        <Row label={field.label} hint={field.hint} control={
+        <Row label={field.label} hint={hintOf(field.hint)} control={
           <OptNumberControl
             value={state[field.key]}
             onChange={(v) => update(field.key, v as GeneralSettingsState[typeof field.key])}
@@ -346,28 +399,31 @@ export function FieldRenderer({
             suffix={field.suffix}
             testId={field.testId}
             placeholder={field.placeholder}
+            disabled={disabled}
           />
         } />
       );
     case 'text':
       return (
-        <Row label={field.label} hint={field.hint} control={
+        <Row label={field.label} hint={hintOf(field.hint)} control={
           <TextControl
             value={state[field.key]}
             onChange={(v) => update(field.key, v as GeneralSettingsState[typeof field.key])}
             placeholder={field.placeholder}
             testId={field.testId}
+            disabled={disabled}
           />
         } />
       );
     case 'select':
       return (
-        <Row label={field.label} hint={field.hint} control={
+        <Row label={field.label} hint={hintOf(field.hint)} control={
           <SelectControl
             value={state[field.key] as never}
             onChange={(v) => update(field.key, v as GeneralSettingsState[typeof field.key])}
             options={field.options as ReadonlyArray<{ value: never; label: string }>}
             testId={field.testId}
+            disabled={disabled}
           />
         } />
       );
@@ -375,21 +431,66 @@ export function FieldRenderer({
       return (
         <>
           <SubLabel>{field.title}</SubLabel>
-          {field.fields.map((f, i) => <FieldRenderer key={i} field={f} state={state} update={update} />)}
+          {field.fields.map((f, i) => (
+            <FieldRenderer key={i} field={f} state={state} update={update} disabled={disabled} disabledHint={disabledHint} />
+          ))}
         </>
       );
     case 'conditional':
       if (!field.show(state)) return null;
       return (
         <>
-          {field.fields.map((f, i) => <FieldRenderer key={i} field={f} state={state} update={update} />)}
+          {field.fields.map((f, i) => (
+            <FieldRenderer key={i} field={f} state={state} update={update} disabled={disabled} disabledHint={disabledHint} />
+          ))}
         </>
       );
+    case 'capability':
+      // A separate component because it reads a hook, and a hook cannot be
+      // called from one arm of a switch.
+      return <CapabilityFields field={field} state={state} update={update} />;
     case 'custom':
       return (
-        <Row label={field.label} hint={field.hint} control={field.render(state, update)} />
+        <Row label={field.label} hint={hintOf(field.hint)} control={field.render(state, update)} />
       );
   }
+}
+
+/**
+ * The fields inside a `capability` container, disabled where its requirement
+ * is unmet.
+ *
+ * Live: `useCapabilityGate` re-reads on `data:capabilitiesChanged`, so a panel
+ * left open while a provider binds or detaches follows the answer rather than
+ * showing the one that was true when it opened.
+ */
+function CapabilityFields({
+  field,
+  state,
+  update,
+}: {
+  field: Extract<Field, { kind: 'capability' }>;
+  state: GeneralSettingsState;
+  update: <K extends StateKey>(key: K, value: GeneralSettingsState[K]) => void;
+}) {
+  const gate = useCapabilityGate(field.capability, {
+    expect: field.expect,
+    reason: field.unavailableReason,
+  });
+  return (
+    <>
+      {field.fields.map((f, i) => (
+        <FieldRenderer
+          key={i}
+          field={f}
+          state={state}
+          update={update}
+          disabled={gate.disabled}
+          disabledHint={gate.reason}
+        />
+      ))}
+    </>
+  );
 }
 
 /**
@@ -424,7 +525,8 @@ function filterField(field: Field, q: string): Field | null {
       const inner = filterFields(field.fields, q);
       return inner.length ? { ...field, fields: inner } : null;
     }
-    case 'conditional': {
+    case 'conditional':
+    case 'capability': {
       const inner = filterFields(field.fields, q);
       return inner.length ? { ...field, fields: inner } : null;
     }

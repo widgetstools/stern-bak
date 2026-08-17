@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   assertSingleColumnSelection,
   bulkUpdateValueKind,
-  resolveColumnDistinctValues,
 } from '@wellsfargo-starui/core';
 import {
   AlertDialog,
@@ -40,6 +39,7 @@ import {
 } from '../../../widget/editingToolbar/EditingToolbarPrimitives';
 import { cellCountLabel } from '../../editing/applyAndRecord';
 import { useBulkUpdateSelection } from './useBulkUpdateSelection';
+import { useColumnDistinctValues } from './useColumnDistinctValues';
 import { applyBulkUpdateEdits, resolveBulkUpdateTargets } from './runtime/applyBulkUpdateEdits';
 
 function formatDistinctLabel(value: unknown): string {
@@ -76,16 +76,12 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
     [cells],
   );
 
-  const distinctValues = useMemo(() => {
-    const api = platform.api.api;
-    const colId = cells[0]?.colId;
-    if (!api || !colId || !settings.settings.showDistinctValues) return [];
-    return resolveColumnDistinctValues(
-      api as never,
-      colId,
-      settings.settings.maxDropdownValues,
-    );
-  }, [platform, cells, settings.settings.showDistinctValues, settings.settings.maxDropdownValues]);
+  const { values: distinctValues } = useColumnDistinctValues(
+    platform.data,
+    cells[0]?.colId,
+    settings.settings.maxDropdownValues,
+    settings.settings.showDistinctValues,
+  );
 
   const executeApply = useCallback(async () => {
     const api = platform.api.api;

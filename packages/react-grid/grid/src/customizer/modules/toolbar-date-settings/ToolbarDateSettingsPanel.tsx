@@ -19,6 +19,7 @@ import { ChromeButton } from '../../ui/ChromeButton';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';
 import { useGridColumns } from '../../hooks/useGridColumns';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
+import { useCapabilityGate } from '../../hooks/useCapability';
 import {
   useAppDataKeys,
   useAppDataLookup,
@@ -307,6 +308,26 @@ export function ToolbarDateSettingsPanel(): ReactElement {
   // CSP-safe one that compiles the filter at runtime, so "Valid" here means
   // the expression will actually parse when applied.
   const exprEngine = useMemo(() => new ExpressionEngine(), []);
+
+  /**
+   * Row exclusion installs AG-Grid's EXTERNAL FILTER
+   * (`isExternalFilterPresent` / `doesExternalFilterPass`), and AG-Grid only
+   * consults those from its client-side filtering stage — nothing on the
+   * server-side path calls `doesRowPassFilter`. So the expression compiled,
+   * validated, saved, and then hid nothing at all.
+   *
+   * Excluding rows properly here means the SOURCE excluding them, so counts
+   * and paging agree; that needs the query plane to evaluate a per-session
+   * predicate before it pages, which does not exist yet. Until then the
+   * control says so rather than accepting an expression it will ignore.
+   */
+  const rowExclusionGate = useCapabilityGate('canAddressUnloadedRows', {
+    reason:
+      'Row exclusion hides rows in the grid, and this grid loads rows from the '
+      + 'server as you scroll — so an expression here would leave the row '
+      + 'counts and the rows themselves disagreeing. Use the column filters to '
+      + 'narrow the view instead; those run at the server.',
+  });
   const rowExpr = (draft.rowExclusionExpression ?? '').trim();
   const rowExprValidation = rowExpr
     ? exprEngine.validate(rowExpr)
@@ -540,12 +561,22 @@ export function ToolbarDateSettingsPanel(): ReactElement {
               all rows. Applied when you press <strong>Save</strong>.
             </p>
 
+            {rowExclusionGate.disabled ? (
+              <p
+                data-testid="tds-row-filter-unavailable"
+                className="mb-3 rounded border border-[color:var(--ds-border-primary)] bg-[color:var(--ds-surface-secondary)] px-3 py-2 text-[11px] leading-relaxed text-[color:var(--ds-text-secondary)]"
+              >
+                {rowExclusionGate.reason}
+              </p>
+            ) : null}
+
             <div data-testid="tds-row-filter" className="space-y-2">
               <label className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-foreground/85">
                 Exclude rows when
               </label>
 
               <ExpressionEditor
+                readOnly={rowExclusionGate.disabled}
                 value={draft.rowExclusionExpression}
                 // Stage every keystroke into the draft so Save always has the
                 // latest text (no commit-on-blur surprise); onCommit trims on
@@ -591,6 +622,7 @@ export function ToolbarDateSettingsPanel(): ReactElement {
                     key={ex.expr}
                     type="button"
                     title={ex.label}
+                    disabled={rowExclusionGate.disabled}
                     onClick={() => update('rowExclusionExpression', ex.expr)}
                     data-testid="tds-row-filter-example"
                     className="rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"

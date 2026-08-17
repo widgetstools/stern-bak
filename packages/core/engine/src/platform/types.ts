@@ -72,6 +72,17 @@ export interface PlatformEventMap {
    * own Save without the user hunting for a second button.
    */
   'settings:save-requested': { gridId: string };
+  /**
+   * `platform.data.capabilities` now answers differently — a server-side
+   * source bound, swapped or detached.
+   *
+   * `GridDataHub` exposes capabilities through a GETTER precisely so a
+   * control disabled while a source is binding re-enables itself when the
+   * answer changes. A getter alone cannot make that true in React: nothing
+   * re-renders. This event is what closes that gap, and it is why the hub
+   * takes the platform's event bus.
+   */
+  'data:capabilitiesChanged': { gridId: string };
 }
 
 export interface EventBus<M> {

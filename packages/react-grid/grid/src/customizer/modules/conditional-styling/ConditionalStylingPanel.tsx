@@ -67,6 +67,7 @@ import { TargetColumnsBand } from './editor/TargetColumnsBand';
 import { FlashBand } from './editor/FlashBand';
 import { AnimateBand } from './editor/AnimateBand';
 import { ValueFormatterBand } from './editor/ValueFormatterBand';
+import { paintsHeaders, useHeaderPaintGate } from './editor/useHeaderPaintGate';
 
 const MODULE_ID = 'conditional-styling';
 
@@ -502,6 +503,9 @@ function IndicatorPicker({
   }, []);
 
   const color = value?.color || 'var(--ds-accent-warning)';
+  // HEADERS / BOTH need a whole-dataset pass this grid may not be able to
+  // make — see `useHeaderPaintGate`.
+  const headerGate = useHeaderPaintGate();
   const currentTarget: IndicatorTarget = value?.target ?? 'cells+headers';
   const currentPosition: IndicatorPosition = value?.position ?? 'top-right';
   const POSITION_LABEL: Record<IndicatorPosition, string> = {
@@ -626,6 +630,8 @@ function IndicatorPicker({
                 <PillToggleBtn
                   key={v}
                   active={currentTarget === v}
+                  disabled={headerGate.disabled && paintsHeaders(v)}
+                  title={headerGate.disabled && paintsHeaders(v) ? headerGate.reason : undefined}
                   onClick={() => patch({ target: v })}
                   style={{
                     height: 24,

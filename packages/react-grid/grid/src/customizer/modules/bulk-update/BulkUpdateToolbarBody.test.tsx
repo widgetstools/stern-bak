@@ -31,6 +31,10 @@ function makeMockApi() {
       getColDef: () => ({ field: 'currency', editable: true, cellDataType: 'text' }),
     }),
     getCellValue: () => 'USD',
+    // The distinct dropdown reads through `platform.data` now, and the
+    // client-side adapter walks the FILTERED nodes for `scope: 'filtered'`.
+    forEachNodeAfterFilter: (fn: (n: unknown) => void) =>
+      fn({ id: 'r1', data: { id: 'r1', currency: 'USD' } }),
     getFocusedCell: () => null,
     getRowNode: () => ({ data: { id: 'r1', currency: 'USD' } }),
     getDisplayedRowCount: () => 1,
@@ -151,9 +155,40 @@ describe('BulkUpdateToolbarBody', () => {
     });
   });
 
-  it('shows distinct value picker when enabled and values exist', () => {
+  it('shows distinct value picker when enabled and values exist', async () => {
     const platform = makePlatform({ showDistinctValues: true });
     mount(platform);
-    expect(screen.getByTestId('bulk-update-value-select')).toBeTruthy();
+    // Asynchronous now: the values come through `platform.data.distinct()`,
+    // which may cross `postMessage` to the worker.
+    await waitFor(() => {
+      expect(screen.getByTestId('bulk-update-value-select')).toBeTruthy();
+    });
+  });
+
+  it('reads distinct values from the source, not from whatever block is scrolled in', async () => {
+    // The old reader looped `getDisplayedRowCount()` against
+    // `getDisplayedRowAtIndex`. Under the server-side row model the count is
+    // the SERVER's total and the indices outside the loaded window resolve to
+    // loading stubs — so the dropdown listed whatever the current block held.
+    // Here the grid holds one row and the source holds three; the dropdown
+    // must show the source's.
+    const platform = makePlatform({ showDistinctValues: true });
+    platform.data.bindSsrm({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 100_000 }),
+        getSetFilterValues: async () => ['USD', 'EUR', 'JPY'],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    } as never);
+    mount(platform);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('bulk-update-value-select')).toBeTruthy();
+    });
+    act(() => fireEvent.click(screen.getByTestId('bulk-update-value-select')));
+    await waitFor(() => {
+      expect(screen.getByText('EUR')).toBeTruthy();
+      expect(screen.getByText('JPY')).toBeTruthy();
+    });
   });
 });

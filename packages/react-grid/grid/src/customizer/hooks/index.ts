@@ -15,3 +15,4 @@ export {
 } from './useModuleDraft';
 export { useUndoRedo, type UseUndoRedoResult } from './useUndoRedo';
 export { useActiveThemeMode } from './useActiveThemeMode';
+export { useCapability, useCapabilityGate, type CapabilityName } from './useCapability';

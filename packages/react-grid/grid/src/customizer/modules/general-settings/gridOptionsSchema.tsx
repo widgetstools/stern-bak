@@ -124,7 +124,25 @@ export const GRID_OPTIONS_SCHEMA: readonly BandSchema[] = [
         ],
       },
       { kind: 'bool', key: 'refreshAfterGroupEdit', label: 'REFRESH AFTER EDIT', hint: 'Re-evaluate hierarchy after editing a grouped column value', testId: 'go-refresh-after-group-edit' },
-      { kind: 'bool', key: 'ssrmExpandAllAffectsAllRows', label: 'SSRM EXPAND-ALL', hint: 'Server-side row model · expandAll applies to all rows (requires getRowId)', testId: 'go-ssrm-expand-all' },
+      {
+        // AG-Grid reads this option only from its server-side row model
+        // (`ag-grid-enterprise` is its one consumer). Over a client-side grid
+        // the toggle has always accepted input and changed nothing — the
+        // label said "Server-side row model" and the label did no work.
+        // `canAddressUnloadedRows` is the condition underneath: expanding
+        // rows that are not loaded is only a question where rows can BE
+        // unloaded.
+        kind: 'capability',
+        capability: 'canAddressUnloadedRows',
+        expect: false,
+        unavailableReason:
+          'This grid holds every row already, so expanding a group never has '
+          + 'to reach rows that aren’t loaded. The setting applies to grids '
+          + 'that load rows from a server as you scroll.',
+        fields: [
+          { kind: 'bool', key: 'ssrmExpandAllAffectsAllRows', label: 'SSRM EXPAND-ALL', hint: 'Server-side row model · expandAll applies to all rows (requires getRowId)', testId: 'go-ssrm-expand-all' },
+        ],
+      },
     ],
   },
 

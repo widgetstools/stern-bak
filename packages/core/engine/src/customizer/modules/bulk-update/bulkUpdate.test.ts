@@ -6,7 +6,7 @@ import {
 } from './applyBulkUpdate.js';
 import { collectBulkUpdateTargets } from './collectBulkUpdateTargets.js';
 import { bulkUpdateValueKind, isBulkUpdateCellType } from './isBulkUpdateCellType.js';
-import { resolveColumnDistinctValues } from './resolveColumnDistinctValues.js';
+import { compareDistinctValues } from './compareDistinctValues.js';
 import { deserializeBulkUpdateState, INITIAL_BULK_UPDATE } from './state.js';
 
 describe('bulk-update state', () => {
@@ -256,38 +256,25 @@ describe('buildBulkUpdatePatches', () => {
   });
 });
 
-describe('resolveColumnDistinctValues', () => {
-  it('returns sorted distinct values up to limit', () => {
-    const api = {
-      getDisplayedRowCount: () => 3,
-      getDisplayedRowAtIndex: (i: number) => ({ id: `r${i}` }),
-      getCellValue: ({ rowNode }: { rowNode: { id?: string } }) =>
-        rowNode.id === 'r0' ? 'USD' : rowNode.id === 'r1' ? 'EUR' : 'USD',
-    };
-    const values = resolveColumnDistinctValues(api as never, 'currency', 10);
-    expect(values).toEqual(['EUR', 'USD']);
+describe('compareDistinctValues', () => {
+  // The walk moved to `platform.data.distinct()`; the ORDER stayed, because
+  // the port returns source order by contract and its two implementations
+  // order differently. These are the same expectations the old walk was
+  // asserted on, now against the half that still lives here.
+
+  it('orders strings by locale', () => {
+    expect(['USD', 'EUR', 'USD'].filter((v, i, a) => a.indexOf(v) === i).sort(compareDistinctValues))
+      .toEqual(['EUR', 'USD']);
   });
 
-  it('sorts nulls last and stops at limit', () => {
-    const api = {
-      getDisplayedRowCount: () => 4,
-      getDisplayedRowAtIndex: (i: number) => ({ id: `r${i}` }),
-      getCellValue: ({ rowNode }: { rowNode: { id?: string } }) => {
-        if (rowNode.id === 'r0') return null;
-        if (rowNode.id === 'r1') return 2;
-        if (rowNode.id === 'r2') return 1;
-        return 1;
-      },
-    };
-    expect(resolveColumnDistinctValues(api as never, 'qty', 2)).toEqual([2, null]);
+  it('orders numbers numerically and sorts nulls last', () => {
+    expect([null, 2, 1].sort(compareDistinctValues)).toEqual([1, 2, null]);
+    // Not lexicographic: '10' < '9' as strings, 9 < 10 as numbers.
+    expect([10, 9].sort(compareDistinctValues)).toEqual([9, 10]);
   });
 
-  it('skips missing row nodes', () => {
-    const api = {
-      getDisplayedRowCount: () => 1,
-      getDisplayedRowAtIndex: () => undefined,
-      getCellValue: () => 'x',
-    };
-    expect(resolveColumnDistinctValues(api as never, 'col', 5)).toEqual([]);
+  it('treats undefined like null', () => {
+    expect([undefined, 'a'].sort(compareDistinctValues)).toEqual(['a', undefined]);
+    expect(compareDistinctValues(null, undefined)).toBe(0);
   });
 });

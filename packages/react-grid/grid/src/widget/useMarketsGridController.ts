@@ -91,6 +91,11 @@ export interface MarketsGridControllerHandle {
   readonly handleSaveAll: () => Promise<void>;
   readonly handleExportVisualExcel: () => void;
   readonly visualExcelExportEnabled: boolean;
+  /** Non-empty when an export is pending the user's confirmation that it
+   *  covers only the loaded rows. Carries the port's own copy. */
+  readonly exportScopeWarning: string;
+  readonly confirmExportAnyway: () => void;
+  readonly dismissExportWarning: () => void;
   readonly requestLoadProfile: (id: string) => void;
   readonly confirmSwitchSave: () => Promise<void>;
   readonly confirmSwitchDiscard: () => Promise<void>;
@@ -304,6 +309,7 @@ export function useMarketsGridController(
 
   // Settings sheet — the Cockpit popout drawer.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportScopeWarning, setExportScopeWarning] = useState('');
   // Imperative handle into the SettingsSheet so the settings-icon
   // click handler can raise a buried popout window to front instead
   // of no-op-opening an already-open sheet. See handleOpenSettings
@@ -375,11 +381,38 @@ export function useMarketsGridController(
     setEditingToolbarOpen((p) => !p);
   }, []);
 
-  const handleExportVisualExcel = useCallback(() => {
+  /**
+   * Excel export, scope-checked.
+   *
+   * `exportDataAsExcel` serialises the rows the GRID holds, which is the
+   * dataset under one row model and the loaded block window under the other.
+   * Where the port says the export cannot cover the dataset, the user is told
+   * which of the two they are about to get and confirms — rather than
+   * receiving a file that is quietly missing 98% of its rows. The export
+   * itself is unchanged; only the silence is.
+   */
+  const runVisualExcelExport = useCallback(() => {
     if (!api) return;
     const state = platform.store.getModuleState<VisualExcelState>(VISUAL_EXCEL_MODULE_ID);
     exportVisualExcel(api, state?.settings ?? { enabled: true, fileNamePrefix: 'markets-grid' });
   }, [api, platform]);
+
+  const handleExportVisualExcel = useCallback(() => {
+    if (!api) return;
+    const verdict = platform.data.capabilities.exportCoversFullDataset;
+    if (!verdict.supported) {
+      setExportScopeWarning(verdict.reason);
+      return;
+    }
+    runVisualExcelExport();
+  }, [api, platform, runVisualExcelExport]);
+
+  const confirmExportAnyway = useCallback(() => {
+    setExportScopeWarning('');
+    runVisualExcelExport();
+  }, [runVisualExcelExport]);
+
+  const dismissExportWarning = useCallback(() => setExportScopeWarning(''), []);
 
   exportVisualExcelRef.current = handleExportVisualExcel;
 
@@ -519,6 +552,9 @@ export function useMarketsGridController(
     handleToggleEditingToolbar,
     handleExportVisualExcel,
     visualExcelExportEnabled: visualExcel?.settings?.enabled ?? true,
+    exportScopeWarning,
+    confirmExportAnyway,
+    dismissExportWarning,
     handleSaveAll,
     requestLoadProfile,
     confirmSwitchSave,

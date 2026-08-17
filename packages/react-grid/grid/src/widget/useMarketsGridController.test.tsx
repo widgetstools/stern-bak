@@ -24,6 +24,11 @@ const mocks = vi.hoisted(() => ({
       on: vi.fn(() => () => {}),
       emit: vi.fn(),
     },
+    data: {
+      capabilities: {
+        exportCoversFullDataset: { supported: true, reason: '' },
+      },
+    },
   },
   captureGridStateInto: vi.fn(),
   exportVisualExcel: vi.fn(),
@@ -287,6 +292,44 @@ describe('useMarketsGridController', () => {
     });
     expect(result.current.styleToolbarOpen).toBe(true);
     expect(mocks.toolbarFocusIfPopped).toHaveBeenCalled();
+  });
+
+  it('warns before an export that cannot cover the dataset, and exports on confirm', () => {
+    // `exportDataAsExcel` walks the rows the GRID holds — the dataset under
+    // one row model, the loaded block window under the other. The export is
+    // not taken away; the silence is.
+    mocks.platform.data.capabilities.exportCoversFullDataset = {
+      supported: false,
+      reason: 'Export writes the rows this grid has loaded.',
+    };
+    mocks.api = { getColumnState: () => [] } as any;
+    const { result } = renderController();
+
+    act(() => result.current.handleExportVisualExcel());
+    expect(mocks.exportVisualExcel).not.toHaveBeenCalled();
+    expect(result.current.exportScopeWarning).toBe('Export writes the rows this grid has loaded.');
+
+    act(() => result.current.confirmExportAnyway());
+    expect(mocks.exportVisualExcel).toHaveBeenCalledTimes(1);
+    expect(result.current.exportScopeWarning).toBe('');
+
+    mocks.platform.data.capabilities.exportCoversFullDataset = { supported: true, reason: '' };
+  });
+
+  it('dismissing the scope warning exports nothing', () => {
+    mocks.platform.data.capabilities.exportCoversFullDataset = {
+      supported: false,
+      reason: 'Loaded rows only.',
+    };
+    mocks.api = { getColumnState: () => [] } as any;
+    const { result } = renderController();
+
+    act(() => result.current.handleExportVisualExcel());
+    act(() => result.current.dismissExportWarning());
+    expect(mocks.exportVisualExcel).not.toHaveBeenCalled();
+    expect(result.current.exportScopeWarning).toBe('');
+
+    mocks.platform.data.capabilities.exportCoversFullDataset = { supported: true, reason: '' };
   });
 
   it('handleExportVisualExcel delegates to exportVisualExcel when api is live', () => {

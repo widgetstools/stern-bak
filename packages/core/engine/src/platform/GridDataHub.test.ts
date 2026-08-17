@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
 import { ApiHub } from './ApiHub';
-import { GridDataHub } from './GridDataHub';
+import { GridDataHub, type CapabilityChangeSink } from './GridDataHub';
 import { GridPlatform } from './GridPlatform';
 import type { RowChangeSink, RowNodeDelta, SsrmDataSource } from './types';
 
@@ -9,6 +9,16 @@ import type { RowChangeSink, RowNodeDelta, SsrmDataSource } from './types';
 function sink(): RowChangeSink & { deltas: RowNodeDelta[] } {
   const deltas: RowNodeDelta[] = [];
   return { deltas, transactionApplied: (d) => { deltas.push(d); } };
+}
+
+/** A recording capability-change announcer. */
+function announcer(): CapabilityChangeSink & { announced: number } {
+  const rec = {
+    gridId: 'test-grid',
+    announced: 0,
+    emit: () => { rec.announced += 1; },
+  };
+  return rec;
 }
 
 /** A grid holding one row, enough to tell the two adapters apart by answer. */
@@ -42,7 +52,7 @@ describe('GridDataHub', () => {
   it('answers from the client-side row model until a server-side source is bound', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api, sink());
+    const hub = new GridDataHub(api, sink(), announcer());
 
     await expect(hub.count()).resolves.toEqual({ count: 1, complete: true });
     expect(hub.capabilities.canAddressUnloadedRows.supported).toBe(true);
@@ -51,7 +61,7 @@ describe('GridDataHub', () => {
   it('routes at the worker plane once bound — including its capabilities', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api, sink());
+    const hub = new GridDataHub(api, sink(), announcer());
 
     hub.bindSsrm({ source: fakeSource(99), keyColumn: 'id' });
 
@@ -63,7 +73,7 @@ describe('GridDataHub', () => {
   it('re-binds to a replacement provider without the platform being rebuilt', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api, sink());
+    const hub = new GridDataHub(api, sink(), announcer());
 
     hub.bindSsrm({ source: fakeSource(10) });
     await expect(hub.count()).resolves.toMatchObject({ count: 10 });
@@ -75,7 +85,7 @@ describe('GridDataHub', () => {
   it('falls back to the client-side row model when the source detaches', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api, sink());
+    const hub = new GridDataHub(api, sink(), announcer());
 
     hub.bindSsrm({ source: fakeSource(99) });
     hub.unbindSsrm();
@@ -85,7 +95,7 @@ describe('GridDataHub', () => {
   });
 
   it('is one stable reference across a re-bind — modules capture it in activate()', () => {
-    const hub = new GridDataHub(new ApiHub(), sink());
+    const hub = new GridDataHub(new ApiHub(), sink(), announcer());
     const captured = hub;
     hub.bindSsrm({ source: fakeSource(1) });
     hub.unbindSsrm();
@@ -95,7 +105,7 @@ describe('GridDataHub', () => {
   it('forwards reads and writes rather than answering them itself', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
-    const hub = new GridDataHub(api, sink());
+    const hub = new GridDataHub(api, sink(), announcer());
     hub.bindSsrm({ source: fakeSource(3), keyColumn: 'id' });
 
     // `distinct` reaches the worker RPC…
@@ -118,7 +128,7 @@ describe('GridDataHub', () => {
     const api = new ApiHub();
     api.attach(fakeApi());
     const rows = sink();
-    const hub = new GridDataHub(api, rows);
+    const hub = new GridDataHub(api, rows, announcer());
     hub.bindSsrm({ source: fakeSource(3), keyColumn: 'id' });
 
     await expect(hub.mutate([{ rowId: 'r1', fields: { px: 2 } }])).resolves.toMatchObject({
@@ -133,11 +143,31 @@ describe('GridDataHub', () => {
     expect(rows.deltas[0].update?.map((n) => n.id)).toEqual(['r1']);
   });
 
+  it('announces a capability change on bind and on unbind, but not on a no-op unbind', () => {
+    // The getter makes the answer current; the announcement is what makes a
+    // rendered control notice. Without it a toolbar button disabled while the
+    // source was binding stays disabled after it binds.
+    const api = new ApiHub();
+    api.attach(fakeApi());
+    const events = announcer();
+    const hub = new GridDataHub(api, sink(), events);
+
+    hub.bindSsrm({ source: fakeSource(1) });
+    expect(events.announced).toBe(1);
+    hub.bindSsrm({ source: fakeSource(2) });
+    expect(events.announced).toBe(2);
+    hub.unbindSsrm();
+    expect(events.announced).toBe(3);
+    // Already client-side: nothing changed, so nothing is claimed to have.
+    hub.unbindSsrm();
+    expect(events.announced).toBe(3);
+  });
+
   it('re-binding carries the same sink to the replacement adapter', async () => {
     const api = new ApiHub();
     api.attach(fakeApi());
     const rows = sink();
-    const hub = new GridDataHub(api, rows);
+    const hub = new GridDataHub(api, rows, announcer());
 
     hub.bindSsrm({ source: fakeSource(1) });
     hub.bindSsrm({ source: fakeSource(2) });

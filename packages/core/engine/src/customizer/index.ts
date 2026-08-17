@@ -180,7 +180,7 @@ export {
   type BulkUpdateTarget,
 } from './modules/bulk-update/collectBulkUpdateTargets.js';
 export { buildBulkUpdatePatchesFromRaw } from './modules/bulk-update/applyBulkUpdate.js';
-export { resolveColumnDistinctValues } from './modules/bulk-update/resolveColumnDistinctValues.js';
+export { compareDistinctValues } from './modules/bulk-update/compareDistinctValues.js';
 
 export { defaultPlusMinusNudge, INITIAL_PLUS_MINUS } from './modules/plus-minus/state.js';
 export type { PlusMinusNudge, PlusMinusSettings, PlusMinusState } from './modules/plus-minus/state.js';

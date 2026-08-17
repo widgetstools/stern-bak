@@ -18,6 +18,7 @@ import type {
   FlashTarget,
 } from '@wellsfargo-starui/core';
 import { FLASH_PALETTE } from '@wellsfargo-starui/core';
+import { paintsHeaders, useHeaderPaintGate } from './useHeaderPaintGate';
 
 const FLASH_COLOR_ORDER: ReadonlyArray<FlashColor> = [
   'amber',
@@ -61,6 +62,9 @@ export const FlashBand = memo(function FlashBand({
   scopeType: 'cell' | 'row';
   setDraft: (patch: Partial<ConditionalRule>) => void;
 }) {
+  // HEADERS / BOTH cannot light where the grid does not hold every row —
+  // see `useHeaderPaintGate`. CELLS is unaffected.
+  const headerGate = useHeaderPaintGate();
   // Carry forward existing flash fields when mutating one. Centralised
   // so every editor control writes a coherent snapshot regardless of
   // which field it touches.
@@ -112,17 +116,22 @@ export const FlashBand = memo(function FlashBand({
                     ['headers', 'HEADERS'],
                     ['cells+headers', 'BOTH'],
                   ] as ReadonlyArray<[FlashTarget, string]>
-                ).map(([value, label]) => (
-                  <PillToggleBtn
-                    key={value}
-                    active={flash?.target === value}
-                    onClick={() => setDraft({ flash: patchFlash({ target: value }) })}
-                    style={PILL_BTN_STYLE}
-                    data-testid={`cs-rule-flash-target-${value}-${ruleId}`}
-                  >
-                    {label}
-                  </PillToggleBtn>
-                ))}
+                ).map(([value, label]) => {
+                  const blocked = headerGate.disabled && paintsHeaders(value);
+                  return (
+                    <PillToggleBtn
+                      key={value}
+                      active={flash?.target === value}
+                      disabled={blocked}
+                      title={blocked ? headerGate.reason : undefined}
+                      onClick={() => setDraft({ flash: patchFlash({ target: value }) })}
+                      style={PILL_BTN_STYLE}
+                      data-testid={`cs-rule-flash-target-${value}-${ruleId}`}
+                    >
+                      {label}
+                    </PillToggleBtn>
+                  );
+                })}
               </PillToggleGroup>
             )}
             {enabled && scopeType === 'row' && (

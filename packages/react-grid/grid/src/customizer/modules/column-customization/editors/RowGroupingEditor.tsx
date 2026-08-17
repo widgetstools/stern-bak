@@ -5,6 +5,7 @@ import { useModuleState } from '../../../hooks/useModuleState';
 import type { GeneralSettingsState } from '@wellsfargo-starui/core';
 import type { AggFuncName, RowGroupingConfig } from '@wellsfargo-starui/core';
 import { Row } from './Row';
+import { useCapabilityGate } from '../../../hooks/useCapability';
 
 /**
  * Row-grouping / aggregation editor — extracted from ColumnSettingsPanel
@@ -36,6 +37,10 @@ export function RowGroupingEditor({
   onChange: (next: RowGroupingConfig | undefined) => void;
 }) {
   const [gridOpts, setGridOpts] = useModuleState<GeneralSettingsState>('general-settings');
+  // A custom aggregation is a JavaScript closure; where the folding happens on
+  // the far side of `postMessage` it cannot get there. Phase 1 of the parity
+  // roadmap left this verdict's copy for the UI to render — this is it.
+  const customAggGate = useCapabilityGate('supportsCustomComparator');
 
   const cfg = value ?? {};
   const update = (patch: Partial<RowGroupingConfig>) => {
@@ -110,7 +115,11 @@ export function RowGroupingEditor({
       />
       <Row
         label="AGG FUNCTION"
-        hint="Built-in aggregation or a custom expression"
+        hint={
+          customAggGate.disabled
+            ? customAggGate.reason
+            : 'Built-in aggregation or a custom expression'
+        }
         control={
           <Select
             value={cfg.aggFunc ?? ''}
@@ -122,7 +131,15 @@ export function RowGroupingEditor({
             style={{ maxWidth: 220 }}
           >
             {AGG_FUNC_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
+              <option
+                key={o.value}
+                value={o.value}
+                // A custom expression is a closure, and under a row model that
+                // aggregates on the far side of `postMessage` it cannot reach
+                // the code that folds the rows. Phase 1 of the parity roadmap
+                // wrote the copy; this is where it renders.
+                disabled={o.value === 'custom' && customAggGate.disabled}
+              >
                 {o.label}
               </option>
             ))}
@@ -132,13 +149,18 @@ export function RowGroupingEditor({
       {cfg.aggFunc === 'custom' && (
         <Row
           label="CUSTOM EXPRESSION"
-          hint={`Aggregate values array = [value] · try "SUM([value]) * 1.1"`}
+          hint={
+            customAggGate.disabled
+              ? customAggGate.reason
+              : `Aggregate values array = [value] · try "SUM([value]) * 1.1"`
+          }
           control={
             // shadcn Textarea — no native `<textarea>` anywhere in
             // settings-panel surfaces (per the v4 UI-primitives rule).
             <Textarea
               value={cfg.customAggExpression ?? ''}
               onChange={(e) => update({ customAggExpression: e.target.value || undefined })}
+              disabled={customAggGate.disabled}
               data-testid={`cols-${colId}-rg-custom-expr`}
               placeholder="SUM([value])"
               spellCheck={false}

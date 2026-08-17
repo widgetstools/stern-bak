@@ -39,6 +39,7 @@ import { useToolbarDateSettingsBridge } from '../customizer/modules/toolbar-date
 import { PrimaryToolbar } from './PrimaryToolbar';
 import { ColumnSelectorDialog } from './column-selector';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog';
+import { ExportScopeDialog } from './ExportScopeDialog';
 import { MarketsGridSurface } from './MarketsGridSurface';
 import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface';
 import { buildGridContextMenuItems } from './gridContextMenu';
@@ -191,6 +192,9 @@ function MarketsGridHostInner<TData>({
     handleToggleEditingToolbar,
     handleExportVisualExcel,
     visualExcelExportEnabled,
+    exportScopeWarning,
+    confirmExportAnyway,
+    dismissExportWarning,
     handleSaveAll,
     requestLoadProfile,
     confirmSwitchSave,
@@ -413,6 +417,12 @@ function MarketsGridHostInner<TData>({
           focusRequest={settingsFocusRequest ?? undefined}
         />
       )}
+
+      <ExportScopeDialog
+        reason={exportScopeWarning}
+        onCancel={dismissExportWarning}
+        onExportAnyway={confirmExportAnyway}
+      />
 
       <UnsavedSwitchDialog
         open={pendingSwitch !== null}
