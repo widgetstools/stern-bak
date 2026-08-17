@@ -24,17 +24,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef, GridApi } from 'ag-grid-community';
-import { MarketsGrid } from '@wellsfargo-starui/grid';
+import { MarketsGrid, createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
-import type { MarketsGridProps, MarketsGridHandle, StorageAdapterFactory, ProviderGridHostApi, GridEventBindingsHostApi, MarketsGridEventHandlerRegistry, MarketsGridHandlerMeta } from '@wellsfargo-starui/grid';
-import {
-  MARKETS_GRID_EVENT_CATALOG,
-  createMarketsGridContainerEventBus,
-  useMarketsGridEventBridge,
-} from '@wellsfargo-starui/grid';
+import type { MarketsGridProps, MarketsGridHandle, StorageAdapterFactory, ProviderGridHostApi, MarketsGridEventHandlerRegistry, MarketsGridHandlerMeta } from '@wellsfargo-starui/grid';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
 import { traceStompProviderCfg } from '@wellsfargo-starui/data/runtime';
-import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/core';
+import type { StorageAdapter } from '@wellsfargo-starui/core';
 import {
   useDataProviderConfig,
   useResolvedCfg,
@@ -46,6 +41,10 @@ import {
 import { buildColumnDefs } from './buildColumnDefs.js';
 import { useProviderDataWiring } from './useProviderDataWiring.js';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';
+import { useAppDataLookup } from './useAppDataLookup.js';
+import { useContainerCaption } from './useContainerCaption.js';
+import { useContainerEventWiring } from './useContainerEventWiring.js';
+import { DATA_PROVIDER_EDITOR_ACTION_ID, mergeAdminActions } from './mergeAdminActions.js';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
   createConfigBrowserAction,
@@ -63,19 +62,6 @@ import {
 export type { ProviderMode, ProviderSelection } from './gridLevelState.js';
 
 const EMPTY: never[] = [];
-
-/** Stable id for overflow-menu e2e (`admin-action-data-provider-editor`). */
-export const DATA_PROVIDER_EDITOR_ACTION_ID = 'data-provider-editor';
-
-function mergeAdminActions(
-  prepend: AdminAction[],
-  infra: AdminAction[],
-  user: AdminAction[],
-): AdminAction[] {
-  const userIds = new Set(user.map((a) => a.id));
-  const dedupedInfra = infra.filter((a) => !userIds.has(a.id));
-  return [...prepend, ...dedupedInfra, ...user];
-}
 
 /**
  * Gate for hot-path diagnostic logs. Flip to `true` locally when debugging
@@ -162,24 +148,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
 
   const appData = useAppDataStore();
   const { client: dataHubClient } = useDataServices();
-
-  // Adapt AppDataStore → AppDataLookup for the platform's
-  // resources.appData(). Plumbed into MarketsGrid so column-customization's
-  // cell-editor `valuesSource` ({{name.key}}) bindings resolve at edit
-  // time. Stable across re-renders unless the underlying store ref flips
-  // (typically only on user-id swap).
-  const appDataLookup = useMemo<AppDataLookup>(() => ({
-    get: (name, key) => appData.store.get(name, key),
-    listProviders: () => appData.store.list().map((row) => row.name),
-    keysOf: (name) => {
-      const row = appData.store.list().find((r) => r.name === name);
-      return row ? Object.keys(row.values) : [];
-    },
-    subscribe: (fn) => appData.store.subscribe(fn),
-    set: (name: string, key: string, value: unknown) => {
-      void appData.store.set(name, key, value);
-    },
-  }), [appData.store]);
+  const appDataLookup = useAppDataLookup();
 
   // ── Storage adapter ──────────────────────────────────────────────
   //
@@ -250,35 +219,15 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     }
   }, [loaded, selection.mode, historicalDateAppDataRef, appData.store]);
 
-  // Caller may also want to observe caption edits — chain.
-  const callerOnCaptionChange = (marketsGridProps as { onCaptionChange?: (next: string) => void }).onCaptionChange;
-  const handleCaptionChange = useCallback((next: string) => {
-    setPersistedCaption(next);
-    callerOnCaptionChange?.(next);
-  }, [callerOnCaptionChange]);
-
-  // Effective caption: the persisted value (once loaded) wins over the
-  // prop, which is the initial / fallback. This keeps the user's saved
-  // caption authoritative across reloads in every runtime.
-  const propCaption = (marketsGridProps as { caption?: string }).caption;
-  const effectiveCaption = persistedCaption ?? propCaption;
-
-  // Under OpenFin, StarGrid binds the `caption` prop to the live
-  // view tab name (useViewTabTitle). A genuine post-mount change to that
-  // prop means the tab was renamed externally ("Save Tab As…") — adopt it
-  // into the persisted caption so the toolbar follows the tab and the new
-  // name is saved to grid-level data. The initial value is never adopted,
-  // so an existing persisted caption (stored before tab-name binding
-  // existed) is preserved until the tab is actually renamed.
-  const lastPropCaptionRef = useRef(propCaption);
-  useEffect(() => {
-    if (lastPropCaptionRef.current === propCaption) return;
-    lastPropCaptionRef.current = propCaption;
-    if (!isOpenFin()) return;
-    if (propCaption && propCaption !== persistedCaption) {
-      setPersistedCaption(propCaption);
-    }
-  }, [propCaption, persistedCaption, setPersistedCaption]);
+  // Persisted caption wins over the prop; a commit writes back to
+  // grid-level data and chains the caller's own handler; an OpenFin tab
+  // rename is adopted. See useContainerCaption.
+  const { caption: effectiveCaption, onCaptionChange: handleCaptionChange } = useContainerCaption({
+    propCaption: (marketsGridProps as { caption?: string }).caption,
+    persistedCaption,
+    setPersistedCaption,
+    onCaptionChange: (marketsGridProps as { onCaptionChange?: (next: string) => void }).onCaptionChange,
+  });
 
   // Changing the live/historical provider or the mode changes `activeId`,
   // which is part of the <MarketsGrid> `key` — so the grid remounts and a
@@ -488,18 +437,6 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     onReadyProp?.(handle);
   }, [onReadyProp]);
 
-  useMarketsGridEventBridge({
-    handle: gridHandle,
-    gridId: props.gridId,
-    instanceId: props.instanceId ?? props.gridId,
-    appId: props.appId,
-    userId: props.userId,
-    appData: appDataLookup,
-    eventBindings,
-    handlers: gridEventHandlers,
-    containerBus: containerEventBus,
-  });
-
   const liveApi = stamped && stamped.key === expectedKey ? stamped.api : null;
 
   // ── IDataProvider hook ───────────────────────────────────────────
@@ -547,36 +484,26 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     ? `Grid data is stale — ${disconnectDetail}. Edits are disabled until the connection is restored.`
     : undefined;
 
-  const prevSelectionRef = useRef<ProviderSelection | null>(null);
-  useEffect(() => {
-    if (!loaded) return;
-    const prev = prevSelectionRef.current;
-    if (prev === null) {
-      prevSelectionRef.current = selection;
-      return;
-    }
-    if (
-      prev.liveProviderId === selection.liveProviderId
-      && prev.historicalProviderId === selection.historicalProviderId
-      && prev.mode === selection.mode
-    ) {
-      return;
-    }
-    prevSelectionRef.current = selection;
-    containerEventBus.emit('provider:switched', {
-      liveProviderId: selection.liveProviderId,
-      historicalProviderId: selection.historicalProviderId,
-      mode: selection.mode,
-    });
-  }, [loaded, selection, containerEventBus]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    containerEventBus.emit('provider:dataStale', {
-      stale: providerDisconnected,
-      message: dataStaleMessage,
-    });
-  }, [loaded, providerDisconnected, dataStaleMessage, containerEventBus]);
+  // Event bridge + Custom Settings bindings host + the `provider:switched` /
+  // `provider:dataStale` emits. Called here (not at the top) because it
+  // reads the stale state declared just above.
+  const { gridEventBindingsHost } = useContainerEventWiring({
+    containerEventBus,
+    handle: gridHandle,
+    gridId: props.gridId,
+    instanceId: props.instanceId ?? props.gridId,
+    appId: props.appId,
+    userId: props.userId,
+    appData: appDataLookup,
+    eventBindings,
+    setEventBindings,
+    gridEventHandlers,
+    handlerMeta,
+    selection,
+    loaded,
+    dataStale: providerDisconnected,
+    dataStaleMessage,
+  });
 
   useEffect(() => {
     setProviderDisconnected(false);
@@ -763,35 +690,6 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     },
     createConfigBrowserAction({ launch: handleOpenConfigBrowser }),
   ], [activeId, handleProviderEdit, handleOpenConfigBrowser]);
-
-  const setEventBindingsAll = useCallback((next: Record<string, string[]>) => {
-    setEventBindings(next);
-  }, []);
-
-  const setEventHandler = useCallback((eventId: string, handlerId: string | null) => {
-    setEventBindings((prev) => {
-      const next = { ...prev };
-      if (!handlerId) delete next[eventId];
-      else next[eventId] = [handlerId];
-      return next;
-    });
-  }, []);
-
-  const gridEventBindingsHost = useMemo<GridEventBindingsHostApi>(() => ({
-    available: Boolean(gridEventHandlers),
-    bindings: eventBindings,
-    catalog: MARKETS_GRID_EVENT_CATALOG,
-    handlerIds: gridEventHandlers ? Object.keys(gridEventHandlers) : [],
-    handlerMeta,
-    setBindings: setEventBindingsAll,
-    setEventHandler,
-  }), [
-    gridEventHandlers,
-    eventBindings,
-    handlerMeta,
-    setEventBindingsAll,
-    setEventHandler,
-  ]);
 
   const providerGridHost = useMemo<ProviderGridHostApi>(() => ({
     available: true,

@@ -39,10 +39,16 @@ vi.mock('@wellsfargo-starui/grid', () => ({
       'data-col-headers': (props.columnDefs ?? []).map((c) => c.headerName).join('|'),
     }),
   toSsrmExpressionRules: vi.fn(() => []),
+  createMarketsGridContainerEventBus: () => ({ emit: vi.fn(), on: vi.fn(() => () => {}) }),
+  MARKETS_GRID_EVENT_CATALOG: [],
+  useMarketsGridEventBridge: vi.fn(),
 }));
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataProvidersList: () => ({ configs: [], loading: false, refresh: () => {} }),
+  useAppDataStore: () => ({
+    store: { get: vi.fn(), set: vi.fn(), list: () => [], subscribe: () => () => {} },
+  }),
   useSsrmDataProvider: () => ({ provider: providerRef.current, error: undefined }),
 }));
 
@@ -52,6 +58,10 @@ vi.mock('./useSsrmProviderDataWiring.js', () => ({
 
 vi.mock('../markets-grid-container/ProviderEditorDialog.js', () => ({
   ProviderEditorDialog: () => null,
+}));
+
+vi.mock('../markets-grid-container/ConfigBrowserDialog.js', () => ({
+  ConfigBrowserDialog: () => null,
 }));
 
 import { SsrmMarketsGridContainer } from './SsrmMarketsGridContainer.js';

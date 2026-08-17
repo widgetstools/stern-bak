@@ -60,6 +60,9 @@ vi.mock('../container/ssrm-markets-grid-container/SsrmMarketsGridContainer.js', 
       'data-provider': props.providerId,
       'data-app': props.appId,
       'data-user': props.userId,
+      'data-caption': props.caption ?? '',
+      'data-tabs-hidden': String(Boolean(props.tabsHidden)),
+      'data-has-caption-change': String(typeof props.onCaptionChange === 'function'),
       'data-theme-kind':
         props.theme == null ? 'none' : typeof props.theme === 'string' ? props.theme : 'theme-object',
     });
@@ -184,6 +187,25 @@ describe('StarGrid', () => {
     unmount();
     render(<StarGrid gridId="g1" providerId="dp2" />);
     expect(screen.getByTestId('csrm-container')).toHaveAttribute('data-caption', 'g1');
+  });
+
+  // Roadmap Phase 7 / T3-8: the SSRM container used to take a static `title`
+  // and no change handler, so a caption edit died on remount and an OpenFin
+  // tab rename never reached the toolbar. Both containers now get the same
+  // three props.
+  it('forwards the SSRM caption, tabsHidden and the caption writer', () => {
+    cfgRef.current = {
+      cfg: { providerId: 'dp1', providerType: 'stomp-ssrm', name: 'P' },
+      loading: false,
+    };
+    const { unmount } = render(<StarGrid gridId="g1" providerId="dp1" title="SSRM Blotter" />);
+    const grid = screen.getByTestId('ssrm-container');
+    expect(grid).toHaveAttribute('data-caption', 'SSRM Blotter');
+    expect(grid).toHaveAttribute('data-tabs-hidden', 'false');
+    expect(grid).toHaveAttribute('data-has-caption-change', 'true');
+    unmount();
+    render(<StarGrid gridId="g1" providerId="dp1" />);
+    expect(screen.getByTestId('ssrm-container')).toHaveAttribute('data-caption', 'g1');
   });
 
   it('renders the full-bleed page reset only when fullBleed is set', () => {

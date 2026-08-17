@@ -1,52 +1,116 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+/**
+ * SsrmMarketsGridContainer — the server-side-row-model counterpart of
+ * {@link MarketsGridContainer}.
+ *
+ * Accepts the SAME host surface: `extends Omit<MarketsGridProps, …>` and
+ * spreads it onto the grid, so every member the CSRM container forwards is
+ * forwarded here. Only these are held back, and each for a stated reason:
+ *
+ *   - `ssrm` — the container OWNS it (that is what makes this the SSRM
+ *     container); `rowData` — ignored by the grid whenever `ssrm` is set;
+ *   - `rowIdField` / `columnDefs` — facts about the provider, resolved by
+ *     `useSsrmColumnResolution`, not host preferences (CSRM omits both for
+ *     the same reason);
+ *   - `gridLevelData` / `onGridLevelDataLoad` — the container owns
+ *     grid-level persistence (CSRM omits both);
+ *   - `headerExtras` — absent from the CSRM container's surface too.
+ *
+ * `gridId` is optional here where CSRM requires it: `providerId` is a
+ * required unique provider key, so it is a sensible default; CSRM has no
+ * required id to default from (its provider is picked at runtime).
+ */
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { LOGGED_IN_USER_ID, type TransportConfig } from '@wellsfargo-starui/types';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
-import { inferFields, resolveSsrmKeyColumn, type ISsrmDataProvider } from '@wellsfargo-starui/data';
+import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import {
   MarketsGrid,
+  createMarketsGridContainerEventBus,
   toSsrmExpressionRules,
+  type AdminAction,
+  type MarketsGridEventHandlerRegistry,
   type MarketsGridHandle,
+  type MarketsGridHandlerMeta,
   type MarketsGridProps,
+  type MarketsGridSsrmProps,
   type ProviderGridHostApi,
   type StorageAdapterFactory,
 } from '@wellsfargo-starui/grid';
 import { createConfigBrowserAction } from '@wellsfargo-starui/grid/config-browser';
-import { DATA_PROVIDER_EDITOR_ACTION_ID } from '../markets-grid-container/MarketsGridContainer.js';
+import { isOpenFin } from '@wellsfargo-starui/openfin/host';
 import { useDataProvidersList, useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
-import { buildColumnDefs } from '../markets-grid-container/buildColumnDefs.js';
 import { useGridLevelPersistence } from '../markets-grid-container/useGridLevelPersistence.js';
+import { useAppDataLookup } from '../markets-grid-container/useAppDataLookup.js';
+import { useContainerCaption } from '../markets-grid-container/useContainerCaption.js';
+import { useContainerEventWiring } from '../markets-grid-container/useContainerEventWiring.js';
+import {
+  DATA_PROVIDER_EDITOR_ACTION_ID,
+  mergeAdminActions,
+} from '../markets-grid-container/mergeAdminActions.js';
 import type { ProviderSelection } from '../markets-grid-container/gridLevelState.js';
 import { useSsrmProviderDataWiring } from './useSsrmProviderDataWiring.js';
+import { useSsrmColumnResolution } from './useSsrmColumnResolution.js';
 import { ProviderEditorDialog } from '../markets-grid-container/ProviderEditorDialog.js';
+import { ConfigBrowserDialog } from '../markets-grid-container/ConfigBrowserDialog.js';
 
-/** `positionId` → `Position Id` — header text for inferred columns. */
-function humanizeField(field: string): string {
-  const spaced = field.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+const EMPTY_ROWS: never[] = [];
+const EMPTY_COL_DEFS: ColDef[] = [];
+
+/** Fills the container's flex column. Host `style` merges OVER it, exactly
+ *  as MarketsGrid's own root style merges its `style` prop — so a host can
+ *  add padding without collapsing the grid viewport (which is what
+ *  `apps/e2e/star-demo-ssrm-smoke.spec.ts` asserts a real height for). */
+const GRID_FILL_STYLE: CSSProperties = { height: '100%', width: '100%' };
+
+const FRAME_STYLE: CSSProperties = {
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+};
+
+const BODY_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const DATA_STALE_MESSAGE = 'Live SSRM feed disconnected — values may be stale';
+
+/**
+ * Three toolbars the SSRM container turns ON by default where MarketsGrid's
+ * own defaults are off / deferred. A deliberate divergence from the CSRM
+ * container, which passes all three straight through: removing them would
+ * change what a bare `<SsrmMarketsGridContainer providerId>` renders, and
+ * roadmap binding constraint 1 forbids lowering SSRM to match CSRM. A host
+ * value always wins.
+ */
+const TOOLBAR_DEFAULTS = {
+  showFormattingToolbar: true,
+  showEditingToolbar: true,
+  showFiltersToolbar: true,
+} as const;
+
+function defaultOnError(err: Error): void {
+  console.error('[SsrmMarketsGridContainer]', err);
 }
 
-export interface SsrmMarketsGridContainerProps extends Partial<
-  Pick<
+export interface SsrmMarketsGridContainerProps
+  extends Omit<
     MarketsGridProps,
-    | 'storage'
-    | 'instanceId'
-    | 'appId'
-    | 'userId'
-    | 'host'
-    | 'showToolbar'
-    | 'showFormattingToolbar'
-    | 'showEditingToolbar'
-    | 'showFiltersToolbar'
-    | 'showSaveButton'
-    | 'showSettingsButton'
-    | 'showProfileSelector'
-    | 'theme'
+    | 'ssrm'
+    | 'rowData'
+    | 'rowIdField'
+    | 'columnDefs'
+    | 'gridLevelData'
+    | 'onGridLevelDataLoad'
+    | 'headerExtras'
     | 'gridId'
-    | 'defaultColDef'
-    | 'onReady'
-  >
-> {
+  > {
+  /** Keys stored grid state. Defaults to `providerId`. */
+  gridId?: string;
   /** Catalog provider id (`stomp-ssrm`). Used as the default live
    *  provider; the customizer's Custom Settings panel can rebind the
    *  grid to any other provider at runtime (persisted per gridId). */
@@ -58,11 +122,8 @@ export interface SsrmMarketsGridContainerProps extends Partial<
    * (demo / editor drafts). Hub attach still receives this cfg.
    */
   inlineCfg?: TransportConfig;
-  title?: string;
   /** Optional MarketsGrid expression snapshot → worker rules. */
   expressionSnapshot?: Parameters<typeof toSsrmExpressionRules>[0];
-  className?: string;
-  style?: React.CSSProperties;
   /**
    * Show the standalone "Edit provider" strip above the grid. Off by
    * default: the editor is always reachable through the same
@@ -76,15 +137,23 @@ export interface SsrmMarketsGridContainerProps extends Partial<
    */
   showStatusStrip?: boolean;
   /**
-   * Route the provider-editor entry to a host callback (e.g. a popout)
-   * instead of the inline dialog.
+   * OpenFin only: called when the user edits the active provider from
+   * Custom Settings or the Tools menu. In a browser runtime the container
+   * opens the provider editor in a shadcn dialog instead.
    */
   onEditProvider?(providerId: string | null): void;
   /**
-   * Adds a "Config Browser" admin action invoking this callback — the same
-   * seam `MarketsGridContainer` gives OpenFin hosts for their popout.
+   * OpenFin only: called when the user opens Config Browser from the
+   * toolbar overflow menu. In a browser runtime the container opens
+   * Config Browser in a shadcn dialog instead.
    */
   onOpenConfigBrowser?(): void;
+  /** Surface stream errors. Defaults to console.error. */
+  onError?(error: Error): void;
+  /** App registry of event handler functions keyed by stable id. */
+  gridEventHandlers?: MarketsGridEventHandlerRegistry;
+  /** Optional labels for Custom Settings event binding UI. */
+  handlerMeta?: MarketsGridHandlerMeta;
   /**
    * Reports the provider's resolved key column (drives getRowId). Hosted
    * wrappers feed this into the colour-link config.
@@ -97,52 +166,55 @@ export interface SsrmMarketsGridContainerProps extends Partial<
   onProviderReady?(provider: ISsrmDataProvider): void;
 }
 
-/**
- * SSRM MarketsGrid container — selects a `stomp-ssrm` provider, wires
- * expressions into the SharedWorker plane, and renders full {@link MarketsGrid}
- * chrome with `ssrm={{ provider, keyColumn }}`.
- */
 export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const {
     providerId,
     defaultHistoricalProviderId,
     inlineCfg,
-    title = 'SSRM MarketsGrid',
     expressionSnapshot,
-    className,
-    style,
     showProviderEditor = false,
     showStatusStrip = false,
     onEditProvider,
     onOpenConfigBrowser,
+    onError,
+    gridEventHandlers,
+    handlerMeta,
     onRowIdFieldChange,
     onProviderReady,
     gridId: gridIdProp,
-    defaultColDef,
     onReady,
+    style,
+    showFormattingToolbar = TOOLBAR_DEFAULTS.showFormattingToolbar,
+    showEditingToolbar = TOOLBAR_DEFAULTS.showEditingToolbar,
+    showFiltersToolbar = TOOLBAR_DEFAULTS.showFiltersToolbar,
+    // `userId` defaults here (CSRM leaves it to the host / grid host
+    // context) because the storage adapter below is built from it — a
+    // changed default would re-key every persisted SSRM profile.
     userId = LOGGED_IN_USER_ID,
-    storage,
-    instanceId,
-    appId,
-    host,
-    theme,
-    showToolbar = true,
-    showFormattingToolbar = true,
-    showEditingToolbar = true,
-    showFiltersToolbar = true,
-    showSaveButton = true,
-    showSettingsButton = true,
-    showProfileSelector = true,
+    ...marketsGridProps
   } = props;
 
+  const containerEventBus = useMemo(() => createMarketsGridContainerEventBus(), []);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
+  const [configBrowserOpen, setConfigBrowserOpen] = useState(false);
   const [statusText, setStatusText] = useState('Connecting…');
   // CSRM-parity stale banner: error AFTER first ready = disconnected/stale
   // (cold-connect retries stay silent); any recovery to ready clears.
   const [dataStale, setDataStale] = useState(false);
   const everReadyRef = useRef(false);
   const [loadRowCount, setLoadRowCount] = useState<number | undefined>();
+
+  const appDataLookup = useAppDataLookup();
+
+  // Stable identity, live callback: `useSsrmProviderDataWiring` keys its
+  // effect on `onError`, so an inline arrow from the host would restart the
+  // provider on every render.
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const handleError = useCallback((err: unknown) => {
+    (onErrorRef.current ?? defaultOnError)(err instanceof Error ? err : new Error(String(err)));
+  }, []);
 
   // ── Provider selection (CSRM parity) ──────────────────────────────
   //
@@ -151,6 +223,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   // live / historical provider per gridId, surviving reloads. The
   // `providerId` prop is the default live provider.
   const gridId = gridIdProp ?? providerId;
+  const { storage, instanceId, appId } = marketsGridProps;
   const storageFactory = storage as StorageAdapterFactory | undefined;
   const adapter = useMemo<StorageAdapter | null>(() => {
     if (!storageFactory) return null;
@@ -165,7 +238,15 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const gridHandleRef = useRef<MarketsGridHandle | null>(null);
   const [gridHandle, setGridHandle] = useState<MarketsGridHandle | null>(null);
 
-  const { selection, setSelection, loaded } = useGridLevelPersistence({
+  const {
+    selection,
+    setSelection,
+    persistedCaption,
+    setPersistedCaption,
+    eventBindings,
+    setEventBindings,
+    loaded,
+  } = useGridLevelPersistence({
     adapter,
     gridId,
     defaultLiveProviderId: providerId,
@@ -234,107 +315,56 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     provider,
     expressionRules,
     // Must stay a stable reference: the wiring effect re-runs (and restarts
-    // the provider) whenever onStatus identity changes.
+    // the provider) whenever onStatus / onError identity changes.
     onStatus: setStatusText,
+    onError: handleError,
     setLoadRowCount,
   });
 
+  // Read lazily by the status emit below so a mode change never re-subscribes
+  // the status stream.
+  const selectionModeRef = useRef(selection.mode);
+  selectionModeRef.current = selection.mode;
+
   // Stale tracking subscribes to the provider's RAW status stream — the
   // wiring hook's onStatus receives display text ('Live'), never 'ready'.
+  // The same subscription feeds the container bus's `provider:status`.
   useEffect(() => {
     if (!provider) return;
     everReadyRef.current = false;
     setDataStale(false);
     // Optional-chained like bindSsrmTicks — bare ISsrmDataProvider
     // mocks (and any transport without status) simply skip staleness.
-    const offStatus = provider.onStatus?.((status) => {
+    const offStatus = provider.onStatus?.((status, statusError) => {
       if (status === 'ready') {
         everReadyRef.current = true;
         setDataStale(false);
       } else if (status === 'error' && everReadyRef.current) {
         setDataStale(true);
       }
+      containerEventBus.emit('provider:status', {
+        status,
+        error: statusError,
+        providerId: activeProviderId,
+        mode: selectionModeRef.current,
+      });
     });
     return () => offStatus?.();
-  }, [provider]);
+  }, [provider, activeProviderId, containerEventBus]);
 
-  // Column / key resolution refines once `start()` resolves the config —
-  // pre-start the null-safe read simply yields the default.
-  const keyColumn = useMemo(() => {
-    if (!provider || !ready) return 'id';
-    const cfg = provider.getConfigOrNull?.() as {
-      keyColumn?: string | readonly string[];
-    } | null;
-    return resolveSsrmKeyColumn(cfg?.keyColumn);
-  }, [provider, ready]);
+  const { keyColumn, columnDefs, cacheBlockSize } = useSsrmColumnResolution(provider, ready);
 
-  // Providers without declared columnDefinitions (createStarui drafts,
-  // hand-seeded rows) infer their columns from a sampled block — the SSRM
-  // analog of the CSRM container's snapshot inference. A declared list
-  // always wins; inference only fills the empty case, where the previous
-  // behavior was a headerless, cell-less grid.
-  const [inferredDefs, setInferredDefs] = useState<ColDef[] | null>(null);
-  useEffect(() => {
-    // Inference belongs to one provider instance — a rebind starts clean.
-    setInferredDefs(null);
-  }, [provider]);
-  useEffect(() => {
-    if (!provider || !ready || inferredDefs) return;
-    // Explicit not-started guard: getColumnDefs() is null-safe now and
-    // returns [] pre-start — inferring against an unstarted provider
-    // would sample an empty plane.
-    if (!provider.getConfigOrNull?.()) return;
-    if (provider.getColumnDefs().length > 0) return;
-    let cancelled = false;
-    provider
-      .getRows({ startRow: 0, endRow: 50 })
-      .then((result) => {
-        if (cancelled) return;
-        const { fields } = inferFields(result.rowData);
-        const defs = fields
-          .filter((f) => !f.path.startsWith('__') && f.type !== 'object' && f.type !== 'array')
-          .map<ColDef>((f) => ({
-            field: f.path,
-            headerName: humanizeField(f.path),
-            cellDataType:
-              f.type === 'number' ? 'number'
-              : f.type === 'boolean' ? 'boolean'
-              : f.type === 'date' ? 'dateString'
-              : 'text',
-            enableRowGroup: true,
-            enablePivot: true,
-            enableValue: true,
-          }));
-        if (defs.length > 0) setInferredDefs(defs);
-      })
-      .catch(() => { /* declared-less provider with no rows yet — retry on next ready flip */ });
-    return () => { cancelled = true; };
-  }, [provider, ready, inferredDefs]);
-
-  const columnDefs = useMemo<ColDef[] | undefined>(() => {
-    if (!provider || !ready) return undefined;
-    {
-      const defs = provider.getColumnDefs();
-      if (!defs.length) return inferredDefs ?? undefined;
-      const asColDefs = defs.map((c) => ({
-        field: c.field,
-        headerName: c.headerName ?? c.field,
-        width: c.width,
-        hide: c.hide,
-        enableRowGroup: true,
-        enablePivot: true,
-        enableValue: true,
-      })) as ColDef[];
-      return buildColumnDefs(asColDefs) ?? asColDefs;
-    }
-  }, [provider, ready, inferredDefs]);
-
-  const cacheBlockSize = useMemo(() => {
-    if (!provider || !ready) return undefined;
-    const cfg = provider.getConfigOrNull?.() as { blockSize?: number } | null;
-    const n = cfg?.blockSize;
-    return typeof n === 'number' && n >= 20 ? n : undefined;
-  }, [provider, ready]);
+  const ssrmConfig = useMemo<MarketsGridSsrmProps | null>(
+    () =>
+      provider
+        ? {
+            provider,
+            keyColumn,
+            ...(cacheBlockSize != null ? { cacheBlockSize } : {}),
+          }
+        : null,
+    [provider, keyColumn, cacheBlockSize],
+  );
 
   // Hosted wrappers need the resolved key column (link rowIdField) and the
   // live provider (worker-resolved group / select-all link selections).
@@ -377,19 +407,25 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
   const reloadFromSource = useCallback(() => {
     const extra: Record<string, unknown> = { __refresh: Date.now() };
     if (selection.mode === 'historical' && asOfDate) extra.asOfDate = asOfDate;
-    void provider?.restart(extra).catch(() => {
-      /* status events surface the failure */
-    });
-  }, [provider, selection.mode, asOfDate]);
+    void provider?.restart(extra).catch(handleError);
+  }, [provider, selection.mode, asOfDate, handleError]);
 
   const handleProviderEdit = useCallback((id: string | null) => {
-    if (onEditProvider) {
-      onEditProvider(id);
+    if (isOpenFin()) {
+      onEditProvider?.(id);
       return;
     }
     setEditingProviderId(id);
     setEditorOpen(true);
   }, [onEditProvider]);
+
+  const handleOpenConfigBrowser = useCallback(() => {
+    if (isOpenFin()) {
+      onOpenConfigBrowser?.();
+      return;
+    }
+    setConfigBrowserOpen(true);
+  }, [onOpenConfigBrowser]);
 
   // ── Customizer host API (Custom Settings → DATA PROVIDER card) ────
   // Same contract MarketsGridContainer supplies; both provider slots see
@@ -424,53 +460,99 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
     handleProviderEdit,
   ]);
 
+  // Event bridge + Custom Settings bindings host + the `provider:switched` /
+  // `provider:dataStale` emits — the same wiring MarketsGridContainer uses.
+  const { gridEventBindingsHost } = useContainerEventWiring({
+    containerEventBus,
+    handle: gridHandle,
+    gridId,
+    instanceId: instanceId ?? gridId,
+    appId,
+    userId,
+    appData: appDataLookup,
+    eventBindings,
+    setEventBindings,
+    gridEventHandlers,
+    handlerMeta,
+    selection,
+    loaded,
+    dataStale,
+    dataStaleMessage: dataStale ? DATA_STALE_MESSAGE : undefined,
+  });
+
+  const { caption, onCaptionChange } = useContainerCaption({
+    propCaption: marketsGridProps.caption,
+    persistedCaption,
+    setPersistedCaption,
+    onCaptionChange: marketsGridProps.onCaptionChange,
+  });
+
   // Exactly MarketsGridContainer's data-infrastructure menu: the
-  // "Data Provider Editor" action (host popout when onEditProvider is
-  // supplied, inline dialog otherwise) and, when a host wires it,
-  // "Config Browser" — same ids, labels, icons and order as CSRM.
+  // "Data Provider Editor" and "Config Browser" actions (host popout under
+  // OpenFin, inline dialog in a browser) — same ids, labels, icons, order.
+  const dataProviderInfraAdminActions = useMemo<AdminAction[]>(() => [
+    {
+      id: DATA_PROVIDER_EDITOR_ACTION_ID,
+      label: 'Data Provider Editor',
+      description: 'Edit provider configs, STOMP paths, and field mappings',
+      icon: 'lucide:plug',
+      onClick: () => handleProviderEdit(activeProviderId ?? providerId),
+    },
+    createConfigBrowserAction({ launch: handleOpenConfigBrowser }),
+  ], [activeProviderId, providerId, handleProviderEdit, handleOpenConfigBrowser]);
+
+  // CSRM parity: MarketsGridContainer's refresh/reload pair, same ids,
+  // labels, icons and order, ahead of the data-infra actions.
+  const refreshReloadAdminActions = useMemo<AdminAction[]>(() => [
+    {
+      id: 'refresh-view',
+      label: 'Refresh view',
+      description: 'Replay cached rows from the worker plane without reconnecting',
+      icon: 'lucide:refresh-cw',
+      onClick: refreshView,
+    },
+    {
+      id: 'reload-from-source',
+      label: 'Reload from source',
+      description: 'Restart the provider and re-fetch the snapshot — refreshes every subscribed grid',
+      icon: 'lucide:rotate-cw',
+      onClick: reloadFromSource,
+    },
+  ], [refreshView, reloadFromSource]);
+
   const adminActions = useMemo(
-    () => [
-      // CSRM parity: MarketsGridContainer's refresh/reload pair, same ids,
-      // labels, icons and order, ahead of the data-infra actions.
-      {
-        id: 'refresh-view',
-        label: 'Refresh view',
-        description: 'Replay cached rows from the worker plane without reconnecting',
-        icon: 'lucide:refresh-cw',
-        onClick: refreshView,
-      },
-      {
-        id: 'reload-from-source',
-        label: 'Reload from source',
-        description: 'Restart the provider and re-fetch the snapshot — refreshes every subscribed grid',
-        icon: 'lucide:rotate-cw',
-        onClick: reloadFromSource,
-      },
-      {
-        id: DATA_PROVIDER_EDITOR_ACTION_ID,
-        label: 'Data Provider Editor',
-        description: 'Edit provider configs, STOMP paths, and field mappings',
-        icon: 'lucide:plug',
-        onClick: () => handleProviderEdit(activeProviderId ?? providerId),
-      },
-      ...(onOpenConfigBrowser
-        ? [createConfigBrowserAction({ launch: onOpenConfigBrowser })]
-        : []),
-    ],
-    [onOpenConfigBrowser, providerId, activeProviderId, refreshView, reloadFromSource, handleProviderEdit],
+    () => mergeAdminActions(
+      refreshReloadAdminActions,
+      dataProviderInfraAdminActions,
+      marketsGridProps.adminActions ?? [],
+    ),
+    [refreshReloadAdminActions, dataProviderInfraAdminActions, marketsGridProps.adminActions],
+  );
+
+  const gridStyle = useMemo<CSSProperties>(
+    () => (style ? { ...GRID_FILL_STYLE, ...style } : GRID_FILL_STYLE),
+    [style],
+  );
+
+  const dataDialogs = (
+    <>
+      {/* Reachable from the Data Provider Editor admin action even when the
+          strip is hidden; renders nothing while closed. */}
+      <ProviderEditorDialog
+        open={editorOpen}
+        onOpenChange={(open) => {
+          setEditorOpen(open);
+          if (!open) setEditingProviderId(null);
+        }}
+        providerId={editingProviderId ?? activeProviderId ?? providerId}
+        userId={userId}
+      />
+      <ConfigBrowserDialog open={configBrowserOpen} onOpenChange={setConfigBrowserOpen} />
+    </>
   );
 
   return (
-    <div
-      className={className}
-      style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        ...style,
-      }}
-    >
+    <div style={FRAME_STYLE}>
       {showProviderEditor ? (
         <div
           style={{
@@ -489,7 +571,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
           </button>
         </div>
       ) : null}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={BODY_STYLE}>
         {provider && showStatusStrip ? (
           <div
             data-testid="ssrm-provider-status"
@@ -510,38 +592,28 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
             provider's snapshot lands, bindSsrmTicks purges and rows load.
             keyColumn / columnDefs / cacheBlockSize refine from their
             pre-ready defaults once getConfig() stops throwing. */}
-        {provider ? (
+        {provider && ssrmConfig ? (
           <MarketsGrid
-            gridId={gridIdProp ?? providerId}
-            defaultColDef={defaultColDef}
+            {...(marketsGridProps as MarketsGridProps)}
+            gridId={gridId}
+            userId={userId}
+            ssrm={ssrmConfig}
+            rowData={EMPTY_ROWS}
+            columnDefs={columnDefs ?? EMPTY_COL_DEFS}
+            rowIdField={keyColumn}
+            appData={appDataLookup}
+            caption={caption}
+            onCaptionChange={onCaptionChange}
             onReady={handleReady}
-            dataStale={dataStale}
-            dataStaleMessage="Live SSRM feed disconnected — values may be stale"
             adminActions={adminActions}
             providerGridHost={providerGridHost}
-            ssrm={{
-              provider,
-              keyColumn,
-              ...(cacheBlockSize != null ? { cacheBlockSize } : {}),
-            }}
-            rowIdField={keyColumn}
-            columnDefs={columnDefs ?? []}
-            rowData={[]}
-            caption={title}
-            showToolbar={showToolbar}
-            showSettingsButton={showSettingsButton}
+            gridEventBindingsHost={gridEventBindingsHost}
+            dataStale={dataStale}
+            dataStaleMessage={DATA_STALE_MESSAGE}
             showFormattingToolbar={showFormattingToolbar}
             showEditingToolbar={showEditingToolbar}
             showFiltersToolbar={showFiltersToolbar}
-            showSaveButton={showSaveButton}
-            showProfileSelector={showProfileSelector}
-            storage={storage}
-            instanceId={instanceId}
-            appId={appId}
-            userId={userId}
-            host={host}
-            theme={theme}
-            style={{ height: '100%', width: '100%' }}
+            style={gridStyle}
           />
         ) : (
           // Only before the adapter exists at all (or a hard resolve error);
@@ -549,17 +621,7 @@ export function SsrmMarketsGridContainer(props: SsrmMarketsGridContainerProps) {
           <p style={{ padding: 16, opacity: 0.7 }}>{error ?? 'Connecting…'}</p>
         )}
       </div>
-      {/* Reachable from the Data Provider Editor admin action even when the
-          strip is hidden; renders nothing while closed. */}
-      <ProviderEditorDialog
-        open={editorOpen}
-        onOpenChange={(open) => {
-          setEditorOpen(open);
-          if (!open) setEditingProviderId(null);
-        }}
-        providerId={editingProviderId ?? activeProviderId ?? providerId}
-        userId={userId}
-      />
+      {dataDialogs}
     </div>
   );
 }

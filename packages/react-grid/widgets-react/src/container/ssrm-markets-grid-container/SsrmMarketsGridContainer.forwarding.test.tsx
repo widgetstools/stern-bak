@@ -1,15 +1,24 @@
 /**
  * Host-shell prop forwarding. star-demo's blotter needs gridId (keys stored
- * grid state), defaultColDef, historicalDateAppDataRef, onReady (colour-link
- * gridApi capture), onRowIdFieldChange / onProviderReady (hosted link
- * wiring), and onEditProvider / onOpenConfigBrowser (popouts) — all of which
- * the container previously dropped or hardcoded.
+ * grid state), defaultColDef, onReady (colour-link gridApi capture),
+ * onRowIdFieldChange / onProviderReady (hosted link wiring), and
+ * onEditProvider / onOpenConfigBrowser (popouts) — all of which the
+ * container previously dropped or hardcoded.
+ *
+ * Since roadmap Phase 7 the container `extends Omit<MarketsGridProps, …>`
+ * and SPREADS the rest onto the grid, so the interesting assertions are now
+ * (a) that an arbitrary MarketsGridProps member arrives, and (b) that the
+ * seven members the render used to hardcode behave as decided: `ssrm` /
+ * `rowData` / `columnDefs` / `rowIdField` are the container's, `caption`
+ * persists, `dataStaleMessage` is the container's, and host `style` MERGES
+ * over the fill style rather than replacing it.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 const captured = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
+const runtime = vi.hoisted(() => ({ openFin: false }));
 
 const fakeProvider = vi.hoisted(() => {
   const statusHandlers: Array<(s: string) => void> = [];
@@ -44,11 +53,19 @@ vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
 
 const providerHook = vi.hoisted(() => ({ ids: [] as Array<string | null> }));
 
+vi.mock('@wellsfargo-starui/openfin/host', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  isOpenFin: () => runtime.openFin,
+}));
+
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useSsrmDataProvider: (id: string | null) => {
     providerHook.ids.push(id);
     return { provider: id ? fakeProvider : null, error: null };
   },
+  useAppDataStore: () => ({
+    store: { get: vi.fn(), set: vi.fn(), list: () => [], subscribe: () => () => {} },
+  }),
   useDataProvidersList: () => ({
     configs: [
       { id: 'p1', name: 'P One' },
@@ -78,18 +95,24 @@ vi.mock('../markets-grid-container/ProviderEditorDialog.js', () => ({
     open ? React.createElement('div', { 'data-testid': 'inline-editor' }) : null,
 }));
 
+vi.mock('../markets-grid-container/ConfigBrowserDialog.js', () => ({
+  ConfigBrowserDialog: ({ open }: { open: boolean }) =>
+    open ? React.createElement('div', { 'data-testid': 'inline-config-browser' }) : null,
+}));
+
 import { SsrmMarketsGridContainer } from './SsrmMarketsGridContainer.js';
 
 beforeEach(() => {
   captured.props = {};
   wiring.params.length = 0;
   providerHook.ids.length = 0;
+  runtime.openFin = false;
 });
 
 describe('SsrmMarketsGridContainer prop forwarding', () => {
-  // historicalDateAppDataRef is deliberately NOT forwarded: in CSRM it drives
-  // MarketsGridContainer's historical-date subsystem (AppData + provider
-  // restart), which has no SSRM counterpart yet. Deferred as its own feature.
+  // `historicalDateAppDataRef` is a MarketsGridContainer prop, not a
+  // MarketsGridProps member, so it is not part of this container's surface;
+  // SSRM's historical-date subsystem is roadmap Phase 8.
   it('forwards gridId and defaultColDef to MarketsGrid', async () => {
     render(
       <SsrmMarketsGridContainer
@@ -132,7 +155,12 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     await waitFor(() => expect(onProviderReady).toHaveBeenCalledWith(fakeProvider));
   });
 
-  it('routes the Data Provider Editor admin action to onEditProvider when supplied', async () => {
+  // CSRM routes on the RUNTIME, not on callback presence — a browser host
+  // that supplies `onEditProvider` for its OpenFin popout still gets the
+  // inline dialog. Before Phase 7 the SSRM container routed on presence, so
+  // the inline editor and Config Browser were unreachable outside OpenFin.
+  it('routes the Data Provider Editor admin action to onEditProvider under OpenFin', async () => {
+    runtime.openFin = true;
     const onEditProvider = vi.fn();
     render(
       <SsrmMarketsGridContainer providerId="p1" onEditProvider={onEditProvider} />,
@@ -149,8 +177,9 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     expect(screen.queryByTestId('inline-editor')).toBeNull();
   });
 
-  it('opens the inline dialog from the admin action when onEditProvider is not supplied', async () => {
-    render(<SsrmMarketsGridContainer providerId="p1" />);
+  it('opens the inline dialog from the admin action in a browser runtime, callback or not', async () => {
+    const onEditProvider = vi.fn();
+    render(<SsrmMarketsGridContainer providerId="p1" onEditProvider={onEditProvider} />);
     await waitFor(() => expect(captured.props.adminActions).toBeDefined());
     const actions = captured.props.adminActions as Array<{
       id: string;
@@ -160,6 +189,30 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
       actions.find((a) => a.id === 'data-provider-editor')!.onClick();
     });
     expect(await screen.findByTestId('inline-editor')).toBeTruthy();
+    expect(onEditProvider).not.toHaveBeenCalled();
+  });
+
+  it('opens Config Browser inline in a browser runtime and routes it out under OpenFin', async () => {
+    const onOpenConfigBrowser = vi.fn();
+    const { unmount } = render(
+      <SsrmMarketsGridContainer providerId="p1" onOpenConfigBrowser={onOpenConfigBrowser} />,
+    );
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    const browse = () =>
+      (captured.props.adminActions as Array<{ id: string; onClick: () => void }>)
+        .find((a) => a.id === 'config-browser')!;
+    act(() => browse().onClick());
+    expect(await screen.findByTestId('inline-config-browser')).toBeTruthy();
+    expect(onOpenConfigBrowser).not.toHaveBeenCalled();
+    unmount();
+
+    runtime.openFin = true;
+    render(
+      <SsrmMarketsGridContainer providerId="p1" onOpenConfigBrowser={onOpenConfigBrowser} />,
+    );
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    act(() => browse().onClick());
+    expect(onOpenConfigBrowser).toHaveBeenCalledTimes(1);
   });
 
   it('prepends CSRM\'s refresh pair: Refresh view (cache) and Reload from source (restart)', async () => {
@@ -231,28 +284,284 @@ describe('SsrmMarketsGridContainer prop forwarding', () => {
     expect(first.onStatus).toBe(last.onStatus);
   });
 
-  it('carries CSRM\'s exact menu pair when both callbacks are wired', async () => {
-    const onOpenConfigBrowser = vi.fn();
-    render(
-      <SsrmMarketsGridContainer
-        providerId="p1"
-        onEditProvider={vi.fn()}
-        onOpenConfigBrowser={onOpenConfigBrowser}
-      />,
-    );
+  // Both data-infra entries are unconditional now, exactly as in CSRM: the
+  // Config Browser action used to appear only when a host wired
+  // `onOpenConfigBrowser`, which made it OpenFin-only in practice.
+  it('carries CSRM\'s exact data-infra menu pair with no callbacks wired', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
     await waitFor(() => expect(captured.props.adminActions).toBeDefined());
-    const actions = captured.props.adminActions as Array<{
-      id: string;
-      label: string;
-      onClick: () => void;
-    }>;
-    // Same ids, labels and order as MarketsGridContainer's data-infra menu.
-    expect(actions.map((a) => [a.id, a.label]).slice(2)).toEqual([
+    const actions = captured.props.adminActions as Array<{ id: string; label: string }>;
+    expect(actions.map((a) => [a.id, a.label])).toEqual([
+      ['refresh-view', 'Refresh view'],
+      ['reload-from-source', 'Reload from source'],
       ['data-provider-editor', 'Data Provider Editor'],
       ['config-browser', 'Config Browser'],
     ]);
-    actions[3].onClick();
-    expect(onOpenConfigBrowser).toHaveBeenCalledTimes(1);
+  });
+
+  // mergeAdminActions: host entries land last and win on id collision, so an
+  // app can replace a data-infra launcher without ending up with two.
+  it('merges host adminActions after the data-infra pair and dedupes by id', async () => {
+    const hostEditor = vi.fn();
+    render(
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        adminActions={[
+          { id: 'data-provider-editor', label: 'My Editor', onClick: hostEditor },
+          { id: 'audit-log', label: 'Audit Log', onClick: vi.fn() },
+        ]}
+      />,
+    );
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    const actions = captured.props.adminActions as Array<{ id: string; label: string }>;
+    expect(actions.map((a) => a.id)).toEqual([
+      'refresh-view',
+      'reload-from-source',
+      'config-browser',
+      'data-provider-editor',
+      'audit-log',
+    ]);
+    expect(actions.find((a) => a.id === 'data-provider-editor')!.label).toBe('My Editor');
+  });
+
+  it('keeps onError a stable reference across renders', async () => {
+    const { rerender } = render(
+      <SsrmMarketsGridContainer providerId="p1" onError={() => {}} />,
+    );
+    rerender(<SsrmMarketsGridContainer providerId="p1" onError={() => {}} />);
+    await waitFor(() => expect(wiring.params.length).toBeGreaterThanOrEqual(2));
+    const first = wiring.params[0] as { onError?: unknown };
+    const last = wiring.params[wiring.params.length - 1] as { onError?: unknown };
+    expect(first.onError).toBeDefined();
+    expect(first.onError).toBe(last.onError);
+  });
+
+  it('reports a failed reload through onError', async () => {
+    const onError = vi.fn();
+    const boom = new Error('restart refused');
+    (fakeProvider as Record<string, unknown>).restart = vi.fn(async () => { throw boom; });
+    render(<SsrmMarketsGridContainer providerId="p1" onError={onError} />);
+    await waitFor(() => expect(captured.props.adminActions).toBeDefined());
+    const actions = captured.props.adminActions as Array<{ id: string; onClick: () => void }>;
+    await act(async () => {
+      actions.find((a) => a.id === 'reload-from-source')!.onClick();
+    });
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(boom));
+  });
+});
+
+/**
+ * The rest spread (roadmap Phase 7 / T3-2, T3-3). Before this, the render
+ * listed 26 props by hand and dropped 29 members of `MarketsGridProps` —
+ * which is also why `StarGrid`'s `advanced` escape hatch was inert for an
+ * SSRM grid: StarGrid spreads `advanced` onto the container, and the
+ * container spread nothing onward.
+ */
+describe('SsrmMarketsGridContainer host surface', () => {
+  it('forwards arbitrary MarketsGridProps members the old list dropped', async () => {
+    const onGridReady = vi.fn();
+    const modules = [{ id: 'general-settings' }] as never;
+    const agGridModules = [{ moduleName: 'ClientSideRowModelModule' }] as never;
+    render(
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        modules={modules}
+        agGridModules={agGridModules}
+        sideBar
+        statusBar={{ statusPanels: [{ statusPanel: 'agTotalRowCountComponent' }] }}
+        rowHeight={44}
+        headerHeight={28}
+        animateRows={false}
+        componentName="FX Blotter"
+        toolbarActionsLayout="inline"
+        showVisualExcelExport={false}
+        sizeColumnsToFitOnReady
+        includeAllStreamSafeFilters={false}
+        autoSaveDebounceMs={900}
+        className="host-class"
+        tabsHidden
+        onGridReady={onGridReady}
+      />,
+    );
+    await waitFor(() => expect(captured.props.gridId).toBe('p1'));
+    expect(captured.props.modules).toBe(modules);
+    expect(captured.props.agGridModules).toBe(agGridModules);
+    expect(captured.props.sideBar).toBe(true);
+    expect(captured.props.statusBar).toMatchObject({
+      statusPanels: [{ statusPanel: 'agTotalRowCountComponent' }],
+    });
+    expect(captured.props.rowHeight).toBe(44);
+    expect(captured.props.headerHeight).toBe(28);
+    expect(captured.props.animateRows).toBe(false);
+    expect(captured.props.componentName).toBe('FX Blotter');
+    expect(captured.props.toolbarActionsLayout).toBe('inline');
+    expect(captured.props.showVisualExcelExport).toBe(false);
+    expect(captured.props.sizeColumnsToFitOnReady).toBe(true);
+    expect(captured.props.includeAllStreamSafeFilters).toBe(false);
+    expect(captured.props.autoSaveDebounceMs).toBe(900);
+    expect(captured.props.className).toBe('host-class');
+    expect(captured.props.tabsHidden).toBe(true);
+    expect(captured.props.onGridReady).toBe(onGridReady);
+  });
+
+  it('keeps the three toolbars the container defaults ON, and lets a host turn them off', async () => {
+    const { unmount } = render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.gridId).toBe('p1'));
+    expect(captured.props.showFiltersToolbar).toBe(true);
+    expect(captured.props.showFormattingToolbar).toBe(true);
+    expect(captured.props.showEditingToolbar).toBe(true);
+    unmount();
+
+    render(
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        showFiltersToolbar={false}
+        showFormattingToolbar={false}
+        showEditingToolbar={false}
+      />,
+    );
+    await waitFor(() => expect(captured.props.showFiltersToolbar).toBe(false));
+    expect(captured.props.showFormattingToolbar).toBe(false);
+    expect(captured.props.showEditingToolbar).toBe(false);
+  });
+
+  // The container's fill style is what gives the AG Grid viewport a real
+  // height (apps/e2e/star-demo-ssrm-smoke.spec.ts asserts > 200px). A rest
+  // spread that let a host `style` REPLACE it would re-open that collapse,
+  // so it merges — same precedence MarketsGrid's own root style uses.
+  it('merges host style over the fill style instead of replacing it', async () => {
+    const { unmount } = render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.style).toBeDefined());
+    expect(captured.props.style).toEqual({ height: '100%', width: '100%' });
+    unmount();
+
+    render(<SsrmMarketsGridContainer providerId="p1" style={{ padding: 8 }} />);
+    await waitFor(() => expect(captured.props.style).toBeDefined());
+    expect(captured.props.style).toEqual({ height: '100%', width: '100%', padding: 8 });
+  });
+
+  it('owns ssrm / rowData / columnDefs / rowIdField and the stale message', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.ssrm).toBeDefined());
+    expect(captured.props.ssrm).toMatchObject({ provider: fakeProvider, keyColumn: 'positionId' });
+    expect(captured.props.rowData).toEqual([]);
+    expect(captured.props.rowIdField).toBe('positionId');
+    expect(captured.props.columnDefs).toBeDefined();
+    expect(captured.props.dataStaleMessage).toMatch(/Live SSRM feed disconnected/);
+  });
+
+  it('keeps the ssrm object referentially stable across unrelated re-renders', async () => {
+    const { rerender } = render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.ssrm).toBeDefined());
+    const first = captured.props.ssrm;
+    rerender(<SsrmMarketsGridContainer providerId="p1" />);
+    expect(captured.props.ssrm).toBe(first);
+  });
+
+  it('supplies appData so cell-editor valuesSource bindings resolve', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.appData).toBeDefined());
+    const appData = captured.props.appData as { listProviders(): string[] };
+    expect(typeof appData.listProviders).toBe('function');
+  });
+
+  it('supplies a gridEventBindingsHost, available only with a handler registry', async () => {
+    const { unmount } = render(<SsrmMarketsGridContainer providerId="p1" />);
+    await waitFor(() => expect(captured.props.gridEventBindingsHost).toBeDefined());
+    expect((captured.props.gridEventBindingsHost as { available: boolean }).available).toBe(false);
+    unmount();
+
+    render(
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        gridEventHandlers={{ ping: () => {} }}
+        handlerMeta={{ ping: { label: 'Ping' } }}
+      />,
+    );
+    await waitFor(() => expect(captured.props.gridEventBindingsHost).toBeDefined());
+    const host = captured.props.gridEventBindingsHost as {
+      available: boolean;
+      handlerIds: string[];
+      handlerMeta?: Record<string, { label: string }>;
+      setEventHandler(eventId: string, handlerId: string | null): void;
+      bindings: Record<string, string[]>;
+    };
+    expect(host.available).toBe(true);
+    expect(host.handlerIds).toEqual(['ping']);
+    expect(host.handlerMeta).toMatchObject({ ping: { label: 'Ping' } });
+    act(() => host.setEventHandler('grid:cellClicked', 'ping'));
+    await waitFor(() => {
+      const next = captured.props.gridEventBindingsHost as { bindings: Record<string, string[]> };
+      expect(next.bindings).toEqual({ 'grid:cellClicked': ['ping'] });
+    });
+  });
+
+  // T3-9, end to end: container bus → useMarketsGridEventBridge → the app's
+  // handler registry. The SSRM container had no bus, no bridge and no
+  // handler registry, so none of the four `provider:*` / `toolbar:*` catalog
+  // events could ever reach an app handler on a server-side grid.
+  it('delivers provider:status / provider:switched to a bound app handler', async () => {
+    const onStatusEvent = vi.fn();
+    const onSwitched = vi.fn();
+    render(
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        gridEventHandlers={{ status: onStatusEvent, switched: onSwitched }}
+      />,
+    );
+    await waitFor(() => expect(captured.props.onReady).toBeDefined());
+    act(() => {
+      (captured.props.onReady as (h: unknown) => void)({
+        gridApi: { refreshServerSide: vi.fn() },
+        platform: {
+          events: { on: () => () => {} },
+          api: { on: () => () => {} },
+        },
+      });
+    });
+    const host = () => captured.props.gridEventBindingsHost as {
+      setBindings(next: Record<string, string[]>): void;
+    };
+    await waitFor(() => expect(captured.props.gridEventBindingsHost).toBeDefined());
+    act(() => host().setBindings({
+      'provider:status': ['status'],
+      'provider:switched': ['switched'],
+    }));
+
+    await act(async () => { fakeProvider.emitStatus('ready'); });
+    await waitFor(() => expect(onStatusEvent).toHaveBeenCalled());
+    expect(onStatusEvent.mock.calls[0][0]).toMatchObject({
+      status: 'ready',
+      providerId: 'p1',
+      mode: 'live',
+    });
+
+    const providerHost = captured.props.providerGridHost as {
+      onLiveChange(id: string | null): void;
+    };
+    await act(async () => { providerHost.onLiveChange('p2'); });
+    await waitFor(() => expect(onSwitched).toHaveBeenCalledWith(
+      expect.objectContaining({ liveProviderId: 'p2', mode: 'live' }),
+      expect.anything(),
+    ));
+  });
+
+  // T3-8: the toolbar renders an editable caption unconditionally, so a
+  // static caption with no change handler let the user edit a label that
+  // died on remount.
+  it('persists a caption edit and chains the host handler', async () => {
+    const onCaptionChange = vi.fn();
+    render(
+      <SsrmMarketsGridContainer
+        providerId="p1"
+        caption="FX Blotter"
+        onCaptionChange={onCaptionChange}
+      />,
+    );
+    await waitFor(() => expect(captured.props.caption).toBe('FX Blotter'));
+    act(() => (captured.props.onCaptionChange as (n: string) => void)('Renamed'));
+    await waitFor(() => expect(captured.props.caption).toBe('Renamed'));
+    expect(onCaptionChange).toHaveBeenCalledWith('Renamed');
   });
 });
 
@@ -322,7 +631,8 @@ describe('SsrmMarketsGridContainer provider-grid-host (customizer Custom Setting
     );
   });
 
-  it('routes the host Edit action to onEditProvider with the requested id', async () => {
+  it('routes the host Edit action to onEditProvider with the requested id under OpenFin', async () => {
+    runtime.openFin = true;
     const onEditProvider = vi.fn();
     render(<SsrmMarketsGridContainer providerId="p1" onEditProvider={onEditProvider} />);
     await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
@@ -330,5 +640,14 @@ describe('SsrmMarketsGridContainer provider-grid-host (customizer Custom Setting
       host().onEditProvider('p2');
     });
     expect(onEditProvider).toHaveBeenCalledWith('p2');
+  });
+
+  it('opens the inline editor on the requested id in a browser runtime', async () => {
+    render(<SsrmMarketsGridContainer providerId="p1" onEditProvider={vi.fn()} />);
+    await waitFor(() => expect(captured.props.providerGridHost).toBeDefined());
+    act(() => {
+      host().onEditProvider('p2');
+    });
+    expect(await screen.findByTestId('inline-editor')).toBeTruthy();
   });
 });

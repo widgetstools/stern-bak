@@ -30,6 +30,9 @@ vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useSsrmDataProvider: () => ({ provider: fakeProvider, error: null }),
   useDataProvidersList: () => ({ configs: [], loading: false, refresh: () => {} }),
+  useAppDataStore: () => ({
+    store: { get: vi.fn(), set: vi.fn(), list: () => [], subscribe: () => () => {} },
+  }),
 }));
 
 // Provider exists but has NOT finished starting.
@@ -39,6 +42,10 @@ vi.mock('./useSsrmProviderDataWiring.js', () => ({
 
 vi.mock('../markets-grid-container/ProviderEditorDialog.js', () => ({
   ProviderEditorDialog: () => null,
+}));
+
+vi.mock('../markets-grid-container/ConfigBrowserDialog.js', () => ({
+  ConfigBrowserDialog: () => null,
 }));
 
 import { SsrmMarketsGridContainer } from './SsrmMarketsGridContainer.js';

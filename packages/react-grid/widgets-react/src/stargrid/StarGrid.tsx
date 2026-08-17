@@ -335,13 +335,15 @@ export function StarGrid(props: StarGridProps): ReactElement {
     onReceive: linkNotifications.onReceive,
   });
 
-  // ── CSRM caption ↔ OpenFin tab name (HostedMarketsGrid parity) ─────
+  // ── Caption ↔ OpenFin tab name (HostedMarketsGrid parity) ──────────
   //
   // `tabTitle` seeds from `customData.savedTitle` ("Save Tab As…") and
   // tracks external renames; a toolbar caption edit writes back to the
   // tab. Outside OpenFin this is a plain local value with a no-op
-  // writer. The SSRM container carries its own `title` prop and the SSRM
-  // wrapper never bound tab titles, so this stays CSRM-only.
+  // writer. Both containers get it: each persists the caption in its
+  // grid-level row and adopts an external rename (`useContainerCaption`),
+  // so `title` is the initial value in both modes rather than a static
+  // label the SSRM grid could never save.
   const { title: tabTitle, setTitle: writeTabTitle } = useViewTabTitle(title ?? gridId);
   const tabsHidden = useTabsHidden();
   const advancedOnCaptionChange = (advanced as {
@@ -389,12 +391,14 @@ export function StarGrid(props: StarGridProps): ReactElement {
         <SsrmMarketsGridContainer
           providerId={providerId}
           gridId={gridId}
-          title={title}
+          caption={tabTitle || title || gridId}
+          tabsHidden={tabsHidden}
           appId={identity.appId}
           userId={identity.userId}
           storage={identity.storage}
           theme={theme}
           {...(advanced as object)}
+          onCaptionChange={handleCaptionChange}
           onReady={handleReady}
           onRowIdFieldChange={handleRowIdFieldChange}
           onProviderReady={handleProviderReady}
