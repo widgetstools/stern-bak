@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 9 / 11 phases done (Phases 0–8).**
+**Branch:** `feature/simplify`. **Status: 10 / 11 phases done (Phases 0–9).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -1824,7 +1824,7 @@ and `:677`. The container is 747 / 800, so Phase 10's chrome fixes have room.
 
 ---
 
-## Phase 9 — column definition fidelity ⬜
+## Phase 9 — column definition fidelity ✅
 
 **Goal:** a provider's declared columns reach the grid intact.
 
@@ -1855,6 +1855,67 @@ and `:677`. The container is 747 / 800, so Phase 10's chrome fixes have room.
 - One mapping path in the tree; the inferred/declared divergence is gone.
 
 **Closes:** T3-1.
+
+### What landed
+
+One file: `useSsrmColumnResolution.ts` (115 → 156), where Phase 7 had already
+put both mapping paths side by side. The declared re-map is gone; declared and
+inferred columns now take one path, `toSsrmColumnDefs`, which spreads the
+`ColumnDefinition` through and hands it to the **same `buildColumnDefs`
+`MarketsGridContainer` uses, unmodified**. Tests:
+`SsrmMarketsGridContainer.inference.test.tsx` renamed in intent and +6 cases,
+its `MarketsGrid` stub widened to capture whole colDefs rather than two fields.
+
+`npx turbo typecheck build`: exit 0. Tests per package, serially: **6102
+passing / 1 skipped** (from 6096). ESLint over `container/**`: **0 errors, 48
+warnings — byte-identical to the pre-phase set.**
+`node scripts/check-package-cycles.mjs`: the same single pre-existing cycle
+(WORKLOG 18). `npm run bench:ssrm` not a gate — column defs are built once per
+provider-ready, not per row. E2E **8 / 8** with :8081 up.
+
+Four decisions the last phase inherits:
+
+1. **The loss was where the roadmap said, and that was worth checking first.**
+   `SsrmProviderClientAdapter.getColumnDefs()` returns
+   `config.columnDefinitions` verbatim as `readonly ColumnDefinition[]` — so
+   nothing upstream narrows the shape and the container's re-map was the only
+   lossy step. Had the adapter been the one narrowing, the fix would have
+   belonged in `data`, not here.
+2. **The inferred path's hole was BIGGER than the phase text says, and in the
+   other direction.** The text frames the divergence as "inferred sets
+   `cellDataType`, declared does not". True, but the inferred path also never
+   called `buildColumnDefs` **at all** — so inferred columns got no
+   multi-filter envelope, which in turn meant `withSsrmSetFilterValues`
+   attached the worker-backed whole-domain values to an envelope that was not
+   there (it falls back to top-level `filterParams.values`, which a set filter
+   reached through `defaultColDef` may never read), and a dotted inferred field
+   — `inferFields` emits nested leaf paths — got AG-Grid's native dot-walk
+   instead of `getPathAccessor`, which is the accessor that can tell
+   `row.a.b` from `row['a.b']`. Collapsing the paths closes all three.
+3. **`enableRowGroup` / `enablePivot` / `enableValue` stay, and stay
+   SSRM-only.** They were part of the old re-map and are not in
+   `ColumnDefinition`, so nothing declares them; the query plane groups,
+   aggregates and pivots server-side, so the columns have to be draggable into
+   those zones. `MarketsGridContainer` sets none of them — a client-side grid's
+   tool-panel affordances are the host's call. Constraint 1 keeps SSRM's
+   version rather than levelling it down, and they are applied as defaults
+   under the spread so a declared value would win if the type ever grows one.
+4. **This changes what an existing SSRM grid renders, in the direction of
+   honouring its own config.** A provider that declared `cellDataType`,
+   `sortable`, `resizable`, `type`, `valueFormatter`, `cellRenderer` or a
+   `valueGetter` expression has been having all of it ignored; it now applies.
+   Every one of those goes through the path CSRM has always used, so there is
+   no new behaviour in the tree — only the same behaviour reaching a second row
+   model.
+
+### Not closed here
+
+- **`buildColumnDefs` passes `valueFormatter` and `cellRenderer` through as
+  STRINGS**, because that is what `ColumnDefinition` stores and what CSRM has
+  always shipped to AG-Grid. Whether AG-Grid still honours a string
+  `valueFormatter` (legacy expression support) is a question about the shared
+  function, identical in both row models, and not something this phase should
+  answer for SSRM alone. Phase 10's hygiene pass is the place if it matters.
 
 ---
 
@@ -1944,7 +2005,7 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T2-9 | Delta hot path dead; every tick a full pass | 5 ✅ |
 | T2-10 | Filter-pill badges mean different things per mode | 2 |
 | T2-11 | Row-model-specific grid options emit unbranched | 6 ✅ |
-| T3-1 | Provider column definitions downgraded | 9 |
+| T3-1 | Provider column definitions downgraded | 9 ✅ |
 | T3-2 | No rest spread — 29 props dropped | 7 ✅ |
 | T3-3 | `StarGrid.advanced` inert under SSRM | 7 ✅ |
 | T3-4 | No load feedback in default hosted config | 8 ✅ |
@@ -1974,7 +2035,7 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 | Worker-backed status-bar and filter-pill counts | Phases 2, 5 — held: badge meaning unchanged (`filterPillCounts.test.ts` parity case green), the delta only removes round trips |
 | Quick-filter matching semantics | Phases 1, 2 |
 | Server-side grouping / aggregation / pivoting | Phases 1, 3 — held: `engineContract.test.ts` grouped/agg cases green, `grouped by book, cold` 48.5 → 47.8 ms |
-| SSRM column inference from sampled rows | Phase 9 |
+| SSRM column inference from sampled rows | Phase 9 — held: inference itself unchanged; its output now takes the same mapping path as a declared list, which only ADDS the multi-filter and nested-path handling it never had |
 
 ## Deviations ledger
 
