@@ -45,6 +45,8 @@ import { useAppDataLookup } from './useAppDataLookup.js';
 import { useContainerCaption } from './useContainerCaption.js';
 import { useContainerEventWiring } from './useContainerEventWiring.js';
 import { DATA_PROVIDER_EDITOR_ACTION_ID, mergeAdminActions } from './mergeAdminActions.js';
+import { writeHistoricalDateToAppData } from './historicalDateAppData.js';
+import { useContainerHistoricalDate } from './useContainerHistoricalDate.js';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
   createConfigBrowserAction,
@@ -70,14 +72,6 @@ const EMPTY: never[] = [];
  * Both are off by default to avoid measurable CPU cost on busy providers.
  */
 const DEBUG = false;
-
-function todayIsoDate(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 export interface MarketsGridContainerProps<TData extends Record<string, unknown> = Record<string, unknown>>
   extends Omit<MarketsGridProps<TData>, 'rowData' | 'rowIdField' | 'columnDefs' | 'gridLevelData' | 'onGridLevelDataLoad' | 'headerExtras'> {
@@ -191,33 +185,13 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     gridHandle,
   });
 
-  const [asOfDate, setAsOfDate] = useState<string | null>(null);
-  const [toolbarDate, setToolbarDate] = useState(todayIsoDate);
-  // Carries the *intent* of a queued toolbar reload — the mode + asOfDate the
-  // reload should run against — not a bare boolean. The ref is set
-  // synchronously in the handler while the matching state updates commit a
-  // render later; keying off the intent lets the reload effect fire exactly
-  // once, when committed state catches up, with the correct payload.
-  const pendingToolbarReloadRef = useRef<{ mode: ProviderMode; asOfDate: string | null } | null>(null);
   const [providerEditorOpen, setProviderEditorOpen] = useState(false);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [configBrowserOpen, setConfigBrowserOpen] = useState(false);
 
-  // Restore toolbar date from AppData when persisted mode is historical.
-  useEffect(() => {
-    if (!loaded || selection.mode !== 'historical' || !historicalDateAppDataRef) return;
-    const dot = historicalDateAppDataRef.indexOf('.');
-    if (dot <= 0) return;
-    const name = historicalDateAppDataRef.slice(0, dot);
-    const key = historicalDateAppDataRef.slice(dot + 1);
-    const val = appData.store.get(name, key);
-    if (typeof val === 'string' && isHistoricalToolbarDate(val)) {
-      setToolbarDate(val);
-      setAsOfDate(val);
-      // Do not queue reload on mount — provider wiring late-joins when the
-      // hub slot is already warm; restart only when this window cold-starts.
-    }
-  }, [loaded, selection.mode, historicalDateAppDataRef, appData.store]);
+  const reportError = useCallback((err: Error) => {
+    (onError ?? defaultOnError)(err);
+  }, [onError]);
 
   // Persisted caption wins over the prop; a commit writes back to
   // grid-level data and chains the caller's own handler; an OpenFin tab
@@ -296,71 +270,31 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     );
   }, [props.gridId, selection.mode, activeId, activeProviderName, activeRow.loading]);
 
-  // Date picker writes through to AppData; historical refresh passes
-  // `{ asOfDate }` via `provider.restart()`.
-  const setAsOfDateAndPersist = useCallback((next: string | null) => {
-    setAsOfDate(next);
-    if (next) {
-      setToolbarDate(next);
-    }
-    if (next && historicalDateAppDataRef) {
-      const dot = historicalDateAppDataRef.indexOf('.');
-      if (dot > 0) {
-        const name = historicalDateAppDataRef.slice(0, dot);
-        const key = historicalDateAppDataRef.slice(dot + 1);
-        void appData.store.set(name, key, next);
-      }
-    }
-  }, [appData.store, historicalDateAppDataRef]);
-
-  const effectiveHistoricalProviderId =
-    selection.historicalProviderId ?? defaultHistoricalProviderId ?? null;
-  const toolbarDateHistoryEnabled = effectiveHistoricalProviderId != null;
-  const isHistoricalView =
-    selection.mode === 'historical'
-    && asOfDate != null
-    && isHistoricalToolbarDate(asOfDate);
-  const historicalViewMessage = isHistoricalView
-    ? `Viewing historical data as of ${asOfDate}. Editing is disabled.`
-    : undefined;
-
-  const handleToolbarDateChange = useCallback((next: string) => {
-    setToolbarDate(next);
-    const isHistorical = isHistoricalToolbarDate(next);
-
-    if (isHistorical) {
-      if (!effectiveHistoricalProviderId) {
-        (onError ?? defaultOnError)(new Error(
-          'Cannot load historical data: no historical provider is configured.',
-        ));
-        return;
-      }
-      setAsOfDateAndPersist(next);
-      setSelection((s) => ({
-        ...s,
-        mode: 'historical',
-        historicalProviderId: s.historicalProviderId ?? defaultHistoricalProviderId ?? null,
-      }));
-      pendingToolbarReloadRef.current = { mode: 'historical', asOfDate: next };
-      containerEventBus.emit('toolbar:dateChanged', { date: next, historical: true });
-      return;
-    }
-
-    if (selection.mode === 'historical') {
-      setAsOfDate(null);
-      setMode('live');
-      pendingToolbarReloadRef.current = { mode: 'live', asOfDate: null };
-    }
-    containerEventBus.emit('toolbar:dateChanged', { date: next, historical: false });
-  }, [
-    effectiveHistoricalProviderId,
+  // Toolbar date, as-of date, the AppData round-trip and the banner flags —
+  // shared with SsrmMarketsGridContainer so the historical rules cannot
+  // differ per row model. The reload GATE stays below: this container waits
+  // for a live `GridApi` so snapshot listeners are attached before restart().
+  const {
+    asOfDate,
+    setAsOfDate: setAsOfDateAndPersist,
+    toolbarDate,
+    onToolbarDateChange: handleToolbarDateChange,
+    toolbarDateHistoryEnabled,
+    isHistoricalView,
+    historicalViewMessage,
+    consumePendingReload,
+  } = useContainerHistoricalDate({
+    loaded,
+    mode: selection.mode,
+    historicalProviderId: selection.historicalProviderId,
     defaultHistoricalProviderId,
-    setAsOfDateAndPersist,
+    historicalDateAppDataRef,
+    appDataStore: appData.store,
+    setSelection,
     setMode,
-    selection.mode,
-    onError,
+    onError: reportError,
     containerEventBus,
-  ]);
+  });
 
   // `keyColumn` may be a single column name OR an array of column
   // names (composite key — values joined with `-`, see
@@ -566,21 +500,16 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     const extra = asOfForRestart
       ? { asOfDate: asOfForRestart }
       : { __refresh: Date.now() };
-    if (
-      selection.mode === 'historical'
-      && asOfForRestart
-      && historicalDateAppDataRef
-    ) {
-      const dot = historicalDateAppDataRef.indexOf('.');
-      if (dot > 0) {
-        const name = historicalDateAppDataRef.slice(0, dot);
-        const key = historicalDateAppDataRef.slice(dot + 1);
-        try {
-          await appData.store.set(name, key, asOfForRestart);
-        } catch (err: unknown) {
-          (onError ?? defaultOnError)(err instanceof Error ? err : new Error(String(err)));
-          return;
-        }
+    if (selection.mode === 'historical' && asOfForRestart) {
+      try {
+        await writeHistoricalDateToAppData(
+          historicalDateAppDataRef,
+          appData.store,
+          asOfForRestart,
+        );
+      } catch (err: unknown) {
+        (onError ?? defaultOnError)(err instanceof Error ? err : new Error(String(err)));
+        return;
       }
     }
     const rawCfg = activeRow.cfg?.config;
@@ -634,27 +563,18 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // listeners before `restart()` — otherwise the first historical snapshot
   // can arrive with no `onSnapshotData` handler attached.
   useEffect(() => {
-    const pending = pendingToolbarReloadRef.current;
-    if (!pending) return;
+    // Gate first, then consume: `liveApi` is what makes this container ready
+    // to serve a reload, and consuming the intent before it exists would
+    // drop the reload entirely.
     if (!loaded || !provider || !activeId || !liveApi) return;
-    // Fire only once the committed state matches the intent that queued this
-    // reload. The ref is set synchronously in the handler, but the matching
-    // toolbar date / mode / asOfDate updates commit a render later — an
-    // unrelated render (e.g. `liveApi` flipping true from the grid's onReady)
-    // can otherwise run this effect with stale state, consume the flag with a
-    // live refresh, and skip the historical restart that carries `{ asOfDate }`.
-    if (selection.mode !== pending.mode) return;
-    if (pending.mode === 'historical' && asOfDate !== pending.asOfDate) return;
-    pendingToolbarReloadRef.current = null;
+    if (!consumePendingReload()) return;
     reloadFromSource();
   }, [
     loaded,
     provider,
     activeId,
     liveApi,
-    selection.mode,
-    asOfDate,
-    toolbarDate,
+    consumePendingReload,
     reloadFromSource,
   ]);
 

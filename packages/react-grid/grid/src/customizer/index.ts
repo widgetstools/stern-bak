@@ -8,8 +8,11 @@
  *
  *  - `ExpressionEditor` — the shared DSL editor (provider editor's
  *    Columns tab mounts it cross-package).
- *  - `isHistoricalToolbarDate` — toolbar-date predicate the CSRM
- *    container wires.
+ *  - `isHistoricalToolbarDate` / `todayIsoDate` — the toolbar-date
+ *    predicate and today's ISO date, both wired by the two grid
+ *    containers' shared historical-date hook. `todayIsoDate` is here
+ *    because MarketsGridContainer had grown a byte-identical private
+ *    copy of it.
  *  - The module STATE types lab/demo seeds author against. State shapes
  *    live in `@wellsfargo-starui/core` (modules live in the engine);
  *    `SavedFiltersState` is grid-local (grid-only module).
@@ -25,6 +28,7 @@ export type {
 } from './ui/ExpressionEditor';
 
 export { isHistoricalToolbarDate } from './modules/toolbar-date-settings/applyHistoricalToolbarDateToAppData';
+export { todayIsoDate } from '../widget/toolbarDateUtils';
 
 export type { SavedFiltersState } from './modules/saved-filters/index';
 

@@ -17,12 +17,10 @@ import type { GridApi } from 'ag-grid-community';
 import type { IDataProvider } from '@wellsfargo-starui/data';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import { createApplyProviderToGridState } from './applyProviderToGrid.js';
+import { resolveProviderStartPlan } from './resolveProviderStartPlan.js';
 import type { ProviderMode } from './gridLevelState.js';
 import type { useDataServices } from '@wellsfargo-starui/react/data/runtime';
 import type { createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
-
-/** Historical restore only — brief peer race before `restartProvider()`. Live mode connects immediately. */
-const PEER_PROVIDER_WAIT_MS = 2_000;
 
 /**
  * Gate for hot-path diagnostic logs. Flip to `true` locally when debugging
@@ -293,23 +291,14 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
 
     void (async () => {
       try {
-        let running = await dataHubClient.isProviderRunning(activeId);
         const asOfForRestart = modeRef.current === 'historical'
           ? (asOfDateRef.current ?? (isHistoricalToolbarDate(toolbarDateRef.current) ? toolbarDateRef.current : null))
           : null;
         // Live cold start connects immediately — hub attach dedupes concurrent
         // windows. Historical restore waits briefly so a peer with the same
         // overlay can finish starting instead of this window calling restart().
-        if (!running && asOfForRestart) {
-          running = await dataHubClient.waitForProviderRunning(activeId, {
-            timeoutMs: PEER_PROVIDER_WAIT_MS,
-          });
-        }
-        if (running) {
-          await provider.start();
-          return;
-        }
-        if (asOfForRestart) {
+        const plan = await resolveProviderStartPlan(dataHubClient, activeId, asOfForRestart);
+        if (plan === 'restart' && asOfForRestart) {
           await restartProvider({ asOfDate: asOfForRestart });
           return;
         }
