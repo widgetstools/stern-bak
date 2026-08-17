@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 6 / 11 phases done (Phases 0–5).**
+**Branch:** `feature/simplify`. **Status: 7 / 11 phases done (Phases 0–6).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -1123,7 +1123,7 @@ Five decisions the later phases inherit:
 
 ---
 
-## Phase 6 — capability-driven UI ⬜
+## Phase 6 — capability-driven UI ✅
 
 **Goal:** every control that cannot work in the current row model says so.
 Zero silent no-ops remain.
@@ -1163,6 +1163,148 @@ Zero silent no-ops remain.
 - Each disabled control names its reason.
 
 **Closes:** T2-2, T2-3, T2-4, T2-8, T2-11.
+### What landed
+
+Core: `platform/types.ts` (`PlatformEventMap['data:capabilitiesChanged']`),
+`GridDataHub.ts` (`CapabilityChangeSink`, announce on bind/unbind),
+`GridPlatform.ts`; `customizer/modules/bulk-update/compareDistinctValues.ts`
+(new — `resolveColumnDistinctValues.ts` DELETED), both barrels. Grid:
+`customizer/hooks/useCapability.ts` (new — `useCapability`,
+`useCapabilityGate`), `hooks/index.ts`;
+`modules/bulk-update/useColumnDistinctValues.ts` (new),
+`BulkUpdateToolbarBody.tsx`; `widget/ExportScopeDialog.tsx` (new),
+`useMarketsGridController.ts`, `MarketsGridHost.tsx`;
+`modules/conditional-styling/editor/useHeaderPaintGate.ts` (new),
+`FlashBand.tsx`, `ConditionalStylingPanel.tsx`;
+`modules/toolbar-date-settings/ToolbarDateSettingsPanel.tsx`;
+`modules/general-settings/fieldSchema.tsx` (the `capability` container +
+`disabled` threading through all five controls), `gridOptionsSchema.tsx`;
+`modules/column-customization/editors/RowGroupingEditor.tsx`. Tests:
+`useCapability.test.tsx` new (5), `useHeaderPaintGate.test.tsx` new (3),
+`ExportScopeDialog.test.tsx` new (4), `GridDataHub.test.ts` +1,
+`useMarketsGridController.test.tsx` +2, `BulkUpdateToolbarBody.test.tsx` +1
+and one made async, `bulkUpdate.test.ts` re-pointed at the comparator.
+
+`npx turbo typecheck build test`: **TURBO_EXIT=0**, 21 / 21 tasks, **6050
+passing / 1 skipped**. ESLint over every touched directory: **0 errors, 107
+warnings — the identical 107 the pre-phase tree produces there** (measured by
+stashing and re-running the same command). `node scripts/check-package-cycles.mjs`:
+the same single pre-existing cycle (WORKLOG 18), no new one. E2E: **7 / 7
+passed**, none self-skipped (:8081 was up). `npm run bench:ssrm` was not
+re-run: this phase adds no code to any hot path — the capability read happens
+once per render of a settings control, and the one walk it removed
+(`resolveColumnDistinctValues`) was never on the streaming path.
+
+Six decisions the later phases inherit:
+
+1. **A getter was never enough, and the roadmap had been claiming it was.**
+   Phase 0 wrote that `capabilities` is read through a getter "so a control
+   disabled while the server-side source is binding re-enables itself when the
+   answer changes". Nothing re-renders on a getter. `GridDataHub` now emits
+   `data:capabilitiesChanged` on bind / swap / detach — through a narrowed
+   `CapabilityChangeSink` (`{ gridId, emit }`), not the whole `EventBus`,
+   because a hub that could emit `profile:loaded` is a hub someone will put
+   profile logic in. `useCapability` reads it with `useSyncExternalStore`; both
+   adapters hold their capability set as a module constant, so the snapshot
+   identity settles instead of re-rendering every commit.
+2. **`canAddressUnloadedRows` is the question under four of the five
+   findings**, and that is not a stretch of it. Header paint, row exclusion,
+   the distinct dropdown and the SSRM expand-all toggle all reduce to "is the
+   set of rows this grid holds the same set as the dataset". Phase 3's alerts
+   module already reads it exactly that way for its row-membership diff, so
+   this extends a settled reading rather than inventing one. No new capability
+   was added, and no control asks which row model is mounted.
+3. **The verdict's copy is the default, not the law.** `useCapabilityGate`
+   takes a `reason` override because a verdict names ONE consequence of its
+   limit and different controls hit different ones — "scroll the rows into
+   view first" helps someone editing a cell and is no help at all to someone
+   wondering why a column header never lights. The override is also the only
+   copy available in the inverted direction, where the verdict is *supported*
+   and carries an empty reason by contract.
+4. **Disabling is not the same as removing, and export proves it.** The Excel
+   export was NOT disabled under SSRM: exporting the loaded rows is a
+   legitimate thing to want, and taking it away would push SSRM below where it
+   already was, which constraint 1 forbids in both directions. What was
+   missing was the user knowing which of the two files they were getting, so a
+   confirm names the scope with the port's own copy. Header paint went the
+   other way — a header lit from the loaded window would switch on and off as
+   the user scrolled, describing the viewport while looking like it described
+   the data, which is worse than staying dark.
+5. **The schema declares its requirement; it does not branch.** General
+   settings gained a `capability` container beside its existing `conditional`
+   one, so a field names a capability and the platform answers. Fields stay
+   VISIBLE and disable, with the verdict copy taking over the hint slot —
+   hiding them would lose a setting the user had already saved and would make
+   the panel's contents depend on which grid it was opened over. `disabled`
+   threads through all five control primitives (`Switch`, `IconInput`,
+   `Select` all supported it already), so the container is not restricted to
+   the one boolean that needed it first.
+6. **Phase 1's hand-off closed on the way past.** `supportsCustomComparator`
+   had carried copy since Phase 1 with nothing rendering it; the custom
+   aggregation expression in `RowGroupingEditor` is now disabled where a
+   closure cannot reach the code that folds the rows, and the option in the
+   AGG FUNCTION select is disabled alongside it.
+
+### Corrections to this phase's own text, for the record
+
+- **T2-11 is one control, not two, and the roadmap's citation pointed at the
+  wrong half.** `general-settings/index.ts:197-227` lists options the panel
+  EMITS, but an emitted option is only a silent no-op where a control exists
+  to set it. Checked against AG-Grid's own runtime rather than its docs:
+  `rowDragManaged` is read as
+  `_isClientSideRowModel(gos) ? gos.get("rowDragManaged") : false` — genuinely
+  CSRM-gated — but it has **no field in the panel schema at all**; it is
+  emitted from a `rowDragging` state key nothing sets. `groupHideColumnsUntilExpanded`
+  has a control and is deliberately not emitted (AG-Grid 35.1 does not
+  recognise it), which is a different defect with its own note in the source.
+  That leaves `ssrmExpandAllAffectsAllRows`, read only by
+  `ag-grid-enterprise`'s server-side module and therefore inert over a
+  client-side grid — the one toggle whose label was doing no work.
+- **T2-4's "right fix" is not reachable, and the roadmap's reason for it does
+  not hold.** The phase text says to forward the predicate to the worker's
+  `filterModel` because "it is the same expression language the worker already
+  evaluates". It is not: `filterModel` is AG-Grid's column-map/tree structure,
+  while the DSL is an `ExpressionEngine` expression. The worker does evaluate
+  that language — through `configureExpressions`, whose rules ENRICH rows on
+  the way out and never narrow a query. Excluding rows so that counts and
+  paging agree needs a per-session predicate `QueryEngine` applies before it
+  pages: the same machinery T1-4 was deferred for, with `QueryEngine.ts` at
+  777 / 800. Compiling the expression down to a `filterModel` would work for
+  the subset that maps onto filter operators and be silently wrong outside
+  it — a worse defect than the one being fixed. So the fallback is what
+  landed, deliberately. Worth noting the repo already knew half of this in a
+  different corner: `createRowIdSetFilterResolver`'s doc says a row-id colour
+  link arrives as a set-filter model "because SSRM never invokes
+  `doesExternalFilterPass`". That fact had been written down and never
+  connected to the module that depends on it — the same
+  built-at-the-data-layer-and-never-connected shape this whole roadmap exists
+  to close.
+
+### Not closed here, deliberately
+
+- **Nothing surfaces a post-write edit REJECTION yet.** Phase 4 left this to
+  Phase 6 and it does not fit: `EditApplyResult.rejected` reaches every call
+  site, and bulk update already renders the one refusal it can see BEFORE the
+  write, but showing a refusal that happens after the fact needs a
+  notification surface the grid does not have. `sonner` is packaged in
+  `@wellsfargo-starui/react` and **no `<Toaster />` is mounted anywhere in
+  `packages/`** — only in the design-system demo app. Mounting one inside
+  `MarketsGridHost` means deciding its portal container, its theming and its
+  behaviour inside an OpenFin view, which is a chunk of work with its own
+  risks rather than a tail end of this one.
+- **`supportsAdvancedFilter` is still unrendered**, and deliberately: its own
+  doc comment warns that it is NOT a verdict on the feature, only on whether a
+  figure computed through the port is scoped by it. A control that merely
+  turns Advanced Filter on must not be disabled from it, and the controls that
+  should carry the caveat are the port-computed FIGURES — the filter-pill
+  badges and the status bar — which want a footnote, not a disabled state.
+  Phase 1 decision 1 and Phase 2's note both still apply.
+- **The exit criterion's "a pass over every customizer panel" was not run as a
+  literal sweep.** What landed is the five findings the audit catalogued plus
+  Phase 1's hand-off, each verified against AG-Grid's runtime rather than
+  against its documentation. A panel-by-panel sweep under a live SSRM grid is
+  the kind of thing Phase 10's hygiene pass is for, and it will find whatever
+  the audit missed; this phase closed what the audit found.
 
 ---
 
@@ -1375,16 +1517,16 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T1-9 | Group rows arbitrary order under non-group sort | 1 |
 | T1-10 | Unrecognised operators substitute a different operator | 1 |
 | T2-1 | Every editing write path inert; journal records anyway | 4 |
-| T2-2 | Excel export silently truncated | 6 |
-| T2-3 | Conditional-styling header indicators never light | 6 |
-| T2-4 | Row-exclusion DSL excludes nothing | 6 |
+| T2-2 | Excel export silently truncated | 6 ✅ |
+| T2-3 | Conditional-styling header indicators never light | 6 ✅ |
+| T2-4 | Row-exclusion DSL excludes nothing | 6 ✅ |
 | T2-5 | Restored quick-filter text never re-queries (3 sites) | 10 |
 | T2-6 | Alerts bell undercounts | ~~3~~ → ~~5~~ → **open**, scoped in Phase 5 "Not closed here" |
 | T2-7 | `ssrmCellStyle` / `ssrmEditable` have no caller | 3 |
-| T2-8 | Bulk-update dropdown iterates server count against stubs | 6 |
+| T2-8 | Bulk-update dropdown iterates server count against stubs | 6 ✅ |
 | T2-9 | Delta hot path dead; every tick a full pass | 5 ✅ |
 | T2-10 | Filter-pill badges mean different things per mode | 2 |
-| T2-11 | Row-model-specific grid options emit unbranched | 6 |
+| T2-11 | Row-model-specific grid options emit unbranched | 6 ✅ |
 | T3-1 | Provider column definitions downgraded | 9 |
 | T3-2 | No rest spread — ~20 props dropped | 7 |
 | T3-3 | `StarGrid.advanced` inert under SSRM | 7 |

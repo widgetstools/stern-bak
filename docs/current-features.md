@@ -554,11 +554,18 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
   Row Grouping, Cell Editor, **Cell Renderer** (band 10 — picks any
   registered renderer from `@wellsfargo-starui/design-system/cell-renderers-registry`
   and authors its per-renderer config)
-- **Conditional styling** — themed style rules (dark/light); per-rule bands for cell/row style, **flash on match** (`FlashConfig` — colour/mode/duration), **indicator** badge (`RuleIndicator`), value formatter, and **animate value** (`AnimationConfig` — `spin` / `spin-reverse` / `pulse`, cell-scope only). Animate spins the matching cell's value glyph via CSS keyframes scoped to `.ag-cell-value` (shipped once as `ds-anim-*`), e.g. an Excel value format maps `1 → 🔄` and a `value = 1` rule spins it — the no-code "in progress" spinner. Header flash/indicator painting (`headerPainter`, `hasHeaderPaintRules`) skips row scans when no header-targeted rules are enabled and is not invoked on live ticks unless header paint rules exist
+- **Conditional styling** — themed style rules (dark/light); per-rule bands for cell/row style, **flash on match** (`FlashConfig` — colour/mode/duration), **indicator** badge (`RuleIndicator`), value formatter, and **animate value** (`AnimationConfig` — `spin` / `spin-reverse` / `pulse`, cell-scope only). Animate spins the matching cell's value glyph via CSS keyframes scoped to `.ag-cell-value` (shipped once as `ds-anim-*`), e.g. an Excel value format maps `1 → 🔄` and a `value = 1` rule spins it — the no-code "in progress" spinner. Header flash/indicator painting (`headerPainter`, `hasHeaderPaintRules`) skips row scans when no header-targeted rules are enabled and is not invoked on live ticks unless header paint rules exist. The **HEADERS / BOTH targets are disabled with a stated reason** where the grid does not hold every row (`useHeaderPaintGate` over `capabilities.canAddressUnloadedRows`): the painter's whole-grid pass is `forEachNodeAfterFilter`, which AG-Grid implements as `_getClientSideRowModel(beans)?.…`, so under the server-side row model the callback never ran and every rule read as "no row matches". CELLS is unaffected — `cellClassRules` evaluate against the row in hand
 - **Visual Excel** — WYSIWYG `.xlsx` export preserving display formatters and
   conditional style-rule colours. Engine: `buildVisualExcelStyles`,
   `applyFormatExcelClasses`, `exportVisualExcel` (via `api.exportDataAsExcel` +
   `processCellCallback`). Primary toolbar spreadsheet icon when enabled.
+  **Scope-confirmed where the export cannot cover the dataset**
+  (`capabilities.exportCoversFullDataset`, rendered by `ExportScopeDialog`):
+  `exportDataAsExcel` serialises the rows the GRID holds, which is the dataset
+  under the client-side row model and the loaded block window under the
+  server-side one — so the same button produced a two-thousand-row file out of
+  a hundred thousand with nothing to say it had. The export is not taken away;
+  the user is told which of the two they are getting and confirms.
   Settings panel: **Visual Excel**. Lab: **Visual Excel** tab (`lab-visual-excel-v1`).
 - **Editing family (overview)** — ONE merged **`editing`** module (id
   `editing`, `EditingState` slices `smartEdit` / `bulkUpdate` / `plusMinus` /
@@ -619,7 +626,16 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
   Settings panel: **Edit History**. Lab: **Editing** tab (`lab-editing`);
   Smart Edit–only history demo in `public/lab-profiles/smart-edit/se-04-history.json`.
 - **Bulk Update** — replace all selected cells in one column with the same
-  value (text, number, date). Distinct-value dropdown, confirm threshold,
+  value (text, number, date). The **distinct-value dropdown reads through
+  `platform.data.distinct()`** (`useColumnDistinctValues`), so it lists the
+  column's values from whatever holds the rows — `forEachNode` over the
+  client-side model, `getSetFilterValues` over the worker's whole store. It
+  used to loop `getDisplayedRowCount()` against `getDisplayedRowAtIndex`,
+  which under the server-side row model paired the SERVER's total with
+  loading stubs and built the list from whichever block was scrolled in.
+  Late answers are dropped by generation stamp, and a `complete: false` read
+  yields nothing rather than a partial list presented as the column's values.
+  Confirm threshold,
   single-column guard, journal integration. `collectBulkUpdateTargets` returns a
   `BulkUpdateSelection` (`targets` + `unreachableRows`): a selected row the grid
   holds no data for — a range reaching past the loaded block window on a
@@ -721,7 +737,7 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
 - `MarketsGridContainer` — when an active provider id is chosen but `useDataProviderConfig` is still loading, renders a lightweight placeholder (no throwaway `MarketsGrid` / AG Grid shell); the `__no_provider__` shell path is unchanged when no provider is selected or cfg is loaded but missing key/columns
 - `buildColumnDefs` — maps a provider's persisted `ColumnDefinition[]` to AG Grid `ColDef[]` for `MarketsGridContainer`. Per column: a `valueGetter` DSL expression compiles once (bounded FIFO cache) to a CSP-safe `@wellsfargo-starui/core` **compiled closure** (not per-cell AST walk); dotted `field` uses cached `getPathAccessor`; flat field stays on AG Grid's native path. Every column with no explicit `filter` defaults to the **Multi Filter** (`agMultiColumnFilter`): tab 1 is the `cellDataType`-appropriate filter (`number`→`agNumberColumnFilter`, `date`/`dateString`→`agDateColumnFilter`, else `agTextColumnFilter`), tab 2 is always `agSetColumnFilter`; a column that already declares its own `filter` is left untouched (FilterEditor / host choice wins). Expression getters never throw — parse errors fall back to the field binding, runtime errors to the field value (warn once per expression); reusable per-getter `EvaluationContext` avoids per-cell allocations under high-frequency updates. Soak: `npm run soak:value-getter` (`valueGetter.soak.test.ts`, `SOAK=1`) — sustained eval load + heap-delta guard. **Internal** — not on public barrel
 - Custom Settings panel (`toolbar-date-settings` module) — four sections: Toolbar Date (historical date → AppData config), Data Provider (live/historical pickers, mode, as-of date) when `providerGridHost` is wired, Event Callbacks (event→handler bindings) when `gridEventBindingsHost` is wired, and Row Filter (row-exclusion expression). All settings are staged and applied only on the panel's explicit Save (Reset reverts); imperative actions (refresh/reload/edit) stay immediate
-- Row exclusion — implemented in `@wellsfargo-starui/grid` `toolbar-date-settings` module (not widgets-react): multiline Monaco `ExpressionEditor` authors an EXCLUDE-when-true DSL predicate (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, e.g. `[ccy] == "INR"`, `[active] == false`); keystrokes stage into the panel draft (applied on Save). `transformGridOptions` installs it as AG Grid's external filter (`isExternalFilterPresent` / `doesExternalFilterPass`) and the module's `activate` calls `api.onFilterChanged()` on cell edits, expression edits, and first ready. Rows are hidden, not removed — they reappear when the offending value changes; parse/eval failure excludes nothing (`rowExclusionFilter.ts`, fails open)
+- Row exclusion — implemented in `@wellsfargo-starui/grid` `toolbar-date-settings` module (not widgets-react): multiline Monaco `ExpressionEditor` authors an EXCLUDE-when-true DSL predicate (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, e.g. `[ccy] == "INR"`, `[active] == false`); keystrokes stage into the panel draft (applied on Save). `transformGridOptions` installs it as AG Grid's external filter (`isExternalFilterPresent` / `doesExternalFilterPass`) and the module's `activate` calls `api.onFilterChanged()` on cell edits, expression edits, and first ready. Rows are hidden, not removed — they reappear when the offending value changes; parse/eval failure excludes nothing (`rowExclusionFilter.ts`, fails open). **Disabled with a stated reason where the grid does not hold every row** (`capabilities.canAddressUnloadedRows`): AG-Grid consults `doesExternalFilterPass` only from its client-side filtering stage, so under the server-side row model the expression compiled, validated, saved and hid nothing. Excluding rows properly there means the SOURCE excluding them so counts and paging agree, which needs a per-session predicate the query plane applies before it pages — the machinery T1-4 was deferred for
 - `ProviderEditorDialog` — modal hosting `DataProviderEditor`
 - `DataProviderEditor` — connection + tabs (Connections, Fields, Columns, Diagnostics). Sidebar **Import** button creates a brand-new persisted provider from an exported JSON config (`configStore.save` mints a fresh `providerId`, owned by the current user — or `system` when the config is public), then selects and opens it for editing; footer **Export** button downloads the current working config — including unsaved edits — as JSON. **Clone** (sidebar row or form footer) deep-clones the provider config into an unsaved draft that appears immediately in the sidebar list (tagged **Unsaved**) until the user saves — then `configStore.save` mints a real `providerId` and the row becomes persisted
 - `providerConfigIo` — `exportProviderConfig` (downloads a `{ kind, version, exportedAt, provider }` envelope with `providerId`/`userId`/`isDefault` stripped so bundles are portable), `parseProviderConfigImport` (accepts the wrapped envelope or a bare provider object; validates `providerType`/`config`, defaults a missing name, re-strips identity), `toPortableProviderConfig`
@@ -932,7 +948,12 @@ modules).
   `CapabilityVerdict`s (`canAddressUnloadedRows`, `exportCoversFullDataset`,
   `supportsCustomComparator`, `supportsAdvancedFilter`,
   `mutationsReachSource`), each carrying user-facing copy for a control that
-  has to disable itself
+  has to disable itself. The hub emits `data:capabilitiesChanged` when a
+  server-side source binds, swaps or detaches, so a control disabled while a
+  provider was still binding re-enables itself when the answer changes — the
+  getter makes the answer current, the event makes a rendered control notice.
+  `useCapability` / `useCapabilityGate` (grid) are the one place the UI reads
+  them; no control asks which row model is mounted
 - `CsrmDataAdapter` / `SsrmDataAdapter` — the two implementations, over
   AG-Grid's client-side row model and over the SharedWorker query plane's
   existing `getRows` / `getSetFilterValues` / `getStatusBar` RPCs
@@ -1025,7 +1046,7 @@ modules).
   `deserializeDataChangeHistoryState`, `INITIAL_DATA_CHANGE_HISTORY` — profile
   settings for the edit-history module (session-only stacks; settings-only persistence)
 - **Bulk update** — `BulkUpdateSettings`, `collectBulkUpdateTargets`,
-  `BulkUpdateSelection`, `resolveColumnDistinctValues`, `INITIAL_BULK_UPDATE` — replace-all-selected
+  `BulkUpdateSelection`, `compareDistinctValues`, `INITIAL_BULK_UPDATE` — replace-all-selected
   with one value (internal since Phase 6: `buildBulkUpdatePatches`,
   `parseBulkUpdateValue`, `deserializeBulkUpdateState`)
 - **Plus / minus** — `buildNudgePatches`,

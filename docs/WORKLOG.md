@@ -788,7 +788,13 @@ which under SSRM emitted a `full` structural change with three empty arrays on
 every streaming tick *(closed by Phase 5 — `applyServerSideTransaction`'s
 result is reported through `RowChangeSink`, and the filter-pill badges patch
 from it: ten ticks over one row went from 22 worker round trips to 4, counted
-in `useFilterModel.test.ts`)*. **15 are container wiring gaps.**
+in `useFilterModel.test.ts`)*. The rest were controls that accept input and
+do nothing under one row model *(closed by Phase 6 — `data:capabilitiesChanged`
+plus `useCapability` / `useCapabilityGate` put the capability copy on screen:
+the bulk-update distinct dropdown reads through `platform.data.distinct()`,
+Excel export confirms its scope, header paint and row exclusion disable with a
+stated reason, and the custom aggregation expression closes Phase 1's
+hand-off)*. **15 are container wiring gaps.**
 
 **Done looks like:** modules reach rows only through a `platform.data` port
 with CSRM and SSRM adapters behind one contract suite; no module branches on
