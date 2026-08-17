@@ -808,19 +808,16 @@ ten annotated exemptions each naming why it is about the grid's DISPLAY rather
 than the dataset. `docs/current-features.md` §366–390 was corrected phase by
 phase.
 
-**Four findings remain open and need their own sessions**, each recorded in
-the roadmap with its scope:
-- **T1-4** (filter / sort / group on calculated columns), **T2-4's real fix**
-  (row exclusion at the source) and **an SSRM edit surviving a block refetch**
-  all want ONE thing — a per-session predicate `QueryEngine` applies before it
-  pages. `QueryEngine.ts` is at 777 / 800, so that session starts with a split.
-- **T2-6** (the alerts bell undercounts) needs a new worker→client notify
-  channel carrying hits rather than rows, addressed by `sessionId`, across
-  three packages plus a new protocol message.
-- **Post-write edit rejection** has no surface: `sonner` is packaged and no
-  `<Toaster />` is mounted anywhere in `packages/`.
-- **Two windows on one historical provider** still fight for its single
-  snapshot — architectural, equally true of CSRM.
+**Four findings remained open. They are now sequenced as Phases 11-14 in
+[`docs/SSRM_PARITY_COMPLETION.md`](./SSRM_PARITY_COMPLETION.md) — see item 20
+below**, which supersedes the scoping notes that were here. Three of them
+(T1-4, T2-4's real fix, an SSRM edit surviving a block refetch) wanted ONE
+thing, a per-session layer the query applies before it pages; `293e2d2` built
+it (`SessionOverlay`), so what is left is plumbing rather than design. The
+fourth (T2-6, the alerts bell) is unchanged in shape and still needs its own
+session. The fifth item recorded here — **two windows on one historical
+provider** — is closed as **not a defect**: it is architectural and CSRM
+behaves identically.
 
 ---
 
@@ -959,3 +956,57 @@ against multiple adapters), `filterPredicate.test.ts` (40),
 
 **Re-run with:** `npm run bench:ssrm:sweep` ·
 `SWEEP_ROWS=… SWEEP_COLS=… SWEEP_HEAP_MB=… npm run bench:ssrm:sweep`
+
+---
+
+## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17)
+
+**Area:** `packages/data/host-data/src/runtime/ssrm/`,
+`packages/data/host-data/src/runtime/worker/`,
+`packages/react-grid/grid/src/`, `packages/react-grid/widgets-react/src/container/` ·
+**Blocked on:** nothing — sequenced work ·
+**Plan:** [`docs/SSRM_PARITY_COMPLETION.md`](./SSRM_PARITY_COMPLETION.md)
+(4 phases, one per session)
+
+Item 17's roadmap closed 32 of 36 findings and recorded four as needing their
+own sessions. Those four are now sequenced as **Phases 11–14**, continuing the
+roadmap's numbering. Two commits since it was written changed what remains:
+
+- **`293e2d2`** built `SessionOverlay` — the per-session query layer that
+  three of the four findings were all waiting on. `QueryEngine` exposes
+  `setSessionPatches` / `clearSessionPatches` / `setSessionExclude` and
+  `SessionOverlay.test.ts` pins 15 cases including the sharing-model
+  invariant. **No client can call any of them**, so what was a design problem
+  is now plumbing with an exact template (`configureExpressions`, 7 hops).
+- **`76489fe`** built the edit write-back path. `EditWriteBack.onFailure`
+  reports `{ error, rolledBack, stuck }` on a refused write and **nothing
+  listens** — a rejected edit reverts silently. That is why the smallest phase
+  is scheduled first.
+
+**Phase 11** (small, no entry) — mount a toast surface and wire `onFailure` to
+it, distinguishing reverted from stuck; fix `MarketsGridContainer.tsx:748`
+dropping the host's `onSavingChange` (the SSRM container already chains it
+correctly at `SsrmMarketsGridContainer.tsx:490-493`); make the SSRM row-count
+panels pagination-aware (`createSsrmStatusBar.tsx` contains no reference to
+pagination at all).
+
+**Phase 12** (full, no entry) — the session layer reaches the client. **Opens
+by splitting `QueryEngine.ts`, which is at 895 lines against the 800 ceiling**
+— 777 at `24dfdc2`, +118 from `293e2d2`. Closes T2-4's real fix and an SSRM
+edit surviving a block refetch. Gate: `npm run bench:ssrm` must show the
+shared path unchanged.
+
+**Phase 13** (full, entry = Phase 12) — T1-4, filter/sort/group on calculated
+columns. An addition to the layer Phase 12 makes reachable, not new machinery.
+
+**Phase 14** (full, no entry) — T2-6, the alerts bell. A new worker→client
+message kind carrying hits (row key + rule id) addressed by `sessionId`,
+across three packages, plus a dedupe against `__ssrmAlert`.
+
+**Closed as not-a-defect:** *two windows on one historical provider fight for
+its single snapshot*. Architectural, and **CSRM behaves identically**, so it
+is not a parity finding. Reopen as a product decision about historical
+providers if it ever matters.
+
+**Estimate: 3 full sessions + 1 small one.** Phases 11, 12 and 14 have no
+entry dependency and can run in any order; only Phase 13 is gated.

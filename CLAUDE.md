@@ -18,9 +18,12 @@ so demo apps never enter the package CI surface — see
   simplification effort's execution record (phase status, constraints,
   deviations ledger); read this before touching anything the roadmap covers
 - [`docs/SSRM_PARITY_ROADMAP.md`](./docs/SSRM_PARITY_ROADMAP.md) — the SSRM/CSRM
-  behavioural-parity effort (11 phases, one per session). **Its binding
+  behavioural-parity effort (11 phases, one per session; complete). **Its binding
   constraints govern any change to a customizer module that touches rows**:
   modules go through the `platform.data` port and never branch on the row model
+- [`docs/SSRM_PARITY_COMPLETION.md`](./docs/SSRM_PARITY_COMPLETION.md) — the four
+  findings that roadmap left open, sequenced as Phases 11–14 (one per session).
+  Inherits the roadmap's binding constraints verbatim
 - [`docs/WORKLOG.md`](./docs/WORKLOG.md) — **known-open items across both repos**; check
   before starting work so you don't rediscover a documented gap
 - [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md) — the 70%-per-file effort, split
