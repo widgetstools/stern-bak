@@ -40,7 +40,12 @@ import {
   subtractFilterModel,
 } from './filtersToolbarLogic';
 import type { SavedFilter } from './types';
-import { computeFilterPillCounts, patchPillCounts } from './filterPillCounts.js';
+import {
+  computeFilterPillCounts,
+  emptyPillMembership,
+  patchPillCounts,
+  type PillMembership,
+} from './filterPillCounts.js';
 
 // ─── AG-Grid v35 shape repair ──────────────────────────────────────────
 //
@@ -255,8 +260,8 @@ function useFilterNormalization(): {
  *
  * Both the badge number and its meaning come from `platform.data` — see
  * `filterPillCounts.ts`, which owns the one scope both row models count in and
- * the capability that decides whether match sets are meaningful. This hook
- * owns only what is stateful: publishing, staleness, and the delta patch.
+ * the membership a delta is patched against. This hook owns only what is
+ * stateful: publishing, staleness, and when to fall back to a full pass.
  *
  * The recompute is asynchronous because the port is (the server-side adapter
  * crosses `postMessage`), so every result carries a generation stamp and a
@@ -266,12 +271,15 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
   const platform = useGridPlatform();
   const [filterCounts, setFilterCounts] = useState<Record<string, number>>({});
   const filterCountsRef = useRef<Record<string, number>>({});
-  const matchSetsRef = useRef<Map<string, Set<string>>>(new Map());
+  const membershipRef = useRef<PillMembership>(emptyPillMembership([]));
 
   useEffect(() => {
     const disposers: Array<() => void> = [];
     let disposed = false;
     let generation = 0;
+    // A pill list this membership was never built against can patch nothing —
+    // start over rather than carry one pill's observations onto another's.
+    membershipRef.current = emptyPillMembership(filters);
 
     disposers.push(
       platform.api.onReady(() => {
@@ -284,7 +292,7 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
         const clearCounts = () => {
           generation += 1;
           if (Object.keys(filterCountsRef.current).length === 0) return;
-          matchSetsRef.current = new Map();
+          membershipRef.current = emptyPillMembership(filters);
           filterCountsRef.current = {};
           setFilterCounts({});
         };
@@ -295,11 +303,15 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
             return;
           }
           const gen = ++generation;
-          void computeFilterPillCounts(platform.data, filters).then((result) => {
+          void computeFilterPillCounts(
+            platform.data,
+            filters,
+            membershipRef.current,
+          ).then((result) => {
             // A recompute the filters list or an unmount has already
             // superseded must not overwrite the current answer.
             if (disposed || gen !== generation) return;
-            matchSetsRef.current = result.matchSets;
+            membershipRef.current = result.membership;
             publish(result.counts);
           });
         };
@@ -309,27 +321,33 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
             clearCounts();
             return;
           }
-          // No match sets means no delta is possible — under the server-side
-          // row model that is every emit, which is the cost Phase 5 of the
-          // parity roadmap removes.
-          if (change.full || matchSetsRef.current.size === 0) {
+          // A structural change has no per-row delta to patch from.
+          if (change.full) {
             fullRecompute();
             return;
           }
 
-          const patched = patchPillCounts(
+          const { counts, unresolved } = patchPillCounts(
             change,
             filters,
-            matchSetsRef.current,
+            membershipRef.current,
             filterCountsRef.current,
           );
-          if (!patched) return;
+          // A row whose prior membership was unknown: the patch recorded it,
+          // so the next tick on it needs no round trip, but THIS total has to
+          // come from the port. Under the server-side row model that is the
+          // first tick to touch each row and no more.
+          if (unresolved) {
+            fullRecompute();
+            return;
+          }
+          if (!counts) return;
           // A delta answers about rows the grid just changed, so it is never
           // stale in the way an in-flight full recompute is — but a full
           // recompute still in flight would land on top of it. Bumping the
           // generation drops that one instead.
           generation += 1;
-          publish(patched);
+          publish(counts);
         };
 
         fullRecompute();

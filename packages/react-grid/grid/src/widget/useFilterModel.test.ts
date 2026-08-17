@@ -665,3 +665,116 @@ describe('useFilterModel — AG-Grid wiring', () => {
     expect(fake.setFilterModelCalls.some((m) => m && Object.keys(m).length === 2)).toBe(true);
   });
 });
+
+/**
+ * The pill-badge RPC storm, counted.
+ *
+ * Under a port that cannot address unloaded rows there are no scan-built
+ * match sets, so before this every `RowChange` fell through to a full
+ * recompute: one worker round trip per pill per emit, at streaming tick
+ * rates. Giving the server-side row model a real delta source is only half
+ * the fix — a delta with nothing to compare against still cannot patch a
+ * total. The other half is that the membership FILLS from the deltas: the
+ * first tick to touch a row establishes it and pays one recompute, and every
+ * later tick on that row is answered without leaving the client.
+ *
+ * These assert call counts rather than describing the behaviour, because the
+ * failure mode is invisible in the UI — the badges are correct either way,
+ * and only the worker sees the cost.
+ */
+describe('useFilterModel — pill counts on a server-side tick', () => {
+  /** The worker plane, counting every round trip a badge costs. */
+  function countingSource() {
+    let rpcs = 0;
+    return {
+      rpcs: () => rpcs,
+      source: {
+        getRows: async () => { rpcs += 1; return { rowData: [], rowCount: 7 }; },
+        getSetFilterValues: async () => [],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    };
+  }
+
+  const PILLS: SavedFilter[] = [
+    { id: 'a', label: 'A', active: false, filterModel: { side: { filterType: 'text', type: 'equals', filter: 'BUY' } } },
+    { id: 'b', label: 'B', active: false, filterModel: { side: { filterType: 'text', type: 'equals', filter: 'SELL' } } },
+  ];
+
+  /** The bus coalesces on a 0ms timer, so an emit needs a real macrotask. */
+  async function settleTick(): Promise<void> {
+    await act(async () => {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+    });
+  }
+
+  /** What the tick binding does with `applyServerSideTransaction`'s result. */
+  const tick = (platform: GridPlatform, id: string, px: number) =>
+    platform.rows.transactionApplied({
+      update: [{ id, data: { id, side: 'BUY', px } }] as never,
+    });
+
+  async function mounted() {
+    const platform = makePlatform();
+    const plane = countingSource();
+    platform.data.bindSsrm({ source: plane.source, keyColumn: 'id' });
+    seedFilters(platform, PILLS);
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    await settleCounts();
+    return { platform, plane, fake };
+  }
+
+  it('costs one recompute per row ever seen, not one per pill per tick', async () => {
+    const { platform, plane } = await mounted();
+    const warmup = plane.rpcs();
+    expect(warmup).toBe(PILLS.length); // the cold count: one per pill
+
+    for (let i = 0; i < 10; i++) {
+      tick(platform, 'r1', i);
+      await settleTick();
+    }
+
+    // The first tick establishes r1 and pays one recompute (one round trip
+    // per pill). The nine after it are answered from the membership, without
+    // touching the worker at all. Before this, ten ticks cost twenty.
+    expect(plane.rpcs()).toBe(warmup + PILLS.length);
+    platform.destroy();
+  });
+
+  it('pays again for each NEW row, and never again for that row', async () => {
+    const { platform, plane } = await mounted();
+    const warmup = plane.rpcs();
+
+    for (const id of ['r1', 'r2', 'r3']) {
+      tick(platform, id, 1);
+      await settleTick();
+    }
+    const afterFirstPass = plane.rpcs();
+    expect(afterFirstPass).toBe(warmup + 3 * PILLS.length);
+
+    // The viewport of a live blotter ticks the same rows over and over, which
+    // is why the cost decays to nothing rather than merely being deferred.
+    for (let i = 0; i < 12; i++) {
+      tick(platform, ['r1', 'r2', 'r3'][i % 3], i);
+      await settleTick();
+    }
+    expect(plane.rpcs()).toBe(afterFirstPass);
+    platform.destroy();
+  });
+
+  it('still recomputes in full on a structural change', async () => {
+    const { platform, plane, fake } = await mounted();
+    const warmup = plane.rpcs();
+
+    // A sort or filter has no per-row delta to patch from, and a block
+    // refetch replaces rows this grid never watched change.
+    fake.fireEvent('sortChanged');
+    await settleTick();
+
+    expect(plane.rpcs()).toBe(warmup + PILLS.length);
+    platform.destroy();
+  });
+});

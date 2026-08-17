@@ -21,15 +21,26 @@
  *    `forEachNode` walk the hook has always made, and what the incremental
  *    delta path in `useFilterCounts` patches on a streaming tick.
  *  - When it is not, a match set would describe the loaded window rather than
- *    the dataset, so this asks for `count` per pill instead and leaves the
- *    match sets empty. A `scan` there would page the entire dataset across
- *    `postMessage` on every recompute, which is far worse than the RPC it
- *    replaces.
+ *    the dataset, so this asks for `count` per pill instead. A `scan` there
+ *    would page the entire dataset across `postMessage` on every recompute,
+ *    which is far worse than the RPC it replaces.
  *
- * Where the match sets come back empty, every row change falls back to a full
- * recompute — one RPC per pill per emit. That is the storm Phase 5 of the
- * parity roadmap closes, by giving `RowChangeSignal` a real server-side delta
- * source; it is not closed here, and this comment is the hand-off.
+ * BOTH SHAPES PATCH FROM A DELTA, and the difference between them is one
+ * question: for the row that just changed, was its PRIOR membership known?
+ *
+ * That is all a patch needs. The badge counts the whole dataset; a changed row
+ * is one row OF that dataset; if its membership flipped, the total moved by
+ * exactly one — whether or not anything is known about the other 99,999 rows.
+ * So {@link PillMembership} carries `evaluated`: the ids whose membership has
+ * been established. A scan that covered the dataset sets it to `null`, meaning
+ * "all of them" — absence from a pill's set is then a fact, not a gap. A
+ * per-pill `count` establishes no row at all, so it starts empty and FILLS
+ * from the deltas themselves. The first tick to touch a row records it and
+ * asks for a recompute (its prior state is genuinely unknown, and guessing
+ * would drift the badge one row at a time); every later tick on that row is
+ * patched with no RPC at all. On a live blotter the same viewport rows tick
+ * over and over, so the cost decays to nothing after the first pass instead of
+ * being one RPC per pill per emit forever.
  *
  * A pill whose model the shared predicate cannot evaluate OVER-includes and
  * warns once, rather than reading zero. `bindSsrmTicks` set that precedent for
@@ -49,62 +60,118 @@ export interface CountableFilter {
   readonly filterModel: Record<string, unknown>;
 }
 
-export interface FilterPillCounts {
-  readonly counts: Record<string, number>;
-  /** Row ids matching each pill, empty when the port cannot address the whole
-   *  dataset by id. An empty map means "recompute in full next time". */
-  readonly matchSets: Map<string, Set<string>>;
+/**
+ * What is known about which rows each pill matches — the state a delta patches
+ * counts against.
+ *
+ * Mutated in place across ticks: it IS the accumulated membership, not a
+ * snapshot of one pass.
+ */
+export interface PillMembership {
+  /** Row ids known to match each pill, keyed by pill id. */
+  readonly sets: Map<string, Set<string>>;
+  /**
+   * Row ids whose membership has been established. `null` means every row
+   * has — the walk covered the dataset — so a row absent from a pill's set is
+   * known NOT to match it. A non-null set is the rows seen so far; a row
+   * outside it may or may not already be in the source's total, and no delta
+   * can say which.
+   */
+  readonly evaluated: Set<string> | null;
 }
 
-/** Every pill counted against the whole dataset, through the port. */
+export interface FilterPillCounts {
+  readonly counts: Record<string, number>;
+  readonly membership: PillMembership;
+}
+
+/** The outcome of patching counts from one delta. */
+export interface PillCountPatch {
+  /** The patched counts, or `null` when nothing publishable came of it —
+   *  either no pill's membership moved, or the delta could not be resolved. */
+  readonly counts: Record<string, number> | null;
+  /** A changed row's PRIOR membership was unknown, so the total cannot be
+   *  moved by hand. The caller recomputes; the membership recorded here makes
+   *  the NEXT delta on those rows patchable. */
+  readonly unresolved: boolean;
+}
+
+/** Membership with a slot per pill and nothing established about any row. */
+export function emptyPillMembership(
+  filters: readonly CountableFilter[],
+): PillMembership {
+  const sets = new Map<string, Set<string>>();
+  for (const f of filters) sets.set(f.id, new Set());
+  return { sets, evaluated: new Set() };
+}
+
+/**
+ * Every pill counted against the whole dataset, through the port.
+ *
+ * `prior` is the membership accumulated from earlier deltas. The counting
+ * path carries it forward — those rows' memberships are current row state and
+ * a fresh count does not invalidate them, while discarding them would send
+ * every subsequent tick back through a full recompute and the storm would
+ * never end. The scanning path replaces it: a walk of the dataset is
+ * authoritative about every row, which is strictly more than `prior` knows.
+ */
 export async function computeFilterPillCounts(
   data: GridDataPort,
   filters: readonly CountableFilter[],
+  prior?: PillMembership,
 ): Promise<FilterPillCounts> {
-  if (filters.length === 0) return { counts: {}, matchSets: new Map() };
+  if (filters.length === 0) {
+    return { counts: {}, membership: emptyPillMembership(filters) };
+  }
   return data.capabilities.canAddressUnloadedRows.supported
     ? countByScan(data, filters)
-    : countByPort(data, filters);
+    : countByPort(data, filters, prior);
 }
 
 /**
  * Patch counts from a row-change delta instead of recounting the dataset.
  *
- * `matchSets` is mutated in place — it is the membership this delta is
- * relative to, and the caller holds it across ticks for exactly that reason.
- * Returns the new counts, or `null` when no pill's membership moved (the
- * common case on a tick that touched columns nobody filters on).
- *
- * Only reachable when {@link computeFilterPillCounts} produced match sets; a
- * caller with none must recompute in full.
+ * `membership` is mutated in place — it is what this delta is relative to, and
+ * the caller holds it across ticks for exactly that reason. Every changed row
+ * is recorded whether or not it could be patched, because its CURRENT
+ * membership is knowable either way and that is what the next delta needs.
  */
 export function patchPillCounts(
   change: RowChange,
   filters: readonly CountableFilter[],
-  matchSets: Map<string, Set<string>>,
+  membership: PillMembership,
   counts: Readonly<Record<string, number>>,
-): Record<string, number> | null {
+): PillCountPatch {
   const next = { ...counts };
+  const { sets, evaluated } = membership;
   let changed = false;
+  let unresolved = false;
 
   const touchNode = (node: IRowNode, removed: boolean): void => {
     const rowId = node.id;
     if (typeof rowId !== 'string') return;
     const data = node.data as Record<string, unknown> | undefined;
+    // `evaluated === null` is "the walk covered the dataset": every row's
+    // membership is established, so absence from a set means "does not match".
+    const knownBefore = evaluated === null || evaluated.has(rowId);
     for (const f of filters) {
-      const set = matchSets.get(f.id);
-      if (!set) continue;
+      const set = sets.get(f.id);
+      if (!set) { unresolved = true; continue; }
       const was = set.has(rowId);
       const now = !removed && !!data && rowMatchesPill(data, f, warnPillRefusalOnce);
+      if (now) set.add(rowId);
+      else set.delete(rowId);
+      if (!knownBefore) { unresolved = true; continue; }
       if (was === now) continue;
+      // A pill the port could not answer holds no number. Inventing one from
+      // zero and moving it by one would put a made-up total on the badge.
+      if (!(f.id in next)) { unresolved = true; continue; }
       changed = true;
-      if (now) {
-        set.add(rowId);
-        next[f.id] = (next[f.id] ?? 0) + 1;
-      } else {
-        set.delete(rowId);
-        next[f.id] = Math.max(0, (next[f.id] ?? 0) - 1);
-      }
+      next[f.id] = Math.max(0, next[f.id] + (now ? 1 : -1));
+    }
+    if (evaluated) {
+      if (removed) evaluated.delete(rowId);
+      else evaluated.add(rowId);
     }
   };
 
@@ -112,7 +179,9 @@ export function patchPillCounts(
   for (const node of change.added) touchNode(node, false);
   for (const node of change.updated) touchNode(node, false);
 
-  return changed ? next : null;
+  // A partly-resolved delta publishes nothing: half a patch on top of a total
+  // the rest of the delta also moved is a number that was never true.
+  return { counts: unresolved || !changed ? null : next, unresolved };
 }
 
 /**
@@ -156,28 +225,32 @@ async function countByScan(
   filters: readonly CountableFilter[],
 ): Promise<FilterPillCounts> {
   const counts: Record<string, number> = {};
-  const matchSets = new Map<string, Set<string>>();
+  const sets = new Map<string, Set<string>>();
   for (const f of filters) {
     counts[f.id] = 0;
-    matchSets.set(f.id, new Set());
+    sets.set(f.id, new Set());
   }
   const result = await data.scan((row) => {
     if (!row.id) return;
     for (const f of filters) {
       if (!rowMatchesPill(row.data, f, warnPillRefusalOnce)) continue;
-      matchSets.get(f.id)!.add(row.id);
+      sets.get(f.id)!.add(row.id);
       counts[f.id] += 1;
     }
   }, { scope: 'all' });
   // A scan that could not cover the dataset leaves counts that describe a
-  // fraction of it. Reporting no match sets sends the next change through a
-  // full recompute rather than patching numbers built from a partial walk.
-  return result.complete ? { counts, matchSets } : { counts, matchSets: new Map() };
+  // fraction of it, and a membership that claims rows it never reached do not
+  // match. Reporting nothing established sends the next change through a full
+  // recompute rather than patching numbers built from a partial walk.
+  return result.complete
+    ? { counts, membership: { sets, evaluated: null } }
+    : { counts, membership: emptyPillMembership(filters) };
 }
 
 async function countByPort(
   data: GridDataPort,
   filters: readonly CountableFilter[],
+  prior: PillMembership | undefined,
 ): Promise<FilterPillCounts> {
   const entries = await Promise.all(
     filters.map(async (f) => {
@@ -191,5 +264,26 @@ async function countByPort(
   for (const [id, count] of entries) {
     if (count != null) counts[id] = count;
   }
-  return { counts, matchSets: new Map() };
+  return { counts, membership: carryForward(prior, filters) };
+}
+
+/**
+ * Keep what earlier deltas established, provided it still describes THIS pill
+ * list. A pill added since has no recorded membership even for rows already
+ * seen, so the whole thing starts again rather than patching one pill from
+ * another pill's observations.
+ */
+function carryForward(
+  prior: PillMembership | undefined,
+  filters: readonly CountableFilter[],
+): PillMembership {
+  if (
+    prior
+    && prior.evaluated !== null
+    && prior.sets.size === filters.length
+    && filters.every((f) => prior.sets.has(f.id))
+  ) {
+    return prior;
+  }
+  return emptyPillMembership(filters);
 }

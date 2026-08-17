@@ -17,6 +17,7 @@ import {
 } from '@wellsfargo-starui/core';
 import {
   computeFilterPillCounts,
+  emptyPillMembership,
   patchPillCounts,
   rowMatchesPill,
   type CountableFilter,
@@ -99,22 +100,40 @@ describe('computeFilterPillCounts', () => {
     expect(windowed.queries).toEqual([{ scope: 'all', filterModel: BUY.filterModel }]);
   });
 
-  it('builds match sets only where row ids span the dataset', async () => {
+  it('a scan establishes every row; a per-pill count establishes none', async () => {
     const viaScan = await computeFilterPillCounts(addressableFake().port, [BUY]);
-    expect([...viaScan.matchSets.get('buy')!]).toEqual(['r1', 'r3']);
+    expect([...viaScan.membership.sets.get('buy')!]).toEqual(['r1', 'r3']);
+    // `null` is "all of them" — absence from the set is then a fact.
+    expect(viaScan.membership.evaluated).toBeNull();
 
-    // Empty by design, not by accident: under a windowed port a set of loaded
-    // row ids would describe the window. Phase 5 of the parity roadmap gives
-    // this path a real delta source.
+    // A count answers about the dataset without naming a row, so nothing is
+    // established and the delta path fills it in as ticks arrive.
     const viaCount = await computeFilterPillCounts(windowedFake().port, [BUY]);
-    expect(viaCount.matchSets.size).toBe(0);
+    expect(viaCount.membership.evaluated).toEqual(new Set());
+    expect(viaCount.membership.sets.get('buy')).toEqual(new Set());
   });
 
-  it('drops match sets when the scan could not cover the dataset', async () => {
-    // Counts built from a partial walk must not be patched incrementally —
-    // an empty map sends the next change through a full recompute.
+  it('establishes nothing when the scan could not cover the dataset', async () => {
+    // Counts built from a partial walk must not be patched as if the rows it
+    // never reached were known not to match.
     const partial = await computeFilterPillCounts(addressableFake({ complete: false }).port, [BUY]);
-    expect(partial.matchSets.size).toBe(0);
+    expect(partial.membership.evaluated).toEqual(new Set());
+  });
+
+  it('carries membership forward across a recount, and drops it when the pills change', async () => {
+    // Discarding what earlier ticks established would send every subsequent
+    // tick back through a full recompute — the storm would never end.
+    const established = emptyPillMembership([BUY]);
+    established.evaluated!.add('r1');
+    established.sets.get('buy')!.add('r1');
+
+    const same = await computeFilterPillCounts(windowedFake().port, [BUY], established);
+    expect(same.membership).toBe(established);
+
+    // A pill added since has no membership even for rows already seen.
+    const widened = await computeFilterPillCounts(windowedFake().port, [BUY, EMPTY_SET], established);
+    expect(widened.membership).not.toBe(established);
+    expect(widened.membership.evaluated).toEqual(new Set());
   });
 
   it('keeps no number for a pill the port could not answer', async () => {
@@ -127,7 +146,7 @@ describe('computeFilterPillCounts', () => {
     const fake = addressableFake();
     await expect(computeFilterPillCounts(fake.port, [])).resolves.toEqual({
       counts: {},
-      matchSets: new Map(),
+      membership: { sets: new Map(), evaluated: new Set() },
     });
     expect(fake.queries).toEqual([]);
   });
@@ -149,52 +168,124 @@ describe('patchPillCounts', () => {
   const change = (parts: Partial<RowChange>): RowChange =>
     ({ full: false, added: [], updated: [], removed: [], ...parts }) as RowChange;
 
-  /** The membership a full recompute produced, which a delta is relative to. */
-  const seeded = async () => (await computeFilterPillCounts(addressableFake().port, [BUY])).matchSets;
+  /** The membership a scan produced: every row established. */
+  const scanned = async () =>
+    (await computeFilterPillCounts(addressableFake().port, [BUY])).membership;
+
+  /** The membership a per-pill count produced: no row established. */
+  const counted = async () =>
+    (await computeFilterPillCounts(windowedFake().port, [BUY])).membership;
 
   it('adds a row that entered the filter and removes one that left', async () => {
-    const matchSets = await seeded();
+    const membership = await scanned();
     const entered = patchPillCounts(
       change({ updated: [node('r2', { side: 'BUY' })] }),
       [BUY],
-      matchSets,
+      membership,
       { buy: 2 },
     );
-    expect(entered).toEqual({ buy: 3 });
-    expect(matchSets.get('buy')!.has('r2')).toBe(true);
+    expect(entered).toEqual({ counts: { buy: 3 }, unresolved: false });
+    expect(membership.sets.get('buy')!.has('r2')).toBe(true);
 
     const left = patchPillCounts(
       change({ updated: [node('r1', { side: 'SELL' })] }),
       [BUY],
-      matchSets,
-      entered!,
+      membership,
+      entered.counts!,
     );
-    expect(left).toEqual({ buy: 2 });
-    expect(matchSets.get('buy')!.has('r1')).toBe(false);
+    expect(left).toEqual({ counts: { buy: 2 }, unresolved: false });
+    expect(membership.sets.get('buy')!.has('r1')).toBe(false);
   });
 
-  it('returns null when no pill membership moved', async () => {
+  it('publishes nothing when no pill membership moved', async () => {
     // The common case on a tick touching columns nobody filters on — the hook
-    // publishes nothing and React does not re-render.
-    const matchSets = await seeded();
+    // publishes nothing, asks for nothing, and React does not re-render.
+    const membership = await scanned();
     expect(
-      patchPillCounts(change({ updated: [node('r1', { side: 'BUY', px: 99 })] }), [BUY], matchSets, {
+      patchPillCounts(change({ updated: [node('r1', { side: 'BUY', px: 99 })] }), [BUY], membership, {
         buy: 2,
       }),
-    ).toBeNull();
+    ).toEqual({ counts: null, unresolved: false });
   });
 
   it('drops a removed row from the count', async () => {
-    const matchSets = await seeded();
+    const membership = await scanned();
     expect(
-      patchPillCounts(change({ removed: [node('r1', { side: 'BUY' })] }), [BUY], matchSets, { buy: 2 }),
-    ).toEqual({ buy: 1 });
+      patchPillCounts(change({ removed: [node('r1', { side: 'BUY' })] }), [BUY], membership, { buy: 2 }),
+    ).toEqual({ counts: { buy: 1 }, unresolved: false });
   });
 
   it('never lets a count go negative', async () => {
-    const matchSets = await seeded();
+    const membership = await scanned();
     expect(
-      patchPillCounts(change({ removed: [node('r1', undefined)] }), [BUY], matchSets, { buy: 0 }),
-    ).toEqual({ buy: 0 });
+      patchPillCounts(change({ removed: [node('r1', undefined)] }), [BUY], membership, { buy: 0 }),
+    ).toEqual({ counts: { buy: 0 }, unresolved: false });
+  });
+
+  // ─── Rows whose prior membership was never established ──────────────────
+  //
+  // The badge counts the whole dataset and a changed row is one row OF it, so
+  // a flip moves the total by exactly one — no matter what is unknown about
+  // every other row. The one thing a patch cannot do without is the row's own
+  // prior state.
+
+  it('asks for a recompute the FIRST time it sees a row, and patches ever after', async () => {
+    const membership = await counted();
+
+    const first = patchPillCounts(
+      change({ updated: [node('r1', { side: 'BUY' })] }),
+      [BUY],
+      membership,
+      { buy: 2 },
+    );
+    // Prior state unknown: r1 may already be in the source's 2, or not.
+    // Guessing either way drifts the badge one row at a time.
+    expect(first).toEqual({ counts: null, unresolved: true });
+    // …but it is established NOW, which is what makes the next tick free.
+    expect(membership.evaluated).toEqual(new Set(['r1']));
+    expect(membership.sets.get('buy')).toEqual(new Set(['r1']));
+
+    const second = patchPillCounts(
+      change({ updated: [node('r1', { side: 'SELL' })] }),
+      [BUY],
+      membership,
+      { buy: 2 },
+    );
+    expect(second).toEqual({ counts: { buy: 1 }, unresolved: false });
+  });
+
+  it('publishes nothing from a partly-resolved delta', async () => {
+    // Half a patch on top of a total the rest of the delta also moved is a
+    // number that was never true.
+    const membership = await counted();
+    membership.evaluated!.add('r1');
+    membership.sets.get('buy')!.add('r1');
+
+    const patch = patchPillCounts(
+      change({ updated: [node('r1', { side: 'SELL' }), node('r9', { side: 'BUY' })] }),
+      [BUY],
+      membership,
+      { buy: 2 },
+    );
+    expect(patch).toEqual({ counts: null, unresolved: true });
+    // Both rows are established, so the delta that follows resolves cleanly.
+    expect(membership.evaluated).toEqual(new Set(['r1', 'r9']));
+  });
+
+  it('does not invent a number for a pill the port could not answer', async () => {
+    // `complete: false` leaves the pill with no count at all. Moving a total
+    // that does not exist would put a made-up figure on the badge.
+    const membership = (
+      await computeFilterPillCounts(windowedFake({ complete: false }).port, [BUY])
+    ).membership;
+    membership.evaluated!.add('r2');
+
+    const patch = patchPillCounts(
+      change({ updated: [node('r2', { side: 'BUY' })] }),
+      [BUY],
+      membership,
+      {},
+    );
+    expect(patch).toEqual({ counts: null, unresolved: true });
   });
 });
