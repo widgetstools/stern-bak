@@ -1,6 +1,12 @@
 import { getPathAccessor } from "@wellsfargo-starui/types";
-import { aggregateRows, resolveAggFunc, type AggSpec } from "./aggregations.js";
+import { resolveAggFunc } from "./aggregations.js";
 import { ExpressionRuleStore, type AggregateScope } from "./expressionRules.js";
+import {
+  aggregateValueCols,
+  collectPivotResultFields,
+  pivotAggregate,
+} from "./queryAggregation.js";
+import { sortGroupRows, sortRows } from "./querySort.js";
 import {
   buildQuickFilterText,
   parseQuickFilter,
@@ -26,7 +32,6 @@ import type {
 } from "./types.js";
 import {
   assertFilterModelSupported,
-  compareValues,
   doesRowMatchFilterModel,
   ExpressionEngine,
 } from "@wellsfargo-starui/core";
@@ -53,14 +58,6 @@ export interface QueryEngineOptions {
 export const DEFAULT_ORDER_CACHE_SIZE = 24;
 
 /**
- * AG Grid's auto group column. A sort on the group column arrives under this
- * id — never under the grouped field's own — so group rows would otherwise
- * see a sort naming a column they do not carry and fall back to insertion
- * order, ignoring the direction the user asked for.
- */
-const AUTO_GROUP_COLUMN_ID = "ag-Grid-AutoColumn";
-
-/**
  * A materialised query order, valid only for the store revision it was built
  * from. Any ingest (snapshot, tick, removal) bumps the revision and strands
  * every entry, which is what keeps the cache from ever serving stale rows.
@@ -68,12 +65,6 @@ const AUTO_GROUP_COLUMN_ID = "ag-Grid-AutoColumn";
 interface CachedEntry {
   revision: number;
   value: unknown;
-}
-
-/** A sort entry with its field accessor resolved once, not per comparison. */
-interface SortEntry {
-  read: (row: unknown) => unknown;
-  sort: "asc" | "desc";
 }
 
 /**
@@ -318,7 +309,7 @@ export class QueryEngine {
             request.valueCols ?? null,
             sep,
           ], sessionKey),
-          () => this.collectPivotResultFields(filtered, pivotCols, request, sep),
+          () => collectPivotResultFields(filtered, pivotCols, request.valueCols, sep),
         )
       : undefined;
 
@@ -333,8 +324,8 @@ export class QueryEngine {
             ], sessionKey),
             () =>
               pivoting
-                ? this.pivotAggregate(filtered, pivotCols, request, sep)
-                : this.valueAgg(filtered, request),
+                ? pivotAggregate(filtered, pivotCols, request.valueCols, sep)
+                : aggregateValueCols(filtered, request.valueCols),
           )
         : undefined;
 
@@ -348,14 +339,33 @@ export class QueryEngine {
       };
     }
 
-    // Intermediate group level
-    const groupCol = groupCols[groupKeys.length]!;
-    const field = groupCol.field;
+    const group = this.groupBlock(filtered, request, groupCols, groupKeys, sessionId);
+    return { ...group, grandTotalData, pivotResultFields };
+  }
+
+  /**
+   * One block of an intermediate group level: bucket the scoped rows by the
+   * level's field, aggregate each bucket into a group row, sort, then page.
+   *
+   * Bucketing + per-group aggregation + sort is the expensive part and is
+   * window-independent, so every block of one query reuses a single ordered
+   * array — the cache key carries the aggregation inputs because they change
+   * the group rows themselves.
+   */
+  private groupBlock(
+    filtered: Row[],
+    request: SsrmGetRowsRequest,
+    groupCols: NonNullable<SsrmGetRowsRequest["rowGroupCols"]>,
+    groupKeys: string[],
+    sessionId?: string,
+  ): SsrmGetRowsResult {
+    const field = groupCols[groupKeys.length]!.field;
+    const pivotCols = request.pivotCols ?? [];
+    const pivoting = Boolean(request.pivotMode) || pivotCols.length > 0;
+    const sep = request.pivotResultFieldSeparator ?? "_";
+    const sessionKey = this.overlay.stateFor(sessionId)?.identity ?? "";
     const scoped = this.scopeToGroupPath(filtered, groupCols, groupKeys);
 
-    // Bucketing + per-group aggregation + sort is the expensive part and is
-    // window-independent; the key carries the aggregation inputs because they
-    // change the group rows themselves.
     const groups = this.cachedOrder(
       QueryEngine.queryKey(request, "groups", [
         field,
@@ -377,36 +387,29 @@ export class QueryEngine {
           list.push(row);
         }
 
-        const built = [...buckets.entries()].map(([key, rows]) => {
-          const agg = pivoting
-            ? this.pivotAggregate(rows, pivotCols, request, sep)
-            : this.valueAgg(rows, request);
-          return {
-            ...agg,
-            [field]: key,
-            __ssrmGroupKey: key,
-            // Distinct child groups at next level, or leaf count when next is leaf.
-            __ssrmChildCount: this.childCountForGroup(
-              rows,
-              groupCols,
-              groupKeys.length + 1,
-            ),
-          } as Row;
-        });
+        const built = [...buckets.entries()].map(([key, rows]) => ({
+          ...(pivoting
+            ? pivotAggregate(rows, pivotCols, request.valueCols, sep)
+            : aggregateValueCols(rows, request.valueCols)),
+          [field]: key,
+          __ssrmGroupKey: key,
+          // Distinct child groups at next level, or leaf count when next is leaf.
+          __ssrmChildCount: this.childCountForGroup(
+            rows,
+            groupCols,
+            groupKeys.length + 1,
+          ),
+        }) as Row);
 
-        return this.sortGroupRows(built, request.sortModel, field);
+        return sortGroupRows(built, request.sortModel, field);
       },
     );
 
     const start = request.startRow ?? 0;
     const end = request.endRow ?? groups.length;
-    const slice = groups.slice(start, end).map((g) => this.enrich(g, sessionId));
-
     return {
-      rowData: slice,
+      rowData: groups.slice(start, end).map((g) => this.enrich(g, sessionId)),
       rowCount: groups.length,
-      grandTotalData,
-      pivotResultFields,
     };
   }
 
@@ -450,7 +453,7 @@ export class QueryEngine {
   ): Row {
     QueryEngine.assertSupported(request);
     const filtered = this.collectFilteredCached(request);
-    return this.valueAgg(filtered, request);
+    return aggregateValueCols(filtered, request.valueCols);
   }
 
   /**
@@ -517,7 +520,7 @@ export class QueryEngine {
       nodes = index.childrenOf.get(parentKey) ?? [];
     }
 
-    nodes = this.sortRows(nodes, request.sortModel, keyField);
+    nodes = sortRows(nodes, request.sortModel, keyField);
 
     const readKey = getPathAccessor(keyField);
     const start = request.startRow ?? 0;
@@ -539,7 +542,7 @@ export class QueryEngine {
 
     const grandTotalData =
       groupKeys.length === 0 && (request.valueCols?.length ?? 0) > 0
-        ? this.valueAgg(filtered, request)
+        ? aggregateValueCols(filtered, request.valueCols)
         : undefined;
 
     return {
@@ -673,7 +676,7 @@ export class QueryEngine {
     const rows = this.cachedOrder(
       QueryEngine.queryKey(request, "leaf", null, sessionKey),
       () =>
-        this.sortRows(
+        sortRows(
           this.scopeToGroupPath(filtered, groupCols, groupKeys),
           request.sortModel,
         ),
@@ -685,7 +688,7 @@ export class QueryEngine {
       (request.valueCols?.length ?? 0) > 0
         ? this.memo(
             QueryEngine.queryKey(request, "leafAgg", request.valueCols ?? null, sessionKey),
-            () => this.valueAgg(rows, request),
+            () => aggregateValueCols(rows, request.valueCols),
           )
         : undefined;
     return {
@@ -709,139 +712,6 @@ export class QueryEngine {
     const keys = new Set<string>();
     for (const row of rows) keys.add(String(read(row) ?? ""));
     return keys.size;
-  }
-
-  private pivotKey(
-    row: Row,
-    readers: Array<(row: unknown) => unknown>,
-    sep: string,
-  ): string {
-    return readers.map((read) => String(read(row) ?? "")).join(sep);
-  }
-
-  private collectPivotResultFields(
-    rows: Row[],
-    pivotCols: NonNullable<SsrmGetRowsRequest["pivotCols"]>,
-    request: Pick<SsrmGetRowsRequest, "valueCols">,
-    sep: string,
-  ): string[] {
-    if (!pivotCols.length || !(request.valueCols?.length ?? 0)) return [];
-    const readers = pivotCols.map((c) => getPathAccessor(c.field));
-    const keys = new Set<string>();
-    for (const row of rows) keys.add(this.pivotKey(row, readers, sep));
-    const fields: string[] = [];
-    const sortedKeys = [...keys].sort((a, b) => a.localeCompare(b));
-    for (const pk of sortedKeys) {
-      for (const vc of request.valueCols ?? []) {
-        if (!vc.field) continue;
-        fields.push(`${pk}${sep}${vc.field}`);
-      }
-    }
-    return fields;
-  }
-
-  /** Aggregate rows into pivoted secondary fields (`{pivotKey}_{field}`). */
-  private pivotAggregate(
-    rows: Row[],
-    pivotCols: NonNullable<SsrmGetRowsRequest["pivotCols"]>,
-    request: Pick<SsrmGetRowsRequest, "valueCols">,
-    sep: string,
-  ): Row {
-    if (!pivotCols.length) return this.valueAgg(rows, request);
-    const readers = pivotCols.map((c) => getPathAccessor(c.field));
-    const buckets = new Map<string, Row[]>();
-    for (const row of rows) {
-      const key = this.pivotKey(row, readers, sep);
-      let list = buckets.get(key);
-      if (!list) {
-        list = [];
-        buckets.set(key, list);
-      }
-      list.push(row);
-    }
-    const out: Row = {};
-    for (const [pk, bucket] of buckets) {
-      const agg = this.valueAgg(bucket, request);
-      for (const [field, value] of Object.entries(agg)) {
-        out[`${pk}${sep}${field}`] = value;
-      }
-    }
-    return out;
-  }
-
-  private valueAgg(
-    rows: Row[],
-    request: Pick<SsrmGetRowsRequest, "valueCols">,
-  ): Row {
-    const specs: AggSpec[] = (request.valueCols ?? [])
-      .filter((v) => v.field)
-      .map((v) => ({
-        field: v.field,
-        aggFunc: resolveAggFunc(v.aggFunc),
-      }));
-    if (specs.length === 0) return {};
-    return aggregateRows(rows, specs);
-  }
-
-  /**
-   * Order group rows.
-   *
-   * A group row carries the group field, its aggregated value columns and the
-   * `__ssrm*` internals — nothing else. Sorting it by the LEAF sort model
-   * read `undefined` on both sides for every other column, so the comparator
-   * returned 0 and the block came back in `Map` first-seen order: the same
-   * query, ordered by whichever rows happened to arrive first.
-   *
-   * So only the sort entries the group rows can actually answer are applied,
-   * with the group key as the tie-break — and a sort on the auto group column
-   * is redirected to the field it stands for, which is how AG Grid reports a
-   * click on the group column header.
-   */
-  private sortGroupRows(
-    rows: Row[],
-    sortModel: SsrmGetRowsRequest["sortModel"],
-    groupField: string,
-  ): Row[] {
-    const carried = new Set<string>();
-    for (const row of rows) {
-      for (const key of Object.keys(row)) carried.add(key);
-    }
-    const applicable = (sortModel ?? [])
-      .map((s) =>
-        s.colId === AUTO_GROUP_COLUMN_ID ? { ...s, colId: groupField } : s,
-      )
-      .filter((s) => carried.has(s.colId));
-    return this.sortRows(rows, applicable, groupField);
-  }
-
-  /**
-   * Sort by the model's entries, falling back to (and tie-breaking on)
-   * `fallbackField` so the order is total — two rows that tie on every sorted
-   * column keep a stable position across blocks of the same query.
-   */
-  private sortRows(
-    rows: Row[],
-    sortModel: SsrmGetRowsRequest["sortModel"],
-    fallbackField?: string,
-  ): Row[] {
-    const entries: SortEntry[] = (sortModel ?? []).map((s) => ({
-      read: getPathAccessor(s.colId),
-      sort: s.sort,
-    }));
-    const fallback = fallbackField ? getPathAccessor(fallbackField) : null;
-    if (entries.length === 0) {
-      if (!fallback) return rows;
-      return [...rows].sort((a, b) =>
-        compareValues(fallback(a), fallback(b), "asc"),
-      );
-    }
-    return [...rows].sort((a, b) => {
-      for (const entry of entries) {
-        const c = compareValues(entry.read(a), entry.read(b), entry.sort);
-        if (c !== 0) return c;
-      }
-      return fallback ? compareValues(fallback(a), fallback(b), "asc") : 0;
-    });
   }
 
   /**
