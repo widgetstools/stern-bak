@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 7 / 11 phases done (Phases 0–6).**
+**Branch:** `feature/simplify`. **Status: 8 / 11 phases done (Phases 0–7).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -1308,7 +1308,7 @@ Six decisions the later phases inherit:
 
 ---
 
-## Phase 7 — container prop and host surface parity ⬜
+## Phase 7 — container prop and host surface parity ✅
 
 **Goal:** `SsrmMarketsGridContainer` accepts the host surface
 `MarketsGridContainer` accepts.
@@ -1357,6 +1357,272 @@ after Phase 0. Sequenced here because correctness outranks surface area.
   `docs/current-features.md`.
 
 **Closes:** T3-2, T3-3, T3-8, T3-9, T3-10, T3-11, T3-13.
+
+### What landed
+
+Shared container machinery, `widgets-react/src/container/markets-grid-container/`
+(the folder `useGridLevelPersistence` / `buildColumnDefs` / `ProviderEditorDialog`
+already established as the cross-consumed home): `mergeAdminActions.ts` (moved,
+carrying `DATA_PROVIDER_EDITOR_ACTION_ID`), `useAppDataLookup.ts`,
+`useContainerCaption.ts`, `useContainerEventWiring.ts` — all four lifted out of
+`MarketsGridContainer.tsx`, which lost 102 lines (**997 → 895**) and gained no
+behaviour. SSRM side: `useSsrmColumnResolution.ts` (new — keyColumn, declared /
+inferred column defs, block size), `SsrmMarketsGridContainer.tsx` rewritten
+(**565 → 629**), `MarketsGridSsrmSurface.tsx` (instance `modules` deleted),
+`StarGrid.tsx` (caption trio for the SSRM branch). Tests:
+`SsrmMarketsGridContainer.forwarding.test.tsx` +19 and 3 rewritten,
+`StarGrid.test.tsx` +1, `MarketsGridSsrmSurface.test.tsx` +1,
+`MarketsGrid.core-ssrm.test.tsx` +1, mocks widened in the other three SSRM
+container suites.
+
+**The measured surface.** `MarketsGridProps` has **55** members. The container
+was `Partial<Pick<…>>` over **16** names and its render forwarded **26**
+(`:514-545` at 9e5c223, not the 24 at `:513-544` the brief estimated), so **29**
+members were dropped. It is now
+`Omit<MarketsGridProps, 'ssrm' | 'rowData' | 'rowIdField' | 'columnDefs' |
+'gridLevelData' | 'onGridLevelDataLoad' | 'headerExtras' | 'gridId'>` plus
+`gridId?: string` — the CSRM container's own omit list, plus `ssrm`, plus
+`gridId`'s optionality. The remaining prop-by-prop diff is 8 members and every
+one is named in `docs/current-features.md` §388–390: `ssrm` and
+`historicalDateAppDataRef` / `defaultLiveProviderId` on the CSRM side;
+`providerId`, `inlineCfg`, `expressionSnapshot`, `showProviderEditor`,
+`showStatusStrip`, `onProviderReady` on the SSRM side — plus `gridId`'s
+optionality and `onRowIdFieldChange`'s narrower return, both explained there.
+
+**Verification.** `npx turbo typecheck build`: **exit 0.** Tests were run
+per package, serially, at `--maxWorkers=2` — see the machine note below for why
+the plain parallel command could not be trusted here. Every package green:
+types **171**, design-system **355**, data **703**, core **1295** (118 files /
+1272 in the serialised run plus the 2 files the fork pool dropped, both of
+which pass in 2.0 s standalone), openfin **483**, react **523**, grid **324
+files / 2538 passing + 1 skipped**. Total **6068 passing / 1 skipped**, against
+Phase 6's recorded 6050 / 1. ESLint over
+`container/**`, `stargrid/**`, `grid/src/widget/**`, `grid/src/events/**`:
+**0 errors, 106 warnings against a pre-phase 109** — a strict SUBSET, verified
+by diffing the two rule-and-message sets, not the totals. The three that went
+are `react-hooks/exhaustive-deps` warnings in `MarketsGridContainer.tsx` that
+the extracted hooks now declare properly; nothing was added.
+`node scripts/check-package-cycles.mjs`: the same single pre-existing cycle
+(WORKLOG 18), no new one. `npm run bench:ssrm` **was not run and is not a gate
+here** — this phase touches no hot path: it changes a container's type
+signature, its render's prop list, and deletes one grid-instance option.
+
+**E2E, with :8081 up: 8 / 8 of the meaningful specs pass.**
+`star-demo-ssrm-smoke` **3/3** — including the `.ag-grid-viewport` bounding-box
+assertion (> 200 px) that is the only guard on decision 1's `style` merge —
+`ssrm-viewport-ticks` **4/4**, and `hello-blotter` **1/1**, which is the
+StarGrid + SSRM north-star and the spec most exposed to a container
+prop-surface change. The four extra CSRM specs this phase's brief added to the
+battery — `v2-profile-lifecycle`, `v2-two-grid-isolation`, `v2-row-exclusion`
+— **were already red and cannot pass in this repo**, which is worth stating
+plainly because the brief asked for them as a no-regression check. They die in
+setup on demo-react selectors: `bootCleanDemo` → `waitForV2Grid` waits for
+`[data-grid-id="demo-blotter-v2"]` (`e2e/helpers/settingsSheet.ts:33`), and
+`v2-two-grid-isolation` waits for `[data-grid-id="dashboard-rates-v2"]`.
+**A repo-wide grep finds neither id in any app under `apps/source`** — this is
+exactly the ~34-spec breakage `apps/E2E_STATUS.md` documents as attributable to
+the app curation, and the failure happens before the spec reaches any code this
+phase touched. The 7-spec battery Phases 4–6 actually ran was
+`star-demo-ssrm-smoke` + `ssrm-viewport-ticks`; that is still green, and
+`hello-blotter` joins it.
+
+Seven decisions the later phases inherit:
+
+1. **The `Omit<>` is CSRM's list plus two, and each of the seven hardcoded
+   values was decided separately.** `ssrm` / `rowData` are architecturally
+   mode-specific — omitted. `columnDefs` / `rowIdField` are DERIVED from the
+   provider, so a host value must win or be refused; both are omitted, which
+   is a type error at the call site rather than a silent loss, and it is what
+   CSRM already does for the same reason. `caption` became T3-8's fix instead
+   of a drop. `dataStaleMessage` stays the container's, exactly as in CSRM
+   (whose derived message also overwrites a host value after its spread) —
+   `?? host` would have given SSRM a behaviour CSRM lacks. And `style`
+   **merges**: `{ ...GRID_FILL_STYLE, ...style }`, host wins per key. That is
+   the precedence `MarketsGrid`'s own root style already uses for its `style`
+   prop, so it is not a new shape; letting a host `style` REPLACE the fill
+   would have re-opened the collapsed-viewport bug that
+   `apps/e2e/star-demo-ssrm-smoke.spec.ts:52-54` is the only guard for. A unit
+   test pins both halves of the merge, and the spec ran green.
+2. **`className` and `style` changed meaning, and that fixes a mismatch rather
+   than causing one.** The container applied both to its own wrapper div while
+   `MarketsGridProps` defines them as the grid root — and `StarGrid`'s
+   `advanced?: Partial<Omit<MarketsGridProps, …>>` had always typed them as the
+   latter. They now reach the grid, as in CSRM. No in-repo consumer passes
+   either to this container.
+3. **Extracting to shared modules beat copying, and the session brief's "copy
+   to SSRM, never refactor CSRM" is about behaviour, not about where a line
+   lives.** Four pieces — the admin-action merge, the AppData adapter, the
+   caption rule, the event wiring — would otherwise have become second
+   implementations, which constraint 2 forbids outright, and the caption rule
+   in particular (`lastPropCaptionRef`, adopt-only-post-mount, `isOpenFin`
+   gate) is exactly the kind of subtlety two hand-written copies drift on. Each
+   moved body is byte-identical modulo the `setEventBindings` /
+   `setPersistedCaption` setters becoming declared deps instead of being
+   captured from an enclosing `useState` — which is what removed three lint
+   warnings. CSRM's own suites (`captionPersistence`,
+   `marketsGridContainer.admin`, `providerStaleState`, `toolbarHistoricalMode`,
+   `gridLevelSaveOnProfile`) are the regression evidence and are unchanged.
+   CSRM shrank; per the brief it must not GROW, and it did not.
+4. **The bus is created by the caller, not by `useContainerEventWiring`.** Both
+   containers emit onto it from callbacks declared long before the stale /
+   selection state the hook reads, so a bus created inside the hook would be in
+   TDZ for those callbacks' dependency arrays. The hook keeps the bridge, the
+   bindings host and the two state-derived emits (`provider:switched`,
+   `provider:dataStale`); `provider:status` stays at each call site because the
+   two containers subscribe to different streams — under SSRM it rides the raw
+   `provider.onStatus` subscription that already drove the stale banner, and
+   the selection mode is read through a ref so a mode change never
+   re-subscribes it.
+5. **`agGridModules` was one finding, not two, and the brief's first half was
+   wrong.** `ensureAgGridModules` latches on `_registered`, so the surface's
+   no-arg call at `MarketsGridSsrmSurface.tsx:144` does **not** re-register
+   over what the shell registered from the prop — it is a no-op there, and the
+   fallback for a standalone surface mount. The real defect was the single
+   `modules={[AllEnterpriseModule]}` on the `AgGridReact` instance: instance
+   modules are ADDITIVE to the global registry, so every SSRM grid got the full
+   enterprise bundle whatever `agGridModules` asked for. Deleting it — rather
+   than threading `agGridModules` through `MarketsGridHost` to the surface —
+   is what the brief's "decide what the right shape is rather than mirroring
+   something that isn't there" resolves to: `MarketsGridSurface` has no
+   instance list because the global registry is the single source, and the
+   deletion makes SSRM identical instead of giving it a second mechanism.
+   Pinned from both ends (`'modules' in props === false` at the surface,
+   `ensureAgGridModules` called with the host's list at the shell).
+6. **Nothing newly forwarded is inert, so no capability gate was added.** Every
+   one of the 29 restored members was checked against the SSRM path before the
+   spread landed: `sideBar` / `statusBar` / `rowHeight` / `headerHeight` /
+   `animateRows` / `defaultColDef` all arrive through the surface's
+   `hostOverrides`; `includeAllStreamSafeFilters` and `sizeColumnsToFitOnReady`
+   are already SSRM-aware; `historicalViewMode` / `historicalViewMessage` drive
+   MarketsGrid's own banner and edit lock, which are row-model agnostic; the
+   rest are chrome or identity. A prop that had turned out inert would have
+   wanted Phase 6's `useCapabilityGate`, not a silent no-op — that trade was
+   available and not needed.
+7. **Three deliberate divergences were PRESERVED, not levelled.** The container
+   defaults `showFiltersToolbar` / `showFormattingToolbar` / `showEditingToolbar`
+   to `true` where MarketsGrid's own defaults are `false` / `false` /
+   `undefined`; a bare `<SsrmMarketsGridContainer providerId>` renders all
+   three today and constraint 1 forbids lowering SSRM to match CSRM, so they
+   stay as explicit post-spread props a host value overrides. `userId` keeps its
+   `LOGGED_IN_USER_ID` default because the storage adapter is keyed from it and
+   a changed default would re-key every persisted SSRM profile. `gridId` keeps
+   its `providerId` fallback. The first two are new findings — the roadmap
+   never mentioned default-value divergence, only membership.
+
+### Line anchors for Phase 8 (its cited set is now stale)
+
+Phase 8 cites `SsrmMarketsGridContainer.tsx:115`, `:250-256`, `:493-507`,
+`:546-550`, `:549`. Current equivalents:
+
+| Phase 8's citation | Now |
+|---|---|
+| `:115` — status strip defaults off | `:176` (`showStatusStrip = false`) |
+| `:250-256` — clears the stale flag on recovery, never purges | `:338-347` (the raw-status subscription, which now also emits `provider:status`) |
+| `:493-507` — the status strip markup | `:575-590` |
+| `:546-550` / `:549` — the bare `Connecting…` gate | `:618-621` |
+| the render's `<MarketsGrid>` | `:596` (spread at `:597`) |
+| the provider-editor strip | `:556` |
+| `refreshView` / `reloadFromSource` | `:396` / `:407` |
+| `:379` — historical `{ asOfDate }` through restart | `:409-410` |
+
+Phase 9 cites `:319-328` (declared-def re-mapping) and `:301-305` (the
+inferred path setting `cellDataType`). **Both moved out of the container** into
+`useSsrmColumnResolution.ts`: the declared mapping is `:91-105` (`asColDefs` at
+`:95`), the inferred one `:63-89` (`cellDataType` at `:76`), `keyColumn` `:40`,
+`cacheBlockSize` `:107`. The two internally-inconsistent paths Phase 9 has to
+collapse are now adjacent in one 115-line file, which is most of why the split
+was taken here.
+
+### Phase 6's carried-over wrinkle, decided
+
+The conditional-styling INDICATOR target fell back to `'cells+headers'` when a
+rule had never named one, so on a server-side grid a freshly created rule
+opened pointed at BOTH — which Phase 6's `useHeaderPaintGate` correctly
+disables. Fixed rather than recorded a third time, and fixed at the resolution
+of the ABSENT value only: where the gate is closed the fallback is `'cells'`,
+the one half of BOTH that can do anything there. A rule that NAMES a target is
+untouched, no persisted shape changes, and CSRM is byte-identical (its gate is
+open, so the fallback stays BOTH). The runtime had already been resolving the
+same absence the same way — `transforms.ts:444` paints the cell half and the
+header pass is gated off — so this closes a UI-vs-runtime disagreement, not a
+paint bug. `FlashBand`'s equivalent default was already `'cells'` / `'row'` and
+needed nothing. Pinned by `ConditionalStylingPanel.test.tsx`.
+
+### Not closed here, deliberately
+
+- **`toolbar:dateChanged` is the one catalog event an SSRM grid still never
+  emits.** CSRM emits it from `handleToolbarDateChange`, which is the entry
+  point to its historical-date subsystem. The SSRM container forwards
+  `toolbarDate` / `onToolbarDateChange` / `toolbarDateHistoryEnabled` to the
+  grid — a host can drive the picker — but it has no handler of its own to emit
+  from, and inventing one would prejudge Phase 8's design. Phase 8 owns it and
+  should add the emit in the same change as the handler.
+- **`headerExtras` is absent from BOTH containers, and the phase text is wrong
+  to list it as a dropped prop.** CSRM omits it too, so forwarding it under
+  SSRM would have opened a divergence in the opposite direction. Named as
+  mode-neutral-and-absent in `docs/current-features.md`; adding it is a product
+  decision for both containers at once, not a parity fix.
+- **A host `appData` is still silently overridden** by the container's own
+  lookup, in both containers — CSRM has always done this (its `appData=` sits
+  after the spread) and mirroring keeps the diff empty. `appData ?? lookup`
+  would have given SSRM a behaviour CSRM lacks, which is the Phase 4 decision-1
+  shape. Worth a deliberate answer for both at once; not this phase's call.
+- **The three-toolbar default divergence** (decision 7) is recorded rather than
+  resolved. Resolving it means either changing what a bare SSRM container
+  renders or changing MarketsGrid's own defaults for every consumer; both are
+  product calls.
+
+### Corrections to this phase's own text, for the record
+
+- **The numbers were wrong in both directions, and so was one of the line
+  ranges.** 55 members (not "~20 dropped"), a 16-name `Pick` (not 14), **26**
+  forwarded props at `:514-545` (not 24 at `:513-544`), so **29** dropped.
+- **T3-13's `modules` bullet is two props but only ONE defect**, and the
+  brief's account of the second site is wrong — see decision 5.
+  `MarketsGridSsrmSurface.tsx:144`'s no-arg `ensureAgGridModules()` cannot
+  "re-register the default set over whatever `MarketsGrid.tsx:101` already
+  registered", because the function returns early on its own `_registered`
+  latch. Read the shipped implementation, not the call site.
+- **T3-8 and half of T3-9 were unused return values, exactly as the brief
+  said** — `useGridLevelPersistence` already loaded and saved both `caption`
+  and `eventBindings` for SSRM grids; the container destructured three of the
+  hook's eight members. The roadmap's "persisted `eventBindings` are discarded
+  at `:168`" is the one accurate clause of that bullet; the other three
+  overstate it.
+- **`onError` was smaller than it reads, and had one hazard the brief did not
+  mention.** `useSsrmProviderDataWiring` already accepted and wired it, so only
+  the prop and the pass-through were missing — but `onError` is in that hook's
+  effect dependency list beside `onStatus`, so passing a host callback straight
+  through would restart the provider on every render. It is held in a ref and
+  exposed as a stable callback, with a test pinning the identity, mirroring what
+  `onStatus` already needed.
+- **`MarketsGridSsrmProps` IS on the public barrel** (`grid/src/index.ts:37`).
+  `docs/current-features.md:368` claimed the opposite; corrected in passing,
+  doc-only.
+
+### A verification note, and why the numbers above are per-package
+
+This machine ran at load average **9 → 61** throughout (external `ds-bin` at
+~170% CPU plus Chrome renderers), and `npx turbo typecheck build test` produced
+the documented false failures on **three** separate attempts, each time in a
+different package this phase does not touch, each time with the signature
+Phase 4 recorded — `[vitest-pool]: Failed to start forks worker`, plus timeouts
+in suites whose whole-run duration had inflated 10× or more:
+
+| Attempt | Reported failure | Why it is not real |
+|---|---|---|
+| parallel | `CellRendererBand.test.tsx` timed out at 15 s | grid suite took 3277 s, **2195 s of it in `setup`**; `FormatColorPicker.test.tsx` never got a worker |
+| parallel | `IconPicker.test.tsx` ×2 timed out at 15 s | react-core took 857 s against a normal ~60 s; **standalone it is 76 files / 523 tests, all passing**, and react-core cannot import react-grid |
+| `--concurrency=2` | `perfGuard.test.ts` — *"cache-hit evaluation is materially faster than cache-miss"* — timed out at 10 s | a **timing** assertion on a loaded box; 9 core files never got a worker, which is exactly why that run collected 111 files instead of 120 |
+
+The serialised per-package run above is the honest figure. Its one non-zero
+exit is core's, and it reconciles exactly: 118 files ran and all passed, 2
+never started (`security/expressionPolicy.test.ts`,
+`colDef/adapters/valueFormatterFromTemplate.date.test.ts`), and those two plus
+`perfGuard.test.ts` pass together in **2.05 s** when run alone. Nothing this
+phase touches is in any of it. Anyone re-verifying on a quiet box should get
+`TURBO_EXIT=0` from the plain command; **check `uptime` and
+`pgrep -f "vitest run"` before believing a failure here.**
 
 ---
 
@@ -1528,18 +1794,18 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T2-10 | Filter-pill badges mean different things per mode | 2 |
 | T2-11 | Row-model-specific grid options emit unbranched | 6 ✅ |
 | T3-1 | Provider column definitions downgraded | 9 |
-| T3-2 | No rest spread — ~20 props dropped | 7 |
-| T3-3 | `StarGrid.advanced` inert under SSRM | 7 |
+| T3-2 | No rest spread — 29 props dropped | 7 ✅ |
+| T3-3 | `StarGrid.advanced` inert under SSRM | 7 ✅ |
 | T3-4 | No load feedback in default hosted config | 8 |
 | T3-5 | Provider failure dead-ends with no recovery | 8 |
 | T3-6 | Historical mode half-wired | 8 |
 | T3-7 | Reconnect clears banner without resyncing blocks | 8 |
-| T3-8 | Caption edits die on remount | 7 |
-| T3-9 | Grid-event subsystem absent | 7 |
-| T3-10 | `appData` never supplied | 7 |
-| T3-11 | Config Browser unreachable outside OpenFin | 7 |
-| T3-12 | No `adminActions`, no `onError` | 7 |
-| T3-13 | `modules` prop ignored | 7 |
+| T3-8 | Caption edits die on remount | 7 ✅ |
+| T3-9 | Grid-event subsystem absent | 7 ✅ |
+| T3-10 | `appData` never supplied | 7 ✅ |
+| T3-11 | Config Browser unreachable outside OpenFin | 7 ✅ |
+| T3-12 | No `adminActions`, no `onError` | 7 ✅ |
+| T3-13 | `modules` prop ignored | 7 ✅ |
 | T3-14 | Surface key mismatch between Host and Core | 10 |
 | T3-15 | SSRM chrome violates UI stack rules | 10 |
 
@@ -1551,7 +1817,7 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 |---|---|
 | Set-filter distinct values scan the full filtered set | Phases 1, 6 |
 | Simple-filter operator matrix (text 8/8, number 9/9, date 7+) | Phases 1, 2 |
-| Grid-state restore retry ladders (cold-mount window) | Phases 7, 8 |
+| Grid-state restore retry ladders (cold-mount window) | Phases 7, 8 — held: `grid-state` untouched; the SSRM surface still mounts once per provider and the container still mounts the grid pre-ready |
 | Tree data + master-detail server-side | Phase 1 |
 | Status-bar show/hide owned by the surface | Phase 10 |
 | Worker-backed status-bar and filter-pill counts | Phases 2, 5 — held: badge meaning unchanged (`filterPillCounts.test.ts` parity case green), the delta only removes round trips |
@@ -1625,6 +1891,21 @@ honest version was implemented instead. Reference the commit.
   row equally. What landed marks the edited fields and lets
   `buildVirtualColDef` judge per column, because that is where the expression
   is. See Phase 4 "What landed", decision 6.
+- **Phase 7 — `headerExtras` was NOT restored, and the `modules` fix is a
+  deletion rather than a forward.** The phase text lists `headerExtras` among
+  the ~20 dropped props to restore. `MarketsGridContainerProps` omits it too,
+  so forwarding it under SSRM would have created a divergence in the opposite
+  direction from the one being closed — the goal is an EMPTY diff, not a larger
+  SSRM surface. Recorded as mode-neutral-and-absent in
+  `docs/current-features.md` instead; adding it is a product decision for both
+  containers at once. Separately, the text's `modules` bullet asks to stop
+  `MarketsGridSsrmSurface` hardcoding `[AllEnterpriseModule]` "in TWO places".
+  One of the two is not a defect (`ensureAgGridModules()` latches, so the
+  no-arg call cannot re-register over the prop) and the fix for the other is to
+  DELETE the grid-instance `modules` option, not to thread `agGridModules` down
+  to it: `MarketsGridSurface` has no instance list because the global registry
+  is the single source, and giving SSRM a second mechanism is what constraint 2
+  forbids. See Phase 7 "What landed", decision 5 and the corrections list.
 - **Phase 1 — two fixes outside the letter.** `computeStatusBar` folded once
   for the whole `valueCols` list into a FIELD-keyed row, so asking for MIN(px)
   and MAX(px) together returned the same number twice; it now folds once per
