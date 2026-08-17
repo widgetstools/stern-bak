@@ -6,7 +6,19 @@
 //  peerDependencies, or devDependencies so consumers resolve one
 //  coherent theme graph (npm sees the contract).
 //
-//  Angular (`packages/angular/**`) is skipped until DS adoption is wired there.
+//  Scope is `packages/**` — the seven architecture buckets. `apps/` is
+//  deliberately NOT scanned: it is its own npm install root, outside the
+//  root workspaces, turbo, lint, the coverage gate and Sonar (CLAUDE.md,
+//  docs/APPS_REPO.md), and it resolves the platform through Vite aliases or
+//  packed tarballs rather than a workspace dep. Scanning it made
+//  `npm run lint:all` fail on nine demo apps for a dependency they do not
+//  and should not declare.
+//
+//  The roots below used to name `packages/shared/{foundation,runtime,
+//  services,platform}`, `packages/react` and `packages/angular` — a layout
+//  that no longer exists (see WORKLOG 11 / the bucket collapse). None of the
+//  six resolved, so this check had silently stopped guarding any package at
+//  all while still failing on the apps it should never have read.
 // ─────────────────────────────────────────────────────────────
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -50,37 +62,44 @@ function walkDirs(dir: string, depth: number, maxDepth: number): string[] {
   return dirs;
 }
 
-/** Workspace packages under packages (nested) and apps (flat). */
+/**
+ * The workspace packages, read from the root manifest's `workspaces` list —
+ * the seven architecture buckets, and exactly what npm considers a package
+ * here.
+ *
+ * Deliberately NOT a directory walk for any package.json it can find: a
+ * bucket member can carry a private build shim (`packages/core/engine`
+ * exists only so vite-plugin-dts resolves its types entry, and says so in
+ * its own manifest). Walking found those shims and demanded that each
+ * declare the design-system dependency, when the source under them belongs
+ * to the enclosing bucket — which declares it already.
+ */
 function findPackageDirs(): string[] {
-  const roots = [
-    join(ROOT, 'packages', 'shared', 'foundation'),
-    join(ROOT, 'packages', 'shared', 'runtime'),
-    join(ROOT, 'packages', 'shared', 'services'),
-    join(ROOT, 'packages', 'shared', 'platform'),
-    join(ROOT, 'packages', 'react'),
-    join(ROOT, 'packages', 'angular'),
-    join(ROOT, 'apps'),
-  ];
-  const out: string[] = [];
-  for (const r of roots) {
-    if (!existsSync(r)) continue;
-    out.push(...walkDirs(r, 0, 10));
-  }
+  const rootPkg = JSON.parse(
+    readFileSync(join(ROOT, 'package.json'), 'utf8'),
+  ) as { workspaces?: string[] };
+  const globs = rootPkg.workspaces ?? [];
   const pkgDirs: string[] = [];
-  const seen = new Set<string>();
-  for (const d of out) {
-    const pkgPath = join(d, 'package.json');
-    if (!existsSync(pkgPath)) continue;
-    const key = d;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    pkgDirs.push(d);
+  for (const g of globs) {
+    // The root glob enumerates each bucket explicitly (npm 10 does not do
+    // `packages/**`), so these are literal paths, not patterns.
+    const dir = join(ROOT, g);
+    if (existsSync(join(dir, 'package.json'))) pkgDirs.push(dir);
   }
   return pkgDirs;
 }
 
+/**
+ * Does anything in this package's source reference the design system?
+ *
+ * Walks the package DIRECTORY, not `<pkg>/src`: a bucket keeps its source in
+ * its members (`packages/core/engine/src`, `packages/core/host/src`, …), so
+ * looking only for `<bucket>/src` found nothing at all and the check passed
+ * vacuously. `SKIP_DIRS` keeps it off `node_modules` / `dist` / coverage, and
+ * it early-returns on the first hit.
+ */
 function readSrcUsesDs(pkgDir: string): boolean {
-  const srcDir = join(pkgDir, 'src');
+  const srcDir = pkgDir;
   if (!existsSync(srcDir)) return false;
 
   const exts = new Set(['.tsx', '.ts', '.css', '.scss']);

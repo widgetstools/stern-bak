@@ -45,7 +45,20 @@ const IMPORT_RE = /(?:from|import\s*\()\s*['"]([^'"]+)['"]/g;
 // fabricated a whole cycle in review).
 const MEMBER_IMPORT_RE = /(?<![\w@.])(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g;
 // Coverage reports contain generated .js the member graph must not read.
-const MEMBER_SKIP_DIRS = new Set([...SKIP_DIRS, 'coverage']);
+const MEMBER_SKIP_DIRS = new Set([...SKIP_DIRS, 'coverage', '__tests__', '__mocks__']);
+
+// Test files are excluded from every package's build (`tsconfig.json`'s
+// `exclude`) and are absent from `dist`, so they are not part of the SHIPPED
+// topology this graph exists to describe. Walking them reported a member
+// cycle that does not exist in anything published: `shared-types`'s
+// theme-key parity test reaches `../../types/src/index` to assert the two
+// members agree — exactly the cross-member reach a parity test is for — and
+// that back edge closed a loop against the real, intended forward edge.
+//
+// Scoped to the MEMBER walk on purpose. `loadImportGraph` keeps walking
+// tests, because it also feeds the undeclared-import check, and a test's
+// import still needs its dependency declared in package.json.
+const MEMBER_TEST_FILE = /\.(test|spec)\.(ts|tsx|js|jsx|mjs)$/;
 
 function findPackageJsons(dir, acc = []) {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
@@ -264,7 +277,11 @@ function loadMemberGraph(dirToName, buckets) {
       if (ent.isDirectory()) {
         if (MEMBER_SKIP_DIRS.has(ent.name)) continue;
         walk(p);
-      } else if (SOURCE_EXT.test(ent.name) && !/\.d\.ts$/.test(ent.name)) {
+      } else if (
+        SOURCE_EXT.test(ent.name)
+        && !/\.d\.ts$/.test(ent.name)
+        && !MEMBER_TEST_FILE.test(ent.name)
+      ) {
         const from = memberNodeForPath(p, dirToName, buckets);
         if (!from) continue;
         const src = readFileSync(p, 'utf8');

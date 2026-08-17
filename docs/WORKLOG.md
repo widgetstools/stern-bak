@@ -824,7 +824,44 @@ the roadmap with its scope:
 
 ---
 
-## 18. `npm run lint:all` fails on a test-only member cycle in the types bucket
+## 18. `npm run lint:all` fails on a test-only member cycle in the types bucket — CLOSED 2026-08-17
+
+**Closed** together with a second, independent failure in the same command
+(below). `npm run lint:all` now exits 0, which matters because Phase 10's
+row-model ESLint rule reports into it: until now a new violation would have
+landed in a command that was already red for two unrelated reasons, and
+nobody could have told them apart.
+
+**Fix 1 — the member cycle.** `check-package-cycles.mjs`'s MEMBER walk now
+skips `*.test.*` / `*.spec.*` files and `__tests__` / `__mocks__` directories.
+Test files are excluded from every package's build (`tsconfig.json`'s
+`exclude`) and are absent from `dist`, so they are not part of the shipped
+topology that graph describes. Deliberately scoped to the member walk:
+`loadImportGraph` keeps walking tests because it also feeds the
+undeclared-import check, where a test's import genuinely does need its
+dependency declared. Verified both ways — a non-test back edge still FAILS,
+the same edge from a test file passes.
+
+**Fix 2 — `check:design-system-deps` was scanning the wrong tree entirely.**
+Its roots named `packages/shared/{foundation,runtime,services,platform}`,
+`packages/react` and `packages/angular`: a layout that no longer exists, so
+none of the six resolved and the check had silently stopped guarding any
+package at all. What it DID still scan was `apps/` — which is its own npm
+install root, deliberately outside the root workspaces, turbo, lint, the
+coverage gate and Sonar — so it failed on nine demo apps for a workspace
+dependency they neither have nor should declare. It now reads the seven
+buckets from the root manifest's `workspaces` list (not a walk for any
+package.json, which found private build shims like `packages/core/engine`
+and demanded they declare a dep the enclosing bucket already declares), and
+scans the whole bucket directory rather than a `<bucket>/src` that does not
+exist. Verified: passes on the real tree, and FAILS when
+`@wellsfargo-starui/core` — which does reference `--ds-*` — has the
+dependency removed.
+
+---
+
+<details>
+<summary>Original report</summary>
 
 **Found:** 2026-08-16, during SSRM parity Phase 1. **Pre-existing** — verified
 by stashing the phase's changes and re-running `node
@@ -849,3 +886,5 @@ clean (0 errors, 369 warnings); `check:deps` is what fails, which takes
 `lint:all` down with it. Done looks like: the member walk skips test files (or
 the parity test reaches the sibling through the package's public
 `@wellsfargo-starui/types` specifier), and `lint:all` exits 0.
+
+</details>
