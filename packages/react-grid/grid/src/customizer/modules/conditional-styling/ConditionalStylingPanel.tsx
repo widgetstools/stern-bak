@@ -506,7 +506,15 @@ function IndicatorPicker({
   // HEADERS / BOTH need a whole-dataset pass this grid may not be able to
   // make — see `useHeaderPaintGate`.
   const headerGate = useHeaderPaintGate();
-  const currentTarget: IndicatorTarget = value?.target ?? 'cells+headers';
+  // A rule that has never named a target falls back to BOTH, which is right
+  // where headers can light and wrong where they cannot: a freshly created
+  // rule would open pointed at a disabled option. Where the gate is closed the
+  // fallback is CELLS — the only half of BOTH that can do anything here.
+  // Nothing PERSISTED changes: this is the resolution of an absent value, and
+  // the runtime already resolves the same absence the same way (the header
+  // pass is gated off, the cell half paints).
+  const defaultTarget: IndicatorTarget = headerGate.disabled ? 'cells' : 'cells+headers';
+  const currentTarget: IndicatorTarget = value?.target ?? defaultTarget;
   const currentPosition: IndicatorPosition = value?.position ?? 'top-right';
   const POSITION_LABEL: Record<IndicatorPosition, string> = {
     'top-left': 'TL',
@@ -708,7 +716,7 @@ function IndicatorPicker({
                     }
                     onChange({
                       icon: i.key,
-                      target: value?.target ?? 'cells+headers',
+                      target: value?.target ?? defaultTarget,
                       position: value?.position ?? 'top-right',
                       ...(value?.color ? { color: value.color } : {}),
                     });

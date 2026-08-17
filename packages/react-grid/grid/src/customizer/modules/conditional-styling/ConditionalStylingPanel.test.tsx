@@ -417,6 +417,32 @@ describe('ConditionalStylingPanel (v4)', () => {
     ).toBeUndefined();
   });
 
+  // Found by running the app after Phase 6 gated header paint: picking an
+  // icon fell back to BOTH, so on a server-side grid a freshly created rule
+  // opened pointed at a target the control correctly refuses. The absent
+  // target now resolves to the half that can do something here. Nothing
+  // persisted changes shape, and a rule that NAMES a target is untouched.
+  it('defaults a new indicator to CELLS where headers cannot light', async () => {
+    const user = userEvent.setup();
+    render(<MasterDetail platform={platform} />);
+    act(() => platform.data.bindSsrm({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 0 }),
+        getSetFilterValues: async () => [],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    } as never));
+
+    await user.click(screen.getByTestId('cs-rule-indicator-icon-arrow-up-rule-one'));
+    act(() => screen.getByTestId('cs-rule-save-rule-one').click());
+    const rule = platform.store.getModuleState<ConditionalStylingState>('conditional-styling').rules[0];
+    expect(rule.indicator?.target).toBe('cells');
+    // BOTH is still offered and still refuses, with the reason.
+    expect(
+      screen.getByTestId('cs-rule-indicator-target-cells+headers-rule-one'),
+    ).toBeDisabled();
+  });
+
   it('combined panel renders list rail and editor', () => {
     render(
       <GridProvider platform={platform}>
