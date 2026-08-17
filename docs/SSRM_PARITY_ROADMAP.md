@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 8 / 11 phases done (Phases 0–7).**
+**Branch:** `feature/simplify`. **Status: 9 / 11 phases done (Phases 0–8).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -1626,7 +1626,7 @@ phase touches is in any of it. Anyone re-verifying on a quiet box should get
 
 ---
 
-## Phase 8 — container lifecycle and historical mode ⬜
+## Phase 8 — container lifecycle and historical mode ✅
 
 **Goal:** an SSRM grid tells the user what it is doing, recovers from provider
 failure, and supports the historical-date subsystem.
@@ -1670,6 +1670,157 @@ failure, and supports the historical-date subsystem.
   edits refused → reload restores the same date.
 
 **Closes:** T3-4, T3-5, T3-6, T3-7.
+
+### What landed
+
+Shared, `markets-grid-container/`: `useContainerHistoricalDate.ts` (the whole
+historical-date subsystem, lifted out of `MarketsGridContainer`),
+`historicalDateAppData.ts` (the `'provider.key'` ref contract — three inline
+copies collapsed to one), `resolveProviderStartPlan.ts` (cold-start
+arbitration, lifted out of `useProviderDataWiring`), plus `todayIsoDate` on the
+`@wellsfargo-starui/grid/customizer` barrel and CSRM's byte-identical private
+copy deleted. SSRM side: `useSsrmProviderStatus.ts` and `useSsrmAdminActions.ts`
+(new), `useSsrmProviderDataWiring.ts` (an optional `startProvider` override),
+`SsrmMarketsGridContainer.tsx`. Tests: `historicalDateAppData.test.ts` (11),
+`resolveProviderStartPlan.test.ts` (4), `SsrmMarketsGridContainer.historical.test.tsx`
+(new, 11 — the round trip plus the arbitration), `…forwarding.test.tsx` +6
+lifecycle cases and 3 rewritten.
+
+`MarketsGridContainer` **895 → 815**; the SSRM container **629 → 747** with two
+extractions taken on the way rather than at the ceiling.
+
+**Verification.** `npx turbo typecheck build`: **exit 0.** Tests per package,
+serially, at `--maxWorkers=2` — and unlike Phase 7 this box was quiet enough to
+produce a clean run with **no environmental failures at all**: types **171**,
+design-system **355**, data **703**, core **1295** (all 120 files got workers
+this time), openfin **483**, react **523**, grid **327 files / 2566 passing + 1
+skipped**. Total **6096 passing / 1 skipped**, against Phase 7's 6068 / 1.
+`node scripts/check-package-cycles.mjs`: the same single pre-existing cycle
+(WORKLOG 18), no new one. `npm run bench:ssrm` **not run and not a gate** —
+this phase adds no plane code and no per-row work; its hot-path contact is a
+status subscription the container already had. **E2E: 8 / 8 pass**
+(`star-demo-ssrm-smoke` 3/3, `ssrm-viewport-ticks` 4/4, `hello-blotter` 1/1,
+`E2E_EXIT=0`, with :8081 up) — which is the check that matters most here,
+because the loading overlay now sits over a grid the smoke spec asserts a real
+`.ag-grid-viewport` height for, and it resolves in a live app rather than
+hanging over the toolbar. The three `v2-*` specs Phase 7 added to the battery
+remain red for their documented pre-phase reason (demo-react selectors no app
+in this repo provides) and were not re-run. ESLint over
+`container/**`, `stargrid/**` and the customizer barrel: **0 errors, 49
+warnings against a pre-phase 50** — a strict SUBSET (one
+`react-hooks/exhaustive-deps` in `MarketsGridContainer` went when
+`handleToolbarDateChange` moved into a hook that declares `setSelection`).
+Four warnings this phase DID introduce were fixed rather than banked: an
+over-ceiling `useContainerHistoricalDate` (split), a missed `setAsOfDate` dep,
+and two `host`-identity warnings in the new admin hook.
+
+Six decisions the later phases inherit:
+
+1. **T3-7 was already closed, and the phase text is simply wrong about it.**
+   "SSRM clears the stale flag but never purges, so loaded blocks keep
+   pre-disconnect values" — `bindSsrmTicks` subscribes provider status and, on
+   every transition INTO `ready` (guarded against repeats by
+   `lastStatusReady`), calls `refreshServerSide({ purge: true })` and refreshes
+   every set-filter panel. There is even a test named *"purges on error ->
+   ready (reconnect) but not on repeated ready"*
+   (`bindSsrmTicks.statusRefresh.test.ts`). Nothing was implemented for T3-7;
+   re-implementing the purge in the container would have been a second
+   mechanism for something the framework already does, which constraint 2
+   forbids. **Read the shipped runtime before believing a roadmap bullet** —
+   this is the third phase running where that mattered.
+2. **T3-5's "dead-ends at the `Connecting…` branch" does not describe reachable
+   behaviour, and the real defect was silence rather than unreachability.**
+   Two things had to be checked to see it. `useSsrmDataProvider` builds the
+   adapter in a `useMemo` that cannot fail, so `provider` is non-null whenever
+   the resolved id is non-empty — and the resolved id falls back to the
+   required `providerId` prop, so it is non-empty once grid-level data loads.
+   The `Connecting…` paragraph was therefore the grid-level-data LOAD state,
+   not a failure state. Worse, its `{error ?? 'Connecting…'}` fallback was dead
+   code: the container passes `trackStatus: false`, and that hook only ever
+   sets `error` inside the effect that flag skips. So a provider whose
+   `start()` fails permanently already mounted a full grid — reachable
+   customizer, reachable DATA PROVIDER card — and said **nothing at all**. What
+   landed closes the silence (decision 3) and adds the literal no-adapter shell
+   for the one case that does reach it, an empty resolved id.
+3. **The overlay owns the first load; the banner owns everything after; the
+   first load settles on ready OR error.** That division is forced, not
+   stylistic: `MarketsGridLoadingOverlay` sets `pointer-events: auto` over the
+   whole grid INCLUDING the toolbar, so an overlay that stayed up on a failed
+   provider would take away the only route to repairing it. CSRM reaches the
+   same division from the other end (its status handler calls
+   `setResolvedSubKey` on `err`, resolving the overlay). A second settle signal
+   — `ready` from the wiring hook — is not redundant: the status subscription
+   is optional-chained because a transport need not have one, and without it
+   such a provider would sit under a blocking overlay forever. Pinned.
+4. **A never-connected provider now reports, and that is a deliberate
+   behaviour change with a test rewritten to match.** The container suppressed
+   errors before the first `ready` under a "cold-connect retries stay silent"
+   reading, documented as CSRM parity — which it was not: CSRM's handler sets
+   `providerDisconnected` on ANY `err`. Suppression was defensible while the
+   overlay covered that window and indefensible after it, because a provider
+   that never connects then shows an empty grid and no explanation. The banner
+   now reports any current error; only its COPY splits on whether the feed ever
+   delivered, because "values may be stale" is a meaningless claim about data
+   that never arrived, and the never-connected wording names the panel that can
+   repair it.
+5. **The historical subsystem is SHARED, and only the reload gate is not.**
+   Everything about what a historical date MEANS — when it counts as past, what
+   happens with no historical provider configured, whether the banner shows,
+   what gets written to AppData, when a reload is owed — is one hook both
+   containers call. What genuinely differs is READINESS: the client-side
+   container waits for a live `GridApi` so its snapshot listeners are attached
+   before `restart()`, the server-side one waits for a started provider. So the
+   hook only says a reload is OWED (`consumePendingReload()`) and each
+   container gates it. Gate FIRST, then consume — consuming before the gate
+   drops the reload entirely, and the `pendingReload` intent (mode + date, not
+   a boolean) is what stops an unrelated render from consuming it with the
+   wrong payload. That subtlety is a documented past bug fix; it moved
+   verbatim.
+6. **Peer arbitration was reachable, and the phase text's "verify before
+   deciding" resolves to yes.** `isProviderRunning` / `waitForProviderRunning`
+   are on `SharedWorkerDataServicesClient` and the hub answers them with
+   `this.providers.has(providerId)` — provider-type agnostic, so they serve an
+   SSRM slot exactly as a client-side one. Without arbitration a reloaded
+   historical window called plain `start()` and attached to whatever the plane
+   held, i.e. live rows under a historical banner. The RULE is shared; the
+   providers it drives are not, so the SSRM container passes the decision in as
+   a `startProvider` override rather than the wiring hook learning about the
+   hub client. Read through a ref so a later date change never re-runs the
+   wiring effect — that path is the queued reload, not a re-start.
+
+### Line anchors after this phase
+
+Phase 9 cites `SsrmMarketsGridContainer.tsx:319-328` and `:301-305`; both moved
+to `useSsrmColumnResolution.ts` in Phase 7 and did **not** move again — the
+declared mapping is `:91-105`, the inferred one `:63-89`. Phase 10 cites
+`SsrmMarketsGridContainer.tsx:484-489` (a native `<button>`) and `:481` / `:502`
+(`#333` fallbacks); the button is now `:659-664` and the two fallbacks `:656`
+and `:677`. The container is 747 / 800, so Phase 10's chrome fixes have room.
+
+### Not closed here, deliberately
+
+- **`toolbar:dateChanged` now emits from both containers** (it rides the shared
+  hook), so Phase 7's hand-off is closed. What is NOT here: nothing else from
+  the catalog is missing.
+- **Two windows on the same historical provider with different dates still
+  fight.** The last restart wins for both, because a provider's hub slot is one
+  snapshot. `resolveProviderStartPlan` only arbitrates the COLD start; a
+  deliberate date change always restarts. This is equally true of CSRM and is
+  architectural — per-window historical views need per-session overlays in the
+  plane, the same machinery T1-4 and Phase 4's edit-overlay were deferred for.
+- **A host `onSavingChange` is dropped by the CSRM container.** It sits in
+  `marketsGridProps` and is overridden after the spread by
+  `onSavingChange={setIsSavingProfile}`. The SSRM container CHAINS instead,
+  which is strictly better and not a capability CSRM lacks in any user-visible
+  sense — but the CSRM half is a real silent no-op and belongs to Phase 10's
+  hygiene pass, not to a phase passing through.
+- **The historical round trip is unit-tested, not e2e'd.** No app in the repo
+  serves a provider that honours `{ asOfDate }` — `stomp-view-server` does not
+  — so an end-to-end "pick a date, see yesterday's rows" needs a fixture that
+  does not exist. The container-level round trip is asserted through the real
+  hook in `SsrmMarketsGridContainer.historical.test.tsx` (date → restart
+  carrying the date → banner → AppData → restore on mount), and constraint 6's
+  manual-validation note applies to the rest.
 
 ---
 
@@ -1796,10 +1947,10 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T3-1 | Provider column definitions downgraded | 9 |
 | T3-2 | No rest spread — 29 props dropped | 7 ✅ |
 | T3-3 | `StarGrid.advanced` inert under SSRM | 7 ✅ |
-| T3-4 | No load feedback in default hosted config | 8 |
-| T3-5 | Provider failure dead-ends with no recovery | 8 |
-| T3-6 | Historical mode half-wired | 8 |
-| T3-7 | Reconnect clears banner without resyncing blocks | 8 |
+| T3-4 | No load feedback in default hosted config | 8 ✅ |
+| T3-5 | Provider failure dead-ends with no recovery | 8 ✅ — the dead-end was not reachable; the silence was. See Phase 8 decision 2 |
+| T3-6 | Historical mode half-wired | 8 ✅ |
+| T3-7 | Reconnect clears banner without resyncing blocks | ~~8~~ — **not a defect**; `bindSsrmTicks` purges on every ready transition and always did. See Phase 8 decision 1 |
 | T3-8 | Caption edits die on remount | 7 ✅ |
 | T3-9 | Grid-event subsystem absent | 7 ✅ |
 | T3-10 | `appData` never supplied | 7 ✅ |
@@ -1817,7 +1968,7 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 |---|---|
 | Set-filter distinct values scan the full filtered set | Phases 1, 6 |
 | Simple-filter operator matrix (text 8/8, number 9/9, date 7+) | Phases 1, 2 |
-| Grid-state restore retry ladders (cold-mount window) | Phases 7, 8 — held: `grid-state` untouched; the SSRM surface still mounts once per provider and the container still mounts the grid pre-ready |
+| Grid-state restore retry ladders (cold-mount window) | Phases 7, 8 — held: `grid-state` untouched; the SSRM surface still mounts once per provider, and the container still mounts the grid pre-ready (the loading overlay sits OVER that grid, it does not replace it) |
 | Tree data + master-detail server-side | Phase 1 |
 | Status-bar show/hide owned by the surface | Phase 10 |
 | Worker-backed status-bar and filter-pill counts | Phases 2, 5 — held: badge meaning unchanged (`filterPillCounts.test.ts` parity case green), the delta only removes round trips |
@@ -1891,6 +2042,19 @@ honest version was implemented instead. Reference the commit.
   row equally. What landed marks the edited fields and lets
   `buildVirtualColDef` judge per column, because that is where the expression
   is. See Phase 4 "What landed", decision 6.
+- **Phase 8 — T3-7 was not implemented, because it was not a defect.** The
+  phase text says the SSRM path "clears the stale flag but never purges, so
+  loaded blocks keep pre-disconnect values". `bindSsrmTicks` has purged every
+  block on each transition into `ready` since before this roadmap was written,
+  with a test pinning the error → ready case by name. Writing a container-side
+  purge would have been a second mechanism for something the framework already
+  does — constraint 2 — so the phase verified and recorded it instead. In the
+  same phase, T3-5's stated symptom ("dead-ends at the `Connecting…` branch —
+  customizer, DATA PROVIDER card and Data Provider Editor all unreachable")
+  was not reachable either: the adapter cannot fail to construct, and the
+  branch it names is the grid-level-data load state. The real defect under that
+  finding was that a permanently-failing provider mounted a working grid and
+  reported nothing, which is what was fixed. See Phase 8 decisions 1 and 2.
 - **Phase 7 — `headerExtras` was NOT restored, and the `modules` fix is a
   deletion rather than a forward.** The phase text lists `headerExtras` among
   the ~20 dropped props to restore. `MarketsGridContainerProps` omits it too,
