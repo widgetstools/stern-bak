@@ -1,5 +1,5 @@
 import type { ColDef, GridApi, SideBarDef, StatusPanelDef, Theme } from 'ag-grid-community';
-import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
+import type { AnyModule, AppDataLookup, EditWriteBack, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { GridHostContext } from '@wellsfargo-starui/core/host';
 import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
@@ -303,6 +303,24 @@ export interface MarketsGridProps<TData = unknown> {
    * still applied locally but won't survive a remount.
    */
   onCaptionChange?: (next: string) => void;
+
+  /**
+   * Where a committed edit goes after it reaches the grid.
+   *
+   * The grid is not the system of record: an edit is optimistic until the
+   * server accepts it and broadcasts it back. Supplying this makes that loop
+   * explicit — `submit` is called once per user action with the cell patches
+   * that landed, and the app POSTs them to whatever write service it has.
+   *
+   * The platform owns everything either side of the POST. Resolve and it does
+   * nothing further, because confirmation is the broadcast arriving, not the
+   * request returning. Reject and it reverts the cells, erases the undo-stack
+   * entry, and reports through `onFailure` — none of which application code
+   * can do from outside.
+   *
+   * Omit it and edits stay local, which is what every consumer had before.
+   */
+  editWriteBack?: EditWriteBack | null;
 
   /**
    * Fires `true` when the grid begins persisting the active profile

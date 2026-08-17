@@ -6,3 +6,11 @@ export { previewPatches } from './previewPatches.js';
 export { defaultEditValidator, combineValidators } from './validation.js';
 export { assertSingleColumnSelection, type SingleColumnGuardResult } from './selectionGuards.js';
 export { EditJournal, type EditJournalOptions } from './EditJournal.js';
+export {
+  submitEdits,
+  type EditSubmission,
+  type EditWriteBack,
+  type EditWriteBackFailure,
+  type EditWriteBackHooks,
+  type SubmitEdits,
+} from './writeBack.js';

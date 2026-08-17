@@ -111,6 +111,29 @@ export class EditJournal {
   }
 
   /**
+   * Erase an entry the timeline should never have held.
+   *
+   * Distinct from {@link undo}: undo is a user action that writes the old
+   * values back and is itself redoable. Retraction is for an edit whose write
+   * the server REFUSED — the revert is performed by the write-back path, and
+   * what is left to do is remove every trace, because an entry sitting in the
+   * undo stack for a value the source never accepted lets the user redo their
+   * way back to it.
+   *
+   * Silently does nothing for an unknown id, so a late failure for an entry
+   * already dropped by {@link reset} is not an error.
+   */
+  retract(entryId: string): boolean {
+    const before = this.past.length + this.future.length + this.monitor.length;
+    this.past = this.past.filter((entry) => entry.id !== entryId);
+    this.future = this.future.filter((entry) => entry.id !== entryId);
+    this.monitor = this.monitor.filter((entry) => entry.id !== entryId);
+    const removed = before !== this.past.length + this.future.length + this.monitor.length;
+    if (removed) this.notify();
+    return removed;
+  }
+
+  /**
    * The timeline moves only when the grid takes the write.
    *
    * These used to pop the stack and then `await` a transaction whose promise

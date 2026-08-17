@@ -100,11 +100,17 @@ const SSRM_CAPABILITIES: DataCapabilities = {
       'Advanced Filter narrows the rows this grid shows, but is not applied to ' +
       'these figures — use the column filters if the two need to agree.',
   },
+  // Says what the ADAPTER can do, which is write into this grid's block cache
+  // and nothing further. It is not a verdict on whether editing works: an app
+  // that wires `editWriteBack` persists through its own write service and the
+  // value returns on the feed, which is the architecture this row model is
+  // built for. Without one, the sentence below is the whole truth.
   mutationsReachSource: {
     supported: false,
     reason:
       'Edits change this grid only — the shared data service keeps its own copy ' +
-      'and will replace them on the next refresh.',
+      'and will replace them on the next refresh. Persisting them needs the ' +
+      "grid's `editWriteBack` wired to a write service.",
   },
 };
 

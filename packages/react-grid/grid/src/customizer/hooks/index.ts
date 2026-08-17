@@ -16,3 +16,4 @@ export {
 export { useUndoRedo, type UseUndoRedoResult } from './useUndoRedo';
 export { useActiveThemeMode } from './useActiveThemeMode';
 export { useCapability, useCapabilityGate, type CapabilityName } from './useCapability';
+export { useEditWriteBack } from './useEditWriteBack';

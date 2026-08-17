@@ -146,9 +146,11 @@ export { collectTargetCells, collectFocusedCell, type TargetCell } from './modul
 export {
   buildPatchesFromTargets,
   applyForwardPatches,
+  applyPatches,
   previewPatches,
   assertSingleColumnSelection,
   EditJournal,
+  submitEdits,
 } from './modules/editing-core/index.js';
 export type {
   CellPatch,
@@ -156,6 +158,11 @@ export type {
   EditJournalEntry,
   EditApplyResult,
   EditPlatform,
+  EditSubmission,
+  EditWriteBack,
+  EditWriteBackFailure,
+  EditWriteBackHooks,
+  SubmitEdits,
 } from './modules/editing-core/index.js';
 
 export {

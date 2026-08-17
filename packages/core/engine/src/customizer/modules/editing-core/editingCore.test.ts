@@ -47,6 +47,68 @@ describe('previewPatches', () => {
 });
 
 describe('EditJournal', () => {
+  /**
+   * Retraction is not undo. Undo is a user action that writes the old values
+   * back and stays redoable; retraction erases an entry whose write the SERVER
+   * refused, after the write-back path has already reverted the cells. Leaving
+   * it on either stack would let the user redo their way to a value the source
+   * never accepted.
+   */
+  describe('retract', () => {
+    const entryFor = (journal: EditJournal, label: string) =>
+      journal.record({
+        source: 'cell-editor',
+        label,
+        patches: [{ rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 1, newValue: 2 }],
+      })!;
+
+    it('erases the entry from the undo stack and the monitor', () => {
+      const journal = new EditJournal({ limit: 10 });
+      const entry = entryFor(journal, 'refused');
+
+      expect(journal.retract(entry.id)).toBe(true);
+      expect(journal.canUndo).toBe(false);
+      expect(journal.undoStackSize).toBe(0);
+      expect(journal.entries).toHaveLength(0);
+    });
+
+    it('leaves neighbouring entries alone', () => {
+      const journal = new EditJournal({ limit: 10 });
+      const kept = entryFor(journal, 'accepted');
+      const refused = entryFor(journal, 'refused');
+
+      journal.retract(refused.id);
+      expect(journal.entries.map((e) => e.id)).toEqual([kept.id]);
+      expect(journal.canUndoEntry(kept.id)).toBe(true);
+    });
+
+    // The point of retracting rather than undoing: nothing is left to redo.
+    it('removes an already-undone entry from the redo stack too', async () => {
+      const journal = new EditJournal({ limit: 10 });
+      const { port } = makeFakePort({ r1: { id: 'r1', qty: 2 } });
+      const entry = entryFor(journal, 'refused');
+      await journal.undo(port);
+      expect(journal.canRedo).toBe(true);
+
+      expect(journal.retract(entry.id)).toBe(true);
+      expect(journal.canRedo).toBe(false);
+    });
+
+    it('notifies subscribers only when something was actually removed', () => {
+      const journal = new EditJournal({ limit: 10 });
+      const entry = entryFor(journal, 'refused');
+      let notifications = 0;
+      journal.subscribe(() => { notifications += 1; });
+
+      journal.retract(entry.id);
+      expect(notifications).toBe(1);
+
+      // A late failure for an entry `reset` already dropped is not an error.
+      expect(journal.retract(entry.id)).toBe(false);
+      expect(notifications).toBe(1);
+    });
+  });
+
   it('records and undoes an entry', async () => {
     const journal = new EditJournal({ limit: 10 });
     const { port } = makeFakePort({ r1: { id: 'r1', qty: 200 } });

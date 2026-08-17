@@ -1,4 +1,10 @@
-import type { CellPatch, DataChangeHistoryState, TransformContext } from '@wellsfargo-starui/core';
+import type {
+  CellPatch,
+  DataChangeHistoryState,
+  EditJournal,
+  TransformContext,
+} from '@wellsfargo-starui/core';
+import { submitAppliedEdits } from '../../../editing/editWriteBack.js';
 import { isJournalApplyInProgress } from '../../../editing/journalApplyGuard.js';
 import { resolveEditRecording } from '../../../editing/recordEdit.js';
 
@@ -30,20 +36,50 @@ function resolveRowId(
   }
 }
 
-export function recordCellEditorPatch(
+/**
+ * Journal the edit, or answer `null` when this grid is not recording — which
+ * is a question only the history module gets a vote on.
+ */
+function journalCellEdit(
   state: DataChangeHistoryState,
   ctx: TransformContext,
-  input: CellEditorPatchInput,
-): void {
-  if (isJournalApplyInProgress(ctx.gridId)) return;
-  if (!state.settings.enabled) return;
+  patch: CellPatch,
+): { journal: EditJournal; entryId: string } | null {
+  if (!state.settings.enabled) return null;
 
   const { record, journal } = resolveEditRecording(
     { gridId: ctx.gridId, getModuleState: ctx.getModuleState },
     'cell-editor',
     true,
   );
-  if (!record) return;
+  if (!record) return null;
+
+  const entry = journal.record({
+    source: 'cell-editor',
+    label: `Cell edit · ${patch.field}`,
+    patches: [patch],
+  });
+  return entry ? { journal, entryId: entry.id } : null;
+}
+
+/**
+ * The inline cell editor's funnel — AG Grid has already written the value, so
+ * unlike the other four this one records rather than applies.
+ *
+ * Journaling and write-back are decided separately and deliberately. Turning
+ * DATA CHANGE HISTORY off means the user does not want an undo timeline; it
+ * cannot mean their edits stop reaching the server, so the submission below
+ * sits outside that gate. The guards above it are the ones that decide
+ * whether an edit happened at all.
+ */
+export function recordCellEditorPatch(
+  state: DataChangeHistoryState,
+  ctx: TransformContext,
+  input: CellEditorPatchInput,
+): void {
+  // Our own writes — a journal undo/redo, or a write-back revert — come back
+  // through the value setters and are not new edits.
+  if (isJournalApplyInProgress(ctx.gridId)) return;
 
   const { field, colId, oldValue, newValue, data } = input;
   if (Object.is(oldValue, newValue)) return;
@@ -52,10 +88,13 @@ export function recordCellEditorPatch(
   if (!rowId) return;
 
   const patch: CellPatch = { rowId, field, colId, oldValue, newValue };
+  const recorded = journalCellEdit(state, ctx, patch);
 
-  journal.record({
+  submitAppliedEdits({
+    gridId: ctx.gridId,
     source: 'cell-editor',
-    label: `Cell edit · ${field}`,
     patches: [patch],
+    journal: recorded?.journal,
+    entryId: recorded?.entryId,
   });
 }

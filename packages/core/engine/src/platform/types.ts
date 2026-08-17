@@ -390,8 +390,15 @@ export interface DataCapabilities {
    * must not be disabled from this.
    */
   readonly supportsAdvancedFilter: CapabilityVerdict;
-  /** A confirmed `mutate` reaches the system of record, not just this grid's
-   *  view of it. */
+  /**
+   * A confirmed `mutate` reaches the system of record, not just this grid's
+   * view of it.
+   *
+   * Scoped to the PORT. `false` does not mean edits cannot be persisted — it
+   * means the adapter alone cannot persist them, which under the server-side
+   * row model is by design: the write goes out through the app's own service
+   * and comes back on the feed. See `MarketsGridProps.editWriteBack`.
+   */
   readonly mutationsReachSource: CapabilityVerdict;
 }
 

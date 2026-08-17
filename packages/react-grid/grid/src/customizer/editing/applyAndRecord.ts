@@ -6,6 +6,7 @@ import {
   type EditPlatform,
   type EditSource,
 } from '@wellsfargo-starui/core';
+import { submitAppliedEdits } from './editWriteBack.js';
 import { withJournalApplyGuard } from './journalApplyGuard.js';
 
 /** Nothing to write, so nothing to confirm and nothing to record. */
@@ -48,11 +49,22 @@ export async function applyAndRecord(
     applyForwardPatches(platform.data, patches),
   );
 
-  if (journal && result.applied.length > 0) {
-    journal.record({
+  if (result.applied.length > 0) {
+    const recorded = journal?.record({
       source: entry.source,
       label: entry.label(result.applied),
       patches: result.applied,
+    });
+
+    // Detached on purpose: the value is already on screen and must not wait
+    // for the service. Refusal comes back as a revert, not as a rejection
+    // here — see `submitAppliedEdits`.
+    submitAppliedEdits({
+      gridId: platform.gridId,
+      source: entry.source,
+      patches: result.applied,
+      journal,
+      entryId: recorded?.id,
     });
   }
 

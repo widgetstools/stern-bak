@@ -342,7 +342,27 @@ Per-renderer config types (`PillRendererConfig`,
   editing chrome: `showEditingToolbar` (tri-state — `true`/`false` are host
   verdicts, `undefined` defers to module switches), `showVisualExcelExport`,
   `headerExtras`, `toolbarDate` / `onToolbarDateChange`,
-  `toolbarDateHistoryEnabled` (when `false`, only today is selectable)
+  `toolbarDateHistoryEnabled` (when `false`, only today is selectable);
+  `editWriteBack` — where a committed edit goes after it reaches the grid
+- **Edits reach the server, and a refused one does not stay on screen.**
+  `MarketsGridProps.editWriteBack` closes the optimistic-edit loop the deployed
+  architecture assumes: the user edits, the value appears at once, the app POSTs
+  it to its write service, and the feed broadcasts the accepted value back.
+  `submit` is called once per user action with the cell patches that LANDED,
+  from **all five** funnels — the four that go through `applyAndRecord` plus the
+  inline cell editor, which is wired separately in `recordCellEditorPatch`
+  because AG Grid has already written the value by the time it is reached.
+  Registration is per grid id (`editWriteBack.ts`, the same shape as
+  `journalApplyGuard`) rather than a parameter, because the inline editor
+  journals from a column transform holding neither the props nor the data port.
+  Submission is **detached on purpose** — the value must not wait for the
+  network — so refusal arrives as a revert rather than a rejected promise: the
+  journal entry is retracted, the cells are restored through the port under the
+  apply guard (so the revert is not itself journaled or re-submitted), and
+  `onFailure` receives `{ error, rolledBack, stuck }`. Write-back is deliberately
+  NOT gated by DATA CHANGE HISTORY: turning the undo timeline off is not a
+  request to stop persisting edits. Omit the prop and edits stay local, which is
+  the behaviour every consumer had before
 - `DEFAULT_MODULES` — ordered customizer-module pipeline (full feature set)
 - `gridSurfaceOptions` — AG Grid defaults, DOM options, row styling, cell renderers
 - `GridDensityPill` — center-top primary-toolbar chip; Ultra / Compact / Comfortable presets (persists `gridDensity` + matching `rowHeight`/`headerHeight` in general-settings; `applyGridDensityLive` pushes heights immediately with row animation suppressed)
@@ -383,7 +403,7 @@ Per-renderer config types (`PillRendererConfig`,
 - `ssrmGetChildCount`, `ssrmAlertRowClass` — grid-option bindings backed by worker-evaluated expressions, bound directly by `MarketsGridSsrmSurface`. `.alert-row` **is styled** (`marketsGrid-core.css`): a tinted background plus an inset left marker in `--ds-accent-warning`, scoped under `.ag-root-wrapper`, using an inset shadow rather than a border so the row height never shifts as alerts come and go under a live feed. The class was emitted with no rule anywhere in the package, so a worker-detected alert was invisible in the grid — the one surface it can reach without the notify channel T2-6 still needs. Deliberately not renamed: an unstyled class a library emits is exactly what a host would already be targeting
 - `ssrmCellStyle`, `ssrmEditable` — the per-COLUMN half of the same enrichment, reached through `withSsrmExpressionBindings(columnDefs)` + `withSsrmDefaultColDef(defaultColDef)`, which `MarketsGridSsrmSurface` applies alongside `withSsrmSetFilterValues`. Both COMPOSE rather than replace: a worker `__ssrmStyle` merges *over* the column's own `cellStyle` (so a calculated column's Excel colour tag and column-customization's overrides survive), and `__ssrmEditable` is ANDed with the column's own verdict (a rule can lock a cell the column allows, never unlock one it forbids). The split across the two helpers is what makes that correct against AG Grid's merge order — a property declared on a column def shadows `defaultColDef` entirely, so columns are wrapped only where they *declare* the property and `defaultColDef` is wrapped always. `ssrmEditable` treats "no verdict on this row" as `true`, not `false`: the earlier `false` is why binding it would have made every grid without an `editable` rule read-only, and why it had no caller
 - **Calculated columns are evaluated ONCE, by whoever holds the whole dataset.** The query plane stamps the fields it computed onto each row it returns (`__ssrmCalculated`; key + reader are `COMPUTED_FIELDS_KEY` / `readComputedField` in `@wellsfargo-starui/core`, so both ends share one definition), and `buildVirtualColDef`'s `valueGetter` returns those verbatim instead of re-deriving them. Column-wide aggregates (`SUM([price])`, `AVG([mid])`) therefore read the same at any scroll position; previously the grid folded its ~2,000-row block cache and the number revised itself as the user scrolled. A source that stamps nothing — every client-side grid — is evaluated locally exactly as before
-- **Editing works on a server-side grid, and says what it cannot do.** Every editing funnel writes through `platform.data.mutate()`, which the server-side adapter answers with `applyServerSideTransaction` (the CSRM adapter keeps `applyTransactionAsync`, now settled on AG Grid's flush callback rather than on the call returning). Previously all five write paths reached `applyTransactionAsync` — a ClientSideRowModel API — so an SSRM edit changed nothing while the journal recorded it as done. Refusals are reported per row with user-facing copy: a row outside the loaded block window carries `capabilities.canAddressUnloadedRows.reason`, a block still loading gets "the grid is still loading those rows". `capabilities.mutationsReachSource` is **false** under SSRM — the shared data service keeps its own copy of the row and replaces the edit on the next tick or block refetch for that row; making an edit survive that needs a worker write path, which does not exist yet (roadmap Phase 4 record)
+- **Editing works on a server-side grid, and says what it cannot do.** Every editing funnel writes through `platform.data.mutate()`, which the server-side adapter answers with `applyServerSideTransaction` (the CSRM adapter keeps `applyTransactionAsync`, now settled on AG Grid's flush callback rather than on the call returning). Previously all five write paths reached `applyTransactionAsync` — a ClientSideRowModel API — so an SSRM edit changed nothing while the journal recorded it as done. Refusals are reported per row with user-facing copy: a row outside the loaded block window carries `capabilities.canAddressUnloadedRows.reason`, a block still loading gets "the grid is still loading those rows". `capabilities.mutationsReachSource` is **false** under SSRM, which is a statement about the ADAPTER: it writes into this grid's block cache and no further, so the shared data service replaces the value on the next tick or block refetch. Persisting an edit is `MarketsGridProps.editWriteBack`'s job — the app POSTs to its write service and the new value returns on the feed, which is the loop this row model is built for
 - **A client edit voids the source's claim over the row it rewrote.** `assemblePatchRows` merges an edit onto a copy of the existing row, so the `__ssrmCalculated` stamp survives it; the port marks the fields the edit wrote (`__ssrmClientEdited`, `CLIENT_EDITED_FIELDS_KEY`, written only on a row that carries a stamp) and `buildVirtualColDef` re-judges the claim per column: a **row-local** calculated column (`[price] * [qty]`) re-evaluates from the row in hand, a **column-wide fold** (`SUM([price])`) keeps the source's number. The asymmetry is the point — one edit moves a fold's answer for every row equally, while the client's cross-row snapshot is empty under SSRM by design, so re-evaluating there would paint the edited row's total as 0 beside neighbours showing the real one
 - Quick filter routes into SSRM query state rather than AG Grid's client-side filter. **All four** call sites that set `quickFilterText` go through `applyQuickFilterText` (`@wellsfargo-starui/core`), which purges under the server-side row model and does not under the client-side one: the toolbar's debounced push, the api-ready replay, profile restore and profile reset. Only the first purged before, so a RESTORED term rendered as a filled-in search box over rows it never filtered (T2-5). The row-model branch lives in that one function rather than at the call sites, three of which are inside `customizer/modules/**` where a module must not ask which row model it is running under. The request carries the grid's visible column scope (`quickFilterColumns`, honouring `includeHiddenColumnsInQuickFilter`) so a term no longer matches on a column the user has hidden — see the SSRM query-plane section
 - **Set-filter panels list the column's whole domain** — `withSsrmSetFilterValues` (applied by `MarketsGridSsrmSurface` to every filterable leaf column, header groups included) wires async `filterParams.values` to `provider.getSetFilterValues({ column })`, so the panel shows all distinct values in the worker cache rather than the loaded blocks; `refreshValuesOnOpen` re-fetches per open, and a failed worker call reports `[]` instead of breaking the panel
@@ -595,7 +615,7 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
   stamped `v: 1` for smart-edit (previously dropped at load) now load too.
   React wiring: `recordEdit.ts` (`resolveEditRecording`), `useEditJournal`,
   `journalUndoRedo`, `journalApplyGuard`, `editJournalScope`,
-  `applyAndRecord.ts`. **Every write goes through `platform.data.mutate()`** —
+  `applyAndRecord.ts`, `editWriteBack.ts` (+ `useEditWriteBack`). **Every write goes through `platform.data.mutate()`** —
   the four funnels (`applyEdits`, `applyBulkUpdateEdits`, `applyShortcutEdit`,
   `applyPlusMinusNudge`) and the journal's own undo/redo take an `EditPlatform`
   (`{ gridId, data }`), not a `GridApi`, and return an `EditApplyResult`
@@ -1050,12 +1070,27 @@ modules).
 - `HistoryStackOptions` — `maxSize`
 - **Editing core** — `EditJournal`, `CellPatch`, `EditSource`, `EditPlatform`,
   `EditApplyResult`, `buildPatchesFromTargets`, `applyForwardPatches`,
-  `previewPatches`, `assertSingleColumnSelection`, `BuildNudgePatchesOptions` —
+  `applyPatches`, `previewPatches`, `assertSingleColumnSelection`,
+  `BuildNudgePatchesOptions` —
   cell-patch journal for row data edits (one user action = one undo step).
   `applyForwardPatches(port, patches)` writes through `platform.data.mutate()`
   and reports what landed; `EditGridWriter` and `buildRowUpdatesFromPatches`
   are gone, replaced by `buildRowPatches` (grouping only — row assembly belongs
   to the port's adapters)
+- **Edit write-back** — `submitEdits`, `EditWriteBack`, `EditSubmission`,
+  `EditWriteBackFailure`, `EditWriteBackHooks`, `SubmitEdits`,
+  `EditJournal.retract(entryId)` — the optimistic-edit state machine. The grid
+  is not the system of record: an edit is optimistic until the write service
+  accepts it and the feed broadcasts it back. `submitEdits` calls the app's
+  `submit` with the patches that LANDED, does nothing on resolve (confirmation
+  is the broadcast arriving, not the request returning), and on rejection
+  retracts the journal entry, reverts the cells through the port, and reports
+  `{ error, rolledBack, stuck }` — `stuck` being patches the revert could not
+  restore, which under SSRM is a row whose block has been evicted. Neither
+  reverting nor retracting is reachable from application code, which is why
+  the platform owns them while the POST stays the app's. No hook can break the
+  revert: `retract` runs before the revert, and a throwing `retract`,
+  `rollback` or `onFailure` is contained
 - **Smart edit** — `applyNumericOp`, `collectTargetCells`,
   `applySmartEditColDefTransforms`, `INITIAL_SMART_EDIT` (internal since
   Phase 6: `parseMagnitudeSuffix`, `deserializeSmartEditState`)

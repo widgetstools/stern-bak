@@ -27,6 +27,7 @@ import {
   GridEventBindingsHostProvider,
   type GridEventBindingsHostApi,
 } from '../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { useEditWriteBack } from '../customizer/hooks/useEditWriteBack.js';
 import type { MarketsGridHandle, MarketsGridProps } from './types';
 import { isMarketsGridLocalStorageStorageFactory } from './createMarketsGridLocalStorageStorage';
 import { useGridHost } from './useGridHost';
@@ -329,6 +330,11 @@ function MarketsGridInner<TData = unknown>(
 
   const shell = useMarketsGridShell(props);
 
+  // Reached through the per-grid registry rather than a prop, because the
+  // inline cell editor journals from a column transform that holds neither
+  // the props nor the data port.
+  useEditWriteBack(shell.platform, props.editWriteBack);
+
   const readQuickFilterText = useCallback(
     () => String(gridRef.current?.api?.getGridOption('quickFilterText') ?? ''),
     [],
@@ -457,6 +463,11 @@ function MarketsGridCoreInner<TData = unknown>(
 
   const gridRef = useRef<AgGridReact<TData>>(null);
   const shell = useMarketsGridShell(props);
+
+  // Reached through the per-grid registry rather than a prop, because the
+  // inline cell editor journals from a column transform that holds neither
+  // the props nor the data port.
+  useEditWriteBack(shell.platform, props.editWriteBack);
 
   const readQuickFilterText = useCallback(
     () => String(gridRef.current?.api?.getGridOption('quickFilterText') ?? ''),
