@@ -783,7 +783,12 @@ ClientSideRowModel-only API) while `EditJournal` recorded the edit as
 successful *(closed by Phase 4 — writes go through `platform.data.mutate()`
 and the journal records only confirmed cells; an SSRM edit still does not
 survive a block refetch, which needs a per-session edit overlay in the query
-plane — see the phase's decision 1)*. **15 are container wiring gaps.**
+plane — see the phase's decision 1)*, and the row-change delta hot path,
+which under SSRM emitted a `full` structural change with three empty arrays on
+every streaming tick *(closed by Phase 5 — `applyServerSideTransaction`'s
+result is reported through `RowChangeSink`, and the filter-pill badges patch
+from it: ten ticks over one row went from 22 worker round trips to 4, counted
+in `useFilterModel.test.ts`)*. **15 are container wiring gaps.**
 
 **Done looks like:** modules reach rows only through a `platform.data` port
 with CSRM and SSRM adapters behind one contract suite; no module branches on

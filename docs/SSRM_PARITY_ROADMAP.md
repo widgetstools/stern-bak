@@ -1,6 +1,6 @@
 # SSRM parity roadmap — execution record
 
-**Branch:** `feature/simplify`. **Status: 5 / 11 phases done (Phases 0–4).**
+**Branch:** `feature/simplify`. **Status: 6 / 11 phases done (Phases 0–5).**
 Phases are written to be picked up cold, one per session.
 
 The originating audit found that SSRM and CSRM grids are at parity in
@@ -942,7 +942,7 @@ Six decisions the later phases inherit:
 
 ---
 
-## Phase 5 — the row-change delta path ⬜
+## Phase 5 — the row-change delta path ✅
 
 **Goal:** `RowChangeSignal` carries real deltas under SSRM instead of
 degrading every tick to a full pass over the wrong scope.
@@ -971,6 +971,155 @@ degrading every tick to a full pass over the wrong scope.
 - `npm run bench:ssrm` records the improvement.
 
 **Closes:** T2-9.
+### What landed
+
+Core: `platform/types.ts` (`RowNodeDelta`, `RowChangeSink`), `RowChangeBus.ts`
+(`transactionApplied`, `trackDelta`, `sawFlush` → `sawDelta`),
+`GridPlatform.ts`, `GridDataHub.ts`, `SsrmDataAdapter.ts`, both barrels. Grid:
+`ssrm/bindSsrmTicks.ts` (`BindSsrmTicksOptions.rows`, `onTransactionApplied`),
+`widget/MarketsGridSsrmSurface.tsx`, `widget/filterPillCounts.ts`
+(`PillMembership`, `PillCountPatch`, `emptyPillMembership`, `carryForward`),
+`widget/useFilterModel.ts`. Tests: `RowChangeBus.test.ts` +5,
+`GridDataHub.test.ts` +2, `bindSsrmTicks.delta.test.ts` new (5),
+`MarketsGridSsrmSurface.test.tsx` +1, `alerts/runtime/activate.test.ts` +2,
+`filterPillCounts.test.ts` rewritten onto membership (+4),
+`useFilterModel.test.ts` +3 (the counted assertions).
+
+`npx turbo typecheck build test`: **TURBO_EXIT=0**, 21 / 21 tasks, **6034
+passing / 1 skipped** (types 171, design-system 355, data 703, core 1294,
+openfin 483, react 523, grid 2505). ESLint over every touched directory: **0
+errors, 17 warnings — the same 17 the Phase 4 baseline produces there**
+(checked by running the same command against `c39f305`); no
+`max-lines-per-function` warning gained or lost, and `useFilterCounts` stays
+under the 80-line ceiling. `node scripts/check-package-cycles.mjs`: the same
+single pre-existing cycle (WORKLOG 18), no new one. E2E: **7 / 7 passed**,
+none self-skipped (:8081 was up).
+
+**The RPC storm, counted rather than claimed.** `useFilterModel.test.ts` mounts
+the real hook on a real `GridPlatform` with two pills, binds a plane that
+counts every round trip, and ticks through `platform.rows`. Ten ticks over one
+row: **22 round trips → 4**. Three rows ticked once each, then twelve more
+ticks across them: **32 → 8**. Both assertions were run against the previous
+commit and both fail there, with the delta source already in place — which is
+the point of splitting the two commits: a real delta does not on its own fix
+the storm.
+
+`npm run bench:ssrm`, same-session baseline (`c39f305`, rebuilt) → after:
+replaceSnapshot **1772 → 1780 ms**, sorted block cold **134.0 → 142.5**,
+filtered+sorted **45.9 → 44.5**, grouped **64.5 → 47.9**, quick filter
+**52.4 → 50.7**, quick filter scoped **70.5 → 65.5**, quick filter matching
+nothing **23.0 → 20.5**, row-local warm **1.9 → 1.7**, aggregate cold
+**161.6 → 150.8**, aggregate warm **1.8 → 1.7**, 20-block scroll
+**126 → 121**, upsert 100/500/2000-row tick **1.2 → 1.4 / 5.1 → 5.5 /
+22.8 → 22.6**, plane heap 108 MB and total heap 879 MB unchanged. Noise in
+both directions, and that is the honest reading: **`bench:ssrm` instruments
+the worker plane, and this phase changes no plane code at all.** Its cost
+removal is client-side — a per-tick `forEachNode` over every loaded row in two
+modules, and N `getRows` round trips per emit — none of which the bench
+executes. The counted assertion above is this phase's recorded improvement;
+the bench is its no-regression gate.
+
+Five decisions the later phases inherit:
+
+1. **The seam is a sink on the bus, not a second bus and not a reach-in.**
+   `RowChangeSink.transactionApplied(delta)` is implemented by `RowChangeBus`
+   and deliberately absent from `RowChangeSignal`, which is what modules
+   receive — a module can read the signal and can never forge one. That is
+   the containment `GridDataHub.bindSsrm` already used, and the reason is the
+   same one Phase 0 wrote down: the binding moves, the platform does not. The
+   grid layer touches no bus internals; it passes `platform.rows` as an
+   option.
+2. **All THREE transaction sites report, not just the tick binding.** The
+   roadmap named `bindSsrmTicks` only, and it predates the third site: Phase 4
+   added `applyServerSideTransaction` to `SsrmDataAdapter.mutate`. Wiring only
+   the tick binding would have left an SSRM EDIT silent to alerts, timed
+   activations and the badges, while the same edit under CSRM produces an
+   `asyncTransactionsFlushed` all three hear — a new parity gap opened by the
+   fix for an old one. `GridPlatform` passes the bus into `GridDataHub`, which
+   passes it to the adapter it constructs; the client-side adapter takes none,
+   because its `applyTransactionAsync` already fires the event.
+3. **An EMPTY report is not a delta.** A refused server-side transaction
+   returns a result with no nodes. Believing it would set `sawDelta` and
+   downgrade a `modelUpdated` sharing the coalescing window from a structural
+   pass to a delta carrying nothing — precisely the both-ways-wrong emit this
+   phase exists to remove, reintroduced from the other end.
+   `asyncTransactionsFlushed` is still judged the old way and that asymmetry is
+   deliberate: it is AG-Grid stating the async queue drained, which only a
+   transaction produces, where a report is a caller's claim.
+4. **A delta alone does not fix the pill counts, and the missing piece was
+   smaller than a match set.** `patchPillCounts` wanted scan-built match sets,
+   which a windowed port cannot produce — so with real deltas every emit still
+   fell through to a full recompute, and the counted assertion still failed.
+   The only thing a patch needs is the changed row's OWN prior membership: the
+   badge counts the whole dataset, a changed row is one row of it, so a flip
+   moves the total by exactly one no matter what is unknown about the other
+   99,999. `PillMembership.evaluated` carries that — `null` after a scan that
+   covered the dataset (absence from a set is then a fact), otherwise the rows
+   established so far, FILLING from the deltas. First tick on a row: recorded,
+   one recompute, because guessing its prior state would drift the badge a row
+   at a time. Every later tick on it: free. A partly-resolved delta publishes
+   nothing, and a pill the port could not answer keeps no number rather than
+   having one invented from zero — the same `next[f.id] ?? 0` the old code
+   would have used.
+5. **Phase 3's hazard fired as predicted, and the transaction is what makes it
+   safe.** `knownRowIds` was maintained under SSRM only from transaction
+   deltas, which were always empty, so `runDelta`'s ROW_ADDED / ROW_REMOVED
+   path was unreachable under that row model — and it is the same mechanism
+   that produced phantom alerts before Phase 3 constrained the id-set diff.
+   It is safe here for a reason the diff never had: the id-set diff INFERS an
+   arrival from "an id I cannot see any more", which cache churn satisfies,
+   while a transaction STATES what it added. Pinned both ways in
+   `activate.test.ts` — five update-only ticks fire nothing, a reported
+   arrival fires exactly once and its follow-up updates do not fire again.
+   `reconcileRowMembership` still returns early where ids do not span the
+   dataset, unchanged, and `activateAlerts` needed no new code, so its
+   over-ceiling length did not grow.
+
+### Not closed here, deliberately
+
+- **T2-6 — the alerts bell undercounts. Reassigned to this phase, and it does
+  not fit; it needs its own session.** Surveyed rather than assumed. The
+  channel it would ride cannot be the tick fan-out:
+  `SharedWorkerDataServicesHub.fanSsrmFlush` sends a session its *interested*
+  rows, or — only where `wantsUnmatchedRows(subId)` holds, i.e. a FILTERED
+  session — the full changed set, or nothing at all. An unfiltered session
+  therefore never receives a row outside its viewport, and widening that is
+  the whole-payload-to-every-session cost the windowed flush exists to avoid.
+  So the fix is a NEW worker→client message kind carrying HITS (row key + rule
+  id), not rows, evaluated per session in the plane and addressed by
+  `sessionId` — `configureExpressions(rules, sessionId)` is already
+  session-keyed and one grid's alerts must not ring in another's bell. That
+  spans `expressionRules.ts` (a hits-only evaluator beside `enrich`),
+  `SsrmPlane` / `SsrmServer`, `SharedWorkerDataServicesHub` (message kind +
+  fan-out), `ISsrmDataProvider` + `SsrmProviderClientAdapter` (`onSsrmAlert`),
+  and the grid's dispatcher wiring — plus a dedupe against `__ssrmAlert` on
+  the rows the client does hold, or every visible hit fires twice. Three
+  packages and a new protocol message: Phase 1's size, not a tail end of this
+  one. Phase 4's objection to new RPCs genuinely does not transfer (a notify
+  channel is a read, not a write into a shared store) — the objection here is
+  only scope.
+- **Under an ACTIVE SORT the badges still recompute at the refresh throttle.**
+  `bindSsrmTicks`'s sorted path patches in place AND schedules
+  `refreshServerSide` 50 ms later so rows reshuffle; that refetch's
+  `modelUpdated` carries no delta, is correctly classified `full`, and a full
+  emit correctly recomputes. So a sorted live blotter pays up to ~20
+  recomputes/sec where an unsorted one pays none. This is not the storm — it
+  is the structural-change path behaving as designed — but it is the residue,
+  and closing it means telling a block refetch apart from a sort, which the
+  bus cannot do from `modelUpdated` alone.
+- **The membership set is not pruned except by row removal.** Under SSRM it
+  grows with the rows a tick actually changed — the interest-gated set — so a
+  long session that scrolls a 100,000-row dataset end to end can accumulate
+  ids for rows long evicted from the block cache. Bounded and small per entry,
+  and pruning on every structural emit would re-pay the first-tick recompute
+  during exactly the scrolling that caused the growth. Flagged rather than
+  guessed at; measure before adding an eviction policy.
+- **`RowChange` still carries no PREVIOUS row data.** It would have made the
+  pill patch trivial and would have saved the alerts module its own
+  `previousValues` store — and it was not added, because `asyncTransactionsFlushed`
+  does not carry one either, so the client-side row model could not honour it
+  and the contract would have meant two different things per row model. The
+  membership approach needs no such widening.
 
 ---
 
@@ -1230,10 +1379,10 @@ output; Tier 2 = silent no-op; Tier 3 = container wiring.
 | T2-3 | Conditional-styling header indicators never light | 6 |
 | T2-4 | Row-exclusion DSL excludes nothing | 6 |
 | T2-5 | Restored quick-filter text never re-queries (3 sites) | 10 |
-| T2-6 | Alerts bell undercounts | ~~3~~ → **5**, needs a worker→client alert channel |
+| T2-6 | Alerts bell undercounts | ~~3~~ → ~~5~~ → **open**, scoped in Phase 5 "Not closed here" |
 | T2-7 | `ssrmCellStyle` / `ssrmEditable` have no caller | 3 |
 | T2-8 | Bulk-update dropdown iterates server count against stubs | 6 |
-| T2-9 | Delta hot path dead; every tick a full pass | 5 |
+| T2-9 | Delta hot path dead; every tick a full pass | 5 ✅ |
 | T2-10 | Filter-pill badges mean different things per mode | 2 |
 | T2-11 | Row-model-specific grid options emit unbranched | 6 |
 | T3-1 | Provider column definitions downgraded | 9 |
@@ -1263,7 +1412,7 @@ These 9 are correct today. Each phase that touches one asserts it still holds.
 | Grid-state restore retry ladders (cold-mount window) | Phases 7, 8 |
 | Tree data + master-detail server-side | Phase 1 |
 | Status-bar show/hide owned by the surface | Phase 10 |
-| Worker-backed status-bar and filter-pill counts | Phases 2, 5 |
+| Worker-backed status-bar and filter-pill counts | Phases 2, 5 — held: badge meaning unchanged (`filterPillCounts.test.ts` parity case green), the delta only removes round trips |
 | Quick-filter matching semantics | Phases 1, 2 |
 | Server-side grouping / aggregation / pivoting | Phases 1, 3 — held: `engineContract.test.ts` grouped/agg cases green, `grouped by book, cold` 48.5 → 47.8 ms |
 | SSRM column inference from sampled rows | Phase 9 |
