@@ -1,9 +1,19 @@
 /**
  * All custom market icon SVG strings.
  *
- * Auto-generated from svg/*.svg files.
- * Each SVG uses stroke="currentColor" so the color can be replaced at runtime.
- * Used by dock editor icon pickers in both React and Angular.
+ * Auto-generated from svg/*.svg files. Used by the dock editor icon pickers.
+ *
+ * **Most** icons draw with `currentColor`, so {@link svgToDataUrl} can replace
+ * it and the caller chooses the colour. A curated set of trading-action and
+ * flow icons deliberately does NOT — they ship a fixed palette so they keep a
+ * stylized colour identity (buy is green, sell is red, crypto is gold) that
+ * reads on both light and dark surfaces. See the `fixed-palette` block below,
+ * and {@link FIXED_PALETTE_ICONS} for the derived list.
+ *
+ * This header used to claim every SVG used `currentColor`, which was the real
+ * defect behind WORKLOG item 4: not that those icons have a fixed palette —
+ * that is the design — but that the module said otherwise and
+ * {@link marketIconToDataUrl} silently ignored the colour it was given.
  */
 
 export const MARKET_ICON_SVGS: Record<string, string> = {
@@ -948,6 +958,27 @@ export function marketIconToDataUrl(iconKey: string, color: string = '#ffffff'):
   const svg = MARKET_ICON_SVGS[iconKey];
   if (!svg) return '';
   return svgToDataUrl(svg, color);
+}
+
+/**
+ * Icons that ship a FIXED palette, so `color` is a no-op for them.
+ *
+ * Derived from the markup rather than hand-listed, so it cannot drift from the
+ * icons themselves. Exported so a colour control can say which of its options
+ * will not respond — the silent no-op was the actionable half of WORKLOG
+ * item 4.
+ */
+export const FIXED_PALETTE_ICONS: readonly string[] = Object.freeze(
+  Object.entries(MARKET_ICON_SVGS)
+    .filter(([, svg]) => !svg.includes('currentColor'))
+    .map(([key]) => key)
+    .sort(),
+);
+
+/** Whether {@link marketIconToDataUrl}'s `color` will actually be applied. */
+export function isRecolourable(iconKey: string): boolean {
+  const svg = MARKET_ICON_SVGS[iconKey];
+  return Boolean(svg) && svg.includes('currentColor');
 }
 
 // ─── Dock system button convenience exports ────────────────────────

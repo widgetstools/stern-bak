@@ -1,7 +1,9 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   MARKET_ICON_SVGS, marketIconToDataUrl, svgToDataUrl,
+  FIXED_PALETTE_ICONS, isRecolourable,
   TOOLS_SVG, SETTINGS_SVG, REFRESH_SVG, CODE_SVG, DOWNLOAD_SVG,
   UPLOAD_SVG, SUN_SVG, MOON_SVG, EYE_SVG,
 } from './allIcons.js';
@@ -108,10 +110,43 @@ describe('MARKET_ICON_SVGS', () => {
     }
   });
 
-  it('a hardcoded-colour icon ignores the requested colour (documents the defect)', () => {
-    const url = marketIconToDataUrl(KNOWN_HARDCODED_COLOUR[0], '#00ff00');
+  it('a fixed-palette icon keeps its own colours, and SAYS it will', () => {
+    const key = KNOWN_HARDCODED_COLOUR[0];
+    const url = marketIconToDataUrl(key, '#00ff00');
     expect(url).not.toBe('');
+    // Deliberate: these carry a stylized colour identity that reads on both
+    // surfaces. What was wrong was that it happened silently.
     expect(decode(url)).not.toContain('#00ff00');
+    expect(isRecolourable(key)).toBe(false);
+    expect(FIXED_PALETTE_ICONS).toContain(key);
+  });
+
+  it('the fixed-palette list is derived from the markup, so it cannot drift', () => {
+    const fromMarkup = Object.entries(MARKET_ICON_SVGS)
+      .filter(([, svg]) => !svg.includes('currentColor'))
+      .map(([k]) => k)
+      .sort();
+    expect([...FIXED_PALETTE_ICONS]).toEqual(fromMarkup);
+    expect([...FIXED_PALETTE_ICONS]).toEqual([...KNOWN_HARDCODED_COLOUR].sort());
+  });
+
+  it('every OTHER icon reports itself recolourable, and is', () => {
+    const themeable = Object.keys(MARKET_ICON_SVGS).filter(
+      (k) => !KNOWN_HARDCODED_COLOUR.includes(k),
+    );
+    for (const key of themeable) {
+      expect(isRecolourable(key), `${key} should be recolourable`).toBe(true);
+      expect(decode(marketIconToDataUrl(key, '#00ff00'))).toContain('#00ff00');
+    }
+  });
+
+  it('the module header no longer claims every SVG uses currentColor', () => {
+    // That blanket claim was the actual defect in WORKLOG item 4 — the fixed
+    // palette is the design, the documentation contradicting it was not.
+    const src = readFileSync(new URL('./allIcons.ts', import.meta.url), 'utf8');
+    const header = src.slice(0, src.indexOf('export const MARKET_ICON_SVGS'));
+    expect(header).not.toMatch(/Each SVG uses stroke="currentColor"/);
+    expect(header).toContain('FIXED_PALETTE_ICONS');
   });
 });
 

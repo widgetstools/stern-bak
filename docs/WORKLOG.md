@@ -65,158 +65,37 @@ the same decision.
 ---
 
 
-## 4. 25 icons cannot be recoloured or themed
+## 4. 25 icons ship a fixed palette — CLOSED 2026-08-18 (was mis-framed)
 
-**Repo:** stern-bak · **Blocked on:** nothing, needs regenerating the SVGs
+**Repo:** stern-bak
 
-25 of 113 entries in `packages/design-system/icons-svg/allIcons.ts` hardcode hex
-colours (`stroke="#a78bfa"`) instead of `currentColor`, despite that module's own
-doc comment claiming otherwise. Consequences:
+This was carried as "25 icons cannot be recoloured or themed", citing the
+module's own doc comment as claiming otherwise. Investigating it inverted the
+finding.
 
-- `marketIconToDataUrl(key, color)` silently ignores `color` for them
-- they cannot follow the light/dark theme ("no hardcoded hex anywhere" is
-  the binding rule)
+The 25 are a **deliberate** curated set — trading actions and flows — and
+`allIcons.ts` says so at the block itself: *"These ship with hardcoded hex
+fills so they keep their stylized colour identity in both themes."* `buy` is
+green, `sell` is red, `crypto` is gold; `algo` and `connectivity` use five
+colours to distinguish nodes. Collapsing them to `currentColor` would make
+profit and loss identical. They are saturated mid-tones, so they read on light
+and dark alike — the "100% dark/light" rule is met, just not via
+`currentColor`.
 
-The list is pinned in `allIcons.test.ts` as `KNOWN_HARDCODED_COLOUR`, with a test
-that fails if the set grows. **Done looks like** regenerating those SVGs with
-`currentColor` and deleting their entries from that list.
+**What WAS wrong**, and is fixed:
 
-## 5. `resolveBrowserIdentity` ignores the userId it is given
+1. The module header claimed *"Each SVG uses stroke=`currentColor` so the color
+   can be replaced at runtime"* — a blanket statement the curated block
+   contradicts eleven lines later. That contradiction is what made this look
+   like a defect. Header corrected.
+2. `marketIconToDataUrl(key, colour)` ignored `colour` for them **silently**.
+   Now `FIXED_PALETTE_ICONS` (derived from the markup, so it cannot drift) and
+   `isRecolourable(key)` are exported, so a colour control can say which of its
+   options will not respond.
 
-**Repo:** stern-bak · **Blocked on:** deciding whether the fix is safe
-
-`packages/core/host-browser/src/identity.ts` hardcodes:
-
-```ts
-userId: LOGGED_IN_USER_ID,   // 'dev1'
-```
-
-It ignores **both** the `userId` URL param and `IdentityOverrides.userId`, even
-though the interface advertises that field and reads every other one from the
-same sources. So `new BrowserRuntime({ identity: { userId: 'k151344' } })`
-silently yields `'dev1'`.
-
-`userId` scopes profile persistence (`buildGridHostContext` passes it to the
-storage factory), so in a browser-hosted app **every user shares one profile
-scope**. `LOGGED_IN_USER_ID` is itself marked `@deprecated` in favour of
-`PlatformBootstrapConfig.userId`, which suggests this is a leftover.
-
-Pinned in `BrowserRuntime.test.ts` rather than fixed — changing it moves where
-existing profiles resolve, which is a migration question, not a one-line edit.
-
-**Done looks like** either honouring `params.get('userId') ?? overrides.userId ??
-LOGGED_IN_USER_ID` and accepting the profile-scope move, or removing `userId`
-from `IdentityOverrides` so the type stops promising something it does not do.
-
-## 6. Two config factories hand out shared mutable defaults
-
-**Repo:** stern-bak · **Blocked on:** nothing, but each fix needs a caller audit
-
-Surfaced writing the coverage-70 Session 1 tests. Both are the same shape: a
-factory that exists to give callers a *safe* object hands back a reference into
-module-level state.
-
-- `packages/types/shared-types/src/dockConfig.ts` — `createMenuItem()` does
-  `windowOptions: partial?.windowOptions || DEFAULT_WINDOW_OPTIONS`. Every menu
-  item created without explicit options aliases the **same** object, so a dock
-  editor writing `item.windowOptions.width = 900` resizes every other item that
-  took the default. Same for `viewOptions` / `DEFAULT_VIEW_OPTIONS`.
-- `packages/types/shared-types/src/dataProvider.ts` —
-  `getDefaultProviderConfig()` returns `{ ...DEFAULT_PROVIDER_CONFIGS[type] }`,
-  a *shallow* copy. The stomp default's `heartbeat` object and the appdata
-  default's `variables` record are still shared, so a provider editor binding a
-  form field to `cfg.heartbeat.outgoing` mutates the table for every subsequent
-  caller.
-
-Both are pinned as-is in `dockConfig.test.ts` / `dataProvider.test.ts` with a
-comment marking them hazards, rather than fixed — a deep clone changes object
-identity, and nothing has established whether any caller relies on the current
-aliasing (e.g. comparing `item.windowOptions === DEFAULT_WINDOW_OPTIONS` to
-detect "unset"). **Done looks like** deep-cloning the defaults in both factories
-after grepping the dock editor and the data-provider editor for identity checks.
-
-**Also noticed, lower stakes:** `ConfigManager.userHasPermission(user, p)`
-answers from `role.permissionIds` alone and never reads the permissions table,
-while `getUserPermissions(user)` drops any id with no row. So a permission whose
-definition was deleted still passes the check but is absent from the list. Both
-behaviours are pinned in `configManager.authTables.test.ts`; which one is
-correct is a product question.
-
-## 7. Three defects in `workspace-setup-react`, all pinned not fixed
-
-**Repo:** stern-bak · **Blocked on:** nothing; each is a small change with a
-caller audit attached
-
-Surfaced writing the coverage-70 Session 2 tests. Each is asserted as-is in the
-suite with a comment, so a fix flips a test rather than landing silently.
-
-**a. `IconPicker` lists every market icon twice, and search is broken.**
-`buildIconList()` concatenates `ICON_META` (tagged `source: 'market'`) with
-`ICON_OPTIONS` (tagged `source: 'lucide'` wholesale) — but 80 of
-`ICON_OPTIONS`' 140 entries carry `mkt:*` ids, so 72 ids appear in both passes.
-Three consequences, all pinned in `IconPicker.test.tsx`:
-
-- `key={icon.id}` is non-unique, React logs *"Encountered two children with the
-  same key"*, and the filtered grid cannot reconcile — searching `FileText`
-  leaves ~72 non-matching icons on screen. This is the user-visible one.
-- The mis-tagged duplicate takes the lucide branch on click and emits
-  `https://api.iconify.design/mkt/bond.svg`, which does not exist. Persist that
-  into a dock config and the button renders blank.
-- The explicit `if (meta.category === "system") continue` skip is defeated:
-  `mkt:wrench` and friends come back through the `ICON_OPTIONS` pass.
-
-**Done looks like** deriving `source` from the id prefix rather than from which
-list an entry came out of, and de-duplicating by id before render.
-
-**b. `useRegistryEditor.testComponent` never sends a `userId`.** The callback is
-`useCallback(..., [])` but reads `hostEnv.userId` from state that is populated
-asynchronously, so it closes over the initial `{ appId: '', configServiceUrl: '' }`
-forever. `customData.userId` is always `undefined` — the component-host saver
-needs it to populate `userId` / `createdBy` / `updatedBy` on a freshly-built
-`AppConfigRow`. **Done looks like** adding `hostEnv` to the dependency list (or
-reading it through a ref) and checking what the saver currently does with an
-absent `userId`.
-
-**c. `useRegistryEditor` imports the main `@wellsfargo-starui/openfin-platform`
-barrel.** Its sibling `useDockEditor` deliberately imports
-`@wellsfargo-starui/openfin-platform/config` with a comment explaining that the
-main barrel's `@openfin/workspace-platform` side effects throw
-`Cannot read properties of undefined (reading 'uuid')` outside OpenFin — and the
-editor renders in a plain browser window at dev time. Every symbol
-`useRegistryEditor` uses is exported from `/config`, so this is a one-line
-import change; the tests currently mock the whole barrel to work around it.
-
-**Also noticed, cosmetic:** `InspectorPane`'s Config ID preview falls back to
-`"—"` only when the derivation is falsy, but `deriveTemplateConfigId('', '')`
-returns `"-"`. A brand-new draft therefore previews its id as a lone hyphen and
-the em-dash branch is unreachable.
-
-## 8. `config-browser`'s JSON editor has no accessible name
-
-**Repo:** stern-bak · **Blocked on:** nothing; one attribute
-
-`RowDrawer`'s payload `<textarea>` is labelled only by a sibling `<div>` reading
-"JSON payload", which is not an accessible name. It is the primary control of
-the row editor — the only way to change a config row — and it is unreachable by
-`getByRole('textbox', { name })`, indistinguishable from the toolbar's
-quick-filter box. `ConfigBrowser.test.tsx` works around it by filtering matches
-on `tagName`, with a comment pointing here.
-
-Same class as the drawer's Close button, which does have a `title` and is
-therefore fine. **Done looks like** an `aria-label="JSON payload"` (or an
-`id`/`htmlFor` pair against the existing heading), after which the test helper
-can go back to a plain role+name query.
-
-## 9. `CollapsibleToolbar`'s pin control has no accessible name
-
-**Repo:** stern-bak · **Blocked on:** nothing; one attribute
-
-The pin/unpin `<Button>` inside `CollapsibleToolbar` is icon-only (`Pin` /
-`PinOff` from lucide). It exposes a `title` tooltip but no `aria-label`, so it
-is unreachable by `getByRole('button', { name })` — the session 8 coverage test
-falls back to querying the sole button after hover expand. **Done looks like**
-`aria-label="Pin toolbar open"` / `"Unpin toolbar"` (or equivalent), after which
-the test can name the control explicitly.
+`allIcons.test.ts` asserts the derived list matches the markup, that every
+other icon really does recolour, and that the header no longer makes the
+blanket claim.
 
 ## 10. A `--force` build can be read half-written, failing ~109 suites
 
