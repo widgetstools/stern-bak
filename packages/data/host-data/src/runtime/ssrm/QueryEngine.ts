@@ -505,6 +505,27 @@ export class QueryEngine {
     return rows.map((r) => this.enrich(r, sessionId));
   }
 
+  /** Whether this session has an alert rule — see {@link alertHits}. */
+  hasAlertRules(sessionId?: string): boolean {
+    return this.exprRules.hasAlertRules(sessionId);
+  }
+
+  /**
+   * Which alert rules these rows satisfy, for one session.
+   *
+   * Answered over rows the plane holds regardless of whether the session has
+   * ever loaded them — which is the entire finding: `enrich` writes
+   * `__ssrmAlert` only onto rows the plane is HANDING OVER, so a worker-detected
+   * alert was only ever present on a row the client already had, and wiring
+   * that to the bell would not have raised the count by one.
+   */
+  alertHits(
+    entries: ReadonlyArray<readonly [key: string, row: Row]>,
+    sessionId?: string,
+  ): Array<{ key: string; ruleId: string }> {
+    return this.exprRules.alertHits(entries, sessionId, this.aggregateScope(sessionId));
+  }
+
   /** Field names produced by configured `calculated` expression rules. */
   calculatedFields(sessionId?: string): string[] {
     return this.exprRules.calculatedFields(sessionId);

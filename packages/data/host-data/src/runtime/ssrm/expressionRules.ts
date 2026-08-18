@@ -191,6 +191,53 @@ export class ExpressionRuleStore {
     return out;
   }
 
+  /** Whether this session has any `alert` rule at all — the gate that keeps
+   *  {@link alertHits} off the flush path for every grid that has none. */
+  hasAlertRules(sessionId?: string): boolean {
+    return this.rulesFor(sessionId).some((r) => r.kind === "alert");
+  }
+
+  /**
+   * Which of this session's alert rules each of these rows satisfies.
+   *
+   * The hits-only twin of {@link enrich}, and deliberately not a call to it:
+   * `enrich` allocates a copy per row and evaluates style, editability and
+   * every calculated column to answer a question that is one boolean per rule.
+   * This runs on the CHANGED rows of every flush, for every session that has
+   * an alert rule, so the difference is the difference between the channel
+   * being affordable and not.
+   *
+   * Calculated columns are materialised first — through the memoised
+   * {@link applyCalculated}, so a session already filtering on one pays
+   * nothing extra — because an alert rule may perfectly well be written about
+   * a calculated column, and `enrich` evaluates them in that order too.
+   */
+  alertHits(
+    entries: ReadonlyArray<readonly [key: string, row: Row]>,
+    sessionId?: string,
+    aggregates?: AggregateScope,
+  ): Array<{ key: string; ruleId: string }> {
+    const rules = this.rulesFor(sessionId).filter((r) => r.kind === "alert");
+    if (rules.length === 0 || entries.length === 0) return [];
+    const compiled = this.compiledFor(sessionId);
+    const hits: Array<{ key: string; ruleId: string }> = [];
+
+    for (const [key, raw] of entries) {
+      const row = this.applyCalculated(raw, sessionId, aggregates);
+      const ctx = { data: row, columns: row, value: null, x: null, ...aggregates };
+      for (const rule of rules) {
+        const fn = compiled.get(rule.id);
+        if (!fn) continue;
+        try {
+          if (fn(ctx)) hits.push({ key, ruleId: rule.id });
+        } catch {
+          // swallow per-row expression errors, exactly as `enrich` does
+        }
+      }
+    }
+    return hits;
+  }
+
   /** The `calculated` half of {@link enrich}, in place. */
   private evaluateCalculated(
     out: Row,

@@ -2147,3 +2147,79 @@ describe('SharedWorkerDataServicesHub — the per-session query layer', () => {
     expect(getRows(hub, port, 'q2', 's1').getRows?.rowCount).toBe(2);
   });
 });
+
+/**
+ * The alerts channel, driven through the hub exactly as a client sees it.
+ *
+ * Hits ride the `ssrm-tick` message rather than a kind of their own: the tick
+ * already reaches every data subscriber on every flush, addressed by the same
+ * `subId`, so a second message would be a parallel channel to the same
+ * recipients. What the flush could not carry was viewport-scoped ROWS — these
+ * are a row key and a rule id.
+ */
+describe('SharedWorkerDataServicesHub — alert hits ride the tick', () => {
+  function ssrmHub() {
+    let emitRef: ProviderEmit | null = null;
+    registerProvider('mock-ssrm' as TransportConfig['providerType'], (_cfg, emit) => {
+      emitRef = emit;
+      return { stop() {}, restart() {} } as ProviderHandle;
+    });
+    const hub = new SharedWorkerDataServicesHub();
+    const port = makePort();
+    hub.handleRequest(port, {
+      kind: 'attach', subId: 'sA', providerId: 'p-alert', mode: 'data',
+      cfg: { providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as TransportConfig,
+    });
+    return { hub, port, emit: (rows: unknown[], replace = false) => emitRef?.({ rows, replace }) };
+  }
+
+  const ticks = (port: CapturedPort) =>
+    port.messages.filter((m) => (m as { kind?: string }).kind === 'ssrm-tick') as Array<{
+      subId: string;
+      alerts?: Array<{ key: string; ruleId: string }>;
+    }>;
+
+  it('carries a hit on a row the session never asked for', () => {
+    const { hub, port, emit } = ssrmHub();
+    emit([{ id: 'a', px: 1 }, { id: 'b', px: 1 }], true);
+    hub.handleRequest(port, {
+      kind: 'ssrm-configure-expressions', reqId: 'e1', providerId: 'p-alert', sessionId: 'sA',
+      rules: [{ id: 'spike', kind: 'alert', expression: '[px] > 50' }],
+    });
+
+    // No viewport interest declared: this session has loaded nothing at all.
+    emit([{ id: 'b', px: 999 }]);
+
+    const last = ticks(port).at(-1);
+    expect(last?.alerts).toEqual([{ key: 'b', ruleId: 'spike' }]);
+  });
+
+  it('omits the field entirely for a session with no alert rules', () => {
+    const { port, emit } = ssrmHub();
+    emit([{ id: 'a', px: 1 }], true);
+    emit([{ id: 'a', px: 999 }]);
+    expect(ticks(port).at(-1)).not.toHaveProperty('alerts');
+  });
+
+  it('addresses hits per session — two grids, two rule sets', () => {
+    const { hub, port, emit } = ssrmHub();
+    const portB = makePort();
+    hub.handleRequest(portB, { kind: 'attach', subId: 'sB', providerId: 'p-alert', mode: 'data' });
+    emit([{ id: 'a', px: 1 }], true);
+
+    hub.handleRequest(port, {
+      kind: 'ssrm-configure-expressions', reqId: 'e1', providerId: 'p-alert', sessionId: 'sA',
+      rules: [{ id: 'low', kind: 'alert', expression: '[px] > 50' }],
+    });
+    hub.handleRequest(portB, {
+      kind: 'ssrm-configure-expressions', reqId: 'e2', providerId: 'p-alert', sessionId: 'sB',
+      rules: [{ id: 'high', kind: 'alert', expression: '[px] > 5000' }],
+    });
+
+    emit([{ id: 'a', px: 999 }]);
+
+    expect(ticks(port).at(-1)?.alerts).toEqual([{ key: 'a', ruleId: 'low' }]);
+    // sB's threshold is higher — one grid's alerts must not ring in another's.
+    expect(ticks(portB).at(-1)).not.toHaveProperty('alerts');
+  });
+});

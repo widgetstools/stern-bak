@@ -543,6 +543,16 @@ export class SharedWorkerDataServicesHub {
           ? plane.enrichRows(plane.rowsForKeys(flush.keys), subId)
           : [];
       }
+      // Alert hits over the WHOLE changed set, not just this session's
+      // viewport — the finding is that the bell counted only loaded rows. Hits
+      // are a row key and a rule id, so widening the evaluation does not widen
+      // the payload, which is what the windowed flush exists to avoid. Empty
+      // and free for a session with no alert rules.
+      const alerts =
+        flush.type === 'rows' && flush.keys.length
+          ? plane.alertHits(flush.keys, subId)
+          : [];
+
       const msg: SsrmTickEvent = {
         kind: 'ssrm-tick',
         subId,
@@ -555,6 +565,7 @@ export class SharedWorkerDataServicesHub {
           rows,
         },
         interestedKeys,
+        ...(alerts.length ? { alerts } : {}),
       };
       try {
         listener.port.postMessage(msg);

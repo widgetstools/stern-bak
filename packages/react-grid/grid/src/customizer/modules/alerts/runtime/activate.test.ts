@@ -612,6 +612,7 @@ describe('activateAlerts', () => {
       }),
       subscribe: () => () => { throw new Error('sub dispose fail'); },
       rows: { subscribe: () => () => {} },
+      events: { on: () => () => {}, emit: () => {} },
       resources: { expression: () => new ExpressionEngine() },
       api: {
         onReady: (fn: (a: typeof api) => void) => {
@@ -791,6 +792,7 @@ describe('activateAlerts', () => {
           return () => {};
         },
       },
+      events: { on: () => () => {}, emit: () => {} },
       resources: { expression: () => new ExpressionEngine() },
       api: { onReady: () => () => {}, api: null },
     };
@@ -873,6 +875,7 @@ describe('activateAlerts', () => {
           return () => {};
         },
       },
+      events: { on: () => () => {}, emit: () => {} },
       resources: { expression: () => new ExpressionEngine() },
       api: {
         onReady: () => () => {},
@@ -900,6 +903,7 @@ function platformMock() {
     },
     subscribe: () => () => {},
     rows: { subscribe: () => () => {} },
+    events: { on: () => () => {}, emit: () => {} },
     resources: { expression: () => new ExpressionEngine() },
     api: {
       onReady: (fn: (a: typeof api) => void) => {
@@ -910,3 +914,140 @@ function platformMock() {
     },
   };
 }
+
+/**
+ * The bell counts a hit the client could never have found: a `dataChange` rule
+ * matched by a row this grid has not loaded, reported by the data source on
+ * `data:alertHits`.
+ *
+ * The module subscribes to an event that, in a grid holding every row, never
+ * arrives — so this is not a branch on the row model, and a client-side grid
+ * needs no change for its behaviour to stay exactly as it was.
+ */
+describe('alerts on rows this grid never loaded', () => {
+  const dataChangeRule = {
+    id: 'dc-remote',
+    name: 'Price spike',
+    enabled: true,
+    priority: 0,
+    severity: 'info' as const,
+    trigger: { kind: 'dataChange' as const, expression: '[price] > 50' },
+    message: 'spike on {rowId}',
+    channels: ['badge' as const],
+  };
+
+  const platformWith = (gridId: string, rules: unknown[] = [dataChangeRule]) => {
+    const platform = new GridPlatform({ gridId, modules: [alertsModule] });
+    platform.store.setModuleState('alerts', () => ({
+      ...INITIAL_ALERTS,
+      settings: enabledSettings({ defaultDebounceMs: 0, maxNotificationsPerSecond: 100 }),
+      rules,
+    }));
+    platform.onGridReady(makeApi() as never);
+    return platform;
+  };
+
+  const history = (p: GridPlatform) => p.store.getModuleState('alerts').history;
+
+  it('counts a hit reported for an unloaded row', () => {
+    const platform = platformWith('alerts-remote');
+    platform.events.emit('data:alertHits', {
+      gridId: 'alerts-remote',
+      hits: [{ rowId: 'never-loaded', ruleId: 'dc-remote' }],
+    });
+    expect(history(platform)).toHaveLength(1);
+    expect(history(platform)[0]).toMatchObject({
+      ruleId: 'dc-remote',
+      rowId: 'never-loaded',
+      // A row predicate on a row nobody holds has no cell context, and the
+      // module does not invent one.
+      column: null,
+    });
+    platform.destroy();
+  });
+
+  it('counts once per (rule, row) in a batch, and once per rule for one row', () => {
+    const second = { ...dataChangeRule, id: 'dc-2', name: 'Second' };
+    const platform = platformWith('alerts-remote-batch', [dataChangeRule, second]);
+    platform.events.emit('data:alertHits', {
+      gridId: 'alerts-remote-batch',
+      hits: [
+        { rowId: 'r-far', ruleId: 'dc-remote' },
+        { rowId: 'r-far', ruleId: 'dc-2' },
+        { rowId: 'r-other', ruleId: 'dc-remote' },
+      ],
+    });
+    expect(history(platform)).toHaveLength(3);
+    platform.destroy();
+  });
+
+  it('ignores an event addressed to a different grid', () => {
+    const platform = platformWith('alerts-remote-mine');
+    platform.events.emit('data:alertHits', {
+      gridId: 'someone-elses-grid',
+      hits: [{ rowId: 'x', ruleId: 'dc-remote' }],
+    });
+    expect(history(platform)).toHaveLength(0);
+    platform.destroy();
+  });
+
+  it('ignores a hit for a rule this grid does not have, or has disabled', () => {
+    const platform = platformWith('alerts-remote-unknown', [
+      { ...dataChangeRule, enabled: false },
+    ]);
+    platform.events.emit('data:alertHits', {
+      gridId: 'alerts-remote-unknown',
+      hits: [
+        { rowId: 'x', ruleId: 'dc-remote' },
+        { rowId: 'y', ruleId: 'no-such-rule' },
+      ],
+    });
+    expect(history(platform)).toHaveLength(0);
+    platform.destroy();
+  });
+
+  it('respects the paused switch', () => {
+    const platform = new GridPlatform({ gridId: 'alerts-remote-paused', modules: [alertsModule] });
+    platform.store.setModuleState('alerts', () => ({
+      ...INITIAL_ALERTS,
+      settings: { ...DEFAULT_ALERTS_SETTINGS, enabled: true, evaluationMode: 'paused' as const },
+      rules: [dataChangeRule],
+    }));
+    platform.onGridReady(makeApi() as never);
+    platform.events.emit('data:alertHits', {
+      gridId: 'alerts-remote-paused',
+      hits: [{ rowId: 'x', ruleId: 'dc-remote' }],
+    });
+    expect(history(platform)).toHaveLength(0);
+    platform.destroy();
+  });
+
+  it('does NOT fire a relativeChange rule — there is no baseline for a row nobody saw', () => {
+    const platform = platformWith('alerts-remote-rel', [{
+      id: 'rel-remote',
+      name: 'Moved',
+      enabled: true,
+      priority: 0,
+      severity: 'info' as const,
+      trigger: { kind: 'relativeChange' as const, column: 'price', mode: 'ANY_CHANGE' as const },
+      message: 'moved',
+      channels: ['badge' as const],
+    }]);
+    platform.events.emit('data:alertHits', {
+      gridId: 'alerts-remote-rel',
+      hits: [{ rowId: 'x', ruleId: 'rel-remote' }],
+    });
+    expect(history(platform)).toHaveLength(0);
+    platform.destroy();
+  });
+
+  it('stops counting after teardown', () => {
+    const platform = platformWith('alerts-remote-teardown');
+    platform.destroy();
+    platform.events.emit('data:alertHits', {
+      gridId: 'alerts-remote-teardown',
+      hits: [{ rowId: 'x', ruleId: 'dc-remote' }],
+    });
+    expect(history(platform)).toHaveLength(0);
+  });
+});

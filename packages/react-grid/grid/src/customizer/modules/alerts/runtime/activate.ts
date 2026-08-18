@@ -31,7 +31,7 @@ import { detectRowChanges, type AlertsState } from '@wellsfargo-starui/core';
 /** Structural shape of an AG-Grid row node — avoids leaking an ag-grid import. */
 type RowNodeLike = { id?: unknown; data?: Record<string, unknown> };
 import { getValueByPath } from '@wellsfargo-starui/types';
-import { createAlertDispatcher } from './dispatch';
+import { createAlertDispatcher, type AlertDispatcher } from './dispatch';
 import {
   collectWatchedColIds,
   evaluateCellDelta,
@@ -75,6 +75,52 @@ function snapshotRowIds(api: GridApi): Set<string> {
     /* grid mid-teardown */
   }
   return ids;
+}
+
+/**
+ * Dispatch alert hits the DATA SOURCE found on rows this grid does not hold.
+ *
+ * The bell used to count only what the client had loaded, because a
+ * `dataChange` rule is evaluated against the rows the grid materialises and a
+ * paging grid materialises a window. Where the source can see the whole
+ * dataset it says so, already deduped against the rows this session holds —
+ * those arrive as a transaction and are evaluated against this session's own
+ * baselines, so counting them here as well would count every visible hit
+ * twice.
+ *
+ * Only `dataChange` rules, deliberately. A `relativeChange` rule compares
+ * against a baseline this session recorded, and a row nobody has observed has
+ * none — a source-detected "hit" on one would be a comparison against nothing.
+ * A `rowChange` rule speaks about membership, which is not what this reports.
+ *
+ * Module-level rather than a closure inside `activateAlerts` only to keep that
+ * function from growing; it needs nothing from its scope but the two arguments.
+ */
+function dispatchSourceAlertHits(
+  platform: PlatformHandle<AlertsState>,
+  dispatcher: AlertDispatcher,
+  hits: ReadonlyArray<{ rowId: string; ruleId: string }>,
+): void {
+  if (hits.length === 0) return;
+  const rulesById = new Map(
+    platform
+      .getState()
+      .rules.filter((r) => r.enabled && r.trigger.kind === 'dataChange')
+      .map((r) => [r.id, r]),
+  );
+  for (const hit of hits) {
+    const rule = rulesById.get(hit.ruleId);
+    if (!rule) continue;
+    // No cell context: the rule is a row predicate and the row is not loaded.
+    // Inventing a column or a value here would be inventing it.
+    dispatcher.dispatch(rule, {
+      ruleId: rule.id,
+      rowId: hit.rowId,
+      column: null,
+      value: null,
+      prevValue: null,
+    });
+  }
 }
 
 export function activateAlerts(
@@ -347,6 +393,16 @@ export function activateAlerts(
       if (!rules.some((r) => r.enabled)) return;
       if (change.full) runFullPass(rules);
       else runDelta(change, rules);
+    }),
+  );
+
+  // Hits the DATA SOURCE found on rows this grid does not hold — the one
+  // channel by which an alert on an unloaded row reaches the bell. See
+  // {@link dispatchSourceAlertHits}.
+  disposers.push(
+    platform.events.on('data:alertHits', ({ gridId, hits }) => {
+      if (gridId !== platform.gridId || !isEvaluationActive()) return;
+      dispatchSourceAlertHits(platform, dispatcher, hits);
     }),
   );
 

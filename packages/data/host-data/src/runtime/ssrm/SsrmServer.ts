@@ -259,6 +259,24 @@ export class SsrmServer implements ICacheIngest {
     return this.query.enrichRows(rows, sessionId);
   }
 
+  /**
+   * Alert-rule hits among `keys`, for one session — row key + rule id, never
+   * rows. Empty (and free) for a session with no alert rules.
+   *
+   * Keys the store no longer holds are skipped rather than reported: a row
+   * deleted between the flush accumulating it and this call has nothing to
+   * evaluate, and a `rowChange` rule is the thing that speaks to departures.
+   */
+  alertHits(keys: readonly string[], sessionId?: string): Array<{ key: string; ruleId: string }> {
+    if (keys.length === 0 || !this.query.hasAlertRules(sessionId)) return [];
+    const entries: Array<readonly [string, Row]> = [];
+    for (const key of keys) {
+      const row = this.store.getRow(key);
+      if (row !== undefined) entries.push([key, row]);
+    }
+    return this.query.alertHits(entries, sessionId);
+  }
+
   /** Calculated expression output fields (for cell-flash column targeting). */
   calculatedFields(sessionId?: string): string[] {
     return this.query.calculatedFields(sessionId);

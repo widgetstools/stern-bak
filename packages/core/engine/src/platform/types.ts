@@ -64,6 +64,25 @@ export interface PlatformEventMap {
    */
   'gridLevelData:imported': { gridId: string; data: unknown };
   /**
+   * A row the grid does NOT hold satisfied an alert rule.
+   *
+   * The one channel by which an alert on an unloaded row can reach the bell.
+   * A grid whose row model holds every row never emits it — its own row-change
+   * delta already sees every row, and a hit reported twice is a hit counted
+   * twice — so the alerts module subscribing to this is not a branch on the
+   * row model: it is a module listening for something that, where it cannot
+   * happen, simply never arrives.
+   *
+   * Carries the row KEY and the rule id and nothing else. The rule is a row
+   * predicate rather than a cell delta, and the row is by definition not
+   * loaded, so there is no cell context to carry and inventing one would be
+   * inventing it.
+   */
+  'data:alertHits': {
+    gridId: string;
+    hits: ReadonlyArray<{ rowId: string; ruleId: string }>;
+  };
+  /**
    * A settings panel committed card edits into module state and wants the
    * active profile flushed to disk NOW (explicit-save-only model — module
    * state is otherwise only persisted by the grid's main Save). The host

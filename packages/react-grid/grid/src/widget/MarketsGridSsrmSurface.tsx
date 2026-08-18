@@ -322,6 +322,18 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         // `RowChangeBus` to hear. `null` only when the surface is mounted
         // outside a `<GridProvider>`, which has no subscribers either.
         rows: platform?.rows,
+        // Alerts the plane found on rows this grid never loaded. Announced on
+        // the platform's event bus rather than handed to the alerts module,
+        // which must not know a server-side row model exists — a client-side
+        // grid holds every row, finds every hit itself, and simply never emits
+        // this.
+        onAlertHits: platform
+          ? (hits) =>
+              platform.events.emit('data:alertHits', {
+                gridId: platform.gridId,
+                hits,
+              })
+          : undefined,
       });
     },
     [provider, getQuickFilterText, unbindTicks, platform],

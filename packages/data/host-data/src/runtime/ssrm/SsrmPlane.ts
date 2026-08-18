@@ -197,6 +197,11 @@ export class SsrmPlane {
     return this.server.calculatedFields(sessionId);
   }
 
+  /** See {@link SsrmServer.alertHits}. */
+  alertHits(keys: readonly string[], sessionId?: string): Array<{ key: string; ruleId: string }> {
+    return this.server.alertHits(keys, sessionId);
+  }
+
   onTick(listener: (event: TickEvent) => void): () => void {
     return this.server.onTick(listener);
   }

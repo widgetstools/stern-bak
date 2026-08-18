@@ -15,6 +15,12 @@ import type {
 export interface SsrmTickPayload {
   event: TickEvent;
   interestedKeys: string[];
+  /**
+   * Alert rules this session's rules matched among the changed rows,
+   * INCLUDING rows this grid has never loaded. Row key + rule id only.
+   * Absent when the session has configured no alert rules.
+   */
+  alerts?: ReadonlyArray<{ key: string; ruleId: string }>;
 }
 
 export interface ISsrmDataProvider {

@@ -1582,6 +1582,34 @@ real where it reaches the user.
   predicate: a function does not survive a structured clone, and compiling in
   the engine means the plane and the client-side external filter share
   `@wellsfargo-starui/core`'s one evaluator
+- **The alerts bell counts what the PLANE sees, not what the client loaded** —
+  `ExpressionRuleStore.alertHits` / `QueryEngine.alertHits` /
+  `SsrmServer.alertHits` / `SsrmPlane.alertHits` evaluate a session's `alert`
+  rules over the changed rows of every flush and answer with **row key + rule
+  id, never rows** — so widening the evaluation past the session's viewport
+  does not widen the payload, which is what the windowed flush exists to
+  avoid. The hits-only evaluator is deliberately not a call to `enrich`: that
+  allocates a copy per row and evaluates style, editability and every
+  calculated column to answer a question that is one boolean per rule. A rule
+  written about a calculated column still works — the columns materialise
+  first, through the memoised `applyCalculated`. Hits ride the existing
+  `ssrm-tick` message (`SsrmTickEvent.alerts`, `SsrmTickPayload.alerts`)
+  rather than a message kind of their own: the tick already reaches every data
+  subscriber on every flush addressed by the same `subId`, so a second message
+  would be a parallel channel to the same recipients. Omitted entirely for a
+  session with no alert rules. **Deduped in `bindSsrmTicks`**, the only place
+  holding both the hits and the grid api: a hit on a row the grid holds is
+  dropped, because that row arrives in the same tick as a transaction and the
+  platform's row-change delta evaluates it against this session's baselines —
+  forwarding it too would count every visible hit twice. What survives reaches
+  the alerts module as the platform event **`data:alertHits`**, which a
+  client-side grid never emits (it holds every row and finds every hit itself),
+  so the module subscribing is not a branch on the row model. Only
+  `dataChange` rules are dispatched from it: a `relativeChange` rule compares
+  against a baseline this session recorded, and a row nobody has observed has
+  none. Measured by `bench:ssrm`: **0.2 ms** for a 2000-row tick with one rule,
+  0.4 ms with three, and 0.0 ms with none — against 24.6 ms for the upsert of
+  the same 2000 rows
 - **Filter, sort, group and aggregate on a CALCULATED column** — the plane used
   to evaluate calculated columns only on the sliced page, after filtering,
   sorting and grouping had already run against rows that did not carry the

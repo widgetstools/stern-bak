@@ -315,6 +315,33 @@ tick(100);
 tick(500);
 tick(2000);
 
+// The alerts channel runs over the CHANGED rows of every flush, for every
+// session that has an alert rule — so what matters is (a) that a session with
+// none pays nothing, and (b) what one with rules costs per tick. Hits are a row
+// key and a rule id, so the PAYLOAD does not grow with the evaluation; this is
+// worker CPU and nothing else.
+const alertKeys = rows.slice(0, 2000).map((r) => r.id);
+const alertEntries = alertKeys.map((k) => [k, store.getRow(k)]);
+time('alert hits, no rules configured (MUST be ~0)',
+  () => engine.alertHits(alertEntries, 'no-alert-session'), 20);
+engine.configureExpressions(
+  [{ id: 'a1', kind: 'alert', expression: `[${numericCols[0]}] > 0.5` }],
+  'alert-session',
+);
+time('alert hits over a 2000-row tick, 1 rule',
+  () => engine.alertHits(alertEntries, 'alert-session'), 20);
+engine.configureExpressions(
+  [
+    { id: 'a1', kind: 'alert', expression: `[${numericCols[0]}] > 0.5` },
+    { id: 'a2', kind: 'alert', expression: `[${numericCols[1]}] < 0.1` },
+    { id: 'a3', kind: 'alert', expression: `[${numericCols[0]}] > 0.99` },
+  ],
+  'alert-session',
+);
+time('alert hits over a 2000-row tick, 3 rules',
+  () => engine.alertHits(alertEntries, 'alert-session'), 20);
+engine.configureExpressions([], 'alert-session');
+
 heading('Windowed publish (25 frames of an 800-row tick: passthrough vs 200ms window)');
 
 /** One-shot `setTimeout` fake, matching `engineContract.test.ts`'s `fakeTimers()`. */

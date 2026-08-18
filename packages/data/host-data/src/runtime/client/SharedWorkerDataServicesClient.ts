@@ -219,7 +219,7 @@ export class SharedWorkerDataServicesClient {
   private readonly ssrmRpcTimeoutMs: number;
   private readonly ssrmTickListeners = new Map<
     string,
-    Set<(payload: { event: SsrmTickEvent['event']; interestedKeys: string[] }) => void>
+    Set<(payload: Pick<SsrmTickEvent, 'event' | 'interestedKeys' | 'alerts'>) => void>
   >();
   private readonly catalogReadyWaiters: Array<() => void> = [];
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
@@ -797,7 +797,7 @@ export class SharedWorkerDataServicesClient {
    */
   onSsrmTick(
     sessionId: string,
-    handler: (payload: { event: SsrmTickEvent['event']; interestedKeys: string[] }) => void,
+    handler: (payload: Pick<SsrmTickEvent, 'event' | 'interestedKeys' | 'alerts'>) => void,
   ): () => void {
     let set = this.ssrmTickListeners.get(sessionId);
     if (!set) {
@@ -1096,6 +1096,7 @@ export class SharedWorkerDataServicesClient {
       const payload = {
         event: event.event,
         interestedKeys: event.interestedKeys,
+        ...(event.alerts?.length ? { alerts: event.alerts } : {}),
       };
       for (const handler of listeners) {
         try {

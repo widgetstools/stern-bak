@@ -959,7 +959,7 @@ against multiple adapters), `filterPredicate.test.ts` (40),
 
 ---
 
-## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — 3 / 4 DONE
+## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — CLOSED, 4 / 4 DONE
 
 **Area:** `packages/data/host-data/src/runtime/ssrm/`,
 `packages/data/host-data/src/runtime/worker/`,
@@ -1050,14 +1050,37 @@ that function 102 → 105 lines; now 0. **Open:** an aggregate that folds a
 calculated column (`SUM([total])` where `total` is itself calculated) still
 folds undefined — `aggregateScope` iterates raw store rows. Pre-existing.
 
-**Phase 14** (full, no entry) — T2-6, the alerts bell. A new worker→client
-message kind carrying hits (row key + rule id) addressed by `sessionId`,
-across three packages, plus a dedupe against `__ssrmAlert`.
+**Phase 14 — DONE 2026-08-17.** T2-6. The premise was re-confirmed first:
+`fanSsrmFlush` sends a session its interested rows, or the full changed set
+only for a FILTERED session, and `__ssrmAlert` is written by `enrich` on rows
+being handed over — so a worker-detected alert really was only ever present on
+a row the client already had, and there is no cheaper fix. `alertHits`
+evaluates a session's alert rules over the changed rows of every flush and
+answers with **row key + rule id, never rows**, so widening the evaluation past
+the viewport does not widen the payload. **Deviation from the phase text,
+deliberate:** the hits ride the existing `ssrm-tick` message rather than a new
+kind — that message already reaches every data subscriber on every flush under
+the same `subId`, and a second one would be a parallel channel to the same
+recipients (binding constraint 2). Deduped in `bindSsrmTicks`, the only place
+holding both the hits and the grid api (`getRowNode` answering `undefined` IS
+"has this session loaded the row"); a held row's hit is dropped because the
+platform's row-change delta finds it. Reaches the alerts module as the platform
+event `data:alertHits`, which a client-side grid never emits — so the module
+subscribing is not a row-model branch. Only `dataChange` rules: a
+`relativeChange` rule needs a baseline this session recorded, and a row nobody
+observed has none. Cost over a 2000-row tick: **0.2 ms** for 1 rule, 0.4 ms for
+3, **0.0 ms with none** — against 24.6 ms for the upsert it rides on.
+**Open:** `activateAlerts` is 208 lines against the 80-line function ceiling
+(already 202 before this phase; the addition is 6 lines after hoisting its body
+out on finding the first draft had grown it to 225). Getting it under means
+extracting the delta/full-pass cluster — a refactor of the alerts hot path.
+
+**Item 20 is closed.** With the roadmap's 11 phases (item 17), all 36 SSRM/CSRM
+parity findings are now closed or recorded as not-defects.
 
 **Closed as not-a-defect:** *two windows on one historical provider fight for
 its single snapshot*. Architectural, and **CSRM behaves identically**, so it
 is not a parity finding. Reopen as a product decision about historical
 providers if it ever matters.
 
-**Estimate: 1 full session remaining** — Phase 14, which never had an entry
-dependency.
+**Estimate: none — the effort is complete.**

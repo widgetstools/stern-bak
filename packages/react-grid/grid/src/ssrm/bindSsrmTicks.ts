@@ -42,6 +42,17 @@ export interface BindSsrmTicksOptions {
    * `MarketsGridSsrmSurface`, whose test pins that it passes one.
    */
   rows?: RowChangeSink;
+  /**
+   * Alert-rule hits the plane found on rows this grid does NOT hold.
+   *
+   * The dedupe lives here rather than at either end, because this is the only
+   * place that has both the hits and the grid api. A hit on a row the grid
+   * holds is dropped: that row's change arrives in the same tick as a
+   * transaction, and the platform's own row-change delta evaluates it against
+   * this session's baselines — reporting it here as well would count every
+   * visible hit twice. What is left is exactly what the bell was missing.
+   */
+  onAlertHits?: (hits: ReadonlyArray<{ rowId: string; ruleId: string }>) => void;
 }
 
 type TickApi = Pick<
@@ -114,6 +125,30 @@ export function bindSsrmTicks(
 
   const alive = (): boolean =>
     !unbound && api.isDestroyed?.() !== true;
+
+  /**
+   * Forward only the hits whose row this grid cannot see. `getRowNode`
+   * answering `undefined` IS the question "has this session loaded the row",
+   * which under the server-side row model is the difference between a hit the
+   * client will find for itself and one it never could.
+   */
+  const reportUnloadedAlertHits = (
+    alerts: ReadonlyArray<{ key: string; ruleId: string }> | undefined,
+  ): void => {
+    const report = options?.onAlertHits;
+    if (!report || !alerts?.length) return;
+    const unloaded: Array<{ rowId: string; ruleId: string }> = [];
+    for (const hit of alerts) {
+      let held = false;
+      try {
+        held = api.getRowNode?.(hit.key) != null;
+      } catch {
+        // Mid-teardown: treat as not held rather than dropping the hit.
+      }
+      if (!held) unloaded.push({ rowId: hit.key, ruleId: hit.ruleId });
+    }
+    if (unloaded.length) report(unloaded);
+  };
 
   const scheduleRefresh = (purge: boolean, delayMs = throttleMs) => {
     if (!alive()) return;
@@ -236,8 +271,10 @@ export function bindSsrmTicks(
     }
   });
 
-  const offTick = provider.onSsrmTick(({ event, interestedKeys }) => {
+  const offTick = provider.onSsrmTick(({ event, interestedKeys, alerts }) => {
     if (!alive()) return;
+
+    reportUnloadedAlertHits(alerts);
 
     if (event.type === 'snapshot') {
       scheduleRefresh(options?.purgeOnSnapshot ?? true);

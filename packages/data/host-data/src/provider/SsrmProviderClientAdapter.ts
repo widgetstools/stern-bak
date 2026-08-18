@@ -250,6 +250,7 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
       const payload: SsrmTickPayload = {
         event: ev.event,
         interestedKeys: ev.interestedKeys,
+        ...(ev.alerts?.length ? { alerts: ev.alerts } : {}),
       };
       for (const handler of this.tickHandlers) handler(payload);
     });

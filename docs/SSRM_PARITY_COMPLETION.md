@@ -1,6 +1,6 @@
 # SSRM parity completion — the four findings the roadmap left open
 
-**Branch:** `feature/simplify`. **Status: 3 / 4 phases done** (Phases 11 ✅, 12 ✅, 13 ✅).
+**Branch:** `feature/simplify`. **Status: 4 / 4 phases done — COMPLETE** (Phases 11 ✅, 12 ✅, 13 ✅, 14 ✅).
 
 [`SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) closed 32 of 36 audit
 findings across 11 phases and recorded four as needing their own sessions. This
@@ -542,7 +542,7 @@ RAW column, which is what the customizer authors today, is unaffected.
 
 ---
 
-## Phase 14 — the alerts bell counts what the plane sees
+## Phase 14 — the alerts bell counts what the plane sees ✅
 
 **Goal:** the bell counts alerts across the dataset, not across the loaded
 blocks.
@@ -592,6 +592,85 @@ not a write into a shared store. The objection was always scope, not shape.
 
 **Closes:** T2-6.
 
+### Record (2026-08-17)
+
+**The premise was re-confirmed first, as the phase asked.** `fanSsrmFlush`
+sends a session its *interested* rows, or — only where
+`wantsUnmatchedRows(subId)` holds, i.e. a **filtered** session — the full
+changed set, or nothing; and the rows it does send go through `enrichRows`,
+which is what writes `__ssrmAlert`. So a worker-detected alert really was only
+ever present on a row the client already had, and wiring that stamp to the
+dispatcher would not have raised the count by one. There is no cheaper fix.
+
+**One deviation from the phase text, deliberately.** It called for "a new
+worker→client message kind carrying HITS". The hits ride the existing
+`ssrm-tick` message instead (`SsrmTickEvent.alerts`, omitted entirely for a
+session with no alert rules). The phase's objection was to the tick's ROW
+PAYLOAD being viewport-scoped — not to the message existing — and that message
+already reaches every data subscriber on every flush, addressed by the same
+`subId`. A second per-flush message to the same recipients with the same
+addressing is what binding constraint 2 calls a parallel implementation. Zero
+extra messages; the field is absent when there is nothing to say.
+
+**The hits evaluator is not a call to `enrich`, and that is the whole cost
+argument.** `enrich` allocates a copy per row and evaluates style, editability
+and every calculated column, to answer a question that is one boolean per rule.
+`alertHits` evaluates only `alert` rules, over the flush's changed rows, and
+returns `{ key, ruleId }`. Calculated columns still materialise first — through
+the memoised `applyCalculated` from Phase 13 — because an alert rule may
+perfectly well be written about one, and `enrich` evaluates them in that order
+too.
+
+**The dedupe lives in `bindSsrmTicks`,** which is the only place holding both
+the hits and the grid api. `api.getRowNode(key)` answering `undefined` IS the
+question "has this session loaded the row". A hit on a held row is dropped: it
+arrives in the same tick as a transaction and the platform's row-change delta
+evaluates it against this session's own baselines. What survives is exactly
+what the bell was missing.
+
+**The module stays blind to the row model.** Hits reach it as the platform
+event `data:alertHits`, which a client-side grid never emits — it holds every
+row and finds every hit itself. The alerts module subscribing to an event that,
+where it cannot happen, never arrives is not a branch on the row model. Only
+`dataChange` rules are dispatched from it: a `relativeChange` rule compares
+against a baseline this session recorded and a row nobody has observed has
+none, so a source-detected "hit" on one would be a comparison against nothing.
+A plane-detected hit carries `column`/`value`/`prevValue` as `null` — the rule
+is a row predicate and the row is not loaded, so inventing cell context would
+be inventing it.
+
+**Cost, measured.** New `bench:ssrm` lines, over a 2000-row tick:
+
+| | |
+|---|---|
+| alert hits, no rules configured | **0.0 ms** |
+| alert hits, 1 rule | **0.2 ms** |
+| alert hits, 3 rules | **0.4 ms** |
+| (the `upsert` of the same 2000 rows) | 24.6 ms |
+
+About 1% of the tick it rides on, and free for every grid with no alert rules.
+
+**Verification.** `npx turbo typecheck build` exit 0. Tests serially at
+`--maxWorkers=2`; no environmental failures. `data` 741 → **754** (+13: 10 in
+`alertHits.test.ts`, 3 hub round-trip), `react-grid` 2625 → **2638** (+13: 6 in
+`bindSsrmTicks.alertHits.test.ts`, 7 in `activate.test.ts`), everything else
+unchanged. ESLint per file against `HEAD`: no count rose anywhere; both new
+files 0. `check-package-cycles` and `check:rtl` pass, no new hex, every touched
+file under the 800-line ceiling (`QueryEngine.ts` 793).
+
+**Open, recorded not banked.** `activateAlerts` is **208 lines against the
+80-line function ceiling** — it was **already 202** before this phase. The
+subscriber added here is 6 lines: its body was hoisted to a module-level
+`dispatchSourceAlertHits` on finding that the first draft had grown the
+function to 225, which is the same mistake Phase 13 caught in Phase 11. Getting
+it under 80 means extracting the delta / full-pass cluster (~110 lines over six
+captured variables) — a refactor of the alerts hot path, and not something to
+smuggle into the last commit of a phase that changes that module.
+
+Also still open from Phase 13 and unaffected here: an aggregate expression that
+folds a CALCULATED column folds undefined, because `aggregateScope` iterates
+raw store rows.
+
 ---
 
 ## Not a defect — recorded and closed
@@ -611,10 +690,10 @@ it ever matters; do not carry it as a parity gap.
 | 11 — a refused write is visible ✅ | small | none | rejection surface + 2 bugs (the pagination one was not a defect) |
 | 12 — session layer reaches the client ✅ | full | none | T2-4 real fix, edit survives refetch |
 | 13 — calculated columns ✅ | full | Phase 12 | T1-4 |
-| 14 — alerts bell | full | none | T2-6 |
+| 14 — alerts bell ✅ | full | none | T2-6 |
 
-Phases 11, 12 and 13 are done. Phase 14 is the last, and never had an entry
-dependency.
+All four are done. The SSRM/CSRM parity effort — 36 findings across
+`SSRM_PARITY_ROADMAP.md`'s 11 phases and these four — is complete.
 
 ## Verification, every phase
 

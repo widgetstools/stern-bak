@@ -492,6 +492,12 @@ export interface SsrmRpcEvent {
 }
 
 /** Viewport-filtered live tick from the SSRM plane. */
+/** One alert rule matched by one row, addressed by the row's cache key. */
+export interface SsrmAlertHit {
+  key: string;
+  ruleId: string;
+}
+
 export interface SsrmTickEvent {
   kind: 'ssrm-tick';
   /** Data attach subId / session. */
@@ -499,6 +505,19 @@ export interface SsrmTickEvent {
   providerId: string;
   event: TickEvent;
   interestedKeys: string[];
+  /**
+   * Alert rules this session's rules matched among the CHANGED rows —
+   * including rows outside its viewport, which is the whole point: the bell
+   * counted only what the client had loaded.
+   *
+   * Rides the tick message rather than a message kind of its own. The tick
+   * already goes to every data subscriber on every flush, addressed by the
+   * same `subId`, so a second message would be a parallel channel to the same
+   * recipients; what the flush could NOT carry was viewport-scoped ROWS, and
+   * these are hits. Omitted entirely for a session with no alert rules, which
+   * is what keeps it free for everyone else.
+   */
+  alerts?: SsrmAlertHit[];
 }
 
 export type Request =
