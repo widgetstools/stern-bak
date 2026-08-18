@@ -24,5 +24,16 @@ export default defineConfig({
     globals: true,
     include: ['host-data/src/**/*.test.ts'],
     css: false,
+    // The worker-entry tests (`defaultEntry*.test.ts`) call `vi.resetModules()`
+    // and then re-`import()` the entry, which recompiles a module graph inside
+    // the test body. On an idle machine that is milliseconds; across this
+    // package's 67 files in parallel it is seconds — a full run reports ~60s of
+    // import and ~37s of transform — and the 5s default then trips. It passed
+    // three times in isolation while failing the full run, and a CI runner is
+    // slower than this box, not faster.
+    //
+    // Matches the precedent already set for the other heavy packages: `core`
+    // 10s, `react-grid` 15s.
+    testTimeout: 15_000,
   },
 });
