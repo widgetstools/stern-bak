@@ -1069,3 +1069,42 @@ is where it actually catches things — CI is the backstop.
 **Done looks like** the 26 worked through, `continue-on-error` dropped from the
 CI step, the two violations above split, and `max-lines` promoted from reported
 to blocking in `check-complexity-budget.mjs`.
+
+---
+
+## 22. `markets-grid-ssrm-lab`'s test suite is a stale clone (2026-08-18)
+
+**Area:** `apps/source/markets-grid-ssrm-lab` · **Blocked on:** nothing —
+test authoring, not a fix
+
+Found while verifying that `apps/` is compatible with this branch's
+architectural changes. It **is** — all 10 apps typecheck and build clean, 8 of
+9 test suites are green, and this one fails **identically at the branch point
+`df48fdf`** (24 failed / 92 passed either side), so none of it is a
+compatibility problem.
+
+The lab was created as a full clone of `markets-grid-lab` (`5a2fca1`) and its
+tests came with it, still asserting the ORIGINAL's UI. Three real defects were
+fixed on the way through (24 → 19 failures):
+
+1. `testSetupMocks.ts` replaced `@wellsfargo-starui/react/data/runtime`
+   wholesale but supplied only 2 of the 5 members the lab imports —
+   `useDataServices`, `useUserIdFromContext` and `useSsrmDataProvider` were
+   missing, so `SsrmLabProvider` threw at render and took out `App.test.tsx`
+   and all 18 `tabs.test.tsx` cases before a single assertion ran.
+2. `App.test.tsx` expected the header to read "MarketsGrid Feature Lab"; this
+   lab's header names itself, "MarketsGrid SSRM Lab".
+3. `tabs.test.tsx` rendered each tab under `LabDemoProvider` alone, but every
+   feature tab here renders `SsrmLabGrid`, which calls `useSsrmLabProvider` and
+   throws without `SsrmLabProvider`. `App` mounts both; a tab on its own got
+   neither.
+
+**The remaining 19 are the clone's real divergence**: the tabs assert
+`data-testid="markets-grid"`, but this lab's tabs render a profile/lens picker
+("6 profiles · multi-module seed · pick a lens in the profile selector · SSRM")
+and reach a grid only after a selection. The expectations have to be rewritten
+against the SSRM lab's actual UI — or, if the two labs are meant to render the
+same shell, that divergence is the finding and the APP is what changes.
+
+**Done looks like** someone who knows which of those two the lab is supposed to
+be, deciding, and the suite matching it.

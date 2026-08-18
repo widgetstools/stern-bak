@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { getOneByTestId, getOneByText } from '../../../../test-utils/queries';
 import { LabDemoProvider } from '../demo/LabDemoContext';
+import { SsrmLabProvider } from '../ssrm/SsrmLabProviderContext';
 import { LabFeatureTab } from './LabFeatureTab';
 import { OVERVIEW_FEATURE } from './labFeatureConfigs';
 import { OverviewTab } from './OverviewTab';
@@ -44,7 +45,15 @@ const TAB_COMPONENTS = [
 ] as const;
 
 function renderWithDemo(ui: React.ReactElement) {
-  return render(<LabDemoProvider>{ui}</LabDemoProvider>);
+  // `SsrmLabProvider` too: every feature tab in THIS lab renders `SsrmLabGrid`,
+  // which calls `useSsrmLabProvider` and throws without it. `App` mounts both
+  // providers; a tab rendered on its own gets neither, which is why these
+  // cases were failing on a hard throw rather than an assertion.
+  return render(
+    <SsrmLabProvider>
+      <LabDemoProvider>{ui}</LabDemoProvider>
+    </SsrmLabProvider>,
+  );
 }
 
 describe('feature tabs', () => {

@@ -124,6 +124,17 @@ vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
+/**
+ * A FULL replacement, so every member this app imports has to appear here —
+ * a missing one throws "No X export is defined on the mock" at render, which
+ * is what took out `App.test.tsx` and all 18 `tabs.test.tsx` cases: the lab's
+ * `SsrmLabProvider` calls `useDataServices` and `useUserIdFromContext`, and
+ * `SsrmLabGrid` calls `useSsrmDataProvider`, none of which were mocked.
+ *
+ * The app imports exactly five members from this module (main.tsx,
+ * data/useMockStream.ts, ssrm/SsrmLabGrid.tsx, ssrm/SsrmLabProviderContext.tsx).
+ * All five are below.
+ */
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useProviderStream: vi.fn(
     (_providerId: string, _cfg: unknown, handlers: { onDelta?: typeof providerOnDelta }) => {
@@ -143,6 +154,27 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
       { 'data-testid': 'data-hub-provider', 'data-has-platform': String(!!platform) },
       children,
     ),
+  // `SsrmLabProvider` seeds the mock-ssrm catalog row through this. An
+  // already-present row is the quiet path: `list` answers with it, so the
+  // provider goes ready without a save.
+  useDataServices: vi.fn(() => ({
+    configStore: {
+      list: vi.fn(async () => [{ providerId: 'mock-ssrm-lab' }]),
+      save: vi.fn(async () => undefined),
+    },
+    client: {
+      isProviderRunning: vi.fn(async () => false),
+      waitForProviderRunning: vi.fn(async () => false),
+    },
+  })),
+  useUserIdFromContext: vi.fn(() => 'dev1'),
+  // The lab's grid asks for a live SSRM provider; the tests assert the shell
+  // renders, not that data flows, so `null` is the honest answer.
+  useSsrmDataProvider: vi.fn(() => ({
+    provider: null,
+    status: 'loading',
+    error: undefined,
+  })),
 }));
 
 vi.mock('@wellsfargo-starui/react', () => {

@@ -33,7 +33,8 @@ describe('App', () => {
 
   it('renders home tab by default', () => {
     render(<App />);
-    expect(getOneByText('MarketsGrid Feature Lab')).toBeInTheDocument();
+    // This lab is a clone of markets-grid-lab; its header names ITSELF.
+    expect(getOneByText('MarketsGrid SSRM Lab')).toBeInTheDocument();
     expect(getOneByTestId('lab-home')).toBeInTheDocument();
   });
 
