@@ -266,6 +266,27 @@ function useMarketsGridShell<TData>(
   };
 }
 
+/**
+ * A ConfigService-backed storage factory scopes rows by (appId, userId,
+ * instanceId), so without both identities it cannot produce a correctly-scoped
+ * adapter — and silently scoping to the wrong row is worse than refusing.
+ * The local-storage factory needs neither.
+ */
+function assertStorageIdentity(
+  storage: unknown,
+  resolvedAppId: string | undefined,
+  resolvedUserId: string | undefined,
+): void {
+  if (!storage || (resolvedAppId && resolvedUserId)) return;
+  if (isMarketsGridLocalStorageStorageFactory(storage as never)) return;
+  throw new Error(
+    '<MarketsGrid storage={...}> requires `appId` and `userId` props unless `storage` is ' +
+      '`createMarketsGridLocalStorageStorage()`. ConfigService-backed factories scope rows by ' +
+      '(appId, userId, instanceId); without both identities the factory cannot produce a correctly-scoped adapter. ' +
+      `Received: appId=${JSON.stringify(resolvedAppId)}, userId=${JSON.stringify(resolvedUserId)}.`,
+  );
+}
+
 function MarketsGridInner<TData = unknown>(
   props: MarketsGridProps<TData>,
   ref: ForwardedRef<MarketsGridHandle>,
@@ -345,18 +366,7 @@ function MarketsGridInner<TData = unknown>(
     [shell.ssrm, readQuickFilterText],
   );
 
-  if (
-    storage &&
-    (!shell.resolvedAppId || !shell.resolvedUserId) &&
-    !isMarketsGridLocalStorageStorageFactory(storage)
-  ) {
-    throw new Error(
-      '<MarketsGrid storage={...}> requires `appId` and `userId` props unless `storage` is ' +
-        '`createMarketsGridLocalStorageStorage()`. ConfigService-backed factories scope rows by ' +
-        '(appId, userId, instanceId); without both identities the factory cannot produce a correctly-scoped adapter. ' +
-        `Received: appId=${JSON.stringify(shell.resolvedAppId)}, userId=${JSON.stringify(shell.resolvedUserId)}.`,
-    );
-  }
+  assertStorageIdentity(props.storage, shell.resolvedAppId, shell.resolvedUserId);
 
   if (
     !storage &&

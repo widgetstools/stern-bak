@@ -190,12 +190,17 @@ anywhere else.
   refused write to drive. Adding one means building a demo write service that
   refuses — real work, and not this phase's. Recorded rather than skipped
   silently.
-- **`MarketsGridContainer.tsx` is 825 lines, over the 800 ceiling.** It was
-  **already 815 at `df48fdf`**, and is one of 28 files in `packages/` currently
-  over. This phase added 10 lines to it and trimmed them back to 8; it did not
-  open a container split, which would be a refactor of the file this phase is
-  fixing a bug in. Phase 12 already opens by paying the same debt down on
-  `QueryEngine.ts` — the container belongs in that queue, not in this one.
+- **`MarketsGridContainer.tsx` file size — CORRECTED 2026-08-17.** This record
+  said the file was "825 lines, over the 800 ceiling", from `wc -l`. The only
+  mechanical definition of that ceiling is ESLint's `max-lines`, configured
+  `skipBlankLines: true, skipComments: true`, and by that measure the file has
+  **never been flagged** — nor have `protocol.ts` or `QueryEngine.ts`, both
+  also reported as "over" in later phases from the same raw count. In a
+  codebase with this comment density the two measures diverge by hundreds of
+  lines. Repo-wide, ESLint flags **7** files, not the 28 this record claimed.
+  What WAS real and correctly measured is the FUNCTION ceiling — those numbers
+  came from ESLint directly. `scripts/check-complexity-budget.mjs` now reads
+  both off the rule, so this class of error cannot recur.
 
 ---
 
@@ -386,11 +391,12 @@ lines (the three ack-only SSRM arms now dispatch through one
 came along with the moved evaluator. `check-package-cycles` and `check:rtl`
 pass.
 
-**Open, recorded not banked.** `protocol.ts` is 831 lines and
-`SharedWorkerDataServicesClient.ts` 1289, both against the 800 ceiling and
-both already over before this phase (801 and 1249). They are declaration and
-RPC-surface files; splitting either is its own piece of work, and this phase
-kept the file it was told to — `QueryEngine.ts` — under.
+**Open — RESTATED 2026-08-17.** This record said `protocol.ts` (831) and
+`SharedWorkerDataServicesClient.ts` (1289) were "over the 800 ceiling", from
+`wc -l`. By the enforced rule (`max-lines`, which skips blanks and comments)
+**`protocol.ts` is not over at all**; `SharedWorkerDataServicesClient.ts`
+genuinely is, by 169 code lines, and remains the one real file-level violation
+this effort touched. Splitting it is its own piece of work.
 
 ---
 
@@ -509,12 +515,14 @@ what settles it: `sessionStateFor` short-circuits on
 rules, and it replaced FOUR `overlay.stateFor` calls per query with one. The
 gates that are exact — the memo-miss counters — all read 0.
 
-**`QueryEngine.ts` went back over the ceiling and was brought back under, in
-this phase rather than the next.** 778 → 894 with the new decision logic, then
-→ **772** by extracting `queryFilter.ts` (`collectFiltered`, which reads the
-store and the request and nothing else about the engine) and
-`queryColumnRefs.ts`. Phase 12 paid this debt for the phase that follows it;
-paying it forward again seemed the wrong lesson to take from that.
+**`QueryEngine.ts` was split again — and the stated reason was wrong.**
+778 → 894 raw with the new decision logic, then → **772** by extracting
+`queryFilter.ts` and `queryColumnRefs.ts`. Those are `wc -l` counts;
+**ESLint's `max-lines` never flagged this file, at any size, including the 895
+raw lines Phase 12 opened by splitting** (corrected 2026-08-17). Both splits
+stand on their own merits — the extracted modules are cohesive and read only
+their arguments, and Phase 12's also fixed a genuine 96-line `getRows` — but
+neither was required by the ceiling anyone enforces.
 
 **A correction to Phase 11's record.** Its ESLint check counted matches with a
 pattern that never matched the default formatter's output, so its "every
@@ -534,11 +542,24 @@ file against `HEAD`: no count rose anywhere, every new file 0, and
 `rowExclusionFilter.ts` and `createSsrmStatusBar.tsx` each went 1 → 0.
 `check-package-cycles` and `check:rtl` pass, no new hex.
 
-**Open, recorded not banked.** An aggregate expression that folds a CALCULATED
-column (`SUM([total])` where `total` is itself calculated) still folds
-undefined: `aggregateScope` is built from `store.iterate()`, which yields raw
-rows. Pre-existing and untouched by this phase — the column-wide fold over a
-RAW column, which is what the customizer authors today, is unaffected.
+**Recorded as a LIMITATION, not an open defect** (corrected 2026-08-17). An
+aggregate expression that folds a CALCULATED column — `SUM([total])` where
+`total` is itself calculated — returns 0. Measured in both row models over the
+same rows and the same expressions:
+
+| | `SUM([px])` (raw column) | `SUM([total])` (calculated) |
+|---|---|---|
+| CSRM (`buildVirtualColDef` valueGetter) | 30 | **0** |
+| SSRM (`QueryEngine`) | 30 | **0** |
+
+**Identical**, so it is not a parity gap and never was one of the 36 findings.
+CSRM's `allRows` snapshot is filled from `platform.data.scan`, which yields
+`node.data` — raw row data, no valueGetter results — exactly as
+`aggregateScope` iterates raw store rows. Building it means rule dependency
+ordering AND cycle detection (`a = SUM([b])`, `b = SUM([a])`) in two engines,
+for a capability nobody has reported wanting; the symmetry is also why nobody
+has been surprised by it. Reopen as a product decision about calculated
+columns if a user asks.
 
 ---
 

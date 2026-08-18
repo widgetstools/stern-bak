@@ -252,7 +252,14 @@ Run mentally before writing code for any feature add / update / remove:
 3. **Reuse before new** — search for existing implementations first
 4. **Anti-pattern refuse list** — no native `<input>`/`<textarea>`/`<select>`
    (use shadcn), no per-panel re-exploration of settled UI
-5. **Complexity ceilings** — 800 LOC / file, 80 LOC / function
+5. **Complexity ceilings** — 800 lines / file, 80 lines / function, as ESLint
+   counts them (`max-lines` / `max-lines-per-function`, both configured
+   `skipBlankLines` + `skipComments` — NOT `wc -l`, which in this codebase
+   reads hundreds of lines higher). Both are `warn`, and ~192 functions are
+   already over, so the rule that is actually enforced is on the DIFF:
+   `npm run check:complexity` fails a change that grows a function already over
+   the ceiling. Pay for what you add by hoisting a closure that captures
+   nothing to module level — see `docs/WORKLOG.md` item 21
 6. **Test coverage** — unit for logic, e2e for interaction
 7. **No versioned code** — never `v1/`, `v2/`, `legacy/` in paths or
    doc phasing; superseded code is deleted in the same change as its

@@ -123,6 +123,15 @@ function dispatchSourceAlertHits(
   }
 }
 
+/** Run a teardown step, naming it if it throws. Captures nothing. */
+function safely(label: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    console.warn('[alerts] cleanup step failed:', label, err);
+  }
+}
+
 export function activateAlerts(
   platform: PlatformHandle<AlertsState>,
 ): ReturnType<NonNullable<Module<AlertsState>['activate']>> {
@@ -415,15 +424,6 @@ export function activateAlerts(
       dispatcher.reset();
     }),
   );
-
-  const safely = (label: string, fn: () => void): void => {
-    try {
-      fn();
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[alerts] cleanup step failed:', label, err);
-    }
-  };
 
   return () => {
     for (const d of disposers) {

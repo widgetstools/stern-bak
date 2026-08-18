@@ -108,6 +108,43 @@ function refreshAllSetFilterValues(api: TickApi): void {
  * Cleanup clears any pending refresh timer and unsubscribes so tab switches
  * never call API methods on a destroyed grid.
  */
+/**
+ * Forward only the hits whose row this grid cannot see.
+ *
+ * `getRowNode` answering `undefined` IS the question "has this session loaded
+ * the row", which under the server-side row model is the difference between a
+ * hit the client will find for itself — that row arrives in the same tick as a
+ * transaction, and the platform's row-change delta evaluates it — and one it
+ * never could.
+ */
+function reportUnloadedAlertHits(
+  api: TickApi,
+  report: BindSsrmTicksOptions['onAlertHits'],
+  alerts: ReadonlyArray<{ key: string; ruleId: string }> | undefined,
+): void {
+  if (!report || !alerts?.length) return;
+  const unloaded: Array<{ rowId: string; ruleId: string }> = [];
+  for (const hit of alerts) {
+    let held = false;
+    try {
+      held = api.getRowNode?.(hit.key) != null;
+    } catch {
+      // Mid-teardown: treat as not held rather than dropping the hit.
+    }
+    if (!held) unloaded.push({ rowId: hit.key, ruleId: hit.ruleId });
+  }
+  if (unloaded.length) report(unloaded);
+}
+
+/** Is any column sorted right now? Reads the api and nothing else. */
+function hasActiveSort(api: TickApi): boolean {
+  try {
+    return (api.getColumnState?.() ?? []).some((c) => c.sort != null);
+  } catch {
+    return false;
+  }
+}
+
 export function bindSsrmTicks(
   provider: ISsrmDataProvider,
   api: TickApi,
@@ -125,30 +162,6 @@ export function bindSsrmTicks(
 
   const alive = (): boolean =>
     !unbound && api.isDestroyed?.() !== true;
-
-  /**
-   * Forward only the hits whose row this grid cannot see. `getRowNode`
-   * answering `undefined` IS the question "has this session loaded the row",
-   * which under the server-side row model is the difference between a hit the
-   * client will find for itself and one it never could.
-   */
-  const reportUnloadedAlertHits = (
-    alerts: ReadonlyArray<{ key: string; ruleId: string }> | undefined,
-  ): void => {
-    const report = options?.onAlertHits;
-    if (!report || !alerts?.length) return;
-    const unloaded: Array<{ rowId: string; ruleId: string }> = [];
-    for (const hit of alerts) {
-      let held = false;
-      try {
-        held = api.getRowNode?.(hit.key) != null;
-      } catch {
-        // Mid-teardown: treat as not held rather than dropping the hit.
-      }
-      if (!held) unloaded.push({ rowId: hit.key, ruleId: hit.ruleId });
-    }
-    if (unloaded.length) report(unloaded);
-  };
 
   const scheduleRefresh = (purge: boolean, delayMs = throttleMs) => {
     if (!alive()) return;
@@ -174,15 +187,6 @@ export function bindSsrmTicks(
       return fm && Object.keys(fm).length ? fm : null;
     } catch {
       return null;
-    }
-  };
-
-  const hasActiveSort = (): boolean => {
-    if (!alive()) return false;
-    try {
-      return (api.getColumnState?.() ?? []).some((c) => c.sort != null);
-    } catch {
-      return false;
     }
   };
 
@@ -274,7 +278,7 @@ export function bindSsrmTicks(
   const offTick = provider.onSsrmTick(({ event, interestedKeys, alerts }) => {
     if (!alive()) return;
 
-    reportUnloadedAlertHits(alerts);
+    reportUnloadedAlertHits(api, options?.onAlertHits, alerts);
 
     if (event.type === 'snapshot') {
       scheduleRefresh(options?.purgeOnSnapshot ?? true);
@@ -300,7 +304,7 @@ export function bindSsrmTicks(
     } catch {
       return;
     }
-    const sorting = hasActiveSort();
+    const sorting = alive() && hasActiveSort(api);
     const fm = filterModel();
     const hasQuick = Boolean(
       parseQuickFilter(options?.getQuickFilterText?.() ?? '').length,

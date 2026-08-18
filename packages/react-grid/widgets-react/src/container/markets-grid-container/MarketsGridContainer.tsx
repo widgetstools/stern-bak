@@ -120,6 +120,30 @@ export interface MarketsGridContainerProps<TData extends Record<string, unknown>
   onRowIdFieldChange?(rowIdField: string | readonly string[] | null): void;
 }
 
+/**
+ * The container's "Saving…" overlay flag, CHAINED with the host's own
+ * `onSavingChange` rather than replacing it.
+ *
+ * The host's arrives in the `marketsGridProps` rest, and the explicit prop
+ * after the spread used to overwrite it — silently, the prop being optional.
+ * `SsrmMarketsGridContainer` chains it the same way.
+ *
+ * A hook rather than two statements in the component only because
+ * `MarketsGridContainer` is 500+ lines against the 80-line ceiling and
+ * `check-complexity-budget` fails a change that makes that worse.
+ */
+function useSavingChange(hostOnSavingChange: ((saving: boolean) => void) | undefined) {
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const handleSavingChange = useCallback(
+    (saving: boolean) => {
+      setIsSavingProfile(saving);
+      hostOnSavingChange?.(saving);
+    },
+    [hostOnSavingChange],
+  );
+  return { isSavingProfile, handleSavingChange };
+}
+
 export function MarketsGridContainer<TData extends Record<string, unknown> = Record<string, unknown>>(
   props: MarketsGridContainerProps<TData>,
 ) {
@@ -405,16 +429,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // persisted (Save button or save-on-switch). We reuse the same
   // snapshot loading overlay component for visual consistency, just
   // with a "Saving…" caption.
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  // CHAINED, not replaced: the host's `onSavingChange` arrives in the
-  // `marketsGridProps` rest, and the explicit prop after the spread below used
-  // to overwrite it — silently, the prop being optional. Same shape
-  // `SsrmMarketsGridContainer` uses.
-  const hostOnSavingChange = (marketsGridProps as MarketsGridProps<TData>).onSavingChange;
-  const handleSavingChange = useCallback((saving: boolean) => {
-    setIsSavingProfile(saving);
-    hostOnSavingChange?.(saving);
-  }, [hostOnSavingChange]);
+  const { isSavingProfile, handleSavingChange } = useSavingChange(marketsGridProps.onSavingChange);
   // True when the live provider stops or the transport disconnects.
   // Grid data may be stale; MarketsGrid shows a flashing banner and
   // disables cell editing until status returns to ready.

@@ -38,7 +38,11 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
+      # Full history: the complexity-budget check needs a merge-base with the
+      # PR's target to know what this change actually touched.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -49,6 +53,19 @@ jobs:
         run: npm run check:deps
       - name: Design-system dependency hygiene
         run: npm run check:design-system-deps
+      # Diff-scoped: fails when a PR grows a function that is ALREADY over the
+      # 80-line ceiling, leaving the ~192 legacy violations alone.
+      #
+      # REPORT-ONLY for now, and for one reason: `feature/simplify` predates
+      # this check and trips it 26 times, so gating on it would block the
+      # branch that introduced it. Flip `continue-on-error` off once that
+      # branch has landed and its 26 are worked through — same treatment, and
+      # for the same reason, as the token-policy step below.
+      # See docs/WORKLOG.md item 21.
+      - name: Complexity budget (changed files only, report-only)
+        if: github.event_name == 'pull_request'
+        run: npm run check:complexity -- --base=origin/${{ github.base_ref }}
+        continue-on-error: true
       # Informational only — the design-system token migration still has a
       # known backlog of legitimate-hex exceptions. Surface it without gating.
       - name: Design-system token policy (report-only)

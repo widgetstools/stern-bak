@@ -37,6 +37,7 @@ import {
 } from './useStatusBarStrip';
 import { ensureAgGridModules } from './ensureAgGridModules';
 import { useOptionalGridPlatform } from '../customizer/hooks/GridProvider';
+import type { GridPlatform } from '@wellsfargo-starui/core';
 import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
 import { createSsrmStatusBar, mapNativeStatusBarToSsrm } from '../ssrm/createSsrmStatusBar.js';
@@ -52,6 +53,46 @@ import { BlankLoadingCellRenderer } from '../ssrm/BlankLoadingCellRenderer.js';
 import { ssrmGetRowId as resolveSsrmRowId } from '../ssrm/ssrmGetRowId.js';
 
 const SURFACE_STYLE: CSSProperties = { flex: 1 };
+
+/**
+ * The tick binding's options. Hoisted out of the surface component so adding
+ * one does not grow it: `MarketsGridSsrmSurface` is 200+ lines against the
+ * 80-line ceiling already, and `check-complexity-budget` fails a change that
+ * makes that worse.
+ */
+function tickOptions(
+  keyColumn: string,
+  getQuickFilterText: (() => string) | undefined,
+  platform: GridPlatform | null | undefined,
+) {
+  return {
+    keyColumn,
+    flash: false,
+    getQuickFilterText,
+    // The tick binding is the platform's only delta source under this row
+    // model — `applyServerSideTransaction` fires no flush event for
+    // `RowChangeBus` to hear. `undefined` only when the surface is mounted
+    // outside a `<GridProvider>`, which has no subscribers either.
+    rows: platform?.rows,
+    onAlertHits: announceAlertHits(platform),
+  };
+}
+
+/**
+ * Announce alerts the plane found on rows this grid never loaded.
+ *
+ * On the platform's event bus rather than handed to the alerts module, which
+ * must not know a server-side row model exists — a client-side grid holds every
+ * row, finds every hit itself, and simply never emits this. `undefined` outside
+ * a `<GridProvider>`, which has no subscribers either.
+ */
+function announceAlertHits(
+  platform: GridPlatform | null | undefined,
+): ((hits: ReadonlyArray<{ rowId: string; ruleId: string }>) => void) | undefined {
+  if (!platform) return undefined;
+  return (hits) =>
+    platform.events.emit('data:alertHits', { gridId: platform.gridId, hits });
+}
 
 export interface MarketsGridSsrmSurfaceProps<TData> {
   readonly gridRef: RefObject<AgGridReact<TData> | null>;
@@ -313,28 +354,11 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         }),
       );
       unbindTicks();
-      unbindRef.current = bindSsrmTicks(provider, api, {
-        keyColumn: keyColumnRef.current,
-        flash: false,
-        getQuickFilterText,
-        // The tick binding is the platform's only delta source under this row
-        // model — `applyServerSideTransaction` fires no flush event for
-        // `RowChangeBus` to hear. `null` only when the surface is mounted
-        // outside a `<GridProvider>`, which has no subscribers either.
-        rows: platform?.rows,
-        // Alerts the plane found on rows this grid never loaded. Announced on
-        // the platform's event bus rather than handed to the alerts module,
-        // which must not know a server-side row model exists — a client-side
-        // grid holds every row, finds every hit itself, and simply never emits
-        // this.
-        onAlertHits: platform
-          ? (hits) =>
-              platform.events.emit('data:alertHits', {
-                gridId: platform.gridId,
-                hits,
-              })
-          : undefined,
-      });
+      unbindRef.current = bindSsrmTicks(
+        provider,
+        api,
+        tickOptions(keyColumnRef.current, getQuickFilterText, platform),
+      );
     },
     [provider, getQuickFilterText, unbindTicks, platform],
   );

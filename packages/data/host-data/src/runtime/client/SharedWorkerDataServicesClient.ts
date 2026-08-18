@@ -191,6 +191,20 @@ export interface SharedWorkerDataServicesClientOpts {
 /** Generous enough for a cold worker start + a large block query. */
 export const DEFAULT_SSRM_RPC_TIMEOUT_MS = 30_000;
 
+/**
+ * The tick payload a listener sees. `alerts` is omitted rather than empty when
+ * the session has no alert rules, so a consumer can branch on its presence.
+ */
+function ssrmTickPayload(
+  event: SsrmTickEvent,
+): Pick<SsrmTickEvent, 'event' | 'interestedKeys' | 'alerts'> {
+  return {
+    event: event.event,
+    interestedKeys: event.interestedKeys,
+    ...(event.alerts?.length ? { alerts: event.alerts } : {}),
+  };
+}
+
 export class SharedWorkerDataServicesClient {
   private readonly port: MessagePort;
   private readonly subs = new Map<SubId, Sub>();
@@ -1093,11 +1107,7 @@ export class SharedWorkerDataServicesClient {
     if (event.kind === 'ssrm-tick') {
       const listeners = this.ssrmTickListeners.get(event.subId);
       if (!listeners) return;
-      const payload = {
-        event: event.event,
-        interestedKeys: event.interestedKeys,
-        ...(event.alerts?.length ? { alerts: event.alerts } : {}),
-      };
+      const payload = ssrmTickPayload(event);
       for (const handler of listeners) {
         try {
           handler(payload);
