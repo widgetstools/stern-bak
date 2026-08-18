@@ -130,7 +130,12 @@ function useStatusBarSummary(
     // at most one trailing call per window) — replaces the old free-running
     // `setInterval(load, refreshThrottleMs)`. A burst of ticks inside one
     // window collapses to <= 2 loads; an isolated tick produces exactly 1.
-    let lastLoadAt = 0;
+    // Stamped from the MOUNT load above, not left at 0. Leaving it at 0 meant
+    // the first tick inside the throttle window saw `elapsed` as the whole
+    // epoch, took the leading edge, and issued a second `getStatusBar` for the
+    // state the mount load was already fetching — one duplicate RPC per panel,
+    // times three panels, on every grid mount.
+    let lastLoadAt = Date.now();
     let trailingTimer: ReturnType<typeof setTimeout> | null = null;
 
     const scheduleLoad = () => {
@@ -149,17 +154,22 @@ function useStatusBarSummary(
       }, refreshThrottleMs - elapsed);
     };
 
+    // Optional-chained because test doubles and bare embeds supply partial
+    // providers; `hasTicks` is the same question asked of the METHOD, since
+    // the unsubscribe it returns is always a function and so always truthy.
+    const hasTicks = typeof provider.onSsrmTick === 'function';
     const unsubscribeTick = provider.onSsrmTick?.(scheduleLoad);
 
-    // Slow idle fallback for providers without ticks (or a missed edge) —
-    // no longer the primary refresh path, so a long fixed period is fine.
-    const fallbackId = setInterval(load, 2_000);
+    // Slow idle fallback for providers that have NO tick stream to drive the
+    // refresh. A tick-capable provider does not need it and used to pay a
+    // full worker round trip every 2s per panel, forever, while idle.
+    const fallbackId = hasTicks ? null : setInterval(load, 2_000);
 
     return () => {
       cancelled = true;
       unsubscribeTick?.();
       if (trailingTimer != null) clearTimeout(trailingTimer);
-      clearInterval(fallbackId);
+      if (fallbackId != null) clearInterval(fallbackId);
     };
   }, [provider, api, refreshThrottleMs, getQuickFilterText]);
 

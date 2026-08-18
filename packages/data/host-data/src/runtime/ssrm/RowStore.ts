@@ -43,7 +43,17 @@ export class RowStore implements ICacheIngest {
 
   private emit(event: Omit<TickEvent, "revision">): void {
     const full: TickEvent = { ...event, revision: this.revision };
-    for (const l of this.listeners) l(full);
+    // Per-listener isolation. `onTick` is a public subscription and one
+    // consumer throwing used to abort the loop, so every listener registered
+    // after it — including the windowed flush that every session's ticks ride
+    // on — silently stopped receiving that tick.
+    for (const l of this.listeners) {
+      try {
+        l(full);
+      } catch {
+        /* a listener's failure is its own, not the store's */
+      }
+    }
   }
 
   private project(row: Row): Row {

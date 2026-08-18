@@ -232,9 +232,34 @@ export class QueryEngine {
     }
   }
 
-  /** Drops every memoised order. Called when expression rules change. */
+  /** Drops every memoised order. Called when the TREE config changes, which
+   *  changes the shape of every query the plane can answer. */
   private invalidateOrderCache(): void {
     this.orderCache.clear();
+  }
+
+  /**
+   * Drop only the entries a session's own rules could have produced.
+   *
+   * `configureExpressions` used to clear the WHOLE shared cache, so ten
+   * blotters pushing rules at mount evicted each other's warm orders nine
+   * times over. Every cache key now carries the requesting session's identity
+   * (`sessionStateFor`), and that identity is `''` for a session with no
+   * overlay — so a session's own entries are exactly those whose key contains
+   * its id, and the shared entries belong to nobody in particular and stay.
+   *
+   * A sessionless (global) configure still clears everything: it changes the
+   * rules every session without its own set resolves to.
+   */
+  private invalidateSessionOrders(sessionId?: string): void {
+    if (!sessionId) {
+      this.orderCache.clear();
+      return;
+    }
+    const marker = JSON.stringify(sessionId).slice(1, -1);
+    for (const key of [...this.orderCache.keys()]) {
+      if (key.includes(marker)) this.orderCache.delete(key);
+    }
   }
 
   configureTree(config: TreeDataConfig | null): void {
@@ -249,7 +274,7 @@ export class QueryEngine {
    */
   configureExpressions(rules: ExpressionRule[], sessionId?: string): void {
     this.exprRules.configure(rules, sessionId);
-    this.invalidateOrderCache();
+    this.invalidateSessionOrders(sessionId);
   }
 
   /** Drops one session's own rules (called on session detach). Global rules are untouched. */

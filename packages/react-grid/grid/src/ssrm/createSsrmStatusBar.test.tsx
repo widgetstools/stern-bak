@@ -139,3 +139,71 @@ describe('mapNativeStatusBarToSsrm', () => {
     expect(mapNativeStatusBarToSsrm({ statusPanels: [] }, { provider })).toBeUndefined();
   });
 });
+
+/**
+ * Two refresh-cost fixes from WORKLOG item 15. Both were per-panel, and the
+ * default strip mounts three of them.
+ */
+describe('refresh cost', () => {
+  it('a tick right after mount does not re-fetch what the mount load fetched', async () => {
+    vi.useFakeTimers();
+    const handlers: Array<() => void> = [];
+    const p = {
+      getStatusBar: vi.fn(async () => ({
+        totalRows: 1, filteredRows: 1, selectedRows: 0, aggregations: [], revision: 1,
+      })),
+      onSsrmTick: (h: () => void) => { handlers.push(h); return () => {}; },
+    } as never;
+
+    render(<SsrmTotalRowsStatusPanel api={api} provider={p} refreshThrottleMs={100} />);
+    await vi.advanceTimersByTimeAsync(0);
+    const afterMount = (p as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length;
+
+    // `lastLoadAt` used to start at 0, so this tick read `elapsed` as the whole
+    // epoch, took the leading edge, and duplicated the mount fetch.
+    handlers.forEach((h) => h());
+    await vi.advanceTimersByTimeAsync(0);
+    expect((p as never as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length)
+      .toBe(afterMount);
+    vi.useRealTimers();
+  });
+
+  it('runs no idle poll when the provider has a tick stream', async () => {
+    vi.useFakeTimers();
+    const p = {
+      getStatusBar: vi.fn(async () => ({
+        totalRows: 1, filteredRows: 1, selectedRows: 0, aggregations: [], revision: 1,
+      })),
+      onSsrmTick: () => () => {},
+    } as never;
+
+    render(<SsrmTotalRowsStatusPanel api={api} provider={p} refreshThrottleMs={100} />);
+    await vi.advanceTimersByTimeAsync(0);
+    const afterMount = (p as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length;
+
+    // The 2s fallback used to run regardless, costing a worker round trip per
+    // panel forever on an idle grid.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect((p as never as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length)
+      .toBe(afterMount);
+    vi.useRealTimers();
+  });
+
+  it('still polls for a provider with NO tick stream', async () => {
+    vi.useFakeTimers();
+    const p = {
+      getStatusBar: vi.fn(async () => ({
+        totalRows: 1, filteredRows: 1, selectedRows: 0, aggregations: [], revision: 1,
+      })),
+    } as never;
+
+    render(<SsrmTotalRowsStatusPanel api={api} provider={p} />);
+    await vi.advanceTimersByTimeAsync(0);
+    const afterMount = (p as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length;
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((p as never as { getStatusBar: { mock: { calls: unknown[] } } }).getStatusBar.mock.calls.length)
+      .toBeGreaterThan(afterMount);
+    vi.useRealTimers();
+  });
+});

@@ -243,3 +243,58 @@ describe('the sharing model survives calculated columns', () => {
     expect(engine.getMemoStats().memoHits).toBeGreaterThan(before.memoHits);
   });
 });
+
+/**
+ * `configureExpressions` used to clear the WHOLE shared order cache, so ten
+ * blotters pushing rules at mount evicted each other's warm orders nine times
+ * over. Every cache key now carries the requesting session's identity, so a
+ * session's own entries are exactly those naming it.
+ */
+describe('a rule change evicts only the session that made it', () => {
+  const sortByPx = { ...base, sortModel: [{ colId: 'px', sort: 'desc' as const }] };
+
+  it('leaves another session’s warm order alone', () => {
+    const { engine } = makeEngine();
+    engine.configureExpressions([TOTAL], 's2');
+    // Warm both on a query that READS the calculated column, so each holds
+    // entries of its own.
+    const sortTotal = { ...base, sortModel: [{ colId: 'total', sort: 'desc' as const }] };
+    engine.getRows(sortTotal, 's1');
+    engine.getRows(sortTotal, 's2');
+
+    engine.configureExpressions(
+      [{ id: 'c1', kind: 'calculated', field: 'total', expression: '[px] + 1' }],
+      's1',
+    );
+
+    const before = engine.getMemoStats();
+    engine.getRows(sortTotal, 's2');
+    // s2's rules did not change, so its order is still warm.
+    expect(engine.getMemoStats().memoMisses).toBe(before.memoMisses);
+  });
+
+  it('still evicts the session that DID change', () => {
+    const { engine } = makeEngine();
+    const sortTotal = { ...base, sortModel: [{ colId: 'total', sort: 'desc' as const }] };
+    engine.getRows(sortTotal, 's1');
+
+    engine.configureExpressions(
+      [{ id: 'c1', kind: 'calculated', field: 'total', expression: '[px] + 1' }],
+      's1',
+    );
+    const before = engine.getMemoStats();
+    expect(ids(engine.getRows(sortTotal, 's1'))).toEqual(['A', 'C', 'B']);
+    expect(engine.getMemoStats().memoMisses).toBeGreaterThan(before.memoMisses);
+  });
+
+  it('a SESSIONLESS configure still clears everything — it changes the global set', () => {
+    const { engine } = makeEngine();
+    engine.getRows(sortByPx, 'clean');
+    const before = engine.getMemoStats();
+
+    engine.configureExpressions([TOTAL]);
+
+    engine.getRows(sortByPx, 'clean');
+    expect(engine.getMemoStats().memoMisses).toBeGreaterThan(before.memoMisses);
+  });
+});

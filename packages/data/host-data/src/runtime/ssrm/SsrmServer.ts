@@ -438,6 +438,12 @@ export class SsrmServer implements ICacheIngest {
         this.clearTimer(this.windowTimer);
         this.windowTimer = null;
       }
+      // Carry the discarded accumulation into the snapshot's own count
+      // rather than dropping it. Those updates DID arrive and were counted
+      // into `updatesAccumulated` at ingest; zeroing here made the cumulative
+      // total drift below the real one under snapshot churn, which is the
+      // denominator of the conflation ratio `getStats` reports.
+      const discarded = this.pendingCount;
       this.pendingKeys.clear();
       this.pendingColumns.clear();
       this.pendingCount = 0;
@@ -446,7 +452,7 @@ export class SsrmServer implements ICacheIngest {
         keys: [],
         columns: [],
         revision: this.store.getRevision(),
-        updatesAccumulated: 0,
+        updatesAccumulated: discarded,
       });
       return;
     }

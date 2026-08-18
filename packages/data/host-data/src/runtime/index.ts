@@ -127,6 +127,13 @@ export {
   type StatusBarRequest,
   type StatusBarSummary,
   type StatusBarAggSpec,
+  // Observability shapes. `SsrmStats` was reachable only through the
+  // `/ssrm-engine` subpath, so a consumer of `./runtime` — which is where the
+  // hub's introspect payload types live — could not name the thing that
+  // payload carries.
+  type SsrmStats,
+  type SsrmFlushEvent,
+  type ViewportInterestScope,
   parseQuickFilter,
   buildQuickFilterText,
   rowPassesQuickFilter,

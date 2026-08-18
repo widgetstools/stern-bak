@@ -591,16 +591,45 @@ backstop now makes the event visible instead of silent.
 > parity audit found 36 divergences, 21 of which **do** affect correctness,
 > and Phase 1 closed seven of them inside this directory.
 
-Deferred, non-blocking items from the ssrm-engine-hardening plan's final review; none affect correctness:
+**Seven of eight closed 2026-08-18.** All were "none affect correctness"; two
+turned out to cost real work per mount and per idle second.
 
-- Snapshot arriving mid-window drops pendingCount from updatesAccumulated totals (SsrmServer.ts:396-415) — cosmetic counter drift under snapshot churn.
-- Any session's configureExpressions clears the whole shared order cache (QueryEngine.ts:161) — transient memo warm-up cost when many blotters push rules at mount; correctness unaffected.
-- engineBoundary.test.ts only matches static import specifiers; dynamic import('../worker/...') would slip through.
-- fanSsrmFlush rebuilds+enriches the full changed-key row set per filtered session per flush — N-sessions × changed-set work; window cadence bounds it.
-- RowStore.emit() has no per-listener try/catch (pre-existing; flush path is isolated, raw onTick is opt-in).
-- SsrmStats is exported from @wellsfargo-starui/data/ssrm-engine but not the ./runtime barrel.
-- createSsrmStatusBar: mount load doesn't stamp lastLoadAt (one duplicate RPC possible per panel mount); burst-trailing and unmount-pending-timer paths untested; 2s fallback poll runs even for tick-capable providers.
-- docs/latest/ssrm-engine.md: ICacheIngest listing omits clear(); pseudocode uses illustrative type names not in the codebase.
+- ✅ Snapshot mid-window dropped `pendingCount` from `updatesAccumulated` —
+  those updates DID arrive and were counted at ingest, so zeroing made the
+  cumulative total drift below the real one, and that total is the denominator
+  of the conflation ratio `getStats` reports. The snapshot flush now carries
+  the discarded count.
+- ✅ Any session's `configureExpressions` cleared the WHOLE shared order cache,
+  so ten blotters pushing rules at mount evicted each other's warm orders nine
+  times over. Now `invalidateSessionOrders` drops only the entries naming that
+  session — reachable because every cache key carries the requesting session's
+  identity since Phase 12. A SESSIONLESS configure still clears everything: it
+  changes what every session without its own set resolves to.
+- ✅ `engineBoundary.test.ts` matched only `from '…'`, so
+  `await import('../worker/x')` or a `require` would have slipped through —
+  and a dynamic import is exactly how someone reaches for the forbidden side
+  once the static form is refused. Now matches all three forms, with a case
+  asserting it.
+- ✅ `RowStore.emit()` had no per-listener try/catch. `onTick` is a public
+  subscription and one consumer throwing aborted the loop, so every listener
+  registered after it — including the windowed flush every session's ticks
+  ride on — silently missed that tick.
+- ✅ `SsrmStats` (and `SsrmFlushEvent`, `ViewportInterestScope`) reachable only
+  through `/ssrm-engine`; now on the `./runtime` barrel too, which is where
+  the hub introspect payload types live.
+- ✅ `createSsrmStatusBar` mount load left `lastLoadAt` at 0, so the first tick
+  inside the throttle window saw `elapsed` as the whole epoch, took the
+  leading edge, and duplicated the mount fetch — one wasted RPC per panel,
+  three panels, every grid mount. And the 2s fallback poll ran even for
+  tick-capable providers: a worker round trip per panel every 2s, forever, on
+  an idle grid. Both fixed, both pinned.
+- ✅ `docs/latest/ssrm-engine.md`: `ICacheIngest` omitted `clear()` and the
+  query-surface listing predated the session layer. Both now match the source.
+
+**Still open, deliberately:** `fanSsrmFlush` rebuilds and enriches the full
+changed-key row set per FILTERED session per flush — N-sessions × changed-set
+work. That is the design (a filtered session cannot discover a row that changes
+INTO its filter without inspecting it) and the window cadence bounds it.
 
 ## 16. v2-column-value-getter.spec.ts: the "authors a column valueGetter" case fails — pre-existing
 

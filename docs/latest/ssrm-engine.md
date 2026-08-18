@@ -17,14 +17,16 @@ read it.
 ### 1. Ingest (transport → engine)
 
 ```ts
+// runtime/ssrm/types.ts — verbatim
 interface ICacheIngest {
-  replaceSnapshot(rows: object[]): void;
-  upsert(rows: object[]): void;
-  remove(ids: string[]): void;
+  replaceSnapshot(rows: Row[]): void;
+  upsert(rows: Row[]): void;
+  remove(keys: string[]): void;
+  clear(): void;
 }
 ```
 
-Transport implementations call these three methods to mutate the cache. The
+Transport implementations call these four methods to mutate the cache. The
 engine guarantees last-value-wins semantics: if the same row id arrives twice
 in one update, the last value wins. Aggregates (totals, subtotals, pivots)
 recompute immediately from state.
@@ -32,13 +34,26 @@ recompute immediately from state.
 ### 2. Query (consumer → engine)
 
 ```ts
-interface SsrmServer {
+// The query half of `SsrmServer`. Every `sessionId` below is optional and
+// resolves to the global bucket when omitted — see "Per-session state".
+class SsrmServer {
   getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult;
-  getSetFilterValues(req: SetFilterValuesRequest): string[];
+  getSetFilterValues(req: SetFilterValuesRequest, sessionId?: string): string[];
   getStatusBar(request?: StatusBarRequest): StatusBarSummary;
   getDetailRows(request: DetailRowsRequest): Row[];
-  getGrandTotal(request: Pick<SsrmGetRowsRequest, 'filterModel' | 'valueCols' | 'quickFilterText'>): Row;
+  getGrandTotal(
+    request: Pick<
+      SsrmGetRowsRequest,
+      'filterModel' | 'valueCols' | 'quickFilterText' | 'quickFilterColumns'
+    >,
+    sessionId?: string,
+  ): Row;
   configureExpressions(rules: ExpressionRule[], sessionId?: string): void;
+  /** A session's pending edits and its row-exclusion rule. */
+  setSessionPatches(sessionId: string, patches: ReadonlyArray<{ key: string; fields: Row }>): void;
+  setSessionExclude(sessionId: string, expression: string | null): void;
+  /** Alert-rule hits among `keys` — row key + rule id, never rows. */
+  alertHits(keys: readonly string[], sessionId?: string): Array<{ key: string; ruleId: string }>;
   getStats(): SsrmStats;
 }
 ```
