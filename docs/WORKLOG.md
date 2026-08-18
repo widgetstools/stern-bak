@@ -638,7 +638,21 @@ changed-key row set per FILTERED session per flush — N-sessions × changed-set
 work. That is the design (a filtered session cannot discover a row that changes
 INTO its filter without inspecting it) and the window cadence bounds it.
 
-## 16. v2-column-value-getter.spec.ts: the "authors a column valueGetter" case fails — pre-existing
+## 16. ~~v2-column-value-getter.spec.ts: the "authors a column valueGetter" case fails~~ — CLOSED 2026-08-18
+
+**Closed by** `8010b38`. Three defects, all in the spec:
+its own waits budgeted 45s inside the global 30s test timeout, so it could
+never reach the end; `.ag-grid-scrolling-cells` is a state class on the grid
+ROOT rather than a container, so `[col-id="region"]` matched the column HEADER;
+and `region` sits outside AG Grid's virtualised column window anyway (the body
+scrolls ~5650px in a ~1250px viewport). Its cleanup also clicked an unscoped
+"Clear" that resolved to the Columns tab's clear-all behind the dialog overlay.
+The spec now scrolls the column in, asserts on `.ag-cell`, and scopes the
+Clear. **3/3 passing.**
+
+Original entry follows.
+
+### Original (2026-08-13)
 
 **Found:** 2026-08-13, during the Phase-1 StarGrid migration of
 `stomp-marketsgrid-minimal`. **Not a migration regression** — verified by
@@ -1074,7 +1088,18 @@ to blocking in `check-complexity-budget.mjs`.
 
 ---
 
-## 22. `markets-grid-ssrm-lab`'s test suite is a stale clone (2026-08-18)
+## 22. ~~`markets-grid-ssrm-lab`'s test suite is a stale clone~~ — CLOSED 2026-08-18
+
+**Closed by** `c5edb24`. The remaining 19 failures were one cause: the setup
+mock answered `provider: null` from `useSsrmDataProvider` and left
+`useSsrmProviderDataWiring` unmocked, so `SsrmLabGrid` could only ever render
+its "Starting SSRM provider…" placeholder while 19 cases waited for the grid.
+The mock now supplies a live provider stub and a ready wiring. **132/132
+passing.**
+
+Original entry follows.
+
+### Original (2026-08-18)
 
 **Area:** `apps/source/markets-grid-ssrm-lab` · **Blocked on:** nothing —
 test authoring, not a fix
