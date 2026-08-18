@@ -459,6 +459,23 @@ export interface GridDataPort {
    *  not — callers record or roll back from it, never from the call itself
    *  having returned. */
   mutate(patches: readonly RowPatch[]): Promise<MutationResult>;
+
+  /**
+   * Declare the grid's exclude-when-true row rule, or clear it with `null`.
+   *
+   * The port method means "this rule may have changed — make it true", and
+   * each row model makes it true its own way: the client-side adapter re-runs
+   * the external filter it installs, the server-side one hands the expression
+   * to the query plane so exclusion happens BEFORE paging. That difference is
+   * why this is a port method and not something a module does for itself —
+   * under the server-side model AG Grid only consults
+   * `doesExternalFilterPass` from its client-side filtering stage, so the
+   * external filter is inert there and `rowCount` — which the scrollbar is
+   * built from — counted rows the user could not see.
+   *
+   * The expression's meaning is `evaluateRowExclusion` in both cases.
+   */
+  setRowExclusion(expression: string | null): Promise<void>;
 }
 
 // ─── Server-side data source (structural) ─────────────────────────────────
@@ -471,9 +488,13 @@ export interface GridDataPort {
  * `@wellsfargo-starui/core`, so core cannot import it back. The real
  * `ISsrmDataProvider` satisfies this shape; the grid layer passes one in.
  *
- * It lists only what the adapter uses today. Adding an RPC is later-phase
- * work — where the port has no RPC to stand on, the adapter reports the gap
- * through `capabilities` instead of faking an answer.
+ * It lists only what the adapter uses today. Where the port has no RPC to
+ * stand on, the adapter reports the gap through `capabilities` instead of
+ * faking an answer.
+ *
+ * The two session members below are OPTIONAL for the same reason the existing
+ * ones handle it: a transport need not implement them, and the adapter degrades
+ * to its previous behaviour rather than throwing.
  */
 export interface SsrmDataSource {
   getRows(req: {
@@ -509,6 +530,27 @@ export interface SsrmDataSource {
      *  flattening it back to 0. */
     aggregations: Array<{ field: string; value: number | null }>;
   }>;
+
+  /**
+   * Record this session's pending edits with the query plane, so its own
+   * queries answer with them and a block refetch stops discarding them.
+   *
+   * Deliberately NOT a write into the shared row store: that store is
+   * per-provider and shared by every grid attached to it, so an edit written
+   * there would appear in every other window — which a client-side grid does
+   * not do (its transaction takes a copy of the row) and which nobody asked
+   * for. The plane holds it per session instead.
+   */
+  setSessionPatches?(
+    patches: ReadonlyArray<{ key: string; fields: Record<string, unknown> }>,
+  ): Promise<void>;
+
+  /**
+   * Install this session's exclude-when-true expression, or clear it with
+   * `null`. Applied before paging, so `rowCount`, the grand total and the
+   * scroll position agree with what the user sees.
+   */
+  setSessionExclude?(expression: string | null): Promise<void>;
 }
 
 /** How a grid tells the platform it is running server-side. */

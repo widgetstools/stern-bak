@@ -35,6 +35,21 @@ export interface ISsrmDataProvider {
   getRows(req: SsrmGetRowsRequest): Promise<SsrmGetRowsResult>;
   setViewport(keys: string[], scope?: ViewportInterestScope): Promise<void>;
   configureExpressions(rules: ExpressionRule[]): Promise<void>;
+  /**
+   * Record this session's pending edits with the plane, so its own queries
+   * answer with them and a block refetch stops discarding them. Per session:
+   * the plane is shared, and an edit is the editing window's private view of a
+   * row every other window also holds.
+   */
+  setSessionPatches(
+    patches: ReadonlyArray<{ key: string; fields: Record<string, unknown> }>,
+  ): Promise<void>;
+  /**
+   * Install this session's exclude-when-true expression (`null` clears it).
+   * Applied before paging, so `rowCount` and the totals agree with the rows
+   * the user sees.
+   */
+  setSessionExclude(expression: string | null): Promise<void>;
   getSetFilterValues(req: SetFilterValuesRequest): Promise<string[]>;
   getStatusBar(req?: StatusBarRequest): Promise<StatusBarSummary>;
   onSsrmTick(handler: (payload: SsrmTickPayload) => void): Unsubscribe;

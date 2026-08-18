@@ -154,6 +154,8 @@ export class SharedWorkerDataServicesHub {
       case 'ssrm-get-rows':
       case 'ssrm-set-viewport':
       case 'ssrm-configure-expressions':
+      case 'ssrm-set-session-patches':
+      case 'ssrm-set-session-exclude':
       case 'ssrm-status-bar':
       case 'ssrm-set-filter-values':
         this.handleSsrmRequest(port, req);
@@ -615,8 +617,10 @@ export class SharedWorkerDataServicesHub {
         reply({ kind: 'ssrm-rpc', reqId, ok: true, getRows });
         return;
       }
-      if (req.kind === 'ssrm-configure-expressions') {
-        plane.configureExpressions(req.rules, req.sessionId);
+      // The three that only WRITE session state share one shape — no payload
+      // back, just an ack — so they dispatch together rather than as three
+      // near-identical arms.
+      if (applySsrmSessionState(plane, req)) {
         reply({ kind: 'ssrm-rpc', reqId, ok: true });
         return;
       }
@@ -1052,5 +1056,27 @@ export class SharedWorkerDataServicesHub {
       const stats = snapshotProviderStats(slot, this.subscribers.dataCount(providerId));
       this.postStatsToListeners(providerId, listeners, stats);
     }
+  }
+}
+
+/**
+ * The SSRM requests that only WRITE per-session state: they carry no result,
+ * so all three are acknowledged the same way. Returns whether this request was
+ * one of them, leaving the caller's remaining arms to the ones that answer
+ * with data.
+ */
+function applySsrmSessionState(plane: SsrmPlane, req: SsrmRequest): boolean {
+  switch (req.kind) {
+    case 'ssrm-configure-expressions':
+      plane.configureExpressions(req.rules, req.sessionId);
+      return true;
+    case 'ssrm-set-session-patches':
+      plane.setSessionPatches(req.sessionId, req.patches);
+      return true;
+    case 'ssrm-set-session-exclude':
+      plane.setSessionExclude(req.sessionId, req.expression);
+      return true;
+    default:
+      return false;
   }
 }

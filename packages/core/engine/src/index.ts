@@ -406,3 +406,11 @@ export {
   compareValues,
 } from './filters/filterPredicate';
 export { UnsupportedQueryError } from './filters/UnsupportedQueryError';
+// Row exclusion is the same shape of shared meaning: the client-side grid runs
+// it through AG Grid's external filter, the worker plane runs it inside the
+// query, and neither carries its own copy.
+export {
+  evaluateRowExclusion,
+  compileRowExclusion,
+  __resetRowExclusionCache,
+} from './filters/rowExclusion';

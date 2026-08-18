@@ -791,7 +791,7 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
 - `MarketsGridContainer` — when an active provider id is chosen but `useDataProviderConfig` is still loading, renders a lightweight placeholder (no throwaway `MarketsGrid` / AG Grid shell); the `__no_provider__` shell path is unchanged when no provider is selected or cfg is loaded but missing key/columns
 - `buildColumnDefs` — maps a provider's persisted `ColumnDefinition[]` to AG Grid `ColDef[]` for `MarketsGridContainer`. Per column: a `valueGetter` DSL expression compiles once (bounded FIFO cache) to a CSP-safe `@wellsfargo-starui/core` **compiled closure** (not per-cell AST walk); dotted `field` uses cached `getPathAccessor`; flat field stays on AG Grid's native path. Every column with no explicit `filter` defaults to the **Multi Filter** (`agMultiColumnFilter`): tab 1 is the `cellDataType`-appropriate filter (`number`→`agNumberColumnFilter`, `date`/`dateString`→`agDateColumnFilter`, else `agTextColumnFilter`), tab 2 is always `agSetColumnFilter`; a column that already declares its own `filter` is left untouched (FilterEditor / host choice wins). Expression getters never throw — parse errors fall back to the field binding, runtime errors to the field value (warn once per expression); reusable per-getter `EvaluationContext` avoids per-cell allocations under high-frequency updates. Soak: `npm run soak:value-getter` (`valueGetter.soak.test.ts`, `SOAK=1`) — sustained eval load + heap-delta guard. **Internal** — not on public barrel
 - Custom Settings panel (`toolbar-date-settings` module) — four sections: Toolbar Date (historical date → AppData config), Data Provider (live/historical pickers, mode, as-of date) when `providerGridHost` is wired, Event Callbacks (event→handler bindings) when `gridEventBindingsHost` is wired, and Row Filter (row-exclusion expression). All settings are staged and applied only on the panel's explicit Save (Reset reverts); imperative actions (refresh/reload/edit) stay immediate
-- Row exclusion — implemented in `@wellsfargo-starui/grid` `toolbar-date-settings` module (not widgets-react): multiline Monaco `ExpressionEditor` authors an EXCLUDE-when-true DSL predicate (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, e.g. `[ccy] == "INR"`, `[active] == false`); keystrokes stage into the panel draft (applied on Save). `transformGridOptions` installs it as AG Grid's external filter (`isExternalFilterPresent` / `doesExternalFilterPass`) and the module's `activate` calls `api.onFilterChanged()` on cell edits, expression edits, and first ready. Rows are hidden, not removed — they reappear when the offending value changes; parse/eval failure excludes nothing (`rowExclusionFilter.ts`, fails open). **Disabled with a stated reason where the grid does not hold every row** (`capabilities.canAddressUnloadedRows`): AG-Grid consults `doesExternalFilterPass` only from its client-side filtering stage, so under the server-side row model the expression compiled, validated, saved and hid nothing. Excluding rows properly there means the SOURCE excluding them so counts and paging agree, which needs a per-session predicate the query plane applies before it pages — the machinery T1-4 was deferred for
+- Row exclusion — implemented in `@wellsfargo-starui/grid` `toolbar-date-settings` module (not widgets-react): multiline Monaco `ExpressionEditor` authors an EXCLUDE-when-true DSL predicate (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, e.g. `[ccy] == "INR"`, `[active] == false`); keystrokes stage into the panel draft (applied on Save). The module's `activate` tells `platform.data.setRowExclusion` the rule on first ready, on cell edits and on expression edits — **never `api.onFilterChanged()` directly**, which is the client-side row model's answer and would have been silently nothing for the other. **Under the client-side row model** `transformGridOptions` installs it as AG Grid's external filter (`isExternalFilterPresent` / `doesExternalFilterPass`), so rows are hidden, not removed, and reappear when the offending value changes. **Under the server-side row model** the expression (not a predicate — a function does not survive a structured clone) crosses to the query plane, which compiles it on the engine already serving its calculated columns and applies it BEFORE paging, so `rowCount` — what the scrollbar is built from — the grand total and the scroll position all agree with the rows shown; the adapter then purges, because every loaded block was built by a query that did not carry the rule. Both models share one evaluator (`filters/rowExclusion.ts` in core), so a rule cannot mean one thing in one grid and another in the next; parse/eval failure excludes nothing, in either
 - **HIDE UNTIL EXPAND is live again, and honest about where.** `groupHideColumnsUntilExpanded` was tracked, shown in Grid Options and deliberately NOT emitted, on a comment saying AG-Grid 35.1 did not recognise it. The repo has been on ag-grid-community 36.1 since the v36 bump: it declares the option and reads it as `_isGroupMultiAutoColumn(gos) && gos.get(…) && _isClientSideRowModel(gos)`. So the toggle had been a no-op for every grid, and is now emitted — live on a client-side grid using multiple auto group columns, and gated with a stated reason under the server-side row model, where AG Grid ignores it. Same `capability` container Phase 6 introduced, in the opposite direction (`expect: true`)
 - **Shared container machinery** (`container/markets-grid-container/`, consumed by BOTH containers so a change to what a prop MEANS cannot land on one and not the other — same reason `useGridLevelPersistence` and `buildColumnDefs` already live there). All **internal**: `mergeAdminActions(prepend, infra, user)` + `DATA_PROVIDER_EDITOR_ACTION_ID` (host entries last, winning on id collision); `useAppDataLookup()` (AppDataStore → `AppDataLookup`); `useContainerCaption({ propCaption, persistedCaption, setPersistedCaption, onCaptionChange })` (persisted-wins + OpenFin tab-rename adoption); `useContainerEventWiring({ containerEventBus, … })` (event bridge + `GridEventBindingsHostApi` + the `provider:switched` / `provider:dataStale` emits); `useContainerHistoricalDate({ … })` (the whole historical-date subsystem, minus each container's reload gate); `readHistoricalDateFromAppData` / `writeHistoricalDateToAppData` (the `'provider.key'` ref contract, which had grown three inline copies); `resolveProviderStartPlan(probe, providerId, asOfDate)` → `'attach' | 'restart'` + `PEER_PROVIDER_WAIT_MS`. The event bus is created by the caller, not the hook: both containers emit onto it from callbacks declared before the stale/selection state the hook reads. `todayIsoDate` is exported from `@wellsfargo-starui/grid/customizer` beside `isHistoricalToolbarDate` for the same one-implementation reason — `MarketsGridContainer` had grown a byte-identical private copy
 - **SSRM-side container hooks** (`container/ssrm-markets-grid-container/`, all **internal**): `useSsrmColumnResolution` (key column, declared/inferred column defs, block size), `useSsrmProviderStatus` (first-load / refetch / stale state off the raw status stream, plus the `provider:status` emit and `ssrmStaleMessage`), `useSsrmAdminActions` (the Tools menu, `full` and `infraOnly`), `useSsrmProviderDataWiring` (provider lifecycle, with an optional `startProvider` override for cold-start arbitration)
@@ -1011,7 +1011,12 @@ modules).
   provider was still binding re-enables itself when the answer changes — the
   getter makes the answer current, the event makes a rendered control notice.
   `useCapability` / `useCapabilityGate` (grid) are the one place the UI reads
-  them; no control asks which row model is mounted
+  them; no control asks which row model is mounted.
+  `setRowExclusion(expression | null)` declares the grid's exclude-when-true
+  row rule — the port method means "this rule may have changed, make it true",
+  and each adapter makes it true its own way (client-side: re-run the external
+  filter it installs; server-side: hand the expression to the query plane, then
+  purge, so exclusion happens BEFORE paging and `rowCount` follows)
 - `CsrmDataAdapter` / `SsrmDataAdapter` — the two implementations, over
   AG-Grid's client-side row model and over the SharedWorker query plane's
   existing `getRows` / `getSetFilterValues` / `getStatusBar` RPCs
@@ -1022,6 +1027,29 @@ modules).
   the residual predicate itself rather than the port narrowing to what the
   worker can do. Held to one shared suite (`platform/portContract.test.ts`)
   that runs every case against both. No module branches on the row model
+- **The per-session query layer reaches the client** — `SsrmDataSource` gains
+  optional `setSessionPatches` / `setSessionExclude` (optional because a
+  transport need not implement them, exactly as its existing members handle
+  that; structural, so declaring them in core crosses no import boundary).
+  `SsrmDataAdapter.mutate` records the EDITED FIELDS — never the assembled row,
+  which would shadow every column at its value-as-of-the-edit — with the plane
+  after `applyServerSideTransaction`, restricted to the rows that actually
+  landed. **That is what makes an SSRM edit survive a block refetch**: the
+  value used to live only in AG Grid's block cache, and under an active sort
+  `bindSsrmTicks` schedules a purge-refresh 50 ms after every tick, which
+  silently restored the old one. The call is fire-and-forget — the edit is
+  already on screen and already reported to `rows`, so a failed round trip
+  means it reverts on the next refetch, which is the behaviour that existed
+  before it and not a reason to fail a write that landed. The patch is private
+  to the session: the row store is shared by every window on the provider
+- `filters/rowExclusion.ts` — `evaluateRowExclusion` / `compileRowExclusion` /
+  `__resetRowExclusionCache`: ONE meaning for the exclude-when-true expression,
+  used by the client-side external filter and by the worker query plane alike.
+  Fails open (empty / unparseable / throwing → excludes nothing);
+  `compileRowExclusion` answers `null` rather than an always-false predicate
+  for an unusable rule, which is what lets a session drop its overlay and
+  rejoin the plane's shared cache. Parse cache keyed by expression string, so
+  the per-row hot path on either side is a pure AST walk
 - `foldColumn.ts` — the shared numeric fold behind `aggregate`, mirroring the
   worker's `ssrm/aggregations.ts` (core cannot import `data`, which depends on
   core); the contract suite asserts the two agree
@@ -1517,7 +1545,7 @@ real where it reaches the user.
 
 #### SSRM query plane
 
-- `ISsrmDataProvider` — client contract for server-side row model grids (`getRows`, `configureExpressions`, tick subscription, lifecycle); `SsrmTickPayload` for live fan-out
+- `ISsrmDataProvider` — client contract for server-side row model grids (`getRows`, `configureExpressions`, `setSessionPatches`, `setSessionExclude`, tick subscription, lifecycle); `SsrmTickPayload` for live fan-out. The two session calls no-op without a session id rather than rejecting — both are driven by grid interaction and one racing teardown is nothing to report, the rule `setViewport` already follows
 - `@wellsfargo-starui/data/ssrm-engine` subpath export (`packages/data/package.json` `exports["./ssrm-engine"]` → `host-data/dist/runtime/ssrm/index.{js,d.ts}`) — the transport-agnostic engine (`SsrmServer`, `RowStore`, `QueryEngine`, `SsrmFlushEvent`/`SsrmStats` types, `ICacheIngest`) importable standalone, with no SharedWorker/hub/RPC dependency; `engineContract.test.ts` and `scripts/bench-ssrm.mjs` both consume it this way
 - `SsrmProviderClientAdapter` — client-side `ISsrmDataProvider` over the SharedWorker SSRM RPCs (`SsrmProviderClientAdapterOpts`)
 - `SsrmPlane` — per-provider query plane attached in the hub for `stomp-ssrm` / `mock-ssrm`; owns filter, sort, group, aggregation, quick-filter, set-filter-value and status-bar evaluation so the client ships only block requests
@@ -1531,6 +1559,36 @@ real where it reaches the user.
 - **Group rows are ordered by group key** unless the sort names a column they actually carry (the group field or an aggregated value column), and a sort on AG Grid's auto group column (`ag-Grid-AutoColumn`) is redirected to the field it stands for. Sorting group rows by the LEAF sort model read `undefined` on both sides of every comparison, so the block came back in `Map` first-seen order. Every sort is now total — the group key (leaf: the tree key field) is the tie-break, so rows that tie keep a stable position across blocks of one query
 - **Quick filter searches the grid's COLUMNS, not every field** — `SsrmGetRowsRequest.quickFilterColumns` / `SetFilterValuesRequest.quickFilterColumns` / `StatusBarRequest.quickFilterColumns` carry the requesting grid's own column scope, computed from the live grid by `quickFilterColumnsOf(api)` (`@wellsfargo-starui/core`) honouring `includeHiddenColumnsInQuickFilter`, and sent by `createSsrmDatasource`, `createSsrmStatusBar` and `SsrmDataAdapter` alike so rows and counts agree. One plane serves grids with different column sets, so the scope travels with the query rather than being installed on the plane: `RowStore`'s cached per-row aggregate stays one string covering every field (nested leaves included) and acts as a prefilter — a search word never spans two columns, so a row the cache rejects cannot match a narrower set, and only admitted rows pay for a scoped build. Omitting the scope keeps the all-fields behaviour, which is the honest answer when the caller has no column state to report
 - **A compiled `aggFunc` closure never reaches `postMessage`** — AG Grid builds `valueCols` with `aggFunc: col.aggFunc`, the column's live value, which for a custom aggregation is a FUNCTION; structured-cloning it threw `DataCloneError` and failed EVERY block of the grid. `createSsrmDatasource` drops those value columns (warning once per column) so the grid keeps loading without its custom aggregate, rather than failing whole; `DataCapabilities.supportsCustomComparator` carries the user-facing reason for the control that offered it
+- **The per-session query layer, reachable from the client** — `SessionOverlay`
+  holds each session's pending edits and its row-exclusion predicate, and
+  `ssrm-set-session-patches` / `ssrm-set-session-exclude` are how a window
+  installs them (`SharedWorkerDataServicesClient.ssrmSetSessionPatches` /
+  `ssrmSetSessionExclude` → hub → `SsrmPlane` → `SsrmServer` →
+  `QueryEngine`, the same seven hops `configureExpressions` takes). Applied
+  BEFORE paging, so a session's `rowCount`, grand total and scroll position
+  agree with the rows it is shown. **The sharing model is the constraint that
+  makes it safe**: a session with no private state — almost every grid —
+  contributes `''` to every cache key and keeps sharing one entry, so N
+  windows asking the same question still pay for one filter pass and one sort
+  between them. Only a session that actually edits or excludes forks, and only
+  while it holds state; clearing returns it to the shared entry. Gated by
+  `npm run bench:ssrm`'s "Per-session query layer" section, which measures the
+  sharing directly as memo hits/misses (three rows that MUST read 0) rather
+  than inferring it from a wall-clock number. **Source wins**: when the store
+  re-delivers a row, its values are truth for the fields the tick actually
+  carried (`TickEvent.columns`), per field — so a tick moving `price` does not
+  discard a pending edit to `notes` on the same row — and a snapshot clears
+  everything pending. `setSessionExclude` takes the EXPRESSION, not a
+  predicate: a function does not survive a structured clone, and compiling in
+  the engine means the plane and the client-side external filter share
+  `@wellsfargo-starui/core`'s one evaluator
+- `queryAggregation.ts` / `querySort.ts` — the value-column fold with its
+  pivoted form (`aggregateValueCols`, `collectPivotResultFields`,
+  `pivotAggregate`) and the block comparators (`sortRows`, `sortGroupRows`,
+  `AUTO_GROUP_COLUMN_ID`), split out of `QueryEngine.ts` to bring it back under
+  the 800-LOC ceiling before the session layer landed. Neither reads engine
+  state, which is what made them the seams — and why the group, leaf, tree and
+  grand-total paths could already share them
 - `treeIndex.ts` — the tree-data index builders (`buildTreeIndex`, parent and path modes, `treeKeyField`, `rowHasDetail`), split out of `QueryEngine.ts` to bring it back under the 800-LOC ceiling (WORKLOG item 15). Block orchestration stays with the engine, which shares sorting, aggregation and enrichment with every other block path
 - `isSsrmProviderType()` — whether a `providerType` gets a plane; `resolveSsrmKeyColumn()` — key column → stable row id field
 - `SsrmGetRowsRequest` / `SsrmGetRowsResult` — block request/result types

@@ -71,6 +71,15 @@ export class ExpressionRuleStore {
     this.expr = expressionEngine ?? new ExpressionEngine();
   }
 
+  /**
+   * The engine these rules compile through. Exposed so the row-exclusion rule
+   * compiles on the SAME engine as the calculated columns rather than the
+   * plane standing up a second one — one plane, one expression dialect.
+   */
+  get engine(): ExpressionEngine {
+    return this.expr;
+  }
+
   configure(rules: ExpressionRule[], sessionId?: string): void {
     const key = sessionId ?? GLOBAL_SESSION;
     this.rulesBySession.set(key, rules);

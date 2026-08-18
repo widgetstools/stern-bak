@@ -32,6 +32,7 @@ import type {
 } from "./types.js";
 import {
   assertFilterModelSupported,
+  compileRowExclusion,
   doesRowMatchFilterModel,
   ExpressionEngine,
 } from "@wellsfargo-starui/core";
@@ -270,17 +271,29 @@ export class QueryEngine {
   }
 
   /**
-   * Install a session's row-exclusion predicate — `true` EXCLUDES the row.
+   * Install a session's row-exclusion rule from its EXPRESSION — the
+   * exclude-when-true string the customizer's Custom Settings panel holds.
+   * `null` or an unparseable rule clears it.
+   *
+   * The expression rather than a predicate, because the expression is what
+   * crosses the worker boundary: a function does not survive a structured
+   * clone. It compiles here, on the engine this plane already uses for
+   * calculated columns, through `@wellsfargo-starui/core`'s
+   * {@link compileRowExclusion} — the same compiler the client-side external
+   * filter uses, so a rule cannot mean one thing in a CSRM grid and another
+   * here.
+   *
    * Applied before paging, so counts, totals and scroll position agree with
-   * what the user sees; the client-side external filter it replaces could
-   * never do that under this row model, because AG-Grid only consults
-   * `doesExternalFilterPass` from its client-side filtering stage.
+   * what the user sees. The client-side external filter could never do that
+   * under this row model: AG Grid only consults `doesExternalFilterPass` from
+   * its client-side filtering stage, so under SSRM the rule was inert and
+   * `rowCount` — which the scrollbar is built from — counted excluded rows.
    */
-  setSessionExclude(
-    sessionId: string,
-    exclude: ((row: Row) => boolean) | null,
-  ): void {
-    this.overlay.setExclude(sessionId, exclude);
+  setSessionExclude(sessionId: string, expression: string | null): void {
+    this.overlay.setExclude(
+      sessionId,
+      compileRowExclusion(this.exprRules.engine, expression),
+    );
   }
 
   getRows(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {

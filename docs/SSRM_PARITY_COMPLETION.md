@@ -1,6 +1,6 @@
 # SSRM parity completion — the four findings the roadmap left open
 
-**Branch:** `feature/simplify`. **Status: 1 / 4 phases done** (Phase 11 ✅).
+**Branch:** `feature/simplify`. **Status: 2 / 4 phases done** (Phases 11 ✅, 12 ✅).
 
 [`SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) closed 32 of 36 audit
 findings across 11 phases and recorded four as needing their own sessions. This
@@ -199,7 +199,7 @@ anywhere else.
 
 ---
 
-## Phase 12 — the session query layer reaches the client
+## Phase 12 — the session query layer reaches the client ✅
 
 **Goal:** a window can tell the plane about state that is private to it, so
 the query answers for *that* window.
@@ -267,6 +267,130 @@ Then the client-side seam, which is the only part needing a decision:
 
 **Closes:** T2-4's real fix; an SSRM edit surviving a block refetch (Phase 4
 decision 1).
+
+### Record (2026-08-17)
+
+**Landed in two commits, in the order the phase text demanded.**
+
+**1 — the split (`dae3b7d`), on its own.** `QueryEngine.ts` **895 → 765**, now
+778 after the phase's own additions. Two of the three named seams moved
+wholesale: `queryAggregation.ts` (`valueAgg`, renamed `aggregateValueCols` and
+taking `valueCols` rather than a `Pick<>` of the request; `pivotKey`,
+`collectPivotResultFields`, `pivotAggregate`) and `querySort.ts` (`sortRows`,
+`sortGroupRows`, `SortEntry`, `AUTO_GROUP_COLUMN_ID`). Neither reads engine
+state — that is what made them the seams. **`treeBlock` deliberately stayed**:
+it needs `collectFilteredCached`, the store, the tree config and `enrich`, so
+extracting it means inventing a deps object for no gain, and the two pure
+clusters were margin enough. Also took `getRows` from 96 lines to 33 by
+extracting `groupBlock` beside the existing `leafBlock`/`treeBlock` — a real
+`max-lines-per-function` warning present at HEAD, same ceiling, fixed while the
+file was open rather than banked.
+
+**2 — the layer.** The seven hops were mechanical, as promised. The parts that
+needed a decision:
+
+- **The exclusion rule crosses as an EXPRESSION, not a predicate.** A function
+  does not survive a structured clone. The plane already holds an expression
+  engine, so it compiles there — and `evaluateRowExclusion` **moved into
+  `@wellsfargo-starui/core`** (`filters/rowExclusion.ts`, beside the filter
+  predicate) so the worker and the client-side external filter share one
+  meaning rather than the worker growing a second copy. `compileRowExclusion`
+  answers `null` for an unusable rule rather than an always-false predicate:
+  `null` drops the session's overlay, which is what returns it to the plane's
+  shared cache instead of holding a private key for a rule that can never
+  exclude anything.
+- **`QueryEngine.setSessionExclude` now TAKES the expression** rather than
+  keeping its predicate signature and adding a second method beside it.
+  Shipped unused in `293e2d2`, so nothing external broke, and constraint 2
+  says superseded code goes in the same change. Its six test call sites moved
+  to expressions and now exercise the reachable path; the predicate primitive
+  keeps direct coverage against `SessionOverlay` itself.
+- **The module does not branch, and it no longer calls the grid api.**
+  `activateRowExclusion` used to call `api.onFilterChanged()`, which is the
+  client-side row model's answer and was silently nothing under the other —
+  the exact branch-on-row-model constraint 3 exists to remove, hiding in a
+  module that looked innocent because it never wrote `if (ssrm)`. It now calls
+  `platform.data.setRowExclusion(expression)`. **`GridDataPort` gained that
+  method**: the CSRM adapter re-runs the external filter the transform
+  installs (which reads the rule live, so the argument is already in its
+  hands); the SSRM adapter hands the expression to the plane and then purges,
+  because every loaded block was built by a query that did not carry the rule.
+  The ready-time nudge is now UNGATED — the plane holds this per session, so a
+  grid whose profile carries no rule still has to say so.
+- **`mutate` records the EDITED FIELDS, never the assembled row.**
+  `assemblePatchRows` produces whole rows because both AG Grid transaction
+  APIs take whole rows; sending one as a session patch would shadow every
+  column at its value-as-of-the-edit until the source happened to tick that
+  exact column. The caller's own `RowPatch.fields` is the honest answer, and it
+  is what lets the plane's source-wins rule work per field. Restricted to the
+  rows that actually landed, and fire-and-forget: the edit is already on screen
+  and already reported to `rows`, so a failed round trip means it reverts on
+  the next refetch — the behaviour that existed before the call, not a reason
+  to fail a write that landed.
+- **`mutationsReachSource`'s copy was now false** and was corrected. The edit
+  survives a block refetch; it still reaches no other window and persists
+  nowhere.
+
+**The shared-path gate — and it had to be built before it could be a gate.**
+`bench:ssrm` never passed a `sessionId`, so "the shared path is unchanged"
+was only ever "the numbers didn't move". A **Per-session query layer** section
+now measures the sharing directly, as memo hits/misses, with three rows that
+must read 0:
+
+| | |
+|---|---|
+| 2nd clean session: memo misses | **0** |
+| clean session after a neighbour forked: misses | **0** |
+| session after clearing its rule: misses | **0** |
+| editing session: memo misses (forks, by design) | 2 |
+
+Writing it caught its own artefact first: the rejoin row read 2 because the
+`cold` helper upserts to force a miss, which bumps the store revision and
+strands every entry including the clean ones. Re-warming the shared entry
+first is what makes the row mean what it claims.
+
+**Timings, measured properly.** The first post-change runs looked ~15% worse
+on cold blocks, which would have been a failed phase. Stashing to `dae3b7d`
+and re-running back-to-back — the roadmap's baseline-before-blame rule — showed
+it was machine drift:
+
+| | `dae3b7d` | Phase 12 |
+|---|---|---|
+| sorted block, cold | 130.4 ms | 134.8 ms |
+| filtered + sorted, cold | 48.9 ms | 47.1 ms |
+| grouped by book, cold | 51.9 ms | 51.5 ms |
+| quick filter, cold | 45.7 ms | 48.9 ms |
+| 20 sorted blocks | 135 ms | 131 ms |
+| **every warm number** | **0.0 ms** | **0.0 ms** |
+
+Mixed signs within a few percent. The gate passes.
+
+**Verification.** `npx turbo typecheck build` exit 0. Tests serially at
+`--maxWorkers=2`; no environmental failures this session:
+
+| Package | Phase 11 | Phase 12 |
+|---|---|---|
+| `core` | 1343 (was 1316 before Phase 11) | **1343** |
+| `data` | 718 | **724** |
+| `react-grid` | 2631 + 1 skipped | **2621** + 1 skipped |
+| `react-core` / `design-system` / `openfin` / `types` | 523 / 355 / 483 / 171 | unchanged |
+
+Every delta accounts exactly: core +27 (15 into `filters/rowExclusion.test.ts`
+— 12 moved from grid, 3 new for `compileRowExclusion` — plus 12 in
+`platform/sessionLayer.test.ts`); data +6 (3 overlay, 3 hub round-trip);
+react-grid −10 (−12 moved out, +2 in `activate.test.ts`). ESLint compared per
+file against `HEAD`: every file same-or-better, and **the two warnings this
+phase introduced were fixed, not banked** — `handleSsrmRequest` crossed 80
+lines (the three ack-only SSRM arms now dispatch through one
+`applySsrmSessionState`), and a `no-console` disable that core does not need
+came along with the moved evaluator. `check-package-cycles` and `check:rtl`
+pass.
+
+**Open, recorded not banked.** `protocol.ts` is 831 lines and
+`SharedWorkerDataServicesClient.ts` 1289, both against the 800 ceiling and
+both already over before this phase (801 and 1249). They are declaration and
+RPC-surface files; splitting either is its own piece of work, and this phase
+kept the file it was told to — `QueryEngine.ts` — under.
 
 ---
 
@@ -381,12 +505,12 @@ it ever matters; do not carry it as a parity gap.
 | Phase | Session | Entry | Closes |
 |---|---|---|---|
 | 11 — a refused write is visible ✅ | small | none | rejection surface + 2 bugs (the pagination one was not a defect) |
-| 12 — session layer reaches the client | full | none | T2-4 real fix, edit survives refetch |
+| 12 — session layer reaches the client ✅ | full | none | T2-4 real fix, edit survives refetch |
 | 13 — calculated columns | full | Phase 12 | T1-4 |
 | 14 — alerts bell | full | none | T2-6 |
 
-Phases 11, 12 and 14 have no entry dependency and can run in any order. Only
-Phase 13 is gated, on Phase 12.
+Phases 11 and 12 are done. Phase 13's entry is now satisfied, and Phase 14
+still has none — either can run next.
 
 ## Verification, every phase
 

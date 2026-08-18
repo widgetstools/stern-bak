@@ -131,10 +131,10 @@ const filterModel = {
 
 heading('Blocks (cold = first block of a query, warm = later blocks)');
 // Each cold measurement mutates the store first so the order cache misses.
-const cold = (label, req) =>
+const cold = (label, req, sessionId) =>
   time(label, () => {
     store.upsert([{ id: 'POS-0', [numericCols[0]]: Math.random() }]);
-    engine.getRows(req);
+    engine.getRows(req, sessionId);
   }, 3);
 
 cold('unsorted block, cold', baseReq);
@@ -195,6 +195,60 @@ engine.configureExpressions([
 cold('aggregate, cold (one store pass)', calcReq);
 time('aggregate, warm (memoised column)', () => engine.getRows(calcReq), 20);
 engine.configureExpressions([]);
+
+heading('Per-session query layer (the sharing model is the gate, not the timing)');
+// The invariant that makes one plane worth having: N grids asking the same
+// question pay for ONE filter pass and one sort between them. The session
+// layer is only acceptable while a grid that is neither editing nor excluding
+// still lands on that shared entry — so this measures the sharing directly
+// (memo hits/misses) rather than inferring it from a wall-clock number.
+const sessionReq = { ...baseReq, sortModel };
+const memoDelta = (fn) => {
+  const before = engine.getMemoStats();
+  fn();
+  const after = engine.getMemoStats();
+  return {
+    hits: after.memoHits - before.memoHits,
+    misses: after.memoMisses - before.memoMisses,
+  };
+};
+
+store.upsert([{ id: 'POS-2', [numericCols[0]]: Math.random() }]);
+engine.getRows(sessionReq, 'clean-a');
+const second = memoDelta(() => engine.getRows(sessionReq, 'clean-b'));
+// THE GATE. A second clean session must be answered entirely from the first
+// one's entries. Any miss here means the session layer forked the cache for a
+// grid that has no private state, and the plane is no longer shared.
+row('2nd clean session: memo misses (MUST be 0)', second.misses, '');
+row('2nd clean session: memo hits', second.hits, '');
+time('clean session, warm block', () => engine.getRows(sessionReq, 'clean-b'), 20);
+
+engine.setSessionPatches('editing', [{ key: 'POS-3', fields: { [numericCols[0]]: 1 } }]);
+const forked = memoDelta(() => engine.getRows(sessionReq, 'editing'));
+// What an EDITING session costs: its own entries, built once. Non-zero by
+// design — its row set really is different — and it is the price of the edit
+// surviving a block refetch.
+row('editing session: memo misses (forks, by design)', forked.misses, '');
+time('editing session, warm block', () => engine.getRows(sessionReq, 'editing'), 20);
+
+// And a clean session is untouched by the neighbour that forked.
+const stillShared = memoDelta(() => engine.getRows(sessionReq, 'clean-a'));
+row('clean session after a neighbour forked: misses (MUST be 0)', stillShared.misses, '');
+engine.clearSessionPatches('editing');
+
+engine.setSessionExclude('excluding', `[book] == "ALPHA"`);
+cold('excluding session, cold block', sessionReq, 'excluding');
+time('excluding session, warm block', () => engine.getRows(sessionReq, 'excluding'), 20);
+engine.setSessionExclude('excluding', null);
+// Re-warm the SHARED entry first: `cold` above upserts to force a miss, which
+// bumps the store revision and strands every entry including the clean ones.
+// Without this the row below would report the shared entry's own rebuild and
+// read as a rejoin failure — a measurement artefact, not a forked cache.
+engine.getRows(sessionReq, 'clean-a');
+const rejoined = memoDelta(() => engine.getRows(sessionReq, 'excluding'));
+// Clearing the rule has to return the session to the shared entry rather than
+// leaving it on a private key forever.
+row('session after clearing its rule: memo misses (MUST be 0)', rejoined.misses, '');
 
 heading('Set-filter domain (full-store distinct scan, no block window)');
 // The set-filter panel lists a column's WHOLE domain, so this is one scan of

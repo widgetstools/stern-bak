@@ -171,6 +171,26 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
     );
   }
 
+  /**
+   * Both session calls no-op without a session id rather than rejecting: they
+   * are driven by grid interaction (an edit landing, an exclusion rule saved),
+   * and one racing teardown is nothing to report — the same rule
+   * {@link setViewport} follows.
+   */
+  async setSessionPatches(
+    patches: ReadonlyArray<{ key: string; fields: Record<string, unknown> }>,
+  ): Promise<void> {
+    const sessionId = this.sessionIdOrNull;
+    if (!sessionId || patches.length === 0) return;
+    await this.client.ssrmSetSessionPatches(this.id, sessionId, [...patches]);
+  }
+
+  async setSessionExclude(expression: string | null): Promise<void> {
+    const sessionId = this.sessionIdOrNull;
+    if (!sessionId) return;
+    await this.client.ssrmSetSessionExclude(this.id, sessionId, expression);
+  }
+
   getSetFilterValues(req: SetFilterValuesRequest): Promise<string[]> {
     return this.client.ssrmGetSetFilterValues(this.id, req);
   }

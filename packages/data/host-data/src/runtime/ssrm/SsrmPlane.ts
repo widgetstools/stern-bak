@@ -158,6 +158,17 @@ export class SsrmPlane {
     this.server.configureExpressions(rules, sessionId);
   }
 
+  setSessionPatches(
+    sessionId: string,
+    patches: ReadonlyArray<{ key: string; fields: Row }>,
+  ): void {
+    this.server.setSessionPatches(sessionId, patches);
+  }
+
+  setSessionExclude(sessionId: string, expression: string | null): void {
+    this.server.setSessionExclude(sessionId, expression);
+  }
+
   setViewportInterest(
     sessionId: string,
     keys: string[],

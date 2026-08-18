@@ -213,6 +213,22 @@ export class CsrmDataAdapter implements GridDataPort {
       ok: rejected.length === 0,
     };
   }
+
+  /**
+   * Under this row model the exclusion rule is AG Grid's external filter,
+   * installed as grid options by the module that owns the expression and
+   * reading it live on every evaluation — so making the rule true is exactly
+   * a re-run, and the expression argument is already in the callbacks' hands.
+   *
+   * That is the whole difference between the row models: here AG Grid holds
+   * every row and can re-filter them, so `rowCount` follows for free. The
+   * server-side adapter has to send the rule to the plane, because AG Grid
+   * only consults `doesExternalFilterPass` from its client-side filtering
+   * stage and never runs it at all under that model.
+   */
+  async setRowExclusion(_expression: string | null): Promise<void> {
+    this.hub.use((api) => api.onFilterChanged(), undefined);
+  }
 }
 
 // ─── Shared helpers ────────────────────────────────────────────────────────

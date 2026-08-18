@@ -423,6 +423,34 @@ export interface SsrmConfigureExpressionsRequest {
   sessionId?: string;
 }
 
+/**
+ * A session's pending edits. Keyed by session because the plane is shared: an
+ * edit made in one window is that window's private view of a row every other
+ * window also holds. See `SessionOverlay`.
+ */
+export interface SsrmSetSessionPatchesRequest {
+  kind: 'ssrm-set-session-patches';
+  reqId: string;
+  providerId: string;
+  sessionId: string;
+  patches: Array<{ key: string; fields: Record<string, unknown> }>;
+}
+
+/**
+ * A session's row-exclusion rule, as an EXPRESSION rather than a predicate —
+ * a function does not survive a structured clone, and the plane already holds
+ * an expression engine. `null` clears it. Meaning is `evaluateRowExclusion`
+ * in `@wellsfargo-starui/core`, the same one the client-side external filter
+ * uses.
+ */
+export interface SsrmSetSessionExcludeRequest {
+  kind: 'ssrm-set-session-exclude';
+  reqId: string;
+  providerId: string;
+  sessionId: string;
+  expression: string | null;
+}
+
 export interface SsrmStatusBarRpcRequest {
   kind: 'ssrm-status-bar';
   reqId: string;
@@ -441,6 +469,8 @@ export type SsrmRequest =
   | SsrmGetRowsRpcRequest
   | SsrmSetViewportRequest
   | SsrmConfigureExpressionsRequest
+  | SsrmSetSessionPatchesRequest
+  | SsrmSetSessionExcludeRequest
   | SsrmStatusBarRpcRequest
   | SsrmSetFilterValuesRpcRequest;
 

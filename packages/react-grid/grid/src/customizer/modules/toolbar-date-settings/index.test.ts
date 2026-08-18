@@ -5,7 +5,7 @@ import {
 } from './state';
 import { toolbarDateSettingsModule } from './index';
 import { activateRowExclusion } from './activate';
-import { __resetRowExclusionCache } from './rowExclusionFilter';
+import { __resetRowExclusionCache } from '@wellsfargo-starui/core';
 
 describe('toolbarDateSettingsModule', () => {
   beforeEach(() => {
@@ -84,28 +84,28 @@ describe('toolbarDateSettingsModule', () => {
     expect(toolbarDateSettingsModule.activate).toBeTruthy();
   });
 
-  it('cellValueChanged does not refilter when expression cleared', () => {
-    const onFilterChanged = vi.fn();
+  it('cellValueChanged does not reach the port once the expression is cleared', () => {
+    const setRowExclusion = vi.fn(async () => {});
     let state = { ...INITIAL_TOOLBAR_DATE_SETTINGS, rowExclusionExpression: '[ccy] == "INR"' };
     let cellHandler: (() => void) | null = null;
     const platform = {
       getState: () => state,
       subscribe: () => () => {},
+      data: { setRowExclusion },
       api: {
         on: (evt: string, fn: () => void) => {
           if (evt === 'cellValueChanged') cellHandler = fn;
           return () => {};
         },
         onReady: () => () => {},
-        use: (fn: (api: { onFilterChanged: typeof onFilterChanged }) => void) => {
-          fn({ onFilterChanged });
-        },
+        use: () => {},
       },
     };
     const dispose = activateRowExclusion(platform as never);
+    setRowExclusion.mockClear();
     state = { ...state, rowExclusionExpression: '   ' };
     cellHandler?.();
-    expect(onFilterChanged).toHaveBeenCalledTimes(0);
+    expect(setRowExclusion).toHaveBeenCalledTimes(0);
     dispose();
   });
 });

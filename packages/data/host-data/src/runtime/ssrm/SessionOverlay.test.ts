@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueryEngine } from './QueryEngine.js';
 import { RowStore } from './RowStore.js';
+import { SessionOverlay } from './SessionOverlay.js';
 import type { Row } from './types.js';
 
 const KEY = 'id';
@@ -141,7 +142,7 @@ describe('source wins', () => {
 describe('session row exclusion', () => {
   it('removes rows from the session’s own paging and counts', () => {
     const { engine } = makeEngine(SEED);
-    engine.setSessionExclude('s1', (row) => row.book === 'ALPHA');
+    engine.setSessionExclude('s1', '[book] == "ALPHA"');
 
     const mine = engine.getRows({ ...baseReq }, 's1');
     expect(ids(mine)).toEqual(['B']);
@@ -161,21 +162,34 @@ describe('session row exclusion', () => {
     };
     expect(engine.getRows(req, 's2').grandTotalData?.px).toBe(60);
 
-    engine.setSessionExclude('s1', (row) => row.book === 'ALPHA');
+    engine.setSessionExclude('s1', '[book] == "ALPHA"');
     expect(engine.getRows(req, 's1').grandTotalData?.px).toBe(20);
   });
 
-  it('a predicate that throws excludes nothing rather than emptying the grid', () => {
+  it('an expression that will not parse excludes nothing rather than emptying the grid', () => {
     const { engine } = makeEngine(SEED);
-    engine.setSessionExclude('s1', () => {
-      throw new Error('bad expression');
-    });
+    engine.setSessionExclude('s1', '[book] ==== ');
     expect(engine.getRows({ ...baseReq }, 's1').rowCount).toBe(3);
+  });
+
+  // The compiler answers `null` for an unusable rule, which is not the same as
+  // a predicate that always returns false: `null` drops the overlay entirely,
+  // so the session goes back to sharing the plane's cache rather than holding
+  // a private key for a rule that can never exclude anything.
+  it('an unusable rule leaves the session on the shared cache entry', () => {
+    const { engine } = makeEngine(SEED);
+    const sortModel = [{ colId: 'px', sort: 'desc' }] as const;
+    engine.getRows({ ...baseReq, sortModel: [...sortModel] }, 's1');
+
+    engine.setSessionExclude('s2', '[book] ==== ');
+    const before = engine.getMemoStats();
+    engine.getRows({ ...baseReq, sortModel: [...sortModel] }, 's2');
+    expect(engine.getMemoStats().memoMisses).toBe(before.memoMisses);
   });
 
   it('clearing the predicate restores the shared view', () => {
     const { engine } = makeEngine(SEED);
-    engine.setSessionExclude('s1', (row) => row.book === 'ALPHA');
+    engine.setSessionExclude('s1', '[book] == "ALPHA"');
     expect(engine.getRows({ ...baseReq }, 's1').rowCount).toBe(1);
     engine.setSessionExclude('s1', null);
     expect(engine.getRows({ ...baseReq }, 's1').rowCount).toBe(3);
@@ -204,7 +218,7 @@ describe('the sharing model is preserved', () => {
     const sortModel = [{ colId: 'px', sort: 'desc' }];
     engine.getRows({ ...baseReq, sortModel }, 's1');
 
-    engine.setSessionExclude('s2', (row) => row.book === 'ALPHA');
+    engine.setSessionExclude('s2', '[book] == "ALPHA"');
     const before = engine.getMemoStats();
     engine.getRows({ ...baseReq, sortModel }, 's2');
     expect(engine.getMemoStats().memoMisses).toBeGreaterThan(before.memoMisses);
@@ -214,5 +228,30 @@ describe('the sharing model is preserved', () => {
     const rejoined = engine.getMemoStats();
     engine.getRows({ ...baseReq, sortModel }, 's2');
     expect(engine.getMemoStats().memoHits).toBeGreaterThan(rejoined.memoHits);
+  });
+});
+
+/**
+ * `QueryEngine` now compiles the rule from an expression, so the tests above
+ * exercise the reachable path. The predicate is still `SessionOverlay`'s
+ * primitive, and its fail-open rule is the last thing standing between a
+ * throwing evaluation and an empty grid — so it is pinned here directly rather
+ * than through a compiler that catches first.
+ */
+describe('SessionOverlay predicate primitive', () => {
+  it('a predicate that throws excludes nothing', () => {
+    const overlay = new SessionOverlay(KEY);
+    overlay.setExclude('s1', () => {
+      throw new Error('boom');
+    });
+    expect(overlay.stateFor('s1')!.excluded({ id: 'A' })).toBe(false);
+  });
+
+  it('a predicate returning a truthy non-boolean does NOT exclude', () => {
+    const overlay = new SessionOverlay(KEY);
+    // `=== true` on purpose: a rule that answers `'yes'` is a rule that did
+    // not answer, and hiding rows on it would be guessing.
+    overlay.setExclude('s1', (() => 'yes') as unknown as (row: Row) => boolean);
+    expect(overlay.stateFor('s1')!.excluded({ id: 'A' })).toBe(false);
   });
 });

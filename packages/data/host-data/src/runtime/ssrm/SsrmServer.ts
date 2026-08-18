@@ -223,6 +223,26 @@ export class SsrmServer implements ICacheIngest {
     this.query.configureExpressions(rules, sessionId);
   }
 
+  /** Record a session's pending edits. See {@link QueryEngine.setSessionPatches}. */
+  setSessionPatches(
+    sessionId: string,
+    patches: ReadonlyArray<{ key: string; fields: Row }>,
+  ): void {
+    this.query.setSessionPatches(sessionId, patches);
+  }
+
+  /**
+   * Install a session's row-exclusion rule from its EXPRESSION.
+   *
+   * The expression rather than a predicate, because a function does not
+   * survive a structured clone. It compiles inside {@link QueryEngine}, on the
+   * engine that already serves this plane's calculated columns. See
+   * {@link QueryEngine.setSessionExclude}.
+   */
+  setSessionExclude(sessionId: string, expression: string | null): void {
+    this.query.setSessionExclude(sessionId, expression);
+  }
+
   configureTree(config: TreeDataConfig | null): void {
     this.query.configureTree(config);
   }

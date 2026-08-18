@@ -100,16 +100,20 @@ const SSRM_CAPABILITIES: DataCapabilities = {
       'Advanced Filter narrows the rows this grid shows, but is not applied to ' +
       'these figures — use the column filters if the two need to agree.',
   },
-  // Says what the ADAPTER can do, which is write into this grid's block cache
-  // and nothing further. It is not a verdict on whether editing works: an app
-  // that wires `editWriteBack` persists through its own write service and the
-  // value returns on the feed, which is the architecture this row model is
-  // built for. Without one, the sentence below is the whole truth.
+  // Says what the ADAPTER can do. Since the session layer landed that is more
+  // than it was — the edit is recorded with the query plane, so it survives a
+  // block refetch and this window keeps seeing it — but it is still not a
+  // write to the SOURCE: the plane holds it per session, no other window sees
+  // it, and nothing has persisted. It is not a verdict on whether editing
+  // works either: an app that wires `editWriteBack` persists through its own
+  // write service and the value returns on the feed, which is the architecture
+  // this row model is built for. Without one, the sentence below is the whole
+  // truth.
   mutationsReachSource: {
     supported: false,
     reason:
-      'Edits change this grid only — the shared data service keeps its own copy ' +
-      'and will replace them on the next refresh. Persisting them needs the ' +
+      'Edits stay in this window — the shared data service keeps its own copy, ' +
+      'and nobody else sees them. Persisting them needs the ' +
       "grid's `editWriteBack` wired to a write service.",
   },
 };
@@ -300,11 +304,52 @@ export class SsrmDataAdapter implements GridDataPort {
       };
     }
 
+    const applied = assembled.map((a) => a.rowId);
+
+    // The transaction above wrote into AG Grid's BLOCK CACHE and nowhere else,
+    // so the edit lived exactly as long as the block did: a purge-refresh —
+    // which `bindSsrmTicks` schedules 50 ms after every tick under an active
+    // sort — refetched the row from the plane and silently restored the old
+    // value. Recording the patch with the plane is what makes the edit survive
+    // that, and it stays private to this session: the row store is shared by
+    // every window on the provider, so writing there would leak one window's
+    // uncommitted edit into all of them.
+    //
+    // Fire-and-forget with the promise swallowed on purpose. The edit is
+    // already on screen and already reported to `rows`; a failed round trip
+    // means the value reverts on the next refetch, which is the behaviour that
+    // existed before this call and not a reason to fail a write that landed.
+    const session = sessionPatchesFrom(patches, applied);
+    if (this.source.setSessionPatches && session.length > 0) {
+      void this.source.setSessionPatches(session).catch(() => {});
+    }
+
     return {
-      applied: assembled.map((a) => a.rowId),
+      applied,
       rejected,
       ok: rejected.length === 0,
     };
+  }
+
+  /**
+   * Hand the exclusion rule to the plane, then make the grid ask again.
+   *
+   * A purge is required, not merely tidy: every loaded block was built by a
+   * query that did not carry this rule, so without one the rows it excludes
+   * stay on screen until something else happens to evict them.
+   *
+   * A source with no `setSessionExclude` degrades to the previous behaviour —
+   * the rule is inert under this row model — rather than throwing at a
+   * customizer panel that has no way to act on it.
+   */
+  async setRowExclusion(expression: string | null): Promise<void> {
+    if (!this.source.setSessionExclude) return;
+    try {
+      await this.source.setSessionExclude(expression);
+    } catch {
+      return;
+    }
+    this.hub.use((api) => api.refreshServerSide({ purge: true }), undefined);
   }
 
   // ─── Internals ───────────────────────────────────────────────────────────
@@ -432,6 +477,34 @@ export class SsrmDataAdapter implements GridDataPort {
     const key = getValueByPath(data, this.keyColumn) ?? data.__ssrmGroupKey;
     return key == null ? '' : String(key);
   }
+}
+
+/**
+ * The FIELDS this session wrote, grouped by row — never the assembled row.
+ *
+ * `assemblePatchRows` produces whole rows because both AG Grid transaction
+ * APIs take whole rows, but sending one as a session patch would shadow every
+ * column at its value-as-of-the-edit and hold it there until the source
+ * happened to tick that exact column. The caller's own `RowPatch.fields` is
+ * the honest answer to "what did this session change", and it is what lets the
+ * plane's source-wins rule work per field.
+ *
+ * Restricted to the rows that actually landed: a patch the transaction refused
+ * must not survive in the plane as though it had been applied.
+ */
+function sessionPatchesFrom(
+  patches: readonly RowPatch[],
+  applied: readonly string[],
+): Array<{ key: string; fields: Record<string, unknown> }> {
+  const landed = new Set(applied);
+  const byRow = new Map<string, Record<string, unknown>>();
+  for (const patch of patches) {
+    if (!landed.has(patch.rowId)) continue;
+    const existing = byRow.get(patch.rowId);
+    if (existing) Object.assign(existing, patch.fields);
+    else byRow.set(patch.rowId, { ...patch.fields });
+  }
+  return [...byRow].map(([key, fields]) => ({ key, fields }));
 }
 
 /** The scope half of every RPC this adapter makes. */

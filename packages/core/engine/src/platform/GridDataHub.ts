@@ -113,6 +113,10 @@ export class GridDataHub implements GridDataPort {
     return this.active.mutate(patches);
   }
 
+  setRowExclusion(expression: string | null): Promise<void> {
+    return this.active.setRowExclusion(expression);
+  }
+
   private announce(): void {
     this.events.emit('data:capabilitiesChanged', { gridId: this.events.gridId });
   }

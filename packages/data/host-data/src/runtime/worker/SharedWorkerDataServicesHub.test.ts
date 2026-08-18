@@ -2051,3 +2051,99 @@ describe('SharedWorkerDataServicesHub — inline broadcast', () => {
     expect(chunksB.every((c) => c.subId === 'sB')).toBe(true);
   });
 });
+
+/**
+ * The two session RPCs Phase 12 added, driven through the hub exactly as a
+ * client drives them. The plumbing is what these pin: the plane's own
+ * behaviour is `SessionOverlay.test.ts`, but a `case` label that does not
+ * match a `kind` fails silently, and the whole point of this layer is that a
+ * grid's private state reaches the query.
+ */
+describe('SharedWorkerDataServicesHub — the per-session query layer', () => {
+  function ssrmHub(rows: Array<Record<string, unknown>>) {
+    let emitRef: ProviderEmit | null = null;
+    // Only `stomp-ssrm` / `mock-ssrm` get a plane (`isSsrmProviderType`), so
+    // the type is fixed and the providerId is what keeps these isolated.
+    registerProvider('mock-ssrm' as TransportConfig['providerType'], (_cfg, emit) => {
+      emitRef = emit;
+      return { stop() {}, restart() {} } as ProviderHandle;
+    });
+    const hub = new SharedWorkerDataServicesHub();
+    const port = makePort();
+    hub.handleRequest(port, {
+      kind: 'attach', subId: 's1', providerId: 'p-sess', mode: 'data',
+      cfg: { providerType: 'mock-ssrm', keyColumn: 'id' } as unknown as TransportConfig,
+    });
+    emitRef?.({ rows, replace: true });
+    return { hub, port };
+  }
+
+  const getRows = (
+    hub: SharedWorkerDataServicesHub,
+    port: CapturedPort,
+    reqId: string,
+    sessionId: string,
+  ) => {
+    hub.handleRequest(port, {
+      kind: 'ssrm-get-rows', reqId, providerId: 'p-sess', sessionId,
+      request: { startRow: 0, endRow: 10 },
+    });
+    return port.messages.find((m) => (m as { reqId?: string }).reqId === reqId) as {
+      ok: boolean;
+      getRows?: { rowData: Array<Record<string, unknown>>; rowCount: number };
+    };
+  };
+
+  const SEED = [
+    { id: 'a', ccy: 'USD', px: 1 },
+    { id: 'b', ccy: 'INR', px: 2 },
+  ];
+
+  it('an edit reaches the plane and answers the session that made it, not the others', () => {
+    const { hub, port } = ssrmHub(SEED);
+
+    hub.handleRequest(port, {
+      kind: 'ssrm-set-session-patches', reqId: 'p1', providerId: 'p-sess',
+      sessionId: 's1', patches: [{ key: 'a', fields: { px: 999 } }],
+    });
+    expect(
+      (port.messages.find((m) => (m as { reqId?: string }).reqId === 'p1') as { ok: boolean }).ok,
+    ).toBe(true);
+
+    expect(getRows(hub, port, 'q1', 's1').getRows?.rowData[0]).toMatchObject({ px: 999 });
+    // The row store is shared by every window on the provider; an uncommitted
+    // edit in one must not appear in another.
+    expect(getRows(hub, port, 'q2', 's2').getRows?.rowData[0]).toMatchObject({ px: 1 });
+  });
+
+  it('an exclusion rule crosses as an EXPRESSION and narrows rowCount at the source', () => {
+    const { hub, port } = ssrmHub(SEED);
+
+    hub.handleRequest(port, {
+      kind: 'ssrm-set-session-exclude', reqId: 'x1', providerId: 'p-sess',
+      sessionId: 's1', expression: '[ccy] == "INR"',
+    });
+
+    const mine = getRows(hub, port, 'q1', 's1');
+    expect(mine.getRows?.rowData.map((r) => r.id)).toEqual(['a']);
+    // `rowCount` is what the scrollbar is built from — the client-side
+    // external filter this replaces left it counting rows nobody could see.
+    expect(mine.getRows?.rowCount).toBe(1);
+    expect(getRows(hub, port, 'q2', 's2').getRows?.rowCount).toBe(2);
+  });
+
+  it('clearing the rule restores the session to the full set', () => {
+    const { hub, port } = ssrmHub(SEED);
+    hub.handleRequest(port, {
+      kind: 'ssrm-set-session-exclude', reqId: 'x1', providerId: 'p-sess',
+      sessionId: 's1', expression: '[ccy] == "INR"',
+    });
+    expect(getRows(hub, port, 'q1', 's1').getRows?.rowCount).toBe(1);
+
+    hub.handleRequest(port, {
+      kind: 'ssrm-set-session-exclude', reqId: 'x2', providerId: 'p-sess',
+      sessionId: 's1', expression: null,
+    });
+    expect(getRows(hub, port, 'q2', 's1').getRows?.rowCount).toBe(2);
+  });
+});

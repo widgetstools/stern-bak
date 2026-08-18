@@ -959,7 +959,7 @@ against multiple adapters), `filterPredicate.test.ts` (40),
 
 ---
 
-## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — 1 / 4 DONE
+## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — 2 / 4 DONE
 
 **Area:** `packages/data/host-data/src/runtime/ssrm/`,
 `packages/data/host-data/src/runtime/worker/`,
@@ -1002,11 +1002,26 @@ AG Grid's own default "Filtered", and it hides while `filtered === total` as
 write; and `MarketsGridContainer.tsx` sits at 825 lines against the 800 ceiling
 (already 815 at `df48fdf`, one of 28 files in `packages/` currently over).
 
-**Phase 12** (full, no entry) — the session layer reaches the client. **Opens
-by splitting `QueryEngine.ts`, which is at 895 lines against the 800 ceiling**
-— 777 at `24dfdc2`, +118 from `293e2d2`. Closes T2-4's real fix and an SSRM
-edit surviving a block refetch. Gate: `npm run bench:ssrm` must show the
-shared path unchanged.
+**Phase 12 — DONE 2026-08-17,** in two commits in the order the phase demanded.
+`dae3b7d` split `QueryEngine.ts` 895 → 765 (`queryAggregation.ts`,
+`querySort.ts`; `treeBlock` deliberately stayed — it needs four pieces of
+engine state) and took `getRows` from 96 lines to 33 via `groupBlock`. Then the
+seven RPC hops: `ssrm-set-session-patches` / `ssrm-set-session-exclude` reach
+`SessionOverlay`, `SsrmDataAdapter.mutate` records the **edited fields** (not
+the assembled row) so an SSRM edit survives a block refetch, and row exclusion
+crosses as an **expression** — a function does not survive a structured clone —
+compiled in the plane through `evaluateRowExclusion`, which **moved into
+`@wellsfargo-starui/core`** so the worker and the client-side external filter
+share one meaning. `GridDataPort.setRowExclusion` is how the module says it:
+`activateRowExclusion` used to call `api.onFilterChanged()`, a
+branch-on-row-model hiding in a module that never wrote `if (ssrm)`. **The
+shared-path gate had to be built before it could gate anything** —
+`bench:ssrm` never passed a `sessionId`; it now measures the sharing as memo
+hits/misses with three rows that MUST read 0, and all three do. Cold timings
+looked 15% worse until a stash-to-baseline re-run showed machine drift; every
+warm number is 0.0 ms either side. **Open:** `protocol.ts` (831) and
+`SharedWorkerDataServicesClient.ts` (1289) are over the 800 ceiling and were
+already over before the phase (801 / 1249).
 
 **Phase 13** (full, entry = Phase 12) — T1-4, filter/sort/group on calculated
 columns. An addition to the layer Phase 12 makes reachable, not new machinery.
@@ -1020,6 +1035,5 @@ its single snapshot*. Architectural, and **CSRM behaves identically**, so it
 is not a parity finding. Reopen as a product decision about historical
 providers if it ever matters.
 
-**Estimate: 3 full sessions remaining** (the small one is done). Phases 12 and
-14 have no entry dependency and can run in either order; only Phase 13 is
-gated, on Phase 12.
+**Estimate: 2 full sessions remaining.** Phase 13's entry (Phase 12) is now
+satisfied and Phase 14 never had one, so either can run next.

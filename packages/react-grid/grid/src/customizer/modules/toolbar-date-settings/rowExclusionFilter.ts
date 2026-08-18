@@ -1,84 +1,34 @@
 /**
- * rowExclusionFilter — compile a "Custom Settings" row-exclusion DSL
- * expression into AG-Grid's external-filter callbacks.
+ * rowExclusionFilter — install the "Custom Settings" row-exclusion rule as
+ * AG-Grid's external-filter callbacks, which is how the CLIENT-SIDE row model
+ * applies it.
  *
- * Semantics: the expression is an EXCLUDE-when-true predicate. A row whose
- * expression evaluates truthy is hidden (e.g. `[ccy] == "INR"`). The row is
- * never removed from `rowData` — AG-Grid's external filter only hides it — so
- * it reappears the moment the offending value changes back. See AG-Grid's
- * "External Filter" docs: `isExternalFilterPresent()` gates whether the filter
- * runs, `doesExternalFilterPass(node)` returns true to KEEP a row, and a
- * re-evaluation is triggered by `api.onFilterChanged()` (wired in the module's
- * `activate`, on cell edits and expression changes).
+ * The rule's MEANING is not here. `evaluateRowExclusion` lives in
+ * `@wellsfargo-starui/core` because the server-side query plane applies the
+ * same rule inside the worker, before paging, and the two must not be able to
+ * disagree about what an expression means. What stays here is the client-side
+ * installation: `isExternalFilterPresent()` gates whether the filter runs,
+ * `doesExternalFilterPass(node)` returns true to KEEP a row, and a
+ * re-evaluation is triggered by `api.onFilterChanged()` — which the module
+ * reaches through `platform.data.setRowExclusion`, never by branching on the
+ * row model.
  *
- * Fails OPEN: a parse failure or a per-row eval throw excludes nothing, so a
- * bad expression can never make rows silently vanish.
+ * The row is never removed from `rowData` — AG-Grid's external filter only
+ * hides it — so it reappears the moment the offending value changes back.
  *
  * Both callbacks read the LIVE expression through `ctx.getModuleState` at call
  * time (not a captured snapshot), so once installed they always reflect the
- * latest edit without needing the host to re-install them — it's enough for
- * `activate` to call `onFilterChanged()`.
+ * latest edit without needing the host to re-install them.
  */
 
 import type { GridOptions, IRowNode } from 'ag-grid-community';
-import type {
-  ExpressionEngineLike,
-  ExpressionNode,
-  TransformContext,
-} from '@wellsfargo-starui/core';
+import type { TransformContext } from '@wellsfargo-starui/core';
+import { evaluateRowExclusion } from '@wellsfargo-starui/core';
 import {
   INITIAL_TOOLBAR_DATE_SETTINGS,
   TOOLBAR_DATE_SETTINGS_MODULE_ID,
   type ToolbarDateSettingsState,
 } from './state';
-
-type Compiled = { node: ExpressionNode } | { error: string };
-
-// Module-level parse cache keyed by expression string — dedupes identical
-// expressions so the per-row hot path is a pure AST walk (no re-parse).
-const parseCache = new Map<string, Compiled>();
-
-function compile(engine: ExpressionEngineLike, expression: string): Compiled {
-  let entry = parseCache.get(expression);
-  if (entry) return entry;
-  try {
-    entry = { node: engine.parse(expression) as ExpressionNode };
-  } catch (err) {
-    entry = { error: err instanceof Error ? err.message : String(err) };
-    // One warning per unique bad expression — never per row.
-    // eslint-disable-next-line no-console
-    console.warn('[toolbar-date-settings] invalid row-exclusion expression:', expression, err);
-  }
-  parseCache.set(expression, entry);
-  return entry;
-}
-
-/**
- * Evaluate the row-exclusion predicate against one row's data.
- * Returns true when the row should be EXCLUDED (hidden). Fails open:
- * empty expression, parse error, or eval throw → false (keep the row).
- */
-export function evaluateRowExclusion(
-  engine: ExpressionEngineLike,
-  expression: string,
-  data: Record<string, unknown>,
-): boolean {
-  const expr = expression.trim();
-  if (!expr) return false;
-  const compiled = compile(engine, expr);
-  if (!('node' in compiled)) return false;
-  try {
-    const result = engine.evaluate(compiled.node, {
-      data,
-      columns: data,
-      value: null,
-      x: null,
-    });
-    return Boolean(result);
-  } catch {
-    return false;
-  }
-}
 
 /** Read the live (uncommitted-edits-excluded) exclusion expression. */
 function liveExpression(ctx: TransformContext): string {
@@ -115,7 +65,3 @@ export function buildExternalFilterOptions(
   };
 }
 
-/** Test-only: clear the expression parse cache between suites. */
-export function __resetRowExclusionCache(): void {
-  parseCache.clear();
-}

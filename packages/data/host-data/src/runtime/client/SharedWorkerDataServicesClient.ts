@@ -719,6 +719,44 @@ export class SharedWorkerDataServicesClient {
     }
   }
 
+  /** Record a session's pending edits with the plane. See `SessionOverlay`. */
+  async ssrmSetSessionPatches(
+    providerId: string,
+    sessionId: string,
+    patches: Array<{ key: string; fields: Record<string, unknown> }>,
+  ): Promise<void> {
+    const event = await this.rpcSsrm({
+      kind: 'ssrm-set-session-patches',
+      providerId,
+      sessionId,
+      patches,
+    });
+    if (!event.ok) {
+      throw new Error(
+        event.error ?? '[SharedWorkerDataServicesClient] ssrm-set-session-patches failed',
+      );
+    }
+  }
+
+  /** Install a session's exclude-when-true expression, or clear it with `null`. */
+  async ssrmSetSessionExclude(
+    providerId: string,
+    sessionId: string,
+    expression: string | null,
+  ): Promise<void> {
+    const event = await this.rpcSsrm({
+      kind: 'ssrm-set-session-exclude',
+      providerId,
+      sessionId,
+      expression,
+    });
+    if (!event.ok) {
+      throw new Error(
+        event.error ?? '[SharedWorkerDataServicesClient] ssrm-set-session-exclude failed',
+      );
+    }
+  }
+
   async ssrmGetStatusBar(
     providerId: string,
     request?: StatusBarRequest,
@@ -1003,6 +1041,8 @@ export class SharedWorkerDataServicesClient {
     req:
       | Omit<import('../protocol.js').SsrmGetRowsRpcRequest, 'reqId'>
       | Omit<import('../protocol.js').SsrmConfigureExpressionsRequest, 'reqId'>
+      | Omit<import('../protocol.js').SsrmSetSessionPatchesRequest, 'reqId'>
+      | Omit<import('../protocol.js').SsrmSetSessionExcludeRequest, 'reqId'>
       | Omit<import('../protocol.js').SsrmStatusBarRpcRequest, 'reqId'>
       | Omit<import('../protocol.js').SsrmSetFilterValuesRpcRequest, 'reqId'>,
   ): Promise<SsrmRpcEvent> {
