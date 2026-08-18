@@ -212,7 +212,12 @@ uses `pack:npm` output for its tarball track. See
   checked by `apps/scripts/check-package-coverage.mjs`.
 - **Playwright lives under `apps/`** (`apps/e2e`, `apps/e2e-openfin`), along
   with the apps its specs drive. Nothing under `packages/` runs e2e, and the
-  package test/coverage runs never enter `apps/`.
+  package test/coverage runs never enter `apps/`. `cd apps && npm run e2e` is
+  **74 tests across 15 specs, green** — the 35 specs written against the
+  deleted `demo-react` app were removed on 2026-08-18; most surviving specs
+  drive `markets-grid-lab` (`:5300`), which renders the full customizer. See
+  [`apps/E2E_STATUS.md`](./apps/E2E_STATUS.md) for the spec-to-app map and the
+  end-to-end coverage that deletion cost.
 
 ## UI stack rules (non-negotiable)
 

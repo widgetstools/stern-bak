@@ -18,49 +18,50 @@ Last updated: 2026-08-02.
 
 ---
 
-## 1. ~34 e2e specs target the deleted `demo-react`
+## 1. ~~35 e2e specs target the deleted `demo-react`~~ — RESOLVED 2026-08-18
 
-**Area:** `apps/e2e` · **Blocked on:** a product decision, not a fix
+**Area:** `apps/e2e` · **Resolved by:** deleting them
 **Detail:** [`apps/E2E_STATUS.md`](../apps/E2E_STATUS.md)
 
-The app curation deleted `demo-react`, which was the suite's default `baseURL`
-target. Only 13 of the 47 remaining specs pin their own port; the rest inherited
-that default and are written against demo-react's markup — they wait on
-`[data-grid-id="demo-blotter-v2"]`, which `star-demo` does not have. The
-`baseURL` now points at star-demo (`:5175`), so they fail at setup rather than
-silently passing.
+The app curation deleted `demo-react`, the suite's default `baseURL` target. 33
+specs were written against its markup — they wait on
+`[data-grid-id="demo-blotter-v2"]`, which no surviving app renders — so they
+failed at setup rather than silently passing. Two more targeted
+`markets-ui-react-reference` on `:5174`, an app that was never in this repo.
 
-**Measured baseline (first ever recorded):** 374 tests / 47 files →
-**10 passed, 2 skipped, 362 failed**, 19.9 min.
+**Resolution:** the 35 orphaned specs and their five now-unreferenced helpers
+are deleted, and `settingsSheet.ts` is trimmed to the three exports the
+surviving specs import. **The suite is 74/74 green across three consecutive
+full runs**, down from 50 spec files to 15.
 
-**Important caveat on that number:** no pass/fail baseline for this suite was
-ever recorded before the split. The old `docs/E2E_STATUS.md` carried an unfilled
-*"Record the resulting N passed / M failed here"* placeholder and warned that its
-headline figure was a *collection* count, not a pass count — so "398 tests" never
-meant 398 passing. Specs pinned to surviving apps also fail (e.g. `v2-alerts` on
-markets-grid-lab times out on `[role="tab"]`), and it is **not established**
-whether the split caused that or it was already red.
+Selection rule, so the record is checkable: a spec was deleted only if it both
+(a) depended on `demo-blotter-v2` or the `:5174` app, and (b) had zero passing
+tests in the measured run. Every spec with at least one passing test was kept —
+which is why seven `markets-grid-lab` specs that reach `demo-blotter-v2` only
+through a shared helper are still here.
 
-**Done looks like** one of:
-- give star-demo the surface the specs expect (a `demo-blotter-v2` grid, matching
-  routes/fixtures) — most specs then pass unchanged, but it is a decision about
-  what star-demo is *for*;
-- rewrite the ~34 against star-demo's actual UI — honest, ~34 specs of work;
-- delete them, accepting the coverage loss (much of it may belong as unit tests
-  in `grid`, which already carries 697).
+`visual-reference-capture.spec.ts` went with them: demo-react-bound, and its
+default output path (`process.cwd()/docs/visual-reference/v1`) was already wrong
+now that Playwright runs from `apps/`. The snapshots it once produced were
+dropped from `docs/` in 2026-08-02; regenerating them needs a spec written
+against an app that exists.
 
-**To attribute the rest properly**, run the suite against `80ab02a` (before any
-app was deleted) and diff. Nobody has.
+**Accepted coverage loss.** These were the only end-to-end cover for profile
+lifecycle/isolation/stress, column groups, column templates, conditional
+styling, the filters and formatting toolbars, general settings, popout windows,
+autosave, two-grid isolation, row exclusion, nested-field variants, and the
+config seed round-trip. Those behaviours keep unit cover in `packages/`
+(formatter 30 test files, expression 26, filters 21, conditional styling 20,
+profiles 13, templates 12, calculated columns 7, column groups 5, general
+settings 5, row exclusion 5, popout 4), but a unit test does not exercise the
+browser paths these did: real AG Grid rendering, IndexedDB persistence across a
+reload, and a second OS window. **Re-earning that cover against
+`markets-grid-lab` — which does render the full customizer — is the follow-up,
+and nobody has done it.**
 
-**Also here:** `e2e-openfin/` came across pointing at `e2e-openfin-workspace`,
-which was deleted. star-demo is itself an OpenFin app with a `launch.mjs` and
-manifest, so retargeting is plausible but unverified. And
-`apps/e2e/visual-reference-capture.spec.ts` is demo-react-bound too (boots via
-the `demo-blotter-v2` selector) and its default output path
-(`process.cwd()/docs/visual-reference/v1`) is wrong now that Playwright runs
-from `apps/` — the checked-in snapshots it once produced were dropped from
-`docs/` (2026-08-02); regenerating requires retargeting this spec as part of
-the same decision.
+**Also here:** `e2e-openfin/` no longer points at the deleted
+`e2e-openfin-workspace`; its config launches `star-demo` and its README says so.
+Left alone.
 
 ---
 

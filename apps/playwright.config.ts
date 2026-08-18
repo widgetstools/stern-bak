@@ -27,7 +27,27 @@ export default defineConfig({
     headless: true,
     viewport: { width: 1280, height: 800 },
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { browserName: 'chromium' },
+      // The infra-restart spec below is destructive; keep it out of the
+      // parallel pool.
+      testIgnore: /star-demo-ssrm-smoke\.spec\.ts/,
+    },
+    {
+      // `star-demo-ssrm-smoke` kills and respawns the shared STOMP feed on
+      // :8081 — the same feed `hello-blotter` and the SSRM specs hold open
+      // connections to. Run beside them it races their reconnects, and the
+      // restarted page never resumes ticking inside its poll window. A
+      // dependency makes this project start only once the pool has drained,
+      // so it has the feed to itself.
+      name: 'infra-restart',
+      use: { browserName: 'chromium' },
+      testMatch: /star-demo-ssrm-smoke\.spec\.ts/,
+      dependencies: ['chromium'],
+    },
+  ],
   webServer: [
     {
       // Default target for every spec that does not pin its own port.

@@ -1,29 +1,32 @@
 # End-to-end tests
 
-Playwright suite for the demo apps (primary target **star-demo** on
-:5175; the labs pin :5300/:5320 and hello-blotter :5177). Run with
-`npm run e2e`. NOTE: ~34 `v2-*` specs still target the deleted
-`demo-react` app and fail at boot — see [`../E2E_STATUS.md`](../E2E_STATUS.md).
+Playwright suite for the demo apps. Most specs drive **markets-grid-lab**
+(:5300); the rest pin design-system (:5310), stomp-marketsgrid-minimal
+(:5213), the SSRM lab (:5320), star-demo-ssrm (:5176) and hello-blotter
+(:5177). Run with `npm run e2e`.
 
 ## Current shape
 
-The suite has grown well past its original handful of specs. As of
-2026-06-13 it collects:
+**74 tests across 15 specs, green.** The 35 specs written against the deleted
+`demo-react` app were removed on 2026-08-18 — see
+[`../E2E_STATUS.md`](../E2E_STATUS.md) for the selection rule, the measured
+runs, and the coverage that cost.
 
-- **Main suite** (`playwright.config.ts`) — **384 tests across 48 specs**.
-- **Container suite** (`playwright.container.config.ts`, the
-  `container-*.spec.ts` files excluded from the main config) — **16 tests
-  across 5 specs**, run with `npm run e2e:container`.
+`e2e/helpers/settingsSheet.ts` provides the shared nav harness
+(`clickSettingsFromToolbar`, `navigateToModule`, `openModuleMenu`). Its
+demo-react boot helpers (`bootCleanDemo`, `openPanel`,
+`forceNavigateToPanel`, `closeSettingsSheet`) went with those specs — they
+waited on a grid no surviving app renders.
 
-`e2e/helpers/settingsSheet.ts` provides the shared harness
-(`bootCleanDemo`, `openPanel`, `forceNavigateToPanel`, `closeSettingsSheet`).
-
-The full spec inventory, the seven-server `webServer` topology, known-fragile
-specs, and the procedure for capturing a fresh pass/fail baseline live in
-[`../E2E_STATUS.md`](../E2E_STATUS.md) — keep that file in sync when
+The spec-to-app map, the `webServer` topology and the measured pass/fail runs
+live in [`../E2E_STATUS.md`](../E2E_STATUS.md) — keep that file in sync when
 specs are added, removed, or re-pointed. Pass/fail counts are captured from a
 live run there rather than asserted here, because the multi-server topology
 makes a stale snapshot misleading.
+
+`star-demo-ssrm-smoke` runs in its own `infra-restart` project gated on the
+main one: it kills and respawns the shared STOMP feed on :8081, which other
+specs hold connections to.
 
 ## Policy: tests ride alongside features
 
@@ -83,33 +86,34 @@ Never add `test.skip` / `test.fixme` / `.only` to a committed spec.
 ## Using the nav helper
 
 ```ts
-import { bootCleanDemo, openPanel, closeSettingsSheet } from './helpers/settingsSheet';
+import { clickSettingsFromToolbar, navigateToModule } from './helpers/settingsSheet';
 
 test('my new feature', async ({ page }) => {
-  await bootCleanDemo(page);                      // fresh grid, profile storage wiped
-  await openPanel(page, 'column-customization');  // opens sheet + navigates via visible dropdown
+  await page.goto('http://localhost:5300/');      // the lab renders the full customizer
+  await clickSettingsFromToolbar(page);           // ⋯ overflow → Grid settings
+  await navigateToModule(page, 'column-customization');
   // … exercise the feature via cs-* / cols-* / cg-* testids …
-  await closeSettingsSheet(page);
 });
 ```
 
-The visible path (`openPanel`) uses the header dropdown — realistic user flow. The hidden-nav path (`forceNavigateToPanel`) dispatches a synthetic click via `evaluate()` to bypass the a11y nav's 1×1px overflow-clipped wrapper; use only when the dropdown is out of scope.
-
-Add a new `PanelModuleId` + root-testid entry to the helper when a new module ships a settings panel.
+`navigateToModule` goes through the visible grouped menubar — the realistic
+user flow — and resolves the owning category from each trigger's
+`data-modules` attribute, so it does not duplicate the grouping map. For the
+four editing modules (`smart-edit`, `bulk-update`, `plus-minus`, `shortcuts`)
+it opens the merged `editing` panel and clicks the matching section tab.
 
 ## Running locally
 
 ```
-npm run e2e                                        # full main suite
-npm run e2e:container                              # container-* specs (own config + :5215 host)
-npx playwright test e2e/v2-filters-toolbar.spec.ts # single spec
-npx playwright test -g "captures current filter"   # grep test title
-npx playwright test --debug                        # interactive
+npm run e2e                                    # full suite (74 tests, ~1.5 min)
+npx playwright test e2e/v2-alerts.spec.ts      # single spec
+npx playwright test -g "badge"                 # grep test title
+npx playwright test --debug                    # interactive
 ```
 
-The main suite auto-starts its seven dev servers (see the topology table in
-[`../E2E_STATUS.md`](../E2E_STATUS.md)); each reuses an existing
-server on its port if one is already listening. Kill stale dev servers before
-a clean run so a previous run's stale code isn't silently reused — on Windows,
+The suite auto-starts its seven dev servers (see the topology table in
+[`../E2E_STATUS.md`](../E2E_STATUS.md)); each reuses an existing server on its
+port if one is already listening. Kill stale dev servers before a clean run so
+a previous run's stale code isn't silently reused — on Windows,
 `Get-Process node | Stop-Process -Force` (scope as needed); on Unix,
-`lsof -ti:5190 | xargs kill`.
+`lsof -ti:5300 | xargs kill`.

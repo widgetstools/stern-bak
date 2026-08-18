@@ -1,161 +1,122 @@
-# E2E status after the repo split
+# E2E status
 
-> Tracked as item 1 in the cross-repo worklog:
-> [`stern-bak/docs/WORKLOG.md`](../docs/WORKLOG.md).
+> Was item 1 in the cross-repo worklog
+> ([`stern-bak/docs/WORKLOG.md`](../docs/WORKLOG.md)); resolved 2026-08-18.
 
-**Short version: the demo-react specs still cannot pass, but the specs pinned
-to apps that survived now all do.**
+**The suite is green: 74 passed / 0 failed across 15 spec files, stable over
+three consecutive full runs (~1.5 min each).**
 
-| run | result |
-|---|---|
-| first measurement (after the split) | 10 passed / 2 skipped / 362 failed of 374 |
-| 2026-08-18, full suite | **72 passed** / 2 skipped / 308 failed of 382 |
-| 2026-08-18, pinned-port set (command below) | **59 passed / 0 failed** |
+```bash
+npm run e2e          # from apps/
+```
 
-The pinned-port set is the part of the suite that has a host app; it is green
-and should be treated as the gate. The ~34 demo-react specs are the remainder
-and still need the decision below.
+## What changed
 
-Two real defects came out of getting the pinned set green, neither of them a
-test problem:
+The suite arrived here from the platform repo along with the apps its specs
+drive, and two things were forced by the app curation:
 
-- **The grid density pill blocked clicks beneath it.** `.ds-density-pill` is as
-  tall as the chip PLUS the menu, the menu keeps its box while closed, and the
-  wrapper took pointer events across the whole thing — so the invisible strip
-  sat over the toolbar and swallowed clicks on the alerts bell. Pointer events
-  are now scoped to the chip and the open menu
-  (`packages/react-grid/grid/src/widget/styles/marketsGrid-chrome.css`).
-- **The formatter's mousedown guard had drifted.** Four copies of "eat mousedown
-  unless it is a form control"; the shell's copy listed three tags instead of
-  four, and the overflow menu renders inline inside that shell, so a TEXTAREA
-  its own guard allowed was eaten on the way up. Now one hoisted
-  `preserveGridCellOnMouseDown`.
-
-And two spec defects, both pre-existing:
-
-- `v2-column-value-getter` budgeted 45s waits inside the global 30s test
-  timeout, so its round-trip case could never finish; and once it could, it
-  looked for `[col-id="region"]` under `.ag-grid-scrolling-cells` — which is a
-  state class on the grid ROOT, not a container, so the match was the column
-  HEADER, and the column was outside AG Grid's virtualised window anyway.
-- Its cleanup clicked an unscoped "Clear", which resolved to the Columns tab's
-  clear-all sitting behind the open dialog's overlay.
-
-**The harness works; the demo-react part of the suite does not.** Part of that
-is attributable to the app curation, part of it cannot be attributed either
-way — see below.
-
-## What happened
-
-The suite moved here from the platform repo along with the apps its specs drive.
-Two changes were forced by the app curation:
-
-1. **11 specs were deleted** because their host app no longer exists —
+1. **11 specs were deleted** because their host app no longer existed —
    `browser-blotter`, `hosted-markets-grid`, `platform-hooks-demo`,
-   `v2-template-create-apply`, and the seven `container-*` specs (plus
-   `playwright.container.config.ts` and the `containerHost` / `platformHooksDemo`
-   helpers). 58 specs → 47.
-
+   `v2-template-create-apply`, and the seven `container-*` specs. 58 → 47.
 2. **The default `baseURL` moved from `:5190` (demo-react) to `:5175`
    (star-demo)**, because demo-react was deleted.
 
-## The problem with (2)
+(2) left the suite mostly red: 33 specs were written against demo-react's
+markup and waited on `[data-grid-id="demo-blotter-v2"]`, a grid no surviving app
+renders. Two more targeted `markets-ui-react-reference` on `:5174`, an app that
+was never in this repo at all. Those 35 are now deleted, along with five helpers
+nothing reached any more (`configSeed`, `nestedFixtures`, `profileHelpers`,
+`referenceBlotter`, `shadcnSelect`); `settingsSheet.ts` is trimmed to the three
+exports the surviving specs import.
 
-Only 13 of the 47 remaining specs pin their own port. The other ~34 inherited
-the default baseURL, and they were written against **demo-react's** markup.
-star-demo does not have it.
+### The selection rule
 
-Concretely, `e2e/helpers/settingsSheet.ts` waits on:
+A spec was deleted only if it BOTH depended on `demo-blotter-v2` or the `:5174`
+app AND had zero passing tests in the measured run. Anything with at least one
+passing test was kept — which is why seven `markets-grid-lab` specs that reach
+`demo-blotter-v2` only through a shared helper are still here and green.
 
-```ts
-page.waitForSelector('[data-grid-id="demo-blotter-v2"]')
-```
+## Measured runs
 
-That grid id does not exist in star-demo, so every spec routed through
-`bootCleanDemo` / `waitForV2Grid` fails at setup. A sample run of three
-retargeted specs produced **13 failed tests**, all on that selector.
+| run | result |
+|---|---|
+| first measurement, after the split | 10 passed / 2 skipped / 362 failed of 374 |
+| 2026-08-18, before deleting the orphans | 72 passed / 2 skipped / 308 failed of 382 |
+| 2026-08-18, after | **74 passed / 0 failed of 74** |
 
-This is not a selector-tweak problem. Those specs assume demo-react's routes,
-grid ids, and seeded fixtures.
+The middle row is higher than the first because four real defects were fixed on
+the way — see below. Note that no pass/fail baseline existed before the split:
+the old `docs/E2E_STATUS.md` carried an unfilled *"Record the resulting N passed
+/ M failed here"* placeholder and warned that its headline figure was a
+*collection* count. "398 tests" never meant 398 passing.
 
-## Full-run result
+## What the suite covers now
 
-```
-374 tests in 47 files                    # first measurement
- 10 passed    2 skipped    362 failed        (19.9 min)
+| spec file | app | port |
+|---|---|---|
+| `design-system-demo` | design-system | 5310 |
+| `hello-blotter` | hello-blotter | 5177 |
+| `lab-onboarding`, `v2-alerts`, `v2-bulk-update`, `v2-edit-history`, `v2-editing`, `v2-editing-family`, `v2-plus-minus`, `v2-shortcuts`, `v2-smart-edit`, `v2-window-focus-restore` | markets-grid-lab | 5300 |
+| `v2-column-value-getter` | stomp-marketsgrid-minimal | 5213 |
+| `ssrm-viewport-ticks` | markets-grid-ssrm-lab | 5320 |
+| `star-demo-ssrm-smoke` | star-demo-ssrm | 5176 |
 
-382 tests                                 # 2026-08-18
- 72 passed    2 skipped    308 failed        (17.7 min)
-```
+`star-demo-ssrm-smoke` runs in its own `infra-restart` Playwright project with a
+`dependencies: ['chromium']` gate: one of its tests kills and respawns the shared
+STOMP feed on `:8081`, which `hello-blotter` and the SSRM specs hold open
+connections to. Run beside them it raced their reconnects and the restarted page
+never resumed ticking inside its poll window. The dependency makes it start only
+once the parallel pool has drained, so it has the feed to itself.
 
-## What is and is not attributable
+## Defects found getting here
 
-**Attributable to the curation:** the ~34 specs that inherited demo-react's
-baseURL. demo-react was deleted; they cannot pass. This was known and accepted
-when the app list was chosen.
+Two in product code, both real for a user and not test artefacts:
 
-**NOT attributable — and I could not determine it either way:** specs pinned to
-apps that survived (`markets-grid-lab` `:5300`, etc.) also fail. For example
-`v2-alerts` times out on `[role="tab"]`.
+- **The grid density pill blocked clicks beneath it.** `.ds-density-pill` is as
+  tall as the chip PLUS the menu, the menu keeps its box while closed, and the
+  wrapper took pointer events across the whole thing — so an invisible strip sat
+  over the toolbar and swallowed clicks on the alerts bell. Pointer events are
+  now scoped to the chip and the open menu, with a `::before` bridging the gap so
+  hover still carries from one to the other.
+- **The formatter's mousedown guard had drifted.** Four copies of "eat mousedown
+  unless the target is a form control", and one listed three tags instead of
+  four. The ⋯ overflow menu renders inline inside that shell, so a `TEXTAREA` its
+  own guard allowed was eaten on the way up. Now one hoisted
+  `preserveGridCellOnMouseDown`.
 
-The reason attribution is impossible: **no pass/fail baseline was ever recorded
-for this suite.** The platform repo's `docs/E2E_STATUS.md` carried the
-instruction *"Record the resulting N passed / M failed here"* with the value
-never filled in, and explicitly warned that its headline figure was a
-*collection* count, not a pass count:
+Two in the specs:
 
-> Counts are collection counts, not pass counts. Capture pass/fail from a real
-> run — the multi-server topology below means a snapshot taken with a stale dev
-> server or an un-booted port is not representative.
+- `v2-column-value-getter` budgeted 45s waits inside the global 30s test
+  timeout, so its round-trip case could never finish. Once it could, it looked
+  for `[col-id="region"]` under `.ag-grid-scrolling-cells` — a state class on the
+  grid ROOT, not a container, so the match was the column HEADER, and the column
+  sat outside AG Grid's virtualised window anyway. Its cleanup also clicked an
+  unscoped "Clear", resolving to the Columns tab's clear-all behind the dialog
+  overlay.
 
-So "398 tests" never meant "398 passing". That document also listed several
-known-fragile and pre-existing failures.
+## The coverage this cost
 
-What *is* established: the apps and the plumbing are fine. A DOM probe against
-markets-grid-lab returns `title="MarketsGrid Feature Lab"` with 3108 characters
-of rendered content, and `lab-onboarding` passes 3/3 in isolation. The app
-serves; the specs' assumptions about its state are what fail.
+The deleted specs were the only end-to-end cover for profile
+lifecycle/isolation/stress, column groups, column templates, conditional
+styling, the filters and formatting toolbars, general settings, popout windows,
+autosave, two-grid isolation, row exclusion, nested-field variants, and the
+config seed round-trip.
 
-**To attribute the rest properly**, run the suite against the pre-split commit
-(`80ab02a`, before any app was deleted) and compare. Until someone does, treat
-the red as "unknown health, now measured for the first time" rather than "the
-split broke 362 tests".
+Those behaviours keep unit cover in `packages/` — formatter 30 test files,
+expression 26, filters 21, conditional styling 20, profiles 13, templates 12,
+calculated columns 7, column groups 5, general settings 5, row exclusion 5,
+popout 4 — but a unit test does not exercise what these did: real AG Grid
+rendering, IndexedDB persistence across a page reload, and a second OS window.
 
-## Specs pinned to surviving apps (these are the ones worth triaging first)
-
-- `markets-grid-lab` `:5300` — `lab-onboarding`, `v2-alerts`, `v2-bulk-update`,
-  `v2-edit-history`, `v2-editing`, `v2-plus-minus`, `v2-shortcuts`,
-  `v2-smart-edit`, `v2-window-focus-restore`
-- `design-system` `:5310` — `design-system-demo`
-- `stomp-marketsgrid-minimal` `:5213` — `v2-column-value-getter`
-
-## The decision needed
-
-The ~34 demo-react specs need one of:
-
-1. **Give star-demo the surface they expect** — add a `demo-blotter-v2` grid and
-   matching routes/fixtures. Makes the specs pass largely unchanged, but it is a
-   product decision about what star-demo is for.
-2. **Rewrite them against star-demo's actual UI** — honest, but it is 34 specs of
-   real work.
-3. **Delete them** — they cover MarketsGrid customizer behaviour (settings
-   panels, profiles, column templates, conditional styling, popouts), so this
-   loses meaningful coverage. Much of it may be better expressed as unit tests in
-   the platform repo's `grid` package, which already carries 697.
-
-Until then, run the pinned-port specs only — this set is green (59/59) and is
-the one worth keeping that way:
-
-```bash
-npx playwright test e2e/lab-onboarding.spec.ts e2e/v2-alerts.spec.ts \
-  e2e/v2-editing.spec.ts e2e/v2-edit-history.spec.ts e2e/v2-bulk-update.spec.ts \
-  e2e/v2-plus-minus.spec.ts e2e/v2-shortcuts.spec.ts e2e/v2-smart-edit.spec.ts \
-  e2e/v2-window-focus-restore.spec.ts e2e/design-system-demo.spec.ts \
-  e2e/v2-column-value-getter.spec.ts
-```
+**The follow-up is to re-earn that cover against `markets-grid-lab`**, which
+does render the full customizer and is where every surviving `v2-*` spec already
+runs. Nobody has done it. `visual-reference-capture` needs the same treatment:
+it was demo-react-bound, and its output path
+(`process.cwd()/docs/visual-reference/v1`) was already wrong now that Playwright
+runs from `apps/`.
 
 ## Also outstanding
 
-`e2e-openfin/` came across too. Its target was `e2e-openfin-workspace`, which was
-deleted. star-demo is itself an OpenFin app with a `launch.mjs` and a manifest,
-so retargeting is plausible but unverified.
+`e2e-openfin/` no longer targets the deleted `e2e-openfin-workspace` — its
+config launches `star-demo` (`:5175`) plus `stomp-view-server` (`:8081`), and its
+README says so. It is not part of `npm run e2e` and has not been run here.

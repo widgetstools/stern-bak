@@ -404,8 +404,10 @@ view and re-opened it in the same browser session", but not for
 - [`packages/openfin/openfin-platform/src/workspacePersistence.test.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.test.ts)
   and [`workspacePersistence.workspaceSave.test.ts`](../packages/openfin/openfin-platform/src/workspacePersistence.workspaceSave.test.ts)
   — workspace CRUD + the live-customData augmentation.
-- [`apps/e2e/v2-profile-lifecycle.spec.ts`](../apps/e2e/v2-profile-lifecycle.spec.ts),
-  `v2-profile-isolation-*.spec.ts`,
-  [`v2-profile-stress.spec.ts`](../apps/e2e/v2-profile-stress.spec.ts) —
-  end-to-end profile specs (currently red — they target the deleted
-  `demo-react` app; see WORKLOG item 1).
+- **No end-to-end cover.** `v2-profile-lifecycle`, `v2-profile-isolation-*` and
+  `v2-profile-stress` were deleted on 2026-08-18: they targeted the deleted
+  `demo-react` app and could not pass here (WORKLOG item 1). Profile behaviour
+  keeps unit cover in the 13 `*profile*` test files under `packages/`, but
+  nothing now exercises the browser paths those specs did — IndexedDB
+  persistence across a page reload, and isolation between two live grids.
+  Re-earning it against `markets-grid-lab` is the follow-up.
