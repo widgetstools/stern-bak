@@ -55,13 +55,20 @@ work and should go faster.
 | spec | why |
 |---|---|
 | `v2-two-grid-isolation` | No surviving app mounts two grids at once (`basic` has exactly one — the second `<MarketsGrid` match was a `MarketsGridHandle` type import). Recovering it means adding a two-grid surface whose only consumer is the test. |
-| `v2-row-exclusion` | Lives in the `toolbar-date-settings` module; no lab tab wires `onToolbarDateChange`. Same objection. |
+| `v2-row-exclusion` | **Re-check before accepting this.** It lives in the `toolbar-date-settings` module, and no lab tab wires `onToolbarDateChange` — but a probe of the lab's settings sheet shows `toolbar-date-settings` IS registered in the nav (`v2-settings-nav-group-options` carries `general-settings toolbar-date-settings`). Whether the exclusion surface functions without the host callback is unverified. Deferred to phase 8 rather than written off. |
 | `reference-cell-flash`, `stale-data-disconnect` | Targeted `markets-ui-react-reference` on `:5174`, an app that was never in this repo. The behaviours (cell flash, stale banner) could be written fresh against the lab's `live` tab and star-demo-ssrm, but nothing is portable — these would be new specs, not recoveries. |
 | `v2-perf` | A perf harness, not a behaviour guard. Its thresholds were tuned to demo-react's dataset. |
 | `visual-reference-capture` | Screenshot capture whose output path (`process.cwd()/docs/visual-reference/v1`) is wrong now that Playwright runs from `apps/`, and whose checked-in snapshots were dropped from `docs/` in 2026-08-02. Needs a decision about whether visual reference capture is wanted at all before it is worth rewriting. |
 
-That is 6 specs. They stay recorded as an accepted gap rather than quietly
-dropped.
+That is 6 specs — 5 if `row-exclusion` turns out to work off the registered
+`toolbar-date-settings` panel. They stay recorded as an accepted gap rather
+than quietly dropped.
+
+**Panels confirmed reachable in the lab's settings sheet** (probed, not
+assumed): `general-settings`, `column-customization`, `calculated-columns`,
+`column-groups`, `conditional-styling`, `editing`, `alerts`,
+`data-change-history`, `visual-excel`, `toolbar-date-settings`. Phase 2–5 need
+the first five and all are present.
 
 ## What phase 1 learned
 
