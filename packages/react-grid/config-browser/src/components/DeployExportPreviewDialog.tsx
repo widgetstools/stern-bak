@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * DeployExportPreviewDialog — validation summary before downloading a
  * scoped deploy bundle (seed-ready, workspace-referenced rows only).

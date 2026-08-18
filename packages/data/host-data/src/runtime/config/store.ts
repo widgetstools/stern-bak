@@ -148,7 +148,7 @@ export class DataProviderConfigStore {
   private notifyCatalogInvalidate(providerId?: string): void {
     if (!this.invalidateCatalog) return;
     void Promise.resolve(this.invalidateCatalog(providerId)).catch((err) => {
-      // eslint-disable-next-line no-console
+       
       console.warn('[DataProviderConfigStore] hub catalog invalidate failed', err);
     });
   }

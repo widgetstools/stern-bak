@@ -715,9 +715,9 @@ function applyAssignmentToColDef(
   appData?: AppDataLookup,
   globalFormatter?: import('./state').ValueFormatterTemplate,
   globalRuntimeFormatter?: (p: { value: unknown }) => string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   _hasGlobalCellStyle?: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   _hasGlobalHeaderStyle?: boolean,
 ): ColDef {
     const colId = a.colId;

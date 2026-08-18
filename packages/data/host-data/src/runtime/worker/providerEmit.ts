@@ -411,7 +411,7 @@ function reportKeyDrops(
     sample && typeof sample === 'object' && !Array.isArray(sample)
       ? Object.keys(sample as Record<string, unknown>)
       : [];
-  // eslint-disable-next-line no-console
+   
   console.warn(
     `[hub] provider '${providerId}' dropped ${dropped} row(s): keyColumn ` +
       `${JSON.stringify(keyColumn ?? null)} did not resolve a value on the incoming rows. ` +

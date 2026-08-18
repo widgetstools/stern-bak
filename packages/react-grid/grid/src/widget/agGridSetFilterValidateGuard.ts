@@ -40,7 +40,7 @@ export function installAgGridSetFilterValidateGuard(): void {
     'error',
     (event) => {
       if (matchesAgBug(event.error ?? event.message)) {
-        // eslint-disable-next-line no-console
+         
         console.warn(
           '[MarketsGrid] Swallowed AG-Grid SetFilterHandler.validateModel bug — `model.values is not iterable`. The grid stays usable; this is a known AG-Grid 35.1 issue triggered by internal multi-filter slot validation.',
         );
@@ -53,7 +53,7 @@ export function installAgGridSetFilterValidateGuard(): void {
 
   window.addEventListener('unhandledrejection', (event) => {
     if (matchesAgBug(event.reason)) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         '[MarketsGrid] Swallowed AG-Grid SetFilterHandler.validateModel unhandled rejection.',
       );

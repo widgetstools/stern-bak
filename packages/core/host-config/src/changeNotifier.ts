@@ -101,7 +101,7 @@ export class ChangeNotifier {
       try {
         fn(configId);
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.warn('[config-service] global change listener threw:', err);
       }
     }
@@ -116,7 +116,7 @@ export class ChangeNotifier {
       } catch (err) {
         // A listener throwing must not break sibling listeners or the
         // write that triggered the notification.
-        // eslint-disable-next-line no-console
+         
         console.warn('[config-service] change listener threw:', err);
       }
     }

@@ -85,11 +85,11 @@ export function traceTimed(message: string, payload?: unknown): void {
     const flag = (globalThis as { __CS_TIMED_TRACE__?: boolean }).__CS_TIMED_TRACE__;
     if (flag !== true) return;
     if (payload === undefined) {
-      // eslint-disable-next-line no-console
+       
       console.log(TRACE_PREFIX, message);
       return;
     }
-    // eslint-disable-next-line no-console
+     
     console.log(TRACE_PREFIX, message, payload);
   } catch {
     // no-op

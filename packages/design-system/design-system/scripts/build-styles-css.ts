@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 // tailwindcss/nesting has no bundled types; it is a plain PostCSS plugin.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore
 import tailwindNesting from 'tailwindcss/nesting';
 import autoprefixer from 'autoprefixer';

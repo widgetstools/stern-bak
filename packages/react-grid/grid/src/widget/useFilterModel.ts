@@ -101,7 +101,7 @@ function sanitizeFilterEntry(colId: string, entry: unknown): unknown | null {
       const numericKeys = Object.keys(vs).every((k) => /^\d+$/.test(k));
       if (numericKeys) recovered = Object.values(vs);
     }
-    // eslint-disable-next-line no-console
+     
     console.warn(
       `[FiltersToolbar] repairing malformed set-filter entry for col "${colId}" — coerced \`values\` to array (${recovered.length} item${recovered.length === 1 ? '' : 's'}).`,
       { original: entry, recovered },
@@ -419,7 +419,7 @@ function useFilterModelSync(filters: readonly SavedFilter[]): boolean {
       }
       liveApi.setFilterModel(nextModel);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('[FiltersToolbar] setFilterModel threw — ignoring this push so the grid stays usable.', { model, err });
     }
     syncHasNewFilter();

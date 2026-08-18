@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * ImportPreviewDialog — confirms the user's intent before mutating the
  * database. Shown after parsing a JSON import file and computing a

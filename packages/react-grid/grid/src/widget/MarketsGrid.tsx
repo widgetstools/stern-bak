@@ -377,7 +377,7 @@ function MarketsGridInner<TData = unknown>(
     process.env?.NODE_ENV !== 'production'
   ) {
     _memoryAdapterWarned = true;
-    // eslint-disable-next-line no-console
+     
     console.warn(
       '[MarketsGrid] No storage prop provided. Using in-memory storage — ' +
       'profiles, layouts and grid-level-data WILL be lost on reload. ' +

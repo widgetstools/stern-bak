@@ -318,7 +318,7 @@ export class AppDataMirror {
   private fire(): void {
     for (const l of [...this.listeners]) {
       try { l(); } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error('[AppDataMirror] listener threw', err);
       }
     }

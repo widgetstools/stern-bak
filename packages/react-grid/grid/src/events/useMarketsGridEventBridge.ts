@@ -58,7 +58,7 @@ async function invokeHandlers(
     try {
       await fn(payload, ctx);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`[@wellsfargo-starui/grid eventBridge] handler "${id}" failed`, err);
     }
   }

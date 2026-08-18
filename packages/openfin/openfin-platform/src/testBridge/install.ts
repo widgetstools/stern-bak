@@ -95,6 +95,6 @@ export async function installTestBridge(): Promise<void> {
   provider.register('ping', async () => ({ ok: true, data: 'pong' }));
 
   installed = true;
-  // eslint-disable-next-line no-console
+   
   console.log(`[test-bridge] installed channel '${CHANNEL_NAME}'`);
 }

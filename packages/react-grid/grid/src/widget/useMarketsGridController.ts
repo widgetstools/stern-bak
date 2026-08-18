@@ -149,27 +149,27 @@ export function useMarketsGridController(
     initialLoadRef.current = true;
     const adapter = adapterRef.current;
     if (!adapter?.loadGridLevelData) {
-      // eslint-disable-next-line no-console
+       
       console.log(`[v2/markets-grid] gridLevelData: adapter has no loadGridLevelData method (using null)`);
       lastPersistedRef.current = null;
       onGridLevelDataLoadRef.current?.(null);
       return;
     }
-    // eslint-disable-next-line no-console
+     
     console.log(`[v2/markets-grid] gridLevelData: load → adapter.loadGridLevelData(%s)`, gridId);
     let cancelled = false;
     void adapter
       .loadGridLevelData(gridId)
       .then((loaded) => {
         if (cancelled) return;
-        // eslint-disable-next-line no-console
+         
         console.log(`[v2/markets-grid] gridLevelData: loaded`, loaded);
         lastPersistedRef.current = loaded;
         onGridLevelDataLoadRef.current?.(loaded);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        // eslint-disable-next-line no-console
+         
         console.warn(`[v2/markets-grid] gridLevelData: load failed`, err);
         lastPersistedRef.current = null;
         onGridLevelDataLoadRef.current?.(null);
@@ -195,7 +195,7 @@ export function useMarketsGridController(
     if (lastPersistedRef.current === gridLevelData) return;
     const adapter = adapterRef.current;
     if (!adapter?.saveGridLevelData) return;
-    // eslint-disable-next-line no-console
+     
     console.log(`[v2/markets-grid] gridLevelData: save`, gridLevelData);
     lastPersistedRef.current = gridLevelData;
     void adapter.saveGridLevelData(gridId, gridLevelData);
@@ -290,7 +290,7 @@ export function useMarketsGridController(
   useEffect(() => {
     if (!readyFiredRef.current && handleRef.current) {
       readyFiredRef.current = true;
-      // eslint-disable-next-line no-console
+       
       console.log(`[v2/markets-grid] handle delivered to onReady (gridApi alive — consumer can now subscribe)`);
       onReady?.(handleRef.current);
     }

@@ -45,7 +45,7 @@ export function sendWorkerBootstrap(port: MessagePort, input: WorkerBootstrapInp
     // Don't take the app down — but this is loud on purpose: without the
     // handshake the worker falls back to local/anonymous and any
     // configServiceRestUrl is silently ignored.
-    // eslint-disable-next-line no-console
+     
     console.error(
       '[@wellsfargo-starui/data] failed to send the worker bootstrap handshake; '
         + 'the SharedWorker will run local/anonymous',

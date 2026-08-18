@@ -423,7 +423,7 @@ function onCellValueChangedHandler(
       }
       if (trace) traceTimed('cell rule match result', { ruleId: rule.id, scopedColId, match });
       if ((globalThis as { __CS_CROSS_COL_TRACE__?: boolean }).__CS_CROSS_COL_TRACE__) {
-        // eslint-disable-next-line no-console
+         
         console.debug('[cs:cross-col] timed-rule cellValueChanged eval', {
           changedColId: colId,
           ruleId: rule.id,
@@ -480,7 +480,7 @@ function onCellValueChangedHandler(
     globalThis as { __CS_CROSS_COL_TRACE__?: boolean }
   ).__CS_CROSS_COL_TRACE__;
   if (crossColTrace) {
-    // eslint-disable-next-line no-console
+     
     console.debug('[cs:cross-col] cellValueChanged', {
       colId,
       rowId: rowIdForRefresh,
@@ -494,7 +494,7 @@ function onCellValueChangedHandler(
       if (rule.scope.type !== 'cell') continue;
       const triggers = deps.triggers.get(rule);
       if (crossColTrace) {
-        // eslint-disable-next-line no-console
+         
         console.debug('[cs:cross-col] rule check', {
           ruleId: rule.id,
           expression: rule.expression,
@@ -514,7 +514,7 @@ function onCellValueChangedHandler(
     }
     if (colsToRefresh.size > 0) {
       if (crossColTrace) {
-        // eslint-disable-next-line no-console
+         
         console.debug('[cs:cross-col] scheduling refresh', {
           rowId: rowIdForRefresh,
           columns: [...colsToRefresh],
@@ -522,7 +522,7 @@ function onCellValueChangedHandler(
       }
       deps.scheduleTargetedRefresh([rowIdForRefresh], colsToRefresh, false);
     } else if (crossColTrace) {
-      // eslint-disable-next-line no-console
+       
       console.debug('[cs:cross-col] no cols to refresh — either no matching rule or only the changed col was scoped');
     }
   }

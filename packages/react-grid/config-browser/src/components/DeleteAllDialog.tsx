@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * DeleteAllDialog — destructive confirmation modal for nuking every
  * row in the visible table. Three guard rails before the delete button

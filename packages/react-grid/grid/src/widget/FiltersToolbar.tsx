@@ -131,7 +131,7 @@ function FiltersToolbarInner() {
     // Reason: handler proxies through updateScrollStateRef so the effect
     // owns its listeners for the entire component lifetime — listing the
     // callback would re-attach on every render where its identity drifted.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const scrollBy = useCallback((dir: number) => {

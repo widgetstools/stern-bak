@@ -115,7 +115,7 @@ export function reportExpressionViolation(v: ExpressionPolicyViolation): void {
 
   if (current.mode === 'warn' && v.expression && !warnedExpressions.has(v.expression)) {
     warnedExpressions.add(v.expression);
-    // eslint-disable-next-line no-console
+     
     console.warn(
       `[gc-security] kind:'expression' valueFormatter uses \`new Function\` ` +
         `(CSP-unsafe). Migrate to kind:'excelFormat' / kind:'preset' / kind:'tick' ` +

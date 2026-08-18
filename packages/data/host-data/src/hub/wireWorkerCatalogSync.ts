@@ -19,7 +19,7 @@ export function wireWorkerCatalogSync(
       if (!row || !isCatalogConfigRow(row)) return;
       await client.invalidateConfig(configId);
     })().catch((err) => {
-      // eslint-disable-next-line no-console
+       
       console.warn('[host-data] worker catalog invalidate failed', err);
     });
   });

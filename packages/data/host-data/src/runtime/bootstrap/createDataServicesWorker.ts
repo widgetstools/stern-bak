@@ -115,7 +115,7 @@ export function createDataServicesWorker(
       });
 
   worker.addEventListener('error', (ev) => {
-    // eslint-disable-next-line no-console
+     
     console.error('[@wellsfargo-starui/data] SharedWorker error event', ev);
   });
 

@@ -117,7 +117,7 @@ function takeCapturedPorts(): AdoptedPort[] {
 function withTimeout(): Promise<WorkerBootstrapPayload | null> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         '[@wellsfargo-starui/data worker] no worker-bootstrap message within '
           + `${BOOTSTRAP_TIMEOUT_MS}ms — booting local/anonymous. The client is `
@@ -161,16 +161,16 @@ async function boot(): Promise<void> {
   const adoptPorts = takeCapturedPorts();
   await installSharedWorkerHub({ configManager, adoptPorts });
 
-  // eslint-disable-next-line no-console
+   
   console.info(
     `[@wellsfargo-starui/data worker] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
   );
-  // eslint-disable-next-line no-console
+   
   console.info('[@wellsfargo-starui/data worker] catalog + AppData hydrated; hub waiting for ports');
 }
 
 boot().catch((err) => {
-  // eslint-disable-next-line no-console
+   
   console.error('[@wellsfargo-starui/data worker] boot failed', err);
   throw err;
 });

@@ -121,7 +121,7 @@ export class WorkerAppDataStore {
       try {
         l(op, row);
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error('[WorkerAppDataStore] listener threw', err);
       }
     }

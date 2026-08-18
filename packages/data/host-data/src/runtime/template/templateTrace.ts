@@ -66,7 +66,7 @@ function traceStringField(
   }));
   const unresolved = tokenAudit.filter((t) => t.status !== 'resolved');
 
-  // eslint-disable-next-line no-console
+   
   console.info(
     `[starui/stomp-template] ${phase} · ${field}`,
     {
@@ -98,7 +98,7 @@ export function traceStompProviderCfg(
   if (isTemplateTraceForced() || [cfg.listenerTopic, cfg.requestMessage, cfg.requestBody, cfg.websocketUrl].some(
     (s) => typeof s === 'string' && s.includes('{{'),
   )) {
-    // eslint-disable-next-line no-console
+     
     console.info(`[starui/stomp-template] ${header} — cfg audit`, {
       listenerTopic: cfg.listenerTopic,
       requestMessage: cfg.requestMessage,
@@ -135,7 +135,7 @@ export function traceStompWireDestinations(
   const header = details.providerId
     ? `${phase} providerId=${details.providerId}`
     : phase;
-  // eslint-disable-next-line no-console
+   
   console.info(`[starui/stomp-template] ${header} — STOMP wire`, {
     subscribeDestination: details.listenerTopic,
     publishDestination: details.requestMessage ?? '(none)',
@@ -165,7 +165,7 @@ export function traceWorkerAppDataSnapshot(
   // Unresolved-token failures still surface un-forced via the
   // token-gated cfg audits + the fail-closed assertAppDataResolved.
   if (!isTemplateTraceForced()) return;
-  // eslint-disable-next-line no-console
+   
   console.info(`[starui/stomp-template] ${phase} — worker AppData snapshot`, {
     providerCount: rows.length,
     providers: rows.map((r) => ({

@@ -94,7 +94,7 @@ export class HubAppDataService {
     } catch (err) {
       // Non-fatal — store stays un-hydrated and first-attach mirrors
       // send seeds (back-compat path). Log for worker DevTools.
-      // eslint-disable-next-line no-console
+       
       console.error('[hub] AppData hydrate failed', err);
       return;
     }
@@ -116,7 +116,7 @@ export class HubAppDataService {
     try {
       configs = await this.persistence.list(userId);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('[hub] AppData resync failed', err);
       return;
     }

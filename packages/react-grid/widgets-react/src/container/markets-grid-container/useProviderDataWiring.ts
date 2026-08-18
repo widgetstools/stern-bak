@@ -53,7 +53,7 @@ export interface UseProviderDataWiringParams<TData extends Record<string, unknow
 }
 
 function defaultOnError(err: Error): void {
-  // eslint-disable-next-line no-console
+   
   console.error('[MarketsGridContainer]', err);
 }
 
@@ -105,7 +105,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
   useEffect(() => {
     if (!liveApi || !provider || !activeId) {
       if (DEBUG) {
-        // eslint-disable-next-line no-console
+         
         console.log(`[v2/grid]   provider wiring skipped: liveApi=%s provider=%s activeId=%s`,
           Boolean(liveApi), Boolean(provider), activeId);
       }
@@ -119,7 +119,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
     const thisSubKey = subscriptionKey ?? `${activeId}::${rowIdFieldKey}`;
     const t0 = performance.now();
     if (DEBUG) {
-      // eslint-disable-next-line no-console
+       
       console.log(
         '[refresh] %c5. provider wiring effect fired%c provider=%s',
         'color:#ec4899', '', activeId,
@@ -157,7 +157,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
       Promise.resolve().then(() => {
         if (cancelled) return;
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log(
             '[refresh] %cflushAsyncTransactions BEFORE commit%c pendingAdds=%d gridRows=%d',
             'color:#f97316;font-weight:bold', '',
@@ -166,14 +166,14 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
         }
         try { liveApi.flushAsyncTransactions(); } catch (e) {
           if (DEBUG) {
-            // eslint-disable-next-line no-console
+             
             console.warn('[refresh]    flushAsyncTransactions threw:', e);
           }
         }
         gridApply.clearPendingAdds();
         gridApply.markSnapshotLoaded(rows, rowIdField ?? undefined);
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log(
             '[refresh] %csnapshot commit%c %d rows (onSnapshotData)',
             'color:#10b981;font-weight:bold', '', rows.length,
@@ -203,7 +203,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
 
       if (!rowIdField) {
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log(`[v2/grid] %cupdate#%d%c %d rows (no rowIdField → all update)`, 'color:#f59e0b', '', updateBatchCount, updateRows.length);
         }
         gridApply.applyTick(liveApi, updateRows, undefined);
@@ -216,7 +216,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
         rowIdField,
       );
       if (coalescedPending > 0 && DEBUG) {
-        // eslint-disable-next-line no-console
+         
         console.log(
           '[refresh]   %clive split (rows coalesced behind pending adds)%c add=%d update=%d coalescedPending=%d',
           'color:#f97316', '',
@@ -227,7 +227,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
 
     const unsubStatus = provider.onStatus((s, err) => {
       if (DEBUG) {
-        // eslint-disable-next-line no-console
+         
         console.log(
           `[refresh] %cstatus%c %s${err ? ' error=' + JSON.stringify(err) : ''} (+${(performance.now() - t0).toFixed(0)}ms) — pendingAdds=${gridApply.getPendingAddCount()}`,
           'color:#a855f7;font-weight:bold', '', s,
@@ -322,7 +322,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
       unsubStatus();
       unsubError();
       if (DEBUG) {
-        // eslint-disable-next-line no-console
+         
         console.log(`[v2/grid] %cunwire provider%c provider=%s (effect cleanup, +${(performance.now() - t0).toFixed(0)}ms)`,
           'color:#6b7280', '', activeId);
       }

@@ -185,7 +185,7 @@ export function useGridContextLink({
       const context = ctx as GridLinkSelectionContext;
       const isEcho = Boolean(context.source) && context.source === sourceId;
       if (debugRef.current) {
-        // eslint-disable-next-line no-console
+         
         console.debug('[gridLink] receive', {
           self: sourceId,
           from: context.source,
@@ -241,7 +241,7 @@ export function useGridContextLink({
       // window isn't on an FDC3 user channel despite the color "Link".
       context.channel = channelRef.current ?? undefined;
       if (debugRef.current) {
-        // eslint-disable-next-line no-console
+         
         console.debug('[gridLink] publish', {
           self: sourceId,
           channel: channelRef.current ?? null,

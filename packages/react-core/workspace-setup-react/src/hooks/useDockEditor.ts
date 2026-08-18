@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { useReducer, useEffect, useCallback, useRef, useState } from "react";
 // /host subpath — the fin-global seam; every helper noops outside OpenFin
 // (the dock-editor renders in a plain browser window at dev time).

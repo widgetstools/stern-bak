@@ -54,7 +54,7 @@ export function acquireBackgroundFreezeExemption(): void {
         if (!granted && attempts < MAX_ATTEMPTS) {
           setTimeout(tryAcquire, RETRY_DELAY_MS);
         } else if (!granted) {
-          // eslint-disable-next-line no-console
+           
           console.warn(
             '[host-data] background-freeze exemption lock could not be acquired — '
             + 'this window may be frozen by Chromium while hidden',

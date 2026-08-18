@@ -196,7 +196,7 @@ export function AppDataFields({ cfg, onChange }: AppDataFieldsProps) {
         },
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [],
   );
 

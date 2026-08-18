@@ -106,10 +106,10 @@ export function createAppDataBootstrapContext(
     fetchJson,
     log(message, detail) {
       if (detail !== undefined) {
-        // eslint-disable-next-line no-console
+         
         console.info(`[@wellsfargo-starui/data appDataBootstrap] ${message}`, detail);
       } else {
-        // eslint-disable-next-line no-console
+         
         console.info(`[@wellsfargo-starui/data appDataBootstrap] ${message}`);
       }
     },

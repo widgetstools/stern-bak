@@ -188,7 +188,7 @@ export class SharedWorkerDataServicesHub {
     } catch (err) {
       // Hydration failure is non-fatal — attach with inline cfg still
       // works; cfg-free attach will miss until a retry succeeds.
-      // eslint-disable-next-line no-console
+       
       console.error('[hub] Config catalog hydrate failed', err);
     }
   }
@@ -281,7 +281,7 @@ export class SharedWorkerDataServicesHub {
     if (!slot) {
       const cfg = req.cfg ?? this.configCatalog?.getProviderConfig(req.providerId) ?? undefined;
       if (!cfg) {
-        // eslint-disable-next-line no-console
+         
         if (DEBUG) console.log(`[v2/hub] attach REJECTED subId=${req.subId} provider=${req.providerId}: not running and no cfg`);
         port.postMessage({
           subId: req.subId,
@@ -292,7 +292,7 @@ export class SharedWorkerDataServicesHub {
         return;
       }
       this.traceStompAttachCfg('hub.attach CREATE (catalog cfg → worker)', req.providerId, cfg, req.extra);
-      // eslint-disable-next-line no-console
+       
       if (DEBUG) console.log(`[v2/hub] attach CREATE subId=${req.subId} provider=${req.providerId}`);
       try {
         slot = this.createProvider(req.providerId, cfg);
@@ -314,7 +314,7 @@ export class SharedWorkerDataServicesHub {
       // the slot but drop the overlay — STOMP would publish unresolved
       // `{{positions.asOfDate}}` template paths.
       if (req.extra) {
-        // eslint-disable-next-line no-console
+         
         console.log(`[v2/hub][trace] attach CREATE+RESTART provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
         void slot.handle.restart(req.extra);
         slot.activeRestartExtra = req.extra;
@@ -330,7 +330,7 @@ export class SharedWorkerDataServicesHub {
       // historical `asOfDate` overlay), which keeps the existing config.
       if (req.cfg) {
         this.traceStompAttachCfg('hub.attach RESTART+RECONFIG (running provider)', req.providerId, req.cfg, req.extra);
-        // eslint-disable-next-line no-console
+         
         console.log(`[v2/hub][trace] attach RESTART+RECONFIG provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
         // Same guard as the CREATE branch: recreateProvider rethrows on a
         // bad cfg (unknown type, unresolved AppData tokens). Uncaught it
@@ -354,17 +354,17 @@ export class SharedWorkerDataServicesHub {
         isRestartAttach = true;
       } else if (!restartExtrasEqual(slot.activeRestartExtra, req.extra)) {
         this.traceStompAttachCfg('hub.attach RESTART (running provider)', req.providerId, slot.cfg, req.extra);
-        // eslint-disable-next-line no-console
+         
         console.log(`[v2/hub][trace] attach RESTART provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
         void slot.handle.restart(req.extra);
         slot.activeRestartExtra = req.extra;
         isRestartAttach = true;
       } else {
-        // eslint-disable-next-line no-console
+         
         if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER (same extra) subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
       }
     } else {
-      // eslint-disable-next-line no-console
+       
       if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
     }
 
@@ -863,7 +863,7 @@ export class SharedWorkerDataServicesHub {
     slot: ProviderSlot,
     mode: 'attach' | 'refresh',
   ): void {
-    // eslint-disable-next-line no-console
+     
     if (DEBUG) console.log(
       `[v2/hub] → subId=${subId}: replay rows=${slot.cache.size} in ${
         Math.max(1, Math.ceil(slot.cache.size / LATE_JOIN_CHUNK_SIZE))
@@ -982,7 +982,7 @@ export class SharedWorkerDataServicesHub {
         || eventTemplate.kind === 'delta-patch'
       );
     if (DEBUG) {
-      // eslint-disable-next-line no-console
+       
       if (eventTemplate.kind === 'delta') {
         const tpl = eventTemplate as Event & { kind: 'delta'; rows: readonly unknown[]; replace?: boolean };
         console.log(`[v2/hub] broadcast provider=${providerId} kind=delta replace=${Boolean(tpl.replace)} rows=${tpl.rows.length} → ${listeners.size} listener(s)`);

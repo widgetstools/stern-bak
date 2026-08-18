@@ -416,7 +416,7 @@ export function startStomp(
     timing.clickAt === null ? 'n/a' : `+${now - timing.clickAt}ms`;
   const since = (from: number | null, now = Date.now()) =>
     from === null ? 'n/a' : `${now - from}ms`;
-  // eslint-disable-next-line no-console
+   
   const trace = (msg: string) => console.log(`[v2/stomp][trace] ${msg} (sinceClick=${sinceClick()})`);
 
   const beginSnapshotPhase = () => {
@@ -462,7 +462,7 @@ export function startStomp(
     const buffer = dedupSnapshotBuffer(state.snapshotBuffer, keyColumn);
     state.snapshotBuffer = [];
     state.receivingSnapshot = false;
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[v2/stomp] flushSnapshot: ${buffer.length} rows in ${
         Math.max(1, Math.ceil(buffer.length / chunkSize))
@@ -497,7 +497,7 @@ export function startStomp(
 
     // End-of-snapshot token (case-insensitive substring match).
     if (endTokenRe !== null && endTokenRe.test(trimmed)) {
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[v2/stomp] end-token matched: "${cfg.snapshotEndToken}" — closing snapshot phase ` +
           `(snapshot stream ${since(timing.publishAt)} since publish, sinceClick=${sinceClick()})`,
@@ -650,7 +650,7 @@ export function startStomp(
         // DevTools). `JSON.stringify(body)` keeps whitespace/quoting
         // visible so an empty or padded body is unambiguous.
         timing.publishAt = Date.now();
-        // eslint-disable-next-line no-console
+         
         console.log('[v2/stomp] publish → broker', {
           destination: destinations.requestMessage,
           body,

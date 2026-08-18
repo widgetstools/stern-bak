@@ -146,7 +146,7 @@ export function __resetExpressionCacheForTests(): void {
 
 function compileExpression(expression: string): Formatter {
   try {
-    // eslint-disable-next-line no-new-func
+     
     const compiled = new Function('x', 'data', `return (${expression});`) as
       (x: unknown, data?: unknown) => unknown;
     return ({ value, data }) => {

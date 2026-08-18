@@ -284,7 +284,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   const activeProviderName = activeRow.cfg?.name ?? null;
   useEffect(() => {
     if (activeRow.loading) return;
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[markets-grid] gridId=%s mode=%s providerId=%s providerName=%s`,
       props.gridId,
@@ -474,7 +474,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // fires on every render and the container does re-render frequently
   // when status/refreshTick/selection mutate.
   if (DEBUG) {
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[v2/grid] render gate: loaded=%s liveApi=%s activeId=%s rowIdField=%s columnDefs=%s cfgLoaded=%s`,
       loaded, Boolean(liveApi), activeId, rowIdField, Boolean(columnDefs), Boolean(activeCfg),
@@ -506,7 +506,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   const refreshView = useCallback(() => {
     if (!activeId || !provider) return;
     if (DEBUG) {
-      // eslint-disable-next-line no-console
+       
       console.log('[refresh] %c1. Refresh view clicked%c provider=%s (cache replay)',
         'color:#ec4899;font-weight:bold', '', activeId);
     }
@@ -549,7 +549,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
       );
     }
     if (DEBUG) {
-      // eslint-disable-next-line no-console
+       
       console.log('[refresh] %c1. Reload from source clicked%c provider=%s mode=%s asOfDate=%s extra=%s',
         'color:#ec4899;font-weight:bold', '',
         activeId, selection.mode, asOfDate ?? '—', JSON.stringify(extra));
@@ -558,7 +558,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
       try {
         liveApi.flushAsyncTransactions();
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log(
             '[refresh] %c3a. flushAsyncTransactions drained old queue%c rows now %d',
             'color:#ec4899', '', liveApi.getDisplayedRowCount(),
@@ -566,11 +566,11 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
         }
         liveApi.setGridOption('rowData', []);
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log('[refresh] %c3b. Grid cleared (setGridOption rowData=[])%c', 'color:#ec4899', '');
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
+         
         console.warn('[refresh]    Grid clear failed:', e);
       }
     }
@@ -834,6 +834,6 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
 }
 
 function defaultOnError(err: Error): void {
-  // eslint-disable-next-line no-console
+   
   console.error('[MarketsGridContainer]', err);
 }

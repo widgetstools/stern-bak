@@ -347,7 +347,7 @@ export class SharedWorkerDataServicesClient {
 
     const subId = this.generateSubId();
     if (DEBUG) {
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[data-services/client] %csubscribe→worker%c subId=%s provider=%s cfgPassed=%s${opts.extra ? ' extra=' + JSON.stringify(opts.extra) : ''}`,
         'color:#3b82f6', '', subId, providerId, Boolean(cfg),
@@ -436,7 +436,7 @@ export class SharedWorkerDataServicesClient {
     const listener: DataListener<T> = {
       onDelta: (rows, replace) => {
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log(
             `[data-services/client] %cdelta←worker%c subId=%s rows=%d replace=%s settled=%s`,
             replace ? 'color:#10b981' : 'color:#f59e0b', '',
@@ -447,7 +447,7 @@ export class SharedWorkerDataServicesClient {
       },
       onStatus: (status, error) => {
         if (DEBUG) {
-          // eslint-disable-next-line no-console
+           
           console.log(
             `[data-services/client] %cstatus←worker%c subId=%s status=%s%s`,
             'color:#a855f7', '', subId, status, error ? ` error=${JSON.stringify(error)}` : '',
@@ -1030,7 +1030,7 @@ export class SharedWorkerDataServicesClient {
     try {
       this.port.postMessage(req);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('[SharedWorkerDataServicesClient] AppData postMessage failed', err);
     }
   }
@@ -1112,7 +1112,7 @@ export class SharedWorkerDataServicesClient {
         try {
           handler(payload);
         } catch (err) {
-          // eslint-disable-next-line no-console
+           
           console.warn('[SharedWorkerDataServicesClient] ssrm-tick listener threw', err);
         }
       }
@@ -1140,7 +1140,7 @@ export class SharedWorkerDataServicesClient {
             this.trackThinRows(event.subId, rows, Boolean(event.replace));
             sub.listener.onDelta(rows, Boolean(event.replace));
           } catch (err) {
-            // eslint-disable-next-line no-console
+             
             console.error(
               '[SharedWorkerDataServicesClient] delta-bin decode failed subId=%s enc=%s',
               event.subId,
@@ -1242,7 +1242,7 @@ export class SharedWorkerDataServicesClient {
         try {
           listener(detail);
         } catch (err) {
-          // eslint-disable-next-line no-console
+           
           console.warn('[SharedWorkerDataServicesClient] catalog change listener threw', err);
         }
       }

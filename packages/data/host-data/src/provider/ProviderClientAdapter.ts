@@ -88,7 +88,7 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
   async start(): Promise<void> {
     if (this.handle) return;
 
-    // eslint-disable-next-line no-console
+     
     console.info('[starui/stomp-template] main thread ProviderClientAdapter.start', {
       providerId: this.id,
       note: 'Hub loads catalog cfg in worker — see hub.attach / stomp.onConnect logs for wire destinations.',
@@ -130,7 +130,7 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
   }
 
   async restart(extra?: Record<string, unknown>): Promise<void> {
-    // eslint-disable-next-line no-console
+     
     console.info('[starui/stomp-template] main thread ProviderClientAdapter.restart', {
       providerId: this.id,
       extra: extra ?? null,

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * useInteropChannel — context channel backed by the OpenFin **interop** API,
  * shape-compatible with {@link useFdc3Channel} so it drops into
@@ -49,7 +49,7 @@ export function useInteropChannel(opts: UseInteropChannelOptions = {}): UseFdc3C
     try {
       await interop.setContext(context);
       if (debugRef.current) {
-        // eslint-disable-next-line no-console
+         
         console.debug('[interop] setContext ok', context);
       }
     } catch (err) {

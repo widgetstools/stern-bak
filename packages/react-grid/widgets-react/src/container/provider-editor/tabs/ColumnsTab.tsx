@@ -330,7 +330,7 @@ export function ColumnsTab({ columns, onChange, keyColumn, onKeyColumnChange }: 
     ],
     // Empty deps: delete + edit-expression route through grid context +
     // refs (onDeleteRef / onEditExpressionRef).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [],
   );
 

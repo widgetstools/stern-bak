@@ -148,7 +148,7 @@ export function activateConditionalStyling(
     try {
       fn();
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[conditional-styling] cleanup step failed:', label, err);
     }
   };

@@ -211,7 +211,7 @@ export function warnPillRefusalOnce(filter: CountableFilter, err: unknown): void
   const key = `${filter.id}:${JSON.stringify(filter.filterModel)}`;
   if (warnedPills.has(key)) return;
   warnedPills.add(key);
-  // eslint-disable-next-line no-console
+   
   console.warn(
     `[FiltersToolbar] pill "${filter.id}" has a filter this grid cannot count; ` +
       'its badge over-counts until the filter is applied, which reports the ' +

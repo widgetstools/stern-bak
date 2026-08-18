@@ -54,7 +54,7 @@ function ensureListener(): Promise<void> {
         if (!probedEventShape) {
           probedEventShape = true;
           const e = evt as any;
-          // eslint-disable-next-line no-console
+           
           console.log('[windowOptionsSubscription] options-changed event shape:', {
             keys: e && typeof e === 'object' ? Object.keys(e) : null,
             hasOptions: Boolean(e?.options),
