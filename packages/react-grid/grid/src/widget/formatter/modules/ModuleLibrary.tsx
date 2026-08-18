@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { ChevronDown, LayoutTemplate } from 'lucide-react';
 import { PopoverCompat as Popover, Tooltip } from '../../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { TemplateManager } from '../../TemplateManager';
+import { preserveGridCellOnMouseDown } from '../preserveGridCell';
 import { Module, PillButton, pillClasses, type Orientation } from '../primitives';
 import type { FormatterActions, FormatterState } from '../state';
 
@@ -127,21 +128,7 @@ export function TemplatesControl({
               minWidth: 240,
               fontFamily: 'var(--fx-font-sans)',
             }}
-            onMouseDown={(e) => {
-              // The outer guard preserves the active AG-Grid cell by
-              // eating mousedown on anything that isn't a form control
-              // (otherwise the popover swallows focus and the selected
-              // column context is lost). Form controls MUST be exempt,
-              // though: native <select> opens its dropdown on mousedown,
-              // so preventDefault here kills the dropdown — which is
-              // exactly the bug where the template dropdown wouldn't
-              // open from the toolbar popover while working fine in the
-              // popped-out properties panel.
-              const tag = (e.target as HTMLElement).tagName;
-              if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'OPTION' && tag !== 'TEXTAREA') {
-                e.preventDefault();
-              }
-            }}
+            onMouseDown={preserveGridCellOnMouseDown}
           >
             {manager}
           </div>

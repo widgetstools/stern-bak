@@ -42,6 +42,7 @@ import {
   TypeEmphasisCluster,
 } from './modules/ModuleType';
 import { Hair, PanelGroup, PillButton, TitleBar, pillClasses } from './primitives';
+import { preserveGridCellOnMouseDown } from './preserveGridCell';
 import { useToolbarOverflow, type OverflowSpec } from './toolbarOverflow';
 import './formatter.css';
 import type { FormatterActions, FormatterState } from './state';
@@ -167,15 +168,7 @@ export function FormatterToolbar({
     <div
       className="fx-shell fx-shell--horizontal"
       data-testid="formatting-toolbar"
-      onMouseDown={(e) => {
-        // Same four tags the segment-level guards exempt. This one listed
-        // three: the overflow menu renders inline, inside this shell, so a
-        // TEXTAREA its own guard let through was eaten here on the way up.
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'OPTION' && tag !== 'TEXTAREA') {
-          e.preventDefault();
-        }
-      }}
+      onMouseDown={preserveGridCellOnMouseDown}
     >
       <div className="fx-bar" ref={containerRef}>
         {/* Fixed lead — what am I editing, and where. Never collapses. */}
@@ -222,12 +215,7 @@ export function FormatterToolbar({
               <div
                 className="fx-menu-panel fx-menu-panel--overflow"
                 data-testid="formatting-overflow-menu"
-                onMouseDown={(e) => {
-                  const tag = (e.target as HTMLElement).tagName;
-                  if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'OPTION' && tag !== 'TEXTAREA') {
-                    e.preventDefault();
-                  }
-                }}
+                onMouseDown={preserveGridCellOnMouseDown}
               >
                 {hiddenSegments.map((seg) => (
                   <section key={seg.id} className="fx-menu-panel__section" data-seg={seg.id}>

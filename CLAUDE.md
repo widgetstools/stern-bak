@@ -198,9 +198,9 @@ uses `pack:npm` output for its tarball track. See
 
 ## Testing
 
-- Vitest 4 + jsdom 29 for unit tests. Baseline (2026-08-18): **6886 passing,
+- Vitest 4 + jsdom 29 for unit tests. Baseline (2026-08-18): **6799 passing,
   1 skipped across 692 test files** (`npm run test:coverage` — turbo across
-  `packages/`). Largest contributors: `react-grid` (2833), `core` (1452),
+  `packages/`). Largest contributors: `react-grid` (2846), `core` (1452),
   `data` (948), `react` (541), `openfin` (483), `design-system` (358),
   `types` (171).
   The per-file 70% coverage gate rides the same run — see

@@ -9,6 +9,16 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
  * refs use bracket syntax with optional-chaining nested paths.
  */
 
+/*
+ * This file needs more than the 30s default. `openColumnsTab` alone waits up
+ * to 45s for the STOMP snapshot to buffer, the round-trip test does that
+ * twice (once more after a full reload) and then allows 20s for the derived
+ * cell — the internal waits exceed the global budget before any work happens,
+ * so the round-trip test could never pass and the other two ran within a
+ * couple of seconds of the limit.
+ */
+test.describe.configure({ timeout: 180_000 });
+
 const APP_URL = 'http://localhost:5213/';
 
 /** The Columns-tab row whose Field cell is exactly `field`. */
@@ -38,6 +48,35 @@ async function typeExpression(page: Page, text: string) {
     await page.getByTestId('columns-tab-expression-editor').click();
   }
   await page.keyboard.type(text, { delay: 20 });
+}
+
+/**
+ * Bring `colId` into AG Grid's rendered column window.
+ *
+ * Columns are virtualised horizontally, and on this app's column set `region`
+ * sits well outside it — the body scrolls ~5650px in a ~1250px viewport, so
+ * only the first nine columns exist in the DOM. Asserting on its cell without
+ * this reads "element(s) not found" and looks like the expression never
+ * applied.
+ */
+async function scrollColumnIntoView(page: Page, colId: string): Promise<Locator> {
+  // `.ag-cell`, not a bare `[col-id]`: `ag-grid-scrolling-cells` is a state
+  // class on the grid ROOT, not a container, so `[col-id="region"]` under it
+  // also matches the column HEADER — and the header comes first, which is why
+  // this once read back "Region" instead of a computed value.
+  const cell = page.locator(`.ag-row .ag-cell[col-id="${colId}"]`).first();
+  const scroller = page.locator('.ag-body-horizontal-scroll-viewport').first();
+  for (let step = 0; step < 30; step += 1) {
+    if (await cell.count()) return cell;
+    const atEnd = await scroller.evaluate((el) => {
+      el.scrollLeft += 400;
+      return el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+    });
+    await page.waitForTimeout(60);
+    if (atEnd) break;
+  }
+  await expect(cell).toHaveCount(1);
+  return cell;
 }
 
 async function openColumnsTab(page: Page) {
@@ -95,7 +134,7 @@ test('authors a column valueGetter expression and the grid computes it', async (
   await expect(page.locator('.ag-grid-scrolling-rows .ag-row').first()).toBeVisible({
     timeout: 45_000,
   });
-  const regionCell = page.locator('.ag-grid-scrolling-cells [col-id="region"]').first();
+  const regionCell = await scrollColumnIntoView(page, 'region');
   await expect(regionCell).toHaveText(/^[A-Za-z ]+\/[A-Za-z ]+$/, { timeout: 20_000 });
 
   // Clean up so the run is idempotent — clear the expression back out.
@@ -103,7 +142,12 @@ test('authors a column valueGetter expression and the grid computes it', async (
   await page.getByRole('menuitem', { name: 'Data Provider Editor' }).click();
   await page.getByRole('tab', { name: 'Columns' }).click();
   await columnRow(page, 'region').getByTestId('columns-tab-expression-cell').click();
-  await page.getByRole('button', { name: 'Clear' }).click();
+  // Scoped to the dialog: the Columns tab has its own "Clear" (clear-all),
+  // which sits BEHIND this dialog's overlay — an unscoped lookup resolves to
+  // that one and then waits out the clock on an un-clickable button.
+  const clearDialog = page.getByTestId('columns-tab-expression-dialog');
+  await expect(clearDialog).toBeVisible();
+  await clearDialog.getByRole('button', { name: 'Clear' }).click();
   await page.getByRole('button', { name: 'Update DataProvider' }).click();
   await expect(page.getByText('Saved')).toBeVisible({ timeout: 10_000 });
 });

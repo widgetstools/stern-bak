@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { ChevronDown, Columns3 } from 'lucide-react';
 import { PopoverCompat as Popover, Tooltip } from '../../../customizer/internal.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import { preserveGridCellOnMouseDown } from '../preserveGridCell';
 import { PillButton, pillClasses } from '../primitives';
 import { EditableToggle } from './ModuleContext';
 import { EditorFilterCluster } from './ModuleEditorFilter';
@@ -47,14 +48,7 @@ export function ColumnMenuControl({
       <div
         className="fx-menu-panel"
         data-testid="fmt-column-menu"
-        onMouseDown={(e) => {
-          // Preserve the active AG-Grid cell: eat mousedown on anything
-          // that isn't a form control (same guard as the templates menu).
-          const tag = (e.target as HTMLElement).tagName;
-          if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'OPTION' && tag !== 'TEXTAREA') {
-            e.preventDefault();
-          }
-        }}
+        onMouseDown={preserveGridCellOnMouseDown}
       >
         <section className="fx-menu-panel__section">
           <h4 className="fx-menu-panel__label">Editor &amp; filter</h4>

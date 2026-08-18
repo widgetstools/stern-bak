@@ -370,7 +370,7 @@ Per-renderer config types (`PillRendererConfig`,
   the behaviour every consumer had before
 - `DEFAULT_MODULES` — ordered customizer-module pipeline (full feature set)
 - `gridSurfaceOptions` — AG Grid defaults, DOM options, row styling, cell renderers
-- `GridDensityPill` — center-top primary-toolbar chip; Ultra / Compact / Comfortable presets (persists `gridDensity` + matching `rowHeight`/`headerHeight` in general-settings; `applyGridDensityLive` pushes heights immediately with row animation suppressed)
+- `GridDensityPill` — center-top primary-toolbar chip; Ultra / Compact / Comfortable presets (persists `gridDensity` + matching `rowHeight`/`headerHeight` in general-settings; `applyGridDensityLive` pushes heights immediately with row animation suppressed). Hit-testing is scoped to the chip and the open menu — the wrapper is as tall as both and the closed menu keeps its box, so a wrapper that took pointer events covered the toolbar beneath it
 - `MarketsGridSurface` — memo'd AgGridReact boundary; `buildStreamSafeComponents` optionally omits date floating filter when unused; folds the effective `rowHeight`/`headerHeight` (host
   override or general-settings pipeline) into the theme via `theme.withParams`,
   keeping `--ag-row-height` in sync with the live row height so cell text stays
@@ -567,6 +567,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `ModuleContext` — applied-column summary + copy-to-all; hosts the `FormatReadout` (`scopeSummary`) — a plain-language status line stating target + scope ("Cells · 3 columns") with a live value sample, doubling as the empty-state invitation ("Select a column to format"). Renders in both toolbar and popout
 - `FormatReadout` / `scopeSummary` — turns `(target, scope, selection)` into words + a live sample; empty-state guidance when nothing is selected
 - `ModuleClear` — clear selected / clear-all formatting; fires immediately (no confirm dialog), flashes a check on success, reversible via undo/redo. **Clear ALL also wipes the four grid-wide `global*` style/formatter fields** the toolbar's scope=All writes (previously they survived, so a scope=All paint was unclearable once the session's undo stack was gone)
+- `preserveGridCellOnMouseDown` — the one mousedown guard every formatter surface (shell, ⋯ overflow menu, Column ⌄, Templates ⌄) hangs off: eat mousedown on toolbar chrome so AG Grid keeps the focused cell the toolbar acts on, and exempt `INPUT` / `SELECT` / `OPTION` / `TEXTAREA` so a native dropdown still opens. Module-level, so it is one function rather than a closure per surface — it replaced four copies, one of which had drifted to three tags
 - `formatterPresets` — built-in numeric, date, currency, % presets; traffic-light / emoji patterns documented in `HelpPanel` and authored via Excel value-format strings in conditional styling
 - `formattingToolbarHooks` — `useFormatter` state + actions; `resolveToolbarPickerDataType()` maps `dateString` / `dateTimeString` (and `date` columns whose sample values include time) to datetime FormatterPicker presets so **Date + time** tiles (ISO with time, US short) appear in the toolbar
 

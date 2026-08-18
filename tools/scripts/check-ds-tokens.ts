@@ -51,6 +51,11 @@ export function lintFile(path: string): Issue[] {
 const SKIP_DIRS = new Set([
   'node_modules', 'dist', '.turbo', '.git', '.next', 'coverage',
   '__snapshots__', '__fixtures__', 'libs',
+  // Generated + gitignored: `apps/tarball/<app>` is a copy of
+  // `apps/source/<app>` made by `makeTarballApp.mjs`. Scanning it reports
+  // every app violation twice as soon as anyone materialises that track —
+  // the count went 382 → 592 with no source change.
+  'tarball',
   // External reference materials (user-provided design system samples,
   // unpacked zips, etc.) — not project code, kept in-tree as a reference
   // for migration work. Match by exact directory name.

@@ -25,7 +25,7 @@ findings below came from tests written against behaviour.
 | Files at or above 70% (all metrics) | **817 / 817** (100.0%) | **309 / 309** (100.0%) |
 | Units fully clear | **7 of 7** buckets | **10 of 10** apps |
 | Remaining files | **0** | **0** |
-| Tests | 6,886 passing, 1 skipped | 809 passing |
+| Tests | 6,799 passing, 1 skipped | 809 passing (source) + 654 (tarball) |
 
 Verify with:
 

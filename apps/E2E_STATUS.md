@@ -3,9 +3,47 @@
 > Tracked as item 1 in the cross-repo worklog:
 > [`stern-bak/docs/WORKLOG.md`](../docs/WORKLOG.md).
 
-**Short version: a full run is 10 passed / 2 skipped / 362 failed out of 374.
-The harness works; the suite does not. Part of that is attributable to the app
-curation, part of it cannot be attributed either way — see below.**
+**Short version: the demo-react specs still cannot pass, but the specs pinned
+to apps that survived now all do.**
+
+| run | result |
+|---|---|
+| first measurement (after the split) | 10 passed / 2 skipped / 362 failed of 374 |
+| 2026-08-18, full suite | **72 passed** / 2 skipped / 308 failed of 382 |
+| 2026-08-18, pinned-port set (command below) | **59 passed / 0 failed** |
+
+The pinned-port set is the part of the suite that has a host app; it is green
+and should be treated as the gate. The ~34 demo-react specs are the remainder
+and still need the decision below.
+
+Two real defects came out of getting the pinned set green, neither of them a
+test problem:
+
+- **The grid density pill blocked clicks beneath it.** `.ds-density-pill` is as
+  tall as the chip PLUS the menu, the menu keeps its box while closed, and the
+  wrapper took pointer events across the whole thing — so the invisible strip
+  sat over the toolbar and swallowed clicks on the alerts bell. Pointer events
+  are now scoped to the chip and the open menu
+  (`packages/react-grid/grid/src/widget/styles/marketsGrid-chrome.css`).
+- **The formatter's mousedown guard had drifted.** Four copies of "eat mousedown
+  unless it is a form control"; the shell's copy listed three tags instead of
+  four, and the overflow menu renders inline inside that shell, so a TEXTAREA
+  its own guard allowed was eaten on the way up. Now one hoisted
+  `preserveGridCellOnMouseDown`.
+
+And two spec defects, both pre-existing:
+
+- `v2-column-value-getter` budgeted 45s waits inside the global 30s test
+  timeout, so its round-trip case could never finish; and once it could, it
+  looked for `[col-id="region"]` under `.ag-grid-scrolling-cells` — which is a
+  state class on the grid ROOT, not a container, so the match was the column
+  HEADER, and the column was outside AG Grid's virtualised window anyway.
+- Its cleanup clicked an unscoped "Clear", which resolved to the Columns tab's
+  clear-all sitting behind the open dialog's overlay.
+
+**The harness works; the demo-react part of the suite does not.** Part of that
+is attributable to the app curation, part of it cannot be attributed either
+way — see below.
 
 ## What happened
 
@@ -43,8 +81,11 @@ grid ids, and seeded fixtures.
 ## Full-run result
 
 ```
-374 tests in 47 files
+374 tests in 47 files                    # first measurement
  10 passed    2 skipped    362 failed        (19.9 min)
+
+382 tests                                 # 2026-08-18
+ 72 passed    2 skipped    308 failed        (17.7 min)
 ```
 
 ## What is and is not attributable
@@ -102,7 +143,8 @@ The ~34 demo-react specs need one of:
    loses meaningful coverage. Much of it may be better expressed as unit tests in
    the platform repo's `grid` package, which already carries 697.
 
-Until then, run the pinned-port specs only:
+Until then, run the pinned-port specs only — this set is green (59/59) and is
+the one worth keeping that way:
 
 ```bash
 npx playwright test e2e/lab-onboarding.spec.ts e2e/v2-alerts.spec.ts \

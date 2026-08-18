@@ -28,14 +28,25 @@
   pointer-events: none;
 }
 
+/*
+ * Layout only — the interactive parts opt in individually below.
+ *
+ * This wrapper is as tall as the chip PLUS the menu, and the menu keeps its
+ * box when closed (it hides with opacity, not display). With
+ * `pointer-events: auto` here, that invisible strip sat over the toolbar and
+ * swallowed clicks on whatever was beneath it — the alerts bell, in the lab
+ * app. Playwright named it exactly: "<div data-open="false"
+ * class="ds-density-pill"> … subtree intercepts pointer events".
+ */
 .ds-density-pill {
-  pointer-events: auto;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .ds-density-pill-chip {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -68,6 +79,7 @@
 }
 
 .ds-density-pill-menu {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -81,6 +93,21 @@
   pointer-events: none;
   transform: translateY(-4px);
   transition: opacity 60ms ease, transform 60ms ease;
+}
+
+/*
+ * Bridge the 4px gap between chip and menu. The wrapper no longer takes
+ * pointer events, so without this the pointer crosses dead space on its way
+ * down and `:hover` drops before it reaches the menu. Part of the menu, so it
+ * only exists while the menu itself is interactive.
+ */
+.ds-density-pill-menu::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 4px;
 }
 
 .ds-density-pill:hover .ds-density-pill-menu,
