@@ -1001,21 +1001,29 @@ Introducing it found **five** function-level regressions across Phases 11 and
 14 that hand review had missed, all now fixed by hoisting — `activateAlerts` is
 201 lines, *below* the 202 it started at.
 
-**Left open, both real:**
+**One fixed, one deliberately not.**
 
-1. **`SharedWorkerDataServicesClient.ts` is 169 code lines over the 800 file
-   ceiling** — the one genuine file-level violation this effort touched, and
-   the only one `max-lines` flags among the files it changed. Splitting it
-   (the SSRM RPC surface is the obvious seam) is its own piece of work.
-2. **`activateAlerts` is 201 lines against the 80-line function ceiling.**
-   Pre-existing and not grown. The seam is clean: everything except the
-   disposer wiring is a per-grid evaluator (`getWatchedCols`, `scanNode`,
-   `runDelta`, `runFullPass`, `reconcileRowMembership`, `dispatchRowChanges`,
-   `onCellValueChanged` — ~110 lines over four captured values). Extract
-   `createAlertsEvaluator(platform, dispatcher, prevValues, engine)` and
-   `activateAlerts` becomes ~40 lines of wiring. 82 tests in that module are
-   the safety net, so it is low-risk — just not urgent. Do it when someone next
-   changes the alerts runtime.
+1. **`activateAlerts` — DONE 2026-08-18.** Split into `alertsEvaluator.ts`
+   (what decides whether a row change is a hit, plus the state that decision
+   needs) and `activate.ts` (wiring alone). Everything needing no per-grid
+   state became a module-level function taking an `EvaluatorDeps` object, so
+   the factory kept only the observed-row set and the watched-column memo —
+   without that second step the split just moved a 173-line function next
+   door. The whole alerts directory is now at zero
+   `max-lines-per-function` warnings, including a pre-existing 81-line
+   `createAlertDispatcher`. 89 tests unchanged and green.
+2. **`SharedWorkerDataServicesClient.ts` (169 code lines over) — NOT doing it,
+   and this is a decision rather than a deferral.** The obvious seam is the
+   SSRM RPC surface: 8 public methods plus `rpcSsrm` and three private fields,
+   about 170 code lines, which would take the file just under. But those
+   methods are reached as `client.ssrmGetRows(...)` from 11 call sites, and
+   `SharedWorkerDataServicesClient` is a published export — so the split is
+   either a breaking API change (`client.ssrm.getRows`) or a delegation layer
+   that adds most of the lines back. Trading a public API break for a
+   NON-BLOCKING warning on a file that works is the wrong trade. This is
+   exactly why `check-complexity-budget` reports file growth rather than
+   failing on it. Revisit if the file is being restructured for another
+   reason.
 
 **CI runs it report-only, deliberately.** `feature/simplify` predates the
 check and trips it **26 times** against `main` (9 of those are new files whose

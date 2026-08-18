@@ -56,10 +56,8 @@ export function createAlertDispatcher(
   };
 
   let notificationSeq = 0;
-  const nextNotificationId = (): string => {
-    notificationSeq = (notificationSeq + 1) | 0;
-    return `${Date.now().toString(36)}-${notificationSeq.toString(36)}`;
-  };
+  const nextNotificationId = (): string =>
+    `${Date.now().toString(36)}-${(notificationSeq = (notificationSeq + 1) | 0).toString(36)}`;
 
   return {
     dispatch(rule, hit) {
