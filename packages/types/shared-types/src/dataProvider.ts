@@ -504,7 +504,13 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<TransportCon
  * Helper function to get default config for a provider type
  */
 export function getDefaultProviderConfig(type: ProviderType): Partial<TransportConfig> {
-  return { ...DEFAULT_PROVIDER_CONFIGS[type] };
+  // DEEP, not shallow. The spread alone left the stomp default's `heartbeat`
+  // object and the appdata default's `variables` record aliased into the
+  // table, so a provider editor binding a form field to `cfg.heartbeat.outgoing`
+  // rewrote the default for every subsequent caller.
+  // `?? {}` because an unknown type has no entry and `structuredClone`
+  // faithfully returns `undefined` where the old spread quietly gave `{}`.
+  return structuredClone(DEFAULT_PROVIDER_CONFIGS[type] ?? {}) as Partial<TransportConfig>;
 }
 
 /**

@@ -114,51 +114,49 @@ describe('IconPicker', () => {
   });
 });
 
-describe('IconPicker — known-wrong behaviour, pinned (WORKLOG item 7)', () => {
+describe('IconPicker — the two icon lists overlap by 72 ids', () => {
   /**
-   * `buildIconList` concatenates ICON_META (tagged source 'market') with
-   * ICON_OPTIONS (tagged source 'lucide' wholesale). But 80 of ICON_OPTIONS'
-   * 140 entries carry `mkt:*` ids, so every one of them is mis-tagged. The
-   * consequences are asserted below so a fix flips these tests rather than
-   * landing silently.
+   * 80 of `ICON_OPTIONS`' 140 entries carry `mkt:*` ids, which `ICON_META`
+   * also supplies. `buildIconList` used to concatenate the two and tag source
+   * by which list an entry came from; it now derives source from the id prefix
+   * and de-duplicates by id. These four were the consequences.
    */
 
-  it('lists each market icon twice, with a duplicate React key', () => {
+  it('lists each market icon ONCE, so React keys are unique', () => {
     render(<IconPicker onSelect={vi.fn()} />);
 
-    expect(screen.getAllByRole('button', { name: 'Bond' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Bond' })).toHaveLength(1);
   });
 
-  it('the duplicate emits an unreachable CDN URL for a market icon', async () => {
+  it('emits the market icon’s own asset, not an iconify URL that 404s', async () => {
     const onSelect = vi.fn();
     render(<IconPicker onSelect={onSelect} />);
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Bond' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Bond' }));
 
-    // https://api.iconify.design/mkt/bond.svg does not exist — persisting it
-    // into a dock config yields a permanently blank button icon.
-    expect(onSelect.mock.calls[0][1]).toContain('api.iconify.design/mkt/bond.svg');
+    // `https://api.iconify.design/mkt/bond.svg` does not exist; persisting it
+    // into a dock config yielded a permanently blank button.
+    expect(onSelect.mock.calls[0][1]).not.toContain('api.iconify.design/mkt/');
   });
 
-  it('leaves non-matching icons on screen after a search', async () => {
-    // The worst consequence of the duplicate ids: `key={icon.id}` is
-    // non-unique, so React cannot reconcile the filtered grid and keeps
-    // dozens of icons that no longer match. Searching "FileText" should
-    // leave one button; it leaves the whole duplicated market block too.
+  it('a search leaves only what matches it', async () => {
+    // The worst consequence of the duplicate ids: `key={icon.id}` was
+    // non-unique, so React could not reconcile the filtered grid and kept
+    // dozens of icons that no longer matched.
     render(<IconPicker onSelect={vi.fn()} />);
 
     await search('FileText');
 
     expect(screen.getByRole('button', { name: 'FileText' })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Bond' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Bond' })).toBeNull();
   });
 
-  it('system-category icons stay selectable despite the explicit skip', () => {
-    // ICON_META.wrench is category 'system' and is filtered out of the market
-    // pass, but ICON_OPTIONS reintroduces `mkt:wrench` through the lucide pass.
+  it('honours the system-category skip instead of letting the second pass undo it', () => {
+    // `ICON_META.wrench` is category 'system' and is filtered out of the
+    // market pass; `ICON_OPTIONS` used to reintroduce `mkt:wrench`.
     expect(ICON_META.wrench.category).toBe('system');
     render(<IconPicker onSelect={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: ICON_META.wrench.name })).toBeDefined();
+    expect(screen.queryByRole('button', { name: ICON_META.wrench.name })).toBeNull();
   });
 });

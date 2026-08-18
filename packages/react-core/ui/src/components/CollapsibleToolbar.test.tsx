@@ -56,8 +56,7 @@ describe('CollapsibleToolbar', () => {
     const { container, onPinnedChange, onCollapsedChange } = renderToolbar();
 
     fireEvent.mouseEnter(container.firstElementChild!);
-    // Pin button is icon-only — no accessible name (see WORKLOG a11y item).
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.click(screen.getByRole('button', { name: 'Pin toolbar open' }));
 
     expect(onPinnedChange).toHaveBeenCalledWith(true);
     expect(onCollapsedChange).toHaveBeenCalledWith(false);

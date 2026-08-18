@@ -163,6 +163,10 @@ export const CollapsibleToolbar: React.FC<CollapsibleToolbarProps> = ({
             className="h-3 w-3 p-0"
             onClick={handleTogglePin}
             title={isPinned ? 'Unpin (auto-collapse on hover out)' : 'Pin (keep expanded)'}
+            // Icon-only: `title` is a tooltip, not an accessible name, so
+            // without this the control has no name at all.
+            aria-label={isPinned ? 'Unpin toolbar' : 'Pin toolbar open'}
+            aria-pressed={isPinned}
           >
             {isPinned ? (
               <Pin className="h-2.5 w-2.5 text-primary" />

@@ -71,7 +71,16 @@ export function createMenuItem(partial?: Partial<DockMenuItem>): DockMenuItem {
     children: partial?.children || [],
     order: partial?.order || 0,
     metadata: partial?.metadata || {},
-    windowOptions: partial?.windowOptions || DEFAULT_WINDOW_OPTIONS,
-    viewOptions: partial?.viewOptions || DEFAULT_VIEW_OPTIONS,
+    // CLONED, not aliased. Returning the module-level default meant every
+    // menu item created without explicit options shared ONE object, so a dock
+    // editor writing `item.windowOptions.width = 900` resized every other
+    // item that had taken the default. A factory whose purpose is handing out
+    // a safe object must not hand out a reference into module state.
+    // Only the DEFAULT is cloned. A caller-supplied object is the caller's
+    // own and is used as given — copying it would be defending against a
+    // hazard that is not there, and would break `createMenuItem({ windowOptions })`
+    // returning what it was handed.
+    windowOptions: partial?.windowOptions ?? { ...DEFAULT_WINDOW_OPTIONS },
+    viewOptions: partial?.viewOptions ?? { ...DEFAULT_VIEW_OPTIONS },
   };
 }

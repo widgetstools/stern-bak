@@ -52,7 +52,17 @@ export function resolveBrowserIdentity(
   return {
     instanceId: params.get('instanceId') ?? overrides.instanceId ?? `browser-${randomUUID()}`,
     appId: params.get('appId') ?? overrides.appId ?? '',
-    userId: LOGGED_IN_USER_ID,
+    // Read from the same two sources as every other field. It used to be
+    // hardcoded to `LOGGED_IN_USER_ID`, which made the advertised
+    // `IdentityOverrides.userId` a lie and — because `userId` scopes profile
+    // persistence through `buildGridHostContext` — put every user of a
+    // browser-hosted app in ONE profile scope.
+    //
+    // Safe to change without a migration: nothing in this repo or its apps
+    // supplies a `userId` today, by override or by URL, so the fallback below
+    // is the answer every current caller already gets. A host that starts
+    // passing one is opting into its own scope, which is the point.
+    userId: params.get('userId') ?? overrides.userId ?? LOGGED_IN_USER_ID,
     componentType: params.get('componentType') ?? overrides.componentType ?? '',
     componentSubType: params.get('componentSubType') ?? overrides.componentSubType ?? '',
     isTemplate: params.get('isTemplate') === 'true' || overrides.isTemplate === true,

@@ -151,11 +151,19 @@ export function RowDrawer({
 
       {/* Body */}
       <div className="flex-1 min-h-0 flex flex-col p-[14px] gap-2">
-        <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-[var(--de-text-tertiary)]">
+        <div
+          id="row-drawer-payload-label"
+          className="text-[10px] font-bold tracking-[0.8px] uppercase text-[var(--de-text-tertiary)]"
+        >
           JSON payload
         </div>
         <Textarea
           ref={textareaRef}
+          // The primary control of the row editor — the only way to change a
+          // config row. A sibling heading is not an accessible name, so this
+          // was indistinguishable from the toolbar's quick-filter box to any
+          // role+name query, assistive tech included.
+          aria-labelledby="row-drawer-payload-label"
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
           spellCheck={false}

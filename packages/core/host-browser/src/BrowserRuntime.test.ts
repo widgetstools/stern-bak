@@ -64,21 +64,27 @@ describe('identity', () => {
   });
 
   /**
-   * KNOWN DEFECT — `resolveBrowserIdentity` hardcodes
-   * `userId: LOGGED_IN_USER_ID`, ignoring both the `userId` URL param and
-   * `IdentityOverrides.userId`, even though the type advertises that field.
-   *
-   * userId scopes profile persistence, so a host app that passes a real
-   * signed-in user still gets 'dev1' and every user shares one profile scope.
-   * Pinned here rather than fixed: changing it would move where existing
-   * profiles resolve. See docs/WORKLOG.md.
+   * `userId` scopes profile persistence through `buildGridHostContext`, so a
+   * host that passes a real signed-in user must get their own scope rather
+   * than the shared `dev1` every user used to land in.
    */
-  it('ignores userId from both overrides and the url (documents the defect)', () => {
+  it('reads userId from the url, and lets it beat an override', () => {
     const id = make({
       url: 'https://host/app?userId=fromUrl',
       identity: { userId: 'fromOverrides' },
     }).resolveIdentity();
-    expect(id.userId).toBe('dev1');
+    expect(id.userId).toBe('fromUrl');
+  });
+
+  it('reads userId from an override when the url carries none', () => {
+    const id = make({ identity: { userId: 'k151344' } }).resolveIdentity();
+    expect(id.userId).toBe('k151344');
+  });
+
+  // The fallback is what makes this change carry no migration: every caller in
+  // this repo and its apps supplies no userId, so they all still resolve here.
+  it('falls back to the logged-in default when nobody supplies one', () => {
+    expect(make().resolveIdentity().userId).toBe('dev1');
   });
 
   it('caches identity so repeated calls are stable', () => {

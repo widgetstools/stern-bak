@@ -47,15 +47,18 @@ describe('createMenuItem', () => {
     expect(item.children).toEqual([child]);
   });
 
-  it('shares the DEFAULT_* objects by reference when not overridden', () => {
-    // Documented behaviour, and a hazard worth pinning: two menu items
-    // created without explicit options alias the SAME options object, so
-    // mutating one item's windowOptions would mutate every other item's.
+  it('gives each item its OWN options, so resizing one cannot resize the rest', () => {
     const a = createMenuItem();
     const b = createMenuItem();
-    expect(a.windowOptions).toBe(DEFAULT_WINDOW_OPTIONS);
-    expect(b.windowOptions).toBe(DEFAULT_WINDOW_OPTIONS);
-    expect(a.viewOptions).toBe(DEFAULT_VIEW_OPTIONS);
+    expect(a.windowOptions).toEqual(DEFAULT_WINDOW_OPTIONS);
+    expect(a.windowOptions).not.toBe(DEFAULT_WINDOW_OPTIONS);
+    expect(a.windowOptions).not.toBe(b.windowOptions);
+    expect(a.viewOptions).not.toBe(b.viewOptions);
+
+    // The dock-editor write that used to reach every other item.
+    a.windowOptions!.width = 900;
+    expect(b.windowOptions!.width).toBe(DEFAULT_WINDOW_OPTIONS.width);
+    expect(createMenuItem().windowOptions!.width).toBe(DEFAULT_WINDOW_OPTIONS.width);
   });
 
   it('keeps caller-supplied window/view options instead of the defaults', () => {

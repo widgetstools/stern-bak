@@ -42,30 +42,52 @@ interface IconEntry {
 
 // ─── Build the full icon list ────────────────────────────────────────
 
+/**
+ * `source` is derived from the ID PREFIX, not from which list an entry came
+ * out of, and entries are de-duplicated by id.
+ *
+ * Both matter because the two lists overlap: 80 of `ICON_OPTIONS`' 140 entries
+ * carry `mkt:*` ids, so 72 ids appeared in both passes. Tagging by list gave
+ * those a `lucide` source, and the duplicate then:
+ *
+ *  - made `key={icon.id}` non-unique, so React could not reconcile the
+ *    filtered grid and a search for `FileText` left ~72 non-matching icons on
+ *    screen — the user-visible one;
+ *  - took the lucide branch on click and emitted
+ *    `https://api.iconify.design/mkt/bond.svg`, which does not exist, so a
+ *    dock config persisting it rendered a blank button;
+ *  - defeated the `category === "system"` skip, letting `mkt:wrench` and
+ *    friends back in through the second pass.
+ *
+ * The market pass runs first so its curated `name` and the system skip win.
+ */
 function buildIconList(): IconEntry[] {
-  const icons: IconEntry[] = [];
+  const byId = new Map<string, IconEntry>();
+  const systemIds = new Set<string>();
 
-  // Market icons from the single source of truth
   for (const [key, meta] of Object.entries(ICON_META)) {
-    // Skip system icons (wrench, code, etc.) — those aren't user-selectable
-    if (meta.category === "system") continue;
-    icons.push({
-      id: `mkt:${key}`,
-      name: meta.name,
-      source: "market",
-    });
+    const id = `mkt:${key}`;
+    // System icons (wrench, code, …) aren't user-selectable. Collected rather
+    // than merely skipped: `ICON_OPTIONS` lists some of them by name
+    // (`{ name: "Wrench", icon: "mkt:wrench" }`), so the two lists disagree,
+    // and `ICON_META` — the source `category` lives on — is the one that wins.
+    if (meta.category === "system") {
+      systemIds.add(id);
+      continue;
+    }
+    byId.set(id, { id, name: meta.name, source: "market" });
   }
 
-  // Lucide icons from the curated list
   for (const opt of ICON_OPTIONS) {
-    icons.push({
+    if (byId.has(opt.icon) || systemIds.has(opt.icon)) continue;
+    byId.set(opt.icon, {
       id: opt.icon,
       name: opt.name,
-      source: "lucide",
+      source: opt.icon.startsWith("mkt:") ? "market" : "lucide",
     });
   }
 
-  return icons;
+  return [...byId.values()];
 }
 
 const ALL_ICONS = buildIconList();

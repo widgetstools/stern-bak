@@ -52,18 +52,14 @@ async function mounted(...args: Parameters<typeof mount>) {
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 /**
- * The drawer's JSON textarea has no accessible name, so it cannot be told
- * apart from the toolbar's quick-filter box by role+name — see WORKLOG item 8.
- * Filtering on the tag is the closest RTL query available until it gets one.
- *
- * The drawer also stays mounted while closed (so the slide-out can play), so
- * the textarea exists — holding the placeholder `{}` — before any row is
- * opened. Callers must wait on its CONTENT, never on its presence.
+ * The drawer stays mounted while closed (so the slide-out can play), so the
+ * textarea exists — holding the placeholder `{}` — before any row is opened.
+ * Callers must wait on its CONTENT, never on its presence.
  */
 async function jsonEditor(hasLoaded: (row: any) => boolean): Promise<HTMLTextAreaElement> {
   let editor!: HTMLTextAreaElement;
   await waitFor(() => {
-    const found = screen.getAllByRole('textbox').find((el) => el.tagName === 'TEXTAREA');
+    const found = screen.getByRole('textbox', { name: /json payload/i });
     expect(found, 'JSON editor is not rendered').toBeTruthy();
     editor = found as HTMLTextAreaElement;
     expect(hasLoaded(JSON.parse(editor.value)), `editor still holds ${editor.value}`).toBe(true);

@@ -20,8 +20,12 @@ const saveRegistryConfig = vi.fn();
 const clearRegistryConfig = vi.fn();
 const readHostEnv = vi.fn();
 
-vi.mock('@wellsfargo-starui/openfin', async () => {
-  const config = await import('@wellsfargo-starui/openfin/config');
+// Mocks /config, which is what the hook imports. It used to mock the whole
+// `@wellsfargo-starui/openfin` barrel — a workaround for the hook importing
+// that barrel, whose `@openfin/workspace-platform` side effects throw outside
+// OpenFin. The hook now imports /config directly, so the mock can name it.
+vi.mock('@wellsfargo-starui/openfin/config', async (importOriginal) => {
+  const config = await importOriginal<Record<string, unknown>>();
   return {
     ...config,
     loadRegistryConfig: (...a: unknown[]) => loadRegistryConfig(...a),
@@ -349,7 +353,7 @@ describe('useRegistryEditor — test launch', () => {
     expect(createView.mock.calls[0][0].customData.templateId).toBe('grid-credit');
   });
 
-  it('sends no userId, because the callback never sees the loaded host env', async () => {
+  it('sends the userId that loaded AFTER the callback was memoised', async () => {
     const createView = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('fin', {
       Platform: { getCurrentSync: () => ({ createView }) },
@@ -359,12 +363,13 @@ describe('useRegistryEditor — test launch', () => {
 
     await act(async () => { await result.current.testComponent(entry()); });
 
-    // Pinning real behaviour, not endorsing it: `testComponent` is memoised
-    // with an empty dependency list, so it closes over the INITIAL hostEnv
-    // and `customData.userId` is always undefined even after readHostEnv
-    // resolved with 'k123'. Recorded as WORKLOG item 7.
+    // `testComponent` is still memoised with an empty dependency list — the
+    // Test Launch button must not re-render — but it reads hostEnv through a
+    // ref, so it sees the value `readHostEnv` resolved with rather than the
+    // initial empty one it closed over. Component-host's saver needs this to
+    // populate userId / createdBy / updatedBy on a freshly-built row.
     expect(result.current.hostEnv.userId).toBe('k123');
-    expect(createView.mock.calls[0][0].customData.userId).toBeUndefined();
+    expect(createView.mock.calls[0][0].customData.userId).toBe('k123');
   });
 
   it('swallows a failed launch rather than breaking the editor', async () => {

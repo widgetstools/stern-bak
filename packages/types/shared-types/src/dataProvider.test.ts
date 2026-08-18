@@ -47,12 +47,17 @@ describe('getDefaultProviderConfig', () => {
     expect(DEFAULT_PROVIDER_CONFIGS.mock).not.toBe(first);
   });
 
-  it('is a shallow copy — nested objects are still shared', () => {
-    // Documented hazard: the stomp default's `heartbeat` object is
-    // aliased, so an editor writing through it WOULD mutate the table.
-    const a = getDefaultProviderConfig('stomp') as { heartbeat?: object };
-    const b = getDefaultProviderConfig('stomp') as { heartbeat?: object };
-    expect(a.heartbeat).toBe(b.heartbeat);
+  it('is a DEEP copy — a nested object cannot be written back into the table', () => {
+    const a = getDefaultProviderConfig('stomp') as { heartbeat?: { outgoing?: number } };
+    const b = getDefaultProviderConfig('stomp') as { heartbeat?: { outgoing?: number } };
+    expect(a.heartbeat).not.toBe(b.heartbeat);
+
+    // The shape a provider editor's form binding takes.
+    a.heartbeat!.outgoing = 99_999;
+    expect(
+      (getDefaultProviderConfig('stomp') as { heartbeat?: { outgoing?: number } })
+        .heartbeat?.outgoing,
+    ).not.toBe(99_999);
   });
 
   it('returns an empty object for an unknown type instead of throwing', () => {

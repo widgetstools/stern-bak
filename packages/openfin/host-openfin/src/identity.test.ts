@@ -34,8 +34,10 @@ describe('resolveOpenFinIdentity', () => {
       overrides: { userId: 'u-default' },
     });
     expect(id.appId).toBe('app-from-url');
-    // userId is single-user-pinned regardless of overrides.
-    expect(id.userId).toBe(LOGGED_IN_USER_ID);
+    // The override is honoured, like every other field. It used to be pinned
+    // to LOGGED_IN_USER_ID here because the browser resolver this falls back
+    // to hardcoded it — see WORKLOG item 5.
+    expect(id.userId).toBe('u-default');
     expect(id.instanceId).toMatch(/^browser-/);
   });
 
@@ -109,8 +111,10 @@ describe('resolveOpenFinIdentity', () => {
       overrides: { userId: 'u-override', isTemplate: false },
     });
     expect(id.appId).toBe('app-x');
-    // userId is single-user-pinned — overrides are intentionally ignored.
-    expect(id.userId).toBe(LOGGED_IN_USER_ID);
+    // The malformed customData userId is rejected and the OVERRIDE is used —
+    // which is the point of "falls through to the URL/override layer". It used
+    // to read LOGGED_IN_USER_ID because that layer ignored userId entirely.
+    expect(id.userId).toBe('u-override');
     expect(id.isTemplate).toBe(false);
     expect(id.roles).toEqual([]);
   });

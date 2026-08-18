@@ -20,7 +20,12 @@ import {
   type RegistryEditorConfig,
   type RegistryEntry,
   type HostEnv,
-} from "@wellsfargo-starui/openfin";
+  // /config, NOT the main barrel: the barrel's `@openfin/workspace-platform`
+  // side effects throw `Cannot read properties of undefined (reading 'uuid')`
+  // outside OpenFin, and this editor renders in a plain browser window at dev
+  // time. Every symbol above is exported from /config, which is why every
+  // sibling in this package already imports from there.
+} from "@wellsfargo-starui/openfin/config";
 
 /**
  * Options for `useRegistryEditor()`. `scope` is an optional
@@ -112,6 +117,17 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
   const scope = opts.scope;
   const [state, dispatch] = useReducer(registryReducer, initialState);
   const [hostEnv, setHostEnv] = useState<HostEnv>({ appId: '', configServiceUrl: '' });
+  /**
+   * `testComponent` is a `useCallback(..., [])` — deliberately, so the Test
+   * Launch button never re-renders — but `hostEnv` is populated
+   * asynchronously by `readHostEnv`. Reading the state directly meant the
+   * callback closed over the initial `{ appId: '', configServiceUrl: '' }`
+   * forever and `customData.userId` was ALWAYS undefined, so component-host's
+   * saver had nothing to write into `userId` / `createdBy` / `updatedBy` on a
+   * freshly-built row. A ref keeps the callback stable AND current.
+   */
+  const hostEnvRef = useRef(hostEnv);
+  hostEnvRef.current = hostEnv;
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -249,7 +265,7 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
           // editor window). Component-host's saver needs it to
           // populate `userId` / `createdBy` / `updatedBy` on a
           // freshly-built AppConfigRow when no prior template exists.
-          userId: hostEnv.userId,
+          userId: hostEnvRef.current.userId,
         },
       });
     } catch (err) {
