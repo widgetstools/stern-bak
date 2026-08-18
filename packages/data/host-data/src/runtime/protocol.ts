@@ -462,6 +462,12 @@ export interface SsrmSetFilterValuesRpcRequest {
   kind: 'ssrm-set-filter-values';
   reqId: string;
   providerId: string;
+  /**
+   * Whose column set to answer for. A set filter over a CALCULATED column
+   * lists values only this session's rules produce, so the panel's domain is
+   * per session exactly as its blocks are.
+   */
+  sessionId?: string;
   request: SetFilterValuesRequest;
 }
 

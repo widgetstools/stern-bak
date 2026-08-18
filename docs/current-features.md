@@ -1582,6 +1582,41 @@ real where it reaches the user.
   predicate: a function does not survive a structured clone, and compiling in
   the engine means the plane and the client-side external filter share
   `@wellsfargo-starui/core`'s one evaluator
+- **Filter, sort, group and aggregate on a CALCULATED column** — the plane used
+  to evaluate calculated columns only on the sliced page, after filtering,
+  sorting and grouping had already run against rows that did not carry the
+  field: a filter on one matched nothing (an **empty grid**), a sort on one was
+  a silent no-op, a group on one collapsed every row into a single `""` bucket,
+  and `sum()` over one read 0. The fields now materialise in `SessionOverlay`'s
+  per-session row view, **before** the filter model runs, so all four agree with
+  what the client-side row model's `valueGetter` answers
+  (`calculatedColumnParity.test.tsx` compares a real AG Grid against the real
+  `QueryEngine` over the same rows and the same expression, rather than against
+  a number typed into a test). The rule is applied to the row AFTER the
+  session's own patch, so an edit to `px` moves a `[px] * [qty]` column exactly
+  as a valueGetter would; a session's row-exclusion expression reads them too.
+  A set filter over a calculated column lists that column's own values —
+  `ssrm-set-filter-values` carries the `sessionId`, because the domain of a
+  calculated column is per session exactly as its blocks are.
+  **Opt in per QUERY, not per session** (`requestReadsAnyField` in
+  `queryColumnRefs.ts`): a grid that HAS a calculated column but is not
+  filtering, sorting or grouping on one asks the same question a clean session
+  asks and keeps sharing the plane's cache — forking for every grid that merely
+  declares one would be most grids in the building. Two sessions whose rules
+  differ never share an order (`ExpressionRuleStore.rulesRevision` is in the
+  cache key). Materialisation is memoised per row in a `WeakMap` keyed on the
+  row reference — sound because `RowStore` never mutates a stored row in place,
+  so a ticked row is a new object and simply misses — and `enrich` recognises
+  its own frozen field stamp on the sliced page rather than evaluating a second
+  time, which also keeps a self-referencing expression from compounding.
+  Measured by `bench:ssrm`: sorting BY a calculated column over 100k x 130 costs
+  one whole-store pass (~190 ms cold), and **1.5 ms per warm block** — the
+  per-block cost that kept this out of the plane is what the memo removes
+- `queryFilter.ts` / `queryColumnRefs.ts` — the filter walk (`collectFiltered`,
+  which reads the store and the request and nothing else about the engine) and
+  the question "which columns does this query name?", split out of
+  `QueryEngine.ts` to keep it under the 800-LOC ceiling as the session layer
+  grew
 - `queryAggregation.ts` / `querySort.ts` — the value-column fold with its
   pivoted form (`aggregateValueCols`, `collectPivotResultFields`,
   `pivotAggregate`) and the block comparators (`sortRows`, `sortGroupRows`,

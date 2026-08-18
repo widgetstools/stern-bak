@@ -192,7 +192,13 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   }
 
   getSetFilterValues(req: SetFilterValuesRequest): Promise<string[]> {
-    return this.client.ssrmGetSetFilterValues(this.id, req);
+    // Session-scoped: the panel's domain for a calculated column is whatever
+    // THIS grid's rules produce.
+    return this.client.ssrmGetSetFilterValues(
+      this.id,
+      req,
+      this.sessionIdOrNull ?? undefined,
+    );
   }
 
   getStatusBar(req?: StatusBarRequest): Promise<StatusBarSummary> {

@@ -146,8 +146,8 @@ export class SsrmPlane {
     return this.server.getRows(request, sessionId);
   }
 
-  getSetFilterValues(req: SetFilterValuesRequest): string[] {
-    return this.server.getSetFilterValues(req);
+  getSetFilterValues(req: SetFilterValuesRequest, sessionId?: string): string[] {
+    return this.server.getSetFilterValues(req, sessionId);
   }
 
   getStatusBar(request: StatusBarRequest = {}): StatusBarSummary {

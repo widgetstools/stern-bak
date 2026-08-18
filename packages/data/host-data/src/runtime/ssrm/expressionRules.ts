@@ -66,6 +66,21 @@ export class ExpressionRuleStore {
    *  Decided once at configure time — the aggregate scope costs a pass over
    *  the store, and a grid whose columns are all row-local never pays it. */
   private usesAggregatesBySession = new Map<string, boolean>();
+  /** Per session: bumped on every {@link configure}. The only moving part of
+   *  a query's cache key once a calculated column is being filtered or sorted
+   *  on — without it two sessions with DIFFERENT rules would share the order
+   *  built for whichever asked first. */
+  private revisionBySession = new Map<string, number>();
+  /**
+   * Per session: raw row → that row with this session's calculated fields
+   * materialised. See {@link applyCalculated}.
+   *
+   * Weak, and keyed on the row REFERENCE, which is sound because `RowStore`
+   * never mutates a stored row in place — an `upsert` builds `{ ...prev }` and
+   * replaces the entry, so a ticked row is a new object and simply misses.
+   * Dropped wholesale when the rules change.
+   */
+  private computedRowsBySession = new Map<string, WeakMap<Row, Row>>();
 
   constructor(expressionEngine?: ExpressionEngine) {
     this.expr = expressionEngine ?? new ExpressionEngine();
@@ -106,6 +121,10 @@ export class ExpressionRuleStore {
       .filter((r) => r.kind === "calculated" && r.field && compiled.has(r.id))
       .map((r) => r.field!);
     this.computedFieldsBySession.set(key, fields.length ? Object.freeze(fields) : null);
+    this.revisionBySession.set(key, (this.revisionBySession.get(key) ?? 0) + 1);
+    // The memo is built from the rules that just changed; keeping it would
+    // serve the previous expression's answers.
+    this.computedRowsBySession.delete(key);
   }
 
   /** Drops one session's own rules (called on session detach). Global rules are untouched. */
@@ -114,6 +133,89 @@ export class ExpressionRuleStore {
     this.compiledBySession.delete(sessionId);
     this.computedFieldsBySession.delete(sessionId);
     this.usesAggregatesBySession.delete(sessionId);
+    this.revisionBySession.delete(sessionId);
+    this.computedRowsBySession.delete(sessionId);
+  }
+
+  /**
+   * Which rule set this session is on, as a number that changes whenever the
+   * rules do. Part of a query's cache key while a calculated column is being
+   * filtered or sorted on — see {@link QueryEngine.setSessionExclude}'s
+   * neighbour, `sessionStateFor`.
+   */
+  rulesRevision(sessionId?: string): number {
+    return this.resolveBySession(this.revisionBySession, sessionId) ?? 0;
+  }
+
+  /**
+   * The `calculated` fields this session produces — the SAME frozen array
+   * `enrich` stamps, so a caller can compare by reference.
+   */
+  computedFields(sessionId?: string): readonly string[] | null {
+    return this.computedFieldsFor(sessionId);
+  }
+
+  /**
+   * This session's view of a row with its calculated fields materialised —
+   * and NOTHING else. `enrich` also evaluates style, alert and editability and
+   * allocates for all of them; a filter or a sort needs none of that, and
+   * paying for it once per row of the whole store per distinct query is the
+   * cost that kept this feature out of the plane.
+   *
+   * Returns the SAME REFERENCE when the session has no calculated rules, so a
+   * query that does not touch one copies nothing.
+   *
+   * Memoised per row (see {@link computedRowsBySession}), which is what makes
+   * this incremental rather than a fresh O(rows x rules) pass per query: the
+   * second query shape over the same store revision re-uses the first one's
+   * rows. Rows carry the frozen field stamp, so {@link enrich} on the sliced
+   * page recognises its own work and does not evaluate them a second time.
+   */
+  applyCalculated(row: Row, sessionId?: string, aggregates?: AggregateScope): Row {
+    const fields = this.computedFieldsFor(sessionId);
+    if (!fields) return row;
+
+    const key = sessionId ?? GLOBAL_SESSION;
+    let memo = this.computedRowsBySession.get(key);
+    if (!memo) {
+      memo = new WeakMap<Row, Row>();
+      this.computedRowsBySession.set(key, memo);
+    }
+    const hit = memo.get(row);
+    if (hit) return hit;
+
+    const out: Row = { ...row };
+    this.evaluateCalculated(out, sessionId, aggregates);
+    out[COMPUTED_FIELDS_KEY] = fields;
+    memo.set(row, out);
+    return out;
+  }
+
+  /** The `calculated` half of {@link enrich}, in place. */
+  private evaluateCalculated(
+    out: Row,
+    sessionId: string | undefined,
+    aggregates: AggregateScope | undefined,
+  ): void {
+    const compiled = this.compiledFor(sessionId);
+    for (const rule of this.rulesFor(sessionId)) {
+      if (rule.kind !== "calculated" || !rule.field) continue;
+      const fn = compiled.get(rule.id);
+      if (!fn) continue;
+      try {
+        out[rule.field] = fn({
+          data: out,
+          columns: out,
+          value: out[rule.field],
+          x: out[rule.field],
+          allRows: aggregates?.allRows,
+          allRowsColumnCache: aggregates?.allRowsColumnCache,
+          allRowsAggregateCache: aggregates?.allRowsAggregateCache,
+        });
+      } catch {
+        // swallow per-row expression errors
+      }
+    }
   }
 
   calculatedFields(sessionId?: string): string[] {
@@ -131,6 +233,18 @@ export class ExpressionRuleStore {
     const rules = this.rulesFor(sessionId);
     if (rules.length === 0) return row;
     const compiled = this.compiledFor(sessionId);
+    const computedFields = this.computedFieldsFor(sessionId);
+    // Already carries THIS session's calculated fields, at THIS rule set —
+    // reference equality against the frozen stamp, which `configure` replaces
+    // wholesale, so a stale set can never match. That happens when the row
+    // came through `applyCalculated` because the query filtered, sorted or
+    // grouped on a calculated column. Re-evaluating would not merely waste the
+    // pass: the rules would see their own previous output as `x`/`value`
+    // rather than the row's original, so a self-referencing expression would
+    // answer differently depending on whether the query happened to touch the
+    // column.
+    const alreadyCalculated =
+      computedFields !== null && row[COMPUTED_FIELDS_KEY] === computedFields;
     const out: EnrichedRow = { ...row };
     // Both are `undefined` unless this session's rules aggregate — the
     // evaluator's aggregate path is gated on `ctx.allRows` being present, so
@@ -153,6 +267,7 @@ export class ExpressionRuleStore {
       if (!fn) continue;
       try {
         if (rule.kind === "calculated" && rule.field) {
+          if (alreadyCalculated) continue;
           const value = fn({ ...ctxBase, value: out[rule.field], x: out[rule.field] });
           out[rule.field] = value;
         } else if (rule.kind === "style") {
@@ -185,8 +300,7 @@ export class ExpressionRuleStore {
     // Tell the grid which fields this side answered. Without the stamp the
     // grid's own `valueGetter` recomputes them from the rows it happens to
     // hold, which for a column-wide aggregate is a total of the block cache.
-    const computed = this.computedFieldsFor(sessionId);
-    if (computed) out[COMPUTED_FIELDS_KEY] = computed;
+    if (computedFields) out[COMPUTED_FIELDS_KEY] = computedFields;
     return out;
   }
 

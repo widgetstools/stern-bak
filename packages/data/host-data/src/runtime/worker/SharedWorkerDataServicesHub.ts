@@ -630,7 +630,7 @@ export class SharedWorkerDataServicesHub {
         return;
       }
       if (req.kind === 'ssrm-set-filter-values') {
-        const setFilterValues = plane.getSetFilterValues(req.request);
+        const setFilterValues = plane.getSetFilterValues(req.request, req.sessionId);
         reply({ kind: 'ssrm-rpc', reqId, ok: true, setFilterValues });
       }
     } catch (err) {

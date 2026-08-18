@@ -43,6 +43,20 @@ interface SessionEntry {
 }
 
 /**
+ * This session's calculated columns, materialised for a query that actually
+ * reads one.
+ *
+ * Passed in rather than reached for, because the rules live in
+ * `ExpressionRuleStore` and this module is about state a session STORES.
+ * `identity` is what makes two sessions on different rules stop sharing an
+ * order; `apply` returns the same reference when there is nothing to add.
+ */
+export interface SessionComputedView {
+  readonly identity: string;
+  apply(row: Row): Row;
+}
+
+/**
  * A session's overlay, resolved for one query. `null` is returned instead of
  * an "empty" instance so the hot path can branch once and then touch nothing.
  */
@@ -64,6 +78,9 @@ export interface SessionQueryState {
   /** `true` when the session's predicate excludes this row. */
   excluded(row: Row): boolean;
 }
+
+/** Shared empty map for a session whose only overlay is its computed view. */
+const EMPTY_PATCHES: ReadonlyMap<string, Row> = new Map<string, Row>();
 
 export class SessionOverlay {
   private readonly sessions = new Map<string, SessionEntry>();
@@ -136,6 +153,21 @@ export class SessionOverlay {
   }
 
   /**
+   * Whether this session excludes rows at all.
+   *
+   * Asked before the overlay is built, because an exclusion rule is an
+   * expression that may read a CALCULATED column, and unlike the query's own
+   * column references there is nothing in the request to discover that from.
+   * Treating it as a read of everything costs nothing in sharing terms — a
+   * session that excludes has already forked the cache — and the alternative
+   * is re-parsing the rule to see which identifiers it names.
+   */
+  excludes(sessionId?: string): boolean {
+    if (!sessionId) return false;
+    return this.sessions.get(sessionId)?.exclude != null;
+  }
+
+  /**
    * The source changed these rows, so its values win for the fields it
    * actually wrote. Per FIELD rather than per row: a tick that moves `price`
    * must not silently discard a pending edit to `notes` on the same row.
@@ -177,26 +209,48 @@ export class SessionOverlay {
 
   /**
    * This session's overlay, or `null` when it has none — which is the case
-   * for every grid that is not editing or excluding, i.e. almost all of them.
+   * for every grid that is neither editing nor excluding nor querying one of
+   * its own calculated columns, i.e. almost all of them.
+   *
+   * `computed` is supplied by the caller only when the query actually reads a
+   * calculated field (see `QueryEngine.sessionStateFor`). A session that has
+   * calculated columns but is not filtering, sorting or grouping on one gets
+   * `null` here and keeps sharing the plane's cache — otherwise every grid
+   * with a calculated column would fork it, which is most of them.
    */
-  stateFor(sessionId?: string): SessionQueryState | null {
+  stateFor(
+    sessionId?: string,
+    computed?: SessionComputedView | null,
+  ): SessionQueryState | null {
     if (!sessionId) return null;
     const e = this.sessions.get(sessionId);
-    if (!e || (e.patches.size === 0 && !e.exclude)) return null;
+    const stored = e && (e.patches.size > 0 || e.exclude !== null);
+    if (!stored && !computed) return null;
 
-    const { patches, exclude } = e;
+    const patches = e?.patches ?? EMPTY_PATCHES;
+    const exclude = e?.exclude ?? null;
     const keyColumn = this.keyColumn;
     const hasPatches = patches.size > 0;
+    // Both halves, so an edit invalidates this session's orders and a rule
+    // change does too. `#0` for a session that carries only computed fields.
+    const identity = `${sessionId}#${e?.revision ?? 0}${computed ? `+${computed.identity}` : ''}`;
 
     return {
-      identity: `${sessionId}#${e.revision}`,
+      identity,
       narrows: exclude !== null,
       view(row: Row): Row {
-        if (!hasPatches) return row;
-        const key = row[keyColumn];
-        if (key == null) return row;
-        const patch = patches.get(String(key));
-        return patch ? { ...row, ...patch } : row;
+        let out = row;
+        if (hasPatches) {
+          const key = row[keyColumn];
+          if (key != null) {
+            const patch = patches.get(String(key));
+            // The patch is merged BEFORE the calculated fields are derived, so
+            // an edit to `px` moves a `[px] * [qty]` column exactly as the
+            // client-side row model's valueGetter would.
+            if (patch) out = { ...row, ...patch };
+          }
+        }
+        return computed ? computed.apply(out) : out;
       },
       excluded(row: Row): boolean {
         if (!exclude) return false;

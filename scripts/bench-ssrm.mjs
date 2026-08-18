@@ -173,6 +173,17 @@ cold('quick filter scoped to 8 columns, cold', {
 });
 cold('quick filter matching nothing, cold', { ...baseReq, quickFilterText: 'zzzznomatch' });
 
+/** Memo hits/misses attributable to one call — the sharing model, measured. */
+const memoDelta = (fn) => {
+  const before = engine.getMemoStats();
+  fn();
+  const after = engine.getMemoStats();
+  return {
+    hits: after.memoHits - before.memoHits,
+    misses: after.memoMisses - before.memoMisses,
+  };
+};
+
 heading('Calculated columns (expression enrichment on returned blocks)');
 // A column-wide aggregate is a fold over the DATASET, so the plane materialises
 // the store once per revision and memoises the folded column — the block then
@@ -194,6 +205,29 @@ engine.configureExpressions([
 ]);
 cold('aggregate, cold (one store pass)', calcReq);
 time('aggregate, warm (memoised column)', () => engine.getRows(calcReq), 20);
+
+// SORTING ON one, which is a different cost entirely: the column has to exist
+// for every row in the store before the comparator runs, where the lines above
+// only ever evaluate the 100 rows of a returned block. The cold number is the
+// price of that whole-store pass; the warm one is the claim that it is paid
+// once per query shape and not once per block, which is what makes paging a
+// calculated column usable at all.
+engine.configureExpressions(
+  [{ id: 'c-sort', kind: 'calculated', field: 'calcSort', expression: `[${numericCols[0]}] * 2` }],
+  'calc-session',
+);
+const calcSortReq = { ...baseReq, sortModel: [{ colId: 'calcSort', sort: 'desc' }] };
+cold('sort BY a calculated column, cold', calcSortReq, 'calc-session');
+time('sort BY a calculated column, warm block', () => engine.getRows(calcSortReq, 'calc-session'), 20);
+
+// …and the line that says the feature is opt-in per QUERY, not per session: the
+// same session, asking a question that does not read the calculated column, is
+// answered from the entry every clean session shares.
+store.upsert([{ id: 'POS-4', [numericCols[0]]: Math.random() }]);
+engine.getRows({ ...baseReq, sortModel }, 'clean-x');
+const unrelated = memoDelta(() => engine.getRows({ ...baseReq, sortModel }, 'calc-session'));
+row('calculated session, query that does not read it: misses (MUST be 0)', unrelated.misses, '');
+engine.configureExpressions([], 'calc-session');
 engine.configureExpressions([]);
 
 heading('Per-session query layer (the sharing model is the gate, not the timing)');
@@ -203,15 +237,6 @@ heading('Per-session query layer (the sharing model is the gate, not the timing)
 // still lands on that shared entry — so this measures the sharing directly
 // (memo hits/misses) rather than inferring it from a wall-clock number.
 const sessionReq = { ...baseReq, sortModel };
-const memoDelta = (fn) => {
-  const before = engine.getMemoStats();
-  fn();
-  const after = engine.getMemoStats();
-  return {
-    hits: after.memoHits - before.memoHits,
-    misses: after.memoMisses - before.memoMisses,
-  };
-};
 
 store.upsert([{ id: 'POS-2', [numericCols[0]]: Math.random() }]);
 engine.getRows(sessionReq, 'clean-a');

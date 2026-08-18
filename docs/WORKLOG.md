@@ -959,7 +959,7 @@ against multiple adapters), `filterPredicate.test.ts` (40),
 
 ---
 
-## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — 2 / 4 DONE
+## 20. The SSRM parity tail — 4 findings, 4 phases (2026-08-17) — 3 / 4 DONE
 
 **Area:** `packages/data/host-data/src/runtime/ssrm/`,
 `packages/data/host-data/src/runtime/worker/`,
@@ -1023,8 +1023,32 @@ warm number is 0.0 ms either side. **Open:** `protocol.ts` (831) and
 `SharedWorkerDataServicesClient.ts` (1289) are over the 800 ceiling and were
 already over before the phase (801 / 1249).
 
-**Phase 13** (full, entry = Phase 12) — T1-4, filter/sort/group on calculated
-columns. An addition to the layer Phase 12 makes reachable, not new machinery.
+**Phase 13 — DONE 2026-08-17.** T1-4. The gap was total and was measured before
+anything was designed: a filter on a calculated column matched **nothing** (an
+empty grid), a sort on one was a silent no-op, a group on one collapsed to a
+single `""` bucket, and `sum()` over one read 0 — enrichment on the returned
+page was already right, which is why it stayed invisible until someone sorted.
+The fields now materialise in `SessionOverlay`'s per-session row view before
+the filter runs, and the affordability rests on ONE line: `requestReadsAnyField`
+makes it opt-in per QUERY, not per session, so a grid that merely HAS a
+calculated column keeps sharing the plane's cache. Rules are in the cache key
+(`rulesRevision`) and materialisation is memoised per row in a `WeakMap` —
+sound because `RowStore` never mutates a stored row in place. Two things the
+tests found that the design had not: a session's row-EXCLUSION expression can
+read a calculated column (nothing in the request reveals that, so excluding
+counts as reading everything), and `enrich` would have re-evaluated every rule
+on the sliced page, making a self-referencing expression answer differently
+depending on whether the query happened to sort on it. Parity is pinned against
+a **real AG Grid** running the real `buildVirtualColDef` valueGetter, not
+against arithmetic. Cost: ~190 ms cold for the whole-store pass, **1.5 ms per
+warm block**. `QueryEngine.ts` went 778 → 894 and was brought back to **772**
+in the same phase (`queryFilter.ts`, `queryColumnRefs.ts`). **Also corrected
+here:** Phase 11's ESLint check used a pattern that never matched the default
+formatter, so its "0 → 0" was vacuous — re-audited, the conclusion held (no
+file's count rose) but `createSsrmStatusBar.tsx` was 1 → 1 and Phase 11 grew
+that function 102 → 105 lines; now 0. **Open:** an aggregate that folds a
+calculated column (`SUM([total])` where `total` is itself calculated) still
+folds undefined — `aggregateScope` iterates raw store rows. Pre-existing.
 
 **Phase 14** (full, no entry) — T2-6, the alerts bell. A new worker→client
 message kind carrying hits (row key + rule id) addressed by `sessionId`,
@@ -1035,5 +1059,5 @@ its single snapshot*. Architectural, and **CSRM behaves identically**, so it
 is not a parity finding. Reopen as a product decision about historical
 providers if it ever matters.
 
-**Estimate: 2 full sessions remaining.** Phase 13's entry (Phase 12) is now
-satisfied and Phase 14 never had one, so either can run next.
+**Estimate: 1 full session remaining** — Phase 14, which never had an entry
+dependency.

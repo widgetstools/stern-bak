@@ -201,8 +201,8 @@ export class SsrmServer implements ICacheIngest {
     return this.query.getRows(request, sessionId);
   }
 
-  getSetFilterValues(req: SetFilterValuesRequest): string[] {
-    return this.query.getSetFilterValues(req);
+  getSetFilterValues(req: SetFilterValuesRequest, sessionId?: string): string[] {
+    return this.query.getSetFilterValues(req, sessionId);
   }
 
   getGrandTotal(

@@ -71,24 +71,22 @@ function makeSsrmCountPanel(variant: SsrmCountVariant): FunctionComponent<PanelP
   };
 }
 
-const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) => {
-  const provider =
-    props.provider
-    ?? (props.context as Record<string, SsrmStatusBarContext> | undefined)?.[
-      SSRM_STATUS_CONTEXT_KEY
-    ]?.provider;
-  const refreshThrottleMs =
-    props.refreshThrottleMs
-    ?? (props.context as Record<string, SsrmStatusBarContext> | undefined)?.[
-      SSRM_STATUS_CONTEXT_KEY
-    ]?.refreshThrottleMs
-    ?? 150;
-  const getQuickFilterText =
-    props.getQuickFilterText
-    ?? (props.context as Record<string, SsrmStatusBarContext> | undefined)?.[
-      SSRM_STATUS_CONTEXT_KEY
-    ]?.getQuickFilterText;
-
+/**
+ * Keep one panel's summary current: load once, then reload on every provider
+ * tick, throttled to `refreshThrottleMs` (leading edge + at most one trailing
+ * call per window), with a slow idle fallback for a provider that has no ticks
+ * or a missed edge.
+ *
+ * Lifted out of the panel itself only so the component stays inside the
+ * 80-line function ceiling — the polling and the markup are two separable
+ * concerns and this is the seam between them.
+ */
+function useStatusBarSummary(
+  provider: ISsrmDataProvider | undefined,
+  api: PanelProps['api'],
+  refreshThrottleMs: number,
+  getQuickFilterText: (() => string) | undefined,
+): StatusBarSummary | null {
   const [summary, setSummary] = useState<StatusBarSummary | null>(null);
 
   useEffect(() => {
@@ -96,10 +94,10 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
     let cancelled = false;
 
     const load = () => {
-      if (props.api.isDestroyed?.()) return;
+      if (api.isDestroyed?.()) return;
       let filterModel: Record<string, unknown> | null = null;
       try {
-        filterModel = (props.api.getFilterModel?.() ?? null) as Record<
+        filterModel = (api.getFilterModel?.() ?? null) as Record<
           string,
           unknown
         > | null;
@@ -115,11 +113,11 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
           // the rows the grid is actually showing rather than rows matched on
           // a column the user has hidden.
           quickFilterColumns: quickFilterText
-            ? quickFilterColumnsOf(props.api) ?? null
+            ? quickFilterColumnsOf(api) ?? null
             : null,
         })
         .then((next) => {
-          if (!cancelled && !props.api.isDestroyed?.()) setSummary(next);
+          if (!cancelled && !api.isDestroyed?.()) setSummary(next);
         })
         .catch(() => {
           /* keep last good summary */
@@ -163,7 +161,31 @@ const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) =
       if (trailingTimer != null) clearTimeout(trailingTimer);
       clearInterval(fallbackId);
     };
-  }, [provider, props.api, refreshThrottleMs, getQuickFilterText]);
+  }, [provider, api, refreshThrottleMs, getQuickFilterText]);
+
+  return summary;
+}
+
+const SsrmRowsStatusPanelBase = (props: PanelProps, variant: SsrmCountVariant) => {
+  const provider =
+    props.provider
+    ?? (props.context as Record<string, SsrmStatusBarContext> | undefined)?.[
+      SSRM_STATUS_CONTEXT_KEY
+    ]?.provider;
+  const refreshThrottleMs =
+    props.refreshThrottleMs
+    ?? (props.context as Record<string, SsrmStatusBarContext> | undefined)?.[
+      SSRM_STATUS_CONTEXT_KEY
+    ]?.refreshThrottleMs
+    ?? 150;
+  const getQuickFilterText =
+    props.getQuickFilterText
+    ?? (props.context as Record<string, SsrmStatusBarContext> | undefined)?.[
+      SSRM_STATUS_CONTEXT_KEY
+    ]?.getQuickFilterText;
+
+
+  const summary = useStatusBarSummary(provider, props.api, refreshThrottleMs, getQuickFilterText);
 
   const filtered = summary?.filteredRows ?? 0;
   const total = summary?.totalRows ?? 0;

@@ -775,10 +775,12 @@ export class SharedWorkerDataServicesClient {
   async ssrmGetSetFilterValues(
     providerId: string,
     request: SetFilterValuesRequest,
+    sessionId?: string,
   ): Promise<string[]> {
     const event = await this.rpcSsrm({
       kind: 'ssrm-set-filter-values',
       providerId,
+      ...(sessionId !== undefined ? { sessionId } : {}),
       request,
     });
     if (!event.ok || !Array.isArray(event.setFilterValues)) {

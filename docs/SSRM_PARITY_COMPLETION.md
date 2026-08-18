@@ -1,6 +1,6 @@
 # SSRM parity completion — the four findings the roadmap left open
 
-**Branch:** `feature/simplify`. **Status: 2 / 4 phases done** (Phases 11 ✅, 12 ✅).
+**Branch:** `feature/simplify`. **Status: 3 / 4 phases done** (Phases 11 ✅, 12 ✅, 13 ✅).
 
 [`SSRM_PARITY_ROADMAP.md`](./SSRM_PARITY_ROADMAP.md) closed 32 of 36 audit
 findings across 11 phases and recorded four as needing their own sessions. This
@@ -394,7 +394,7 @@ kept the file it was told to — `QueryEngine.ts` — under.
 
 ---
 
-## Phase 13 — filter, sort and group on calculated columns
+## Phase 13 — filter, sort and group on calculated columns ✅
 
 **Goal:** a calculated column behaves like a real one under both row models.
 
@@ -435,6 +435,110 @@ equivalent for computed fields:
   hit/miss assertions rather than by inspection.
 
 **Closes:** T1-4.
+
+### Record (2026-08-17)
+
+**The gap was total, and measured before anything was designed.** One rule
+(`total = [px] * [qty]`) over three rows, put through the plane:
+
+| | before | CSRM |
+|---|---|---|
+| `sort desc by total` | A,B,C — insertion order | C,A,B |
+| `filter total > 25` | **0 rows, an empty grid** | A,C |
+| `group by total` | one `""` bucket | 30 / 20 / 60 |
+| `sum(total)` | **0** | 110 |
+
+Enrichment on the returned page was already correct, which is exactly why this
+was invisible until someone sorted.
+
+**The design, and the one line that decides whether it is affordable.**
+Materialising happens in `SessionOverlay`'s per-session `view(row)`, as the
+phase text called for, and only the **calculated** half of `enrich` — not
+style, alert and editability, which a filter needs none of. Three things make
+it hold:
+
+- **Opt in per QUERY, not per session.** `requestReadsAnyField` inspects the
+  request's `filterModel` / `sortModel` / `rowGroupCols` / `valueCols` /
+  `pivotCols` / quick-filter scope. A grid that HAS a calculated column but is
+  not querying one asks the same question a clean session asks and keeps
+  sharing the cache. Forking for every grid that merely declares a calculated
+  column would be most grids in the building — that is the difference between
+  this being a feature and being a regression.
+- **The rules are in the cache key.** `ExpressionRuleStore.rulesRevision`, so
+  two sessions on different expressions never share an order, and changing a
+  rule re-answers.
+- **Memoised per row**, in a `WeakMap` keyed on the row reference. Sound
+  because `RowStore.upsert` builds `{ ...prev }` and replaces the entry rather
+  than mutating in place, so a ticked row is a new object and simply misses.
+
+**Two things the tests found that the design did not.**
+
+1. **A session's row-EXCLUSION rule can read a calculated column**, and unlike
+   the query's own column references there is nothing in the request to
+   discover that from. `SessionOverlay.excludes()` now counts as a read of
+   everything — which costs nothing in sharing terms, because a session that
+   excludes has already forked, and the alternative is re-parsing the rule to
+   see which identifiers it names.
+2. **`enrich` would have evaluated every rule a second time** on the sliced
+   page, and not merely wastefully: the rules would have seen their own
+   previous output as `x`/`value` rather than the row's original, so
+   `[total] + 1` would answer differently depending on whether the query
+   happened to sort on it. `enrich` now recognises its own frozen field stamp
+   by reference and skips the calculated rules — pinned by a self-referencing
+   expression asserted equal on both the viewed and un-viewed paths.
+
+**Parity proven against a real grid, not against arithmetic.**
+`calculatedColumnParity.test.tsx` mounts a real `AgGridReact` with the real
+`buildVirtualColDef` valueGetter and compares its displayed row order to the
+real `QueryEngine`'s, over the same rows and the same expression — sort
+(both directions, ties included) and filter. It also guards against both sides
+answering insertion order, which would make the test pass for the wrong reason.
+
+**Cost, measured.** New `bench:ssrm` lines: sorting BY a calculated column over
+100k x 130 costs **187.9 ms cold** (one whole-store pass, against ~135 ms for a
+plain sorted block) and **1.5 ms per warm block** — the per-block cost the
+roadmap deferred this for is what the memo removes. A fourth MUST-be-0 gate was
+added and holds: *calculated session, query that does not read it: misses = 0*.
+
+**On the shared-path timings: inconclusive today, and said so rather than
+claimed.** The general sections read a few percent higher than Phase 12, but a
+second run of the SAME build moved `20 sorted blocks` from 145 ms to 188 ms —
+a within-build spread larger than the between-build delta. The mechanism is
+what settles it: `sessionStateFor` short-circuits on
+`computedFields(sessionId) === null` for every session with no calculated
+rules, and it replaced FOUR `overlay.stateFor` calls per query with one. The
+gates that are exact — the memo-miss counters — all read 0.
+
+**`QueryEngine.ts` went back over the ceiling and was brought back under, in
+this phase rather than the next.** 778 → 894 with the new decision logic, then
+→ **772** by extracting `queryFilter.ts` (`collectFiltered`, which reads the
+store and the request and nothing else about the engine) and
+`queryColumnRefs.ts`. Phase 12 paid this debt for the phase that follows it;
+paying it forward again seemed the wrong lesson to take from that.
+
+**A correction to Phase 11's record.** Its ESLint check counted matches with a
+pattern that never matched the default formatter's output, so its "every
+touched file 0 → 0" was vacuous. Re-audited here with a correct pattern against
+`df48fdf` and `cb7d223`: **the conclusion holds** — no file's warning count rose
+in either phase, and every new file is 0 — but the detail was wrong.
+`createSsrmStatusBar.tsx` was 1 → 1, not 0 → 0, and Phase 11 grew that
+pre-existing `max-lines-per-function` warning from 102 to 105 lines. Fixed here
+by lifting the polling effect into `useStatusBarSummary`, taking the file to 0.
+
+**Verification.** `npx turbo typecheck build` exit 0. Tests serially at
+`--maxWorkers=2`; no environmental failures this session. `data` 724 → **741**
+(+17, `calculatedColumns.test.ts`), `react-grid` 2621 → **2625** (+4,
+`calculatedColumnParity.test.tsx`), everything else unchanged (`core` 1343,
+`react-core` 523, `design-system` 355, `openfin` 483, `types` 171). ESLint per
+file against `HEAD`: no count rose anywhere, every new file 0, and
+`rowExclusionFilter.ts` and `createSsrmStatusBar.tsx` each went 1 → 0.
+`check-package-cycles` and `check:rtl` pass, no new hex.
+
+**Open, recorded not banked.** An aggregate expression that folds a CALCULATED
+column (`SUM([total])` where `total` is itself calculated) still folds
+undefined: `aggregateScope` is built from `store.iterate()`, which yields raw
+rows. Pre-existing and untouched by this phase — the column-wide fold over a
+RAW column, which is what the customizer authors today, is unaffected.
 
 ---
 
@@ -506,11 +610,11 @@ it ever matters; do not carry it as a parity gap.
 |---|---|---|---|
 | 11 — a refused write is visible ✅ | small | none | rejection surface + 2 bugs (the pagination one was not a defect) |
 | 12 — session layer reaches the client ✅ | full | none | T2-4 real fix, edit survives refetch |
-| 13 — calculated columns | full | Phase 12 | T1-4 |
+| 13 — calculated columns ✅ | full | Phase 12 | T1-4 |
 | 14 — alerts bell | full | none | T2-6 |
 
-Phases 11 and 12 are done. Phase 13's entry is now satisfied, and Phase 14
-still has none — either can run next.
+Phases 11, 12 and 13 are done. Phase 14 is the last, and never had an entry
+dependency.
 
 ## Verification, every phase
 

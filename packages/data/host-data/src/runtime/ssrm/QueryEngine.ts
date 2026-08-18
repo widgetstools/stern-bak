@@ -6,6 +6,12 @@ import {
   collectPivotResultFields,
   pivotAggregate,
 } from "./queryAggregation.js";
+import { collectFiltered } from "./queryFilter.js";
+import {
+  groupFieldOf,
+  requestReadsAnyField,
+  type QueryColumnRefs,
+} from "./queryColumnRefs.js";
 import { sortGroupRows, sortRows } from "./querySort.js";
 import {
   buildQuickFilterText,
@@ -14,7 +20,11 @@ import {
   rowPassesQuickFilterScoped,
 } from "./quickFilter.js";
 import type { RowStore } from "./RowStore.js";
-import { SessionOverlay, type SessionQueryState } from "./SessionOverlay.js";
+import {
+  SessionOverlay,
+  type SessionComputedView,
+  type SessionQueryState,
+} from "./SessionOverlay.js";
 import {
   buildTreeIndex,
   rowHasDetail,
@@ -307,10 +317,12 @@ export class QueryEngine {
     const pivotCols = request.pivotCols ?? [];
     const pivoting = Boolean(request.pivotMode) || pivotCols.length > 0;
     const sep = request.pivotResultFieldSeparator ?? "_";
-    // One identity for every cache key this query derives — '' when the
-    // session has no overlay, which keeps clean sessions on the shared entries.
-    const sessionKey = this.overlay.stateFor(sessionId)?.identity ?? "";
-    const filtered = this.collectFilteredCached(request, sessionId);
+    // Resolved ONCE for the whole query and threaded down, so every cache key
+    // this query derives carries the same identity — '' when the session has
+    // no overlay, which keeps clean sessions on the shared entries.
+    const session = this.sessionStateFor(request, sessionId);
+    const sessionKey = session?.identity ?? "";
+    const filtered = this.collectFilteredCached(request, session);
 
     // Both scan the whole filtered set and neither depends on the row window,
     // so without memoising they would re-run per block and cancel out the
@@ -344,7 +356,7 @@ export class QueryEngine {
 
     // Leaf level: all group keys provided.
     if (groupKeys.length >= groupCols.length) {
-      const leaf = this.leafBlock(filtered, request, groupCols, groupKeys, sessionId);
+      const leaf = this.leafBlock(filtered, request, groupCols, groupKeys, sessionId, session);
       return {
         ...leaf,
         grandTotalData,
@@ -352,7 +364,7 @@ export class QueryEngine {
       };
     }
 
-    const group = this.groupBlock(filtered, request, groupCols, groupKeys, sessionId);
+    const group = this.groupBlock(filtered, request, groupCols, groupKeys, sessionId, session);
     return { ...group, grandTotalData, pivotResultFields };
   }
 
@@ -370,13 +382,14 @@ export class QueryEngine {
     request: SsrmGetRowsRequest,
     groupCols: NonNullable<SsrmGetRowsRequest["rowGroupCols"]>,
     groupKeys: string[],
-    sessionId?: string,
+    sessionId: string | undefined,
+    session: SessionQueryState | null,
   ): SsrmGetRowsResult {
-    const field = groupCols[groupKeys.length]!.field;
+    const field = groupFieldOf(groupCols[groupKeys.length]!);
     const pivotCols = request.pivotCols ?? [];
     const pivoting = Boolean(request.pivotMode) || pivotCols.length > 0;
     const sep = request.pivotResultFieldSeparator ?? "_";
-    const sessionKey = this.overlay.stateFor(sessionId)?.identity ?? "";
+    const sessionKey = session?.identity ?? "";
     const scoped = this.scopeToGroupPath(filtered, groupCols, groupKeys);
 
     const groups = this.cachedOrder(
@@ -426,14 +439,14 @@ export class QueryEngine {
     };
   }
 
-  getSetFilterValues(req: SetFilterValuesRequest): string[] {
+  getSetFilterValues(req: SetFilterValuesRequest, sessionId?: string): string[] {
     QueryEngine.assertSupported({ filterModel: req.filterModel });
     const fm = { ...(req.filterModel ?? {}) } as Record<string, unknown>;
     delete fm[req.column];
 
     const groupKeys = req.groupKeys;
     const groupCols = req.rowGroupCols ?? [];
-    const groupReaders = groupCols.map((c) => getPathAccessor(c.field ?? ""));
+    const groupReaders = groupCols.map((c) => getPathAccessor(groupFieldOf(c)));
     const inGroupPath = (row: Row): boolean => {
       if (!groupKeys) return true;
       return groupKeys.every(
@@ -443,11 +456,21 @@ export class QueryEngine {
 
     // Reuses the per-query memo (revision-bound), then narrows by group path
     // — a colour-link publish right after a block load pays no fresh scan.
-    const filtered = this.collectFilteredCached({
+    const scope = {
       filterModel: Object.keys(fm).length > 0 ? fm : null,
       quickFilterText: req.quickFilterText,
       quickFilterColumns: req.quickFilterColumns,
-    });
+    };
+    // The panel's own column counts as a read: a set filter over a calculated
+    // column has to list the values that column actually shows, and without
+    // this it listed nothing at all.
+    const filtered = this.collectFilteredCached(
+      scope,
+      this.sessionStateFor(
+        { ...scope, rowGroupCols: groupCols, sortModel: [{ colId: req.column, sort: "asc" }] },
+        sessionId,
+      ),
+    );
     const readValue = getPathAccessor(req.column);
     const seen = new Set<string>();
     for (const row of filtered) {
@@ -463,9 +486,13 @@ export class QueryEngine {
       SsrmGetRowsRequest,
       "filterModel" | "valueCols" | "quickFilterText" | "quickFilterColumns"
     >,
+    sessionId?: string,
   ): Row {
     QueryEngine.assertSupported(request);
-    const filtered = this.collectFilteredCached(request);
+    const filtered = this.collectFilteredCached(
+      request,
+      this.sessionStateFor(request, sessionId),
+    );
     return aggregateValueCols(filtered, request.valueCols);
   }
 
@@ -520,7 +547,10 @@ export class QueryEngine {
    * enrichment with every other block path.
    */
   private treeBlock(request: SsrmGetRowsRequest, sessionId?: string): SsrmGetRowsResult {
-    const filtered = this.collectFilteredCached(request);
+    const filtered = this.collectFilteredCached(
+      request,
+      this.sessionStateFor(request, sessionId),
+    );
     const groupKeys = request.groupKeys ?? [];
     const keyField = treeKeyField(this.tree, this.store);
     const index = buildTreeIndex(this.store, this.tree, filtered, keyField);
@@ -566,6 +596,40 @@ export class QueryEngine {
   }
 
   /**
+   * The requesting session's overlay for THIS query — its edits, its row
+   * exclusion, and its calculated columns when the query actually reads one.
+   *
+   * The last of those is the whole of Phase 13, and the reason it is decided
+   * per query rather than per session: a grid with a calculated column that it
+   * is not filtering, sorting or grouping on asks exactly the question a clean
+   * session asks, and must keep sharing the answer. Materialising for every
+   * session that merely HAS a calculated column would fork the cache for most
+   * grids in the building, which is the cost that kept this out of the plane.
+   *
+   * The aggregate scope is resolved once here, not per row — it is a pass over
+   * the store for a rule set that folds a column, and every row of the query
+   * shares it.
+   */
+  private sessionStateFor(
+    request: QueryColumnRefs,
+    sessionId?: string,
+  ): SessionQueryState | null {
+    const fields = this.exprRules.computedFields(sessionId);
+    let computed: SessionComputedView | null = null;
+    if (
+      fields
+      && (requestReadsAnyField(request, fields) || this.overlay.excludes(sessionId))
+    ) {
+      const aggregates = this.aggregateScope(sessionId);
+      computed = {
+        identity: `c${this.exprRules.rulesRevision(sessionId)}`,
+        apply: (row) => this.exprRules.applyCalculated(row, sessionId, aggregates),
+      };
+    }
+    return this.overlay.stateFor(sessionId, computed);
+  }
+
+  /**
    * Filtered rows for a query, memoised per store revision. Every block of a
    * query — plus its grand total and pivot field collection — reuses one scan
    * instead of walking the whole store again.
@@ -575,10 +639,9 @@ export class QueryEngine {
       SsrmGetRowsRequest,
       "filterModel" | "quickFilterText" | "quickFilterColumns"
     >,
-    sessionId?: string,
+    session: SessionQueryState | null,
   ): Row[] {
     const quickFilterText = request.quickFilterText ?? "";
-    const session = this.overlay.stateFor(sessionId);
     const key = JSON.stringify([
       "filtered",
       request.filterModel ?? null,
@@ -586,81 +649,11 @@ export class QueryEngine {
       quickFilterText ? request.quickFilterColumns ?? null : null,
       // Empty for a session with no overlay, which is almost every grid — so
       // clean sessions keep sharing one entry, exactly as before. Only a
-      // session that actually edits or excludes forks the cache, and only for
-      // as long as it holds state.
+      // session that edits, excludes, or reads one of its own calculated
+      // columns forks the cache, and only for as long as that is true.
       session?.identity ?? "",
     ]);
-    return this.cachedOrder(key, () => this.collectFiltered(request, session));
-  }
-
-  private collectFiltered(
-    request: Pick<
-      SsrmGetRowsRequest,
-      "filterModel" | "quickFilterText" | "quickFilterColumns"
-    >,
-    session: SessionQueryState | null,
-  ): Row[] {
-    const filterModel = request.filterModel;
-    const parts = parseQuickFilter(request.quickFilterText);
-    const columns = request.quickFilterColumns ?? null;
-    const out: Row[] = [];
-
-    // The session's own view of the data — its pending edits merged in, its
-    // excluded rows dropped — established BEFORE the filter model runs, so an
-    // edited value filters and sorts on the value the user can see, and an
-    // excluded row is absent from counts and paging alike rather than being
-    // hidden after the fact.
-    if (session) {
-      for (const [key, row] of this.store.iterateEntries()) {
-        const view = session.view(row);
-        if (session.excluded(view)) continue;
-        if (parts.length > 0) {
-          // An unpatched row keeps the store's cached aggregate, which acts
-          // as a prefilter. A PATCHED row's cache is stale and the cache is
-          // only sound as a prefilter when it is a superset — an edit can add
-          // a matching value the cached string never had — so the patched
-          // row's text is rebuilt from the view instead.
-          const passes =
-            view === row
-              ? rowPassesQuickFilterScoped(
-                  this.store.getQuickFilterText(key),
-                  row,
-                  parts,
-                  columns,
-                )
-              : rowPassesQuickFilter(
-                  buildQuickFilterText(view, columns ?? undefined),
-                  parts,
-                );
-          if (!passes) continue;
-        }
-        if (doesRowMatchFilterModel(view, filterModel)) out.push(view);
-      }
-      return out;
-    }
-
-    // Quick-filter first (cached substring checks), then column filter model —
-    // same effective result as CSRM, optimized for the hot path.
-    if (parts.length === 0) {
-      for (const row of this.store.iterate()) {
-        if (doesRowMatchFilterModel(row, filterModel)) out.push(row);
-      }
-      return out;
-    }
-    for (const [key, row] of this.store.iterateEntries()) {
-      if (
-        !rowPassesQuickFilterScoped(
-          this.store.getQuickFilterText(key),
-          row,
-          parts,
-          columns,
-        )
-      ) {
-        continue;
-      }
-      if (doesRowMatchFilterModel(row, filterModel)) out.push(row);
-    }
-    return out;
+    return this.cachedOrder(key, () => collectFiltered(this.store, request, session));
   }
 
   /** Rows under a group path — `groupKeys[i]` matched against `rowGroupCols[i]`. */
@@ -670,7 +663,7 @@ export class QueryEngine {
     groupKeys: string[],
   ): Row[] {
     if (groupKeys.length === 0) return filtered;
-    const readers = groupCols.map((c) => getPathAccessor(c.field));
+    const readers = groupCols.map((c) => getPathAccessor(groupFieldOf(c)));
     return filtered.filter((row) =>
       groupKeys.every((gk, i) => String(readers[i]?.(row) ?? "") === gk),
     );
@@ -681,9 +674,10 @@ export class QueryEngine {
     request: SsrmGetRowsRequest,
     groupCols: NonNullable<SsrmGetRowsRequest["rowGroupCols"]>,
     groupKeys: string[],
-    sessionId?: string,
+    sessionId: string | undefined,
+    session: SessionQueryState | null,
   ): SsrmGetRowsResult {
-    const sessionKey = this.overlay.stateFor(sessionId)?.identity ?? "";
+    const sessionKey = session?.identity ?? "";
     // Scoping + sorting depend only on the query shape, never on the row
     // window — so every block of one query reuses this single ordered array.
     const rows = this.cachedOrder(
@@ -721,7 +715,7 @@ export class QueryEngine {
     nextGroupIndex: number,
   ): number {
     if (nextGroupIndex >= groupCols.length) return rows.length;
-    const read = getPathAccessor(groupCols[nextGroupIndex]!.field);
+    const read = getPathAccessor(groupFieldOf(groupCols[nextGroupIndex]!));
     const keys = new Set<string>();
     for (const row of rows) keys.add(String(read(row) ?? ""));
     return keys.size;
