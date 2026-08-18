@@ -539,13 +539,18 @@ branch); these judged-riskier items remain:
 4. **`dataprovider-editor` `StatsPanel` polls at 1 Hz** while `basic`
    deliberately teaches the event-driven alternative — two tutorials
    demonstrating opposite patterns.
-5. **`check:ds-tokens` has 393 pre-existing violations in `packages/`**
-   (largest: `widgets-react` container hexes) — a separate effort from the
-   apps; the gate is not currently green anywhere.
-6. **`star-demo` `RenameViewTab` imports `Button, Input` from
-   `@wellsfargo-starui/grid/customizer` for non-grid UI** — a layering smell
-   (should import from `@wellsfargo-starui/react`). The one surviving finding
-   from the archived `REFACTOR-platform-tool-views` plan.
+5. **`check:ds-tokens` violations — re-counted 2026-08-18: 382, and the shape
+   matters more than the number.** 298 of them are in TESTS, lab SEEDS and
+   demo APPS — none of which ship. Of the ~84 in shipping source the largest
+   clusters are legitimate: `cssToExcelColor.ts` converts CSS to Excel colour
+   literals (hex is the output format), and `expressionEditor.css` is an
+   editor theme. This is not a 382-item backlog; it is a small number of real
+   ones inside a large number of false positives, and the check's carve-outs
+   should be widened before anyone works it.
+6. ~~`star-demo` `RenameViewTab` imports `Button, Input` from
+   `@wellsfargo-starui/grid/customizer`~~ — **STALE, verified fixed
+   2026-08-18.** Both `star-demo` and `star-demo-ssrm` already import from
+   `@wellsfargo-starui/react`.
 7. **Grid perf risk (from the archived June perf audit, still open):**
    timed/header conditional-styling rules and virtual calculated columns can
    trigger full-grid scans every tick; only partially covered by
