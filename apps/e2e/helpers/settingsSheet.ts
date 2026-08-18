@@ -36,9 +36,20 @@ import { expect, type Page } from '@playwright/test';
  * wiped, fresh reload. Use this in `beforeEach` for any test that
  * depends on starting from no prior overrides.
  */
-/** Opens the primary toolbar ⋯ overflow menu. */
+/**
+ * Opens the primary toolbar ⋯ overflow menu. Idempotent.
+ *
+ * The trigger TOGGLES. Clicking it unconditionally closes a menu that was
+ * already open, after which `v2-settings-open-btn` is not in the DOM and the
+ * click below waits out the whole test timeout. Specs that open the settings
+ * sheet once per test never saw it; the profile-isolation specs, which open it
+ * several times per test, hung on every second open.
+ */
 async function openToolbarOverflowMenu(page: Page): Promise<void> {
+  const settingsItem = page.locator('[data-testid="v2-settings-open-btn"]');
+  if (await settingsItem.isVisible().catch(() => false)) return;
   await page.locator('[data-testid="toolbar-more-menu-trigger"]').click();
+  await expect(settingsItem).toBeVisible({ timeout: 10_000 });
 }
 
 /** Opens Grid settings from the toolbar overflow menu (does not wait for sheet). */

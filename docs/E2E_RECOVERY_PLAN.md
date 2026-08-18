@@ -34,7 +34,7 @@ One phase per session. Each ends green, with the phase's specs committed.
 | # | Phase | Specs recovered | Host | App change | Status |
 |---|---|---|---|---|---|
 | 1 | **Profile lifecycle** — create / switch / delete / clone | 1 | lab `profiles` tab | none | **DONE** — `lab-profile-lifecycle.spec.ts`, 21 tests green |
-| 2 | **Profile state** — isolation ×2, stress, autosave | 4 | lab `profiles` tab | none | next |
+| 2 | **Profile state** — isolation ×2, stress, autosave | 4 | lab `profiles` tab | none | **attempted, not landed** — see below |
 | 3 | **Customizer state** — calculated-columns, column-groups, conditional-styling | 3 | lab `calc` / `groups` / `conditional` tabs | none | |
 | 4 | **Formatting surface** — column-customization, formatting-toolbar, column-templates, cell-renderer | 4 | lab `formatting` / `toolbar` / `renderers` tabs | none | |
 | 5 | **Chrome** — general-settings, settings-panels, status-bar-toggle, console-health, filters-toolbar | 5 | lab, any tab | none | |
@@ -95,6 +95,51 @@ Also worth carrying forward: boot from the app root, wipe storage, then open
 the surface **once**. Opening it, wiping, and re-opening works but pays for two
 grid boots per test — with a `beforeEach` on every case that was most of the
 25 minutes the first run took. It is now 1.2 minutes for the same 21 tests.
+
+## Phase 2: attempted, not landed — read this before retrying
+
+`lab-profile-isolation-structure.spec.ts` (16 tests) was written and got as far
+as **15/16 green**, but never to a stable 16/16 across repeat runs. It is NOT
+committed: landing it would take the suite from 95 green to intermittently red.
+
+**Three real causes were found and fixed** — all worth keeping, and the first
+two are landed:
+
+1. **The Save button never goes `disabled`.** It reports through `data-state`
+   (`dirty` / `saved` / `idle`, `PrimaryToolbar.tsx:176`). A `saveAll` waiting
+   on `toBeDisabled()` fails every test at once. Phase 1 never caught this
+   because nothing in it was ever dirty.
+2. **`openToolbarOverflowMenu` was not idempotent** (`settingsSheet.ts`). The ⋯
+   trigger TOGGLES, so a second call closed the menu, `v2-settings-open-btn`
+   left the DOM, and the click on it burned the whole test timeout. Latent for
+   every spec that opens the settings sheet more than once per test — which no
+   surviving spec does. **Landed separately**, since it is correct on its own
+   merits.
+3. **Module edits are dirty until saved.** Profiles are committed snapshots, so
+   every on-disk assertion needs a `saveAll` first.
+
+**What is still wrong is a test-design problem, not a selector.** Each of these
+tests does two or more full open → author → close → save cycles against a grid
+streaming mock rows every 600ms. Playwright reports `element is not stable` on
+the settings menubar trigger — its box never settles for two consecutive frames.
+Escalating to a forced click did not fix it and made the run slower (8 min), and
+across four runs the failing test MOVED between three different cases, which is
+the signature of contention rather than a bad locator.
+
+**What to try next, in order:**
+
+- Quiet the stream while the sheet is open — the lab drives it from
+  `useLabRows`, so a pause hook would remove the cause rather than work around
+  it. This is the only fix that addresses the actual mechanism.
+- Failing that, restructure so each test opens the sheet **once**: author every
+  module in one session, close once, save once. Some cases genuinely need two
+  sessions (author in A, switch, author in B) and would stay exposed.
+- Do not reach for `force: true` on the menubar. It was tried; it does not help,
+  and it blinds the check that caught two earlier real bugs.
+
+The written spec and its helpers are not in the tree. Recover them from this
+plan's history or rewrite from `2a5527d~1:apps/e2e/v2-profile-isolation-structure.spec.ts`,
+which is the original demo-react version.
 
 ## Conventions for each port
 
