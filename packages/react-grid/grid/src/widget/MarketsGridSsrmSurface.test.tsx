@@ -437,3 +437,181 @@ describe('MarketsGridSsrmSurface — late-bound key column (single grid instanti
     expect(createSsrmDatasource.mock.calls.length).toBe(calls);
   });
 });
+
+/**
+ * The surface's own decisions: which host props override the pipeline, what
+ * block size it asks for, when it skips a re-render, and what it does with a
+ * grid that is already gone.
+ */
+describe('MarketsGridSsrmSurface — props and lifecycle', () => {
+  const provider = {
+    id: 'p',
+    getConfig: () => ({ keyColumn: 'id' }),
+    getConfigOrNull: () => ({ keyColumn: 'id' }),
+    getColumnDefs: () => [],
+  } as never;
+
+  function renderSurface(overrides: Record<string, unknown> = {}) {
+    const gridRef = createRef<AgGridReact>();
+    const props = {
+      gridRef,
+      gridOptions: {},
+      hostOverrideKeys: new Set<string>(),
+      theme: undefined,
+      columnDefs: [{ field: 'id' }],
+      ssrm: { provider, keyColumn: 'id' },
+      sideBar: false,
+      statusBar: undefined,
+      defaultColDef: undefined,
+      onGridReady: vi.fn(),
+      onGridPreDestroyed: vi.fn(),
+      ...overrides,
+    };
+    const view = render(<MarketsGridSsrmSurface {...(props as never)} />);
+    return { ...view, props, gridProps: () => (globalThis as Record<string, unknown>).__ssrmSurfaceProps as Record<string, unknown> };
+  }
+
+  beforeEach(() => {
+    createSsrmDatasource.mockClear();
+    bindSsrmTicks.mockClear();
+    setGridOption.mockClear();
+    refreshServerSide.mockClear();
+  });
+
+  it('takes the block size the caller declared', async () => {
+    renderSurface({ ssrm: { provider, keyColumn: 'id', cacheBlockSize: 500 } });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    expect(gridPropsOf().cacheBlockSize).toBe(500);
+  });
+
+  it('ignores a caller block size too small to be worth a round trip', async () => {
+    renderSurface({ ssrm: { provider, keyColumn: 'id', cacheBlockSize: 19 } });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    // Falls through to the provider config, which declares none → 100.
+    expect(gridPropsOf().cacheBlockSize).toBe(100);
+  });
+
+  it('falls back to the provider config block size', async () => {
+    const sized = {
+      ...provider,
+      getConfigOrNull: () => ({ keyColumn: 'id', blockSize: 250 }),
+    } as never;
+    renderSurface({ ssrm: { provider: sized, keyColumn: 'id' } });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    expect(gridPropsOf().cacheBlockSize).toBe(250);
+  });
+
+  it('defaults the block size when the provider has no config yet', async () => {
+    // Pre-start the config is null; the old try/catch turned that into a
+    // permanent 100 indistinguishable from a malformed config.
+    const unstarted = { ...provider, getConfigOrNull: () => null } as never;
+    renderSurface({ ssrm: { provider: unstarted, keyColumn: 'id' } });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    expect(gridPropsOf().cacheBlockSize).toBe(100);
+  });
+
+  it('defaults the block size for a provider with no config accessor', async () => {
+    const bare = { id: 'p', getColumnDefs: () => [] } as never;
+    renderSurface({ ssrm: { provider: bare, keyColumn: 'id' } });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    expect(gridPropsOf().cacheBlockSize).toBe(100);
+  });
+
+  it('honours each host override key the caller declares', async () => {
+    renderSurface({
+      hostOverrideKeys: new Set(['rowHeight', 'headerHeight', 'animateRows', 'sideBar', 'defaultColDef']),
+      rowHeight: 42,
+      headerHeight: 33,
+      animateRows: false,
+      sideBar: true,
+      defaultColDef: { resizable: false },
+    });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    const p = gridPropsOf();
+    expect(p.rowHeight).toBe(42);
+    expect(p.headerHeight).toBe(33);
+    expect(p.animateRows).toBe(false);
+    expect(p.sideBar).toBe(true);
+    expect(p.defaultColDef).toMatchObject({ resizable: false });
+  });
+
+  it('leaves a host prop out when its key is not declared an override', async () => {
+    renderSurface({ hostOverrideKeys: new Set(), rowHeight: 42 });
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    expect(gridPropsOf().rowHeight).not.toBe(42);
+  });
+
+  it('does not rebind when every prop is identical', async () => {
+    const gridRef = createRef<AgGridReact>();
+    const stable = {
+      gridRef,
+      gridOptions: {},
+      hostOverrideKeys: new Set<string>(),
+      theme: undefined,
+      columnDefs: [{ field: 'id' }],
+      ssrm: { provider, keyColumn: 'id' },
+      sideBar: false,
+      statusBar: undefined,
+      defaultColDef: undefined,
+      onGridReady: vi.fn(),
+      onGridPreDestroyed: vi.fn(),
+    };
+    const { rerender } = render(<MarketsGridSsrmSurface {...(stable as never)} />);
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalledTimes(1));
+
+    rerender(<MarketsGridSsrmSurface {...(stable as never)} />);
+    expect(createSsrmDatasource).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the tick binding when the grid is destroyed', async () => {
+    const unbind = vi.fn();
+    bindSsrmTicks.mockReturnValue(unbind);
+    const onGridPreDestroyed = vi.fn();
+    renderSurface({ onGridPreDestroyed });
+    await waitFor(() => expect(bindSsrmTicks).toHaveBeenCalled());
+
+    (gridPropsOf().onGridPreDestroyed as () => void)();
+    expect(unbind).toHaveBeenCalled();
+    expect(onGridPreDestroyed).toHaveBeenCalled();
+  });
+
+  it('releases the tick binding on unmount', async () => {
+    const unbind = vi.fn();
+    bindSsrmTicks.mockReturnValue(unbind);
+    const { unmount } = renderSurface();
+    await waitFor(() => expect(bindSsrmTicks).toHaveBeenCalled());
+
+    unmount();
+    expect(unbind).toHaveBeenCalled();
+  });
+
+  it('survives a grid that refuses to refresh mid-teardown', async () => {
+    refreshServerSide.mockImplementation(() => {
+      throw new Error('grid is tearing down');
+    });
+    const { rerender, props } = renderSurface();
+    await waitFor(() => expect(createSsrmDatasource).toHaveBeenCalled());
+
+    expect(() =>
+      rerender(
+        <MarketsGridSsrmSurface
+          {...(props as never)}
+          ssrm={{ provider, keyColumn: 'newKey' }}
+        />,
+      ),
+    ).not.toThrow();
+    refreshServerSide.mockReset();
+  });
+});
+
+/** The props the AgGridReact stand-in last received. */
+function gridPropsOf(): Record<string, unknown> {
+  return (globalThis as Record<string, unknown>).__ssrmSurfaceProps as Record<string, unknown>;
+}

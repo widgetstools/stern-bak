@@ -84,3 +84,68 @@ describe('applyBulkUpdateEdits', () => {
     expect(resolveBulkUpdateTargets(api).unreachableRows).toBe(2);
   });
 });
+
+/**
+ * `resolveBulkUpdateTargets` is the thin adapter that gives the shared
+ * collector a way to identify a row. Its own decision is that `rowIdField`
+ * — not the engine — chooses which field that is.
+ */
+describe('resolveBulkUpdateTargets', () => {
+  /** A grid whose focused cell is the one editable cell it holds. */
+  function apiWith(data: Record<string, unknown>, nodeId?: string) {
+    const column = {
+      getColId: () => 'qty',
+      getColDef: () => ({ field: 'qty', editable: true }),
+    };
+    const rowNode = { data, id: nodeId };
+    return {
+      getCellRanges: () => null,
+      getFocusedCell: () => ({ column, rowIndex: 0 }),
+      getDisplayedRowAtIndex: () => rowNode,
+      getColumn: () => column,
+      getCellValue: () => data.qty,
+    } as never;
+  }
+
+  it('identifies rows by the named field', () => {
+    const { targets } = resolveBulkUpdateTargets(apiWith({ positionId: 'p9', qty: 5 }), 'positionId');
+
+    expect(targets).toEqual([
+      { rowId: 'p9', colId: 'qty', field: 'qty', value: 5, cellDataType: undefined },
+    ]);
+  });
+
+  it('defaults to id when no field is named', () => {
+    const { targets } = resolveBulkUpdateTargets(apiWith({ id: 'r1', qty: 5 }));
+    expect(targets[0].rowId).toBe('r1');
+  });
+
+  it('falls back to id when the named field is missing', () => {
+    const { targets } = resolveBulkUpdateTargets(apiWith({ id: 'r1', qty: 5 }), 'positionId');
+    expect(targets[0].rowId).toBe('r1');
+  });
+
+  it('yields an empty identity when the row carries neither', () => {
+    // The grid's own node id wins where it exists, which is why this only
+    // shows up on nodes without one.
+    const { targets } = resolveBulkUpdateTargets(apiWith({ qty: 5 }), 'positionId');
+    expect(targets[0].rowId).toBe('');
+  });
+
+  it("prefers the grid's own node id over anything in the data", () => {
+    const { targets } = resolveBulkUpdateTargets(apiWith({ id: 'from-data', qty: 5 }, 'node-7'));
+    expect(targets[0].rowId).toBe('node-7');
+  });
+
+  it('reports rows the grid could not reach', () => {
+    const api = {
+      getCellRanges: () => null,
+      getFocusedCell: () => ({ column: { getColId: () => 'qty' }, rowIndex: 42 }),
+      getDisplayedRowAtIndex: () => undefined,
+    } as never;
+
+    // Under SSRM a selection can name a row no block holds; the count is how
+    // the caller learns the apply was partial.
+    expect(resolveBulkUpdateTargets(api)).toEqual({ targets: [], unreachableRows: 1 });
+  });
+});

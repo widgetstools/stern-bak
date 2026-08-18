@@ -65,6 +65,19 @@ function mount(platform: GridPlatform, api = makeMockApi()) {
 }
 
 describe('BulkUpdateToolbarBody', () => {
+  /** A platform whose port reports that unloaded rows cannot be addressed. */
+  function ssrmPlatform(settings?: Partial<BulkUpdateState['settings']>): GridPlatform {
+    const platform = makePlatform(settings);
+    platform.data.bindSsrm({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 100_000 }),
+        getSetFilterValues: async () => [],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    } as never);
+    return platform;
+  }
+
   beforeEach(() => {
     if (!globalThis.ResizeObserver) {
       globalThis.ResizeObserver = class ResizeObserver {
@@ -190,5 +203,228 @@ describe('BulkUpdateToolbarBody', () => {
       expect(screen.getByText('EUR')).toBeTruthy();
       expect(screen.getByText('JPY')).toBeTruthy();
     });
+  });
+
+  it('names the unreachable rows in the count', () => {
+    const api = makeMockApi();
+    // A range spanning two rows where the grid holds only the first — the
+    // shape a server-side selection past the loaded window takes.
+    api.getCellRanges = () => [{
+      columns: [{ getColId: () => 'currency' }],
+      startRow: { rowIndex: 0 },
+      endRow: { rowIndex: 1 },
+    }];
+    api.getDisplayedRowAtIndex = ((i: number) =>
+      i === 0 ? { id: 'r1', data: { id: 'r1', currency: 'USD' } } : undefined) as never;
+    mount(makePlatform(), api);
+
+    expect(screen.getByTestId('bulk-update-unreachable').textContent).toMatch(/1 not loaded/);
+  });
+
+  it('says nothing about unreachable rows when every row is loaded', () => {
+    mount(makePlatform());
+    expect(screen.queryByTestId('bulk-update-unreachable')).toBeNull();
+  });
+
+  it('confirms an unreachable selection however small it is', () => {
+    const api = makeMockApi();
+    api.getCellRanges = () => [{
+      columns: [{ getColId: () => 'currency' }],
+      startRow: { rowIndex: 0 },
+      endRow: { rowIndex: 1 },
+    }];
+    api.getDisplayedRowAtIndex = ((i: number) =>
+      i === 0 ? { id: 'r1', data: { id: 'r1', currency: 'USD' } } : undefined) as never;
+    // Threshold off: the confirm is owed to the partial apply, not the size.
+    mount(ssrmPlatform({ confirmThreshold: 0 }), api);
+
+    act(() => {
+      fireEvent.change(screen.getByTestId('bulk-update-value-input'), { target: { value: 'EUR' } });
+    });
+    act(() => fireEvent.click(screen.getByTestId('bulk-update-apply')));
+
+    const description = screen.getByTestId('bulk-update-confirm-description').textContent ?? '';
+    expect(description).toMatch(/1 selected row is not loaded/);
+    expect(api.applyTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it('pluralises the unreachable-row sentence', () => {
+    const api = makeMockApi();
+    api.getCellRanges = () => [{
+      columns: [{ getColId: () => 'currency' }],
+      startRow: { rowIndex: 0 },
+      endRow: { rowIndex: 2 },
+    }];
+    api.getDisplayedRowAtIndex = ((i: number) =>
+      i === 0 ? { id: 'r1', data: { id: 'r1', currency: 'USD' } } : undefined) as never;
+    mount(ssrmPlatform({ confirmThreshold: 0 }), api);
+
+    act(() => {
+      fireEvent.change(screen.getByTestId('bulk-update-value-input'), { target: { value: 'EUR' } });
+    });
+    act(() => fireEvent.click(screen.getByTestId('bulk-update-apply')));
+
+    expect(screen.getByTestId('bulk-update-confirm-description').textContent)
+      .toMatch(/2 selected rows are not loaded/);
+  });
+
+  it('does nothing when the grid is not ready', () => {
+    const platform = makePlatform({ confirmThreshold: 0 });
+    render(
+      <GridProvider platform={platform}>
+        <BulkUpdateToolbarBody />
+      </GridProvider>,
+    );
+
+    expect((screen.getByTestId('bulk-update-apply') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('refuses a selection spanning columns when single-column is enforced', () => {
+    const api = makeMockApi();
+    api.getCellRanges = () => [
+      {
+        columns: [{ getColId: () => 'currency' }, { getColId: () => 'ticker' }],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 0 },
+      },
+    ];
+    api.getColumn = ((colId: string) => ({
+      getColId: () => colId,
+      getColDef: () => ({ field: colId, editable: true, cellDataType: 'text' }),
+    })) as never;
+    api.getCellValue = () => 'USD';
+    mount(makePlatform({ enforceSingleColumn: true, confirmThreshold: 0 }), api);
+
+    act(() => {
+      fireEvent.change(screen.getByTestId('bulk-update-value-input'), { target: { value: 'EUR' } });
+    });
+    expect((screen.getByTestId('bulk-update-apply') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('allows a multi-column selection when the guard is off', () => {
+    const api = makeMockApi();
+    api.getCellRanges = () => [
+      {
+        columns: [{ getColId: () => 'currency' }, { getColId: () => 'ticker' }],
+        startRow: { rowIndex: 0 },
+        endRow: { rowIndex: 0 },
+      },
+    ];
+    api.getColumn = ((colId: string) => ({
+      getColId: () => colId,
+      getColDef: () => ({ field: colId, editable: true, cellDataType: 'text' }),
+    })) as never;
+    mount(makePlatform({ enforceSingleColumn: false, confirmThreshold: 0 }), api);
+
+    act(() => {
+      fireEvent.change(screen.getByTestId('bulk-update-value-input'), { target: { value: 'EUR' } });
+    });
+    expect((screen.getByTestId('bulk-update-apply') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('renders a number field for a numeric column', () => {
+    const api = makeMockApi();
+    api.getColumn = () => ({
+      getColId: () => 'qty',
+      getColDef: () => ({ field: 'qty', editable: true, cellDataType: 'number' }),
+    });
+    api.getCellRanges = () => [{
+      columns: [{ getColId: () => 'qty' }],
+      startRow: { rowIndex: 0 },
+      endRow: { rowIndex: 0 },
+    }];
+    mount(makePlatform(), api);
+
+    expect(screen.getByTestId('bulk-update-value-input')).toHaveAttribute('type', 'number');
+    expect(screen.getByTestId('bulk-update-value-input')).toHaveAttribute('inputmode', 'decimal');
+  });
+
+  it('renders a date field with an explicit format hint', () => {
+    const api = makeMockApi();
+    api.getColumn = () => ({
+      getColId: () => 'tradeDate',
+      getColDef: () => ({ field: 'tradeDate', editable: true, cellDataType: 'dateString' }),
+    });
+    api.getCellRanges = () => [{
+      columns: [{ getColId: () => 'tradeDate' }],
+      startRow: { rowIndex: 0 },
+      endRow: { rowIndex: 0 },
+    }];
+    mount(makePlatform(), api);
+
+    const input = screen.getByTestId('bulk-update-value-input');
+    expect(input).toHaveAttribute('type', 'date');
+    expect(input).toHaveAttribute('placeholder', 'YYYY-MM-DD');
+  });
+
+  it('renders a text field by default', () => {
+    mount(makePlatform());
+    const input = screen.getByTestId('bulk-update-value-input');
+
+    expect(input).toHaveAttribute('type', 'text');
+    expect(input).toHaveAttribute('placeholder', 'New value…');
+  });
+
+  it('hides the distinct picker when the source has no values to offer', async () => {
+    const platform = makePlatform({ showDistinctValues: true });
+    platform.data.bindSsrm({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 0 }),
+        getSetFilterValues: async () => [],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    } as never);
+    mount(platform);
+
+    await waitFor(() => expect(screen.getByTestId('bulk-update-toolbar')).toBeTruthy());
+    expect(screen.queryByTestId('bulk-update-value-select')).toBeNull();
+  });
+
+  it('picking a blank distinct value clears the field rather than writing a token', async () => {
+    const platform = makePlatform({ showDistinctValues: true });
+    platform.data.bindSsrm({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 1 }),
+        getSetFilterValues: async () => ['', 'USD'],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    } as never);
+    mount(platform);
+
+    await waitFor(() => expect(screen.getByTestId('bulk-update-value-select')).toBeTruthy());
+    act(() => fireEvent.click(screen.getByTestId('bulk-update-value-select')));
+    await waitFor(() => expect(screen.getByText('(empty)')).toBeTruthy());
+    act(() => fireEvent.click(screen.getByText('(empty)')));
+
+    expect(screen.getByTestId('bulk-update-value-input')).toHaveValue('');
+  });
+
+  it('picking a distinct value fills the field', async () => {
+    const platform = makePlatform({ showDistinctValues: true });
+    platform.data.bindSsrm({
+      source: {
+        getRows: async () => ({ rowData: [], rowCount: 1 }),
+        getSetFilterValues: async () => ['USD', 'EUR'],
+        getStatusBar: async () => ({ totalRows: 0, filteredRows: 0, aggregations: [] }),
+      },
+    } as never);
+    mount(platform);
+
+    await waitFor(() => expect(screen.getByTestId('bulk-update-value-select')).toBeTruthy());
+    act(() => fireEvent.click(screen.getByTestId('bulk-update-value-select')));
+    await waitFor(() => expect(screen.getByText('EUR')).toBeTruthy());
+    act(() => fireEvent.click(screen.getByText('EUR')));
+
+    expect(screen.getByTestId('bulk-update-value-input')).toHaveValue('EUR');
+  });
+
+  it('ignores a whitespace-only value', () => {
+    const { api } = mount(makePlatform({ confirmThreshold: 0 }));
+    act(() => {
+      fireEvent.change(screen.getByTestId('bulk-update-value-input'), { target: { value: '   ' } });
+    });
+
+    expect((screen.getByTestId('bulk-update-apply') as HTMLButtonElement).disabled).toBe(true);
+    expect(api.applyTransactionAsync).not.toHaveBeenCalled();
   });
 });

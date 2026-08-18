@@ -1,4 +1,5 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
+import { coverage } from '../../scripts/vitestCoverage.mjs';
 import viteConfig from './vite.config';
 
 export default mergeConfig(
@@ -10,23 +11,7 @@ export default mergeConfig(
       css: false,
       setupFiles: ['../../test-utils/setup.ts', './src/staruiVitestMocks.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
-      coverage: {
-        provider: 'v8',
-        include: [
-          'src/**/*.{ts,tsx,js,jsx}',
-          'vite.config.ts',
-          'tailwind.config.js',
-          'postcss.config.js',
-        ],
-        exclude: [
-          'src/**/*.test.{ts,tsx}',
-          'src/vite-env.d.ts',
-          'src/staruiVitestMocks.ts',
-        ],
-        reporter: ['text', 'json-summary', 'lcov'],
-        reportOnFailure: true,
-        thresholds: { lines: 70, statements: 70, functions: 70, branches: 70 },
-      },
+      coverage: coverage(),
     },
   }),
 );

@@ -46,9 +46,11 @@ export function ExportScopeDialog({
   return (
     <AlertDialog
       open={reason.length > 0}
-      onOpenChange={(next) => {
-        if (!next) onCancel();
-      }}
+      // Close-only. `open` is derived from `reason` and this renders no
+      // trigger, so Radix has no path that reopens the dialog from inside —
+      // the `if (!next)` guard this replaced could never see a `true`. Arity
+      // zero so Radix's boolean cannot leak into `onCancel`.
+      onOpenChange={() => onCancel()}
     >
       <AlertDialogContent data-testid="export-scope-confirm">
         <AlertDialogHeader>

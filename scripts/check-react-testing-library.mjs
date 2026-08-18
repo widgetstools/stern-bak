@@ -24,6 +24,11 @@
  * the coverage gate (check-package-coverage.mjs) is for. This script only
  * governs HOW a React test is written once it exists.
  *
+ * Scope: `packages/<bucket>/<pkg>` AND `apps/source/<app>`. The apps tree is
+ * its own install root and stays outside turbo/lint/coverage, but the rule is
+ * about how a React test is written, not about which CI surface it runs on —
+ * so a demo app's `.test.tsx` is held to the same bar as a package's.
+ *
  * Usage:
  *   node scripts/check-react-testing-library.mjs
  *   node scripts/check-react-testing-library.mjs --report   # never exits non-zero
@@ -33,12 +38,32 @@ import { join, relative, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 const PACKAGES_ROOT = join(REPO_ROOT, 'packages');
+const APPS_SOURCE_ROOT = join(REPO_ROOT, 'apps', 'source');
 const reportOnly = process.argv.includes('--report');
 
 const RTL_IMPORT = /from\s+['"]@testing-library\/react['"]/;
 /** A JSX element or fragment — `<Button`, `<div`, `<>`. */
 const RENDERS_JSX = /<([A-Za-z][\w.]*)[\s/>]|<>/;
+/** A test that stubs the React root is asserting on a bootstrap, not rendering. */
+const MOCKS_REACT_ROOT = /vi\.mock\(\s*['"]react-dom\/client['"]/;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.turbo']);
+
+/**
+ * Strip comments and string/template literals before pattern-matching.
+ *
+ * Without this the JSX probe fires on markup inside a string — every app
+ * bootstrap test writes `document.body.innerHTML = '<div id="root"></div>'`
+ * and was reported as un-RTL'd JSX — and the banned-API probes fire on the
+ * prose in a file's own header comment.
+ */
+function code(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/gm, '$1 ')
+    .replace(/`(?:\\.|[^`\\])*`/g, '``')
+    .replace(/'(?:\\.|[^'\\\n])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\\n])*"/g, '""');
+}
 
 /**
  * Ways of rendering a component that are NOT React Testing Library.
@@ -75,33 +100,52 @@ const missingImport = [];
 const missingDep = [];
 const bannedUse = [];
 
-for (const bucket of readdirSync(PACKAGES_ROOT, { withFileTypes: true })) {
-  if (!bucket.isDirectory()) continue;
-  for (const entry of readdirSync(join(PACKAGES_ROOT, bucket.name), { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = join(PACKAGES_ROOT, bucket.name, entry.name);
-    const pkgPath = join(dir, 'package.json');
-    if (!existsSync(pkgPath)) continue;
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+/** Every directory holding a package.json, one level under `root`. */
+function unitsUnder(root) {
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => join(root, e.name))
+    .filter((dir) => existsSync(join(dir, 'package.json')));
+}
 
-    const tests = findReactTests(dir);
-    if (tests.length === 0) continue;
-
-    for (const test of tests) {
-      const src = readFileSync(test, 'utf8');
-      // Only tests that actually render JSX are held to the RTL rule.
-      if (RENDERS_JSX.test(src) && !RTL_IMPORT.test(src)) {
-        missingImport.push(relative(REPO_ROOT, test));
-      }
-      // Banned rendering approaches apply to every test file, JSX or not.
-      for (const [pattern, why] of BANNED) {
-        if (pattern.test(src)) bannedUse.push({ file: relative(REPO_ROOT, test), why });
-      }
-    }
-
-    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-    if (!deps['@testing-library/react']) missingDep.push(pkg.name);
+/** Package dirs: two levels under `packages/`, one under `apps/source/`. */
+function allUnits() {
+  const out = [];
+  for (const bucket of readdirSync(PACKAGES_ROOT, { withFileTypes: true })) {
+    if (!bucket.isDirectory()) continue;
+    out.push(...unitsUnder(join(PACKAGES_ROOT, bucket.name)));
   }
+  out.push(...unitsUnder(APPS_SOURCE_ROOT));
+  return out;
+}
+
+for (const dir of allUnits()) {
+  const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+
+  const tests = findReactTests(dir);
+  if (tests.length === 0) continue;
+
+  for (const test of tests) {
+    const raw = readFileSync(test, 'utf8');
+    const src = code(raw);
+    // Only tests that actually render JSX are held to the RTL rule.
+    // Import probes read the RAW file — stripping literals also strips the
+    // module specifiers they match on.
+    if (RENDERS_JSX.test(src) && !RTL_IMPORT.test(raw)) {
+      missingImport.push(relative(REPO_ROOT, test));
+    }
+    // Banned rendering approaches apply to every test file, JSX or not.
+    for (const [pattern, why] of BANNED) {
+      // A file that stubs `react-dom/client` calls its own mock, not React's
+      // root — the thing the rule is about is hand-rolling a real one.
+      if (why.startsWith('createRoot') && MOCKS_REACT_ROOT.test(raw)) continue;
+      if (pattern.test(src)) bannedUse.push({ file: relative(REPO_ROOT, test), why });
+    }
+  }
+
+  const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+  if (!deps['@testing-library/react']) missingDep.push(pkg.name);
 }
 
 const w = (s) => process.stdout.write(s);

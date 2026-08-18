@@ -26,6 +26,19 @@ export const mockMarketsGridHandle = {
   },
 };
 
+/**
+ * A minimal stand-in for a running SSRM provider: `SsrmLabGrid` calls exactly
+ * these two members, and the lab's own column defs win over `getColumnDefs`
+ * on every tab that passes them.
+ */
+export const mockSsrmProvider = {
+  getConfigOrNull: vi.fn(() => ({ keyColumn: 'id', blockSize: 100 })),
+  getColumnDefs: vi.fn(() => [
+    { field: 'id', headerName: 'Id', width: 90 },
+    { field: 'symbol', headerName: 'Symbol', width: 120 },
+  ]),
+};
+
 export const mockProviderStream = {
   refresh: vi.fn(),
   status: 'ready' as const,
@@ -107,6 +120,15 @@ vi.mock('@wellsfargo-starui/grid', () => ({
 }));
 
 vi.mock('@wellsfargo-starui/data', () => ({
+  // Reached only once the provider stub above is live. Same contract as the
+  // real one: a composite key collapses to the synthetic field, anything
+  // blank falls back to `id`.
+  resolveSsrmKeyColumn: (keyColumn?: string | readonly string[]) =>
+    Array.isArray(keyColumn)
+      ? '__ssrmCompositeKey'
+      : keyColumn && String(keyColumn).trim()
+        ? String(keyColumn)
+        : 'id',
   ensurePlatformReady: vi.fn(async () => ({
     client: {},
     appData: {},
@@ -168,13 +190,26 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
     },
   })),
   useUserIdFromContext: vi.fn(() => 'dev1'),
-  // The lab's grid asks for a live SSRM provider; the tests assert the shell
-  // renders, not that data flows, so `null` is the honest answer.
+  // The lab's grid asks for a live SSRM provider. `null` was the previous
+  // answer, and it is why 19 cases here waited forever for `markets-grid`:
+  // `SsrmLabGrid` renders its "Starting SSRM provider…" placeholder until it
+  // has BOTH a provider and a ready data wiring, so a null provider makes the
+  // grid unreachable by construction. The stub below answers the two calls
+  // that component makes — config and column defs — and nothing else.
   useSsrmDataProvider: vi.fn(() => ({
-    provider: null,
-    status: 'loading',
+    provider: mockSsrmProvider,
+    status: 'ready',
     error: undefined,
   })),
+}));
+
+/**
+ * The SSRM data wiring. Real `useSsrmProviderDataWiring` subscribes to the
+ * provider's plane and reports ready when the first block lands; under jsdom
+ * there is no plane, so it never would.
+ */
+vi.mock('@wellsfargo-starui/grid/widgets/ssrm-markets-grid-container', () => ({
+  useSsrmProviderDataWiring: vi.fn(() => ({ ready: true })),
 }));
 
 vi.mock('@wellsfargo-starui/react', () => {

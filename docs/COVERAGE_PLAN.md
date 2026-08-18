@@ -7,7 +7,9 @@ Branch: originally **`test/coverage-70`** (merged; the gate now rides every bran
 > merged into the seven bucket packages (see `docs/latest/packages.md`).
 > The history is kept as written.
 
-**The gate is met. Every file in every package is at or above 70% on all four metrics.**
+**The gate is met. Every file in every package is at or above 70% on all four
+metrics — and, since 2026-08-18, every file in every app under `apps/source/`
+too.**
 
 This file is now the record of how it was done and the rules that keep it that
 way. `## Conventions` stays binding for every new test — the point of the work
@@ -18,19 +20,43 @@ findings below came from tests written against behaviour.
 
 ## Where things stand
 
-| | |
-|---|---|
-| Files at or above 70% (all metrics) | **807 / 807** (100.0%) |
-| Packages fully clear | **21 of 21** |
-| Remaining files | **0** |
-| Tests | 4,748 passing, 1 skipped |
+| | packages/ | apps/source/ |
+|---|---|---|
+| Files at or above 70% (all metrics) | **817 / 817** (100.0%) | **309 / 309** (100.0%) |
+| Units fully clear | **7 of 7** buckets | **10 of 10** apps |
+| Remaining files | **0** | **0** |
+| Tests | 6,886 passing, 1 skipped | 809 passing |
 
 Verify with:
 
 ```bash
 npm run test:coverage    # merges coverage/lcov.info for Sonar; pins --concurrency=1
 npm run check:coverage   # the gate — lists every file below 70% on any metric
+
+cd apps && npm run test:coverage:source   # the apps equivalent
+cd apps && node scripts/check-package-coverage.mjs
 ```
+
+### The apps tree runs the same policy
+
+`apps/` is its own install root and stays outside turbo, lint, Sonar and the
+package coverage gate — but the *threshold* is not a property of the CI surface,
+it is a property of the code. Since 2026-08-18 `apps/scripts/vitestCoverage.mjs`
+mirrors `scripts/vitestCoverage.mjs` exactly: `all: true` so an untested file
+counts as 0% rather than vanishing, `perFile: true` so a well-covered module
+cannot pay for an untested one, and 70% on **all four** metrics.
+
+Before that, three things let the apps drift:
+
+- `apps/scripts/check-package-coverage.mjs` read `summary.total` — an app-wide
+  average. It now reports per file, and names every file that is short.
+- No app config set `all` or `perFile`, so a file no test imported was simply
+  absent from the report.
+- `design-system` carried `branches: 60` locally.
+
+React tests in apps are held to the same RTL rule as packages —
+`scripts/check-react-testing-library.mjs` scans `apps/source/*` as well as
+`packages/<bucket>/*`.
 
 Never quote this file's number without re-running those. The measurement used to
 be load-dependent: at turbo's default concurrency four consecutive runs on an
@@ -62,7 +88,8 @@ degradation branches live, and where the defects found so far were hiding.
 
 ### React components — React Testing Library, always
 
-Enforced by `npm run check:rtl` (part of `lint:all`). Any test that renders JSX
+Enforced by `npm run check:rtl` (part of `lint:all`), across `packages/<bucket>/*`
+**and** `apps/source/*`. Any test that renders JSX
 must import `@testing-library/react`.
 
 ```tsx

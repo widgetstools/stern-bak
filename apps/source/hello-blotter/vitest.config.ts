@@ -10,9 +10,9 @@ export default mergeConfig(
       environment: 'jsdom',
       globals: false,
       css: false,
-      setupFiles: ['../../test-utils/setup.ts', 'src/staruiVitestMocks.ts'],
-      include: ['src/**/*.test.{ts,tsx}', '*.test.ts', '*.test.js'],
-      coverage: coverage({ exclude: ['src/types/**'] }),
+      setupFiles: ['../../test-utils/setup.ts'],
+      include: ['src/**/*.test.{ts,tsx}'],
+      coverage: coverage(),
     },
   }),
 );

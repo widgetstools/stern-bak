@@ -168,8 +168,13 @@ export function FormatterToolbar({
       className="fx-shell fx-shell--horizontal"
       data-testid="formatting-toolbar"
       onMouseDown={(e) => {
+        // Same four tags the segment-level guards exempt. This one listed
+        // three: the overflow menu renders inline, inside this shell, so a
+        // TEXTAREA its own guard let through was eaten here on the way up.
         const tag = (e.target as HTMLElement).tagName;
-        if (tag !== 'SELECT' && tag !== 'INPUT' && tag !== 'OPTION') e.preventDefault();
+        if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'OPTION' && tag !== 'TEXTAREA') {
+          e.preventDefault();
+        }
       }}
     >
       <div className="fx-bar" ref={containerRef}>

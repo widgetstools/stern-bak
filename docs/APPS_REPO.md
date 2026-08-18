@@ -12,6 +12,22 @@ root — outside the root workspaces, turbo, lint, the coverage gate
 (`scripts/check-package-coverage.mjs` scans `packages/` only) and Sonar
 (`sonar.sources=packages`, plus an explicit `apps/**` exclusion).
 
+**But it runs the same test policy on its own gate.** Being outside the package
+CI surface decides *where* a rule is enforced, not *whether* it holds:
+
+- **Coverage** — `apps/scripts/vitestCoverage.mjs` mirrors
+  `scripts/vitestCoverage.mjs`: `all: true`, `perFile: true`, and 70% on lines,
+  statements, functions and branches. Every `apps/source/*/vitest.config.ts`
+  imports it rather than spelling thresholds out, so the two trees cannot drift.
+  `apps/scripts/check-package-coverage.mjs` reports per file and names each one
+  that is short. Run `npm run test:coverage:source` from `apps/`.
+- **React Testing Library** — `scripts/check-react-testing-library.mjs` (run via
+  `npm run check:rtl` at the repo root) scans `apps/source/*` alongside
+  `packages/<bucket>/*`. A `.test.tsx` that renders JSX must import
+  `@testing-library/react`, each app must declare it as a devDependency, and the
+  hand-rolled alternatives (enzyme, `react-test-renderer`, a bare `createRoot`,
+  markup snapshots) are refused.
+
 ## Layout
 
 ```

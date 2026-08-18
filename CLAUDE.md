@@ -28,7 +28,8 @@ so demo apps never enter the package CI surface — see
   before starting work so you don't rediscover a documented gap
 - [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md) — the 70%-per-file effort, split
   into sessions. **Its `## Conventions` section is binding**: React components are
-  tested with React Testing Library (enforced by `npm run check:rtl`), and a failing
+  tested with React Testing Library (enforced by `npm run check:rtl`, which scans
+  `apps/source/*` as well as `packages/`), and a failing
   assertion means checking the source before touching the test
 - [`docs/latest/architecture.md`](./docs/latest/architecture.md) — layer model +
   import rules (with diagrams); [`docs/latest/`](./docs/latest/README.md) is the
@@ -197,14 +198,18 @@ uses `pack:npm` output for its tarball track. See
 
 ## Testing
 
-- Vitest 4 + jsdom 29 for unit tests. Baseline (2026-07-31): **3076 passing,
-  1 skipped across 315 test files** (`npm test` — turbo across `packages/`).
-  Largest contributors: `grid` (915, incl. former `widgets-react`), `react`
-  (606, incl. former `ui`/`workspace-setup-react`), `data` (355), `core` (incl.
-  former `engine`, 241, plus `host*`/`widget*`), `design-system` (193).
-  The per-file 70% coverage gate is a separate run — see
+- Vitest 4 + jsdom 29 for unit tests. Baseline (2026-08-18): **6886 passing,
+  1 skipped across 692 test files** (`npm run test:coverage` — turbo across
+  `packages/`). Largest contributors: `react-grid` (2833), `core` (1452),
+  `data` (948), `react` (541), `openfin` (483), `design-system` (358),
+  `types` (171).
+  The per-file 70% coverage gate rides the same run — see
   [`docs/COVERAGE_PLAN.md`](./docs/COVERAGE_PLAN.md), whose `## Conventions`
-  section is binding for new tests.
+  section is binding for new tests. **Every file in `packages/` (817) and in
+  `apps/source/` (309) is at or above 70% on lines, statements, functions and
+  branches**; `apps/` enforces it through its own
+  `apps/scripts/vitestCoverage.mjs`, which mirrors the package policy and is
+  checked by `apps/scripts/check-package-coverage.mjs`.
 - **Playwright lives under `apps/`** (`apps/e2e`, `apps/e2e-openfin`), along
   with the apps its specs drive. Nothing under `packages/` runs e2e, and the
   package test/coverage runs never enter `apps/`.
