@@ -11,8 +11,8 @@
 // The shared setup file registers these matchers at runtime, but it lives
 // outside this app's `include`, so the types have to be pulled in here.
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
 const createStarui = vi.fn();
@@ -53,6 +53,10 @@ beforeEach(() => {
   vi.resetModules();
   document.body.innerHTML = '<div id="root"></div>';
 });
+
+// Through THIS file's RTL import — the tarball track installs a second copy
+// per app, so the shared setup's `cleanup()` clears a different registry.
+afterEach(cleanup);
 
 /** Import for its side effect and hand back the element it mounted. */
 async function bootstrap(): Promise<ReactElement> {

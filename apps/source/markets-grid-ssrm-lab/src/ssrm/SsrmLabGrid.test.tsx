@@ -9,8 +9,8 @@
  * the three hooks the component consumes, and the assertions are on what the
  * grid renders, per RTL.
  */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import React from 'react';
 import { SsrmLabGrid } from './SsrmLabGrid.js';
 
@@ -113,6 +113,12 @@ beforeEach(() => {
     typeof k === 'string' && k.trim() ? k : 'id',
   );
 });
+
+// Clean up through THIS file's RTL import. The shared setup calls `cleanup()`
+// too, but the tarball track installs a second copy of @testing-library/react
+// per app, so the setup file's copy holds a different container registry and
+// leaves these renders mounted — every query then finds two of everything.
+afterEach(cleanup);
 
 describe('SsrmLabGrid — before the plane is usable', () => {
   it('shows the placeholder while the catalog row is still seeding', () => {

@@ -294,6 +294,23 @@ $1environment:`,
     'inline: [/@wellsfargo-starui\\/.*/]',
   );
 
+  // One Testing Library instance per app.
+  //
+  // A tarball app is its own install root, so `@testing-library/react` resolves
+  // to `<app>/node_modules`, while `apps/test-utils/setup.ts` — shared, and
+  // living outside the app — resolves to the hoisted `apps/node_modules` copy.
+  // Two instances means two container registries: the setup file's `cleanup()`
+  // unmounts nothing the tests rendered, so roots survive the test that made
+  // them and React's scheduler fires work after jsdom is gone
+  // ("ReferenceError: window is not defined"). `dedupe` resolves both importers
+  // from the app root, which is the copy the tests use.
+  if (!content.includes('dedupe:')) {
+    content = content.replace(
+      'defineConfig({',
+      "defineConfig({\n    resolve: {\n      dedupe: ['@testing-library/react', '@testing-library/dom'],\n    },",
+    );
+  }
+
   if (!content.includes('optimizeDeps')) {
     content = content.replace(
       'defineConfig({',
