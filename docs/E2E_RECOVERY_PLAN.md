@@ -118,24 +118,35 @@ two are landed:
 3. **Module edits are dirty until saved.** Profiles are committed snapshots, so
    every on-disk assertion needs a `saveAll` first.
 
-**What is still wrong is a test-design problem, not a selector.** Each of these
-tests does two or more full open → author → close → save cycles against a grid
-streaming mock rows every 600ms. Playwright reports `element is not stable` on
-the settings menubar trigger — its box never settles for two consecutive frames.
-Escalating to a forced click did not fix it and made the run slower (8 min), and
-across four runs the failing test MOVED between three different cases, which is
-the signature of contention rather than a bad locator.
+**The remaining cause is NOT yet known. Two theories were tested and both are
+disproved** — recorded so nobody spends the time again:
 
-**What to try next, in order:**
+- ~~"The streaming grid keeps the menubar from ever being stable."~~ **Measured
+  and false.** The trigger's box drifts for **181ms** — the sheet's entrance
+  animation — then stops: 0 changes after 1s across a 6s sample. A forced click
+  derived from this theory changed nothing and made the run slower (8 min),
+  which should have been read as the theory being wrong rather than the fix
+  being too weak.
+- ~~"React replaces the menubar node on each stream tick, restarting the
+  stability check."~~ **Also false.** Sampling node identity every frame for 5s:
+  `identitySwaps: 0`, `detachedSeen: 0`. Same node throughout, never detached.
 
-- Quiet the stream while the sheet is open — the lab drives it from
-  `useLabRows`, so a pause hook would remove the cause rather than work around
-  it. This is the only fix that addresses the actual mechanism.
-- Failing that, restructure so each test opens the sheet **once**: author every
-  module in one session, close once, save once. Some cases genuinely need two
-  sessions (author in A, switch, author in B) and would stay exposed.
-- Do not reach for `force: true` on the menubar. It was tried; it does not help,
-  and it blinds the check that caught two earlier real bugs.
+What IS established: `locator.click` on the nav group trigger hangs for the full
+180s test timeout; each affected test does two or more open → author → close →
+save cycles; and across four runs the failing test MOVED between three different
+cases, so it is timing-dependent rather than a bad locator.
+
+**What to try next:**
+
+- Capture a Playwright trace (`--trace on`) of a hanging run and read the
+  actionability log in full. Every diagnosis so far has come from a truncated
+  console log, and that is how two wrong theories survived as long as they did.
+- Check whether the settings sheet is being re-opened underneath the click —
+  `openModuleMenu` presses Escape between its retries, and Escape closes the
+  sheet as well as the menu, which would restart the entrance animation each
+  round.
+- Do not reach for `force: true` on the menubar. It was tried, does nothing
+  here, and blinds a check that caught two real bugs.
 
 The written spec and its helpers are not in the tree. Recover them from this
 plan's history or rewrite from `2a5527d~1:apps/e2e/v2-profile-isolation-structure.spec.ts`,
