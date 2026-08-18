@@ -55,9 +55,10 @@ config seed round-trip. Those behaviours keep unit cover in `packages/`
 profiles 13, templates 12, calculated columns 7, column groups 5, general
 settings 5, row exclusion 5, popout 4), but a unit test does not exercise the
 browser paths these did: real AG Grid rendering, IndexedDB persistence across a
-reload, and a second OS window. **Re-earning that cover against
-`markets-grid-lab` — which does render the full customizer — is the follow-up,
-and nobody has done it.**
+reload, and a second OS window. **Recovery is under way** against `markets-grid-lab`, which does render the
+full customizer: [`docs/E2E_RECOVERY_PLAN.md`](./E2E_RECOVERY_PLAN.md) sequences
+29 of the 35 across 8 phases, and names the 6 it would leave. Phase 1 (profile
+lifecycle, 21 tests) is done; the suite is 95 green.
 
 **Also here:** `e2e-openfin/` no longer points at the deleted
 `e2e-openfin-workspace`; its config launches `star-demo` and its README says so.

@@ -3,8 +3,11 @@
 > Was item 1 in the cross-repo worklog
 > ([`stern-bak/docs/WORKLOG.md`](../docs/WORKLOG.md)); resolved 2026-08-18.
 
-**The suite is green: 74 passed / 0 failed across 15 spec files, stable over
-three consecutive full runs (~1.5 min each).**
+**The suite is green: 95 passed / 0 failed across 16 spec files (~1.9 min).**
+
+Recovery of the coverage the demo-react deletion cost is under way — see
+[`../docs/E2E_RECOVERY_PLAN.md`](../docs/E2E_RECOVERY_PLAN.md). Phase 1
+(profile lifecycle, 21 tests) is done and hosted on `markets-grid-lab`.
 
 ```bash
 npm run e2e          # from apps/
@@ -43,6 +46,7 @@ passing test was kept — which is why seven `markets-grid-lab` specs that reach
 | first measurement, after the split | 10 passed / 2 skipped / 362 failed of 374 |
 | 2026-08-18, before deleting the orphans | 72 passed / 2 skipped / 308 failed of 382 |
 | 2026-08-18, after | **74 passed / 0 failed of 74** |
+| 2026-08-18, + recovery phase 1 | **95 passed / 0 failed of 95** |
 
 The middle row is higher than the first because four real defects were fixed on
 the way — see below. Note that no pass/fail baseline existed before the split:
@@ -57,6 +61,7 @@ the old `docs/E2E_STATUS.md` carried an unfilled *"Record the resulting N passed
 | `design-system-demo` | design-system | 5310 |
 | `hello-blotter` | hello-blotter | 5177 |
 | `lab-onboarding`, `v2-alerts`, `v2-bulk-update`, `v2-edit-history`, `v2-editing`, `v2-editing-family`, `v2-plus-minus`, `v2-shortcuts`, `v2-smart-edit`, `v2-window-focus-restore` | markets-grid-lab | 5300 |
+| `lab-profile-lifecycle` (recovery phase 1) | markets-grid-lab | 5300 |
 | `v2-column-value-getter` | stomp-marketsgrid-minimal | 5213 |
 | `ssrm-viewport-ticks` | markets-grid-ssrm-lab | 5320 |
 | `star-demo-ssrm-smoke` | star-demo-ssrm | 5176 |

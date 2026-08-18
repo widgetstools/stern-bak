@@ -216,8 +216,9 @@ uses `pack:npm` output for its tarball track. See
   **74 tests across 15 specs, green** — the 35 specs written against the
   deleted `demo-react` app were removed on 2026-08-18; most surviving specs
   drive `markets-grid-lab` (`:5300`), which renders the full customizer. See
-  [`apps/E2E_STATUS.md`](./apps/E2E_STATUS.md) for the spec-to-app map and the
-  end-to-end coverage that deletion cost.
+  [`apps/E2E_STATUS.md`](./apps/E2E_STATUS.md) for the spec-to-app map, and
+  [`docs/E2E_RECOVERY_PLAN.md`](./docs/E2E_RECOVERY_PLAN.md) for the phased
+  recovery of the coverage that deletion cost.
 
 ## UI stack rules (non-negotiable)
 
