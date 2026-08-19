@@ -30,6 +30,7 @@ import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
 import { buildStreamSafeComponents } from './buildStreamSafeComponents';
 import { measureNativeScrollbarWidth } from './nativeScrollbarWidth';
 import { useRestoreCellFocusOnWindowFocus } from './useRestoreCellFocusOnWindowFocus';
+import { useThrottledArrowKeyRepeat } from './useThrottledArrowKeyRepeat';
 import {
   useStatusBarStrip,
   type StatusBarApiLike,
@@ -64,6 +65,7 @@ function tickOptions(
   keyColumn: string,
   getQuickFilterText: (() => string) | undefined,
   platform: GridPlatform | null | undefined,
+  updateThrottleMs: number,
 ) {
   return {
     keyColumn,
@@ -75,7 +77,33 @@ function tickOptions(
     // outside a `<GridProvider>`, which has no subscribers either.
     rows: platform?.rows,
     onAlertHits: announceAlertHits(platform),
+    updateThrottleMs,
   };
+}
+
+/**
+ * Ref to the SAME `asyncTransactionWaitMillis` general-settings already
+ * computes for CSRM's MAX UPDATES/SEC (general-settings/index.ts) — one
+ * user-facing control, not a second SSRM-only knob. That option only
+ * throttles `applyTransactionAsync` (CSRM); `bindSsrmTicks` applies the same
+ * cap to `applyServerSideTransaction` (SSRM), which AG Grid provides no
+ * async/throttled variant of on its own.
+ *
+ * A ref, not a `bindDataPath` dep: a MAX UPDATES/SEC edit while mounted
+ * takes effect on the next natural tick rebind (e.g. a keyColumn change)
+ * rather than forcing one on every settings-drawer keystroke — the same
+ * non-live treatment `bindSsrmTicks`'s own `refreshThrottleMs` already gets.
+ */
+function useSsrmUpdateThrottleMsRef(
+  pipelineGridOptions: Record<string, unknown>,
+): RefObject<number> {
+  const value = useMemo(() => {
+    const v = pipelineGridOptions.asyncTransactionWaitMillis;
+    return typeof v === 'number' && v >= 0 ? v : 0;
+  }, [pipelineGridOptions]);
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
 }
 
 /**
@@ -188,6 +216,8 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     [gridOptions, hostOverrideKeys],
   );
 
+  const updateThrottleMsRef = useSsrmUpdateThrottleMsRef(pipelineGridOptions as Record<string, unknown>);
+
   const cacheBlockSize = useMemo(
     () => resolveCacheBlockSize(provider, cacheBlockSizeProp),
     [provider, cacheBlockSizeProp],
@@ -286,6 +316,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
 
   const getGridApi = useCallback(() => gridRef.current?.api ?? null, [gridRef]);
   useRestoreCellFocusOnWindowFocus(surfaceRootRef, getGridApi);
+  useThrottledArrowKeyRepeat(surfaceRootRef);
 
   const streamSafeComponents = useMemo(
     () => buildStreamSafeComponents(
@@ -317,15 +348,17 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   // defaults, and a per-column wrapper would shadow it. Whichever of the two
   // sources actually reaches the grid is the one decorated, so the wrapper is
   // never applied twice.
-  const ssrmDefaultColDef = useMemo(
-    () =>
-      withSsrmDefaultColDef(
-        (hostOverrides.defaultColDef
-          ?? (pipelineGridOptions as { defaultColDef?: unknown }).defaultColDef) as
-          SsrmBindableColDef | undefined,
-      ),
-    [hostOverrides, pipelineGridOptions],
-  );
+  const ssrmDefaultColDef = useMemo(() => withSsrmDefaultColDef({
+    // `suppressServerSideFullWidthLoadingRow` (below, on <AgGridReact>)
+    // moves the loading placeholder off AG Grid's full-width-row
+    // codepath onto ordinary per-cell rows — the colDef-level
+    // `loadingCellRenderer` is what those cells render while their
+    // block is in flight. Without it they'd fall back to AG Grid's
+    // default spinner + "Loading...", exactly what BlankLoadingCellRenderer
+    // exists to avoid (see its own doc comment).
+    loadingCellRenderer: BlankLoadingCellRenderer,
+    ...((hostOverrides.defaultColDef ?? (pipelineGridOptions as { defaultColDef?: unknown }).defaultColDef) as SsrmBindableColDef | undefined),
+  }), [hostOverrides, pipelineGridOptions]);
 
   // ── Late-bound key column ─────────────────────────────────────────
   //
@@ -357,10 +390,10 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
       unbindRef.current = bindSsrmTicks(
         provider,
         api,
-        tickOptions(keyColumnRef.current, getQuickFilterText, platform),
+        tickOptions(keyColumnRef.current, getQuickFilterText, platform, updateThrottleMsRef.current),
       );
     },
-    [provider, getQuickFilterText, unbindTicks, platform],
+    [provider, getQuickFilterText, unbindTicks, platform, updateThrottleMsRef],
   );
 
   const handleGridReady = useCallback(
@@ -421,10 +454,34 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         rowModelType="serverSide"
         cacheBlockSize={cacheBlockSize}
         maxBlocksInCache={20}
+        // Fast scrolling (held arrow keys, scrollbar drag, wheel) can cross
+        // many blocks per second on a ~20k-row SSRM grid. This is AG Grid's
+        // own documented lever for that scenario ("Useful when scrolling
+        // over many blocks") — it waits for scrolling to settle before
+        // requesting/redrawing each intermediate block, rather than firing
+        // one request/redraw per row crossed.
+        //
+        // A custom `navigateToNextCell` override that coalesced key-repeat
+        // into batched jumps was tried and reverted: it fought AG Grid's own
+        // keyboard/focus/selection/scroll-pinning machinery (all normally
+        // driven together by the native per-keydown path) and traded the
+        // main-thread jank it was meant to fix for a jumpy focus ring and
+        // intermittent hangs — worse than the native behaviour it replaced.
+        blockLoadDebounceMillis={100}
         getChildCount={ssrmGetChildCount}
         getRowClass={ssrmAlertRowClass}
         getRowId={getRowId}
         loadingCellRenderer={BlankLoadingCellRenderer}
+        // Keeps the SSRM loading placeholder off AG Grid's full-width-row
+        // codepath. That codepath's own keyboard handler
+        // (`processFullWidthRowKeyDown` -> `ensureIndexVisible` -> `redraw`)
+        // re-mounts row components synchronously inside `agFlushSync`; under
+        // key-repeat (holding ArrowDown/ArrowUp) enough rows remount inside
+        // one flush that React's nested-update guard trips with "Maximum
+        // update depth exceeded", crashing the grid. Suppressing full-width
+        // loading rows makes the placeholder ordinary per-cell rows instead —
+        // `ssrmDefaultColDef.loadingCellRenderer` above keeps them blank.
+        suppressServerSideFullWidthLoadingRow={true}
         statusBar={statusBarProp}
         context={mergedContext}
         maintainColumnOrder

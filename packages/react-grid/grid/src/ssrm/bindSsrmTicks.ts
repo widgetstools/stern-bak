@@ -17,6 +17,23 @@ export interface BindSsrmTicksOptions {
    * Defaults to `min(refreshThrottleMs, 50)` for near-CSRM reshuffle feel.
    */
   sortRefreshThrottleMs?: number;
+  /**
+   * Min ms to accumulate live-tick row patches (the unsorted "patch visible
+   * leaves in place" path only) before flushing one `applyServerSideTransaction`
+   * covering the union of changed rows — latest value wins per row key.
+   *
+   * Mirrors AG Grid's own `asyncTransactionWaitMillis`, which throttles the
+   * CLIENT-side row model's `applyTransactionAsync` but has no effect on the
+   * server-side row model's `applyServerSideTransaction` — this is that same
+   * protection for SSRM. The wired surface passes back the SAME computed ms
+   * value CSRM already derives from the customizer's MAX UPDATES/SEC setting,
+   * rather than this binding deriving its own.
+   *
+   * `0` (default) preserves pre-throttle behaviour exactly: every qualifying
+   * tick applies immediately, unbatched — see `bindSsrmTicks.fanout.test.ts` /
+   * `.delta.test.ts`, which pin this as the no-option-passed default.
+   */
+  updateThrottleMs?: number;
   keyColumn?: string;
   /**
    * Flash updated cells via `flashCells`.
@@ -72,6 +89,33 @@ type TickApi = Pick<
   /** AG Grid 31+ — skip API calls after the grid is torn down. */
   isDestroyed?: () => boolean;
 };
+
+type TransactionResult = ReturnType<TickApi['applyServerSideTransaction']>;
+
+/**
+ * Flash the cells a transaction touched via `flashCells`. `columns` narrows
+ * the flash to those cells (not the whole row) when the tick named specific
+ * ones. Captures nothing — every dependency is a parameter.
+ */
+function flashUpdatedCells(
+  api: TickApi,
+  alive: () => boolean,
+  flash: boolean | undefined,
+  rowNodes: NonNullable<TransactionResult>['update'],
+  columns: string[] | undefined,
+): void {
+  if (!alive() || flash === false || !rowNodes?.length) return;
+  const cols = columns?.filter((c) => c && !c.startsWith('__'));
+  try {
+    if (cols?.length) {
+      api.flashCells?.({ rowNodes, columns: cols });
+    } else {
+      api.flashCells?.({ rowNodes });
+    }
+  } catch {
+    /* destroyed */
+  }
+}
 
 /** Refresh every set-filter's value list (call after snapshot completes). */
 function refreshAllSetFilterValues(api: TickApi): void {
@@ -143,6 +187,88 @@ function hasActiveSort(api: TickApi): boolean {
   } catch {
     return false;
   }
+}
+
+/** Is the grid grouped right now? Reads the api and nothing else. */
+function isGroupedNow(api: Pick<TickApi, 'getRowGroupColumns'>): boolean {
+  try {
+    return (api.getRowGroupColumns?.()?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Coalesces SSRM live-tick row patches (the unsorted "patch in place" path)
+ * into at most one `applyServerSideTransaction` per `throttleMs` window —
+ * latest value wins per row key, and a window where ANY tick carried no
+ * `columns` (whole-row flash) never narrows to a partial column list just
+ * because a later tick in the same window named specific ones. `grouping` is
+ * re-read live on each flush (grid CONFIGURATION, not tick-scoped data)
+ * rather than carried from whichever tick(s) filled the batch.
+ *
+ * Every dependency is a parameter — nothing captured from a specific
+ * `bindSsrmTicks` binding — which is what keeps this hoistable to module
+ * scope instead of growing that already-over-budget function further.
+ */
+function createSsrmRowPatcher(deps: {
+  api: TickApi;
+  keyColumn: string;
+  throttleMs: number;
+  sortThrottleMs: number;
+  alive: () => boolean;
+  onTransactionApplied: (
+    result: ReturnType<TickApi['applyServerSideTransaction']>,
+    columns: string[] | undefined,
+  ) => void;
+  scheduleRefresh: (purge: boolean, delayMs?: number) => void;
+}): { enqueue: (rows: Row[], columns: string[] | undefined) => void; dispose: () => void } {
+  const pendingUpdates = new Map<string, Row>();
+  let pendingColumns: Set<string> | undefined = new Set();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const flush = () => {
+    timer = null;
+    if (pendingUpdates.size === 0) {
+      pendingColumns = new Set();
+      return;
+    }
+    const update = [...pendingUpdates.values()];
+    const columns = pendingColumns ? [...pendingColumns] : undefined;
+    pendingUpdates.clear();
+    pendingColumns = new Set();
+    if (!deps.alive()) return;
+    try {
+      const result = deps.api.applyServerSideTransaction({ update });
+      deps.onTransactionApplied(result, columns);
+      if (isGroupedNow(deps.api)) deps.scheduleRefresh(false, deps.sortThrottleMs);
+    } catch {
+      deps.scheduleRefresh(false);
+    }
+  };
+
+  return {
+    enqueue(rows, columns) {
+      for (const row of rows) {
+        pendingUpdates.set(String(row[deps.keyColumn] ?? ''), row);
+      }
+      if (columns === undefined) {
+        pendingColumns = undefined;
+      } else if (pendingColumns) {
+        for (const c of columns) pendingColumns.add(c);
+      }
+      if (!deps.alive() || timer != null) return;
+      timer = setTimeout(flush, deps.throttleMs);
+    },
+    dispose() {
+      if (timer != null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      pendingUpdates.clear();
+      pendingColumns = new Set();
+    },
+  };
 }
 
 export function bindSsrmTicks(
@@ -217,25 +343,6 @@ export function bindSsrmTicks(
     }
   };
 
-  type TransactionResult = ReturnType<TickApi['applyServerSideTransaction']>;
-
-  const flashUpdatedCells = (
-    rowNodes: NonNullable<TransactionResult>['update'],
-    columns: string[] | undefined,
-  ) => {
-    if (!alive() || options?.flash === false || !rowNodes?.length) return;
-    const cols = columns?.filter((c) => c && !c.startsWith('__'));
-    try {
-      if (cols?.length) {
-        api.flashCells?.({ rowNodes, columns: cols });
-      } else {
-        api.flashCells?.({ rowNodes });
-      }
-    } catch {
-      /* destroyed */
-    }
-  };
-
   /**
    * One place where "this tick changed these rows" is handled: report the
    * delta to the platform, then flash it.
@@ -249,8 +356,13 @@ export function bindSsrmTicks(
     columns: string[] | undefined,
   ) => {
     if (result) options?.rows?.transactionApplied(result);
-    flashUpdatedCells(result?.update, columns);
+    flashUpdatedCells(api, alive, options?.flash, result?.update, columns);
   };
+
+  const rowPatcher = createSsrmRowPatcher({
+    api, keyColumn, sortThrottleMs, alive, onTransactionApplied, scheduleRefresh,
+    throttleMs: options?.updateThrottleMs ?? 0,
+  });
 
   // Recovery purge: the transport rebuilds its snapshot after a broker
   // restart, but the snapshot flush fires on the FIRST streamed chunk
@@ -328,7 +440,17 @@ export function bindSsrmTicks(
           : [];
 
       // Unsorted: patch visible leaves in place (no re-query).
+      //
+      // The sorted branch below is deliberately NOT throttled the same way —
+      // it already has its own coalescing lever (the sortThrottleMs refresh
+      // just past it, already idempotent-while-pending) and combining two
+      // independent timer cadences correctly is separate scope from this
+      // fix, which targets the far more common unsorted live-blotter case.
       if (visibleRows.length > 0 && !sorting) {
+        if ((options?.updateThrottleMs ?? 0) > 0) {
+          rowPatcher.enqueue(visibleRows, event.columns);
+          return;
+        }
         try {
           if (!alive()) return;
           const result = api.applyServerSideTransaction({
@@ -386,6 +508,7 @@ export function bindSsrmTicks(
       clearTimeout(refreshTimer);
       refreshTimer = null;
     }
+    rowPatcher.dispose();
     pendingPurge = false;
     offTick();
     offStatus?.();

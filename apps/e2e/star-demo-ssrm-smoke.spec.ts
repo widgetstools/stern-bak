@@ -76,6 +76,45 @@ test.describe('star-demo-ssrm smoke', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
+  test('held ArrowDown key-repeat does not crash the grid and recovers with real data', async ({ page }) => {
+    test.skip(!(await stompServerUp()), 'stomp-view-server (:8081) is not running');
+
+    // Regression guard for the full-width SSRM loading row's own keyboard
+    // codepath (`processFullWidthRowKeyDown` -> `ensureIndexVisible` ->
+    // `redraw`), which used to re-mount row components synchronously inside
+    // AG Grid's `flushSync` and trip React's "Maximum update depth exceeded"
+    // guard under sustained key-repeat.
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+
+    await page.goto(BLOTTER);
+    const rows = page.locator('.ag-grid-scrolling-container .ag-row');
+    await expect(rows.first()).toBeVisible({ timeout: 45_000 });
+
+    await rows.first().locator('.ag-cell').first().click();
+
+    // Playwright's key-repeat isn't identical to a real held key, but firing
+    // ArrowDown well past a single frame's worth of navigation exercises
+    // sustained scrolling through many blocks rather than just one keydown.
+    for (let i = 0; i < 60; i++) {
+      await page.keyboard.press('ArrowDown');
+    }
+
+    expect(errors, errors.join('\n')).toEqual([]);
+
+    // The grid must settle back to real row content, not a screen of blanks
+    // left over from outrunning the SSRM block cache.
+    await expect
+      .poll(
+        async () => {
+          const texts = await rows.evaluateAll((rs) => rs.map((r) => r.textContent?.trim()));
+          return texts.length > 0 && texts.every((t) => !!t);
+        },
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+  });
+
   test('grids repopulate after a STOMP server restart without a page reload', async ({ page }) => {
     test.skip(!(await stompServerUp()), 'stomp-view-server (:8081) is not running');
 

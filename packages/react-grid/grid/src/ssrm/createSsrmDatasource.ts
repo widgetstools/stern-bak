@@ -5,6 +5,7 @@ import type {
 import { quickFilterColumnsOf } from '@wellsfargo-starui/core';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { SsrmGetRowsRequest } from '@wellsfargo-starui/data/runtime';
+import { createBlockRequestLimiter } from './blockRequestLimiter.js';
 
 export interface CreateSsrmDatasourceOptions {
   keyColumn?: string;
@@ -18,6 +19,12 @@ export interface CreateSsrmDatasourceOptions {
    * `serverSidePivotResultFieldSeparator` (default `_`).
    */
   pivotResultFieldSeparator?: string;
+  /**
+   * Hard cap on block requests actually dispatched per second, held across
+   * the whole datasource instance (not per call) — see
+   * {@link createBlockRequestLimiter}. Default 4.
+   */
+  maxBlockRequestsPerSecond?: number;
 }
 
 /**
@@ -92,6 +99,7 @@ export function createSsrmDatasource(
   const keyColumn = options.keyColumn ?? 'id'; // aligned with every other keyColumn default (was 'positionId' — a latent split-default trap; the wired surface always passes an explicit value)
   const pivotSep = options.pivotResultFieldSeparator ?? '_';
   const warnedCustomAgg = new Set<string>();
+  const limiter = createBlockRequestLimiter(options.maxBlockRequestsPerSecond ?? 4);
   return {
     getRows(params: IServerSideGetRowsParams): void {
       const base = params.request as unknown as SsrmGetRowsRequest;
@@ -117,42 +125,49 @@ export function createSsrmDatasource(
         ...(quickFilterText ? { quickFilterText } : {}),
         ...(quickFilterColumns ? { quickFilterColumns } : {}),
       };
-      void provider
-        .getRows(req)
-        .then((result) => {
-          if (params.api.isDestroyed?.()) return;
-          const keys = result.rowData
-            .map((r) => r[keyColumn] ?? r.__ssrmGroupKey)
-            .filter((k) => k != null)
-            .map(String);
-          // Scoped so the worker accumulates interest across the blocks AG
-          // Grid keeps cached, and resets it when the query itself changes.
-          void provider.setViewport(keys, {
-            blockKey: blockKeyOf(req),
-            queryId: queryIdOf(req),
-            hasFilter: hasFilterOf(req),
-          });
+      // The request is built with CURRENT state above; only the actual
+      // dispatch — the part that reaches the worker — waits its turn. A
+      // block queued behind the cap still resolves for real once its slot
+      // opens, rather than leaving the row it covers permanently blank.
+      limiter.schedule(() => {
+        if (params.api.isDestroyed?.()) return;
+        void provider
+          .getRows(req)
+          .then((result) => {
+            if (params.api.isDestroyed?.()) return;
+            const keys = result.rowData
+              .map((r) => r[keyColumn] ?? r.__ssrmGroupKey)
+              .filter((k) => k != null)
+              .map(String);
+            // Scoped so the worker accumulates interest across the blocks AG
+            // Grid keeps cached, and resets it when the query itself changes.
+            void provider.setViewport(keys, {
+              blockKey: blockKeyOf(req),
+              queryId: queryIdOf(req),
+              hasFilter: hasFilterOf(req),
+            });
 
-          params.success({
-            rowData: result.rowData,
-            rowCount: result.rowCount,
-            pivotResultFields: result.pivotResultFields,
-            ...(result.grandTotalData
-              ? { groupData: result.grandTotalData }
-              : {}),
+            params.success({
+              rowData: result.rowData,
+              rowCount: result.rowCount,
+              pivotResultFields: result.pivotResultFields,
+              ...(result.grandTotalData
+                ? { groupData: result.grandTotalData }
+                : {}),
+            });
+          })
+          .catch((err) => {
+            if (err instanceof Error && err.message === 'superseded') return;
+            if (params.api.isDestroyed?.()) return;
+            // Includes the query plane's explicit refusals (`UnsupportedQueryError`
+            // — an operator or aggregation it cannot evaluate). Its message is
+            // user-facing copy naming the limit and the alternative; it arrives
+            // here as the RPC's error string rather than as a block of rows
+            // filtered by something else.
+            console.error('[ssrm] getRows failed', err);
+            params.fail();
           });
-        })
-        .catch((err) => {
-          if (err instanceof Error && err.message === 'superseded') return;
-          if (params.api.isDestroyed?.()) return;
-          // Includes the query plane's explicit refusals (`UnsupportedQueryError`
-          // — an operator or aggregation it cannot evaluate). Its message is
-          // user-facing copy naming the limit and the alternative; it arrives
-          // here as the RPC's error string rather than as a block of rows
-          // filtered by something else.
-          console.error('[ssrm] getRows failed', err);
-          params.fail();
-        });
+      });
     },
   };
 }

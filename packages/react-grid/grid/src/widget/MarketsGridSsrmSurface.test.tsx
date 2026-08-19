@@ -148,6 +148,46 @@ describe('MarketsGridSsrmSurface', () => {
     platform.destroy();
   });
 
+  it('passes MAX UPDATES/SEC through to the tick binding as updateThrottleMs', async () => {
+    // general-settings computes `asyncTransactionWaitMillis` for CSRM's own
+    // MAX UPDATES/SEC; this pins that SSRM's tick binding reads the SAME
+    // resolved value back rather than a second, undriven default.
+    const provider = {
+      id: 'p-ssrm-throttle',
+      getConfig: () => ({ blockSize: 100, keyColumn: 'positionId' }),
+      getColumnDefs: () => [],
+    } as never;
+    const platform = new GridPlatform({ gridId: 'ssrm-throttle', modules: [] });
+    const gridRef = createRef<AgGridReact>();
+
+    render(
+      <GridProvider platform={platform}>
+        <MarketsGridSsrmSurface
+          gridRef={gridRef}
+          gridOptions={{ asyncTransactionWaitMillis: 150 }}
+          hostOverrideKeys={new Set()}
+          theme={undefined}
+          columnDefs={[{ field: 'positionId' }]}
+          ssrm={{ provider, keyColumn: 'positionId' }}
+          sideBar={false}
+          statusBar={undefined}
+          defaultColDef={undefined}
+          onGridReady={() => {}}
+          onGridPreDestroyed={() => {}}
+        />
+      </GridProvider>,
+    );
+
+    await waitFor(() => {
+      expect(bindSsrmTicks).toHaveBeenCalledWith(
+        provider,
+        expect.anything(),
+        expect.objectContaining({ updateThrottleMs: 150 }),
+      );
+    });
+    platform.destroy();
+  });
+
   // Roadmap Phase 7 / T3-13. Grid-instance `modules` are ADDITIVE to the
   // global registry, so the `[AllEnterpriseModule]` this surface used to
   // pass handed every SSRM grid the full bundle and made a reduced
