@@ -56,8 +56,11 @@ export default defineConfig({
               find: '@wellsfargo-starui/design-system',
               replacement: resolve(__dirname, '../design-system/design-system/dist/index.js'),
             },
+            // Subpath aliases MUST precede the bare package alias below — same
+            // prefix-match hazard as the design-system aliases above.
             { find: '@wellsfargo-starui/grid/customizer', replacement: resolve(__dirname, 'grid/src/customizer/index.ts') },
-            { find: '@wellsfargo-starui/grid', replacement: resolve(__dirname, 'grid/src/index.ts') },
+            { find: '@wellsfargo-starui/grid/core', replacement: resolve(__dirname, 'grid/src/index.ts') },
+            { find: '@wellsfargo-starui/grid', replacement: resolve(__dirname, 'widgets-react/src/index.ts') },
             { find: '@wellsfargo-starui/core/host/config', replacement: resolve(__dirname, '../core/host-config/src/index.ts') },
             { find: '@wellsfargo-starui/core/host/browser', replacement: resolve(__dirname, '../core/host-browser/src/index.ts') },
             { find: '@wellsfargo-starui/core/widget/browser', replacement: resolve(__dirname, '../core/widget-browser/src/index.ts') },

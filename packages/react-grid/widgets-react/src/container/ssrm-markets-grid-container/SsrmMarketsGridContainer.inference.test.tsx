@@ -37,7 +37,7 @@ const { getRows, providerRef, resetProvider, state } = vi.hoisted(() => {
 
 const captured = vi.hoisted(() => ({ colDefs: [] as Array<Record<string, unknown>> }));
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: { columnDefs?: Array<Record<string, unknown>> }) => {
     captured.colDefs = props.columnDefs ?? [];
     return React.createElement('div', {

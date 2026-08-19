@@ -28,7 +28,7 @@ function cloneChild(
   return React.createElement('button', { type: 'button', ...props }, children);
 }
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: Record<string, unknown>) => {
     const onReady = props.onReady as ((handle: unknown) => void) | undefined;
     if (onReady) {

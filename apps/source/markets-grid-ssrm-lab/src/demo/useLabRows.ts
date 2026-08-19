@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
-import type { MarketsGridHandle } from '@wellsfargo-starui/grid';
+import type { MarketsGridHandle } from '@wellsfargo-starui/grid/core';
 import {
   applyLabRowUpdates,
   diffRowUpdates,

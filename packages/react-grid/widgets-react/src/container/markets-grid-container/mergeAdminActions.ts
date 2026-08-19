@@ -9,7 +9,7 @@
  * dragged the entire CSRM container (and its `useDataServices` /
  * `@openfin` imports) into the SSRM module graph for one string.
  */
-import type { AdminAction } from '@wellsfargo-starui/grid';
+import type { AdminAction } from '@wellsfargo-starui/grid/core';
 
 /** Stable id for overflow-menu e2e (`admin-action-data-provider-editor`). */
 export const DATA_PROVIDER_EDITOR_ACTION_ID = 'data-provider-editor';

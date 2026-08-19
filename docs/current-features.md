@@ -321,14 +321,14 @@ Per-renderer config types (`PillRendererConfig`,
 
 ## 3. React Grid
 
-### 3.1 `@wellsfargo-starui/grid`
+### 3.1 `@wellsfargo-starui/grid/core`
 
 **Path:** `packages/react-grid/grid`
 **Purpose:** Merged MarketsGrid product surface — AG Grid-backed React grid with the full customizer (formatters, conditional styles, calculated columns, saved filters, templates) and profile management.
 
 **Public exports:**
 
-- `.` — `MarketsGrid` component, toolbars, storage helpers, types
+- `./core` — `MarketsGrid` component, toolbars, storage helpers, types
 - `./customizer` — the CURATED cross-package surface (was ~320 symbols at a 95.6%-internal ratio; now 14): `ExpressionEditor` (+ props/handle types), `isHistoricalToolbarDate`, and the 10 module STATE types demo seeds author against (`GeneralSettingsState`, `ColumnAssignment`, `ColumnCustomizationState`, `ConditionalRule`, `ConditionalStylingState`, `CalculatedColumnsState`, `VirtualColumnDef`, `ColumnGroupsState`, `ColumnGroupNode` from core; `SavedFiltersState` grid-local). The full former surface lives in `customizer/internal.ts` for in-package imports only — not reachable via any exports subpath
 - `./styles.css` — widget stylesheet (barrel: `@import` of core + chrome splits)
 - `./styles/core.css` — filter-pill tokens + toolbar button theme layer
@@ -382,10 +382,10 @@ Per-renderer config types (`PillRendererConfig`,
 - `buildGridContextMenuItems` — cell right-click menu builder; prepends **Settings** (opens the customizer on Column Settings with the right-clicked column pre-selected, via the controller's `openColumnSettings` + the settings sheet's `focusRequest` nonce) and **Remove from Grid** (hides the column via native `api.setColumnsVisible`, re-showable from the side bar's Columns panel and persisted on Save like any grid-state visibility change) ahead of AG Grid's stock items (Copy / Export / Auto-size …). Pure builder (params + handlers) wired through `MarketsGridHost` → `MarketsGridSurface` `getContextMenuItems`
 - `useRestoreCellFocusOnWindowFocus` — alt-tab paste fix wired into `MarketsGridSurface`: re-asserts real browser focus on the cell AG Grid still reports as focused (`api.setFocusedCell`) when window refocus left DOM focus on `<body>`, so Ctrl+V/typing works without re-clicking. Triggers on BOTH the DOM window `focus` event and the parent OpenFin window's `focused` event (`subscribeParentWindowFocused` — covers the runtime never re-focusing the view, calling `focusCurrentOpenFinHost()` to reclaim web-contents focus first); retries at 0/150/400 ms (OpenFin can drop focus after the focus event); guarded by surface focusin/focusout ownership (multi-grid safe), a shared-localStorage last-focused-document stamp (multi-view fleet safe), never steals focus restored outside the grid, skips open cell editors
 - `mergeDefaultColDef`, `gridOptionCompare`, `buildStreamSafeComponents` — reference-stable pipeline → surface wiring
-- `useGridHost`, `useMarketsGridController` — imperative grid control hooks (internal to `MarketsGrid`; not on package `.` barrel)
+- `useGridHost`, `useMarketsGridController` — imperative grid control hooks (internal to `MarketsGrid`; not on the `./core` barrel)
 - `useFilterModel` — filter-model persistence + mutation; per-pill counts route through `platform.data` (`filterPillCounts.ts`) in BOTH row models. A badge counts rows in the whole dataset matching that pill's own model (`scope: 'all'`) — neither the applied filter nor the quick-filter text narrows it, so two pills' badges stay comparable. Where `capabilities.canAddressUnloadedRows` holds (client-side row model), one `scan` pass establishes every row's membership; where it does not (server-side), one `count` per pill establishes none and the membership FILLS from the deltas themselves. Both patch from a `RowChangeBus` delta on a streaming tick, because the only thing a patch needs is the changed row's own prior membership: the badge counts the whole dataset, a changed row is one row of it, so a flip moves the total by exactly one. The first tick to touch a row records it and costs one recompute; every later tick on that row is answered without leaving the client, so a live blotter's cost decays to nothing instead of being one worker round trip per pill per emit (`useFilterModel.test.ts` counts it: ten ticks over one row cost 22 round trips before, 4 after). A pill whose model the shared predicate refuses over-counts and warns once rather than reading zero
 - `useGridTheme` — resolves AG Grid theme from `data-theme`
-- `ensureAgGridModules(modules?)` — one-shot AG Grid module registration (full `AllEnterpriseModule` by default, optional subset) + dev validations + the set-filter validate guard; on the package `.` barrel so embedded grids (provider editor Columns/AppData tables) share it instead of forking their own registrar
+- `ensureAgGridModules(modules?)` — one-shot AG Grid module registration (full `AllEnterpriseModule` by default, optional subset) + dev validations + the set-filter validate guard; on the `./core` barrel so embedded grids (provider editor Columns/AppData tables) share it instead of forking their own registrar
 - `GridToastSurface` — **the only toaster mounted anywhere under `packages/`**,
   rendered by `MarketsGrid` and `MarketsGridCore` rather than left to the app,
   because the failure it exists for (a refused write) is raised through the
@@ -455,16 +455,16 @@ Per-renderer config types (`PillRendererConfig`,
 - `createMarketsGridLocalStorageStorage()` — browser localStorage adapter factory
 - `isMarketsGridLocalStorageStorageFactory()` — type guard
 - `StorageAdapter` — load/save profile + grid-level data contract (type from `@wellsfargo-starui/core`)
-- `StorageAdapterFactory` / `StorageAdapterFactoryOpts` — runtime-injectable factory pattern (exported from `@wellsfargo-starui/grid` types)
+- `StorageAdapterFactory` / `StorageAdapterFactoryOpts` — runtime-injectable factory pattern (exported from `@wellsfargo-starui/grid/core` types)
 
-#### Grid event system (public on `.` barrel)
+#### Grid event system (public on `./core` barrel)
 
 - `MARKETS_GRID_EVENT_CATALOG`, `isMarketsGridEventId`, `marketsGridEventCatalogByCategory` — typed event-id catalogue for provider/toolbar lifecycle hooks
 - `createMarketsGridContainerEventBus`, `useMarketsGridEventBridge` — wire container events (`providerSwitched`, `toolbarDateChanged`, `providerDataStale`, …) to handler registries staged in Custom Settings
 
 #### Toolbars
 
-Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are composed inside `MarketsGrid` and are **not** on the package `.` barrel. Public toolbar exports: `FiltersToolbar`, `FormattingToolbar`, `DraggableFloat`, `SettingsSheet`, `ProfileSelector`, `HelpPanel`.
+Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are composed inside `MarketsGrid` and are **not** on the `./core` barrel. Public toolbar exports: `FiltersToolbar`, `FormattingToolbar`, `DraggableFloat`, `SettingsSheet`, `ProfileSelector`, `HelpPanel`.
 
 - `PrimaryToolbar` — actions, admin, export/import, Visual Excel spreadsheet export; center-top `GridDensityPill` (Ultra / Compact / Comfortable spacing presets via AG Grid `theme.withParams` + general-settings persistence)
   settings sheet toggle, always-visible inline editable caption (bound two-way to the OpenFin tab name via `useViewTabTitle`); the four view tools (Columns, Auto Format, Formatting toolbar, Editing toolbar) are consolidated into a single `ViewMenu` (`SlidersHorizontal` trigger) in the right cluster to keep the toolbar uncluttered;
@@ -761,14 +761,14 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
 
 ## 4. React Core
 
-### 4.1 `@wellsfargo-starui/grid/widgets`
+### 4.1 `@wellsfargo-starui/grid` (package root; alias `./widgets`)
 
 **Path:** `packages/react-grid/widgets-react`
-**Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4).
+**Purpose:** MarketsUI React widgets — v2 blotter framework, hosted grid containers, data-provider editor. Collapsed into `@wellsfargo-starui/grid` (package-collapse sub-phase 4); promoted to the package root so the framework's documented front door (`StarGrid`) is reachable without a subpath — `MarketsGrid` moved to `./core` to make room.
 
 **Public exports:**
 
-- `./widgets` — `StarGrid` (the one front-door grid), `MarketsGridContainer` + `DatePicker` (+ `ProviderSelection`/`ProviderMode` types; the dedicated subpath was removed), the SSRM container, hooks, provider, theme. Note: the `{ theme }`-wrapper `useAgGridTheme` left this barrel — the PUBLIC `useAgGridTheme` is the hosted variant (`./widgets/hosted`, mode → `Theme`); two same-name exports with incompatible signatures in one package was a documented footgun
+- `.` (same barrel as `./widgets`, kept as an alias) — `StarGrid` (the one front-door grid), `MarketsGridContainer` + `DatePicker` (+ `ProviderSelection`/`ProviderMode` types; the dedicated subpath was removed), the SSRM container, hooks, provider, theme. Note: the `{ theme }`-wrapper `useAgGridTheme` left this barrel — the PUBLIC `useAgGridTheme` is the hosted variant (`./widgets/hosted`, mode → `Theme`); two same-name exports with incompatible signatures in one package was a documented footgun
 - `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
 - `./widgets/hosted` — `useHostedStarui` + the à-la-carte hosted hooks (identity, theme, linking, lifecycle)
 
@@ -804,7 +804,7 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
 
 #### Provider editor tabs (internal to `DataProviderEditor`; not separately importable)
 
-Embedded AG Grid tables (Columns tab, AppData fields) register modules via the shared `ensureAgGridModules` from `@wellsfargo-starui/grid` (the tool's private registrar fork is deleted — the shared one additionally installs the set-filter validate guard) and already themed via `useAgGridTheme` → `staruiGridTheme`.
+Embedded AG Grid tables (Columns tab, AppData fields) register modules via the shared `ensureAgGridModules` from `@wellsfargo-starui/grid/core` (the tool's private registrar fork is deleted — the shared one additionally installs the set-filter validate guard) and already themed via `useAgGridTheme` → `staruiGridTheme`.
 
 - `ConnectionTab` — connection string, auth, transport selection; "Test Connection" button (STOMP/REST) drives `useProviderProbe.test()`. STOMP runs a pure socket connect (`connectStomp` — handshake only, no subscribe/trigger/rows) and shows "Connected"; row-fetching transports (REST/mock) show "Connected — received N rows". Both `test()` and `infer()` wait for AppData hydration only up to `APPDATA_READY_TIMEOUT_MS` (3 s) before proceeding — AppData merely supplies `{{name.key}}` token values, while `AppDataMirror.ready()` resolves solely on the hub's `appdata-snapshot` and has no timeout/retry/reject path, so an un-delivered snapshot used to strand the button on "Connecting…" forever, past the probe's own 10 s timeout. Unresolved tokens now read as `undefined`, exactly as on any pre-hydration read
 - `FieldsTab` — discover provider fields, map to columns, infer types; `buildColumns` maps each inferred `FieldNode.type` to a `cellDataType` (number/boolean/object pass through, everything else → `text`), and **inferred date fields → `dateString`** (not `date`) because `inferFields` detects ISO date *strings*, which AG-Grid's `date` type — expecting native `Date` objects — would mis-sort/filter

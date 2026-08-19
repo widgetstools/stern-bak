@@ -13,7 +13,7 @@ const refreshMock = vi.fn().mockResolvedValue(undefined);
 const restartMock = vi.fn().mockResolvedValue(undefined);
 const refreshProviderMock = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: any) => {
     lastMarketsGridProps.current = props;
     React.useEffect(() => {

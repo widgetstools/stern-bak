@@ -3,7 +3,7 @@ import {
   MarketsGrid,
   createMarketsGridLocalStorageStorage,
   type MarketsGridHandle,
-} from '@wellsfargo-starui/grid';
+} from '@wellsfargo-starui/grid/core';
 import { activeProfileKey } from '@wellsfargo-starui/core';
 import { GRID_ID, STORAGE_KEY } from './gridId';
 import {

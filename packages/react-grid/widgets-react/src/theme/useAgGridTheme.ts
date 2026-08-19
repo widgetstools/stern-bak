@@ -10,7 +10,7 @@
  *   <AgGridReact theme={theme} ... />
  */
 
-import { useGridTheme } from '@wellsfargo-starui/grid';
+import { useGridTheme } from '@wellsfargo-starui/grid/core';
 
 export function useAgGridTheme() {
   const theme = useGridTheme();

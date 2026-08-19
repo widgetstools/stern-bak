@@ -32,7 +32,7 @@ import { ExpressionEngine } from '@wellsfargo-starui/core';
 import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
 import { normalizeKeyColumns } from '@wellsfargo-starui/types/shared';
 import { MultiSelect } from '../MultiSelect.js';
-import { ensureAgGridModules } from '@wellsfargo-starui/grid';
+import { ensureAgGridModules } from '@wellsfargo-starui/grid/core';
 import { exportColumnDefs, parseColumnDefsImport } from '../columnDefsIo.js';
 import { useAgGridTheme } from '../../../theme/useAgGridTheme.js';
 

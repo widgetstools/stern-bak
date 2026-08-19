@@ -65,7 +65,7 @@ vi.mock('../container/markets-grid-container/MarketsGridContainer.js', () => ({
   },
 }));
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: () => React.createElement('div', { 'data-testid': 'static-grid' }),
 }));
 

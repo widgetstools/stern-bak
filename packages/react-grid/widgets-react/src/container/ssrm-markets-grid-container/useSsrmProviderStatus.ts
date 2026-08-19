@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
-import type { MarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
+import type { MarketsGridContainerEventBus } from '@wellsfargo-starui/grid/core';
 import type { ProviderMode } from '../markets-grid-container/gridLevelState.js';
 
 /**

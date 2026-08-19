@@ -11,7 +11,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
-import type { MarketsGridHandle } from '@wellsfargo-starui/grid';
+import type { MarketsGridHandle } from '@wellsfargo-starui/grid/core';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';
 
 /** Minimal sync pub-sub matching the platform EventBus surface the hook uses. */

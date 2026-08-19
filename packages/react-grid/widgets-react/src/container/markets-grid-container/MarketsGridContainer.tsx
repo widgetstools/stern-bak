@@ -24,9 +24,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef, GridApi } from 'ag-grid-community';
-import { MarketsGrid, createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
+import { MarketsGrid, createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid/core';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
-import type { MarketsGridProps, MarketsGridHandle, StorageAdapterFactory, ProviderGridHostApi, MarketsGridEventHandlerRegistry, MarketsGridHandlerMeta } from '@wellsfargo-starui/grid';
+import type { MarketsGridProps, MarketsGridHandle, StorageAdapterFactory, ProviderGridHostApi, MarketsGridEventHandlerRegistry, MarketsGridHandlerMeta } from '@wellsfargo-starui/grid/core';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
 import { traceStompProviderCfg } from '@wellsfargo-starui/data/runtime';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
@@ -51,7 +51,7 @@ import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
   createConfigBrowserAction,
 } from '@wellsfargo-starui/grid/config-browser';
-import type { AdminAction } from '@wellsfargo-starui/grid';
+import type { AdminAction } from '@wellsfargo-starui/grid/core';
 import { ConfigBrowserDialog } from './ConfigBrowserDialog.js';
 import { ProviderEditorDialog } from './ProviderEditorDialog.js';
 import { MarketsGridLoadingOverlay } from './LoadingOverlay.js';

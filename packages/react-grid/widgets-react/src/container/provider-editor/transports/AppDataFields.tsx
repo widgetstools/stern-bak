@@ -19,7 +19,7 @@ import { Button, Input, Label } from '@wellsfargo-starui/react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { AppDataVariable, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
 import { useAgGridTheme } from '../../../theme/useAgGridTheme.js';
-import { ensureAgGridModules } from '@wellsfargo-starui/grid';
+import { ensureAgGridModules } from '@wellsfargo-starui/grid/core';
 
 export interface AppDataFieldsProps {
   cfg: AppDataProviderConfig;

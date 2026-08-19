@@ -20,7 +20,7 @@ const liveProviderRow = {
 
 const lastMarketsGridProps: { current: unknown } = { current: null };
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: unknown) => {
     lastMarketsGridProps.current = props;
     return <div data-testid="markets-grid-stub" />;

@@ -4,11 +4,16 @@
   "private": true,
   "description": "MarketsGrid + grid customizer + config browser + React widgets \u2014 merged product surface. Consolidates grid, config-browser, widgets-react.",
   "type": "module",
-  "main": "./grid/dist/index.js",
-  "module": "./grid/dist/index.js",
-  "types": "./grid/dist/index.d.ts",
+  "main": "./widgets-react/dist/index.js",
+  "module": "./widgets-react/dist/index.js",
+  "types": "./widgets-react/dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./widgets-react/dist/index.d.ts",
+      "import": "./widgets-react/dist/index.js",
+      "require": "./widgets-react/dist/index.js"
+    },
+    "./core": {
       "types": "./grid/dist/index.d.ts",
       "import": "./grid/dist/index.js",
       "require": "./grid/dist/index.js"

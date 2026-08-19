@@ -55,7 +55,7 @@ let latestProvider: IDataProvider | null = null;
 
 const lastMarketsGridProps: { current: any } = { current: null };
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: any) => {
     lastMarketsGridProps.current = props;
     return <div data-testid="markets-grid-stub" />;

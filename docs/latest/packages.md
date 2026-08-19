@@ -129,17 +129,19 @@ Peers: `react`, `react-dom`, `tailwindcss`, `@tanstack/react-query`.
 
 ## `@wellsfargo-starui/grid`
 
-The product surface: **StarGrid** (the one consumer-facing grid) over
-**MarketsGrid** (the internal opinionated, profile-persistent AG Grid host),
-the grid customizer, the config browser, and the provider editor.
+The product surface: **StarGrid** (the one consumer-facing grid, the package
+root) over **MarketsGrid** (the configurable, profile-persistent AG Grid host,
+at `./core`), the grid customizer, the config browser, and the provider
+editor.
 
 | Subpath | Contents |
 |---|---|
-| `.` | `MarketsGrid`, toolbars, storage helpers, `ensureAgGridModules`, types |
+| `.` | `StarGrid` + container widgets (same barrel as `./widgets`) |
+| `./core` | `MarketsGrid`, toolbars, storage helpers, `ensureAgGridModules`, types |
 | `./customizer` | curated customizer surface (14 names; `ExpressionEditor`, state types) |
 | `./styles.css` | grid chrome CSS |
 | `./config-browser` | configuration browser panel |
-| `./widgets` | `StarGrid` + container widgets |
+| `./widgets` | `StarGrid` + container widgets (alias of `.`) |
 | `./widgets/ssrm-markets-grid-container` | SSRM container |
 | `./widgets/provider-editor` | data-provider editor |
 | `./widgets/hosted` | hosted-integration hooks (`useHostedStarui`, workspace-save flush, grid linking) |

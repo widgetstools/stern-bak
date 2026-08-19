@@ -42,7 +42,7 @@ import {
   useDataProviderConfig,
   useStaruiIdentity,
 } from '@wellsfargo-starui/react/data/runtime';
-import { MarketsGrid, type MarketsGridHandle, type MarketsGridProps } from '@wellsfargo-starui/grid';
+import { MarketsGrid, type MarketsGridHandle, type MarketsGridProps } from '@wellsfargo-starui/grid/core';
 import { MarketsGridContainer } from '../container/markets-grid-container/MarketsGridContainer.js';
 import { SsrmMarketsGridContainer } from '../container/ssrm-markets-grid-container/SsrmMarketsGridContainer.js';
 import { useAgGridTheme } from '../hosted/useAgGridTheme.js';

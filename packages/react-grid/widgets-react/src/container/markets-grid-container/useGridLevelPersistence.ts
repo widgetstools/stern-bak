@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
-import type { MarketsGridHandle } from '@wellsfargo-starui/grid';
+import type { MarketsGridHandle } from '@wellsfargo-starui/grid/core';
 import {
   DEFAULT_PROVIDER_SELECTION,
   normalizeGridLevelData,

@@ -9,7 +9,7 @@
  */
 
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import type { StorageAdapterFactory } from '@wellsfargo-starui/grid';
+import type { StorageAdapterFactory } from '@wellsfargo-starui/grid/core';
 
 export type { ConfigManager, StorageAdapterFactory };
 

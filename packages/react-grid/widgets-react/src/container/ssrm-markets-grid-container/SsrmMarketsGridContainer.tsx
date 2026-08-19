@@ -35,7 +35,7 @@ import {
   type MarketsGridSsrmProps,
   type ProviderGridHostApi,
   type StorageAdapterFactory,
-} from '@wellsfargo-starui/grid';
+} from '@wellsfargo-starui/grid/core';
 import { Button } from '@wellsfargo-starui/react';
 import { isOpenFin } from '@wellsfargo-starui/openfin/host';
 import {

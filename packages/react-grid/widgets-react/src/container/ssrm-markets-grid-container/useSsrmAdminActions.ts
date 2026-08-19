@@ -10,7 +10,7 @@
  * menu being there.
  */
 import { useMemo } from 'react';
-import type { AdminAction } from '@wellsfargo-starui/grid';
+import type { AdminAction } from '@wellsfargo-starui/grid/core';
 import { createConfigBrowserAction } from '@wellsfargo-starui/grid/config-browser';
 import {
   DATA_PROVIDER_EDITOR_ACTION_ID,

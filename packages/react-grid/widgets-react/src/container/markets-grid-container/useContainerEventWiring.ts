@@ -29,14 +29,14 @@ import type { AppDataLookup } from '@wellsfargo-starui/core';
 import {
   MARKETS_GRID_EVENT_CATALOG,
   useMarketsGridEventBridge,
-} from '@wellsfargo-starui/grid';
+} from '@wellsfargo-starui/grid/core';
 import type {
   GridEventBindingsHostApi,
   MarketsGridContainerEventBus,
   MarketsGridEventHandlerRegistry,
   MarketsGridHandle,
   MarketsGridHandlerMeta,
-} from '@wellsfargo-starui/grid';
+} from '@wellsfargo-starui/grid/core';
 import type { ProviderSelection } from './gridLevelState.js';
 
 export interface UseContainerEventWiringParams {

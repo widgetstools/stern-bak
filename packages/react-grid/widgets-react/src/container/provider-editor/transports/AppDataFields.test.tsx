@@ -17,7 +17,7 @@ vi.mock('../../../theme/useAgGridTheme.js', () => ({
   useAgGridTheme: () => ({ theme: null }),
 }));
 
-vi.mock('@wellsfargo-starui/grid', async (importOriginal) => ({
+vi.mock('@wellsfargo-starui/grid/core', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ensureAgGridModules: vi.fn(),
 }));

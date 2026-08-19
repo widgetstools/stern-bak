@@ -20,7 +20,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { isHistoricalToolbarDate, todayIsoDate } from '@wellsfargo-starui/grid/customizer';
-import type { MarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
+import type { MarketsGridContainerEventBus } from '@wellsfargo-starui/grid/core';
 import {
   readHistoricalDateFromAppData,
   writeHistoricalDateToAppData,

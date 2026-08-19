@@ -1,4 +1,4 @@
-import type { MarketsGridHandlerMeta } from '@wellsfargo-starui/grid';
+import type { MarketsGridHandlerMeta } from '@wellsfargo-starui/grid/core';
 
 export const gridHandlerMeta: MarketsGridHandlerMeta = {
   'log-profile-saved': {

@@ -1,4 +1,4 @@
-import type { MarketsGridEventHandlerRegistry } from '@wellsfargo-starui/grid';
+import type { MarketsGridEventHandlerRegistry } from '@wellsfargo-starui/grid/core';
 
 export const gridEventHandlers: MarketsGridEventHandlerRegistry = {
   'log-profile-saved': (payload) => {

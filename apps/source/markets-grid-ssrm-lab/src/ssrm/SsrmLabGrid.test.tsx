@@ -41,7 +41,7 @@ vi.mock('../data/storage.js', () => ({ labStorage: { tag: 'lab-storage' } }));
  * Render the props this component's decisions actually live in, so the tests
  * can read them off the DOM rather than off a spy's call record.
  */
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: Record<string, any>) =>
     React.createElement(
       'div',

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MarketsGrid } from '@wellsfargo-starui/grid';
+import { MarketsGrid } from '@wellsfargo-starui/grid/core';
 import { TabContainer } from '../components/TabContainer';
 import { InspectorDrawer } from '../components/InspectorDrawer';
 import { defaultColDef } from '../data/columns';

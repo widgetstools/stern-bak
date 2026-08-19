@@ -26,7 +26,7 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataProviderConfig: () => cfgRef.current,
 }));
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: Record<string, unknown>) =>
     React.createElement('div', {
       'data-testid': 'static-grid',

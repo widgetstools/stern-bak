@@ -3,7 +3,7 @@ import { cleanup, renderHook } from '@testing-library/react';
 
 const useGridTheme = vi.fn(() => 'mock-grid-theme');
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   useGridTheme: () => useGridTheme(),
 }));
 

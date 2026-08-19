@@ -1,5 +1,5 @@
 import type { ColDef } from 'ag-grid-community';
-import type { MarketsGridProps } from '@wellsfargo-starui/grid';
+import type { MarketsGridProps } from '@wellsfargo-starui/grid/core';
 import { baseColumns, defaultColDef, pickColumns } from '../data/columns';
 import { HELP } from '../help';
 import type { LabDemoProfileEntry } from '../profiles/labProfileKit';

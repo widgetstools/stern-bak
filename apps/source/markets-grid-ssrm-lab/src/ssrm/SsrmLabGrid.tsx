@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { MarketsGrid, type MarketsGridProps } from '@wellsfargo-starui/grid';
+import { MarketsGrid, type MarketsGridProps } from '@wellsfargo-starui/grid/core';
 import { useSsrmDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { resolveSsrmKeyColumn } from '@wellsfargo-starui/data';
 import { useSsrmProviderDataWiring } from '@wellsfargo-starui/grid/widgets/ssrm-markets-grid-container';

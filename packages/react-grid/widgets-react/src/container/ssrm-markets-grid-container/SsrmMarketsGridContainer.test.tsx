@@ -16,7 +16,7 @@ const { mockProvider } = vi.hoisted(() => ({
   } as unknown as ISsrmDataProvider,
 }));
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: Record<string, unknown>) =>
     React.createElement('div', {
       'data-testid': 'markets-grid',

@@ -85,7 +85,7 @@ const appDataSet = vi.fn().mockResolvedValue(undefined);
 const saveAllMock = vi.fn().mockResolvedValue(undefined);
 const lastMarketsGridProps: { current: any } = { current: null };
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: any) => {
     lastMarketsGridProps.current = props;
     const readySentRef = React.useRef(false);

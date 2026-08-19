@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { MarketsGridEventContext } from '@wellsfargo-starui/grid';
+import type { MarketsGridEventContext } from '@wellsfargo-starui/grid/core';
 import { gridEventHandlers } from './gridEventHandlers.js';
 
 /** The handlers under test only read ctx.gridId — a partial mock is the point. */

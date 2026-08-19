@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 import type { ValueFormatterParams, ValueGetterParams } from 'ag-grid-community';
 import type { ThemeOptions } from '@wellsfargo-starui/design-system';
-import type { StorageAdapterFactory } from '@wellsfargo-starui/grid';
+import type { StorageAdapterFactory } from '@wellsfargo-starui/grid/core';
 
 export const mockApplyTheme = vi.fn();
 export const mockGetTheme = vi.fn((): ThemeOptions => ({ theme: 'dark' }));
@@ -84,7 +84,7 @@ vi.mock('@wellsfargo-starui/core', async (importOriginal) => {
   };
 });
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+vi.mock('@wellsfargo-starui/grid/core', () => ({
   MarketsGrid: (props: Record<string, unknown>) => {
     React.useEffect(() => {
       const onReady = props.onReady as ((handle: typeof mockMarketsGridHandle) => void) | undefined;

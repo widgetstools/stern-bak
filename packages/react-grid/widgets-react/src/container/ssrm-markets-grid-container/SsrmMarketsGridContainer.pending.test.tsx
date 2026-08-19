@@ -19,7 +19,7 @@ const fakeProvider = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@wellsfargo-starui/grid', async (importOriginal) => {
+vi.mock('@wellsfargo-starui/grid/core', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
   return {
     ...mod,

@@ -13,7 +13,7 @@ export interface HomeTabProps {
   onNavigate: (id: string) => void;
 }
 
-const MOUNT_SNIPPET = `import { MarketsGrid, createMarketsGridLocalStorageStorage } from '@wellsfargo-starui/grid';
+const MOUNT_SNIPPET = `import { MarketsGrid, createMarketsGridLocalStorageStorage } from '@wellsfargo-starui/grid/core';
 
 const storage = createMarketsGridLocalStorageStorage();
 

@@ -20,7 +20,7 @@ import { createApplyProviderToGridState } from './applyProviderToGrid.js';
 import { resolveProviderStartPlan } from './resolveProviderStartPlan.js';
 import type { ProviderMode } from './gridLevelState.js';
 import type { useDataServices } from '@wellsfargo-starui/react/data/runtime';
-import type { createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid';
+import type { createMarketsGridContainerEventBus } from '@wellsfargo-starui/grid/core';
 
 /**
  * Gate for hot-path diagnostic logs. Flip to `true` locally when debugging
