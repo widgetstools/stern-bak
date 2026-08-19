@@ -1,15 +1,11 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
-// Type-only import — erased at compile time, so it does not defeat the
-// vi.mock('@wellsfargo-starui/design-system') below.
-import type { ThemeOptions } from '@wellsfargo-starui/design-system';
+import type { ThemeOptions } from '@wellsfargo-starui/design-system/apply-theme';
 
 export const mockApplyTheme = vi.fn();
 export const mockGetTheme = vi.fn((): ThemeOptions => ({ theme: 'dark' }));
 export const mockMarketsGridEvents = {
-  // Real `events.on` returns a disposer — the mock must too, or consumers
-  // that capture and later invoke it crash with "off is not a function".
   on: vi.fn((_event: string, _handler: () => void) => vi.fn()),
   off: vi.fn(),
   emit: vi.fn(),
@@ -28,8 +24,14 @@ function cloneChild(
   return React.createElement('button', { type: 'button', ...props }, children);
 }
 
-vi.mock('@wellsfargo-starui/grid/core', () => ({
-  MarketsGrid: (props: Record<string, unknown>) => {
+vi.mock('@wellsfargo-starui/grid', () => ({
+  createStarui: () => ({
+    Provider: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+  }),
+  applyTheme: (...args: unknown[]) => mockApplyTheme(...args),
+  getTheme: () => mockGetTheme(),
+  StarGrid: (props: Record<string, unknown>) => {
     const onReady = props.onReady as ((handle: unknown) => void) | undefined;
     if (onReady) {
       queueMicrotask(() =>
@@ -43,24 +45,11 @@ vi.mock('@wellsfargo-starui/grid/core', () => ({
       'data-grid-id': props.gridId,
     });
   },
-  createMarketsGridLocalStorageStorage: () => ({
-    load: vi.fn(),
-    save: vi.fn(),
-  }),
 }));
 
 vi.mock('@wellsfargo-starui/core', () => ({
-  // Mirror the real key shape — HelpSheet renders this key verbatim, so a
-  // fake shape would leak into user-visible assertions.
   marketsGridLocalStorageBundleKey: (id: string) => `markets-grid-bundle:${id}`,
   activeProfileKey: (id: string) => `active:${id}`,
-}));
-
-vi.mock('@wellsfargo-starui/design-system', () => ({
-  applyTheme: (...args: unknown[]) => mockApplyTheme(...args),
-  getTheme: () => mockGetTheme(),
-  ThemeProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children),
 }));
 
 vi.mock('@wellsfargo-starui/react', () => {

@@ -12,7 +12,7 @@ import { StarGridApp } from "./starGridApp/index.js";
 import { BrowserRuntime } from "@wellsfargo-starui/core/host/browser";
 import { OpenFinRuntime, isOpenFin } from "@wellsfargo-starui/openfin/host";
 import { useOpenFinThemeSync } from "./useOpenFinThemeSync";
-import { DataHubProvider } from "@wellsfargo-starui/react/data/runtime";
+import { DataHubProvider } from '@wellsfargo-starui/grid';
 import type { RuntimePort } from "@wellsfargo-starui/core/host";
 import {
   initConfigBootstrap,

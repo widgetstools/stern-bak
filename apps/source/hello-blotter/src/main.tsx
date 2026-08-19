@@ -1,6 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { createStarui } from '@wellsfargo-starui/react/data/runtime';
-import { StarGrid } from '@wellsfargo-starui/grid/widgets';
+import { createStarui, StarGrid } from '@wellsfargo-starui/grid';
 import './index.css';
 
 const starui = createStarui({

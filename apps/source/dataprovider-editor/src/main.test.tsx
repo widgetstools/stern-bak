@@ -21,7 +21,7 @@ vi.mock('@wellsfargo-starui/react', () => ({
   AlertTitle: ({ children }: { children: React.ReactNode }) => React.createElement('h2', null, children),
 }));
 
-vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+vi.mock('@wellsfargo-starui/grid', () => ({
   DataHubProvider: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));

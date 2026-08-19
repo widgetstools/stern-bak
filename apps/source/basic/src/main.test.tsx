@@ -21,7 +21,7 @@ describe('main', () => {
     document.body.innerHTML = '<div id="root"></div>';
   });
 
-  it('applies theme and mounts App in StrictMode', async () => {
+  it('applies theme and mounts App inside starui.Provider', async () => {
     vi.resetModules();
     await import('./main');
 

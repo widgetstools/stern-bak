@@ -110,7 +110,11 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   }),
 }));
 
-vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+vi.mock('@wellsfargo-starui/grid', () => ({
+  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
+  DataHubProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
   StarGrid: (props: Record<string, unknown>) => {
     const advanced = (props.advanced ?? {}) as Record<string, unknown>;
     return React.createElement(
@@ -148,13 +152,6 @@ vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({
         'Close editor',
       ),
     ),
-}));
-
-vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
-  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
-  DataHubProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
 }));
 
 vi.mock('@wellsfargo-starui/data', () => ({

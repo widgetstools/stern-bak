@@ -12,7 +12,7 @@ their real names with no aliases and no build glue.
 | [`@wellsfargo-starui/data`](#wellsfargo-staruidata) | `packages/data` | SharedWorker data services |
 | [`@wellsfargo-starui/openfin`](#wellsfargo-staruiopenfin) | `packages/openfin` | OpenFin workspace shell |
 | [`@wellsfargo-starui/react`](#wellsfargo-staruireact) | `packages/react-core` | React primitives + SDK |
-| [`@wellsfargo-starui/grid`](#wellsfargo-staruigrid) | `packages/react-grid` | MarketsGrid product surface |
+| [`@wellsfargo-starui/grid`](#wellsfargo-staruigrid) | `packages/react-grid` | StarGrid / MarketsGrid product surface |
 
 Layering and allowed imports are covered in
 [architecture.md](./architecture.md#1-layer-model).
@@ -136,7 +136,7 @@ editor.
 
 | Subpath | Contents |
 |---|---|
-| `.` | `StarGrid` + container widgets (same barrel as `./widgets`) |
+| `.` | `StarGrid` + `createStarui` + `applyTheme` / `getTheme` re-exports (one-import path) + container widgets (same barrel as `./widgets`) |
 | `./core` | `MarketsGrid`, toolbars, storage helpers, `ensureAgGridModules`, types |
 | `./customizer` | curated customizer surface (14 names; `ExpressionEditor`, state types) |
 | `./styles.css` | grid chrome CSS |

@@ -6,11 +6,13 @@ multi-window OpenFin workspaces — on one coherent design system.
 
 ## What it gives you
 
-**MarketsGrid** — the flagship surface. An opinionated AG Grid host with
-profile persistence (columns, filters, formats survive reloads and roam via a
-pluggable storage layer), a full grid customizer, Excel-style formatting
-toolbars, conditional formats, smart editing, alerts, and a configuration
-browser. One component, production defaults.
+**StarGrid** — the flagship surface, imported straight from the package root
+(`@wellsfargo-starui/grid`). It renders on top of **MarketsGrid** (`/core`),
+an opinionated AG Grid host with profile persistence (columns, filters,
+formats survive reloads and roam via a pluggable storage layer), a full grid
+customizer, Excel-style formatting toolbars, conditional formats, smart
+editing, alerts, and a configuration browser. One component, production
+defaults.
 
 **A token-driven design system** — primitives, semantic tokens, themes and
 icons. Dark/light switching is one attribute flip (`data-theme` on `<html>`);

@@ -53,8 +53,8 @@ Toolbar flags exercised across tabs: `showFiltersToolbar`,
 
 ## StarUI surfaces consumed
 
-`@wellsfargo-starui/grid` (`MarketsGrid`, storage helpers, `/customizer`
-types, `/styles.css`) · `@wellsfargo-starui/react` (+`/data/runtime`) ·
+`@wellsfargo-starui/grid` (`/core` — `MarketsGrid`, storage helpers; plus
+`/customizer` types, `/styles.css`) · `@wellsfargo-starui/react` (+`/data/runtime`) ·
 `@wellsfargo-starui/core` (profile/editing types) · `@wellsfargo-starui/data`
 (+`/runtime`, worker asset) · `@wellsfargo-starui/design-system` (+`/css`) ·
 `@wellsfargo-starui/types`.

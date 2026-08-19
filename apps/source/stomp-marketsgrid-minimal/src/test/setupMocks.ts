@@ -28,10 +28,6 @@ vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   useDataServices: () => ({ configStore: staruiTestState.configStore }),
   useUserIdFromContext: () => 'test-user',
-  DataHubProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
-  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
@@ -42,7 +38,11 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   }),
 }));
 
-vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+vi.mock('@wellsfargo-starui/grid', () => ({
+  DataHubProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
+  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
   StarGrid: (props: Record<string, unknown>) => {
     const advanced = (props.advanced ?? {}) as Record<string, unknown>;
     return React.createElement('div', {

@@ -3,7 +3,8 @@
 StarUI (the MarketsUI platform) is a layered TypeScript monorepo that ships
 **seven npm packages** — a design system, a vanilla-TS core runtime, data
 services, an OpenFin workspace shell, a React component layer, a foundation
-types package, and the flagship **MarketsGrid** product surface. Consumer
+types package, and the flagship **StarGrid** product surface (built on
+**MarketsGrid**, the configurable AG Grid host underneath it). Consumer
 applications sit on top and are never imported by the packages.
 
 This document is the canonical architecture reference. For per-package export
@@ -23,8 +24,8 @@ a package may import from its own layer or below, never above.
 
 | Rule | Enforced by |
 |---|---|
-| Foundation packages (`types`, `design-system`) import **nothing** except each other | convention + review |
-| `core` never imports framework adapters (`grid`, `react`) | convention + review |
+| Foundation packages (`types`, `design-system`) import **nothing** except each other | `eslint.config.mjs` boundary zones |
+| `core` never imports framework adapters (`grid`, `react`) | `eslint.config.mjs` (engine + host members) |
 | Only `openfin` may import `@openfin/core` | `eslint.config.mjs` boundary rules |
 | Apps import packages — **never** the reverse | package layering (apps are not workspaces) |
 | No package imports from `apps/` | `apps/` sits outside the workspace graph |

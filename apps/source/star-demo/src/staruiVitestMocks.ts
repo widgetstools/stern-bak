@@ -117,27 +117,6 @@ vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
 }));
 
-vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
-  DataHubProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
-  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
-}));
-
-vi.mock('@wellsfargo-starui/openfin', () => ({
-  initWorkspace: mockInitWorkspace,
-  ACTION_EXPORT_CONFIG: 'export-config',
-}));
-
-vi.mock('@wellsfargo-starui/openfin/test-bridge', () => ({
-  installTestBridge: mockInstallTestBridge,
-}));
-
-vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
-  ConfigBrowserPanel: () =>
-    React.createElement('div', { 'data-testid': 'config-browser-panel' }, 'Config Browser'),
-}));
-
 vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   useHostedStarui: ({ defaultGridId }: { defaultGridId: string }) => ({
     gridId: defaultGridId,
@@ -146,7 +125,11 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
   }),
 }));
 
-vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+vi.mock('@wellsfargo-starui/grid', () => ({
+  DataHubProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'data-hub-provider' }, children),
+  StaruiIdentityProvider: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'starui-identity' }, children),
   StarGrid: (props: Record<string, unknown>) => {
     const advanced = (props.advanced ?? {}) as Record<string, unknown>;
     return React.createElement(
@@ -175,6 +158,20 @@ vi.mock('@wellsfargo-starui/grid/widgets', () => ({
       ),
     );
   },
+}));
+
+vi.mock('@wellsfargo-starui/openfin', () => ({
+  initWorkspace: mockInitWorkspace,
+  ACTION_EXPORT_CONFIG: 'export-config',
+}));
+
+vi.mock('@wellsfargo-starui/openfin/test-bridge', () => ({
+  installTestBridge: mockInstallTestBridge,
+}));
+
+vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
+  ConfigBrowserPanel: () =>
+    React.createElement('div', { 'data-testid': 'config-browser-panel' }, 'Config Browser'),
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({

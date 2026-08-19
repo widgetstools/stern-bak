@@ -10,7 +10,7 @@
 <rect width="980" height="380" fill="#fbfcfc"/>
 <rect x="30" y="108" width="130" height="64" rx="3" fill="#eefaf5" stroke="#0e8f6d" stroke-width="1.4"/>
 <text x="95" y="137.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">grid</text>
-<text x="95" y="151.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">MarketsGrid</text>
+<text x="95" y="151.75" text-anchor="middle" font-size="10.5" fill="#5d6b64">StarGrid</text>
 <path d="M162,140 L184,140" fill="none" stroke="#8a9992" stroke-width="1.25" marker-end="url(#arr)"/>
 <rect x="188" y="108" width="130" height="64" rx="3" fill="#eef6fa" stroke="#2c6e8f" stroke-width="1.4"/>
 <text x="253" y="137.25" text-anchor="middle" font-size="13" font-weight="650" fill="#1c2622" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">react</text>

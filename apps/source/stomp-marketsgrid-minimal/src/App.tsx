@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StarGrid } from '@wellsfargo-starui/grid/widgets';
+import { StarGrid, StaruiIdentityProvider } from '@wellsfargo-starui/grid';
 import { useHostedStarui } from '@wellsfargo-starui/grid/widgets/hosted';
 import {
-  StaruiIdentityProvider,
   useDataServices,
   useUserIdFromContext,
 } from '@wellsfargo-starui/react/data/runtime';

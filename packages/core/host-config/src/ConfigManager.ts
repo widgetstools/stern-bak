@@ -20,8 +20,7 @@ import Dexie from 'dexie';
 import { ChangeNotifier } from './changeNotifier';
 import { ConfigDatabase } from './db';
 import { ConfigNotFoundError, OptimisticLockError } from './errors';
-import { normalizeImportedAppConfigRow, normalizeSeedData, parseSeedJson } from './normalizeSeedData';
-import { computeSeedDigest, seedDigestStorageKey } from './seedDigest';
+import { normalizeImportedAppConfigRow } from './normalizeSeedData';
 import type {
   AppConfigRow,
   AppIdentity,
@@ -31,15 +30,12 @@ import type {
   ConfigManagerOptions,
   DataServicesHandle,
   PermissionRow,
-  PendingSyncRow,
   RoleRow,
-  SeedData,
   SeedConfigReloadMode,
   UserProfileRow,
 } from './types';
 import { isVisible, type VisibilityContext } from './visibility';
 import {
-  type SeedLockManager,
   APPLICATION_CONTEXT_NAME,
   DEFAULT_APP_ID,
   DEFAULT_IDENTITY,
@@ -48,8 +44,18 @@ import {
   COMPONENT_TYPE_DATA_PROVIDER,
   COMPONENT_TYPE_APPDATA,
   PENDING_SYNC_INTERVAL_MS,
-  MAX_SYNC_RETRIES,
 } from './configManagerInternals';
+import {
+  drainPendingSync,
+  syncToRest,
+  type ConfigManagerRestSyncContext,
+} from './configManagerRestSyncOps';
+import {
+  resetToSeedFromUrl,
+  seedIfEmpty,
+  type ConfigManagerSeedContext,
+  type ResetToSeedResult,
+} from './configManagerSeedOps';
 
 /**
  * Subset of `ApplicationContext.ImpersonatedUser` used by
@@ -91,19 +97,7 @@ export interface UpdateConfigOptions {
   expectedUpdatedTime?: string;
 }
 
-/** Summary returned by {@link ConfigManager.resetToSeed}. */
-export interface ResetToSeedResult {
-  /** The seed-config URL the database was reset from. */
-  seedUrl: string;
-  /** Per-table row counts written from the seed. */
-  counts: {
-    appConfig: number;
-    appRegistry: number;
-    userProfiles: number;
-    roles: number;
-    permissions: number;
-  };
-}
+export type { ResetToSeedResult } from './configManagerSeedOps';
 
 /**
  * Create a new ConfigManager instance — the single entry point for the
@@ -168,6 +162,24 @@ export class ConfigManager {
   private readonly rowCache = new Map<string, AppConfigRow | undefined>();
   /** Backstop cap for {@link rowCache}; clears wholesale when exceeded. */
   private static readonly ROW_CACHE_MAX = 1000;
+
+  private seedContext(): ConfigManagerSeedContext {
+    return {
+      db: this.db,
+      seedConfigUrl: this.seedConfigUrl,
+      seedConfigReload: this.seedConfigReload,
+      disposed: this.disposed,
+      clearRowCache: () => this.rowCache.clear(),
+    };
+  }
+
+  private restContext(): ConfigManagerRestSyncContext {
+    return {
+      db: this.db,
+      restUrl: this.restUrl,
+      identity: this.identity,
+    };
+  }
 
   constructor(options: ConfigManagerOptions = {}) {
     this.db = new ConfigDatabase();
@@ -494,7 +506,7 @@ export class ConfigManager {
       // Seed the database if it's empty and a seed URL is provided.
       // Attach mode skips this — the provider window (or first tab) already seeded.
       if (!attach) {
-        await this.seedIfEmpty();
+        await seedIfEmpty(this.seedContext());
       }
       if (this.disposed) {
         return;
@@ -732,7 +744,7 @@ export class ConfigManager {
     this.stampWrite(config, isInsert);
 
     if (this.restUrl) {
-      await this.syncToRest('upsert', 'configurations', config.configId, config, {
+      await syncToRest(this.restContext(), 'upsert', 'configurations', config.configId, config, {
         ifMatch: options?.expectedUpdatedTime,
       });
     }
@@ -816,7 +828,7 @@ export class ConfigManager {
    */
   async deleteConfig(configId: string): Promise<void> {
     if (this.restUrl) {
-      await this.syncToRest("delete", "configurations", configId, undefined);
+      await syncToRest(this.restContext(), "delete", "configurations", configId, undefined);
     }
     await this.db.appConfig.delete(configId);
     this.changeNotifier.notify(configId);
@@ -984,7 +996,7 @@ export class ConfigManager {
     this.stampWrite(row, existing === undefined);
 
     if (this.restUrl) {
-      await this.syncToRest("upsert", "app-registry", row.appId, row);
+      await syncToRest(this.restContext(), "upsert", "app-registry", row.appId, row);
     }
     await this.db.appRegistry.put(row);
   }
@@ -995,7 +1007,7 @@ export class ConfigManager {
    */
   async deleteAppRegistry(appId: string): Promise<void> {
     if (this.restUrl) {
-      await this.syncToRest("delete", "app-registry", appId, undefined);
+      await syncToRest(this.restContext(), "delete", "app-registry", appId, undefined);
     }
     await this.db.appRegistry.delete(appId);
   }
@@ -1036,7 +1048,7 @@ export class ConfigManager {
     this.stampWrite(row, existing === undefined);
 
     if (this.restUrl) {
-      await this.syncToRest("upsert", "user-profiles", row.userId, row);
+      await syncToRest(this.restContext(), "upsert", "user-profiles", row.userId, row);
     }
     await this.db.userProfile.put(row);
   }
@@ -1047,7 +1059,7 @@ export class ConfigManager {
    */
   async deleteUserProfile(userId: string): Promise<void> {
     if (this.restUrl) {
-      await this.syncToRest("delete", "user-profiles", userId, undefined);
+      await syncToRest(this.restContext(), "delete", "user-profiles", userId, undefined);
     }
     await this.db.userProfile.delete(userId);
   }
@@ -1081,7 +1093,7 @@ export class ConfigManager {
     this.stampWrite(row, existing === undefined);
 
     if (this.restUrl) {
-      await this.syncToRest("upsert", "roles", row.roleId, row);
+      await syncToRest(this.restContext(), "upsert", "roles", row.roleId, row);
     }
     await this.db.roles.put(row);
   }
@@ -1092,7 +1104,7 @@ export class ConfigManager {
    */
   async deleteRole(roleId: string): Promise<void> {
     if (this.restUrl) {
-      await this.syncToRest("delete", "roles", roleId, undefined);
+      await syncToRest(this.restContext(), "delete", "roles", roleId, undefined);
     }
     await this.db.roles.delete(roleId);
   }
@@ -1133,7 +1145,7 @@ export class ConfigManager {
     this.stampWrite(row, existing === undefined);
 
     if (this.restUrl) {
-      await this.syncToRest("upsert", "permissions", row.permissionId, row);
+      await syncToRest(this.restContext(), "upsert", "permissions", row.permissionId, row);
     }
     await this.db.permissions.put(row);
   }
@@ -1144,7 +1156,7 @@ export class ConfigManager {
    */
   async deletePermission(permissionId: string): Promise<void> {
     if (this.restUrl) {
-      await this.syncToRest("delete", "permissions", permissionId, undefined);
+      await syncToRest(this.restContext(), "delete", "permissions", permissionId, undefined);
     }
     await this.db.permissions.delete(permissionId);
   }
@@ -1221,51 +1233,6 @@ export class ConfigManager {
 
   // ─── Seeding ──────────────────────────────────────────────────────
 
-  /**
-   * Load seed data from `seedConfigUrl`.
-   *
-   * Default (`empty-only`): runs only when appRegistry and appConfig are both
-   * empty. `when-changed`: also re-applies when the normalized deploy-bundle
-   * digest differs from the last successful seed (dev: replace `seed.json` and
-   * reload). Accepts the Config Browser rocket export shape — see
-   * `parseSeedJson` + `normalizeSeedData`.
-   */
-  private async seedIfEmpty(): Promise<void> {
-    if (!this.seedConfigUrl) {
-      return;
-    }
-    // Serialize the seed across every same-origin context — all OpenFin
-    // windows AND the SharedWorker — with a Web Lock keyed by the seed URL.
-    // A cold start that opens several windows at once would otherwise have
-    // each context (plus the worker) independently see an empty DB, fetch
-    // seed.json, and run a bulkPut transaction. The lock collapses that to a
-    // single fetch+seed: the emptiness check lives *inside* the lock, so late
-    // acquirers find the rows already present and skip the fetch entirely.
-    // Web Locks auto-release if a holder crashes mid-seed, so there is no
-    // stale lock to time out (the cross-window warm-marker fallback in
-    // ensurePlatformReady still guards the next-launch fast path).
-    await this.runWithSeedLock(this.seedConfigUrl, () => this.seedIfEmptyLocked());
-  }
-
-  /**
-   * Run `fn` while holding an exclusive same-origin Web Lock for this seed URL.
-   * Falls back to running `fn` directly when `navigator.locks` is unavailable
-   * (older runtimes, jsdom) — `bulkPut` is idempotent on primary key, so a
-   * concurrent seed is wasteful but still correct.
-   */
-  private async runWithSeedLock(url: string, fn: () => Promise<void>): Promise<void> {
-    const locks = (
-      globalThis as { navigator?: { locks?: SeedLockManager } }
-    ).navigator?.locks;
-    if (!locks || typeof locks.request !== 'function') {
-      await fn();
-      return;
-    }
-    await locks.request(`starui:seed-lock:${url}`, { mode: 'exclusive' }, async () => {
-      await fn();
-    });
-  }
-
   /** The seed-config URL this manager was constructed with, if any. */
   getSeedConfigUrl(): string | undefined {
     return this.seedConfigUrl;
@@ -1273,16 +1240,9 @@ export class ConfigManager {
 
   /**
    * Hard reset: replace EVERY config table with the contents of the seed
-   * file at {@link seedConfigUrl}. Unlike {@link seedIfEmpty} this runs
+   * file at {@link seedConfigUrl}. Unlike cold-start seeding this runs
    * unconditionally (regardless of `seedConfigReload` or whether the DB is
    * empty / the digest changed).
-   *
-   * The seed is fetched, parsed and normalized BEFORE anything is wiped, so a
-   * network or parse failure throws and leaves the existing database
-   * untouched — a reset never strands the user with an empty store.
-   *
-   * Callers (e.g. the Config Browser "Reset to seed" action) are expected to
-   * force a backup first; this method itself performs no backup.
    *
    * @throws if the manager is disposed, has no `seedConfigUrl`, or the seed
    *   cannot be fetched / parsed.
@@ -1297,339 +1257,13 @@ export class ConfigManager {
         'ConfigManager: no seedConfigUrl configured — there is no seed to reset to.',
       );
     }
-
-    // Fetch + parse FIRST — a failure here must abort before any wipe.
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(
-        `ConfigManager: failed to fetch seed data from ${url} (HTTP ${response.status}).`,
-      );
-    }
-    const parsed = parseSeedJson(await response.json());
-    if (!parsed) {
-      throw new Error(`ConfigManager: ${url} is not a valid seed file.`);
-    }
-    const seedData: SeedData = normalizeSeedData(parsed);
-
-    // Serialize against any concurrent seed/reset across windows + worker.
-    let counts: ResetToSeedResult['counts'] | undefined;
-    await this.runWithSeedLock(url, async () => {
-      counts = await this.replaceAllWithSeed(seedData);
-    });
-
-    // Persist the digest so a subsequent `when-changed` boot doesn't re-seed
-    // over the freshly-reset rows, and drop any stale cache entries.
-    this.writeSeedDigest(seedDigestStorageKey(url), await computeSeedDigest(seedData));
-    this.rowCache.clear();
-    console.log(`ConfigManager: reset complete — re-seeded from ${url}.`);
-    return { seedUrl: url, counts: counts! };
+    return resetToSeedFromUrl(this.seedContext(), url);
   }
 
-  /**
-   * Clear all config tables and bulkPut the seed rows in a single `rw`
-   * transaction, so the replace is atomic. Returns per-table row counts.
-   * Shared by {@link resetToSeed} and {@link seedIfEmptyLocked}.
-   */
-  private async replaceAllWithSeed(
-    seedData: SeedData,
-    options: { clearFirst?: boolean } = {},
-  ): Promise<ResetToSeedResult['counts']> {
-    const { clearFirst = true } = options;
-    await this.db.transaction(
-      'rw',
-      [
-        this.db.appRegistry,
-        this.db.userProfile,
-        this.db.roles,
-        this.db.permissions,
-        this.db.appConfig,
-      ],
-      async () => {
-        if (clearFirst) {
-          await Promise.all([
-            this.db.appConfig.clear(),
-            this.db.appRegistry.clear(),
-            this.db.userProfile.clear(),
-            this.db.roles.clear(),
-            this.db.permissions.clear(),
-          ]);
-        }
-        if (seedData.permissions.length > 0) {
-          await this.db.permissions.bulkPut(seedData.permissions);
-        }
-        if (seedData.roles.length > 0) {
-          await this.db.roles.bulkPut(seedData.roles);
-        }
-        if (seedData.appRegistry.length > 0) {
-          await this.db.appRegistry.bulkPut(seedData.appRegistry);
-        }
-        if (seedData.userProfiles.length > 0) {
-          await this.db.userProfile.bulkPut(seedData.userProfiles);
-        }
-        if (seedData.appConfig && seedData.appConfig.length > 0) {
-          await this.db.appConfig.bulkPut(seedData.appConfig);
-        }
-      },
-    );
-    this.rowCache.clear();
-    return {
-      permissions: seedData.permissions.length,
-      roles: seedData.roles.length,
-      appRegistry: seedData.appRegistry.length,
-      userProfiles: seedData.userProfiles.length,
-      appConfig: seedData.appConfig?.length ?? 0,
-    };
-  }
-
-  private async seedIfEmptyLocked(): Promise<void> {
-    if (this.disposed || !this.seedConfigUrl) {
-      return;
-    }
-
-    const [appCount, configCount] = await Promise.all([
-      this.db.appRegistry.count(),
-      this.db.appConfig.count(),
-    ]);
-    const hasData = appCount > 0 || configCount > 0;
-
-    if (hasData && this.seedConfigReload === 'empty-only') {
-      console.log('ConfigManager: Database already seeded, skipping.');
-      return;
-    }
-
-    if (!hasData && this.seedConfigReload === 'empty-only') {
-      console.log(`ConfigManager: Seeding database from ${this.seedConfigUrl}`);
-    }
-
-    try {
-      const response = await fetch(this.seedConfigUrl, { cache: 'no-store' });
-      if (!response.ok) {
-        console.error(
-          `ConfigManager: ⚠️ Failed to fetch seed data from ${this.seedConfigUrl} (HTTP ${response.status}). ` +
-          'The database will start empty. Check that the dev server is running and the seedConfigUrl is correct.',
-        );
-        return;
-      }
-
-      const parsed = parseSeedJson(await response.json());
-      if (!parsed) {
-        return;
-      }
-      const seedData: SeedData = normalizeSeedData(parsed);
-      const digest = await computeSeedDigest(seedData);
-      const digestKey = seedDigestStorageKey(this.seedConfigUrl);
-      const previousDigest = this.readSeedDigest(digestKey);
-
-      if (hasData && this.seedConfigReload === 'when-changed') {
-        if (previousDigest === digest) {
-          console.log('ConfigManager: seed.json unchanged — skipping re-seed.');
-          return;
-        }
-        console.log(
-          `ConfigManager: seed.json changed — clearing config tables and re-seeding from ${this.seedConfigUrl}`,
-        );
-      }
-
-      if (!hasData) {
-        console.log(`ConfigManager: Seeding database from ${this.seedConfigUrl}`);
-      }
-
-      // Clear only on a `when-changed` re-seed of a non-empty DB; a cold seed
-      // bulkPuts straight into the already-empty tables. `replaceAllWithSeed`
-      // also flushes `rowCache` (seeded rows bypass `saveConfig`'s
-      // write-through, so any negative cache hits from a pre-seed read must
-      // be dropped).
-      const seeded = await this.replaceAllWithSeed(seedData, {
-        clearFirst: hasData && this.seedConfigReload === 'when-changed',
-      });
-      this.writeSeedDigest(digestKey, digest);
-      console.log(
-        `ConfigManager: Database seeding complete — ${seeded.permissions} permissions, ` +
-        `${seeded.roles} roles, ${seeded.appRegistry} app registry, ` +
-        `${seeded.userProfiles} user profiles, ${seeded.appConfig} component configs.`,
-      );
-    } catch (error) {
-      console.error('ConfigManager: Error seeding database.', error);
-    }
-  }
-
-  private readSeedDigest(key: string): string | null {
-    try {
-      if (typeof globalThis.localStorage === 'undefined') return null;
-      return globalThis.localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  private writeSeedDigest(key: string, digest: string): void {
-    try {
-      if (typeof globalThis.localStorage === 'undefined') return;
-      globalThis.localStorage.setItem(key, digest);
-    } catch {
-      /* private mode / quota — seed still applied */
-    }
-  }
-
-  // ─── REST sync ────────────────────────────────────────────────────
-
-  /**
-   * Attempt to sync a write operation to the remote REST backend.
-   *
-   * If the REST call fails, the operation is queued in PENDING_SYNC
-   * for automatic retry later.
-   */
-  private async syncToRest(
-    operation: "upsert" | "delete",
-    tableName: string,
-    recordId: string,
-    payload: any,
-    options?: { ifMatch?: string },
-  ): Promise<void> {
-    if (!this.restUrl) {
-      return;
-    }
-
-    try {
-      const url = `${this.restUrl}/${tableName}/${recordId}`;
-      const method = operation === "delete" ? "DELETE" : "PUT";
-
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      // Outbound auth (Decision 2 / Session 6). The host owns refresh —
-      // we just call before each request and attach the bearer header.
-      // The server doesn't verify yet (Decision 16 deferred) but
-      // plumbing it now means later sessions don't have to revisit.
-      if (this.identity.getAccessToken) {
-        const token = await this.identity.getAccessToken();
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-      }
-      if (options?.ifMatch !== undefined) {
-        headers["If-Match"] = options.ifMatch;
-      }
-
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: operation === "delete" ? undefined : JSON.stringify(payload),
-      });
-
-      // 412 from the server means the row's `updatedTime` has moved on
-      // since `expectedUpdatedTime` was captured. This is a USER-facing
-      // error (the editor must reload); never queue it for retry.
-      if (response.status === 412) {
-        let currentRow: AppConfigRow | undefined;
-        try {
-          currentRow = (await response.json()) as AppConfigRow;
-        } catch {
-          currentRow = undefined;
-        }
-        throw new OptimisticLockError(currentRow);
-      }
-
-      if (!response.ok) {
-        throw new Error(`REST sync failed with HTTP ${response.status}`);
-      }
-    } catch (error) {
-      // Optimistic-lock failures are caller-visible; do not queue for retry.
-      if (error instanceof OptimisticLockError) {
-        throw error;
-      }
-
-      console.warn(
-        `ConfigManager: REST sync failed for ${operation} ${tableName}/${recordId}. Queuing for retry.`,
-        error,
-      );
-
-      // Queue the failed operation for retry
-      const pendingEntry: PendingSyncRow = {
-        operation,
-        tableName,
-        recordId,
-        payload,
-        createdAt: new Date().toISOString(),
-        retries: 0,
-      };
-      await this.db.pendingSync.add(pendingEntry);
-    }
-  }
-
-  /**
-   * Start the background loop that retries failed REST writes.
-   * Runs every 10 seconds. Only active in REST mode.
-   */
+  /** Start the background loop that retries failed REST writes. */
   private startSyncDrain(): void {
     this.drainIntervalId = setInterval(async () => {
-      await this.drainPendingSync();
+      await drainPendingSync(this.restContext());
     }, PENDING_SYNC_INTERVAL_MS);
-  }
-
-  /**
-   * Process all entries in the PENDING_SYNC table.
-   *
-   * For each entry:
-   *   - Retry the REST call
-   *   - On success: delete the entry from PENDING_SYNC
-   *   - On failure: increment the retry counter
-   *   - After MAX_SYNC_RETRIES: log an error and stop retrying
-   */
-  private async drainPendingSync(): Promise<void> {
-    if (!this.restUrl) {
-      return;
-    }
-
-    const pendingEntries = await this.db.pendingSync.toArray();
-    if (pendingEntries.length === 0) {
-      return;
-    }
-
-    console.log(`ConfigManager: Draining ${pendingEntries.length} pending sync entries.`);
-
-    for (const entry of pendingEntries) {
-      // `id` is auto-assigned by Dexie on insert (++id primary key).
-      // It should always be present on rows read from the database,
-      // but we guard here so a corrupt row doesn't crash the drain loop.
-      if (entry.id === undefined) {
-        console.warn("ConfigManager: Skipping pending sync entry with no id.", entry);
-        continue;
-      }
-
-      // Skip entries that have exceeded the retry limit
-      if (entry.retries >= MAX_SYNC_RETRIES) {
-        console.error(
-          `ConfigManager: Giving up on sync for ${entry.tableName}/${entry.recordId} after ${entry.retries} retries.`,
-        );
-        continue;
-      }
-
-      try {
-        const url = `${this.restUrl}/${entry.tableName}/${entry.recordId}`;
-        const method = entry.operation === "delete" ? "DELETE" : "PUT";
-
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (this.identity.getAccessToken) {
-          const token = await this.identity.getAccessToken();
-          if (token) headers["Authorization"] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(url, {
-          method,
-          headers,
-          body: entry.operation === "delete" ? undefined : JSON.stringify(entry.payload),
-        });
-
-        if (response.ok) {
-          // Success — remove from the queue
-          await this.db.pendingSync.delete(entry.id);
-        } else {
-          throw new Error(`HTTP ${response.status}`);
-        }
-      } catch (err) {
-        // Failed again — increment the retry counter
-        console.warn("Pending sync retry failed for entry", entry.id, err);
-        await this.db.pendingSync.update(entry.id, {
-          retries: entry.retries + 1,
-        });
-      }
-    }
   }
 }

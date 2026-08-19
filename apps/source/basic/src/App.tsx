@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  MarketsGrid,
-  createMarketsGridLocalStorageStorage,
-  type MarketsGridHandle,
-} from '@wellsfargo-starui/grid/core';
-import { activeProfileKey } from '@wellsfargo-starui/core';
-import { GRID_ID, STORAGE_KEY } from './gridId';
-import {
+  StarGrid,
   applyTheme,
   getTheme,
-} from '@wellsfargo-starui/design-system';
+  type MarketsGridHandle,
+} from '@wellsfargo-starui/grid';
+import { activeProfileKey } from '@wellsfargo-starui/core';
 import {
   Button,
   Tooltip,
@@ -25,8 +21,7 @@ import { AppMenubar } from './components/AppMenubar';
 import { StatusStrip } from './components/StatusStrip';
 import { ConfigInspector } from './components/ConfigInspector';
 import { HelpSheet } from './components/HelpSheet';
-
-const storage = createMarketsGridLocalStorageStorage();
+import { GRID_ID, STORAGE_KEY } from './gridId';
 
 interface ProfilePulse {
   activeName: string | null;
@@ -246,29 +241,31 @@ export function App() {
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 flex-1 flex-col p-3">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-[color:var(--ds-border-primary)] bg-[color:var(--ds-surface-primary)] shadow-[var(--ds-elevation-card)]">
-            <MarketsGrid
+            <StarGrid
               gridId={GRID_ID}
               rowData={rows}
               columnDefs={bondColumnDefs}
-              defaultColDef={bondDefaultColDef}
-              rowIdField="id"
-              storage={storage}
-              showFiltersToolbar
-              showFormattingToolbar
-              showEditingToolbar
-              showProfileSelector
-              showSaveButton
-              showSettingsButton
-              componentName="Bond Blotter"
+              title="Bond Blotter"
               onReady={onReady}
-              sideBar={{ toolPanels: ['columns', 'filters'] }}
-              statusBar={{
-                statusPanels: [
-                  { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
-                  { statusPanel: 'agFilteredRowCountComponent', align: 'left' },
-                  { statusPanel: 'agSelectedRowCountComponent', align: 'center' },
-                  { statusPanel: 'agAggregationComponent', align: 'right' },
-                ],
+              advanced={{
+                defaultColDef: bondDefaultColDef,
+                rowIdField: 'id',
+                showFiltersToolbar: true,
+                showFormattingToolbar: true,
+                showEditingToolbar: true,
+                showProfileSelector: true,
+                showSaveButton: true,
+                showSettingsButton: true,
+                componentName: 'Bond Blotter',
+                sideBar: { toolPanels: ['columns', 'filters'] },
+                statusBar: {
+                  statusPanels: [
+                    { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
+                    { statusPanel: 'agFilteredRowCountComponent', align: 'left' },
+                    { statusPanel: 'agSelectedRowCountComponent', align: 'center' },
+                    { statusPanel: 'agAggregationComponent', align: 'right' },
+                  ],
+                },
               }}
             />
           </div>

@@ -1,6 +1,5 @@
-import { StarGrid } from '@wellsfargo-starui/grid/widgets';
+import { StarGrid, StaruiIdentityProvider } from '@wellsfargo-starui/grid';
 import { useHostedStarui } from '@wellsfargo-starui/grid/widgets/hosted';
-import { StaruiIdentityProvider } from '@wellsfargo-starui/react/data/runtime';
 import { getPlatform } from '../platformBootstrap';
 
 interface HostedGridPanelProps {

@@ -4,8 +4,8 @@
 trading-desk applications — data-dense grids, real-time market data,
 multi-window OpenFin workspaces — on one coherent, token-driven design
 system. It ships **seven npm packages**; the flagship surface is
-**MarketsGrid**, a profile-persistent AG Grid host with formatting,
-editing, alerting and configuration built in.
+**StarGrid** — one component for static data, live CSRM, and SSRM feeds,
+with profile persistence, formatting, editing, and alerting built in.
 
 ![StarUI at a glance](./docs/latest/diagrams/overview-stack.svg)
 
@@ -37,7 +37,7 @@ stern-bak/                # @wellsfargo-starui/platform
 | `@wellsfargo-starui/data` | SharedWorker data services — one STOMP connection, every window |
 | `@wellsfargo-starui/openfin` | OpenFin workspace shell + RuntimePort plugin (sole owner of `@openfin/core`) |
 | `@wellsfargo-starui/react` | shadcn/Radix primitives, widget SDK, host wrapper, data bindings |
-| `@wellsfargo-starui/grid` | **MarketsGrid** + customizer + config browser + widgets |
+| `@wellsfargo-starui/grid` | **StarGrid** (root) over **MarketsGrid** (`/core`) + customizer + config browser + widgets |
 
 Imports flow strictly downward — the full layer model, dependency graph and
 runtime architecture are diagrammed in
@@ -64,7 +64,7 @@ npm test                 # Vitest across packages/
 
 # packages + demo apps, both consumption tracks (source AND tarball) — one command
 npm run setup:apps
-npm run app -- basic     # minimal MarketsGrid tutorial → :5194
+npm run app -- basic     # minimal StarGrid tutorial → :5194
 ```
 
 `npm run setup:apps` builds the packages, packs them into tarballs, and

@@ -3,7 +3,6 @@
 //
 //  Subpath imports for direct adapter access:
 //    @wellsfargo-starui/design-system/tailwind  → tailwindPreset
-//    @wellsfargo-starui/design-system/primeng   → primengPreset
 //    @wellsfargo-starui/design-system/css       → bundled stylesheet (theme + scrollbar + base)
 //
 //  Root import for tokens + helpers:

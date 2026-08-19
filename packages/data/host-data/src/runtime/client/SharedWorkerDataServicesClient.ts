@@ -30,7 +30,6 @@ import type {
   CatalogEvent,
   ConfigInvalidateRequest,
   ConfigSnapshotEvent,
-  DeltaPatchEvent,
   DetachRequest,
   Event,
   ExpressionRule,
@@ -43,7 +42,6 @@ import type {
   ProviderStats,
   ProviderStatus,
   Request,
-  RowPatch,
   SetFilterValuesRequest,
   SsrmGetRowsRequest,
   SsrmGetRowsResult,
@@ -56,21 +54,20 @@ import type {
 } from '../protocol.js';
 import { SUBSCRIBER_PING_INTERVAL_MS } from '../worker/hubTypes.js';
 import { isCatalogEvent, isEvent, isAppDataEvent } from '../protocol.js';
-import { composeRowId, type DataProviderConfig, type TransportConfig } from '@wellsfargo-starui/types';
+import { type DataProviderConfig, type TransportConfig } from '@wellsfargo-starui/types';
 import { decodeColumnar } from '../wire/columnarCodec.js';
 import type { ListOptions } from '../config/store.js';
 import { AppDataMirror } from '../mirror/AppDataMirror.js';
 import { SnapshotReassembler } from '../../hub/SnapshotReassembler.js';
+import {
+  mergeThinPatches,
+  SNAPSHOT_DECODER,
+  trackThinRows,
+  type ThinSubState,
+} from './sharedWorkerClientThinDelta.js';
 
-/**
- * Gate for hot-path diagnostic logs. Flip to `true` locally when debugging
- * the worker handshake — the per-delta `console.log` measurably hurts CPU
- * at high message rates even with DevTools closed.
- */
+/** Hot-path diagnostic logs — off in production. */
 const DEBUG = false;
-
-/** Shared decoder for pre-serialized snapshot replay chunks (`delta-bin`). */
-const SNAPSHOT_DECODER = new TextDecoder();
 
 export type SubId = string;
 
@@ -168,10 +165,6 @@ type Sub = DataSub | StatsSub;
  * whatever the consumer received, never mutated: a patch merge builds
  * a NEW row object, preserving the rows-are-immutable-values contract.
  */
-interface ThinSubState {
-  keyColumn?: string | readonly string[];
-  rows: Map<string, unknown>;
-}
 
 export interface SharedWorkerDataServicesClientOpts {
   /** Inject for tests. Default: `() => crypto.randomUUID()`. */
@@ -1123,7 +1116,7 @@ export class SharedWorkerDataServicesClient {
     switch (event.kind) {
       case 'delta':
         if (sub.kind === 'data') {
-          this.trackThinRows(event.subId, event.rows, Boolean(event.replace));
+          trackThinRows(this.thinSubs, event.subId, event.rows, Boolean(event.replace));
           sub.listener.onDelta(event.rows, Boolean(event.replace));
         }
         return;
@@ -1137,7 +1130,7 @@ export class SharedWorkerDataServicesClient {
             const rows = event.enc === 'col'
               ? decodeColumnar(event.buf)
               : JSON.parse(SNAPSHOT_DECODER.decode(event.buf)) as unknown[];
-            this.trackThinRows(event.subId, rows, Boolean(event.replace));
+            trackThinRows(this.thinSubs, event.subId, rows, Boolean(event.replace));
             sub.listener.onDelta(rows, Boolean(event.replace));
           } catch (err) {
              
@@ -1157,7 +1150,7 @@ export class SharedWorkerDataServicesClient {
         return;
       case 'delta-patch':
         if (sub.kind === 'data') {
-          const rows = this.mergeThinPatches(event);
+          const rows = mergeThinPatches(this.thinSubs, event);
           if (rows.length > 0) sub.listener.onDelta(rows, false);
         }
         return;
@@ -1181,54 +1174,6 @@ export class SharedWorkerDataServicesClient {
         return;
     }
   };
-
-  /**
-   * Mirror full rows for a thin-delta subscription. No-op for
-   * subscriptions without a `sub-init` handshake (the common case).
-   */
-  private trackThinRows(subId: SubId, rows: readonly unknown[], replace: boolean): void {
-    const state = this.thinSubs.get(subId);
-    if (!state) return;
-    if (replace) state.rows.clear();
-    for (const row of rows) {
-      const k = composeRowId(row, state.keyColumn);
-      if (k !== null) state.rows.set(k, row);
-    }
-  }
-
-  /**
-   * Apply a `delta-patch` frame: merge each patch into the mirrored
-   * previous row, producing NEW full-row objects (the previous row is
-   * never mutated — consumers may still hold it). Full rows under `f`
-   * (inserts / fallbacks) pass through as-is. Returns the merged rows
-   * in patch order, ready for the ordinary `onDelta` path.
-   */
-  private mergeThinPatches(event: DeltaPatchEvent): unknown[] {
-    const state = this.thinSubs.get(event.subId);
-    // The hub only sends patches after the sub-init + full replay it
-    // posts on attach, so a missing mirror can't happen in practice;
-    // returning no rows (rather than corrupt ones) keeps it safe.
-    if (!state) return [];
-    const patches: readonly RowPatch[] = event.patches
-      ?? (event.buf
-        ? JSON.parse(SNAPSHOT_DECODER.decode(event.buf)) as RowPatch[]
-        : []);
-    const out: unknown[] = [];
-    for (const p of patches) {
-      if (p.f !== undefined) {
-        state.rows.set(p.k, p.f);
-        out.push(p.f);
-        continue;
-      }
-      const prev = state.rows.get(p.k);
-      if (!prev || typeof prev !== 'object') continue;
-      const next: Record<string, unknown> = { ...(prev as Record<string, unknown>), ...(p.s ?? {}) };
-      if (p.d) for (const name of p.d) delete next[name];
-      state.rows.set(p.k, next);
-      out.push(next);
-    }
-    return out;
-  }
 
   private routeCatalogEvent(event: CatalogEvent): void {
     if (event.kind === 'catalog-ready') {

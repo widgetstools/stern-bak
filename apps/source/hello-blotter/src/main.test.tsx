@@ -18,7 +18,7 @@ import type { ReactElement } from 'react';
 const createStarui = vi.fn();
 const rendered = vi.fn();
 
-vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
+vi.mock('@wellsfargo-starui/grid', () => ({
   createStarui: (cfg: unknown) => {
     createStarui(cfg);
     return {
@@ -27,9 +27,6 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
       ),
     };
   },
-}));
-
-vi.mock('@wellsfargo-starui/grid/widgets', () => ({
   StarGrid: (props: Record<string, unknown>) => (
     <div
       data-testid="star-grid"

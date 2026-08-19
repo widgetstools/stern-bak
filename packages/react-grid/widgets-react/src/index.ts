@@ -3,6 +3,23 @@
 // ─── StarGrid — the one grid component (Phase 1 front door) ────────
 export { StarGrid, type StarGridProps } from './stargrid/StarGrid.js';
 
+// ─── One-import bootstrap (Phase 8a) ───────────────────────────────
+export {
+  createStarui,
+  useStaruiIdentity,
+  StaruiIdentityProvider,
+  DataHubProvider,
+  applyTheme,
+  getTheme,
+  type CreateStaruiOptions,
+  type Starui,
+  type StaruiIdentity,
+  type ThemeOptions,
+  type Mode,
+  type LightVariant,
+  type MarketsGridHandle,
+} from './setup.js';
+
 // ─── AG Grid Theme ───────────────────────────────
 // Theme objects live in `@wellsfargo-starui/design-system/adapters/ag-grid` —
 // import `agGridDarkTheme` / `agGridLightTheme` from there directly.

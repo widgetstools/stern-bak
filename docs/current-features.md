@@ -107,7 +107,6 @@ module or a different package provides it.
 - `./reset.css` — **opt-in** global normalisation (Tailwind preflight alone). Import only when the app has no reset of its own; restyles the consumer's own markup by design
 - `./fonts/*.woff2` — self-hosted Inter + JetBrains Mono variable fonts (latin + latin-ext, subsetted with Fontsource's own `unicode-range` values) plus their OFL-1.1 licence texts, copied into `dist/` at build time. No CDN request — browser-verified as zero external requests, so corporate CSP/egress policy can't silently degrade the app to system fonts
 - `./tailwind` — Tailwind preset
-- `./primeng` — PrimeNG theme preset
 - `./shadcn` — shadcn token generator
 - `./adapters/ag-grid` — AG Grid Quartz theme params + baked `Theme` objects (`agGridDarkTheme`, `agGridLightTheme`, comfort/blotter variants); `GridDensity` presets (`gridDensityStructuralParams`, `applyGridDensityToTheme`, `resolveGridDensity`) for ultra/compact/comfortable `spacing`, row/header heights, cell/header `fontSize`, and `iconSize` per AG Grid compactness theming (cached `withParams` per base theme)
 - `./tokens`, `./tokens/primitives`, `./tokens/semantic`, `./tokens/components`, `./tokens/controls`
@@ -121,7 +120,6 @@ module or a different package provides it.
 - Spacing scale, border radius, opacity scale, transition tokens, elevation/shadow scale
 - **StarUI v1 OKLCH tokens** (`tokens/starui-tokens.css`) — Azure accent, teal/rose buy/sell, FT paper light + blue-graphite dark; bare OKLCH components for alpha-friendly `oklch(var(--primary) / 0.12)` usage
 - **Compat bridge** (`adapters/compatCss.ts`) — `--ds-*`, `--bn-*`, `--p-*`, and surface scale aliases mapped from OKLCH source tokens for grid chrome and legacy consumers
-- **PrimeNG preset** — `definePreset(Aura, …)` Azure ramp + FI buy/sell semantics (`primeng/starui-primeng-preset` parity)
 - **AG Grid theme** — Quartz `staruiGridTheme` with light/dark `withParams` modes; OKLCH CSS vars; `data-ag-theme-mode` on `<html>` synced by `applyTheme` and runtime theme writers; density presets retained
 - **Tailwind preset** — OKLCH colors use `oklch(var(--token) / <alpha-value>)`; `fontSize` maps to `--text-*`; `h-control` / `size-control` map to `--control-h*` density tokens; shadcn opacity utilities resolve correctly in dark mode
 - **Theme-aware scrollbar baseline** (`styles/scrollbar.css`) — global zero-specificity (`:where()`) thin themed scrollbars on every scrollable surface + opt-in `.ds-scrollbar` utility; **AG Grid subtrees (`.ag-root-wrapper`, `.ag-popup`) are exempt via `:not()` guards so grids keep NATIVE composited scrollbars** — any matching `::-webkit-scrollbar` rule forces Chromium's main-thread custom-scrollbar path, making thumb drags compete with streaming grid transactions (and the match can't be undone by overriding properties). Paired with `measureNativeScrollbarWidth()` in `@wellsfargo-starui/grid` (`MarketsGridSurface` passes AG `scrollbarWidth`): AG sizes its scroll gutters from a `document.body` probe that gets the STYLED scrollbar, so without the exempt-probe measurement the native thumb rendered clipped in a too-narrow gutter
@@ -152,13 +150,12 @@ module or a different package provides it.
 
 - Tailwind preset — `darkMode: ['selector', '[data-theme="dark"]']`, HSL channel variables, surface scale 50–950, radius, font families
 - shadcn adapter — Radix/shadcn color-name unification + `--st-*` STARUI bridge
-- PrimeNG adapter — PrimeUI-compatible color mapping via `var(--ds-*)`
 - AG Grid adapters — `dark`, `light`, `comfort`, `blotter` variants; STARUI token colors (JetBrains Mono headers/cells, Inter chrome, 2px radii, 12px cell padding)
 
 #### AG Grid cell renderers
 
-Vanilla TS classes implementing `ICellRendererComp` — framework-agnostic
-(React + Angular), CSS-variable themed. Registered by string id in
+Vanilla TS classes implementing `ICellRendererComp` — framework-agnostic,
+CSS-variable themed. Registered by string id in
 `cellRendererRegistry.ts` and wired into AG Grid via
 `gridOptions.components` (see `cellRendererComponents` map). The
 column-customization band 10 ("Cell Renderer") in the React grid lets
@@ -227,7 +224,6 @@ Per-renderer config types (`PillRendererConfig`,
 
 - `./icons` — `ICON_PATHS`, `ICON_META`, helpers
 - `./icons/react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component)
-- `./icons/angular` — `@lucide/angular` bindings: `LucideComponent`, `provideLucideIcons`, `provideLucideConfig`, `LUCIDE_ICONS`, `LUCIDE_CONFIG`, and per-icon standalone components (aliased to friendly names, e.g. `FileText`, `Home`)
 - `./icons/all-icons` — `MARKET_ICON_SVGS`, `svgToDataUrl`, `marketIconToDataUrl`, named SVG constants, plus full icon-id enumeration
 - `./icons/svg/*` — direct SVG file access
 
@@ -768,7 +764,7 @@ tri-states the panel lacks — the four `global*` fields are toolbar-only.
 
 **Public exports:**
 
-- `.` (same barrel as `./widgets`, kept as an alias) — `StarGrid` (the one front-door grid), `MarketsGridContainer` + `DatePicker` (+ `ProviderSelection`/`ProviderMode` types; the dedicated subpath was removed), the SSRM container, hooks, provider, theme. Note: the `{ theme }`-wrapper `useAgGridTheme` left this barrel — the PUBLIC `useAgGridTheme` is the hosted variant (`./widgets/hosted`, mode → `Theme`); two same-name exports with incompatible signatures in one package was a documented footgun
+- `.` (same barrel as `./widgets`, kept as an alias) — **one-import consumer surface (Phase 8a):** `StarGrid`, `createStarui`, `StaruiIdentityProvider`, `DataHubProvider`, `applyTheme`, `getTheme`, plus `MarketsGridContainer` + `DatePicker` (+ `ProviderSelection`/`ProviderMode` types; the dedicated subpath was removed), the SSRM container, hooks, provider, theme. Note: the `{ theme }`-wrapper `useAgGridTheme` left this barrel — the PUBLIC `useAgGridTheme` is the hosted variant (`./widgets/hosted`, mode → `Theme`); two same-name exports with incompatible signatures in one package was a documented footgun
 - `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
 - `./widgets/hosted` — `useHostedStarui` + the à-la-carte hosted hooks (identity, theme, linking, lifecycle)
 

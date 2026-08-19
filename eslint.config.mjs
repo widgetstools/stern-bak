@@ -21,8 +21,14 @@ const FOUNDATION_GLOBS = [
   'packages/design-system/design-system/**/*.{ts,tsx}',
   'packages/design-system/icons-svg/**/*.{ts,tsx}',
   'packages/types/shared-types/**/*.{ts,tsx}',
+  'packages/types/types/**/*.{ts,tsx}',
 ];
 const ENGINE_GLOBS = ['packages/core/engine/**/*.{ts,tsx}'];
+const CORE_HOST_GLOBS = [
+  'packages/core/host/**/*.{ts,tsx}',
+  'packages/core/host-config/**/*.{ts,tsx}',
+  'packages/core/host-browser/**/*.{ts,tsx}',
+];
 const REACT_GRID_GLOBS = ['packages/react-grid/**/*.{ts,tsx}'];
 const OPENFIN_GLOBS = ['packages/openfin/**/*.{ts,tsx}'];
 
@@ -72,6 +78,7 @@ const ROW_MODEL_RESTRICTIONS = ROW_MODEL_APIS.map(([property, replacement]) => (
 const DEFAULT_IGNORES = [
   ...FOUNDATION_GLOBS,
   ...ENGINE_GLOBS,
+  ...CORE_HOST_GLOBS,
   ...REACT_GRID_GLOBS,
   ...OPENFIN_GLOBS,
 ];
@@ -248,6 +255,10 @@ export default tseslint.config(
   },
   {
     files: ENGINE_GLOBS,
+    rules: { 'no-restricted-imports': restrict(FRAMEWORK_ADAPTERS, OPENFIN_CORE) },
+  },
+  {
+    files: CORE_HOST_GLOBS,
     rules: { 'no-restricted-imports': restrict(FRAMEWORK_ADAPTERS, OPENFIN_CORE) },
   },
   {

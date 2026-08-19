@@ -37,38 +37,44 @@ npm install react react-dom ag-grid-community ag-grid-enterprise \
 ### A minimal grid host
 
 The `apps/source/basic` app is the canonical tutorial — a complete bond
-blotter in a few files. The essential wiring:
+blotter in a few files. The essential wiring uses **one import
+specifier** from `@wellsfargo-starui/grid`:
 
 ```tsx
-import {
-  MarketsGrid,
-  createMarketsGridLocalStorageStorage,
-} from '@wellsfargo-starui/grid';
-import { applyTheme, getTheme } from '@wellsfargo-starui/design-system';
-import '@wellsfargo-starui/design-system/styles.css'; // tokens + fonts + component utilities + grid chrome
+import { createRoot } from 'react-dom/client';
+import { createStarui, StarGrid, applyTheme, getTheme } from '@wellsfargo-starui/grid';
+import '@wellsfargo-starui/design-system/styles.css';
 
-const storage = createMarketsGridLocalStorageStorage();
+const starui = createStarui({ appId: 'MyApp', userId: 'demo' });
+applyTheme(getTheme());
 
-export function App() {
-  return (
-    <MarketsGrid
+createRoot(document.getElementById('root')!).render(
+  <starui.Provider>
+    <StarGrid
       gridId="bond-blotter-v1"      // stable id — keys profile persistence
       rowData={rows}
       columnDefs={columnDefs}
-      defaultColDef={defaultColDef}
-      rowIdField="id"
-      storage={storage}             // where profiles + grid state persist
-      showFiltersToolbar
-      showFormattingToolbar
-      showEditingToolbar
+      title="Bond Blotter"
+      advanced={{
+        defaultColDef,
+        rowIdField: 'id',
+        showFiltersToolbar: true,
+        showFormattingToolbar: true,
+        showEditingToolbar: true,
+      }}
     />
-  );
-}
+  </starui.Provider>,
+);
 ```
 
 What you get out of the box: profile persistence (columns, filters, formats
 survive reload), the filters / formatting / editing toolbars, the column
 customizer, and full dark/light theming.
+
+> **Advanced:** `MarketsGrid` on `@wellsfargo-starui/grid/core` remains
+> available when you need direct control over storage, identity, or every
+> AG Grid prop without the StarGrid hosting layer. Most apps should start
+> with `<StarGrid>` and only drop down when necessary.
 
 ### Theming
 
@@ -105,8 +111,7 @@ recommended shape for a new app — `createStarui()` boots the platform
 
 ```tsx
 import { createRoot } from 'react-dom/client';
-import { createStarui } from '@wellsfargo-starui/react/data/runtime';
-import { StarGrid } from '@wellsfargo-starui/grid/widgets';
+import { createStarui, StarGrid } from '@wellsfargo-starui/grid';
 import './index.css';
 
 const starui = createStarui({

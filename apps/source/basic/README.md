@@ -1,6 +1,6 @@
-# Bond Blotter (`basic`) — the minimal MarketsGrid tutorial
+# Bond Blotter (`basic`) — the minimal StarGrid tutorial
 
-The smallest complete **MarketsGrid** host: one grid, 180 deterministic mock
+The smallest complete **StarGrid** host: one grid, 180 deterministic mock
 bonds, 34 fixed-income columns, and the full **local-storage profile
 persistence** path. Start here if you are new to StarUI.
 
@@ -12,9 +12,9 @@ npm test           # vitest (70% per-file coverage gate)
 
 ## What it demonstrates
 
-- **The essential mount** — `MarketsGrid` + `createMarketsGridLocalStorageStorage()`
-  + a stable `gridId` ([`src/App.tsx`](./src/App.tsx)); columns, filters and
-  formats survive reload with no further wiring.
+- **The essential mount** — `createStarui()` + `<StarGrid rowData={…} />`
+  with a stable `gridId` ([`src/App.tsx`](./src/App.tsx)); columns, filters
+  and formats survive reload with no manual storage wiring.
 - **One key, one JSON document** — every layout persists under the single
   key from `marketsGridLocalStorageBundleKey(GRID_ID)`
   ([`src/gridId.ts`](./src/gridId.ts)); `activeProfileKey(GRID_ID)` holds the
@@ -45,10 +45,10 @@ the `Bond` shape with balanced light/dark style pairs.
 
 ## StarUI surfaces consumed
 
-`@wellsfargo-starui/grid` (`MarketsGrid`, storage helper, `/styles.css`) ·
+`@wellsfargo-starui/grid` (root — `createStarui`, `StarGrid`, `applyTheme`) ·
 `@wellsfargo-starui/core` (storage-key helpers) ·
 `@wellsfargo-starui/react` (Menubar, Sheet, Tabs, Tooltip, Button, …) ·
-`@wellsfargo-starui/design-system` (`applyTheme`, `getTheme`, `/css`).
+`@wellsfargo-starui/design-system/styles.css`.
 
 > Framework docs: [`docs/latest/`](../../../docs/latest/README.md) — the
 > getting-started guide walks through exactly this app.
