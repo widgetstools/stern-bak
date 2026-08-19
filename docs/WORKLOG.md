@@ -135,7 +135,7 @@ emitting to a temp dir and renaming into place atomically; or the `test` task
 depending on a build output the consumer can't observe mid-write. Confirm by
 running the loop 20× green, not once.
 
-## 11. Bucket contents are wrong; 21 published packages should become 7
+## 11. ~~Bucket contents are wrong; 21 published packages should become 7~~ — CLOSED
 
 **Repo:** stern-bak · **Unblocked:** the coverage effort is finished (807/807)
 
