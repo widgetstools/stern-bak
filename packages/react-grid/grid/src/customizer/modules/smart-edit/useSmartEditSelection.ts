@@ -2,13 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { resolveTargetCells } from './runtime/applyEdits';
+import { createRafCoalescedCallback } from '../../../widget/coalesceGridEvent.js';
 
 export function useSmartEditSelection(): { cells: ReturnType<typeof resolveTargetCells>; count: number } {
   const platform = useGridPlatform();
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const bump = () => setTick((t) => t + 1);
+    const { schedule: bump, cancel } = createRafCoalescedCallback(() => {
+      setTick((t) => t + 1);
+    });
     const disposers: Array<() => void> = [];
     disposers.push(
       platform.api.onReady(() => {
@@ -19,6 +22,7 @@ export function useSmartEditSelection(): { cells: ReturnType<typeof resolveTarge
       }),
     );
     return () => {
+      cancel();
       for (const d of disposers) {
         try { d(); } catch { /* teardown */ }
       }

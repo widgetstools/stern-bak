@@ -224,6 +224,45 @@ describe('applyGridState', () => {
     expect((api.ensureIndexVisible as ReturnType<typeof vi.fn>).mock.calls.length)
       .toBeLessThanOrEqual(20);
   });
+
+  it('cancels viewport retry when the user keyboard-navigates before restore settles', async () => {
+    let displayed = 1;
+    let firstVisible = 0;
+    let focusedRow = 0;
+    const api = makeApi({
+      getDisplayedRowCount: vi.fn(() => displayed),
+      getFirstDisplayedRowIndex: vi.fn(() => firstVisible),
+      getLastDisplayedRowIndex: vi.fn(() => firstVisible + 5),
+      getFocusedCell: vi.fn(() => ({ rowIndex: focusedRow, column: { getColId: () => 'a' } })),
+    });
+
+    const saved: SavedGridState = {
+      schemaVersion: GRID_STATE_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      gridState: {},
+      viewportAnchor: { firstRowIndex: 390, leftColId: null, horizontalPixel: 0 },
+    };
+    applyGridState(api as never, saved);
+    await Promise.resolve();
+
+    const onModelUpdated = (api.addEventListener as ReturnType<typeof vi.fn>).mock.calls
+      .find(([evt]) => evt === 'modelUpdated')?.[1] as (() => void);
+    const onCellFocused = (api.addEventListener as ReturnType<typeof vi.fn>).mock.calls
+      .find(([evt]) => evt === 'cellFocused')?.[1] as (() => void);
+    expect(onCellFocused).toBeDefined();
+
+    // Initial focus stamp — should not cancel yet.
+    onCellFocused();
+    displayed = 50;
+    onModelUpdated();
+
+    // User arrow-keys down before the anchor is on screen.
+    focusedRow = 1;
+    onCellFocused();
+
+    expect(api.removeEventListener).toHaveBeenCalledWith('modelUpdated', onModelUpdated);
+    expect(api.removeEventListener).toHaveBeenCalledWith('cellFocused', onCellFocused);
+  });
 });
 
 describe('captureGridStateInto', () => {

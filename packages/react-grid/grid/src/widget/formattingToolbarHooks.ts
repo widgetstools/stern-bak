@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createRafCoalescedCallback } from './coalesceGridEvent.js';
 import type { GridApi } from 'ag-grid-community';
 import type {
   BorderSpec,
@@ -171,7 +172,9 @@ export function useActiveColumns(): string[] {
       return lastColIds.current;
     };
 
-    const update = () => setColIds(getColIds());
+    const { schedule: update, cancel: cancelUpdate } = createRafCoalescedCallback(
+      () => setColIds(getColIds()),
+    );
 
     // Install all three listeners as soon as the api is ready; `onReady`
     // returns a disposer that also unsubscribes any listeners we
@@ -187,6 +190,7 @@ export function useActiveColumns(): string[] {
     );
 
     return () => {
+      cancelUpdate();
       for (const d of disposers) {
         try { d(); } catch { /* teardown race */ }
       }

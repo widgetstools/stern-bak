@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { resolveBulkUpdateTargets } from './runtime/applyBulkUpdateEdits';
+import { createRafCoalescedCallback } from '../../../widget/coalesceGridEvent.js';
 
 export function useBulkUpdateSelection(): {
   cells: ReturnType<typeof resolveBulkUpdateTargets>['targets'];
@@ -13,7 +14,9 @@ export function useBulkUpdateSelection(): {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const bump = () => setTick((t) => t + 1);
+    const { schedule: bump, cancel } = createRafCoalescedCallback(() => {
+      setTick((t) => t + 1);
+    });
     const disposers: Array<() => void> = [];
     disposers.push(
       platform.api.onReady(() => {
@@ -24,6 +27,7 @@ export function useBulkUpdateSelection(): {
       }),
     );
     return () => {
+      cancel();
       for (const d of disposers) {
         try { d(); } catch { /* teardown */ }
       }

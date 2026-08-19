@@ -391,14 +391,37 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
   // back if the user starts scrolling while blocks are still streaming in.
   let viewportAttempts = VIEWPORT_RESTORE_MAX_ATTEMPTS;
   const viewportDeadline = Date.now() + VIEWPORT_RESTORE_WINDOW_MS;
+  let lastFocusedRow: number | undefined;
+
+  const stopViewportRetry = () => {
+    try {
+      api.removeEventListener('firstDataRendered', retryViewport);
+      api.removeEventListener('modelUpdated', retryViewport);
+      api.removeEventListener('cellFocused', onUserViewportNav);
+      api.removeEventListener('bodyScroll', stopViewportRetry);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  /** Keyboard / pointer focus moved while restore is still pending — defer. */
+  const onUserViewportNav = () => {
+    try {
+      const row = api.getFocusedCell?.()?.rowIndex;
+      if (row == null) return;
+      if (lastFocusedRow !== undefined && row !== lastFocusedRow && !viewportSettled()) {
+        stopViewportRetry();
+        return;
+      }
+      lastFocusedRow = row;
+    } catch {
+      /* ignore */
+    }
+  };
+
   const retryViewport = () => {
     if (viewportSettled() || viewportAttempts-- <= 0 || Date.now() > viewportDeadline) {
-      try {
-        api.removeEventListener('firstDataRendered', retryViewport);
-        api.removeEventListener('modelUpdated', retryViewport);
-      } catch {
-        /* ignore */
-      }
+      stopViewportRetry();
       return;
     }
     restoreViewport();
@@ -409,6 +432,11 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
     // since it fires again each time a block lands.
     api.addEventListener('firstDataRendered', retryViewport);
     api.addEventListener('modelUpdated', retryViewport);
+    // Manual scroll or keyboard nav while blocks stream in must not fight
+    // `ensureIndexVisible` on every `modelUpdated` — that loop surfaces as
+    // blank rows + "Maximum update depth exceeded" under SSRM key-repeat.
+    api.addEventListener('cellFocused', onUserViewportNav);
+    api.addEventListener('bodyScroll', stopViewportRetry);
   } catch {
     /* ignore — non-blocking */
   }

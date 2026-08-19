@@ -51,7 +51,7 @@ describe('useSmartEditSelection', () => {
     expect(result.current.cells).toHaveLength(1);
   });
 
-  it('recomputes when cellFocused fires', () => {
+  it('recomputes when cellFocused fires', async () => {
     const platform = new GridPlatform({ gridId: 'test-grid', modules: [editingModule] });
     const api = makeMockApi();
     platform.onGridReady(api as never);
@@ -65,6 +65,9 @@ describe('useSmartEditSelection', () => {
     api.getFocusedCell = () => null;
     act(() => {
       api.emit('cellFocused');
+    });
+    await act(async () => {
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
     });
     expect(result.current.count).toBe(0);
   });

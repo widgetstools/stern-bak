@@ -66,7 +66,7 @@ describe('useBulkUpdateSelection', () => {
     expect(result.current.cells[0]?.colId).toBe('qty');
   });
 
-  it('recomputes when cellSelectionChanged fires', () => {
+  it('recomputes when cellSelectionChanged fires', async () => {
     const { api, listeners } = makeMockApi(true);
     platform.onGridReady(api);
     const { result } = renderHook(() => useBulkUpdateSelection(), { wrapper: wrap(platform) });
@@ -75,6 +75,11 @@ describe('useBulkUpdateSelection', () => {
     (api.getCellRanges as ReturnType<typeof vi.fn>) = vi.fn(() => []);
     act(() => {
       for (const fn of listeners.get('cellSelectionChanged') ?? []) fn();
+    });
+    // The listener is rAF-coalesced (createRafCoalescedCallback) — the state
+    // update lands on the next frame, not synchronously within act().
+    await act(async () => {
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
     });
     expect(result.current.count).toBe(0);
   });
