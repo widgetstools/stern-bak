@@ -136,7 +136,7 @@ First attach for that id **lazy-starts** the STOMP provider in the worker: one u
 | `src/platform/appDataBootstrap.ts` | *(optional)* AppData bootstrap hooks (console demo) |
 | `src/platform/gridEventHandlers.ts` | *(optional)* Grid event handler registry (console demo) |
 | `src/platform/hooksMeta.ts` | Labels if wiring `handlerMeta` on the grid container |
-| `src/globals.css` | Design-system + grid styles |
+| `src/styles.css` | Design-system + grid styles |
 
 Supporting config only: `vite.config.ts` (port **5213**, SharedWorker bundling), Tailwind/PostCSS.
 

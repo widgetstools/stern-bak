@@ -1,6 +1,6 @@
 import { CodeBlock } from '../../components/CodeBlock';
 
-const CSS_IMPORT = `/* globals.css */
+const CSS_IMPORT = `/* styles.css */
 @import '@wellsfargo-starui/design-system/css';   /* tokens + base + scrollbar */
 
 @tailwind base;
@@ -42,7 +42,7 @@ export function OverviewSection() {
 
       <div className="flex flex-col gap-1">
         <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[color:var(--ds-text-secondary)]">1 · Import the tokens</h3>
-        <CodeBlock code={CSS_IMPORT} label="globals.css" />
+        <CodeBlock code={CSS_IMPORT} label="styles.css" />
       </div>
       <div className="flex flex-col gap-1">
         <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[color:var(--ds-text-secondary)]">2 · Apply a theme</h3>

@@ -22,7 +22,7 @@ vi.mock('./bootWatchdog', () => ({
   installBootWatchdog: (...args: unknown[]) => mockInstallBootWatchdog(...args),
 }));
 
-vi.mock('./index.css', () => ({}));
+vi.mock('./styles.css', () => ({}));
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 

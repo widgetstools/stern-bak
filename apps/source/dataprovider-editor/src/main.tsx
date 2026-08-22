@@ -5,7 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@wellsfargo-starui/react';
 import { DataHubProvider } from '@wellsfargo-starui/react/data/runtime';
 import { App } from './App';
 import { initPlatformBootstrap } from './platformBootstrap';
-import './globals.css';
+import './styles.css';
 
 applyTheme(getTheme());
 

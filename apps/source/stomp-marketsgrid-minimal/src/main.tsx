@@ -12,7 +12,7 @@ import '@wellsfargo-starui/design-system/css';
 import { DataHubProvider } from '@wellsfargo-starui/react/data/runtime';
 import { App } from './App.js';
 import { bootstrap } from './bootstrap.js';
-import './globals.css';
+import './styles.css';
 
 applyTheme(getTheme());
 
