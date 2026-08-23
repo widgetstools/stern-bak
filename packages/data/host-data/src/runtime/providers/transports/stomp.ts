@@ -781,6 +781,14 @@ export interface ProbeOpts {
   timeoutMs?: number;
   /** Inject the client factory for tests. */
   createClient?: StompClientFactory;
+  /**
+   * Cancel the in-flight probe/connect. Settles immediately with
+   * `{ ok: false, error: 'Cancelled' }` and tears down whatever socket
+   * was opened — used by the editor to abandon a probe on unmount or
+   * when a newer probe supersedes it, instead of leaving it to run out
+   * the full timeout in the background.
+   */
+  signal?: AbortSignal;
 }
 
 export async function probeStomp(
@@ -796,13 +804,22 @@ export async function probeStomp(
   const collected: unknown[] = [];
   let settled = false;
 
+  if (opts.signal?.aborted) {
+    return { ok: false, error: 'Cancelled' };
+  }
+
   return new Promise<ProbeResult>((resolve) => {
     const finish = (result: ProbeResult) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', onAbort);
       void handle.stop();
       resolve(result);
     };
+
+    const onAbort = () => finish({ ok: false, error: 'Cancelled' });
+    opts.signal?.addEventListener('abort', onAbort);
 
     const timer = setTimeout(() => finish({ ok: false, error: `Probe timed out after ${timeoutMs}ms` }), timeoutMs);
 
@@ -862,12 +879,22 @@ export async function connectStomp(
   // so the brokerURL the client opens matches what the provider will use.
   const resolvedCfg = resolveBracketCfg(cfg, new Map());
   const timeoutMs = opts.timeoutMs ?? 15_000;
+  // eslint-disable-next-line no-console
+  console.log(`[connect] connectStomp() called — url=${resolvedCfg.websocketUrl} timeoutMs=${timeoutMs}`);
 
   if (!resolvedCfg.websocketUrl || resolvedCfg.websocketUrl.includes('{{')) {
+    // eslint-disable-next-line no-console
+    console.log('[connect] bailing pre-dial — unresolved/missing websocketUrl');
     return {
       ok: false,
       error: `Unresolved or missing WebSocket URL: ${resolvedCfg.websocketUrl || '(empty)'}`,
     };
+  }
+
+  if (opts.signal?.aborted) {
+    // eslint-disable-next-line no-console
+    console.log('[connect] bailing pre-dial — signal already aborted');
+    return { ok: false, error: 'Cancelled' };
   }
 
   let client: StompClient | null = null;
@@ -875,28 +902,56 @@ export async function connectStomp(
 
   return new Promise<ProbeResult>((resolve) => {
     const finish = (result: ProbeResult) => {
-      if (settled) return;
+      if (settled) {
+        // eslint-disable-next-line no-console
+        console.log('[connect] finish() called again after already settled — ignored', result);
+        return;
+      }
       settled = true;
+      // eslint-disable-next-line no-console
+      console.log('[connect] settling', result);
       clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', onAbort);
       // No subscription was opened, so tear down with sub = null.
-      void teardownStompConnection(client, null);
+      void teardownStompConnection(client, null).then(() => {
+        // eslint-disable-next-line no-console
+        console.log('[connect] teardown complete');
+      });
       resolve(result);
     };
 
-    const timer = setTimeout(
-      () => finish({ ok: false, error: `Connection timed out after ${timeoutMs}ms` }),
-      timeoutMs,
-    );
+    const onAbort = () => {
+      // eslint-disable-next-line no-console
+      console.log('[connect] abort signal fired');
+      finish({ ok: false, error: 'Cancelled' });
+    };
+    opts.signal?.addEventListener('abort', onAbort);
+
+    const timer = setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.log(`[connect] timeout fired after ${timeoutMs}ms — no onConnect/onWebSocketError/onStompError arrived`);
+      finish({ ok: false, error: `Connection timed out after ${timeoutMs}ms` });
+    }, timeoutMs);
 
     void (async () => {
       let Ctor: (new (c: StompClientCfg) => StompClient) | null = null;
       try {
+        // eslint-disable-next-line no-console
+        console.log(`[connect] resolving Client ctor (injected=${Boolean(opts.createClient)})`);
         Ctor = opts.createClient ? null : await loadDefaultClientCtor();
+        // eslint-disable-next-line no-console
+        console.log('[connect] Client ctor ready');
       } catch (err) {
+        // eslint-disable-next-line no-console
+        console.log('[connect] failed to load @stomp/stompjs', err);
         finish({ ok: false, error: err instanceof Error ? err.message : String(err) });
         return;
       }
-      if (settled) return;
+      if (settled) {
+        // eslint-disable-next-line no-console
+        console.log('[connect] already settled while loading ctor — abandoning');
+        return;
+      }
 
       const factory: StompClientFactory = opts.createClient ?? ((c) => new Ctor!(c));
       try {
@@ -907,19 +962,38 @@ export async function connectStomp(
           heartbeatIncoming: resolvedCfg.heartbeat?.incoming ?? 4000,
           heartbeatOutgoing: resolvedCfg.heartbeat?.outgoing ?? 4000,
         });
+        // eslint-disable-next-line no-console
+        console.log('[connect] client constructed');
       } catch (err) {
+        // eslint-disable-next-line no-console
+        console.log('[connect] client constructor threw', err);
         finish({ ok: false, error: err instanceof Error ? err.message : String(err) });
         return;
       }
 
-      client.onConnect = () => finish({ ok: true });
-      client.onWebSocketError = () => finish({ ok: false, error: 'WebSocket connection failed' });
-      client.onStompError = (frame) =>
+      client.onConnect = () => {
+        // eslint-disable-next-line no-console
+        console.log('[connect] onConnect fired — broker handshake succeeded');
+        finish({ ok: true });
+      };
+      client.onWebSocketError = (event) => {
+        // eslint-disable-next-line no-console
+        console.log('[connect] onWebSocketError fired', event);
+        finish({ ok: false, error: 'WebSocket connection failed' });
+      };
+      client.onStompError = (frame) => {
+        // eslint-disable-next-line no-console
+        console.log('[connect] onStompError fired', frame.headers);
         finish({ ok: false, error: frame.headers['message'] ?? 'STOMP error' });
+      };
 
       try {
+        // eslint-disable-next-line no-console
+        console.log(`[connect] calling client.activate() — dialing ${resolvedCfg.websocketUrl}`);
         client.activate();
       } catch (err) {
+        // eslint-disable-next-line no-console
+        console.log('[connect] client.activate() threw synchronously', err);
         finish({ ok: false, error: err instanceof Error ? err.message : String(err) });
       }
     })();

@@ -862,6 +862,23 @@ describe('probeStomp', () => {
     expect(result.ok).toBe(true);
     expect(result.rows).toHaveLength(100);
   });
+
+  it('tears down and resolves as cancelled when aborted mid-flight', async () => {
+    const ctrl = makeFakeClient();
+    const controller = new AbortController();
+    const promise = probeStomp(cfg(), {
+      createClient: () => ctrl.client,
+      timeoutMs: 1000,
+      signal: controller.signal,
+    });
+    await Promise.resolve();
+    ctrl.fireConnect();
+    controller.abort();
+
+    const result = await promise;
+    expect(result).toEqual({ ok: false, error: 'Cancelled' });
+    expect(ctrl.deactivated).toBe(true);
+  });
 });
 
 describe('connectStomp', () => {
@@ -916,5 +933,51 @@ describe('connectStomp', () => {
     });
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/Unresolved or missing WebSocket URL/);
+  });
+
+  it('resolves immediately as cancelled when the signal is already aborted', async () => {
+    const ctrl = makeFakeClient();
+    const controller = new AbortController();
+    controller.abort();
+    const result = await connectStomp(cfg(), {
+      createClient: () => ctrl.client,
+      timeoutMs: 1000,
+      signal: controller.signal,
+    });
+    expect(result).toEqual({ ok: false, error: 'Cancelled' });
+    // Never even reached the point of constructing a client.
+    expect(ctrl.deactivated).toBe(false);
+  });
+
+  it('tears down and resolves as cancelled when aborted mid-flight, without waiting for the timeout', async () => {
+    const ctrl = makeFakeClient();
+    const controller = new AbortController();
+    const promise = connectStomp(cfg(), {
+      createClient: () => ctrl.client,
+      timeoutMs: 1000,
+      signal: controller.signal,
+    });
+    await Promise.resolve();
+    controller.abort();
+
+    const result = await promise;
+    expect(result).toEqual({ ok: false, error: 'Cancelled' });
+    expect(ctrl.deactivated).toBe(true);
+  });
+
+  it('ignores a late onConnect after the signal already cancelled it', async () => {
+    const ctrl = makeFakeClient();
+    const controller = new AbortController();
+    const promise = connectStomp(cfg(), {
+      createClient: () => ctrl.client,
+      timeoutMs: 1000,
+      signal: controller.signal,
+    });
+    await Promise.resolve();
+    controller.abort();
+    ctrl.fireConnect();
+
+    const result = await promise;
+    expect(result).toEqual({ ok: false, error: 'Cancelled' });
   });
 });

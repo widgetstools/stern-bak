@@ -9,7 +9,7 @@
  * SharedWorker hub but don't require a worker to call.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { probeStomp, connectStomp, probeRest, probeMock, inferFields } from '@wellsfargo-starui/data';
 import { resolveCfg } from '@wellsfargo-starui/data/runtime';
 import { useAppDataStore } from '@wellsfargo-starui/react/data/runtime';
@@ -48,12 +48,57 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
     [appDataStore],
   );
 
+  // Test/infer each keep their own in-flight AbortController so a
+  // stale probe (superseded by a re-click, a provider switch, or
+  // unmount) can't land its result on top of a newer one — and, for
+  // STOMP, so its socket tears down immediately instead of idling out
+  // the full timeout in the background. `controller.signal.aborted`
+  // after the await covers both the "superseded" and "unmounted" cases
+  // (both abort() the same controller instance).
+  const testAbortRef = useRef<AbortController | null>(null);
+  const inferAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      testAbortRef.current?.abort();
+      inferAbortRef.current?.abort();
+    };
+  }, []);
+
   const test = useCallback(async () => {
-    if (!cfg) return;
+    // eslint-disable-next-line no-console
+    console.log('[connect] useProviderProbe.test() called', { providerType: cfg?.providerType });
+    if (!cfg) {
+      // eslint-disable-next-line no-console
+      console.log('[connect] test() bailing — no cfg');
+      return;
+    }
+    if (testAbortRef.current) {
+      // eslint-disable-next-line no-console
+      console.log('[connect] aborting previous in-flight test()');
+      testAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    testAbortRef.current = controller;
     setState((s) => ({ ...s, testing: true, testResult: null }));
     try {
+      // eslint-disable-next-line no-console
+      console.log('[connect] awaiting appDataStore.ready()');
       await appDataStore.ready();
-      const result = await testConnectionOnce(resolveAppDataTokens(cfg), { maxRows: 5, timeoutMs: 10_000 });
+      // eslint-disable-next-line no-console
+      console.log('[connect] appDataStore ready — calling testConnectionOnce()');
+      const result = await testConnectionOnce(resolveAppDataTokens(cfg), {
+        maxRows: 5,
+        timeoutMs: 10_000,
+        signal: controller.signal,
+      });
+      // eslint-disable-next-line no-console
+      console.log('[connect] testConnectionOnce() resolved', result, { aborted: controller.signal.aborted });
+      if (controller.signal.aborted) {
+        // eslint-disable-next-line no-console
+        console.log('[connect] discarding result — superseded/unmounted');
+        return;
+      }
       setState((s) => ({
         ...s,
         testing: false,
@@ -65,6 +110,9 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
           : { success: false, error: result.error },
       }));
     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.log('[connect] testConnectionOnce() threw', err, { aborted: controller.signal.aborted });
+      if (controller.signal.aborted) return;
       setState((s) => ({
         ...s,
         testing: false,
@@ -75,12 +123,20 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
 
   const infer = useCallback(async (opts: { sampleSize?: number } = {}) => {
     if (!cfg) return;
+    inferAbortRef.current?.abort();
+    const controller = new AbortController();
+    inferAbortRef.current = controller;
     const sampleSize = opts.sampleSize ?? 200;
     setState((s) => ({ ...s, inferring: true, inferenceError: null }));
     try {
       await appDataStore.ready();
       const fetchSize = Math.min(Math.max(sampleSize * 2, sampleSize + 50), 1000);
-      const result = await probeOnce(resolveAppDataTokens(cfg), { maxRows: fetchSize, timeoutMs: 30_000 });
+      const result = await probeOnce(resolveAppDataTokens(cfg), {
+        maxRows: fetchSize,
+        timeoutMs: 30_000,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
       if (!result.ok) {
         setState((s) => ({ ...s, inferring: false, inferenceError: result.error ?? 'probe failed' }));
         return;
@@ -93,6 +149,7 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
         inferenceSummary: { rowsFetched, rowsUsed, fieldsDetected: fields.length },
       }));
     } catch (err) {
+      if (controller.signal.aborted) return;
       setState((s) => ({
         ...s,
         inferring: false,
@@ -124,10 +181,10 @@ export function useProviderProbe(cfg: ProviderConfig | null): ProbeState {
  */
 async function testConnectionOnce(
   cfg: ProviderConfig,
-  opts: { maxRows: number; timeoutMs: number },
+  opts: { maxRows: number; timeoutMs: number; signal: AbortSignal },
 ): Promise<{ ok: boolean; rows?: readonly unknown[]; error?: string }> {
   switch (cfg.providerType) {
-    case 'stomp': return connectStomp(cfg, { timeoutMs: opts.timeoutMs });
+    case 'stomp': return connectStomp(cfg, { timeoutMs: opts.timeoutMs, signal: opts.signal });
     case 'rest':  return probeRest(cfg);
     case 'mock':  return probeMock(cfg, { maxRows: opts.maxRows });
     case 'appdata': return { ok: true, rows: [] };
@@ -142,7 +199,7 @@ async function testConnectionOnce(
  */
 async function probeOnce(
   cfg: ProviderConfig,
-  opts: { maxRows: number; timeoutMs: number },
+  opts: { maxRows: number; timeoutMs: number; signal: AbortSignal },
 ): Promise<{ ok: boolean; rows?: readonly unknown[]; error?: string }> {
   switch (cfg.providerType) {
     case 'stomp': return probeStomp(cfg, opts);

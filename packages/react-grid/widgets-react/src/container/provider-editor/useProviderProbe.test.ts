@@ -157,6 +157,59 @@ describe('useProviderProbe', () => {
     await waitFor(() => expect(result.current.inferenceError).toBe('timeout'));
   });
 
+  it('aborts a stale test when a new one starts, keeping only the latest result', async () => {
+    let resolveFirst: (r: { ok: boolean; error?: string }) => void = () => {};
+    let resolveSecond: (r: { ok: boolean; error?: string }) => void = () => {};
+    const first = new Promise<{ ok: boolean; error?: string }>((res) => { resolveFirst = res; });
+    const second = new Promise<{ ok: boolean; error?: string }>((res) => { resolveSecond = res; });
+    vi.mocked(connectStomp).mockImplementationOnce(() => first).mockImplementationOnce(() => second);
+
+    const { result } = renderHook(() => useProviderProbe(stompCfg));
+
+    act(() => { void result.current.test(); });
+    await waitFor(() => expect(connectStomp).toHaveBeenCalledTimes(1));
+    const signal1 = vi.mocked(connectStomp).mock.calls[0]?.[1]?.signal as AbortSignal;
+
+    act(() => { void result.current.test(); });
+    await waitFor(() => expect(connectStomp).toHaveBeenCalledTimes(2));
+
+    // The first call's connection test is abandoned as soon as the second starts.
+    expect(signal1.aborted).toBe(true);
+
+    await act(async () => {
+      resolveFirst({ ok: true }); // stale — must not land
+      resolveSecond({ ok: false, error: 'nope' }); // current
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(result.current.testResult).toEqual({ success: false, error: 'nope' }),
+    );
+  });
+
+  it('aborts the in-flight test on unmount instead of leaving it to idle out the timeout', async () => {
+    let resolvePending: (r: { ok: boolean }) => void = () => {};
+    const pending = new Promise<{ ok: boolean }>((res) => { resolvePending = res; });
+    vi.mocked(connectStomp).mockImplementationOnce(() => pending);
+
+    const { result, unmount } = renderHook(() => useProviderProbe(stompCfg));
+
+    act(() => { void result.current.test(); });
+    await waitFor(() => expect(connectStomp).toHaveBeenCalledTimes(1));
+    const signal = vi.mocked(connectStomp).mock.calls[0]?.[1]?.signal as AbortSignal;
+
+    unmount();
+    expect(signal.aborted).toBe(true);
+
+    // Resolving after unmount must not throw or warn about a state
+    // update on an unmounted component.
+    await act(async () => {
+      resolvePending({ ok: true });
+      await Promise.resolve();
+    });
+  });
+
   it('reports unsupported provider types during test', async () => {
     const { result } = renderHook(() =>
       useProviderProbe({ providerType: 'websocket', url: 'ws://x' } as never),
