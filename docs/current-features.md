@@ -799,6 +799,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useRegistryEditor` — component-registry state manager
 - Registry browser + property editor + config validation
 - `RegistryEntry` — registered component instance metadata
+- Inspector "Host as" picker — per-component default host surface: docked as a view in the OpenFin Workspace browser window (default) vs. a standalone OpenFin platform window (`RegistryEntry.asWindow`). Seeds the `asWindow` customData when the component is added to the dock (a one-time snapshot, like icon/name) and drives whether "Configure Component" test-launches via `createView` or `createWindow`
 
 ---
 

@@ -223,7 +223,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
         actionId: ACTION_LAUNCH_COMPONENT,
         customData: {
           registryEntryId: entry.id,
-          asWindow: false,
+          asWindow: entry.asWindow,
         },
       },
     });
@@ -305,8 +305,8 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   }, [dock]);
 
   // Add a registered component as a child of an existing dropdown
-  // button. The child carries its own iconId/tooltip (snapshot), so
-  // future edits to the registry entry don't propagate automatically —
+  // button. The child carries its own iconId/tooltip/asWindow (snapshot),
+  // so future edits to the registry entry don't propagate automatically —
   // matches the top-level Add To Dock semantics.
   const handleAddComponentToDropdown = useCallback((parentButtonId: string, entry: RegistryEntry) => {
     const id = newId();
@@ -318,7 +318,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
         tooltip: entry.displayName || "Untitled",
         iconId: entry.iconId,
         actionId: ACTION_LAUNCH_COMPONENT,
-        customData: { registryEntryId: entry.id, asWindow: false },
+        customData: { registryEntryId: entry.id, asWindow: entry.asWindow },
       },
     });
   }, [dock]);

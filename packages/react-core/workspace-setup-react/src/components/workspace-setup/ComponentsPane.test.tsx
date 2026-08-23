@@ -27,6 +27,7 @@ function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
     appId: 'star-demo',
     configServiceUrl: 'https://cfg.example',
     singleton: false,
+    asWindow: false,
     ...overrides,
   } as RegistryEntry;
 }

@@ -68,6 +68,7 @@ function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
     appId: 'star-demo',
     configServiceUrl: 'https://cfg.example',
     singleton: false,
+    asWindow: false,
     ...overrides,
   } as RegistryEntry;
 }
@@ -427,6 +428,19 @@ describe('WorkspaceSetup — save and discard', () => {
 
     const [registryConfig] = saveRegistryConfig.mock.calls[0];
     expect(registryConfig.entries.map((e: RegistryEntry) => e.id)).toContain('chart-fx');
+  });
+
+  it('seeds the dock placement\'s asWindow from the component default', async () => {
+    loadRegistryConfig.mockResolvedValue({ version: 2, entries: [entry({ asWindow: true })] });
+    await mount();
+    await userEvent.click(componentRow('Credit blotter'));
+
+    await userEvent.click(screen.getByRole('button', { name: /Add to your dock/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveDockConfig).toHaveBeenCalledTimes(1));
+    const [dockConfig] = saveDockConfig.mock.calls[0];
+    expect(dockConfig.buttons[0].customData.asWindow).toBe(true);
   });
 
   it('rewrites nested menu-item references too', async () => {

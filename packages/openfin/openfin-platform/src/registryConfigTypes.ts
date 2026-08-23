@@ -12,9 +12,15 @@
  *                        usesHostConfig === false
  *   - `configServiceUrl` — same behavior as appId
  *   - `singleton`      — true = focus-existing on launch; false = spawn-new
+ *   - `asWindow`       — default host surface: standalone OpenFin platform
+ *                        window (true) vs. a view docked into the
+ *                        Workspace browser window (false)
  *
  * Persisted v1 data is upgraded by `migrateRegistryV1ToV2()` in
  * `./registryMigrate.ts` on read — no consumer sees a v1 entry.
+ * `asWindow` was added after v2 was cut; `fillMissingV2Fields()` in the
+ * same module defaults it to `false` for any pre-existing v2 record
+ * that predates the field, so no version bump was needed.
  */
 
 /** A single registered component entry. */
@@ -69,6 +75,15 @@ export interface RegistryEntry {
    *           focus the existing instance (never more than one)
    *   false = every click spawns a new instance */
   singleton: boolean;
+
+  /** Default host surface:
+   *   true  = opens as its own standalone OpenFin platform window
+   *   false = opens as a view docked into the OpenFin Workspace
+   *           browser window (default)
+   *  Seeds the `asWindow` customData when the component is added to
+   *  the dock (a one-time snapshot, same as iconId/tooltip) — each
+   *  dock placement can still be overridden independently afterward. */
+  asWindow: boolean;
 }
 
 /** The full registry editor configuration, persisted as an APP_CONFIG row. */

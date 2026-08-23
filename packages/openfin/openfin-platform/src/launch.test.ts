@@ -116,6 +116,7 @@ describe('launchRegisteredComponent', () => {
     configServiceUrl: 'http://cfg',
     configId: 'grid-trade',
     singleton: false,
+    asWindow: false,
   };
 
   beforeEach(() => {

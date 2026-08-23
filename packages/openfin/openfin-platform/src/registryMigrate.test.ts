@@ -38,6 +38,7 @@ describe('migrateRegistryToV2', () => {
       type: 'internal',
       usesHostConfig: true,
       singleton: false,
+      asWindow: false,
       appId: 'TestApp',
       configServiceUrl: hostEnv.configServiceUrl,
     });
@@ -61,6 +62,7 @@ describe('migrateRegistryToV2', () => {
     expect(v2.entries[0].id).toBe('grid-demo');
     expect(v2.entries[0].configId).toBe('grid-demo');
     expect(v2.entries[0].appId).toBe('TestApp');
+    expect(v2.entries[0].asWindow).toBe(false);
   });
 
   it('is idempotent for already-v2 configs', () => {
@@ -78,6 +80,7 @@ describe('migrateRegistryToV2', () => {
         type: 'internal' as const,
         usesHostConfig: true,
         singleton: false,
+        asWindow: false,
         appId: 'TestApp',
         configServiceUrl: hostEnv.configServiceUrl,
       }],

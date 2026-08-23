@@ -17,6 +17,7 @@ function validEntry(over: Partial<RegistryEntry> = {}): Partial<RegistryEntry> {
     configServiceUrl: hostEnv.configServiceUrl,
     configId: 'grid-trade',
     singleton: false,
+    asWindow: false,
     ...over,
   };
 }

@@ -51,6 +51,7 @@ function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
     appId: 'star-demo',
     configServiceUrl: 'https://cfg.example',
     singleton: false,
+    asWindow: false,
     ...overrides,
   } as RegistryEntry;
 }
@@ -365,6 +366,24 @@ describe('useRegistryEditor — test launch', () => {
     // resolved with 'k123'. Recorded as WORKLOG item 7.
     expect(result.current.hostEnv.userId).toBe('k123');
     expect(createView.mock.calls[0][0].customData.userId).toBeUndefined();
+  });
+
+  it('opens a standalone platform window when the entry is set to asWindow', async () => {
+    const createView = vi.fn().mockResolvedValue(undefined);
+    const createWindow = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('fin', {
+      Platform: { getCurrentSync: () => ({ createView, createWindow }) },
+      InterApplicationBus: { publish: vi.fn() },
+    });
+    const { result } = await mount();
+
+    await act(async () => { await result.current.testComponent(entry({ asWindow: true })); });
+
+    expect(createView).not.toHaveBeenCalled();
+    const [{ url, customData }] = createWindow.mock.calls[0];
+    expect(url).toBe(`${window.location.origin}/blotters/marketsgrid`);
+    expect(customData.templateId).toBe('grid-credit');
+    expect(customData.isTemplate).toBe(true);
   });
 
   it('swallows a failed launch rather than breaking the editor', async () => {

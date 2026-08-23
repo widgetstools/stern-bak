@@ -31,6 +31,7 @@ function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
     appId: 'star-demo',
     configServiceUrl: 'https://cfg.example',
     singleton: false,
+    asWindow: false,
     ...overrides,
   } as RegistryEntry;
 }
@@ -176,6 +177,30 @@ describe('InspectorPane — component selected', () => {
 
     // Toggling must not rewrite the id — the parent tracks selection by it.
     expect(props.onChange).toHaveBeenCalledWith('grid-credit', { singleton: true });
+  });
+
+  it('defaults the host surface to a workspace browser view', () => {
+    renderPane({ selection });
+
+    expect(screen.getByRole('button', { name: 'Workspace browser view' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Platform window' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('switching the host surface to a platform window patches asWindow', async () => {
+    const { props } = renderPane({ selection });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Platform window' }));
+
+    expect(props.onChange).toHaveBeenCalledWith('grid-credit', { asWindow: true });
+  });
+
+  it('switching back to a workspace browser view patches asWindow to false', async () => {
+    const { props } = renderPane({ selection, entries: [entry({ asWindow: true })] });
+    expect(screen.getByRole('button', { name: 'Platform window' }).getAttribute('aria-pressed')).toBe('true');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Workspace browser view' }));
+
+    expect(props.onChange).toHaveBeenCalledWith('grid-credit', { asWindow: false });
   });
 
   it('marking a component external turns off host config and reveals the extra fields', async () => {

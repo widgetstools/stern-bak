@@ -350,6 +350,16 @@ function ComponentForm({
           />
         </div>
 
+        {/* Host surface — separate platform window vs. a view docked
+            into the Workspace browser window. Seeds `asWindow` on the
+            dock placement when this component is added to the dock
+            (a one-time snapshot, same as icon/name), and drives which
+            surface "Configure Component" previews below. */}
+        <HostSurfacePicker
+          asWindow={entry.asWindow}
+          onChange={(asWindow) => onChange({ asWindow })}
+        />
+
         {/* External-only fields */}
         {entry.type === "external" && (
           <div className="flex flex-col gap-2 rounded-md p-2 bg-[var(--ds-surface-secondary)] border border-[var(--ds-border-primary)]">
@@ -661,6 +671,58 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       />
       <span className="text-xs text-[var(--ds-text-secondary)]">{label}</span>
     </label>
+  );
+}
+
+// ─── Host surface picker (platform window vs. workspace browser view) ─
+//
+// A segmented pair, not a checkbox: "Host as" is a mutually exclusive
+// choice, not an additive flag like Singleton/External. Mirrors
+// `RegistryEntry.asWindow` — false (default) docks the component as a
+// view inside the OpenFin Workspace browser window; true opens it as
+// its own standalone OpenFin platform window.
+
+function HostSurfacePicker({
+  asWindow,
+  onChange,
+}: {
+  asWindow: boolean;
+  onChange: (asWindow: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        Host as
+      </span>
+      <div className="inline-flex rounded-md border border-[var(--ds-border-primary)] overflow-hidden w-fit">
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          aria-pressed={!asWindow}
+          title="Dock as a view inside the OpenFin Workspace browser window"
+          className={`px-2.5 py-1 text-xs ${
+            !asWindow
+              ? "bg-[var(--de-accent)] text-[var(--de-accent-foreground)]"
+              : "bg-[var(--ds-surface-secondary)] text-[var(--ds-text-secondary)]"
+          }`}
+        >
+          Workspace browser view
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          aria-pressed={asWindow}
+          title="Open as its own standalone OpenFin platform window"
+          className={`px-2.5 py-1 text-xs border-l border-[var(--ds-border-primary)] ${
+            asWindow
+              ? "bg-[var(--de-accent)] text-[var(--de-accent-foreground)]"
+              : "bg-[var(--ds-surface-secondary)] text-[var(--ds-text-secondary)]"
+          }`}
+        >
+          Platform window
+        </button>
+      </div>
+    </div>
   );
 }
 

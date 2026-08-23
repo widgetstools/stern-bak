@@ -79,6 +79,7 @@ describe('Registry migration — broken entries auto-corrected on read', () => {
         appId: 'TestApp',
         configServiceUrl: '',
         singleton: false,
+        asWindow: false,
       }],
     };
 
@@ -161,6 +162,7 @@ describe('Smoke: replay the user-reported broken registry shape', () => {
         appId: 'TestApp',
         configServiceUrl: '',
         singleton: false,
+        asWindow: false,
       }],
     };
 

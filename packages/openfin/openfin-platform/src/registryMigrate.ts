@@ -11,6 +11,7 @@
  *   - singleton        = false            (v1 had no singleton concept; safer default)
  *   - appId            = hostEnv.appId    (passed in at migration time)
  *   - configServiceUrl = hostEnv.configServiceUrl
+ *   - asWindow         = false            (v1 had no window/view distinction; docked view is the safer default)
  *
  * `configId` is preserved — v1 users may have customized it; we do NOT
  * re-derive singleton ids on migration (defaulting `singleton: false`
@@ -78,6 +79,7 @@ export function migrateRegistryToV2(
       singleton: false,
       appId: hostEnv.appId,
       configServiceUrl: hostEnv.configServiceUrl,
+      asWindow: false,
     })),
   };
 }
@@ -109,5 +111,6 @@ function fillMissingV2Fields(entry: Partial<RegistryEntry>, hostEnv: HostEnv): R
     singleton: entry.singleton ?? false,
     appId: entry.appId ?? hostEnv.appId,
     configServiceUrl: entry.configServiceUrl ?? hostEnv.configServiceUrl,
+    asWindow: entry.asWindow ?? false,
   };
 }

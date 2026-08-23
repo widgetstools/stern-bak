@@ -227,31 +227,44 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
       );
       const instanceId = templateId;
 
+      const customData = {
+        instanceId,
+        templateId,
+        componentType: entry.componentType,
+        componentSubType: entry.componentSubType,
+        // Test-launch marker: tells component-host that any save
+        // from this view is the template/initial-settings save.
+        isTemplate: true,
+        singleton: entry.singleton,
+        // v2: forward the appId + configServiceUrl the component will
+        // target. For usesHostConfig === true this equals hostEnv; for
+        // external entries it equals the entry's own values.
+        appId: entry.appId,
+        configServiceUrl: entry.configServiceUrl,
+        // userId is taken from the editor's hostEnv (set by the
+        // parent OpenFin provider via customData.userId on the
+        // editor window). Component-host's saver needs it to
+        // populate `userId` / `createdBy` / `updatedBy` on a
+        // freshly-built AppConfigRow when no prior template exists.
+        userId: hostEnv.userId,
+      };
+
       const platform = openFinApi.Platform.getCurrentSync();
-      await platform.createView({
-        url: resolvedUrl,
-        customData: {
-          instanceId,
-          templateId,
-          componentType: entry.componentType,
-          componentSubType: entry.componentSubType,
-          // Test-launch marker: tells component-host that any save
-          // from this view is the template/initial-settings save.
-          isTemplate: true,
-          singleton: entry.singleton,
-          // v2: forward the appId + configServiceUrl the component will
-          // target. For usesHostConfig === true this equals hostEnv; for
-          // external entries it equals the entry's own values.
-          appId: entry.appId,
-          configServiceUrl: entry.configServiceUrl,
-          // userId is taken from the editor's hostEnv (set by the
-          // parent OpenFin provider via customData.userId on the
-          // editor window). Component-host's saver needs it to
-          // populate `userId` / `createdBy` / `updatedBy` on a
-          // freshly-built AppConfigRow when no prior template exists.
-          userId: hostEnv.userId,
-        },
-      });
+      // Test launch honors the component's default host surface so
+      // "Configure Component" previews it the way it'll actually open
+      // from the dock (see RegistryEntry.asWindow).
+      if (entry.asWindow) {
+        await platform.createWindow({
+          url: resolvedUrl,
+          name: `test-${entry.id}`,
+          defaultWidth: 1200,
+          defaultHeight: 800,
+          autoShow: true,
+          customData,
+        });
+      } else {
+        await platform.createView({ url: resolvedUrl, customData });
+      }
     } catch (err) {
       console.warn("Failed to launch test component:", err);
     }

@@ -51,5 +51,6 @@ export function newDraftEntry(env: { appId: string; configServiceUrl: string }):
     appId: env.appId,
     configServiceUrl: env.configServiceUrl,
     singleton: false,
+    asWindow: false,
   };
 }
