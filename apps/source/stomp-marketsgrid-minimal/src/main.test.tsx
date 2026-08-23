@@ -18,7 +18,7 @@ vi.mock('./bootstrap.js', () => ({
   bootstrap: (...args: unknown[]) => mainTestState.bootstrap(...args),
 }));
 
-vi.mock('./globals.css', () => ({}));
+vi.mock('./styles.css', () => ({}));
 
 describe('main', () => {
   beforeEach(() => {

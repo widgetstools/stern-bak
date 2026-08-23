@@ -65,7 +65,7 @@ const LabTabsContext = React.createContext<{
   setTab: () => {},
 });
 
-vi.mock('./globals.css', () => ({}));
+vi.mock('./styles.css', () => ({}));
 
 vi.mock('@wellsfargo-starui/design-system', () => ({
   applyTheme: (...args: unknown[]) => mockApplyTheme(...args),

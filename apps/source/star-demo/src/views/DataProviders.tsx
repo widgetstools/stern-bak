@@ -38,7 +38,7 @@ function DataProviders() {
     return () => { document.title = prev; };
   }, []);
 
-  // The shell's `body { padding: 10px }` (set in index.css for the
+  // The shell's `body { padding: 10px }` (set in styles.css for the
   // home page chrome) leaks here as 10px gutters around the popout
   // and pushes h-screen content past the viewport — producing the
   // OS-default page-level scrollbars. Zero body padding/margin on

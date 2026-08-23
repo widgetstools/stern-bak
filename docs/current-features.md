@@ -1289,6 +1289,7 @@ modules).
   - Lifecycle timing trace (`[v2/stomp][trace]` / `[v2/hub][trace]`, SharedWorker console): restart → teardown → dial → handshake → trigger publish → end-token, each line stamped with elapsed-since-Restart-click (`extra.__refresh` epoch) plus the effective stompjs `reconnectDelay` on socket error/disconnect — pinpoints whether a slow restart is teardown, reconnect backoff, or server snapshot time
   - `connectStomp()` — pure socket connection test for the editor's "Test Connection" button: opens the WebSocket + STOMP session and resolves on the broker handshake (`onConnect`) without subscribing, publishing a trigger, or waiting for rows (`reconnectDelay: 0` so a failed test fails fast)
   - `probeStomp()` — one-shot data probe (subscribe + trigger + collect up to `maxRows`); backs the editor's Infer Fields flow, which needs real rows to sample
+  - `ProbeOpts.signal` (`AbortSignal`) — both `connectStomp()` and `probeStomp()` settle immediately as `{ ok: false, error: 'Cancelled' }` and tear down the socket when aborted, instead of idling out the full timeout; `useProviderProbe` creates a fresh `AbortController` per `test()`/`infer()` call and aborts the previous one on unmount or when a newer call supersedes it, so a stale probe can never overwrite a newer result
 - **REST** (`startRest()`)
   - One-shot HTTP (GET/POST), snapshot-only — no live tail after `ready` (IDataProvider: no `onTick`)
   - Restart overlay merged into POST body

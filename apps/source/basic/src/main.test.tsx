@@ -11,7 +11,7 @@ vi.mock('./App', () => ({
   App: () => null,
 }));
 
-vi.mock('./globals.css', () => ({}));
+vi.mock('./styles.css', () => ({}));
 
 describe('main', () => {
   beforeEach(() => {

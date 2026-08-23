@@ -34,7 +34,7 @@ vi.mock('./App', () => ({
   App: () => React.createElement('div', { 'data-testid': 'app' }, 'App'),
 }));
 
-vi.mock('./globals.css', () => ({}));
+vi.mock('./styles.css', () => ({}));
 
 describe('main', () => {
   beforeEach(() => {

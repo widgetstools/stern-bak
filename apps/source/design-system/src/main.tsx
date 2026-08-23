@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { applyTheme, getTheme } from '@wellsfargo-starui/design-system';
 import { App } from './App';
-import './globals.css';
+import './styles.css';
 
 applyTheme(getTheme());
 

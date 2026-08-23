@@ -2,7 +2,7 @@ import React, { Suspense, use, type ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, Outlet, Route, Routes } from "react-router-dom";
 import App from "./App";
-import "./index.css";
+import "./styles.css";
 import { applyTheme, getTheme } from "@wellsfargo-starui/design-system";
 import { installBootWatchdog } from "./bootWatchdog";
 applyTheme(getTheme());
