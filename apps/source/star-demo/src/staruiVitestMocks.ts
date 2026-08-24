@@ -20,6 +20,7 @@ export const mockEnsurePlatformReady = vi.fn();
 export const mockResolvePlatformBootstrapFromJson = vi.fn();
 export const mockResolvePlatformBootstrapFromManifest = vi.fn();
 export const mockSetConfigManager = vi.fn();
+export const mockSetPlatformDefaultScope = vi.fn();
 export const mockBuildGridHostContext = vi.fn(() => ({ gridId: 'mock-host' }));
 export const mockStorageFactoryForPersistence = vi.fn(() => vi.fn());
 export const mockDefineStarGridPlugin = vi.fn((def: unknown) => def);
@@ -52,6 +53,7 @@ export function resetStaruiMocks(): void {
   mockResolvePlatformBootstrapFromJson.mockClear();
   mockResolvePlatformBootstrapFromManifest.mockClear();
   mockSetConfigManager.mockClear();
+  mockSetPlatformDefaultScope.mockClear();
   mockBuildGridHostContext.mockClear().mockReturnValue({ gridId: 'mock-host' });
   mockStorageFactoryForPersistence.mockClear().mockReturnValue(vi.fn());
   mockDefineStarGridPlugin.mockClear().mockImplementation((def: unknown) => def);
@@ -97,19 +99,39 @@ vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigPort: mockCreateConfigPort,
 }));
 
-vi.mock('@wellsfargo-starui/data', () => ({
-  ensureConfigReady: mockEnsureConfigReady,
-  ensurePlatformReady: mockEnsurePlatformReady,
-  resolvePlatformBootstrapFromJson: (...args: unknown[]) =>
-    mockResolvePlatformBootstrapFromJson(...args),
-  resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>
-    mockResolvePlatformBootstrapFromManifest(...args),
-}));
+// Bootstrap entry points are stubbed (they reach for IndexedDB and a
+// SharedWorker); `probeMock` / `inferFields` are NOT — they are pure,
+// synchronous and offline, and the assistant's field-discovery answers are
+// only meaningful when they come from the real mock generator's schema.
+vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    ensureConfigReady: mockEnsureConfigReady,
+    ensurePlatformReady: mockEnsurePlatformReady,
+    resolvePlatformBootstrapFromJson: (...args: unknown[]) =>
+      mockResolvePlatformBootstrapFromJson(...args),
+    resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>
+      mockResolvePlatformBootstrapFromManifest(...args),
+  };
+});
 
 vi.mock('@wellsfargo-starui/openfin/config', () => ({
   resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>
     mockResolvePlatformBootstrapFromManifest(...args),
   setConfigManager: mockSetConfigManager,
+  setPlatformDefaultScope: mockSetPlatformDefaultScope,
+  // ensureAiAssistantDockButton's dependencies — a no-op registry/dock here
+  // is fine, its own idempotency logic is covered by ensureDockButton.test.ts.
+  loadRegistryConfig: vi.fn(() => Promise.resolve(null)),
+  saveRegistryConfig: vi.fn(() => Promise.resolve()),
+  loadDockConfig: vi.fn(() => Promise.resolve(null)),
+  saveDockConfig: vi.fn(() => Promise.resolve()),
+  ACTION_LAUNCH_COMPONENT: 'launch-component',
+  IAB_DOCK_CONFIG_UPDATE: 'dock-config-update',
+  IAB_REGISTRY_CONFIG_UPDATE: 'registry-config-update',
+  REGISTRY_CONFIG_VERSION: 2,
+  deriveTemplateConfigId: (type: string, sub: string) => `${type}-${sub}`.toLowerCase(),
 }));
 
 vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({

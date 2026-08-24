@@ -29,6 +29,7 @@ const RenameViewTab       = React.lazy(() => import("./views/RenameViewTab"));
 const blottersMarketsGridChunk = import("./views/BlottersMarketsGrid");
 const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
+const AiAssistant         = React.lazy(() => import("./views/AiAssistant"));
 
 const WorkspaceSetup = React.lazy(() =>
   import("@wellsfargo-starui/react/workspace-setup").then((m) => ({ default: m.WorkspaceSetup })),
@@ -143,6 +144,7 @@ function AppTree() {
             the worker catalog (wireWorkerCatalogSync). */}
         <Route path="/dataproviders" element={<FullGate><React.Suspense fallback={LOADING}><DataProviders /></React.Suspense></FullGate>} />
         <Route path="/config-browser" element={<FullGate><React.Suspense fallback={LOADING}><ConfigBrowser /></React.Suspense></FullGate>} />
+        <Route path="/ai-assistant" element={<FullGate><React.Suspense fallback={LOADING}><AiAssistant /></React.Suspense></FullGate>} />
 
         <Route element={<FullGate><ViewRoutesLayout /></FullGate>}>
           <Route path="/" element={<App />} />

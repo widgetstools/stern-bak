@@ -14,8 +14,10 @@ import {
 import {
   resolvePlatformBootstrapFromManifest,
   setConfigManager,
+  setPlatformDefaultScope,
 } from '@wellsfargo-starui/openfin/config';
 import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
+import { ensureAiAssistantDockButton } from './aiAssistant/ensureDockButton';
 
 export interface PlatformBootstrapResult {
   config: PlatformBootstrapConfig;
@@ -80,6 +82,21 @@ export function initConfigBootstrap(): Promise<ConfigBootstrapResult> {
         : await resolvePlatformBootstrapFromJson('/app-config.json');
       const { configManager } = await ensureConfigReady(config);
       setConfigManager(configManager);
+      // Adopt the platform's (appId, userId) for dock/registry config ids.
+      // `initWorkspace` does this in the provider window, but child windows
+      // (AI Assistant, Data Providers, Config Browser) never call it — so
+      // without this they fall back to the legacy `system/system` scope and
+      // read/write a DIFFERENT row than the dock does. That made registry
+      // writes from those windows land somewhere the platform never reads
+      // (and the app's own ConfigManager then filtered out on read), so a
+      // component registered from a child window silently vanished.
+      setPlatformDefaultScope({ appId: config.appId, userId: config.userId });
+      // Fire-and-forget: seeding a cosmetic dock button must not sit in front
+      // of the data-plane bootstrap that every data route waits on. It's
+      // best-effort and self-heals on the next boot if it fails.
+      void ensureAiAssistantDockButton(config.appId).catch((err) => {
+        console.warn('[platformBootstrap] ensureAiAssistantDockButton failed — dock button may be missing:', err);
+      });
       return { config, configManager };
     })();
   }

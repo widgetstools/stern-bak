@@ -9,6 +9,11 @@ export default mergeConfig(
       environment: 'jsdom',
       globals: false,
       css: false,
+      // The app-boot tests (main/Provider) render the whole router and
+      // dynamically import route chunks; vitest's 5s default is too tight for
+      // that on slower machines and produces flaky timeouts unrelated to the
+      // code under test.
+      testTimeout: 20_000,
       setupFiles: ['../../test-utils/setup.ts', 'src/staruiVitestMocks.ts'],
       include: ['src/**/*.test.{ts,tsx}', '*.test.ts', '*.test.js'],
       coverage: {

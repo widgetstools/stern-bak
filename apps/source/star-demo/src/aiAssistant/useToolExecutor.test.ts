@@ -1,0 +1,829 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { ConfigManager, ProfileSnapshot } from '@wellsfargo-starui/core/host/config';
+import type { DataProviderConfigStore } from '@wellsfargo-starui/data';
+import { dispatchTool, type ToolExecutionContext } from './useToolExecutor';
+
+vi.mock('@wellsfargo-starui/react/data/runtime', () => ({ useDataServices: vi.fn() }));
+
+vi.mock('@wellsfargo-starui/types', () => ({
+  LOGGED_IN_USER_ID: 'dev1',
+  getDefaultProviderConfig: (type: string) => ({ providerType: type, updateInterval: 2000 }),
+  validateProviderConfig: (config: { providerType?: string }) =>
+    config.providerType === 'mock'
+      ? { isValid: true, errors: [] }
+      : { isValid: false, errors: ['unsupported providerType in test'] },
+}));
+
+const mockLoadRegistryConfig = vi.fn();
+vi.mock('@wellsfargo-starui/openfin/config', () => ({
+  loadRegistryConfig: (...args: unknown[]) => mockLoadRegistryConfig(...args),
+  deriveTemplateConfigId: (type: string, sub: string) => `${type}-${sub}`.toLowerCase(),
+}));
+
+const mockAddRegistryEntry = vi.fn();
+const mockAddDockButton = vi.fn();
+const mockRegistryEntryExists = vi.fn();
+vi.mock('./registryOps', () => ({
+  addRegistryEntry: (...args: unknown[]) => mockAddRegistryEntry(...args),
+  addDockButton: (...args: unknown[]) => mockAddDockButton(...args),
+  registryEntryExists: (...args: unknown[]) => mockRegistryEntryExists(...args),
+  buildRegistryEntry: (spec: unknown) => spec,
+}));
+
+const GRID_ENTRY = {
+  id: 'grid-test', configId: 'grid-test', componentType: 'grid', componentSubType: 'test',
+  displayName: 'TestGrid', hostUrl: '/#/blotters/marketsgrid', iconId: '', createdAt: '',
+  type: 'internal' as const, usesHostConfig: true, appId: 'Star-Demo', configServiceUrl: '',
+  singleton: true, asWindow: false,
+};
+
+/** Builds a ToolExecutionContext over fake ConfigManager + provider-store doubles. */
+function fakeCtx() {
+  const list = vi.fn().mockResolvedValue([]);
+  const save = vi.fn().mockResolvedValue(undefined);
+  const loadGridLevelData = vi.fn().mockResolvedValue(null);
+  const saveGridLevelData = vi.fn().mockResolvedValue(undefined);
+  // Instance rows cloned from the template at dock-launch time. Empty by
+  // default — the template-only case.
+  const findByComponentType = vi.fn().mockResolvedValue([]);
+  const storeList = vi.fn().mockResolvedValue([]);
+  const storeGet = vi.fn().mockResolvedValue(null);
+  const storeSave = vi.fn().mockResolvedValue({});
+  const ctx: ToolExecutionContext = {
+    configManager: {
+      profiles: { list, save, loadGridLevelData, saveGridLevelData },
+      findByComponentType,
+    } as unknown as ConfigManager,
+    configStore: { list: storeList, get: storeGet, save: storeSave } as unknown as DataProviderConfigStore,
+    appId: 'Star-Demo',
+  };
+  return { ctx, list, save, loadGridLevelData, saveGridLevelData, findByComponentType, storeList, storeGet, storeSave };
+}
+
+describe('dispatchTool', () => {
+  beforeEach(() => {
+    mockLoadRegistryConfig.mockReset().mockResolvedValue({ version: 2, entries: [GRID_ENTRY] });
+    mockAddRegistryEntry.mockReset().mockResolvedValue(undefined);
+    mockAddDockButton.mockReset().mockResolvedValue(undefined);
+    mockRegistryEntryExists.mockReset().mockResolvedValue(false);
+  });
+
+  it('list_grids returns only componentType "grid" entries', async () => {
+    mockLoadRegistryConfig.mockResolvedValue({
+      version: 2,
+      entries: [GRID_ENTRY, { ...GRID_ENTRY, id: 'ai-assistant', componentType: 'tool', displayName: 'AI Assistant' }],
+    });
+    const { ctx } = fakeCtx();
+
+    const result = await dispatchTool('list_grids', ctx, {});
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual([{ id: 'grid-test', displayName: 'TestGrid' }]);
+  });
+
+  it('list_data_providers reads through the ConfigManager-backed store', async () => {
+    const { ctx, storeList } = fakeCtx();
+    storeList.mockResolvedValue([{ name: 'Positions', providerType: 'mock', providerId: 'p1' }]);
+
+    const result = await dispatchTool('list_data_providers', ctx, {});
+
+    expect(storeList).toHaveBeenCalledWith('dev1', { includeAppData: true });
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('Positions');
+  });
+
+  it('get_grid_columns resolves the bound provider and reads its columnDefinitions', async () => {
+    const { ctx, loadGridLevelData, storeGet } = fakeCtx();
+    loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'dp-1' } });
+    storeGet.mockResolvedValue({ config: { columnDefinitions: [{ field: 'price', headerName: 'Price', cellDataType: 'number' }] } });
+
+    const result = await dispatchTool('get_grid_columns', ctx, { targetGridId: 'grid-test' });
+
+    expect(loadGridLevelData).toHaveBeenCalledWith({ instanceId: 'grid-test' });
+    expect(storeGet).toHaveBeenCalledWith('dp-1');
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual([{ colId: 'price', headerName: 'Price', cellDataType: 'number' }]);
+  });
+
+  it('get_grid_columns rejects an unknown targetGridId without touching the store', async () => {
+    const { ctx, loadGridLevelData } = fakeCtx();
+
+    const result = await dispatchTool('get_grid_columns', ctx, { targetGridId: 'no-such-grid' });
+
+    expect(result.ok).toBe(false);
+    expect(loadGridLevelData).not.toHaveBeenCalled();
+  });
+
+  it('add_calculated_column reads the current profile, merges the new column, and saves', async () => {
+    const { ctx, list, save } = fakeCtx();
+    const existing: ProfileSnapshot = {
+      id: 'default', gridId: 'grid-test', name: 'Default',
+      state: { 'calculated-columns': { v: 3, data: { virtualColumns: [{ colId: 'notional' }] } } },
+      createdAt: 1, updatedAt: 1,
+    };
+    list.mockResolvedValue([existing]);
+
+    const result = await dispatchTool(
+      'add_calculated_column',
+      ctx,
+      { targetGridId: 'grid-test', colId: 'spread', headerName: 'Spread', expression: '[ask] - [bid]' },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(list).toHaveBeenCalledWith({ instanceId: 'grid-test' });
+    expect(save).toHaveBeenCalledTimes(1);
+    const [scope, snapshot] = save.mock.calls[0] as [{ instanceId: string }, ProfileSnapshot];
+    expect(scope).toEqual({ instanceId: 'grid-test' });
+    expect(snapshot.state['calculated-columns']).toEqual({
+      v: 3,
+      data: { virtualColumns: [{ colId: 'notional' }, { colId: 'spread', headerName: 'Spread', expression: '[ask] - [bid]', cellDataType: undefined, position: undefined }] },
+    });
+  });
+
+  it('add_calculated_column rejects missing required fields without touching the store', async () => {
+    const { ctx, save } = fakeCtx();
+
+    const result = await dispatchTool('add_calculated_column', ctx, { targetGridId: 'grid-test', colId: 'x' });
+
+    expect(result.ok).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('add_calculated_column rejects an unknown targetGridId', async () => {
+    const { ctx, save } = fakeCtx();
+
+    const result = await dispatchTool(
+      'add_calculated_column',
+      ctx,
+      { targetGridId: 'ghost-grid', colId: 'x', headerName: 'X', expression: '[a]' },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('ghost-grid');
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('create_blotter registers the entry, seeds gridLevelData, and adds a dock button', async () => {
+    const { ctx, saveGridLevelData } = fakeCtx();
+
+    const result = await dispatchTool('create_blotter', ctx, { displayName: 'Credit Blotter', providerId: 'dp-1' });
+
+    expect(result.ok).toBe(true);
+    expect(mockAddRegistryEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'grid-credit-blotter',
+        configId: 'grid-credit-blotter',
+        componentType: 'grid',
+        componentSubType: 'credit-blotter',
+        hostUrl: '/#/blotters/marketsgrid',
+        displayName: 'Credit Blotter',
+        appId: 'Star-Demo',
+        asWindow: true,
+      }),
+    );
+    // The third arg (`identity`) is required: without it the row's
+    // componentType is rewritten to the generic 'markets-grid-profile-set'
+    // instead of matching the registered component.
+    expect(saveGridLevelData).toHaveBeenCalledWith(
+      { instanceId: 'grid-credit-blotter' },
+      { v: 1, provider: { liveProviderId: 'dp-1', historicalProviderId: null, mode: 'live' }, caption: 'Credit Blotter' },
+      { identity: { componentType: 'grid', componentSubType: 'credit-blotter', isTemplate: true, singleton: false } },
+    );
+    expect(mockAddDockButton).toHaveBeenCalledWith(expect.objectContaining({ registryEntryId: 'grid-credit-blotter', tooltip: 'Credit Blotter' }));
+  });
+
+  it('create_blotter skips the dock button when addToDock is false', async () => {
+    const { ctx } = fakeCtx();
+
+    await dispatchTool('create_blotter', ctx, { displayName: 'Rates', addToDock: false });
+
+    expect(mockAddRegistryEntry).toHaveBeenCalled();
+    expect(mockAddDockButton).not.toHaveBeenCalled();
+  });
+
+  it('create_blotter refuses a duplicate id instead of clobbering the existing blotter', async () => {
+    const { ctx } = fakeCtx();
+    mockRegistryEntryExists.mockResolvedValue(true);
+
+    const result = await dispatchTool('create_blotter', ctx, { displayName: 'Credit Blotter' });
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('already exists');
+    expect(mockAddRegistryEntry).not.toHaveBeenCalled();
+    expect(mockAddDockButton).not.toHaveBeenCalled();
+  });
+
+  it('update_module_settings merges one key without disturbing the rest', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: { 'general-settings': { v: 6, data: { rowHeight: 30, gridDensity: 'compact', enableCellChangeFlash: false } } },
+      },
+    ]);
+
+    const result = await dispatchTool('update_module_settings', ctx, {
+      targetGridId: 'grid-test',
+      moduleId: 'general-settings',
+      settings: { enableCellChangeFlash: true },
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    expect(snapshot.state['general-settings']).toEqual({
+      v: 6,
+      data: { rowHeight: 30, gridDensity: 'compact', enableCellChangeFlash: true },
+    });
+  });
+
+  it('update_module_settings rejects an unknown module rather than writing junk', async () => {
+    const { ctx, save } = fakeCtx();
+
+    const result = await dispatchTool('update_module_settings', ctx, {
+      targetGridId: 'grid-test',
+      moduleId: 'not-a-module',
+      settings: { foo: 1 },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The capability the assistant previously lacked: a rule whose arrows appear
+   * on a tick and clear themselves. Asserts the rich fields land as TOP-LEVEL
+   * rule properties — nesting them under `style` is the failure this guards.
+   */
+  it('add_conditional_styling_rule persists indicator + activeDurationMs alongside style', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([]);
+
+    const result = await dispatchTool('add_conditional_styling_rule', ctx, {
+      targetGridId: 'grid-test',
+      name: 'Market value ticked up',
+      scope: { type: 'cell', columns: ['marketValue'] },
+      expression: '[marketValue.new] > [marketValue.old]',
+      style: { light: { color: '#1f7a34' }, dark: { color: '#7fdf9b' } },
+      indicator: { icon: 'arrow-up', position: 'top-left', target: 'cells', color: '#7fdf9b' },
+      flash: { enabled: true, target: 'cells', mode: 'oneShot', color: 'emerald', durationMs: 500 },
+      activeDurationMs: 700,
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const rules = (snapshot.state['conditional-styling'].data as { rules: Array<Record<string, unknown>> }).rules;
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toMatchObject({
+      expression: '[marketValue.new] > [marketValue.old]',
+      indicator: { icon: 'arrow-up', position: 'top-left', target: 'cells', color: '#7fdf9b' },
+      flash: { enabled: true, target: 'cells', mode: 'oneShot', color: 'emerald', durationMs: 500 },
+      activeDurationMs: 700,
+    });
+    expect(rules[0].style).toEqual({ light: { color: '#1f7a34' }, dark: { color: '#7fdf9b' } });
+  });
+
+  it('add_conditional_styling_rule rejects an unknown indicator icon without writing', async () => {
+    const { ctx, save } = fakeCtx();
+
+    const result = await dispatchTool('add_conditional_styling_rule', ctx, {
+      targetGridId: 'grid-test',
+      name: 'bad icon',
+      scope: { type: 'cell', columns: ['marketValue'] },
+      expression: 'value > 0',
+      style: { light: {}, dark: {} },
+      indicator: { icon: 'arrow-upwards' },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('arrow-up');
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('update_conditional_styling_rule patches one feature and leaves the rest of the rule intact', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'conditional-styling': {
+            v: 1,
+            data: {
+              rules: [
+                {
+                  id: 'r1', name: 'Tick up', enabled: true, priority: 6,
+                  scope: { type: 'cell', columns: ['marketValue'] },
+                  expression: '[marketValue.new] > [marketValue.old]',
+                  style: { light: { color: '#1f7a34' }, dark: { color: '#7fdf9b' } },
+                  activeDurationMs: 1500,
+                },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const result = await dispatchTool('update_conditional_styling_rule', ctx, {
+      targetGridId: 'grid-test',
+      ruleId: 'r1',
+      activeDurationMs: 700,
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const [rule] = (snapshot.state['conditional-styling'].data as { rules: Array<Record<string, unknown>> }).rules;
+    expect(rule.activeDurationMs).toBe(700);
+    expect(rule.expression).toBe('[marketValue.new] > [marketValue.old]');
+    expect(rule.name).toBe('Tick up');
+  });
+
+  it('update_conditional_styling_rule rejects a row-only flash target on a cell rule without writing', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'conditional-styling': {
+            v: 1,
+            data: { rules: [{ id: 'r1', name: 'x', enabled: true, priority: 1, scope: { type: 'cell', columns: ['a'] }, expression: 'value > 0', style: {} }] },
+          },
+        },
+      },
+    ]);
+
+    const result = await dispatchTool('update_conditional_styling_rule', ctx, {
+      targetGridId: 'grid-test',
+      ruleId: 'r1',
+      flash: { enabled: true, target: 'row' },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('get_feature_guide returns the conditional-styling recipe, and names valid ids when asked for a bad one', async () => {
+    const { ctx } = fakeCtx();
+
+    const guide = await dispatchTool('get_feature_guide', ctx, { featureId: 'conditional-styling' });
+    expect(guide.ok).toBe(true);
+    const detail = (guide.data as { detail: string }).detail;
+    expect(detail).toContain('activeDurationMs');
+    expect(detail).toContain('[marketValue.new] > [marketValue.old]');
+
+    const missing = await dispatchTool('get_feature_guide', ctx, { featureId: 'nope' });
+    expect(missing.ok).toBe(false);
+    expect(missing.summary).toContain('conditional-styling');
+  });
+
+  it('get_module_settings reports defaults-in-use when the module has no saved state', async () => {
+    const { ctx, list } = fakeCtx();
+    list.mockResolvedValue([{ id: '__default__', gridId: 'grid-test', name: 'Default', state: {}, createdAt: 1, updatedAt: 1 }]);
+
+    const result = await dispatchTool('get_module_settings', ctx, { targetGridId: 'grid-test', moduleId: 'general-settings' });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('platform defaults');
+  });
+
+  it('set_grid_provider rebinds an existing grid without clobbering its caption', async () => {
+    const { ctx, loadGridLevelData, saveGridLevelData } = fakeCtx();
+    loadGridLevelData.mockResolvedValue({
+      v: 1,
+      provider: { liveProviderId: 'old-dp', historicalProviderId: null, mode: 'live' },
+      caption: 'My Blotter',
+    });
+
+    const result = await dispatchTool('set_grid_provider', ctx, { targetGridId: 'grid-test', providerId: 'dp-new' });
+
+    expect(result.ok).toBe(true);
+    expect(saveGridLevelData).toHaveBeenCalledWith(
+      { instanceId: 'grid-test' },
+      expect.objectContaining({
+        provider: { liveProviderId: 'dp-new', historicalProviderId: null, mode: 'live' },
+        caption: 'My Blotter',
+      }),
+      expect.objectContaining({ identity: expect.objectContaining({ componentType: 'grid' }) }),
+    );
+  });
+
+  it('set_grid_provider binding a historical feed leaves the live one intact', async () => {
+    const { ctx, loadGridLevelData, saveGridLevelData } = fakeCtx();
+    loadGridLevelData.mockResolvedValue({
+      v: 1,
+      provider: { liveProviderId: 'live-dp', historicalProviderId: null, mode: 'live' },
+    });
+
+    await dispatchTool('set_grid_provider', ctx, { targetGridId: 'grid-test', providerId: 'hist-dp', mode: 'historical' });
+
+    const [, data] = saveGridLevelData.mock.calls[0] as [unknown, { provider: Record<string, unknown> }];
+    expect(data.provider).toEqual({ liveProviderId: 'live-dp', historicalProviderId: 'hist-dp', mode: 'historical' });
+  });
+
+  it('create_data_provider merges defaults, validates, then saves through the store', async () => {
+    const { ctx, storeSave } = fakeCtx();
+    storeSave.mockResolvedValue({ name: 'Mock Positions', providerId: 'p2' });
+
+    const result = await dispatchTool(
+      'create_data_provider',
+      ctx,
+      { name: 'Mock Positions', providerType: 'mock', config: { dataType: 'positions' } },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(storeSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Mock Positions',
+        userId: 'dev1',
+        config: expect.objectContaining({ providerType: 'mock', dataType: 'positions', updateInterval: 2000 }),
+      }),
+      'dev1',
+    );
+  });
+
+  it('create_data_provider returns validation errors and never saves an invalid config', async () => {
+    const { ctx, storeSave } = fakeCtx();
+
+    const result = await dispatchTool(
+      'create_data_provider',
+      ctx,
+      { name: 'Bad', providerType: 'rest', config: {} },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('unsupported providerType');
+    expect(storeSave).not.toHaveBeenCalled();
+  });
+
+  it('set_column_style merges theme-keyed colors into a fresh assignment when the grid has no profile yet', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([]); // no existing profile — handler creates a default one
+
+    const result = await dispatchTool(
+      'set_column_style',
+      ctx,
+      { targetGridId: 'grid-test', colId: 'spread', colors: { light: { background: '#fee2e2' }, dark: { background: '#3b0d0d' } } },
+    );
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const assignments = (snapshot.state['column-customization']?.data as { assignments: Record<string, { cellStyleOverrides?: { light?: { colors?: unknown }; dark?: { colors?: unknown } } }> }).assignments;
+    expect(assignments.spread.cellStyleOverrides?.light?.colors).toEqual({ background: '#fee2e2' });
+    expect(assignments.spread.cellStyleOverrides?.dark?.colors).toEqual({ background: '#3b0d0d' });
+  });
+
+  /** Header styling is a SEPARATE slot — styling cells alone leaves the
+   *  header label unmoved, which reads to a user as "alignment didn't work". */
+  it('set_column_style aligns cells and headers, in both theme slots', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([]);
+
+    const result = await dispatchTool('set_column_style', ctx, {
+      targetGridId: 'grid-test',
+      colIds: ['marketValue', 'cleanPrice'],
+      target: 'cells+headers',
+      align: 'right',
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const assignments = (snapshot.state['column-customization']?.data as {
+      assignments: Record<string, { cellStyleOverrides?: Record<string, { alignment?: unknown }>; headerStyleOverrides?: Record<string, { alignment?: unknown }> }>;
+    }).assignments;
+
+    for (const colId of ['marketValue', 'cleanPrice']) {
+      for (const side of ['light', 'dark']) {
+        expect(assignments[colId].cellStyleOverrides?.[side]?.alignment).toEqual({ horizontal: 'right' });
+        expect(assignments[colId].headerStyleOverrides?.[side]?.alignment).toEqual({ horizontal: 'right' });
+      }
+    }
+  });
+
+  it('set_column_style with allColumns writes the grid-wide baseline instead of per-column entries', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([]);
+
+    const result = await dispatchTool('set_column_style', ctx, {
+      targetGridId: 'grid-test',
+      allColumns: true,
+      target: 'cells+headers',
+      align: 'right',
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const data = snapshot.state['column-customization']?.data as {
+      assignments?: Record<string, unknown>;
+      globalCellStyle?: Record<string, { alignment?: unknown }>;
+      globalHeaderStyle?: Record<string, { alignment?: unknown }>;
+    };
+    expect(data.globalCellStyle?.dark?.alignment).toEqual({ horizontal: 'right' });
+    expect(data.globalHeaderStyle?.light?.alignment).toEqual({ horizontal: 'right' });
+    expect(data.assignments ?? {}).toEqual({});
+  });
+
+  it('set_column_style preserves existing colours when only alignment changes', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'column-customization': {
+            v: 1,
+            data: { assignments: { ticker: { colId: 'ticker', cellStyleOverrides: { dark: { colors: { text: '#7fdf9b' } }, light: { colors: { text: '#1f7a34' } } } } } },
+          },
+        },
+      },
+    ]);
+
+    const result = await dispatchTool('set_column_style', ctx, { targetGridId: 'grid-test', colId: 'ticker', align: 'center' });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const assignment = (snapshot.state['column-customization']?.data as {
+      assignments: Record<string, { cellStyleOverrides?: Record<string, { colors?: unknown; alignment?: unknown }> }>;
+    }).assignments.ticker;
+    expect(assignment.cellStyleOverrides?.dark?.colors).toEqual({ text: '#7fdf9b' });
+    expect(assignment.cellStyleOverrides?.dark?.alignment).toEqual({ horizontal: 'center' });
+  });
+
+  /**
+   * A dock launch clones the template into a per-window row and the view then
+   * reads only its own row (see launch.ts). Writing the template alone is why
+   * an already-open blotter never changed — every mutation has to fan out.
+   */
+  describe('template / instance fan-out', () => {
+    const INSTANCE_ROWS = [
+      { configId: 'dev1grid-test-1700000000000', componentType: 'grid', componentSubType: 'test', isTemplate: false, updatedTime: '2026-08-01T00:00:00.000Z' },
+      { configId: 'dev1grid-test-1800000000000', componentType: 'grid', componentSubType: 'test', isTemplate: false, updatedTime: '2026-08-02T00:00:00.000Z' },
+      { configId: 'grid-test', componentType: 'grid', componentSubType: 'test', isTemplate: true, updatedTime: '2026-08-03T00:00:00.000Z' },
+    ];
+
+    it('writes the rule to the template AND every open instance', async () => {
+      const { ctx, list, save, findByComponentType } = fakeCtx();
+      findByComponentType.mockResolvedValue(INSTANCE_ROWS);
+      list.mockResolvedValue([]);
+
+      const result = await dispatchTool('add_conditional_styling_rule', ctx, {
+        targetGridId: 'grid-test',
+        name: 'Losers',
+        scope: { type: 'cell', columns: ['dailyPnl'] },
+        expression: 'value < 0',
+        style: { light: { color: '#a02a2a' }, dark: { color: '#ee8e8e' } },
+      });
+
+      expect(result.ok).toBe(true);
+      const written = save.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId);
+      expect(written).toEqual(['grid-test', 'dev1grid-test-1800000000000', 'dev1grid-test-1700000000000']);
+      expect(result.summary).toContain('2 open instance(s)');
+    });
+
+    it('applies the change against each row\'s own state, preserving per-window customizations', async () => {
+      const { ctx, list, save, findByComponentType } = fakeCtx();
+      findByComponentType.mockResolvedValue(INSTANCE_ROWS.slice(0, 1));
+      list.mockImplementation(async ({ instanceId }: { instanceId: string }) => [
+        {
+          id: '__default__', gridId: instanceId, name: 'Default', createdAt: 1, updatedAt: 1,
+          state: {
+            'conditional-styling': {
+              v: 1,
+              // The instance carries a rule the template never had.
+              data: { rules: instanceId === 'grid-test' ? [] : [{ id: 'user-made', name: 'Mine' }] },
+            },
+          },
+        },
+      ]);
+
+      await dispatchTool('add_conditional_styling_rule', ctx, {
+        targetGridId: 'grid-test',
+        name: 'Losers',
+        scope: { type: 'cell', columns: ['dailyPnl'] },
+        expression: 'value < 0',
+        style: { light: {}, dark: {} },
+      });
+
+      const byInstance = new Map(
+        save.mock.calls.map(([scope, snapshot]) => [
+          (scope as { instanceId: string }).instanceId,
+          (snapshot as ProfileSnapshot).state['conditional-styling'].data as { rules: Array<{ id: string; name: string }> },
+        ]),
+      );
+      expect(byInstance.get('grid-test')!.rules.map((r) => r.name)).toEqual(['Losers']);
+      // The window keeps its own rule and gains the new one.
+      expect(byInstance.get('dev1grid-test-1700000000000')!.rules.map((r) => r.name)).toEqual(['Mine', 'Losers']);
+    });
+
+    it('still writes the template when instances cannot be enumerated', async () => {
+      const { ctx, list, save, findByComponentType } = fakeCtx();
+      findByComponentType.mockRejectedValue(new Error('config db unavailable'));
+      list.mockResolvedValue([]);
+
+      const result = await dispatchTool('update_module_settings', ctx, {
+        targetGridId: 'grid-test',
+        moduleId: 'general-settings',
+        settings: { rowHeight: 24 },
+      });
+
+      expect(result.ok).toBe(true);
+      expect(save).toHaveBeenCalledTimes(1);
+      expect((save.mock.calls[0][0] as { instanceId: string }).instanceId).toBe('grid-test');
+    });
+
+    it('list_grid_instances reports the windows a blotter currently has', async () => {
+      const { ctx, findByComponentType } = fakeCtx();
+      findByComponentType.mockResolvedValue(INSTANCE_ROWS);
+
+      const result = await dispatchTool('list_grid_instances', ctx, { targetGridId: 'grid-test' });
+
+      expect(result.ok).toBe(true);
+      expect(result.data).toMatchObject({ templateConfigId: 'grid-test', singleton: true });
+      expect((result.data as { instances: unknown[] }).instances).toHaveLength(2);
+    });
+  });
+
+  /**
+   * Field blindness is what makes a model invent a column name, producing a
+   * rule that saves cleanly and never matches. These cover the two paths that
+   * exist before a grid has any provider bound.
+   */
+  describe('describe_data_fields', () => {
+    it('answers from a mock dataType with no provider in existence', async () => {
+      const { ctx, storeGet } = fakeCtx();
+
+      const result = await dispatchTool('describe_data_fields', ctx, { dataType: 'positions' });
+
+      expect(result.ok).toBe(true);
+      const fields = (result.data as Array<{ field: string }>).map((f) => f.field);
+      // The ticking layer and the static universe both have to be visible.
+      expect(fields).toContain('marketValue');
+      expect(fields).toContain('cusip');
+      expect(storeGet).not.toHaveBeenCalled();
+    });
+
+    it('prefers a provider\'s saved columnDefinitions when it has them', async () => {
+      const { ctx, storeGet } = fakeCtx();
+      storeGet.mockResolvedValue({
+        providerId: 'p1', name: 'Desk feed', providerType: 'stomp',
+        config: { providerType: 'stomp', columnDefinitions: [{ field: 'spreadBps', headerName: 'Spread' }] },
+      });
+
+      const result = await dispatchTool('describe_data_fields', ctx, { providerId: 'p1' });
+
+      expect(result.ok).toBe(true);
+      expect(result.summary).toContain('spreadBps');
+    });
+
+    it('says a STOMP feed needs a probe rather than pretending it has no fields', async () => {
+      const { ctx, storeGet } = fakeCtx();
+      storeGet.mockResolvedValue({
+        providerId: 'p2', name: 'Unprobed', providerType: 'stomp', config: { providerType: 'stomp' },
+      });
+
+      const result = await dispatchTool('describe_data_fields', ctx, { providerId: 'p2' });
+
+      expect(result.ok).toBe(false);
+      expect(result.summary).toContain('Probe');
+    });
+
+    it('falls back to probing a mock provider that never saved its columns', async () => {
+      const { ctx, storeGet } = fakeCtx();
+      storeGet.mockResolvedValue({
+        providerId: 'p3', name: 'Bare mock', providerType: 'mock',
+        config: { providerType: 'mock', dataType: 'positions' },
+      });
+
+      const result = await dispatchTool('describe_data_fields', ctx, { providerId: 'p3' });
+
+      expect(result.ok).toBe(true);
+      expect(result.summary).toContain('cusip');
+    });
+  });
+
+  it('add_module_item appends a saved-filter pill and generates an id when none is given', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([]);
+
+    const result = await dispatchTool('add_module_item', ctx, {
+      targetGridId: 'grid-test',
+      moduleId: 'saved-filters',
+      item: { label: 'P&L losers', active: false, filterModel: { dailyPnL: { filterType: 'number', type: 'lessThan', filter: 0 } } },
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const filters = (snapshot.state['saved-filters'].data as { filters: Array<Record<string, unknown>> }).filters;
+    expect(filters).toHaveLength(1);
+    expect(filters[0].label).toBe('P&L losers');
+    expect(typeof filters[0].id).toBe('string');
+  });
+
+  it('update_module_item patches one item by id and refuses to move its id', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'saved-filters': {
+            v: 1,
+            data: { filters: [{ id: 'qf-a', label: 'A', active: true }, { id: 'qf-b', label: 'B', active: false }] },
+          },
+        },
+      },
+    ]);
+
+    const result = await dispatchTool('update_module_item', ctx, {
+      targetGridId: 'grid-test',
+      moduleId: 'saved-filters',
+      itemId: 'qf-b',
+      patch: { label: 'B renamed', id: 'hijacked' },
+    });
+
+    expect(result.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    const filters = (snapshot.state['saved-filters'].data as { filters: Array<Record<string, unknown>> }).filters;
+    expect(filters[0]).toEqual({ id: 'qf-a', label: 'A', active: true });
+    expect(filters[1]).toEqual({ id: 'qf-b', label: 'B renamed', active: false });
+  });
+
+  it('remove_module_item drops one item and reports an unknown id instead of writing', async () => {
+    const { ctx, list, save } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: { 'column-groups': { v: 1, data: { groups: [{ groupId: 'g1' }, { groupId: 'g2' }] } } },
+      },
+    ]);
+
+    const removed = await dispatchTool('remove_module_item', ctx, { targetGridId: 'grid-test', moduleId: 'column-groups', itemId: 'g1' });
+    expect(removed.ok).toBe(true);
+    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
+    expect((snapshot.state['column-groups'].data as { groups: Array<{ groupId: string }> }).groups).toEqual([{ groupId: 'g2' }]);
+
+    save.mockClear();
+    const missing = await dispatchTool('remove_module_item', ctx, { targetGridId: 'grid-test', moduleId: 'column-groups', itemId: 'nope' });
+    expect(missing.ok).toBe(false);
+    expect(missing.summary).toContain('list_module_items');
+  });
+
+  it('module-item tools refuse the runtime-owned alert history', async () => {
+    const { ctx, save } = fakeCtx();
+
+    const result = await dispatchTool('add_module_item', ctx, {
+      targetGridId: 'grid-test',
+      moduleId: 'alerts',
+      collection: 'history',
+      item: { message: 'fake' },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('runtime');
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('list_module_items reports items with the field that identifies them', async () => {
+    const { ctx, list } = fakeCtx();
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: { 'calculated-columns': { v: 1, data: { virtualColumns: [{ colId: 'calc_a', expression: '[x] * 2' }] } } },
+      },
+    ]);
+
+    const result = await dispatchTool('list_module_items', ctx, { targetGridId: 'grid-test', moduleId: 'calculated-columns' });
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({
+      moduleId: 'calculated-columns',
+      collection: 'virtualColumns',
+      idField: 'colId',
+      items: [{ colId: 'calc_a', expression: '[x] * 2' }],
+    });
+  });
+
+  it('delete_data_provider removes the config and warns about grids still bound to it', async () => {
+    const { ctx, storeGet, loadGridLevelData } = fakeCtx();
+    storeGet.mockResolvedValue({ providerId: 'p1', name: 'Mock positions', providerType: 'mock', config: {} });
+    loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'p1', historicalProviderId: null } });
+    const remove = vi.fn().mockResolvedValue(undefined);
+    (ctx.configStore as unknown as { remove: unknown }).remove = remove;
+
+    const result = await dispatchTool('delete_data_provider', ctx, { providerId: 'p1' });
+
+    expect(result.ok).toBe(true);
+    expect(remove).toHaveBeenCalledWith('p1');
+    expect(result.summary).toContain('TestGrid');
+  });
+
+  it('set_column_style rejects a call with no target columns and one with no style to apply', async () => {
+    const { ctx, save } = fakeCtx();
+
+    const noTarget = await dispatchTool('set_column_style', ctx, { targetGridId: 'grid-test', align: 'right' });
+    expect(noTarget.ok).toBe(false);
+    expect(noTarget.summary).toContain('colId');
+
+    const noStyle = await dispatchTool('set_column_style', ctx, { targetGridId: 'grid-test', colId: 'ticker' });
+    expect(noStyle.ok).toBe(false);
+    expect(noStyle.summary).toContain('align');
+
+    expect(save).not.toHaveBeenCalled();
+  });
+});
