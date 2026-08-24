@@ -27,6 +27,12 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const IS_WIN = process.platform === 'win32';
+// On Windows, npm resolves to npm.cmd — a batch file. Node (since the
+// GHSA-3v29-jf9x-... .cmd/.bat hardening fix) refuses to spawn a .cmd
+// directly without `shell: true`, so this always spawns plain `npm` and
+// lets `shell: IS_WIN` (see run()) hand it to cmd.exe for resolution.
+const NPM_CMD = 'npm';
 
 /** broker: 'required' | 'auto' (on unless --no-broker) | 'none' (on with --broker) */
 const APPS = {
@@ -114,7 +120,13 @@ function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
   for (const c of children) {
-    try { process.kill(-c.pid, 'SIGTERM'); } catch { /* already gone */ }
+    try {
+      // Windows has no POSIX process groups (and `detached: true` isn't usable
+      // with a spawned .cmd there — see the `run()` comment) — `taskkill /t`
+      // kills the whole child tree (npm.cmd -> node -> vite) by pid instead.
+      if (IS_WIN) spawn('taskkill', ['/pid', String(c.pid), '/t', '/f'], { stdio: 'ignore' });
+      else process.kill(-c.pid, 'SIGTERM');
+    } catch { /* already gone */ }
   }
   setTimeout(() => process.exit(code), 300);
 }
@@ -122,7 +134,15 @@ process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
 function run(label, cwd, script, { critical = true } = {}) {
-  const child = spawn('npm', ['run', script], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  // `detached: true` (used on POSIX so `process.kill(-pid)` can reach the
+  // whole process group) isn't meaningful on Windows — no process groups
+  // in that sense there; see shutdown()'s taskkill fallback instead.
+  const child = spawn(NPM_CMD, ['run', script], {
+    cwd,
+    detached: !IS_WIN,
+    shell: IS_WIN,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   children.push(child);
   const forward = (stream, out) =>
     stream.on('data', (buf) => {
