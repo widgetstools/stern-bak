@@ -258,6 +258,7 @@ function MarketsGridInner<TData = unknown>(
     gridId,
     onReady,
     adminActions,
+    onOpenAssistant,
     gridLevelData,
     onGridLevelDataLoad,
     headerExtras,
@@ -377,6 +378,7 @@ function MarketsGridInner<TData = unknown>(
         forwardedRef={ref}
         onReady={onReady}
         adminActions={adminActions}
+        onOpenAssistant={onOpenAssistant}
         gridLevelData={gridLevelData}
         onGridLevelDataLoad={onGridLevelDataLoad}
         headerExtras={headerExtras}

@@ -88,6 +88,20 @@ export const MODULE_COLLECTIONS: ReadonlyArray<CollectionSpec> = [
     kind: 'record',
     describes: 'Reusable column styling templates.',
   },
+  {
+    moduleId: 'plus-minus',
+    collection: 'nudges',
+    idField: 'id',
+    kind: 'array',
+    describes: 'Plus/minus nudge buttons — named increments scoped to columns.',
+  },
+  {
+    moduleId: 'shortcuts',
+    collection: 'shortcuts',
+    idField: 'id',
+    kind: 'array',
+    describes: 'Keyboard shortcuts that apply an arithmetic operation to the selection.',
+  },
 ];
 
 export function collectionsForModule(moduleId: string): CollectionSpec[] {

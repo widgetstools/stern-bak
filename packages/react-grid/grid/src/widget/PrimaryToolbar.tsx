@@ -11,7 +11,7 @@
  */
 
 import { memo, type ReactElement } from 'react';
-import { Save, Check } from 'lucide-react';
+import { Save, Check, Wand2 } from 'lucide-react';
 import { Button } from '@wellsfargo-starui/react';
 import type { ProfileMeta } from '@wellsfargo-starui/core';
 import type { GridDensity } from '@wellsfargo-starui/design-system/adapters/ag-grid';
@@ -60,6 +60,14 @@ export interface PrimaryToolbarProps {
   readonly visualExcelExportEnabled: boolean;
   readonly onExportVisualExcel: () => void;
   readonly adminActions: AdminAction[] | undefined;
+  /**
+   * Opens an AI assistant scoped to THIS grid. Rendered as the last item in
+   * the toolbar's trailing cluster — deliberately a dedicated prop rather than
+   * an `adminAction`, because admin actions collapse into the overflow menu
+   * under `toolbarActionsLayout: 'overflow'` and this one has to stay put.
+   * Omitted by hosts that don't offer an assistant.
+   */
+  readonly onOpenAssistant: (() => void) | undefined;
   readonly componentName: string | undefined;
   readonly gridId: string;
   readonly instanceId: string | undefined;
@@ -101,6 +109,7 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
     visualExcelExportEnabled,
     onExportVisualExcel,
     adminActions,
+    onOpenAssistant,
     componentName,
     gridId,
     instanceId,
@@ -210,6 +219,21 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
           ) : (
             <PrimaryToolbarOverflowMenu {...secondaryActionsProps} />
           )}
+
+          {onOpenAssistant && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ds-primary-action ds-primary-assistant"
+              onClick={onOpenAssistant}
+              title="Ask the AI assistant about this blotter"
+              aria-label="Ask the AI assistant about this blotter"
+              data-testid="open-assistant-btn"
+            >
+              <Wand2 size={14} strokeWidth={2} />
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -245,6 +269,7 @@ function primaryToolbarPropsEqual(prev: PrimaryToolbarProps, next: PrimaryToolba
     && prev.visualExcelExportEnabled === next.visualExcelExportEnabled
     && prev.onExportVisualExcel === next.onExportVisualExcel
     && prev.adminActions === next.adminActions
+    && prev.onOpenAssistant === next.onOpenAssistant
     && prev.componentName === next.componentName
     && prev.gridId === next.gridId
     && prev.instanceId === next.instanceId

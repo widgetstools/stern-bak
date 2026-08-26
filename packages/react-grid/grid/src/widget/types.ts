@@ -212,6 +212,17 @@ export interface MarketsGridProps<TData = unknown> {
   adminActions?: AdminAction[];
 
   /**
+   * Opens an AI assistant scoped to THIS grid. When supplied, a wand button is
+   * pinned as the last item of the toolbar's trailing cluster.
+   *
+   * Deliberately its own prop rather than an `adminAction`: admin actions
+   * collapse into the overflow menu under `toolbarActionsLayout: 'overflow'`,
+   * and this one has to stay visible on the toolbar. Hosts without an
+   * assistant omit it and nothing renders.
+   */
+  onOpenAssistant?: () => void;
+
+  /**
    * Opaque, top-level data persisted alongside the grid's profile-set
    * in the same backing storage row — but at the grid level, NOT
    * inside any particular profile. Used for state that must survive

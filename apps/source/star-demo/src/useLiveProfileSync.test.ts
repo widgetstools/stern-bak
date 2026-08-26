@@ -43,20 +43,25 @@ describe('useLiveProfileSync', () => {
     await waitFor(() => expect(grid.loadProfile).toHaveBeenCalledWith('__default__'));
   });
 
-  /** The grid saves its own profile too, and the notifier can't say who wrote.
-   *  Discarding a user's in-flight edits would be far worse than a stale view. */
-  it('never re-applies over unsaved user edits', async () => {
+  /**
+   * An external change is one the user just asked for. Skipping it because the
+   * grid has unsaved state means they're told "done" and see nothing happen —
+   * the exact symptom this hook exists to prevent. The cost (overwriting
+   * unsaved local edits) is logged rather than silently chosen.
+   */
+  it('applies an external change even when the grid has unsaved edits, and warns', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const cm = fakeConfigManager(500);
     const grid = target({ isDirty: true });
-    const onSkipped = vi.fn();
     renderHook(() =>
-      useLiveProfileSync({ configManager: cm.configManager, instanceId: 'grid-test', getTarget: () => grid, onSkipped }),
+      useLiveProfileSync({ configManager: cm.configManager, instanceId: 'grid-test', getTarget: () => grid }),
     );
 
     cm.fire();
 
-    await waitFor(() => expect(onSkipped).toHaveBeenCalledWith('dirty'));
-    expect(grid.loadProfile).not.toHaveBeenCalled();
+    await waitFor(() => expect(grid.loadProfile).toHaveBeenCalledWith('__default__'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('unsaved local changes'));
+    warn.mockRestore();
   });
 
   it('ignores a notification that is not newer than what it already applied', async () => {

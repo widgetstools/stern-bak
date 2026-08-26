@@ -65,6 +65,7 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     visualExcelExportEnabled: true,
     onExportVisualExcel: vi.fn(),
     adminActions: undefined,
+    onOpenAssistant: undefined,
     componentName: undefined,
     gridId: 'grid-1',
     instanceId: undefined,
@@ -79,6 +80,33 @@ function baseProps(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe('PrimaryToolbar — assistant button', () => {
+  it('renders nothing when the host supplies no assistant', () => {
+    render(<PrimaryToolbar {...baseProps()} />);
+    expect(screen.queryByTestId('open-assistant-btn')).not.toBeInTheDocument();
+  });
+
+  it('calls the host when clicked', () => {
+    const onOpenAssistant = vi.fn();
+    render(<PrimaryToolbar {...baseProps({ onOpenAssistant })} />);
+    fireEvent.click(screen.getByTestId('open-assistant-btn'));
+    expect(onOpenAssistant).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The whole reason this is a dedicated prop rather than an `adminAction`:
+   * admin actions collapse into the overflow menu, and this button has to stay
+   * pinned to the end of the toolbar in either layout.
+   */
+  it.each(['inline', 'overflow'] as const)('stays last in the trailing cluster (%s layout)', (layout) => {
+    render(<PrimaryToolbar {...baseProps({ onOpenAssistant: vi.fn(), toolbarActionsLayout: layout })} />);
+    const button = screen.getByTestId('open-assistant-btn');
+    const trailing = button.parentElement;
+    expect(trailing).toHaveClass('ds-primary-actions-trailing');
+    expect(trailing?.lastElementChild).toBe(button);
+  });
+});
 
 describe('PrimaryToolbar', () => {
   it('renders filters toolbar, profile cluster, and inline actions', () => {

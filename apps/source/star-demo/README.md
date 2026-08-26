@@ -27,7 +27,16 @@ The app uses a **HashRouter** — real URLs always carry `#/`:
 | `…/#/dataproviders` | data-provider editor |
 | `…/#/config-browser` | configuration browser |
 | `…/#/workspace-setup` | workspace setup (config-only tier) |
+| `…/#/ai-assistant` | AI Assistant — see [`docs/AI_ASSISTANT.md`](./docs/AI_ASSISTANT.md) |
 | `…/#/rename-view-tab` | rename-tab dialog (no data plane at all) |
+
+## AI Assistant
+
+A tool-calling chat assistant that configures blotters and analyses their data,
+in [`src/aiAssistant/`](./src/aiAssistant/). Also reachable from the wand button
+on any blotter's toolbar, which opens it scoped to that blotter.
+[`docs/AI_ASSISTANT.md`](./docs/AI_ASSISTANT.md) covers the turn loop, the
+template/instance config model, the tool surface and the data-analysis cells.
 
 ## Two-tier bootstrap
 

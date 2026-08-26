@@ -206,6 +206,33 @@ Note the sign-based arrows in (2) reflect whether the VALUE is positive or
 negative. For arrows that reflect a change against the previous value, use a
 conditional-styling diff rule instead.
 
+### Naming a column
+
+Every column tool resolves a column from whatever the user called it — the id
+(\`marketValue\`), the header on screen (\`Market Value\`), or a loose form
+(\`market value\`, \`MARKETVALUE\`). **You don't need get_grid_columns first.**
+An exact colId always wins; a name matching two columns is refused with both
+named rather than guessed at; a name matching nothing comes back with the near
+misses. A rename is picked up immediately, so after you relabel a column the
+user's next request can call it by its new name.
+
+This applies to column ARGUMENTS only. Field names inside an EXPRESSION (a
+conditional rule, a calculated column, a filter model) are opaque strings that
+nothing resolves — check those against get_grid_columns or
+describe_data_fields.
+
+### The two simple ones have their own tools
+
+- **Rename a header** → \`rename_column({ column, newName })\`, or \`renames\`
+  for several at once. Not set_column_style — that's for appearance.
+- **Hide / show** → \`set_column_visibility({ hide, show })\`, or \`showOnly\`
+  for "just show me these three" (it hides every other column for you). Not
+  set_column_layout — that's for reordering, pinning and resizing.
+
+Both write the same fields the general tools would (\`headerName\`,
+\`initialHide\` + the grid-state snapshot); they exist so the obvious request
+is one obvious call.
+
 ### Alignment, and the cells-vs-headers trap
 
 A column has TWO independent themed style slots:
@@ -235,12 +262,75 @@ engine layers global → per-column, so a column with its own explicit alignment
 keeps it. \`set_column_style\` with \`allColumns: true\` writes these. To drop a
 baseline later, \`update_module_settings\` with \`{ "globalCellStyle": {} }\`.
 
+### Everything else the formatting toolbar writes
+
+set_column_style covers the whole toolbar surface, not just colour: \`underline\`,
+\`fontSize\`, \`borders\` (per side, merged — \`{ "bottom": { "width": 1, "color":
+"#3a4552", "style": "solid" } }\`) with \`clearBorders\`, \`headerName\` to rename a
+column, \`editable\`, and \`renderer\` for a visual cell renderer.
+
 ### Cell renderers
 
 An assignment can name a visual renderer instead of plain text — pills,
-heatmaps, sparklines, percent bars, country flags — configured per column in
-the same assignment object. Use them when a glance should convey magnitude or
-category faster than digits.`;
+heatmaps, sparklines, percent bars, country flags. Use them when a glance should
+convey magnitude or category faster than digits. See
+get_feature_guide("cell-renderers") for the catalogue and config shapes, and
+call list_cell_renderers for the live list of ids.
+
+**Renderer XOR value format.** A renderer paints the whole cell, so it hides any
+value format underneath it. Setting a format therefore drops the column's
+renderer — the engine's own toolbar does the same. To keep both, set the
+renderer LAST, or in the same \`set_column_style\` call as the format.
+
+### The behavioural half — set_column_behavior
+
+The same assignment also carries how a column behaves. That is a separate tool
+(\`set_column_behavior\`) writing sibling fields, so the two compose freely.
+
+\`\`\`json
+{
+  "colId": "quantity",
+  "cellEditor": { "kind": "agNumberCellEditor", "params": { "min": 0, "precision": 0 } },
+  "editable": true,
+  "filter": { "enabled": true, "kind": "streamSafeMultiNumberColumnFilter", "floatingFilter": true, "debounceMs": 200 },
+  "rowGrouping": { "enableRowGroup": true, "enableValue": true, "aggFunc": "sum" },
+  "templateIds": ["tpl_numeric"],
+  "sortable": true,
+  "resizable": true,
+  "headerTooltip": "Executed quantity"
+}
+\`\`\`
+
+- **Editors.** \`agTextCellEditor\`, \`agNumberCellEditor\`, \`agSelectCellEditor\`,
+  \`agRichSelectCellEditor\`, \`agLargeTextCellEditor\`, \`agDateCellEditor\`,
+  \`agCheckboxCellEditor\`. The two select editors take \`values\` (a static list)
+  or \`valuesSource\`: \`"{{providerName.key}}"\`, resolved from AppData each time
+  the editor opens, so the list tracks live data. Setting any editor flips
+  \`editable: true\` — without it AG-Grid never opens the editor, which is the
+  classic "I picked a dropdown and nothing happens".
+- **Filters.** On a live blotter use the \`streamSafe*\` kinds
+  (\`streamSafeMultiColumnFilter\` text, \`…NumberColumnFilter\`, \`…DateColumnFilter\`).
+  Each is an \`agMultiColumnFilter\` bundling the typed filter with a set filter,
+  plus a floating-filter input that stays typeable while rows tick. The number
+  one parses \`>100\`, \`1-50\`, \`>0 and <50\`, \`1,2,3\`; the date one parses ISO,
+  month names, quarters and \`today\`/\`yesterday\`. Plain \`agTextColumnFilter\` etc.
+  still work for static grids.
+- **Grouping flags.** \`enableRowGroup\` / \`enablePivot\` / \`enableValue\` control
+  what the user can drag where in the tool panel; \`aggFunc\` is what the column
+  rolls up to when grouped (\`"custom"\` additionally needs
+  \`customAggExpression\`, e.g. \`"SUM([value]) * 1.1"\`). What the grid groups BY
+  is \`set_row_grouping\` — a different thing.
+- **Templates.** \`templateIds\` points at entries in the column-templates module.
+  Applying one replaces the reference rather than appending. A template id that
+  doesn't exist is rejected, since a dangling reference silently does nothing.
+
+### What the toolbar can do that this can't
+
+**Auto Format.** The toolbar's Auto Format walks the live field catalogue and
+infers a format per column from its data type. It needs a running grid, which
+this assistant doesn't have. Achieve the same by reading
+\`describe_data_fields\` and setting formats per column explicitly — say that's
+what you're doing rather than claiming Auto Format ran.`;
 
 const COLUMN_GROUPS = `## column-groups
 
@@ -260,6 +350,9 @@ Nested header groups, stored as \`{ "groups": [ ... ] }\`:
   ]
 }
 \`\`\`
+
+This is a header BAND, not row grouping — to roll rows up under a column use
+set_row_grouping instead.
 
 \`show\` is \`always\` (visible collapsed and expanded), \`open\` (only when the
 group is expanded) or \`closed\`. \`marryChildren: true\` stops a child being
@@ -376,7 +469,147 @@ general-settings, smart-edit, bulk-update, plus-minus, shortcuts,
 data-change-history, visual-excel, toolbar-visibility, toolbar-date-settings
 and grid-state.`;
 
+const GRID_LAYOUT = `## Column layout and row grouping
+
+Two tools, plus a third feature people confuse with them.
+
+### set_column_layout — individual columns
+
+Move, hide, show, pin, resize. \`order\` may be partial: the columns you name
+lead, everything else keeps its current relative order.
+
+\`\`\`json
+{ "targetGridId": "grid-axe-blotter",
+  "order": ["ticker", "cusip", "marketValue"],
+  "hide": ["isin", "sedol"],
+  "pinLeft": ["ticker"],
+  "width": { "marketValue": 140 } }
+\`\`\`
+
+Where it persists, and why BOTH layers are written: column layout lives in
+AG-Grid's own \`GridState\`, saved by the \`grid-state\` module and replayed on
+grid-ready — so a saved snapshot WINS over per-column config. But a grid that
+was never saved has no snapshot, and then only \`column-customization\`
+assignments (\`initialHide\`, \`initialPinned\`, \`initialWidth\`) apply. The tool
+writes both so they can't disagree. Column ORDER is snapshot-only, since
+assignments have no ordering field.
+
+### set_row_grouping — rolling rows up
+
+\`\`\`json
+{ "targetGridId": "grid-axe-blotter",
+  "groupBy": ["issuerSector", "currency"],
+  "aggregations": { "marketValue": "sum", "dv01": "sum" } }
+\`\`\`
+
+Order is outermost-first, so this groups by sector, then currency inside it.
+\`groupBy: []\` flattens the grid and clears the aggregates. Aggregations are
+the named AG-Grid functions: sum, min, max, count, avg, first, last.
+
+### Column groups are a different feature
+
+Nested header bands (a "Pricing" band over bid/mid/ask) are items on the
+\`column-groups\` module, not a layout call — see
+get_feature_guide("column-groups"). Row grouping collapses ROWS; column groups
+band HEADERS.`;
+
+const CELL_RENDERERS_GUIDE = `## Cell renderers
+
+A renderer turns a cell value into a visual. Set one with set_column_style's
+\`renderer\`; call list_cell_renderers for the catalogue. Stored as two fields on
+the column assignment — the tool writes both:
+
+\`\`\`json
+{ "cellRendererId": "pill", "cellRendererConfig": { "kind": "pill", "config": { ... } } }
+\`\`\`
+
+Zero-config renderers (side, status-badge, pnl-value, rating-badge, ticker,
+rfq-status, …) take the id alone. The configurable ones, with working shapes:
+
+**pill** — coloured pill per value. Rules are matched on the cell value, with a
+fallback; both colours are theme-aware:
+\`\`\`json
+{ "rules": [
+    { "value": "AAA", "bg": { "dark": "#103418", "light": "#d6f4dd" }, "fg": { "dark": "#7fdf9b", "light": "#1f5d34" } },
+    { "value": "BBB", "bg": { "dark": "#33310c", "light": "#f7f1cc" }, "fg": { "dark": "#e5dd6f", "light": "#5d551a" } } ],
+  "fallback": { "bg": { "dark": "#1f2733", "light": "#e8edf2" }, "fg": { "dark": "#9aa6b2", "light": "#3d4753" } } }
+\`\`\`
+
+**heatmap** — gradient across a numeric domain:
+\`\`\`json
+{ "domain": { "min": 20, "max": 600 },
+  "colorScale": { "min": { "dark": "#0f2b1c", "light": "#e8f4ec" },
+                  "mid": { "dark": "#3a3010", "light": "#fbf0cf" },
+                  "max": { "dark": "#3a1818", "light": "#fcdada" } },
+  "textColor": { "dark": "#e8edf2", "light": "#1f2733" } }
+\`\`\`
+
+**percent-bar** — \`{ "max": 30, "barColor": { "dark": "#7cc7f9", "light": "#1e6fb8" }, "showValue": true }\`.
+**sparkline** — for array-valued columns: \`{ "lineColor": {...}, "fillColor": {...}, "strokeWidth": 1.25 }\`.
+**country-flag** — \`{ "codeField": "issuerCountryCode" }\`; also accepts a currency column (\`{ "codeField": "currency" }\`).
+**time-since** — \`{ "sourceField": "lastUpdate" }\`, auto-refreshing "5m ago".
+**trend-arrow** — \`{ "threshold": 0, "colorScale": { "up": {...}, "down": {...}, "flat": {...} } }\`.
+
+**trend-arrow is about the SIGN of the value, not a change over time.** For an
+arrow that appears when a value ticks up or down against its previous value, use
+a conditional-styling diff rule instead — get_feature_guide("conditional-styling").
+
+Colours here are literal hex because renderer configs aren't token-aware; always
+supply both \`dark\` and \`light\` so the column reads in either theme.`;
+
+const EDITING_GUIDE = `## Editing toolbar modules
+
+Five settings-shaped modules, all edited with update_module_settings (shallow
+merge — send only what changes). Two also hold items, edited with
+add_module_item / update_module_item / remove_module_item.
+
+**smart-edit** — bulk arithmetic on a selection.
+\`{ "settings": { "enabled": true, "incrementStep": 1, "magnitudeShortcutsEnabled": true,
+   "enabledOps": ["multiply","divide","add","subtract","set"], "confirmThreshold": 50,
+   "enforceSingleColumn": true, "previewBeforeApply": false, "recordHistory": true } }\`
+
+**bulk-update** — set many cells to one value.
+\`{ "settings": { "enabled": true, "confirmThreshold": 50, "showDistinctValues": true,
+   "maxDropdownValues": 20, "enforceSingleColumn": true, "recordHistory": true } }\`
+
+**data-change-history** — edit history and undo.
+\`{ "settings": { "enabled": true, "maxEntries": 50, "suspended": false, "unifyUndo": true,
+   "recordSources": { ... } } }\`
+
+**plus-minus** — nudge buttons. Settings \`{ "enabled": true, "recordHistory": true }\`,
+plus a \`nudges\` collection: each nudge has an \`id\`, \`name\`, \`incrementStep\` and a
+\`scope\` of \`{ "columnIds": [...] }\`.
+
+**shortcuts** — keyboard operations. Settings \`{ "enabled": true, "recordHistory": true }\`,
+plus a \`shortcuts\` collection: each has an \`id\`, \`name\`, an \`operation\` of
+add / subtract / multiply / divide, a value, and a \`scope\`.
+
+**visual-excel** — styled .xlsx export: \`{ "settings": { "enabled": true, "fileNamePrefix": "markets-grid" } }\`.
+
+What you CAN'T do: these are the settings behind the toolbar, not its buttons.
+Running a bulk update, applying a smart edit or undoing a user's cell edit are
+live-grid actions on a selection — you configure the behaviour, the user
+performs it.`;
+
 export const FEATURE_GUIDES: ReadonlyArray<FeatureGuide> = [
+  {
+    id: 'cell-renderers',
+    title: 'Cell renderers — pills, heatmaps, bars, sparklines, flags',
+    summary: 'Turning a cell value into a visual, with the config shape for each configurable renderer.',
+    detail: CELL_RENDERERS_GUIDE,
+  },
+  {
+    id: 'editing',
+    title: 'Editing toolbar — smart edit, bulk update, history, nudges, shortcuts',
+    summary: 'The five modules behind the editing toolbar and what each setting controls.',
+    detail: EDITING_GUIDE,
+  },
+  {
+    id: 'grid-state',
+    title: 'Column layout and row grouping',
+    summary: 'Moving, hiding, pinning and resizing columns, and grouping rows with aggregates — plus how they differ from column groups.',
+    detail: GRID_LAYOUT,
+  },
   {
     id: 'module-items',
     title: 'Module items — the generic create/update/remove path',

@@ -9,14 +9,18 @@ import { ScrollArea } from '@wellsfargo-starui/react';
 import { MarkdownMessage } from './MarkdownMessage';
 import { ToolCallCard } from './ToolCallCard';
 import type { TranscriptItem } from './useChatSession';
+import type { Starter } from './starters';
 
 export interface ChatTranscriptProps {
   items: TranscriptItem[];
   isBusy: boolean;
   error: string | null;
+  /** Opening suggestions; clicking one sends it. */
+  starters?: readonly Starter[];
+  onPickStarter?: (prompt: string) => void;
 }
 
-export function ChatTranscript({ items, isBusy, error }: ChatTranscriptProps) {
+export function ChatTranscript({ items, isBusy, error, starters, onPickStarter }: ChatTranscriptProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
@@ -50,13 +54,30 @@ export function ChatTranscript({ items, isBusy, error }: ChatTranscriptProps) {
   return (
     <ScrollArea
       ref={scrollRef}
-      className="flex-1 min-h-0 border border-border rounded-md bg-card [&_[data-radix-scroll-area-viewport]>div]:!block"
+      className="flex-1 min-h-0 [&_[data-radix-scroll-area-viewport]>div]:!block"
     >
-      <div className="flex flex-col gap-2 p-3">
+      <div className="flex flex-col gap-5 px-1 py-4">
         {items.length === 0 && (
-          <div className="text-muted-foreground text-xs space-y-1">
-            <p>Ask me to create a blotter, add a calculated column, style a column, highlight rows, or set up a data provider.</p>
-            <p className="text-[11px]">You can attach a screenshot or a config file — paste, drop, or use the paperclip.</p>
+          <div className="py-8 space-y-4">
+            <div className="text-muted-foreground text-xs space-y-1.5 text-center">
+              <p className="text-foreground/70">Create a blotter, add a calculated column, style a column, highlight rows, or set up a data provider.</p>
+              <p className="text-[11px] opacity-70">Attach a screenshot or a config file — paste, drop, or use the paperclip.</p>
+            </div>
+            {starters && starters.length > 0 && onPickStarter && (
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {starters.map((s) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    onClick={() => onPickStarter(s.prompt)}
+                    title={s.prompt}
+                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -64,21 +85,23 @@ export function ChatTranscript({ items, isBusy, error }: ChatTranscriptProps) {
           if (item.kind === 'tool') return <ToolCallCard key={item.id} activity={item.activity} />;
 
           if (item.kind === 'assistant') {
+            // No bubble: the assistant's voice is the page, which reads calmer
+            // at length than a tinted block and keeps the surface monochrome.
             return (
-              <div key={item.id} className="self-start max-w-[95%] rounded-md bg-muted text-foreground px-3 py-1.5">
+              <div key={item.id} className="max-w-[68ch] text-foreground">
                 <MarkdownMessage text={item.text} />
               </div>
             );
           }
 
           return (
-            <div key={item.id} className="self-end max-w-[85%] flex flex-col items-end gap-1">
+            <div key={item.id} className="self-end max-w-[85%] flex flex-col items-end gap-1.5">
               {item.attachments.length > 0 && (
                 <div className="flex flex-wrap justify-end gap-1">
                   {item.attachments.map((a, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                      className="inline-flex items-center gap-1 rounded-md border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                     >
                       {a.kind === 'image' ? <ImageIcon className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
                       <span className="max-w-[10rem] truncate">{a.name}</span>
@@ -87,7 +110,9 @@ export function ChatTranscript({ items, isBusy, error }: ChatTranscriptProps) {
                 </div>
               )}
               {item.text && (
-                <div className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs whitespace-pre-wrap">
+                // Inverted rather than tinted — separates "mine" from "theirs"
+                // by weight instead of hue.
+                <div className="rounded-2xl rounded-br-md bg-foreground text-background px-3.5 py-2 text-xs leading-relaxed whitespace-pre-wrap">
                   {item.text}
                 </div>
               )}
@@ -96,15 +121,19 @@ export function ChatTranscript({ items, isBusy, error }: ChatTranscriptProps) {
         })}
 
         {/* Thinking indicator — only before the first token lands, since after
-            that the streaming bubble itself is the progress signal. */}
+            that the streaming text itself is the progress signal. */}
         {isBusy && !lastIsAssistant && (
-          <div className="self-start flex items-center gap-1.5 text-muted-foreground text-xs px-1">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <Loader2 className="h-3 w-3 animate-spin" />
-            thinking…
+            <span className="opacity-80">Thinking…</span>
           </div>
         )}
 
-        {error && <div className="text-destructive text-xs whitespace-pre-wrap">{error}</div>}
+        {error && (
+          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-foreground/80 whitespace-pre-wrap">
+            {error}
+          </div>
+        )}
         <div ref={endRef} />
       </div>
     </ScrollArea>

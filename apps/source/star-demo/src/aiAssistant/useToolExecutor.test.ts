@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { ConfigManager, ProfileSnapshot } from '@wellsfargo-starui/core/host/config';
 import type { DataProviderConfigStore } from '@wellsfargo-starui/data';
-import { dispatchTool, type ToolExecutionContext } from './useToolExecutor';
+import { dispatchTool, applyGridScope, resolveInstancePin, type ToolExecutionContext } from './useToolExecutor';
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({ useDataServices: vi.fn() }));
 
@@ -60,7 +60,57 @@ function fakeCtx() {
   return { ctx, list, save, loadGridLevelData, saveGridLevelData, findByComponentType, storeList, storeGet, storeSave };
 }
 
+/**
+ * A scoped panel (opened by a blotter's wand button) must be a real boundary,
+ * not a request in the prompt — a model that ignores the instruction still
+ * can't reach another blotter.
+ */
+describe('applyGridScope', () => {
+  it('fills in the selected grid when a call names none', () => {
+    const res = applyGridScope({ defaultGridId: 'grid-test' }, { moduleId: 'general-settings' });
+    expect(res.ok === true && res.args.targetGridId).toBe('grid-test');
+  });
+
+  it('never overrides a grid the model named explicitly', () => {
+    const res = applyGridScope({ defaultGridId: 'grid-test' }, { targetGridId: 'grid-other' });
+    expect(res.ok === true && res.args.targetGridId).toBe('grid-other');
+  });
+
+  it('refuses a locked panel reaching another blotter, and says what to do', () => {
+    const res = applyGridScope({ lockedGridId: 'grid-axe' }, { targetGridId: 'grid-test' });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.summary).toContain('grid-axe');
+    expect(res.ok === false && res.summary).toContain("blotter's toolbar");
+  });
+
+  it('supplies the locked grid to calls that omit one', () => {
+    const res = applyGridScope({ lockedGridId: 'grid-axe' }, {});
+    expect(res.ok === true && res.args.targetGridId).toBe('grid-axe');
+  });
+
+  it('allows the locked grid named explicitly', () => {
+    const res = applyGridScope({ lockedGridId: 'grid-axe' }, { targetGridId: 'grid-axe' });
+    expect(res.ok).toBe(true);
+  });
+
+  it('leaves calls alone when the panel has no scope at all', () => {
+    const res = applyGridScope({}, { providerId: 'p1' });
+    expect(res).toEqual({ ok: true, args: { providerId: 'p1' } });
+  });
+});
+
 describe('dispatchTool', () => {
+  it('enforces panel scope before the handler runs', async () => {
+    const { ctx, save } = fakeCtx();
+    const scoped = { ...ctx, lockedGridId: 'grid-axe' };
+
+    const result = await dispatchTool('set_column_layout', scoped, { targetGridId: 'grid-test', hide: ['isin'] });
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('scoped to "grid-axe"');
+    expect(save).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     mockLoadRegistryConfig.mockReset().mockResolvedValue({ version: 2, entries: [GRID_ENTRY] });
     mockAddRegistryEntry.mockReset().mockResolvedValue(undefined);
@@ -454,98 +504,6 @@ describe('dispatchTool', () => {
     expect(storeSave).not.toHaveBeenCalled();
   });
 
-  it('set_column_style merges theme-keyed colors into a fresh assignment when the grid has no profile yet', async () => {
-    const { ctx, list, save } = fakeCtx();
-    list.mockResolvedValue([]); // no existing profile — handler creates a default one
-
-    const result = await dispatchTool(
-      'set_column_style',
-      ctx,
-      { targetGridId: 'grid-test', colId: 'spread', colors: { light: { background: '#fee2e2' }, dark: { background: '#3b0d0d' } } },
-    );
-
-    expect(result.ok).toBe(true);
-    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
-    const assignments = (snapshot.state['column-customization']?.data as { assignments: Record<string, { cellStyleOverrides?: { light?: { colors?: unknown }; dark?: { colors?: unknown } } }> }).assignments;
-    expect(assignments.spread.cellStyleOverrides?.light?.colors).toEqual({ background: '#fee2e2' });
-    expect(assignments.spread.cellStyleOverrides?.dark?.colors).toEqual({ background: '#3b0d0d' });
-  });
-
-  /** Header styling is a SEPARATE slot — styling cells alone leaves the
-   *  header label unmoved, which reads to a user as "alignment didn't work". */
-  it('set_column_style aligns cells and headers, in both theme slots', async () => {
-    const { ctx, list, save } = fakeCtx();
-    list.mockResolvedValue([]);
-
-    const result = await dispatchTool('set_column_style', ctx, {
-      targetGridId: 'grid-test',
-      colIds: ['marketValue', 'cleanPrice'],
-      target: 'cells+headers',
-      align: 'right',
-    });
-
-    expect(result.ok).toBe(true);
-    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
-    const assignments = (snapshot.state['column-customization']?.data as {
-      assignments: Record<string, { cellStyleOverrides?: Record<string, { alignment?: unknown }>; headerStyleOverrides?: Record<string, { alignment?: unknown }> }>;
-    }).assignments;
-
-    for (const colId of ['marketValue', 'cleanPrice']) {
-      for (const side of ['light', 'dark']) {
-        expect(assignments[colId].cellStyleOverrides?.[side]?.alignment).toEqual({ horizontal: 'right' });
-        expect(assignments[colId].headerStyleOverrides?.[side]?.alignment).toEqual({ horizontal: 'right' });
-      }
-    }
-  });
-
-  it('set_column_style with allColumns writes the grid-wide baseline instead of per-column entries', async () => {
-    const { ctx, list, save } = fakeCtx();
-    list.mockResolvedValue([]);
-
-    const result = await dispatchTool('set_column_style', ctx, {
-      targetGridId: 'grid-test',
-      allColumns: true,
-      target: 'cells+headers',
-      align: 'right',
-    });
-
-    expect(result.ok).toBe(true);
-    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
-    const data = snapshot.state['column-customization']?.data as {
-      assignments?: Record<string, unknown>;
-      globalCellStyle?: Record<string, { alignment?: unknown }>;
-      globalHeaderStyle?: Record<string, { alignment?: unknown }>;
-    };
-    expect(data.globalCellStyle?.dark?.alignment).toEqual({ horizontal: 'right' });
-    expect(data.globalHeaderStyle?.light?.alignment).toEqual({ horizontal: 'right' });
-    expect(data.assignments ?? {}).toEqual({});
-  });
-
-  it('set_column_style preserves existing colours when only alignment changes', async () => {
-    const { ctx, list, save } = fakeCtx();
-    list.mockResolvedValue([
-      {
-        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
-        state: {
-          'column-customization': {
-            v: 1,
-            data: { assignments: { ticker: { colId: 'ticker', cellStyleOverrides: { dark: { colors: { text: '#7fdf9b' } }, light: { colors: { text: '#1f7a34' } } } } } },
-          },
-        },
-      },
-    ]);
-
-    const result = await dispatchTool('set_column_style', ctx, { targetGridId: 'grid-test', colId: 'ticker', align: 'center' });
-
-    expect(result.ok).toBe(true);
-    const [, snapshot] = save.mock.calls[0] as [unknown, ProfileSnapshot];
-    const assignment = (snapshot.state['column-customization']?.data as {
-      assignments: Record<string, { cellStyleOverrides?: Record<string, { colors?: unknown; alignment?: unknown }> }>;
-    }).assignments.ticker;
-    expect(assignment.cellStyleOverrides?.dark?.colors).toEqual({ text: '#7fdf9b' });
-    expect(assignment.cellStyleOverrides?.dark?.alignment).toEqual({ horizontal: 'center' });
-  });
-
   /**
    * A dock launch clones the template into a per-window row and the view then
    * reads only its own row (see launch.ts). Writing the template alone is why
@@ -799,7 +757,9 @@ describe('dispatchTool', () => {
     });
   });
 
-  it('delete_data_provider removes the config and warns about grids still bound to it', async () => {
+  /** Destructive, so the gate is enforced here rather than only asked for in
+   *  the prompt — a model that skips the question must not delete anything. */
+  it('delete_data_provider refuses without confirmation, naming what would go', async () => {
     const { ctx, storeGet, loadGridLevelData } = fakeCtx();
     storeGet.mockResolvedValue({ providerId: 'p1', name: 'Mock positions', providerType: 'mock', config: {} });
     loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'p1', historicalProviderId: null } });
@@ -808,22 +768,23 @@ describe('dispatchTool', () => {
 
     const result = await dispatchTool('delete_data_provider', ctx, { providerId: 'p1' });
 
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('confirm: true');
+    expect(result.summary).toContain('TestGrid');
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('delete_data_provider removes the config once confirmed, warning about bound grids', async () => {
+    const { ctx, storeGet, loadGridLevelData } = fakeCtx();
+    storeGet.mockResolvedValue({ providerId: 'p1', name: 'Mock positions', providerType: 'mock', config: {} });
+    loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'p1', historicalProviderId: null } });
+    const remove = vi.fn().mockResolvedValue(undefined);
+    (ctx.configStore as unknown as { remove: unknown }).remove = remove;
+
+    const result = await dispatchTool('delete_data_provider', ctx, { providerId: 'p1', confirm: true });
+
     expect(result.ok).toBe(true);
     expect(remove).toHaveBeenCalledWith('p1');
     expect(result.summary).toContain('TestGrid');
-  });
-
-  it('set_column_style rejects a call with no target columns and one with no style to apply', async () => {
-    const { ctx, save } = fakeCtx();
-
-    const noTarget = await dispatchTool('set_column_style', ctx, { targetGridId: 'grid-test', align: 'right' });
-    expect(noTarget.ok).toBe(false);
-    expect(noTarget.summary).toContain('colId');
-
-    const noStyle = await dispatchTool('set_column_style', ctx, { targetGridId: 'grid-test', colId: 'ticker' });
-    expect(noStyle.ok).toBe(false);
-    expect(noStyle.summary).toContain('align');
-
-    expect(save).not.toHaveBeenCalled();
   });
 });

@@ -23,8 +23,8 @@ function CodeBlock({ children }: { children: ReactNode }) {
   }, [text]);
 
   return (
-    <div className="relative group my-2">
-      <pre className="overflow-x-auto rounded-md border border-border bg-background p-2 text-[11px] leading-relaxed">
+    <div className="relative group my-2.5">
+      <pre className="overflow-x-auto rounded-lg border border-border/60 bg-muted/40 p-2.5 text-[11px] leading-relaxed">
         <code>{text}</code>
       </pre>
       <Button
@@ -42,7 +42,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
 
 export const MarkdownMessage = memo(function MarkdownMessage({ text }: { text: string }) {
   return (
-    <div className="text-xs leading-relaxed [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_ul]:list-disc [&_ol]:list-decimal [&_a]:underline [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_table]:block [&_table]:overflow-x-auto">
+    <div className="text-xs leading-relaxed [&_p]:my-1.5 [&_ul]:my-1.5 [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:pl-4 [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5 [&_a]:underline [&_a]:underline-offset-2 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:mt-3 [&_h2]:mt-3 [&_h3]:mt-2.5 [&_hr]:my-3 [&_hr]:border-border/60 [&_table]:block [&_table]:overflow-x-auto [&_strong]:font-semibold">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

@@ -85,25 +85,27 @@ export function Composer({
   );
 
   return (
-    <div className="flex flex-col gap-1.5 flex-shrink-0">
+    // One bordered "island" holding chips, the field and its actions — the
+    // field reads as part of the surface instead of a boxed control in a row.
+    <div className="flex-shrink-0 rounded-2xl border border-border bg-card/40 focus-within:border-border-strong transition-colors">
       {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
           {attachments.map((a) => (
             <span
               key={a.id}
-              className="inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 text-[11px]"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px]"
             >
               {a.kind === 'image' && a.previewUrl ? (
-                <img src={a.previewUrl} alt="" className="h-4 w-4 rounded object-cover" />
+                <img src={a.previewUrl} alt="" className="h-4 w-4 rounded object-cover grayscale" />
               ) : (
                 <FileText className="h-3 w-3 text-muted-foreground" />
               )}
-              <span className="max-w-[12rem] truncate">{a.name}</span>
+              <span className="max-w-[12rem] truncate text-foreground/80">{a.name}</span>
               <button
                 type="button"
                 onClick={() => onRemoveAttachment(a.id)}
                 aria-label={`Remove ${a.name}`}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -112,50 +114,68 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            onAddFiles(Array.from(e.target.files ?? []));
-            e.target.value = '';
-          }}
-        />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          onAddFiles(Array.from(e.target.files ?? []));
+          e.target.value = '';
+        }}
+      />
+
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        placeholder="Ask the assistant…  (Enter to send, Shift+Enter for a new line)"
+        rows={1}
+        className="min-h-[2.5rem] max-h-40 resize-none border-0 bg-transparent px-3.5 pt-3 pb-1 text-xs leading-relaxed shadow-none focus-visible:ring-0"
+      />
+
+      <div className="flex items-center justify-between gap-2 px-2 pb-2">
         <Button
           size="icon"
-          variant="outline"
+          variant="ghost"
           onClick={() => fileInputRef.current?.click()}
           aria-label="Attach files"
-          className="flex-shrink-0"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
         >
-          <Paperclip className="h-4 w-4" />
+          <Paperclip className="h-3.5 w-3.5" />
         </Button>
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder="Ask the assistant…  (Enter to send, Shift+Enter for a new line)"
-          rows={1}
-          className="min-h-[2.25rem] max-h-40 text-xs resize-none"
-        />
-        {isBusy ? (
-          <Button size="icon" variant="destructive" onClick={onStop} aria-label="Stop" className="flex-shrink-0">
-            <Square className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            size="icon"
-            onClick={send}
-            disabled={!text.trim() && attachments.length === 0}
-            aria-label="Send"
-            className="flex-shrink-0"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* Only while composing — an always-on hint is chrome the user
+              stops reading after the first message. */}
+          {text.trim().length > 0 && (
+            <span className="hidden sm:inline text-[10px] text-muted-foreground/70">
+              Enter to send · Shift+Enter for a new line
+            </span>
+          )}
+          {isBusy ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onStop}
+              aria-label="Stop"
+              className="h-7 w-7 rounded-full border border-border text-foreground hover:bg-muted"
+            >
+              <Square className="h-3 w-3 fill-current" />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              onClick={send}
+              disabled={!text.trim() && attachments.length === 0}
+              aria-label="Send"
+              className="h-7 w-7 rounded-full bg-foreground text-background hover:bg-foreground/85 disabled:opacity-30"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

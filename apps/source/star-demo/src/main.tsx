@@ -31,6 +31,9 @@ const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
 const AiAssistant         = React.lazy(() => import("./views/AiAssistant"));
 
+// The `./workspace-setup` subpath, not the bare barrel: the package's `.` export
+// is `ui/dist`, which has never carried WorkspaceSetup. Importing it from the
+// barrel typechecked only while the incremental build info was stale.
 const WorkspaceSetup = React.lazy(() =>
   import("@wellsfargo-starui/react/workspace-setup").then((m) => ({ default: m.WorkspaceSetup })),
 );

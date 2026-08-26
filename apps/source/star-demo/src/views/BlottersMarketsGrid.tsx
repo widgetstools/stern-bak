@@ -10,7 +10,8 @@ import type { MarketsGridHandle } from '@wellsfargo-starui/grid';
 import { useStarGridApp } from '../starGridApp/index.js';
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { openProviderEditorPopout } from '../dataProvidersPopout';
-import { useLiveProfileSync } from '../useLiveProfileSync';
+import { openAssistantPopout } from '../aiAssistantPopout';
+import { useLiveProfileSync, publishActiveProfile } from '../useLiveProfileSync';
 
 const DEFAULT_COL_DEF = {
   floatingFilter: true,
@@ -40,7 +41,14 @@ function BlottersMarketsGrid(): ReactNode {
   });
   const handleReady = useCallback((handle: MarketsGridHandle) => {
     gridRef.current = handle;
-  }, []);
+    // Publish which profile this window is showing, and keep it current. The
+    // assistant reads this to edit the profile the user actually has selected
+    // rather than always writing the default one.
+    void publishActiveProfile(configManager, instanceId, handle.profiles.activeProfileId ?? '__default__');
+    handle.platform.events.on('profile:loaded', ({ profileId }) => {
+      void publishActiveProfile(configManager, instanceId, profileId);
+    });
+  }, [configManager, instanceId]);
 
   const handleEditProvider = useCallback(
     (providerId: string) => {
@@ -48,6 +56,24 @@ function BlottersMarketsGrid(): ReactNode {
     },
     [runtime],
   );
+  // The wand opens an assistant tied to THIS blotter. Pass the instance id —
+  // the one identifier a window always knows — and let the assistant resolve it
+  // to a registry entry. Deriving a registry id here from componentType /
+  // componentSubType silently produced "star-demo-blotter" (the browser-mode
+  // fallback, not a registered grid) whenever those weren't populated.
+  const handleOpenAssistant = useCallback(() => {
+    // Two independent signals, because either can be missing: the instance id
+    // (resolved against the config row) and, when the launcher supplied a
+    // component identity, the registry id it implies. The assistant prefers the
+    // instance and falls back to the hint.
+    const identity = runtime.resolveIdentity?.();
+    const gridId =
+      identity?.componentType && identity?.componentSubType
+        ? `${identity.componentType}-${identity.componentSubType}`.toLowerCase()
+        : undefined;
+    void openAssistantPopout(runtime, { instanceId, gridId });
+  }, [runtime, instanceId]);
+
   const handleOpenConfigBrowser = useCallback(() => {
     void runtime.openSurface({
       kind: 'popout',
@@ -71,6 +97,7 @@ function BlottersMarketsGrid(): ReactNode {
       historicalDateAppDataRef="positions.asOfDate"
       onEditProvider={handleEditProvider}
       onOpenConfigBrowser={handleOpenConfigBrowser}
+      onOpenAssistant={handleOpenAssistant}
       showFiltersToolbar
       showFormattingToolbar
       showEditingToolbar

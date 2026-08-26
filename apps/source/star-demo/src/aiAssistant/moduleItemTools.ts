@@ -15,7 +15,13 @@ import {
   itemId,
   type CollectionSpec,
 } from './moduleCollections';
-import { readDefaultProfile, patchGridModule, resolveGridEntry, describeFanOut } from './gridProfiles';
+import {
+  readActiveProfile,
+  patchGridModule,
+  resolveGridEntry,
+  describeFanOut,
+  gridScopeId,
+} from './gridProfiles';
 
 export interface ToolExecutionResult {
   ok: boolean;
@@ -45,7 +51,7 @@ export async function listModuleItems(configManager: ConfigManager, args: Record
   if (!target.ok) return target;
   const { entry, spec } = target;
 
-  const profile = await readDefaultProfile(configManager, entry.configId);
+  const profile = await readActiveProfile(configManager, gridScopeId(entry));
   const moduleData = profile.state[spec.moduleId]?.data as Record<string, unknown> | undefined;
   const items = readItems(moduleData, spec);
   return {

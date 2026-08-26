@@ -81,6 +81,7 @@ export interface MarketsGridHostProps<TData> {
   forwardedRef: ForwardedRef<MarketsGridHandle>;
   onReady: ((handle: MarketsGridHandle) => void) | undefined;
   adminActions: AdminAction[] | undefined;
+  onOpenAssistant: (() => void) | undefined;
   gridLevelData: unknown;
   onGridLevelDataLoad: ((data: unknown) => void) | undefined;
   headerExtras: ReactNode;
@@ -137,6 +138,7 @@ function MarketsGridHostInner<TData>({
   forwardedRef,
   onReady,
   adminActions,
+  onOpenAssistant,
   gridLevelData,
   onGridLevelDataLoad,
   headerExtras,
@@ -326,6 +328,7 @@ function MarketsGridHostInner<TData>({
           visualExcelExportEnabled={visualExcelExportEnabled}
           onExportVisualExcel={handleExportVisualExcel}
           adminActions={adminActions}
+          onOpenAssistant={onOpenAssistant}
           componentName={componentName}
           gridId={gridId}
           instanceId={instanceId}

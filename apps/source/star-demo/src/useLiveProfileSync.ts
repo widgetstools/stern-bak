@@ -28,6 +28,30 @@ export interface LiveProfileSyncTarget {
   loadProfile: (id: string) => void | Promise<void>;
 }
 
+/**
+ * Records which profile a window is showing, into that window's own config row.
+ *
+ * The active profile id is otherwise unreachable from another window: the
+ * localStorage fallback is keyed by `gridId`, which every blotter of this route
+ * shares, and the authoritative per-view value lives on OpenFin `customData`.
+ * Publishing it here is what lets the assistant edit the profile the user is
+ * actually looking at instead of always writing `__default__`.
+ */
+export async function publishActiveProfile(
+  configManager: ConfigManager | undefined,
+  instanceId: string | undefined,
+  profileId: string,
+): Promise<void> {
+  if (!configManager || !instanceId || typeof configManager.profiles?.saveGridLevelData !== 'function') return;
+  try {
+    const prev = ((await configManager.profiles.loadGridLevelData({ instanceId })) ?? {}) as Record<string, unknown>;
+    if (prev.activeProfileId === profileId) return;
+    await configManager.profiles.saveGridLevelData({ instanceId }, { ...prev, activeProfileId: profileId });
+  } catch (err) {
+    console.debug('[liveProfileSync] could not publish the active profile id:', err);
+  }
+}
+
 export interface UseLiveProfileSyncOptions {
   configManager: ConfigManager | undefined;
   /** The grid's own config row id — NOT the registry entry's template id. */
@@ -71,9 +95,38 @@ export function useLiveProfileSync({
         return;
       }
       if (target.isDirty) {
-        // The user's in-flight edits outrank a remote change.
-        onSkippedRef.current?.('dirty');
-        return;
+        // Deliberately NOT a skip.
+        //
+        // An external change is something the user just asked for — via the
+        // assistant, Workspace Setup, or another window. Declining to apply it
+        // because this grid has unsaved state means they're told "done" and see
+        // nothing change, which is the worst of both worlds. A blotter is dirty
+        // most of the time it's been touched at all, so a skip here is not the
+        // rare safety net it looks like.
+        //
+        // The cost is real and worth naming: unsaved local edits to the same
+        // modules are overwritten. Made loud rather than silent.
+        console.warn(
+          '[liveProfileSync] applying an external config change over unsaved local changes — ' +
+            'the grid had edits that were not saved to its profile.',
+        );
+      }
+
+      // A profile SWITCH can't be expressed as a config write — `activeProfileId`
+      // lives on the view, not the row — so `switch_profile` records the request
+      // here and this is where it gets honoured.
+      let requestedProfileId: string | undefined;
+      let requestedAt = 0;
+      try {
+        const gridLevelData = (await configManager.profiles.loadGridLevelData({ instanceId })) as
+          | { requestedActiveProfileId?: string; requestedActiveProfileAt?: number }
+          | null;
+        if (typeof gridLevelData?.requestedActiveProfileId === 'string') {
+          requestedProfileId = gridLevelData.requestedActiveProfileId;
+          requestedAt = gridLevelData.requestedActiveProfileAt ?? 0;
+        }
+      } catch {
+        /* no grid-level data — nothing requested */
       }
 
       let updatedAt = 0;
@@ -85,14 +138,19 @@ export function useLiveProfileSync({
         // leave the grid showing stale config.
         updatedAt = Date.now();
       }
-      if (updatedAt <= appliedAtRef.current) {
+
+      const freshest = Math.max(updatedAt, requestedAt);
+      if (freshest <= appliedAtRef.current) {
         onSkippedRef.current?.('not-newer');
         return;
       }
 
-      appliedAtRef.current = updatedAt;
-      await target.loadProfile(target.activeProfileId);
-      onAppliedRef.current?.(target.activeProfileId);
+      // A newer switch request wins over a plain re-apply of the active one.
+      const profileId =
+        requestedProfileId && requestedAt > appliedAtRef.current ? requestedProfileId : target.activeProfileId;
+      appliedAtRef.current = freshest;
+      await target.loadProfile(profileId);
+      onAppliedRef.current?.(profileId);
     };
 
     const unsubscribe = configManager.profiles.subscribe({ instanceId }, () => {

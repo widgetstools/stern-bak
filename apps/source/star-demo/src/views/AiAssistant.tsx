@@ -9,22 +9,34 @@
  * *persisted* profile (see `../aiAssistant/useToolExecutor.ts`).
  */
 
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { AiAssistantPanel } from '../aiAssistant/AiAssistantPanel';
 import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 
 function AiAssistant() {
+  // `?grid=…&scope=locked` is set by `openAssistantPopout` when the wand button
+  // on a blotter's toolbar opens this window — same URL-param contract the
+  // provider editor uses.
+  const [params] = useSearchParams();
+  const scopedGridId = params.get('grid') ?? undefined;
+  const scopedInstanceId = params.get('instance') ?? undefined;
+  const scopedGridName = params.get('name') ?? undefined;
+  const locked = params.get('scope') === 'locked' && Boolean(scopedGridId || scopedInstanceId);
+  // Reported by the panel once the instance id resolves to a registry entry.
+  const [scope, setScope] = useState<{ gridId: string; displayName?: string } | null>(null);
+
   // This route mounts outside StarGridApp/OpenFinRuntime — sync the dock theme
   // toggle directly so the panel flips with the rest of the platform.
   useOpenFinThemeSync();
 
   useEffect(() => {
     const prev = document.title;
-    document.title = 'AI Assistant · Markets UI';
+    const label = scope?.displayName ?? scope?.gridId ?? scopedGridName;
+    document.title = label ? `AI Assistant · ${label}` : 'AI Assistant · Markets UI';
     return () => { document.title = prev; };
-  }, []);
+  }, [scope, scopedGridName]);
 
   // Same flush-viewport treatment as DataProviders.tsx — the shell's
   // `body { padding: 10px }` leaks into popouts otherwise.
@@ -45,18 +57,34 @@ function AiAssistant() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background overflow-hidden">
-      <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-card flex-shrink-0">
+      <header className="flex items-center justify-between px-4 py-2 border-b border-border/60 flex-shrink-0">
         <Link
           to="/"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           Back to home
         </Link>
-        <span className="text-[11px] text-muted-foreground">AI Assistant</span>
+        <span className="flex items-baseline gap-2 text-[11px] tracking-wide text-muted-foreground">
+          {locked && scope && (
+            <span
+              className="font-mono text-[10px] text-foreground/70"
+              title={`Scoped to ${scope.displayName ?? scope.gridId}${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}`}
+            >
+              {scope.gridId}
+            </span>
+          )}
+          <span className="font-medium">AI Assistant</span>
+        </span>
       </header>
       <div className="flex-1 min-h-0">
-        <AiAssistantPanel />
+        <AiAssistantPanel
+          scopedGridId={scopedGridId}
+          scopedInstanceId={scopedInstanceId}
+          scopedGridName={scopedGridName}
+          locked={locked}
+          onScopeResolved={setScope}
+        />
       </div>
     </div>
   );

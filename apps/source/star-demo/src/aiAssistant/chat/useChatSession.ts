@@ -9,7 +9,7 @@
  *                    which omits the system prompt and renders tool calls
  *                    as their own items rather than opaque JSON.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamChat, parseToolArgs, toolName, contentToText, type ChatMessage } from '../llmClient';
 import { TOOL_SCHEMAS } from '../tools';
 import type { ToolExecutionResult } from '../useToolExecutor';
@@ -33,13 +33,19 @@ export interface UseChatSessionOptions {
   apiKey?: string;
   model?: string;
   executeTool: (name: ToolName, args: Record<string, unknown>) => Promise<ToolExecutionResult>;
+  /** Called with the user's message when a turn starts — undo uses it as the label. */
+  onTurnStart?: (label: string) => void;
+  /** Called before each tool runs, so undo can snapshot what it is about to change. */
+  onToolCall?: (name: ToolName, args: Record<string, unknown>) => Promise<void> | void;
+  /** Called once the turn (including its tool rounds) has settled. */
+  onTurnEnd?: () => void;
 }
 
 let seq = 0;
 const nextId = () => `it-${Date.now().toString(36)}-${seq++}`;
 
 export function useChatSession(opts: UseChatSessionOptions) {
-  const { systemPrompt, baseUrl, apiKey, model, executeTool } = opts;
+  const { systemPrompt, baseUrl, apiKey, model, executeTool, onTurnStart, onToolCall, onTurnEnd } = opts;
 
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [isBusy, setIsBusy] = useState(false);
@@ -48,6 +54,23 @@ export function useChatSession(opts: UseChatSessionOptions) {
   const messagesRef = useRef<ChatMessage[]>([{ role: 'system', content: systemPrompt }]);
   const transcriptRef = useRef<TranscriptItem[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
+  /**
+   * Keep the BASE system message current.
+   *
+   * A ref initialiser runs once, so a prompt that arrives later — a scoped
+   * panel only learns its blotter after resolving the instance id — would never
+   * reach the model: it would answer from the prompt built on first render and
+   * ask which grid the user meant. Only index 0 is replaced, so ambient
+   * `noteContext` notes and the conversation itself survive.
+   */
+  useEffect(() => {
+    const [first, ...rest] = messagesRef.current;
+    messagesRef.current =
+      first?.role === 'system'
+        ? [{ role: 'system', content: systemPrompt }, ...rest]
+        : [{ role: 'system', content: systemPrompt }, ...messagesRef.current];
+  }, [systemPrompt]);
 
   const commitTranscript = useCallback((next: TranscriptItem[]) => {
     transcriptRef.current = next;
@@ -74,7 +97,17 @@ export function useChatSession(opts: UseChatSessionOptions) {
   const reset = useCallback(
     (messages?: ChatMessage[], items?: TranscriptItem[]) => {
       abortRef.current?.abort();
-      messagesRef.current = messages ?? [{ role: 'system', content: systemPrompt }];
+      if (messages) {
+        // A restored conversation carries the system prompt it was saved with,
+        // which may predate this panel's scope. Refresh index 0 and keep the
+        // rest — including any ambient notes appended during that session.
+        const restored = [...messages];
+        if (restored[0]?.role === 'system') restored[0] = { role: 'system', content: systemPrompt };
+        else restored.unshift({ role: 'system', content: systemPrompt });
+        messagesRef.current = restored;
+      } else {
+        messagesRef.current = [{ role: 'system', content: systemPrompt }];
+      }
       commitTranscript(items ?? []);
       setError(null);
       setIsBusy(false);
@@ -145,6 +178,9 @@ export function useChatSession(opts: UseChatSessionOptions) {
 
           let toolResult: ToolExecutionResult;
           try {
+            // Snapshot BEFORE the change, so undo reverses to where the turn
+            // started rather than to some midpoint.
+            await onToolCall?.(name, args);
             toolResult = await executeTool(name, args);
           } catch (err) {
             toolResult = { ok: false, summary: `Tool failed: ${err instanceof Error ? err.message : String(err)}` };
@@ -200,14 +236,29 @@ export function useChatSession(opts: UseChatSessionOptions) {
         attachments: attachments.map((a) => ({ name: a.name, kind: a.kind })),
       });
       console.debug(`${LOG} user →`, text, attachments.length ? `(+${attachments.length} attachment(s))` : '');
-      await runTurn();
+      onTurnStart?.(text);
+      try {
+        await runTurn();
+      } finally {
+        onTurnEnd?.();
+      }
     },
-    [isBusy, pushItem, runTurn],
+    [isBusy, pushItem, runTurn, onTurnStart, onTurnEnd],
   );
 
   const stop = useCallback(() => {
     abortRef.current?.abort('user');
     setIsBusy(false);
+  }, []);
+
+  /**
+   * Adds a system-role note to the wire conversation without touching the
+   * visible transcript — used for ambient context like "the user switched to
+   * this blotter". Appended rather than rewritten into the base prompt so
+   * earlier turns keep the context they were answered under.
+   */
+  const noteContext = useCallback((text: string) => {
+    messagesRef.current = [...messagesRef.current, { role: 'system', content: text }];
   }, []);
 
   return {
@@ -219,5 +270,6 @@ export function useChatSession(opts: UseChatSessionOptions) {
     stop,
     reset,
     setError,
+    noteContext,
   };
 }
