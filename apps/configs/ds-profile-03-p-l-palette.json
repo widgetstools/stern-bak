@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:05:24.559Z",
+  "profile": {
+    "name": "03 · P&L palette",
+    "gridId": "lab-formatter-toolbar-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "dailyPnL": {
+              "colId": "dailyPnL",
+              "cellStyleOverrides": {
+                "dark": {
+                  "typography": {
+                    "bold": true
+                  },
+                  "colors": {
+                    "background": "#102e22",
+                    "text": "#79d3a3"
+                  }
+                },
+                "light": {
+                  "typography": {
+                    "bold": true
+                  },
+                  "colors": {
+                    "background": "#d8edd9",
+                    "text": "#1d5b2f"
+                  }
+                }
+              }
+            },
+            "unrealizedPnL": {
+              "colId": "unrealizedPnL",
+              "cellStyleOverrides": {
+                "dark": {
+                  "colors": {
+                    "background": "#33310c",
+                    "text": "#e5dd6f"
+                  }
+                },
+                "light": {
+                  "colors": {
+                    "background": "#f7f1cc",
+                    "text": "#5d551a"
+                  }
+                }
+              }
+            },
+            "mtdPnL": {
+              "colId": "mtdPnL",
+              "cellStyleOverrides": {
+                "dark": {
+                  "alignment": {
+                    "horizontal": "right"
+                  },
+                  "colors": {
+                    "text": "#7cc7f9"
+                  }
+                },
+                "light": {
+                  "alignment": {
+                    "horizontal": "right"
+                  },
+                  "colors": {
+                    "text": "#0f4d75"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

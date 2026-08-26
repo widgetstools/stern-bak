@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:08:37.930Z",
+  "profile": {
+    "name": "01 · Price tick only",
+    "gridId": "lab-live-v6",
+    "state": {
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "live-tick-flash",
+              "name": "Tick flash · prices",
+              "enabled": true,
+              "priority": 5,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "bidPrice",
+                  "midPrice",
+                  "askPrice",
+                  "lastPrice"
+                ]
+              },
+              "expression": "value != null",
+              "style": {
+                "dark": {},
+                "light": {}
+              },
+              "flash": {
+                "enabled": true,
+                "target": "cells",
+                "mode": "oneShot",
+                "color": "sky",
+                "durationMs": 400
+              },
+              "activeDurationMs": 400
+            }
+          ]
+        }
+      },
+      "general-settings": {
+        "v": 1,
+        "data": {
+          "cellFlashDuration": 500,
+          "cellFadeDuration": 1000
+        }
+      }
+    }
+  }
+}

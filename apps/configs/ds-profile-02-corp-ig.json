@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:07:18.745Z",
+  "profile": {
+    "name": "02 · Corp IG",
+    "gridId": "lab-quick-filters-v1",
+    "state": {
+      "saved-filters": {
+        "v": 1,
+        "data": {
+          "filters": [
+            {
+              "id": "qf-corp-ig",
+              "label": "Corp IG",
+              "active": true,
+              "filterModel": {
+                "assetClass": {
+                  "filterType": "set",
+                  "values": [
+                    "CorpIG"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

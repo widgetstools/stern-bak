@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:01:47.005Z",
+  "profile": {
+    "name": "03 · Pricing precision",
+    "gridId": "lab-formatting-v7",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "bidPrice": {
+              "colId": "bidPrice",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 3,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "initialWidth": 100,
+              "headerName": "Bid (3dp)"
+            },
+            "midPrice": {
+              "colId": "midPrice",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 3,
+                  "maximumFractionDigits": 3
+                }
+              },
+              "initialWidth": 100,
+              "headerName": "Mid (3dp)"
+            },
+            "askPrice": {
+              "colId": "askPrice",
+              "valueFormatterTemplate": {
+                "kind": "preset",
+                "preset": "number",
+                "options": {
+                  "minimumFractionDigits": 4,
+                  "maximumFractionDigits": 4
+                }
+              },
+              "initialWidth": 110,
+              "headerName": "Ask (4dp)"
+            },
+            "lastPrice": {
+              "colId": "lastPrice",
+              "valueFormatterTemplate": {
+                "kind": "tick",
+                "tick": "TICK32"
+              },
+              "initialWidth": 120,
+              "headerName": "Last (32nds)"
+            },
+            "priceChange": {
+              "colId": "priceChange",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]\"▲ \"#,##0.00;[Red]\"▼ \"#,##0.00;\"—\""
+              },
+              "initialWidth": 130,
+              "headerName": "Δ Px (▲/▼)"
+            },
+            "priceChangePct": {
+              "colId": "priceChangePct",
+              "valueFormatterTemplate": {
+                "kind": "excelFormat",
+                "format": "[Green]+0.000%;[Red]-0.000%;\"·\""
+              },
+              "initialWidth": 130,
+              "headerName": "Δ % (signed)"
+            }
+          }
+        }
+      }
+    }
+  }
+}

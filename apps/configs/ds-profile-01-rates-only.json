@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:07:10.721Z",
+  "profile": {
+    "name": "01 · Rates only",
+    "gridId": "lab-quick-filters-v1",
+    "state": {
+      "saved-filters": {
+        "v": 1,
+        "data": {
+          "filters": [
+            {
+              "id": "qf-rates",
+              "label": "Rates",
+              "active": true,
+              "filterModel": {
+                "assetClass": {
+                  "filterType": "set",
+                  "values": [
+                    "Rates"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

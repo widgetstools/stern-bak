@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:02:53.907Z",
+  "profile": {
+    "name": "02 · Charts & bars",
+    "gridId": "lab-renderers-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "modifiedDuration": {
+              "colId": "modifiedDuration",
+              "headerName": "Dur (bar)",
+              "cellRendererId": "percent-bar",
+              "cellRendererConfig": {
+                "kind": "percent-bar",
+                "config": {
+                  "max": 30,
+                  "barColor": {
+                    "dark": "#7cc7f9",
+                    "light": "#1e6fb8"
+                  },
+                  "showValue": true
+                }
+              }
+            },
+            "krdSparkline": {
+              "colId": "krdSparkline",
+              "headerName": "KRD (spark)",
+              "cellRendererId": "sparkline",
+              "cellRendererConfig": {
+                "kind": "sparkline",
+                "config": {
+                  "lineColor": {
+                    "dark": "#9aa6b2",
+                    "light": "#3d4753"
+                  },
+                  "fillColor": {
+                    "dark": "#2a3340",
+                    "light": "#e2e8ee"
+                  },
+                  "strokeWidth": 1.25
+                }
+              }
+            },
+            "oas": {
+              "colId": "oas",
+              "headerName": "OAS (heat)",
+              "cellRendererId": "heatmap",
+              "cellRendererConfig": {
+                "kind": "heatmap",
+                "config": {
+                  "domain": {
+                    "min": 20,
+                    "max": 600
+                  },
+                  "colorScale": {
+                    "min": {
+                      "dark": "#0f2b1c",
+                      "light": "#e8f4ec"
+                    },
+                    "mid": {
+                      "dark": "#3a3010",
+                      "light": "#fbf0cf"
+                    },
+                    "max": {
+                      "dark": "#3a1818",
+                      "light": "#fcdada"
+                    }
+                  },
+                  "textColor": {
+                    "dark": "#e8edf2",
+                    "light": "#1f2733"
+                  }
+                }
+              }
+            },
+            "marketValue": {
+              "colId": "marketValue",
+              "headerName": "Mkt Val (bar)",
+              "cellRendererId": "percent-bar",
+              "cellRendererConfig": {
+                "kind": "percent-bar",
+                "config": {
+                  "fromField": {
+                    "max": 50000000
+                  },
+                  "barColor": {
+                    "dark": "#7cc7f9",
+                    "light": "#1e6fb8"
+                  },
+                  "showValue": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

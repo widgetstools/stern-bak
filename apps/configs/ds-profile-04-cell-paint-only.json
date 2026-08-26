@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:04:29.928Z",
+  "profile": {
+    "name": "04 · Cell paint only",
+    "gridId": "lab-conditional-v7",
+    "state": {
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "demo-cell-color",
+              "name": "1 · Cell color rule (winners)",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "dailyPnL",
+                  "unrealizedPnL"
+                ]
+              },
+              "expression": "value > 0",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#0f2b1c",
+                  "color": "#7fdf9b"
+                },
+                "light": {
+                  "backgroundColor": "#e8f4ec",
+                  "color": "#1f5d34"
+                }
+              }
+            },
+            {
+              "id": "demo-cell-color-loser",
+              "name": "2 · Cell color rule (losers)",
+              "enabled": true,
+              "priority": 10,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "dailyPnL",
+                  "unrealizedPnL"
+                ]
+              },
+              "expression": "value < 0",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#3a1818",
+                  "color": "#ee8e8e",
+                  "fontWeight": "600"
+                },
+                "light": {
+                  "backgroundColor": "#fcdada",
+                  "color": "#7a1f1f",
+                  "fontWeight": "600"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

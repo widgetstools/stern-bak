@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:02:45.841Z",
+  "profile": {
+    "name": "01 · Pills",
+    "gridId": "lab-renderers-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "compositeRating": {
+              "colId": "compositeRating",
+              "headerName": "Rating (pill)",
+              "cellRendererId": "pill",
+              "cellRendererConfig": {
+                "kind": "pill",
+                "config": {
+                  "rules": [
+                    {
+                      "value": "AAA",
+                      "bg": {
+                        "dark": "#103418",
+                        "light": "#d6f4dd"
+                      },
+                      "fg": {
+                        "dark": "#7fdf9b",
+                        "light": "#1f5d34"
+                      }
+                    },
+                    {
+                      "value": "AA+",
+                      "bg": {
+                        "dark": "#0e3046",
+                        "light": "#dbeefd"
+                      },
+                      "fg": {
+                        "dark": "#7cc7f9",
+                        "light": "#0f4d75"
+                      }
+                    },
+                    {
+                      "value": "AA",
+                      "bg": {
+                        "dark": "#0e3046",
+                        "light": "#dbeefd"
+                      },
+                      "fg": {
+                        "dark": "#7cc7f9",
+                        "light": "#0f4d75"
+                      }
+                    },
+                    {
+                      "value": "AA-",
+                      "bg": {
+                        "dark": "#0e3046",
+                        "light": "#dbeefd"
+                      },
+                      "fg": {
+                        "dark": "#7cc7f9",
+                        "light": "#0f4d75"
+                      }
+                    },
+                    {
+                      "value": "A+",
+                      "bg": {
+                        "dark": "#102e3a",
+                        "light": "#dfeef4"
+                      },
+                      "fg": {
+                        "dark": "#7ec4d8",
+                        "light": "#10495a"
+                      }
+                    },
+                    {
+                      "value": "A",
+                      "bg": {
+                        "dark": "#102e3a",
+                        "light": "#dfeef4"
+                      },
+                      "fg": {
+                        "dark": "#7ec4d8",
+                        "light": "#10495a"
+                      }
+                    },
+                    {
+                      "value": "A-",
+                      "bg": {
+                        "dark": "#102e3a",
+                        "light": "#dfeef4"
+                      },
+                      "fg": {
+                        "dark": "#7ec4d8",
+                        "light": "#10495a"
+                      }
+                    },
+                    {
+                      "value": "BBB+",
+                      "bg": {
+                        "dark": "#33310c",
+                        "light": "#f7f1cc"
+                      },
+                      "fg": {
+                        "dark": "#e5dd6f",
+                        "light": "#5d551a"
+                      }
+                    },
+                    {
+                      "value": "BBB",
+                      "bg": {
+                        "dark": "#33310c",
+                        "light": "#f7f1cc"
+                      },
+                      "fg": {
+                        "dark": "#e5dd6f",
+                        "light": "#5d551a"
+                      }
+                    },
+                    {
+                      "value": "BBB-",
+                      "bg": {
+                        "dark": "#33310c",
+                        "light": "#f7f1cc"
+                      },
+                      "fg": {
+                        "dark": "#e5dd6f",
+                        "light": "#5d551a"
+                      }
+                    },
+                    {
+                      "value": "BB+",
+                      "bg": {
+                        "dark": "#3a2614",
+                        "light": "#fbe7d7"
+                      },
+                      "fg": {
+                        "dark": "#f0a576",
+                        "light": "#7a3b14"
+                      }
+                    },
+                    {
+                      "value": "BB",
+                      "bg": {
+                        "dark": "#3a2614",
+                        "light": "#fbe7d7"
+                      },
+                      "fg": {
+                        "dark": "#f0a576",
+                        "light": "#7a3b14"
+                      }
+                    },
+                    {
+                      "value": "B+",
+                      "bg": {
+                        "dark": "#3a1818",
+                        "light": "#fcdada"
+                      },
+                      "fg": {
+                        "dark": "#ee8e8e",
+                        "light": "#7a1f1f"
+                      }
+                    },
+                    {
+                      "value": "B",
+                      "bg": {
+                        "dark": "#3a1818",
+                        "light": "#fcdada"
+                      },
+                      "fg": {
+                        "dark": "#ee8e8e",
+                        "light": "#7a1f1f"
+                      }
+                    },
+                    {
+                      "value": "CCC",
+                      "bg": {
+                        "dark": "#3a1818",
+                        "light": "#fcdada"
+                      },
+                      "fg": {
+                        "dark": "#ee8e8e",
+                        "light": "#7a1f1f"
+                      }
+                    }
+                  ],
+                  "fallback": {
+                    "bg": {
+                      "dark": "#1f2733",
+                      "light": "#e8edf2"
+                    },
+                    "fg": {
+                      "dark": "#9aa6b2",
+                      "light": "#3d4753"
+                    }
+                  }
+                }
+              }
+            },
+            "issuerSector": {
+              "colId": "issuerSector",
+              "headerName": "Sector (pill)",
+              "cellRendererId": "pill",
+              "cellRendererConfig": {
+                "kind": "pill",
+                "config": {
+                  "rules": [
+                    {
+                      "value": "Financials",
+                      "bg": {
+                        "dark": "#0f2b3f",
+                        "light": "#dbeaf6"
+                      },
+                      "fg": {
+                        "dark": "#7fc1ef",
+                        "light": "#0e466b"
+                      }
+                    },
+                    {
+                      "value": "Utilities",
+                      "bg": {
+                        "dark": "#102e22",
+                        "light": "#d8edd9"
+                      },
+                      "fg": {
+                        "dark": "#79d3a3",
+                        "light": "#1d5b2f"
+                      }
+                    },
+                    {
+                      "value": "Energy",
+                      "bg": {
+                        "dark": "#3a2310",
+                        "light": "#fbe5cc"
+                      },
+                      "fg": {
+                        "dark": "#f0a576",
+                        "light": "#7a3a13"
+                      }
+                    },
+                    {
+                      "value": "Industrials",
+                      "bg": {
+                        "dark": "#1f2733",
+                        "light": "#e8edf2"
+                      },
+                      "fg": {
+                        "dark": "#9aa6b2",
+                        "light": "#3d4753"
+                      }
+                    },
+                    {
+                      "value": "Sovereign",
+                      "bg": {
+                        "dark": "#23123a",
+                        "light": "#ebdcf8"
+                      },
+                      "fg": {
+                        "dark": "#b88bf0",
+                        "light": "#4e1b86"
+                      }
+                    }
+                  ],
+                  "fallback": {
+                    "bg": {
+                      "dark": "#1f2733",
+                      "light": "#e8edf2"
+                    },
+                    "fg": {
+                      "dark": "#9aa6b2",
+                      "light": "#3d4753"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

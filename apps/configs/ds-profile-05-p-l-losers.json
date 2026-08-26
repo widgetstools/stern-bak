@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:07:41.971Z",
+  "profile": {
+    "name": "05 · P&L losers",
+    "gridId": "lab-quick-filters-v1",
+    "state": {
+      "saved-filters": {
+        "v": 1,
+        "data": {
+          "filters": [
+            {
+              "id": "qf-losers",
+              "label": "P&L losers",
+              "active": true,
+              "filterModel": {
+                "dailyPnL": {
+                  "filterType": "number",
+                  "type": "lessThan",
+                  "filter": 0
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

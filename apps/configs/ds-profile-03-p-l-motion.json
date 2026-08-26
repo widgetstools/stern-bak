@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:03:04.223Z",
+  "profile": {
+    "name": "03 · P&L & motion",
+    "gridId": "lab-renderers-v2",
+    "state": {
+      "column-customization": {
+        "v": 1,
+        "data": {
+          "assignments": {
+            "priceChangePct": {
+              "colId": "priceChangePct",
+              "headerName": "Δ % (arrow)",
+              "cellRendererId": "trend-arrow",
+              "cellRendererConfig": {
+                "kind": "trend-arrow",
+                "config": {
+                  "threshold": 0,
+                  "colorScale": {
+                    "up": {
+                      "dark": "#7fdf9b",
+                      "light": "#1f7a34"
+                    },
+                    "down": {
+                      "dark": "#ee8e8e",
+                      "light": "#a02a2a"
+                    },
+                    "flat": {
+                      "dark": "#9aa6b2",
+                      "light": "#5a6068"
+                    }
+                  }
+                }
+              }
+            },
+            "unrealizedPnL": {
+              "colId": "unrealizedPnL",
+              "headerName": "Unreal (PnL)",
+              "cellRendererId": "pnl-value",
+              "cellRendererConfig": {
+                "kind": "pnl-value",
+                "config": {}
+              }
+            },
+            "dailyPnL": {
+              "colId": "dailyPnL",
+              "headerName": "Daily (PnL)",
+              "cellRendererId": "pnl-value",
+              "cellRendererConfig": {
+                "kind": "pnl-value",
+                "config": {}
+              }
+            },
+            "ytdPnL": {
+              "colId": "ytdPnL",
+              "headerName": "YTD (PnL)",
+              "cellRendererId": "pnl-value",
+              "cellRendererConfig": {
+                "kind": "pnl-value",
+                "config": {}
+              }
+            },
+            "lastUpdate": {
+              "colId": "lastUpdate",
+              "headerName": "Updated",
+              "cellRendererId": "time-since",
+              "cellRendererConfig": {
+                "kind": "time-since",
+                "config": {
+                  "sourceField": "lastUpdate"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

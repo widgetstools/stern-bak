@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "kind": "gc-profile",
+  "exportedAt": "2026-08-23T20:04:22.781Z",
+  "profile": {
+    "name": "03 · Row + indicators",
+    "gridId": "lab-conditional-v7",
+    "state": {
+      "conditional-styling": {
+        "v": 1,
+        "data": {
+          "rules": [
+            {
+              "id": "demo-row-rule",
+              "name": "5 · Row-level rule (junk rating row)",
+              "enabled": true,
+              "priority": 30,
+              "scope": {
+                "type": "row"
+              },
+              "expression": "data.compositeRating in ['BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC']",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#2a1010"
+                },
+                "light": {
+                  "backgroundColor": "#fbeaea"
+                }
+              }
+            },
+            {
+              "id": "demo-indicator-tr",
+              "name": "6 · Indicator top-right on text col (callable bonds)",
+              "enabled": true,
+              "priority": 20,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "compositeRating"
+                ]
+              },
+              "expression": "data.callable == true",
+              "style": {
+                "dark": {},
+                "light": {}
+              },
+              "indicator": {
+                "icon": "bell",
+                "position": "top-right",
+                "target": "cells",
+                "color": "#7cc7f9"
+              }
+            },
+            {
+              "id": "demo-indicator-bl",
+              "name": "7 · Indicator bottom-left + header on numeric col (wide spread)",
+              "enabled": true,
+              "priority": 18,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "bidAskWidthBps"
+                ]
+              },
+              "expression": "value > 10",
+              "style": {
+                "dark": {
+                  "backgroundColor": "#3a3010",
+                  "color": "#f0d878"
+                },
+                "light": {
+                  "backgroundColor": "#fbf0cf",
+                  "color": "#5d4d10"
+                }
+              },
+              "indicator": {
+                "icon": "alert-triangle",
+                "position": "bottom-left",
+                "target": "cells+headers",
+                "color": "#f0a576"
+              }
+            },
+            {
+              "id": "demo-headers-only",
+              "name": "8 · Headers-only indicator (negative YTD P&L)",
+              "enabled": true,
+              "priority": 25,
+              "scope": {
+                "type": "cell",
+                "columns": [
+                  "ytdPnL"
+                ]
+              },
+              "expression": "value < 0",
+              "style": {
+                "dark": {},
+                "light": {}
+              },
+              "indicator": {
+                "icon": "trending-down",
+                "position": "left-middle",
+                "target": "headers",
+                "color": "#ee8e8e"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
