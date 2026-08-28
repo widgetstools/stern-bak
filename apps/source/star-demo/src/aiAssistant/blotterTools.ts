@@ -23,8 +23,9 @@ import {
   removeRegistryEntry,
   removeDockButtons,
   renameDockButtons,
+  BLOTTER_DOCK_GROUP,
 } from './registryOps';
-import { launchBlotter, describeLaunch } from './launchComponent';
+import { launchBlotter, describeLaunch, reloadOpenComponents, describeReload } from './launchComponent';
 import type { ToolExecutionResult } from './toolResult';
 
 /** Registered MarketsGrid blotters all share this route. */
@@ -53,6 +54,7 @@ export async function createBlotter(
     displayName?: string;
     providerId?: string;
     addToDock?: boolean;
+    dockGroup?: string;
     asWindow?: boolean;
     openNow?: boolean;
   };
@@ -66,6 +68,21 @@ export async function createBlotter(
   }
 
   const asWindow = a.asWindow ?? true;
+  // Registered SINGLETON, which is what makes this a template-backed
+  // component rather than a factory for throwaway copies:
+  //
+  //   • the launcher skips the template→instance clone, so the window's own
+  //     config row IS the template (`launch.ts`: "instanceId === templateId,
+  //     the view IS the template"). Every edit the assistant makes therefore
+  //     lands on the template config, and survives closing the window;
+  //   • because the assistant writes the row the window is reading, its live
+  //     config sync re-applies the change with no reload;
+  //   • re-launching focuses the window that is already open instead of
+  //     spawning a second copy that would drift from the first.
+  //
+  // The trade-off is real and intended: one window per blotter. Two windows of
+  // one blotter would each own a cloned row, which is exactly the drift this
+  // avoids — a user who wants a second view makes a second blotter.
   await addRegistryEntry(
     buildRegistryEntry({
       id,
@@ -76,7 +93,7 @@ export async function createBlotter(
       configId: id,
       iconId: 'lucide:table',
       appId,
-      singleton: false,
+      singleton: true,
       asWindow,
     }),
   );
@@ -93,7 +110,7 @@ export async function createBlotter(
     componentType: BLOTTER_COMPONENT_TYPE,
     componentSubType,
     isTemplate: true,
-    singleton: false,
+    singleton: true,
   };
   await configManager.profiles.saveGridLevelData(
     { instanceId: id },
@@ -105,9 +122,19 @@ export async function createBlotter(
     { identity },
   );
 
+  // Blotters are filed under one dropdown ("Assets") rather than each taking a
+  // top-level slot — a dock that grows a button per blotter stops being
+  // navigable fast. `dockGroup: ''` opts back out to a top-level button.
   const wantDock = a.addToDock ?? true;
+  const group = a.dockGroup === undefined ? BLOTTER_DOCK_GROUP : a.dockGroup.trim();
   const addedToDock = wantDock
-    ? await addDockButton({ registryEntryId: id, tooltip: a.displayName, iconId: 'lucide:table', asWindow })
+    ? await addDockButton({
+        registryEntryId: id,
+        tooltip: a.displayName,
+        iconId: 'lucide:table',
+        asWindow,
+        ...(group ? { group } : null),
+      })
     : false;
 
   // Show it, don't just register it — a blotter the user has to go hunting
@@ -119,7 +146,9 @@ export async function createBlotter(
     summary:
       `Created blotter "${a.displayName}" (id=${id})` +
       (addedToDock
-        ? ' and added a dock button for it'
+        ? group
+          ? ` and filed it under the "${group}" menu on the dock`
+          : ' and added a dock button for it'
         : wantDock
           ? ' (no dock button — this platform has no saved dock config yet; add one from Workspace Setup)'
           : '') +
@@ -128,6 +157,45 @@ export async function createBlotter(
       (launch ? describeLaunch(launch, a.displayName) : ''),
     data: { id, displayName: a.displayName, opened: launch?.ok ?? false },
   };
+}
+
+/**
+ * Reloads the open windows of every blotter bound to `providerId`.
+ *
+ * A provider edit (its column set, its connection) reaches the grid only when
+ * the container next mounts, and the change is made on the PROVIDER, so there
+ * is no single blotter to reload — the bindings have to be walked backwards.
+ *
+ * Bindings are read from each blotter's template row, which is the component's
+ * definition and — for a singleton — the very row its window reads. An older
+ * multi-instance blotter can in principle carry a different binding on one
+ * window's row; the template is still the right question to ask, since that is
+ * what `set_grid_provider` writes.
+ */
+export async function reloadBlottersUsingProvider(
+  configManager: ConfigManager,
+  providerId: string,
+): Promise<number> {
+  const registry = await loadRegistryConfig();
+  const grids = (registry?.entries ?? []).filter((e) => e.componentType === BLOTTER_COMPONENT_TYPE);
+  let reloaded = 0;
+  for (const grid of grids) {
+    try {
+      const gridLevelData = (await configManager.profiles.loadGridLevelData({ instanceId: grid.configId })) as
+        | { provider?: { liveProviderId?: string | null; historicalProviderId?: string | null } }
+        | null;
+      const bindings = [
+        gridLevelData?.provider?.liveProviderId,
+        gridLevelData?.provider?.historicalProviderId,
+      ];
+      if (!bindings.includes(providerId)) continue;
+      reloaded += await reloadOpenComponents(grid.id);
+    } catch (err) {
+      // One unreadable row must not stop the rest from refreshing.
+      console.debug(`[aiAssistant] could not check provider binding for "${grid.id}":`, err);
+    }
+  }
+  return reloaded;
 }
 
 /** Opens an already-registered blotter — "show me the axe blotter". */
@@ -139,8 +207,15 @@ export async function openBlotter(args: Record<string, unknown>): Promise<ToolEx
 
   const asWindow = (args.asWindow as boolean | undefined) ?? entry.asWindow ?? true;
   const launch = await launchBlotter(entry.id, asWindow);
+  // A singleton is focused rather than re-opened, so saying "opened" would
+  // mislead a user who expected a second window and got the first one raised.
   return launch.ok
-    ? { ok: true, summary: `Opened "${entry.displayName}".` }
+    ? {
+        ok: true,
+        summary: entry.singleton
+          ? `Brought "${entry.displayName}" to the front (one window per blotter — re-opening focuses it rather than making a copy).`
+          : `Opened "${entry.displayName}".`,
+      }
     : { ok: false, summary: describeLaunch(launch, entry.displayName).trim() };
 }
 
@@ -207,11 +282,15 @@ export async function setGridProvider(
       caption: (prev.caption as string | undefined) ?? entry.displayName,
     };
   });
+  // The provider BINDING is read once when the container mounts, so unlike a
+  // profile edit it cannot be re-applied live. Reload the windows the user
+  // already has rather than asking them to reopen the blotter.
+  const reloaded = await reloadOpenComponents(entry.id);
   return {
     ok: true,
     summary:
-      `Bound "${entry.displayName}"${describeFanOut(fan)} to provider ${a.providerId} (${mode}). ` +
-      'Reopen the blotter to pick up the new feed.',
+      `Bound "${entry.displayName}"${describeFanOut(fan)} to provider ${a.providerId} (${mode}).` +
+      describeReload(reloaded),
   };
 }
 

@@ -6,8 +6,10 @@
 import { useState } from 'react';
 import { ChevronRight, Loader2, Check, X, Wrench } from 'lucide-react';
 import { cn } from '@wellsfargo-starui/react';
-import { DataResultCell } from './DataResultCell';
+import { AnalysisResultCard } from './AnalysisResultCard';
+import { FieldPickerCell } from './FieldPickerCell';
 import { DATA_CELL, type DataCellPayload } from '../dataTools';
+import { FIELD_CELL, type FieldCellPayload } from '../providerFieldTools';
 
 export type ToolCallStatus = 'running' | 'ok' | 'error';
 
@@ -40,14 +42,39 @@ function asDataCell(result: unknown): DataCellPayload | undefined {
     : undefined;
 }
 
-export function ToolCallCard({ activity }: { activity: ToolActivity }) {
+function asFieldCell(result: unknown): FieldCellPayload | undefined {
+  return typeof result === 'object' && result !== null && (result as { kind?: string }).kind === FIELD_CELL
+    ? (result as FieldCellPayload)
+    : undefined;
+}
+
+export interface ToolCallCardProps {
+  activity: ToolActivity;
+  /**
+   * Fires when a data-cell result's card is clicked. Bare — no id — on
+   * purpose: `activity.id` is the LLM backend's own tool-call id, which
+   * isn't guaranteed unique across turns for every OpenAI-compatible
+   * server, so this component must never be the one deciding what id to
+   * report. The caller (`ChatTranscript`, which has the transcript item's
+   * own always-unique id in scope) curries it in.
+   */
+  onOpenAnalysis?: () => void;
+}
+
+export function ToolCallCard({ activity, onOpenAnalysis }: ToolCallCardProps) {
   const [open, setOpen] = useState(false);
   const hasDetail = Object.keys(activity.args).length > 0 || activity.result !== undefined;
 
-  // An analysis result is the point of the turn, not a detail of it — it
-  // renders in full, without waiting for a click.
-  const dataCell = activity.status === 'ok' ? asDataCell(activity.result) : undefined;
-  if (dataCell) return <DataResultCell payload={dataCell} />;
+  // A field catalogue exists to be read — it renders in full, without
+  // waiting for a click. A data-cell result used to as well; now it leaves
+  // just a reference here and opens in the side panel instead (see
+  // AnalysisPanel.tsx).
+  if (activity.status === 'ok') {
+    const dataCell = asDataCell(activity.result);
+    if (dataCell) return <AnalysisResultCard payload={dataCell} onOpen={onOpenAnalysis} />;
+    const fieldCell = asFieldCell(activity.result);
+    if (fieldCell) return <FieldPickerCell payload={fieldCell} />;
+  }
 
   return (
     <div className="w-full rounded-lg border border-border/60 text-xs">

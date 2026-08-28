@@ -3,17 +3,21 @@
  * dev and end-to-end testing of MarketsGrid's real-time features.
  *
  * Routing:
- *   cfg.dataType = 'positions' → portfolio of ~50 positions drawn from
- *     the shared universe (see `mockUniverse.ts`). Each row has 250+
- *     fields including nested ratings, key-rate durations, exposure
- *     breakdowns, and call/sink schedules. Ticks walk pricing, yields,
- *     spreads, accrued interest, and P&L on a random subset per
- *     interval.
- *   cfg.dataType = 'trades'    → seeded trade book that grows + decays
- *     under a lifecycle state machine (New → Pending → Executed →
- *     Allocated → Confirmed → Settled, with occasional amendments and
- *     fails). Ticks either mint new trades or advance an existing
- *     trade's status. Trades link to positions by `cusip`.
+ *   cfg.dataType = 'positions' → portfolio of `rowCount` distinct
+ *     securities (default: the 50-archetype core) drawn from the shared
+ *     universe (see `mockUniverse.ts`), which grows on demand so 2 000
+ *     rows are 2 000 unique CUSIPs. Each row has 250+ fields including
+ *     nested ratings, key-rate durations, exposure breakdowns, and
+ *     call/sink schedules. Ticks walk pricing, yields, spreads, accrued
+ *     interest, and P&L on a random subset per interval.
+ *   cfg.dataType = 'trades'    → seeded trade book of `rowCount` unique
+ *     `tradeId`s (default 200) that grows + decays under a lifecycle
+ *     state machine (New → Pending → Executed → Allocated → Confirmed →
+ *     Settled, with occasional amendments and fails). Ticks either mint
+ *     new trades or advance an existing trade's status; the live book
+ *     is capped at `max(TRADE_BOOK_CAP, rowCount)`. Trades link to
+ *     positions by `cusip` and span ~one security per four trades, so
+ *     securities repeat the way a real blotter's do.
  *   cfg.dataType = 'orders' or 'custom' → falls back to the legacy
  *     simple row generator for back-compat with older configs.
  *
@@ -30,7 +34,7 @@
 
 import type { MockProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../Provider.js';
-import { getUniverse } from './mockUniverse.js';
+import { CORE_UNIVERSE_SIZE, getUniverse } from './mockUniverse.js';
 import { buildPosition, tickPosition, type PositionRow } from './mockPosition.js';
 import { buildTrade, tickTrade, pickTradingCusip, type TradeRow } from './mockTrade.js';
 
@@ -68,10 +72,13 @@ function startPositions(
   let ticker: unknown = null;
 
   const build = (): PositionRow[] => {
-    const universe = getUniverse();
-    const target = cfg.rowCount ?? universe.length;
+    const target = cfg.rowCount ?? CORE_UNIVERSE_SIZE;
+    // Grow the shared universe to the requested size so every row is a
+    // distinct security — and trades minted from now on draw from the
+    // same, larger set. Only past MAX_UNIVERSE_SIZE does the universe
+    // cycle, with a rotating account index keeping ids unique.
+    const universe = getUniverse(target);
     const rows: PositionRow[] = [];
-    // If rowCount > universe size, cycle universe entries with rotating account idx.
     for (let i = 0; i < target; i++) {
       const u = universe[i % universe.length];
       rows.push(buildPosition(u, Math.floor(i / universe.length)));
@@ -129,7 +136,21 @@ function startPositions(
 
 // ─── Trades ──────────────────────────────────────────────────────────
 
-const TRADE_BOOK_CAP = 1000;
+/**
+ * Live-book ceiling once minting outpaces settlement. A seed larger
+ * than this keeps its size — eviction never drops the book below
+ * `rowCount` — so a 5 000-row seed stays 5 000 unique trades.
+ */
+const TRADE_BOOK_CAP = 5000;
+
+/**
+ * Securities a trade book spans, as a divisor of its size. A blotter
+ * legitimately repeats CUSIPs — that is what a day's trading looks like
+ * — but a 5 000-row book across only the 50 archetypes groups into 50
+ * buckets of 100 and reads as synthetic. One security per four trades
+ * keeps the repetition while giving the book real breadth.
+ */
+const TRADES_PER_SECURITY = 4;
 
 function startTrades(
   cfgIn: MockProviderConfig,
@@ -139,11 +160,14 @@ function startTrades(
 ): ProviderHandle {
   let cfg = cfgIn;
   let book: TradeRow[] = [];
-  let bookByIdx = new Map<string, number>();
   let ticker: unknown = null;
 
   const build = (): TradeRow[] => {
     const target = cfg.rowCount ?? 200;
+    // Widen the shared universe so the book spans many securities. Growth
+    // is append-only, so this never disturbs a positions feed that already
+    // grew it further — the cusip join holds either way.
+    getUniverse(Math.ceil(target / TRADES_PER_SECURITY));
     const rows: TradeRow[] = [];
     for (let i = 0; i < target; i++) {
       const trade = buildTrade(pickTradingCusip());
@@ -157,11 +181,6 @@ function startTrades(
     return rows;
   };
 
-  const rebuildIndex = () => {
-    bookByIdx = new Map();
-    for (let i = 0; i < book.length; i++) bookByIdx.set(book[i].tradeId, i);
-  };
-
   const startTicker = () => {
     const updates = cfg.enableUpdates ?? true;
     const interval = cfg.updateIntervalMs ?? cfg.updateInterval ?? 750;
@@ -172,16 +191,12 @@ function startTrades(
       // 35% chance: mint a brand new trade
       if (Math.random() < 0.35 || book.length === 0) {
         const fresh = buildTrade(pickTradingCusip());
-        if (book.length >= TRADE_BOOK_CAP) {
-          // Drop a settled trade to make room; if none settled, drop oldest.
-          const dropIdx = book.findIndex((t) => t.tradeStatus === 'Settled') >= 0
-            ? book.findIndex((t) => t.tradeStatus === 'Settled')
-            : 0;
-          book.splice(dropIdx, 1);
-          rebuildIndex();
+        if (book.length >= Math.max(TRADE_BOOK_CAP, cfg.rowCount ?? 0)) {
+          // Drop a settled trade to make room; if none settled, drop the oldest.
+          const settledIdx = book.findIndex((t) => t.tradeStatus === 'Settled');
+          book.splice(settledIdx >= 0 ? settledIdx : 0, 1);
         }
         book.push(fresh);
-        bookByIdx.set(fresh.tradeId, book.length - 1);
         batch.push(fresh);
       }
 
@@ -204,7 +219,6 @@ function startTrades(
 
   const fireSnapshot = () => {
     book = build();
-    rebuildIndex();
     emit({ rows: book, replace: true });
     emit({ status: 'ready' });
     startTicker();

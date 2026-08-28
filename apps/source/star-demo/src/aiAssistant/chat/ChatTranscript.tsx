@@ -18,9 +18,16 @@ export interface ChatTranscriptProps {
   /** Opening suggestions; clicking one sends it. */
   starters?: readonly Starter[];
   onPickStarter?: (prompt: string) => void;
+  /**
+   * Fires with a transcript item's id when its data-cell result card is
+   * clicked. Curried down to `ToolCallCard` as a bare callback at the `.map`
+   * below, where `item.id` (always unique) is in scope — `ToolCallCard`
+   * itself never sees an id to get wrong.
+   */
+  onOpenAnalysis?: (id: string) => void;
 }
 
-export function ChatTranscript({ items, isBusy, error, starters, onPickStarter }: ChatTranscriptProps) {
+export function ChatTranscript({ items, isBusy, error, starters, onPickStarter, onOpenAnalysis }: ChatTranscriptProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
@@ -71,7 +78,7 @@ export function ChatTranscript({ items, isBusy, error, starters, onPickStarter }
                     type="button"
                     onClick={() => onPickStarter(s.prompt)}
                     title={s.prompt}
-                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-foreground/80 hover:bg-muted/50 hover:text-foreground transition-colors"
+                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted/50 hover:text-foreground hover:border-[color:var(--ds-chart-4)]"
                   >
                     {s.label}
                   </button>
@@ -82,7 +89,15 @@ export function ChatTranscript({ items, isBusy, error, starters, onPickStarter }
         )}
 
         {items.map((item) => {
-          if (item.kind === 'tool') return <ToolCallCard key={item.id} activity={item.activity} />;
+          if (item.kind === 'tool') {
+            return (
+              <ToolCallCard
+                key={item.id}
+                activity={item.activity}
+                onOpenAnalysis={onOpenAnalysis && (() => onOpenAnalysis(item.id))}
+              />
+            );
+          }
 
           if (item.kind === 'assistant') {
             // No bubble: the assistant's voice is the page, which reads calmer
@@ -124,7 +139,9 @@ export function ChatTranscript({ items, isBusy, error, starters, onPickStarter }
             that the streaming text itself is the progress signal. */}
         {isBusy && !lastIsAssistant && (
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            <Loader2 className="h-3 w-3 animate-spin" />
+            {/* Same violet accent as the header sparkle — the assistant is
+                doing something, echoed in the same brand colour. */}
+            <Loader2 className="h-3 w-3 animate-spin text-[color:var(--ds-chart-4)]" />
             <span className="opacity-80">Thinking…</span>
           </div>
         )}

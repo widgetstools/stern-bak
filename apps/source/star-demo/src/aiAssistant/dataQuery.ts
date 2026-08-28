@@ -37,8 +37,23 @@ export interface DataQuery {
   filter?: FilterClause[];
   groupBy?: string[];
   aggregate?: Aggregation[];
+  /**
+   * Column dimension — turns a grouped result into a pivot (cross-tab).
+   * `groupBy` is the row dimension, `pivotBy` the column dimension,
+   * `aggregate` the measures that fill the cells. Same three-role shape as
+   * the live grid's own `set_row_grouping` tool, so it reads the same way
+   * even though this is a different query engine entirely.
+   */
+  pivotBy?: string[];
   sortBy?: { column: string; direction?: 'asc' | 'desc' };
   limit?: number;
+}
+
+/** Which columns of a pivoted `QueryResult` are row labels vs. pivoted measures. */
+export interface PivotMeta {
+  rowDims: string[];
+  colDims: string[];
+  measures: string[];
 }
 
 export interface QueryResult {
@@ -51,12 +66,19 @@ export interface QueryResult {
   /** Rows the query started from. */
   scanned: number;
   truncated: boolean;
+  /** Set when `pivotBy` was used — tells the renderer which leading columns
+   *  are row labels (freeze them) rather than pivoted data. */
+  pivot?: PivotMeta;
 }
 
 export type QueryOutcome = { ok: true; value: QueryResult } | { ok: false; error: string };
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
+/** Flattened pivot columns (distinct pivotBy tuples × aggregates) allowed
+ *  before the table stops being readable — over this, reject rather than
+ *  silently build something nobody can use. */
+const MAX_PIVOT_COLUMNS = 30;
 
 function isBlank(v: unknown): boolean {
   return v === null || v === undefined || v === '';
@@ -123,6 +145,23 @@ export function validateQuery(query: DataQuery): string | null {
       return `Aggregate fn "${agg.fn}" is not one of: ${AGG_FNS.join(', ')}.`;
     }
   }
+  if (query.pivotBy?.length) {
+    // Checked BEFORE the generic "aggregate needs groupBy" rule below, so a
+    // pivotBy-without-groupBy call gets the more specific, actionable
+    // message rather than the generic one (both would technically be true).
+    // Mirrors the errors written for the live grid's own pivot mode
+    // (set_row_grouping) — same shape of mistake, same voice.
+    if (!query.groupBy?.length) {
+      return 'pivotBy needs groupBy — it is the row dimension a pivot rolls up into (rows from groupBy, columns from pivotBy). Pass both, or drop pivotBy for a plain grouped table.';
+    }
+    if (!query.aggregate?.length) {
+      return 'pivotBy needs aggregate — it is what fills the pivoted cells, e.g. [{ "column": "marketValue", "fn": "sum" }].';
+    }
+    const overlap = query.pivotBy.filter((c) => query.groupBy!.includes(c));
+    if (overlap.length) {
+      return `Column(s) in both groupBy and pivotBy: ${overlap.join(', ')}. A column can be the row dimension or the column dimension, not both.`;
+    }
+  }
   if (query.aggregate?.length && !query.groupBy?.length) {
     return 'aggregate needs groupBy — to total a column across every row without grouping, use summarize_grid_data.';
   }
@@ -185,6 +224,96 @@ function runGrouped(
   return { columns, rows: out };
 }
 
+/** Joins a row's values for the given columns into one bucket key — same
+ *  scheme `runGrouped` uses for its row dimension, reused here for both the
+ *  row AND column dimensions of a pivot. */
+function tupleKey(row: Record<string, unknown>, cols: readonly string[]): string {
+  return cols.map((c) => (isBlank(row[c]) ? '(blank)' : String(row[c]))).join(' › ');
+}
+
+type PivotOutcome =
+  | { ok: true; value: { columns: string[]; rows: Array<Record<string, unknown>>; pivot: PivotMeta } }
+  | { ok: false; error: string };
+
+/**
+ * Cross-tabs `rows` by `query.groupBy` (rows) × `query.pivotBy` (columns),
+ * filling cells with `query.aggregate`. Guardrails (column count, name
+ * collisions) run against the actual distinct values in the data, which
+ * `validateQuery` can't see — that's why they live here rather than there.
+ */
+function runPivot(rows: ReadonlyArray<Record<string, unknown>>, query: DataQuery): PivotOutcome {
+  const rowDims = query.groupBy!;
+  const colDims = query.pivotBy!;
+  const aggregates = query.aggregate!;
+  const measures = aggregates.map(aggName);
+
+  // Distinct pivotBy tuples actually present — the column dimension.
+  const pivotKeys = [...new Set(rows.map((r) => tupleKey(r, colDims)))].sort();
+  const flatColumnCount = pivotKeys.length * aggregates.length;
+  if (flatColumnCount > MAX_PIVOT_COLUMNS) {
+    return {
+      ok: false,
+      error:
+        `${colDims.join(', ')} has ${pivotKeys.length} distinct value(s), which would build ${flatColumnCount} ` +
+        `pivot column(s) — over the ${MAX_PIVOT_COLUMNS} limit. Narrow it with a filter first.`,
+    };
+  }
+
+  // One flattened column name per (pivot value × aggregate). Multiple
+  // aggregates need the measure in the label to stay distinct; a single
+  // aggregate keeps just the pivot value, which is what a reader expects a
+  // pivot's column header to be.
+  const flatName = (pivotValue: string, agg: Aggregation) =>
+    aggregates.length > 1 ? `${aggName(agg)} · ${pivotValue}` : pivotValue;
+  const flatColumns = pivotKeys.flatMap((pv) => aggregates.map((agg) => flatName(pv, agg)));
+  const dupes = [...new Set(flatColumns.filter((name, i) => flatColumns.indexOf(name) !== i))];
+  if (dupes.length > 0) {
+    return {
+      ok: false,
+      error:
+        `Pivoting by ${colDims.join(', ')} produced duplicate column name(s) (${dupes.join(', ')}) — two distinct ` +
+        'values format to the same label. Rename or drop one from pivotBy.',
+    };
+  }
+
+  const rowBuckets = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const key = tupleKey(row, rowDims);
+    const bucket = rowBuckets.get(key);
+    if (bucket) bucket.push(row);
+    else rowBuckets.set(key, [row]);
+  }
+
+  const out = [...rowBuckets.entries()].map(([key, bucketRows]) => {
+    const parts = key.split(' › ');
+    const record: Record<string, unknown> = {};
+    rowDims.forEach((col, i) => { record[col] = parts[i]; });
+
+    const cellBuckets = new Map<string, Record<string, unknown>[]>();
+    for (const row of bucketRows) {
+      const pk = tupleKey(row, colDims);
+      const bucket = cellBuckets.get(pk);
+      if (bucket) bucket.push(row);
+      else cellBuckets.set(pk, [row]);
+    }
+    for (const pv of pivotKeys) {
+      const cellRows = cellBuckets.get(pv);
+      for (const agg of aggregates) {
+        // No rows for this (row, column) combination — `null`, not a
+        // computed 0. A pivot is dense by construction (every row×column
+        // combo gets a cell), so most sparse fixed-income cross-tabs will
+        // have real gaps, and displaying "0" in every one would read as a
+        // measured zero rather than "no data here". `compact()` in the
+        // renderer already shows a null cell as "—".
+        record[flatName(pv, agg)] = cellRows ? applyAgg(cellRows, agg) : null;
+      }
+    }
+    return record;
+  });
+
+  return { ok: true, value: { columns: [...rowDims, ...flatColumns], rows: out, pivot: { rowDims, colDims, measures } } };
+}
+
 export function runQuery(rows: ReadonlyArray<Record<string, unknown>>, query: DataQuery): QueryOutcome {
   const invalid = validateQuery(query);
   if (invalid) return { ok: false, error: invalid };
@@ -193,6 +322,33 @@ export function runQuery(rows: ReadonlyArray<Record<string, unknown>>, query: Da
     (acc, clause) => acc.filter((row) => matches(row, clause)),
     rows,
   );
+
+  if (query.pivotBy?.length) {
+    const pivoted = runPivot(filtered, query);
+    if (!pivoted.ok) return pivoted;
+    const { columns, rows: pivotRows, pivot } = pivoted.value;
+
+    let result = pivotRows;
+    if (query.sortBy?.column && columns.includes(query.sortBy.column)) {
+      const { column, direction } = query.sortBy;
+      const dir = direction === 'asc' ? 1 : -1;
+      result = [...result].sort((a, b) => compare(a[column], b[column]) * dir);
+    }
+
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    return {
+      ok: true,
+      value: {
+        columns,
+        rows: result.slice(0, limit),
+        grouped: true,
+        matched: pivotRows.length,
+        scanned: rows.length,
+        truncated: pivotRows.length > limit,
+        pivot,
+      },
+    };
+  }
 
   const grouped = query.groupBy?.length ? runGrouped(filtered, query) : undefined;
   let columns = grouped?.columns ?? (query.columns?.length ? query.columns : inferProjection(filtered));

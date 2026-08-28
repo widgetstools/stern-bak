@@ -311,6 +311,13 @@ export interface MockProviderConfig {
   updateInterval?: number;
   /** Alias for `updateInterval` in ms — preserved for UI template compatibility. */
   updateIntervalMs?: number;
+  /**
+   * Snapshot size. `positions` draws that many *distinct* securities from
+   * the shared mock universe (50 archetypes, grown on demand with unique
+   * CUSIPs up to 20 000; beyond that it cycles with a rotating account
+   * index). `trades` seeds that many unique `tradeId`s (default 200); the
+   * live book is capped at `max(5000, rowCount)`.
+   */
   rowCount?: number;
   enableUpdates?: boolean;
   customData?: any[];

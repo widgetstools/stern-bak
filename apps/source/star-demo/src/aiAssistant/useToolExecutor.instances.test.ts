@@ -159,8 +159,12 @@ describe('dispatchTool with a pinned window', () => {
     expect(result.summary).toContain('that window only');
   });
 
-  /** Without a pin the old behaviour stands: template plus every instance. */
-  it('still fans out when no window is named', async () => {
+  /**
+   * Without a pin the request is about the COMPONENT, so it writes the template
+   * and leaves the running instance alone — the open window is not the thing
+   * being configured. Naming a window is what scopes a change to it.
+   */
+  it('writes the template, not the open instance, when no window is named', async () => {
     const { ctx, list, save, findByComponentType } = fakeCtx();
     list.mockResolvedValue([]);
     findByComponentType.mockResolvedValue([
@@ -171,7 +175,7 @@ describe('dispatchTool with a pinned window', () => {
       targetGridId: 'grid-test', moduleId: 'general-settings', settings: { rowHeight: 30 },
     });
 
-    expect(save.mock.calls.map((c) => (c[0] as { instanceId: string }).instanceId)).toEqual(['grid-test', INSTANCE]);
+    expect(save.mock.calls.map((c) => (c[0] as { instanceId: string }).instanceId)).toEqual(['grid-test']);
   });
 
   /** A locked panel is judged on the blotter an id belongs to, not the raw

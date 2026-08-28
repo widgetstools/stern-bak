@@ -64,7 +64,7 @@ export const COLUMN_TOOL_SCHEMAS: OpenAIToolSchema[] = [
     function: {
       name: 'set_column_layout',
       description:
-        'Move, hide, show, pin or resize columns. This is the tool for "reorder the columns", "hide the ISIN column", "move ticker first", "pin cusip to the left", "make notional wider". Order may be partial — the columns you name lead and the rest keep their current order. Get exact colIds from get_grid_columns first; unknown ids are rejected. NOTE: this is about individual columns. For nested header bands see column-groups, and for rolling rows up under a column use set_row_grouping.',
+        'Move, hide, show, pin or resize columns. This is the tool for "reorder the columns", "hide the ISIN column", "move ticker first", "put price right after ticker", "pin cusip to the left", "make notional wider". Name columns however the user did (id, header label, or a loose form) — like set_column_visibility, they are resolved for you, so you do NOT need get_grid_columns first UNLESS the request needs the CURRENT order to work out (see order below); an unresolvable name is rejected with the closest matches. NOTE: this is about individual columns. For nested header bands see column-groups, and for rolling rows up under a column use set_row_grouping.',
       parameters: {
         type: 'object',
         properties: {
@@ -73,7 +73,8 @@ export const COLUMN_TOOL_SCHEMAS: OpenAIToolSchema[] = [
           order: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Column ids in the order you want them, left to right. Partial lists are fine — named columns move to the front, everything else follows unchanged.',
+            description:
+              'Column ids/names in the order you want them, left to right. The list can be PARTIAL: named columns move to the front as a block, in the order given, and every other column keeps its current relative order after them — so order: ["ticker"] alone means "move ticker first", nothing else changes position. To place a column somewhere other than the very front (after/before/between specific columns, not just "first"), call get_grid_columns first to see the current order, then pass a prefix that is that current order with your target column moved to its new spot — e.g. current order [cusip, ticker, price, qty] and "put price right after ticker" becomes order: ["cusip", "ticker", "price"] (qty is untouched and stays after, since it was not named).',
           },
           hide: { type: 'array', items: { type: 'string' }, description: 'Column ids to hide.' },
           show: { type: 'array', items: { type: 'string' }, description: 'Column ids to un-hide.' },
@@ -92,7 +93,7 @@ export const COLUMN_TOOL_SCHEMAS: OpenAIToolSchema[] = [
     function: {
       name: 'set_row_grouping',
       description:
-        'Group ROWS under one or more columns — "group by sector", "break the blotter down by trader then desk", "roll up market value by currency". Pass several colIds for nested grouping, in order. Pass an empty array to flatten the grid again. Optionally aggregate numeric columns across each group. This is NOT the same as column groups, which band column HEADERS together and are configured on the column-groups module.',
+        'Build a grouped or PIVOT view. Row grouping — "group by sector", "break the blotter down by trader then desk". Pivot — "pivot market value by sector and currency", "cross-tab notional by desk against rating": pass groupBy (rows), pivotBy (columns) and aggregations (the numbers in the cells). Pass groupBy: [] to flatten back to a plain blotter. The grid HIDES the dimension columns and, by default, every non-numeric column while this view is on — see get_feature_guide("pivot"). This is NOT the same as column groups, which band column HEADERS together and are configured on the column-groups module.',
       parameters: {
         type: 'object',
         properties: {
@@ -101,11 +102,24 @@ export const COLUMN_TOOL_SCHEMAS: OpenAIToolSchema[] = [
           groupBy: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Column ids to group rows by, outermost first. Empty array clears grouping.',
+            description: 'ROW dimension: column ids to group rows by, outermost first. Empty array clears grouping and pivot. Required for a pivot too — the pivot needs something down the left-hand side.',
           },
           aggregations: {
             type: 'object',
-            description: 'Aggregation per column shown at group level, e.g. { "marketValue": "sum", "dv01": "sum" }. One of: sum, min, max, count, avg, first, last.',
+            description: 'Aggregation per column shown at group level, e.g. { "marketValue": "sum", "dv01": "sum" }. One of: sum, min, max, count, avg, first, last. These are the MEASURES: required for a pivot, since they are what fills the cells, and they stay visible even if the column is not declared numeric.',
+          },
+          pivotBy: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'COLUMN dimension: column ids whose distinct values become column headers, turning the grid into a cross-tab. Setting this turns pivot mode on. Use low-cardinality columns (currency, rating, sector) — pivoting on a high-cardinality one like cusip produces thousands of columns.',
+          },
+          pivotMode: {
+            type: 'boolean',
+            description: 'Explicit pivot-mode toggle. Defaults to true when pivotBy is non-empty, so you rarely pass it. Pass false to keep the pivot columns configured but show a plain grouped view.',
+          },
+          hideNonNumeric: {
+            type: 'boolean',
+            description: 'Defaults to TRUE: while grouped or pivoting, non-numeric columns are hidden because a group row can only show an aggregate. Pass false ONLY if the user explicitly wants text columns kept on a grouped grid.',
           },
         },
         required: ['targetGridId', 'groupBy'],

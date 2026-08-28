@@ -106,7 +106,13 @@ describe('resolveGridForInstance', () => {
  * reports success over rows nobody is looking at.
  */
 describe('resolveWriteTargets', () => {
-  it('includes the focused window even when discovery does not return it', async () => {
+  /**
+   * The dock-launched assistant configures the COMPONENT, so it writes the
+   * template and never a running instance — `other-instance` is deliberately
+   * absent even though discovery would return it. The focused window is the one
+   * exception, and only for a panel opened FROM a window.
+   */
+  it('writes the template and the focused window, never a discovered instance', async () => {
     const { configManager } = fakeManager({}, ['other-instance']);
 
     const targets = await resolveWriteTargets(configManager, AXE, 'dev1grid-axe-blotter-1780965483367');
@@ -114,9 +120,19 @@ describe('resolveWriteTargets', () => {
     expect(targets.map((t) => t.instanceId)).toEqual([
       'grid-axe-blotter',
       'dev1grid-axe-blotter-1780965483367',
-      'other-instance',
     ]);
     expect(targets[1].label).toContain('this window');
+  });
+
+  /** A dock-launched panel has no focus at all: template only. */
+  it('writes the template alone when no window is in play', async () => {
+    const { configManager } = fakeManager({}, ['inst-1', 'inst-2']);
+
+    const targets = await resolveWriteTargets(configManager, AXE, undefined);
+
+    expect(targets).toEqual([
+      { instanceId: 'grid-axe-blotter', isTemplate: true, label: 'Axe Blotter (template)' },
+    ]);
   });
 
   it('does not write the focused window twice when discovery also finds it', async () => {
@@ -153,6 +169,36 @@ describe('resolveWriteTargets', () => {
     expect(targets.map((t) => t.instanceId)).toContain('ambient-inst');
     // Restored afterwards so one call can't leak into the next.
     expect(currentFocusInstance()).toBeUndefined();
+  });
+
+  /**
+   * A singleton's window reuses the template id, so pinning it addresses the
+   * TEMPLATE row. Marking that write `isTemplate: false` would rewrite the
+   * template's own identity and strip its singleton flag — the row would stop
+   * describing itself as this component's template.
+   */
+  it('treats a pinned singleton as the template it actually is', async () => {
+    const { configManager } = fakeManager({}, []);
+
+    const targets = await withGridScope({ pinnedInstanceId: 'grid-test' }, async () =>
+      resolveWriteTargets(configManager, SINGLETON),
+    );
+
+    expect(targets).toEqual([
+      { instanceId: 'grid-test', isTemplate: true, label: 'TestGrid (template)' },
+    ]);
+  });
+
+  it('still treats a pinned window of a multi-instance blotter as an instance', async () => {
+    const { configManager } = fakeManager({}, []);
+
+    const targets = await withGridScope({ pinnedInstanceId: 'inst-7' }, async () =>
+      resolveWriteTargets(configManager, AXE),
+    );
+
+    expect(targets).toEqual([
+      { instanceId: 'inst-7', isTemplate: false, label: 'inst-7 (this window only)' },
+    ]);
   });
 });
 

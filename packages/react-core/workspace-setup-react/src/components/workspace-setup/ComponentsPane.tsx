@@ -21,7 +21,7 @@ import { useMemo, useState } from "react";
 import { Plus, PlayCircle, Copy, Trash2, Search, Box } from "lucide-react";
 import { Input } from "@wellsfargo-starui/react";
 import type { RegistryEntry } from "@wellsfargo-starui/openfin/config";
-import { iconIdToSvgUrl } from "../dock-editor/iconUtils";
+import { IconGlyph } from "../IconGlyph";
 import type { EditorSelection, ComponentFilter } from "./types";
 
 interface ComponentsPaneProps {
@@ -71,7 +71,10 @@ export function ComponentsPane({
   }), [entries, inDockEntryIds]);
 
   return (
-    <div className="flex flex-col h-full border-r border-[var(--ds-border-primary)]">
+    // `min-h-0`: as a grid item this defaults to `min-height: auto`, which
+    // refuses to shrink below its content — so the list below could never
+    // become the scroller.
+    <div className="flex flex-col h-full min-h-0 border-r border-[var(--ds-border-primary)]">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--ds-border-primary)]">
         <div className="flex flex-col">
@@ -186,16 +189,10 @@ export function ComponentsPane({
 // Visual preview of the registry entry's iconId. Falls back to a
 // generic Box glyph when no icon is set yet.
 function ComponentIcon({ iconId }: { iconId: string | undefined }) {
-  const url = iconId ? iconIdToSvgUrl(iconId, "currentColor") : "";
-  if (url) {
+  // Inline, not an <img> to the Iconify CDN — see IconGlyph for why.
+  if (iconId) {
     return (
-      <img
-        src={url}
-        alt=""
-        width={20}
-        height={20}
-        className="w-5 h-5 shrink-0 text-[var(--ds-text-secondary)]"
-      />
+      <IconGlyph iconId={iconId} size={20} className="w-5 h-5 shrink-0 text-[var(--ds-text-secondary)]" />
     );
   }
   return <Box className="w-5 h-5 shrink-0 text-muted-foreground" />;

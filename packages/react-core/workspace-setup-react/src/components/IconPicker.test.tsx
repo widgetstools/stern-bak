@@ -10,15 +10,14 @@ import { IconPicker } from './IconPicker.js';
  * wrong URL shows up as a broken glyph in the dock rather than as a visible
  * test failure.
  *
- * Two tests below pin behaviour that is wrong rather than intended — see the
- * "known-wrong" block and WORKLOG item 7.
+ * The grid is windowed, so an icon outside the visible rows is genuinely not
+ * in the DOM — reach one the way a user does, by searching for it first.
  */
 
 /**
- * Paste rather than type: the grid renders 245 buttons, so a per-character
- * `userEvent.type` re-renders all of them once per keystroke and pushes the
- * test past its timeout on a loaded machine. The filter is a pure function of
- * the final value, so a single change event exercises it exactly the same.
+ * Paste rather than type: a per-character `userEvent.type` fires one change
+ * per keystroke, which is slow on a loaded machine. The filter is a pure
+ * function of the final value, so a single change exercises it identically.
  */
 async function search(text: string) {
   await userEvent.click(screen.getByPlaceholderText('Search icons…'));
@@ -64,6 +63,7 @@ describe('IconPicker', () => {
     const onSelect = vi.fn();
     render(<IconPicker onSelect={onSelect} color="#ff0000" />);
 
+    await search('FileText');
     await userEvent.click(screen.getByRole('button', { name: 'FileText' }));
 
     expect(onSelect).toHaveBeenCalledWith(
@@ -76,6 +76,7 @@ describe('IconPicker', () => {
     const onSelect = vi.fn();
     render(<IconPicker onSelect={onSelect} />);
 
+    await search('FileText');
     await userEvent.click(screen.getByRole('button', { name: 'FileText' }));
 
     expect(onSelect.mock.calls[0][1]).toContain(encodeURIComponent('var(--ds-text-primary)'));
@@ -94,7 +95,7 @@ describe('IconPicker', () => {
 
     await search('zzzznotanicon');
 
-    expect(screen.getByText('No icons found')).toBeDefined();
+    expect(screen.getByText(/No icons match/)).toBeDefined();
   });
 
   it('treats a whitespace-only search as no search', async () => {
@@ -107,58 +108,62 @@ describe('IconPicker', () => {
     expect(screen.getAllByRole('button', { name: 'Bond' }).length).toBeGreaterThan(0);
   });
 
-  it('marks the currently selected icon', () => {
+  it('marks the currently selected icon', async () => {
     render(<IconPicker onSelect={vi.fn()} selectedIcon="lucide:file-text" />);
 
-    expect(screen.getByRole('button', { name: 'FileText' }).className).toContain('border-primary');
+    await search('FileText');
+    // aria-pressed rather than a class name: it is what a screen reader
+    // conveys, and it survives restyling.
+    expect(screen.getByRole('button', { name: 'FileText' }).getAttribute('aria-pressed')).toBe('true');
   });
 });
 
-describe('IconPicker — known-wrong behaviour, pinned (WORKLOG item 7)', () => {
-  /**
-   * `buildIconList` concatenates ICON_META (tagged source 'market') with
-   * ICON_OPTIONS (tagged source 'lucide' wholesale). But 80 of ICON_OPTIONS'
-   * 140 entries carry `mkt:*` ids, so every one of them is mis-tagged. The
-   * consequences are asserted below so a fix flips these tests rather than
-   * landing silently.
-   */
-
-  it('lists each market icon twice, with a duplicate React key', () => {
+/**
+ * WORKLOG item 7a, now fixed — these four were pinned as known-wrong and are
+ * flipped here, which is what that entry said a fix should do.
+ *
+ * `buildIconList` used to concatenate ICON_META (tagged `market`) with
+ * ICON_OPTIONS (tagged `lucide` **wholesale**), but 80 of ICON_OPTIONS' 140
+ * entries carry `mkt:*` ids, so 72 icons were listed twice and mis-tagged.
+ * `source` is now derived from the id's own prefix and the catalogue is keyed
+ * by id, so neither can recur.
+ */
+describe('IconPicker — catalogue integrity (WORKLOG item 7a)', () => {
+  it('lists each market icon exactly once', () => {
     render(<IconPicker onSelect={vi.fn()} />);
 
-    expect(screen.getAllByRole('button', { name: 'Bond' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Bond' })).toHaveLength(1);
   });
 
-  it('the duplicate emits an unreachable CDN URL for a market icon', async () => {
+  /** The duplicate used to take the lucide branch and emit
+   *  https://api.iconify.design/mkt/bond.svg, which does not exist — persisted
+   *  into a dock config, that is a permanently blank button. */
+  it('emits an inline data URL for a market icon, never a CDN path', async () => {
     const onSelect = vi.fn();
     render(<IconPicker onSelect={onSelect} />);
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Bond' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Bond' }));
 
-    // https://api.iconify.design/mkt/bond.svg does not exist — persisting it
-    // into a dock config yields a permanently blank button icon.
-    expect(onSelect.mock.calls[0][1]).toContain('api.iconify.design/mkt/bond.svg');
+    expect(onSelect.mock.calls[0][0]).toBe('mkt:bond');
+    expect(onSelect.mock.calls[0][1]).toMatch(/^data:/);
+    expect(onSelect.mock.calls[0][1]).not.toContain('api.iconify.design');
   });
 
-  it('leaves non-matching icons on screen after a search', async () => {
-    // The worst consequence of the duplicate ids: `key={icon.id}` is
-    // non-unique, so React cannot reconcile the filtered grid and keeps
-    // dozens of icons that no longer match. Searching "FileText" should
-    // leave one button; it leaves the whole duplicated market block too.
+  /** The user-visible one: duplicate keys stopped React reconciling the
+   *  filtered grid, so a search left ~72 non-matching icons on screen. */
+  it('removes non-matching icons on search', async () => {
     render(<IconPicker onSelect={vi.fn()} />);
 
     await search('FileText');
 
     expect(screen.getByRole('button', { name: 'FileText' })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Bond' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Bond' })).toBeNull();
   });
 
-  it('system-category icons stay selectable despite the explicit skip', () => {
-    // ICON_META.wrench is category 'system' and is filtered out of the market
-    // pass, but ICON_OPTIONS reintroduces `mkt:wrench` through the lucide pass.
+  it('keeps system-category icons out of the picker', () => {
     expect(ICON_META.wrench.category).toBe('system');
     render(<IconPicker onSelect={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: ICON_META.wrench.name })).toBeDefined();
+    expect(screen.queryByRole('button', { name: ICON_META.wrench.name })).toBeNull();
   });
 });

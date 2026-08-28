@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { Sparkles, Upload, SquarePen } from 'lucide-react';
+import { Sparkles, Upload, SquarePen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import {
   Button,
   Input,
@@ -8,12 +8,21 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
   cn,
 } from '@wellsfargo-starui/react';
+// Type-only: the design-system's `ResizablePanel` is a bare re-export of
+// `Panel` (see `packages/react-core/ui/src/components/resizable.tsx`) and
+// doesn't re-export its own imperative-handle type, so this reaches past the
+// wrapper for the type alone — erased at build time, no runtime dependency
+// beyond what `@wellsfargo-starui/react` already pulls in.
+import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { loadRegistryConfig } from '@wellsfargo-starui/openfin/config';
 import { checkHealth, fetchModels, pickDefaultModel } from './llmClient';
 import { usePlatformBootstrap } from '../platformBootstrap';
-import { resolveGridForInstance, resolveGridEntry } from './gridProfiles';
+import { resolveGridForInstance, resolveGridEntry, readActiveProfile } from './gridProfiles';
 import { useUndoStack } from './useUndoStack';
 import { sessionKey, saveSession, loadSession, clearSession } from './chat/sessionStore';
 import { startersFor } from './chat/starters';
@@ -22,7 +31,9 @@ import { buildSystemPrompt } from './systemPrompt';
 import { useToolExecutor } from './useToolExecutor';
 import { ChatTranscript } from './chat/ChatTranscript';
 import { Composer } from './chat/Composer';
-import { useChatSession } from './chat/useChatSession';
+import { useChatSession, type TranscriptItem } from './chat/useChatSession';
+import { AnalysisPanel, type AnalysisEntry } from './chat/AnalysisPanel';
+import { DATA_CELL, type DataCellPayload } from './dataTools';
 import { toAttachment, filesFromDataTransfer, AttachmentError, type Attachment } from './chat/attachments';
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:3000';
@@ -81,7 +92,9 @@ export interface AiAssistantPanelProps {
    */
   locked?: boolean;
   /** Fires once the instance id resolves, so the page header can show it too. */
-  onScopeResolved?: (scope: { gridId: string; displayName?: string } | null) => void;
+  onScopeResolved?: (
+    scope: { gridId: string; displayName?: string; instanceId?: string; profileId?: string; profileName?: string } | null,
+  ) => void;
 }
 
 export function AiAssistantPanel({
@@ -96,6 +109,11 @@ export function AiAssistantPanel({
   // briefly displaying an unverified id is how a wrong one gets trusted.
   const [resolvedGridId, setResolvedGridId] = useState<string | undefined>(locked ? undefined : scopedGridId);
   const [resolveFailed, setResolveFailed] = useState(false);
+  // The layout the scoped window is actually showing right now — a live
+  // readout, not something the conversation pins to (see readActiveProfile's
+  // header note: pinning it would reintroduce the "my change isn't showing
+  // up" confusion reload_grid/switch_profile exist to fix).
+  const [activeProfile, setActiveProfile] = useState<{ id: string; name: string } | undefined>(undefined);
   const [targetGridId, setTargetGridId] = useState<string>(scopedGridId ?? '');
   const [models, setModels] = useState<string[]>([]);
   const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
@@ -139,6 +157,21 @@ export function AiAssistantPanel({
     };
   }, [locked, scopedInstanceId, scopedGridId, platform]);
 
+  // The row a scoped session actually reads/writes now that dispatchTool pins
+  // an unpinned call to the focused window (see useToolExecutor.ts) — falls
+  // back to the resolved grid id only for a singleton, where that row IS the
+  // window.
+  const scopedRowId = scopedInstanceId ?? resolvedGridId;
+  const refreshActiveProfile = useCallback(() => {
+    if (!locked || !platform?.configManager || !scopedRowId) return;
+    void readActiveProfile(platform.configManager, scopedRowId).then((p) => {
+      setActiveProfile({ id: p.id, name: p.name });
+    });
+  }, [locked, platform, scopedRowId]);
+  useEffect(() => {
+    refreshActiveProfile();
+  }, [refreshActiveProfile]);
+
   const scopedGrid = useMemo(
     () => grids.find((g) => g.id === resolvedGridId),
     [grids, resolvedGridId],
@@ -149,8 +182,18 @@ export function AiAssistantPanel({
   reportScope.current = onScopeResolved;
   useEffect(() => {
     if (!locked) return;
-    reportScope.current?.(resolvedGridId ? { gridId: resolvedGridId, displayName: scopedLabel } : null);
-  }, [locked, resolvedGridId, scopedLabel]);
+    reportScope.current?.(
+      resolvedGridId
+        ? {
+            gridId: resolvedGridId,
+            displayName: scopedLabel,
+            instanceId: scopedInstanceId,
+            profileId: activeProfile?.id,
+            profileName: activeProfile?.name,
+          }
+        : null,
+    );
+  }, [locked, resolvedGridId, scopedLabel, scopedInstanceId, activeProfile]);
 
 
   const systemPrompt = useMemo(
@@ -160,8 +203,10 @@ export function AiAssistantPanel({
   const { executeTool } = useToolExecutor({
     defaultGridId: targetGridId || undefined,
     lockedGridId: locked ? resolvedGridId : undefined,
-    // The window the wand was clicked in — written to unconditionally, so the
-    // grid the user is actually looking at can never be the one that's missed.
+    // The window the wand was clicked in. dispatchTool (useToolExecutor.ts)
+    // pins any call that doesn't name its own instance to this one, so an
+    // ordinary unpinned call in this session reaches this window alone —
+    // never the template, never a sibling window.
     focusInstanceId: locked ? scopedInstanceId : undefined,
   });
   const undo = useUndoStack(platform?.configManager);
@@ -170,10 +215,19 @@ export function AiAssistantPanel({
   // this panel's conversation state, not platform state.
   const executeToolWithUndo = useCallback(
     async (name: ToolName, args: Record<string, unknown>) => {
-      if (name === 'undo_last_change') return undo.undoLast();
-      return executeTool(name, args);
+      if (name === 'undo_last_change') {
+        const result = await undo.undoLast();
+        refreshActiveProfile();
+        return result;
+      }
+      const result = await executeTool(name, args);
+      // Cheap re-read so the header's layout name stays honest after a write,
+      // a switch_profile, or a reload_grid — this is a live readout, never
+      // something the conversation pins to (see activeProfile's declaration).
+      refreshActiveProfile();
+      return result;
     },
-    [executeTool, undo],
+    [executeTool, undo, refreshActiveProfile],
   );
 
   const session = useChatSession({
@@ -187,6 +241,77 @@ export function AiAssistantPanel({
     onTurnEnd: undo.endTurn,
   });
   const { transcript, isBusy, error, send, stop, setError, noteContext, messages, reset } = session;
+
+  // ── Analysis side panel ──
+  // Entries are DERIVED from the transcript, not a second store — a data-cell
+  // result already lives there, persisted the same way, for free.
+  const analysisEntries = useMemo<AnalysisEntry[]>(
+    () =>
+      transcript
+        .filter(
+          (item): item is Extract<TranscriptItem, { kind: 'tool' }> =>
+            item.kind === 'tool' &&
+            typeof item.activity.result === 'object' &&
+            item.activity.result !== null &&
+            (item.activity.result as { kind?: string }).kind === DATA_CELL,
+        )
+        .map((item) => ({ id: item.id, payload: item.activity.result as DataCellPayload })),
+    [transcript],
+  );
+  const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
+  // Auto-follows the newest result. Flips false only when the user clicks an
+  // OLDER entry — clicking the current newest one (or a fresh result simply
+  // arriving) leaves it following. A ref, not state: flipping it must never
+  // itself trigger a render.
+  const followAnalysisRef = useRef(true);
+  useEffect(() => {
+    if (!followAnalysisRef.current) return;
+    const newest = analysisEntries.at(-1);
+    if (newest) setActiveAnalysisId(newest.id);
+  }, [analysisEntries]);
+  const handleSelectAnalysis = useCallback(
+    (id: string) => {
+      setActiveAnalysisId(id);
+      followAnalysisRef.current = id === analysisEntries.at(-1)?.id;
+    },
+    [analysisEntries],
+  );
+
+  const analysisPanelRef = useRef<PanelImperativeHandle>(null);
+  const [panelCollapsedPref, setPanelCollapsedPref] = useLocalStorageState('aiAssistant.panelCollapsed', '0');
+  const startedCollapsed = useRef(panelCollapsedPref === '1').current;
+  // Belt-and-braces: `defaultSize` alone should already leave the panel in the
+  // right collapsed/expanded state on first paint, but the imperative call
+  // guarantees the library's OWN `isCollapsed()` bookkeeping (what the toggle
+  // button and the resize handler below both read) agrees with it.
+  useEffect(() => {
+    if (startedCollapsed) analysisPanelRef.current?.collapse();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const toggleAnalysisPanel = useCallback(() => {
+    if (analysisPanelRef.current?.isCollapsed()) analysisPanelRef.current?.expand();
+    else analysisPanelRef.current?.collapse();
+  }, []);
+  // The library has no onCollapse/onExpand — onResize fires for every size
+  // change regardless of cause (this button, a handle drag past the
+  // collapsible threshold, or the auto-open below), so reading the panel's
+  // own `isCollapsed()` here is the one place the persisted preference is
+  // ever written, no matter which of those caused the change.
+  const handleAnalysisPanelResize = useCallback(() => {
+    setPanelCollapsedPref(analysisPanelRef.current?.isCollapsed() ? '1' : '0');
+  }, [setPanelCollapsedPref]);
+
+  // Auto-opens the FIRST time a result lands, once per mount, overriding
+  // whatever the persisted collapsed preference currently is — a result the
+  // user can't see behind a collapsed panel defeats the point of asking.
+  // After that first time it never forces the panel again; the user's own
+  // toggling (persisted above) decides from then on.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current || analysisEntries.length === 0) return;
+    autoOpenedRef.current = true;
+    analysisPanelRef.current?.expand();
+  }, [analysisEntries.length]);
 
   // ── Conversation persistence ──
   // Restored once on mount; saved whenever the transcript settles. Scoped
@@ -208,6 +333,12 @@ export function AiAssistantPanel({
   const handleNewChat = useCallback(() => {
     clearSession(storeKey);
     reset();
+    // A fresh conversation has no analysis of its own yet — don't leave the
+    // panel pointing at a result that just vanished, and let its first
+    // result auto-open the panel again same as a brand-new mount would.
+    setActiveAnalysisId(null);
+    followAnalysisRef.current = true;
+    autoOpenedRef.current = false;
   }, [storeKey, reset]);
 
   // Explain a failed scope to the model too, so it asks a good question instead
@@ -370,16 +501,28 @@ export function AiAssistantPanel({
           panel. Borderless controls, and connection state as a dot rather
           than a coloured badge. */}
       <div className={cn('flex items-center gap-1.5 flex-shrink-0 min-w-0', isDragging && 'opacity-50')}>
-        <Sparkles className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        {/* Violet, not muted-foreground — a small brand mark for the assistant.
+            Deliberately not `--primary`/`--accent`, which read as interactive
+            controls elsewhere in the panel; see chartSpec.ts for the same call. */}
+        <Sparkles className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--ds-chart-4)]" />
         {locked && resolvedGridId ? (
           // Scoped panels state their blotter instead of offering a choice —
           // the id is what the user needs to confirm they're in the right one.
+          // "this window" + the active layout make clear every unpinned tool
+          // call in this conversation targets this instance alone, not the
+          // blotter's template or any sibling window (see useToolExecutor.ts).
           <span
-            className="flex items-baseline gap-1.5 flex-shrink-0 max-w-[16rem] truncate"
-            title={`Scoped to ${scopedLabel ?? resolvedGridId} (${resolvedGridId})${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}`}
+            className="flex items-baseline gap-1.5 flex-shrink-0 max-w-[20rem] truncate"
+            title={`Scoped to ${scopedLabel ?? resolvedGridId} (${resolvedGridId})${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}${activeProfile ? ` · layout ${activeProfile.name}` : ''}`}
           >
             {scopedLabel && <span className="text-xs font-medium text-foreground truncate">{scopedLabel}</span>}
             <span className="font-mono text-[10px] text-muted-foreground truncate">{resolvedGridId}</span>
+            {scopedInstanceId && (
+              <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">· this window</span>
+            )}
+            {activeProfile && (
+              <span className="text-[10px] text-muted-foreground/70 truncate">· {activeProfile.name}</span>
+            )}
           </span>
         ) : locked && resolveFailed ? (
           // Better to say the window couldn't be identified than to scope to an
@@ -450,6 +593,16 @@ export function AiAssistantPanel({
             <SquarePen className="h-3.5 w-3.5" />
           </Button>
         )}
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={toggleAnalysisPanel}
+          aria-label={panelCollapsedPref === '1' ? 'Show analysis panel' : 'Hide analysis panel'}
+          title={panelCollapsedPref === '1' ? 'Show analysis panel' : 'Hide analysis panel'}
+          className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          {panelCollapsedPref === '1' ? <PanelRightOpen className="h-3.5 w-3.5" /> : <PanelRightClose className="h-3.5 w-3.5" />}
+        </Button>
         <span
           className="flex items-center gap-1.5 flex-shrink-0 pl-1 text-[10px] text-muted-foreground"
           title={connectionOk === null ? 'Checking the LLM server…' : connectionOk ? 'Connected' : 'Server unreachable'}
@@ -469,23 +622,45 @@ export function AiAssistantPanel({
         </span>
       </div>
 
-      <ChatTranscript
-        items={transcript}
-        isBusy={isBusy}
-        error={error}
-        starters={startersFor(Boolean(locked && resolvedGridId))}
-        onPickStarter={handleSend}
-      />
+      <ResizablePanelGroup orientation="horizontal" resizeTargetMinimumSize={{ coarse: 12, fine: 8 }} className="flex-1 min-h-0">
+        <ResizablePanel defaultSize="62" minSize={280}>
+          <div className="flex flex-col h-full min-h-0 gap-2 pr-2">
+            <ChatTranscript
+              items={transcript}
+              isBusy={isBusy}
+              error={error}
+              starters={startersFor(Boolean(locked && resolvedGridId))}
+              onPickStarter={handleSend}
+              onOpenAnalysis={handleSelectAnalysis}
+            />
 
-      <Composer
-        attachments={attachments}
-        onAddFiles={(files) => void addFiles(files)}
-        onRemoveAttachment={removeAttachment}
-        onSend={handleSend}
-        onStop={stop}
-        isBusy={isBusy}
-        history={history}
-      />
+            <Composer
+              attachments={attachments}
+              onAddFiles={(files) => void addFiles(files)}
+              onRemoveAttachment={removeAttachment}
+              onSend={handleSend}
+              onStop={stop}
+              isBusy={isBusy}
+              history={history}
+            />
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel
+          panelRef={analysisPanelRef}
+          defaultSize={startedCollapsed ? '0' : '38'}
+          minSize={320}
+          collapsible
+          collapsedSize={0}
+          onResize={handleAnalysisPanelResize}
+        >
+          <div className="h-full min-h-0 pl-2">
+            <AnalysisPanel entries={analysisEntries} activeId={activeAnalysisId} onSelect={handleSelectAnalysis} />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

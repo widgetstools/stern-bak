@@ -454,10 +454,31 @@ export function buildPaletteFromThemeScope(scope: HTMLElement): OpenFinPaletteSe
  * We flip `<html data-theme>` while reading so each palette is sampled under the
  * correct scheme (a child probe cannot override inherited dark vars on its own).
  */
+/**
+ * Cached successful resolution.
+ *
+ * Resolving is expensive — it flips `data-theme` on <html> twice and reads
+ * computed styles, so each call forces two full-document style recalculations
+ * and transiently restyles the whole page. The answer is also stable: the probe
+ * samples BOTH themes regardless of which one is active, so the result depends
+ * only on the design-system stylesheet, which does not change at runtime.
+ *
+ * Only successful resolutions are cached. A fallback means the stylesheet
+ * wasn't loaded yet; caching that would keep serving fallback colours forever
+ * once the real CSS arrived.
+ */
+let cachedPalettes: { dark: OpenFinPaletteSet; light: OpenFinPaletteSet } | null = null;
+
+/** Drops the cache. For tests, and for a runtime stylesheet swap. */
+export function resetOpenFinPaletteCache(): void {
+  cachedPalettes = null;
+}
+
 export function buildOpenFinPalettesFromDesignSystem(): {
   dark: OpenFinPaletteSet;
   light: OpenFinPaletteSet;
 } {
+  if (cachedPalettes) return cachedPalettes;
   if (typeof document === 'undefined' || !document.body) {
     return {
       dark: finalizeDarkChromePalette({ ...FALLBACK_OPENFIN_DARK_PALETTE }),
@@ -493,10 +514,11 @@ export function buildOpenFinPalettesFromDesignSystem(): {
       throw new Error('light and dark palettes resolved to identical backgrounds');
     }
 
-    return {
+    cachedPalettes = {
       dark: finalizeDarkChromePalette(dark),
       light: finalizeLightChromePalette(light),
     };
+    return cachedPalettes;
   } catch (err) {
     console.warn(
       '[openfin-platform] Failed to resolve palettes from design-system CSS; using fallbacks.',

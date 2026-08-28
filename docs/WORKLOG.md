@@ -156,7 +156,7 @@ definition was deleted still passes the check but is absent from the list. Both
 behaviours are pinned in `configManager.authTables.test.ts`; which one is
 correct is a product question.
 
-## 7. Three defects in `workspace-setup-react`, all pinned not fixed
+## 7. Three defects in `workspace-setup-react` — (a) fixed, (b) and (c) still pinned
 
 **Repo:** stern-bak · **Blocked on:** nothing; each is a small change with a
 caller audit attached
@@ -164,23 +164,32 @@ caller audit attached
 Surfaced writing the coverage-70 Session 2 tests. Each is asserted as-is in the
 suite with a comment, so a fix flips a test rather than landing silently.
 
-**a. `IconPicker` lists every market icon twice, and search is broken.**
-`buildIconList()` concatenates `ICON_META` (tagged `source: 'market'`) with
-`ICON_OPTIONS` (tagged `source: 'lucide'` wholesale) — but 80 of
-`ICON_OPTIONS`' 140 entries carry `mkt:*` ids, so 72 ids appear in both passes.
-Three consequences, all pinned in `IconPicker.test.tsx`:
+**a. ~~`IconPicker` lists every market icon twice, and search is broken.~~**
+**FIXED.** `buildIconList()` concatenated `ICON_META` (tagged `source: 'market'`)
+with `ICON_OPTIONS` (tagged `source: 'lucide'` wholesale) — but 80 of
+`ICON_OPTIONS`' 140 entries carry `mkt:*` ids, so 72 ids appeared in both
+passes, with three consequences:
 
-- `key={icon.id}` is non-unique, React logs *"Encountered two children with the
-  same key"*, and the filtered grid cannot reconcile — searching `FileText`
-  leaves ~72 non-matching icons on screen. This is the user-visible one.
-- The mis-tagged duplicate takes the lucide branch on click and emits
-  `https://api.iconify.design/mkt/bond.svg`, which does not exist. Persist that
-  into a dock config and the button renders blank.
-- The explicit `if (meta.category === "system") continue` skip is defeated:
-  `mkt:wrench` and friends come back through the `ICON_OPTIONS` pass.
+- `key={icon.id}` was non-unique, React logged *"Encountered two children with
+  the same key"*, and the filtered grid could not reconcile — searching
+  `FileText` left ~72 non-matching icons on screen.
+- The mis-tagged duplicate took the lucide branch on click and emitted
+  `https://api.iconify.design/mkt/bond.svg`, which does not exist. Persisted
+  into a dock config, the button rendered blank.
+- The `if (meta.category === "system") continue` skip was defeated:
+  `mkt:wrench` and friends came back through the `ICON_OPTIONS` pass.
 
-**Done looks like** deriving `source` from the id prefix rather than from which
-list an entry came out of, and de-duplicating by id before render.
+`source` is now derived from the id's own prefix and the catalogue is built into
+a `Map` keyed by id, so a second sighting is a no-op. The four pinned tests in
+`IconPicker.test.tsx` are flipped to assert the corrected behaviour, under
+`describe('IconPicker — catalogue integrity (WORKLOG item 7a)')`.
+
+Fixed alongside two related performance problems in the same screen, since they
+shared the symptom "the icon picker is slow and the icon I picked doesn't
+appear": the picker rendered the whole catalogue and re-derived every market
+icon's SVG markup on every render (now windowed, with markup cached), and every
+icon preview in the editor was an `<img>` to the Iconify CDN (now inline SVG via
+`IconGlyph`, so it paints immediately and works offline).
 
 **b. `useRegistryEditor.testComponent` never sends a `userId`.** The callback is
 `useCallback(..., [])` but reads `hostEnv.userId` from state that is populated

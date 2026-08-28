@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { sessionKey, toStorable, saveSession, loadSession, clearSession } from './sessionStore';
 import type { ChatMessage } from '../llmClient';
 import type { TranscriptItem } from './useChatSession';
+import { DATA_CELL, type DataCellPayload } from '../dataTools';
 
 const transcript: TranscriptItem[] = [{ kind: 'user', id: 'u1', text: 'hello', attachments: [] }];
 
@@ -55,6 +56,83 @@ describe('toStorable', () => {
     expect(stored.messages.length).toBeLessThan(messages.length);
     expect(stored.messages[0].content).toBe('SYSTEM PROMPT');
     expect(stored.messages.at(-1)?.content).toBe('m499');
+  });
+});
+
+/** A tool-call transcript item carrying a data-cell result, with `rows`
+ *  populated by default — the thing `trimOldAnalysisPayloads` targets. */
+function dataCellItem(id: string, over: Partial<DataCellPayload> = {}): TranscriptItem {
+  return {
+    kind: 'tool',
+    id,
+    activity: {
+      id: `call-${id}`, name: 'query_grid_data', args: {}, status: 'ok',
+      result: {
+        kind: DATA_CELL, gridName: 'TestGrid', source: 'live', provenance: 'live', rowCount: 3, ran: '3 rows',
+        table: { columns: ['a'], rows: [{ a: 1 }, { a: 2 }, { a: 3 }], matched: 3, scanned: 3, truncated: false, grouped: false },
+        ...over,
+      },
+    },
+  };
+}
+
+/** 34 cheap filler items — enough to push an item at index 0 outside the
+ *  most-recent-30 window `trimOldAnalysisPayloads` keeps at full fidelity. */
+function filler(count = 34): TranscriptItem[] {
+  return Array.from({ length: count }, (_, i) => ({ kind: 'assistant', id: `a${i}`, text: 'x' }));
+}
+
+describe('toStorable — trimming old analysis payloads', () => {
+  /** A result still visible in the panel right now has to survive a save —
+   *  the panel derives its entries straight from the persisted transcript. */
+  it('keeps a recent data-cell result at full fidelity', () => {
+    const stored = toStorable([], [dataCellItem('recent')]);
+    const item = stored.transcript[0] as Extract<TranscriptItem, { kind: 'tool' }>;
+    expect((item.activity.result as DataCellPayload).table?.rows).toHaveLength(3);
+  });
+
+  it('drops row data from an old data-cell result but keeps what ran', () => {
+    const stored = toStorable([], [dataCellItem('old'), ...filler()]);
+    const item = stored.transcript[0] as Extract<TranscriptItem, { kind: 'tool' }>;
+    const payload = item.activity.result as DataCellPayload;
+    expect(payload.table?.rows).toEqual([]);
+    // Enough survives to render "here's what ran" instead of nothing.
+    expect(payload.gridName).toBe('TestGrid');
+    expect(payload.ran).toBe('3 rows');
+    expect(payload.rowCount).toBe(3);
+    expect(payload.table?.columns).toEqual(['a']);
+    expect(payload.table?.matched).toBe(3);
+  });
+
+  it('keeps a pivot\'s row/column-dimension metadata even though its rows are dropped', () => {
+    const pivot = { rowDims: ['desk'], colDims: ['sector'], measures: ['sum_marketValue'] };
+    const old = dataCellItem('old-pivot', {
+      table: { columns: ['desk', 'Tech'], rows: [{ desk: 'Credit', Tech: 300 }], matched: 1, scanned: 1, truncated: false, grouped: true, pivot },
+    });
+    const stored = toStorable([], [old, ...filler()]);
+    const item = stored.transcript[0] as Extract<TranscriptItem, { kind: 'tool' }>;
+    const payload = item.activity.result as DataCellPayload;
+    expect(payload.table?.rows).toEqual([]);
+    expect(payload.table?.pivot).toEqual(pivot);
+  });
+
+  it('trims an old digest result\'s sample rows the same way', () => {
+    const old = dataCellItem('old-digest', {
+      table: undefined,
+      digest: { rowCount: 3, columns: [], highlights: [], sample: [{ a: 1 }, { a: 2 }] },
+    });
+    const stored = toStorable([], [old, ...filler()]);
+    const item = stored.transcript[0] as Extract<TranscriptItem, { kind: 'tool' }>;
+    expect((item.activity.result as DataCellPayload).digest?.sample).toEqual([]);
+  });
+
+  it('leaves non-data-cell tool results and non-tool items untouched regardless of position', () => {
+    const listResult: TranscriptItem = {
+      kind: 'tool', id: 'list',
+      activity: { id: 'c1', name: 'list_grids', args: {}, status: 'ok', result: [{ id: 'grid-test' }] },
+    };
+    const stored = toStorable([], [listResult, ...filler()]);
+    expect(stored.transcript[0]).toEqual(listResult);
   });
 });
 

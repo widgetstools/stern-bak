@@ -37,10 +37,17 @@ const DEFAULT_ICON_ID   = "lucide:file-text";
  * @param color  - Hex color for the icon stroke/fill (default: white)
  */
 export function iconIdToSvgUrl(iconId: string, color?: string): string {
-  const defaultDark = resolveThemedIconColors().dark;
-  const resolvedColor = color ?? defaultDark;
   const [prefix, name] = iconId.split(":");
   if (!prefix || !name) return "";
+
+  // Resolved LAZILY, and only when no colour was given. It used to be computed
+  // unconditionally at the top of this function — and every caller in the
+  // workspace-setup panes passes "currentColor", so the result was thrown away
+  // every time. That mattered because resolving it is not cheap: it flips
+  // `data-theme` on <html> twice and reads computed styles, forcing a
+  // full-document style recalculation per call. One icon per dock row, on every
+  // keystroke in the inspector, was enough to make typing visibly sluggish.
+  const resolvedColor = color ?? resolveThemedIconColors().dark;
 
   // Custom market icons — resolve from embedded SVG strings
   if (prefix === "mkt") {

@@ -313,11 +313,13 @@ describe('dispatchTool — columns', () => {
       fake.storeGet.mockResolvedValue({
         providerId: 'p1', name: 'feed', providerType: 'mock',
         config: {
+          // Declared types matter now: a grouped/pivot view keeps the numeric
+          // columns and hides the rest, so the fixture carries real ones.
           columnDefinitions: [
-            { field: 'ticker', headerName: 'Ticker' },
-            { field: 'isin', headerName: 'ISIN' },
-            { field: 'marketValue', headerName: 'Market Value' },
-            { field: 'issuerSector', headerName: 'Sector' },
+            { field: 'ticker', headerName: 'Ticker', cellDataType: 'text' },
+            { field: 'isin', headerName: 'ISIN', cellDataType: 'text' },
+            { field: 'marketValue', headerName: 'Market Value', cellDataType: 'number' },
+            { field: 'issuerSector', headerName: 'Sector', cellDataType: 'text' },
           ],
         },
       });
@@ -424,6 +426,169 @@ describe('dispatchTool — columns', () => {
       }).assignments;
       expect(assignments.isin.rowGrouping).toMatchObject({ rowGroup: false });
       expect(assignments.issuerSector.rowGrouping).toMatchObject({ rowGroup: true, rowGroupIndex: 0 });
+    });
+
+    /**
+     * The grouped view is a summary, so it shows a summary's columns. Both
+     * layers have to agree or a never-saved grid and a saved one disagree
+     * about what is on screen.
+     */
+    it('set_row_grouping hides the grouped column and the non-numeric ones, in both layers', async () => {
+      const fake = fakeCtx();
+      boundGrid(fake);
+      fake.list.mockResolvedValue([]);
+
+      const result = await dispatchTool('set_row_grouping', fake.ctx, {
+        targetGridId: 'grid-test',
+        groupBy: ['issuerSector'],
+        aggregations: { marketValue: 'sum' },
+      });
+
+      expect(result.ok).toBe(true);
+      const gridState = savedState(fake.save, 'grid-state') as unknown as {
+        saved: { gridState: { columnVisibility?: { hiddenColIds: string[] } }; assistantAutoHiddenColIds?: string[] };
+      };
+      const hidden = gridState.saved.gridState.columnVisibility?.hiddenColIds ?? [];
+      // The dimension column plus the text columns; the measure survives.
+      expect(hidden.sort()).toEqual(['isin', 'issuerSector', 'ticker']);
+      expect(hidden).not.toContain('marketValue');
+      expect(gridState.saved.assistantAutoHiddenColIds?.sort()).toEqual(['isin', 'issuerSector', 'ticker']);
+
+      const assignments = (savedState(fake.save, 'column-customization') as unknown as {
+        assignments: Record<string, { initialHide?: boolean }>;
+      }).assignments;
+      expect(assignments.issuerSector.initialHide).toBe(true);
+      expect(assignments.ticker.initialHide).toBe(true);
+      expect(assignments.marketValue.initialHide).toBeUndefined();
+    });
+
+    it('set_row_grouping keeps text columns when the caller opts out', async () => {
+      const fake = fakeCtx();
+      boundGrid(fake);
+      fake.list.mockResolvedValue([]);
+
+      await dispatchTool('set_row_grouping', fake.ctx, {
+        targetGridId: 'grid-test',
+        groupBy: ['issuerSector'],
+        hideNonNumeric: false,
+      });
+
+      const gridState = savedState(fake.save, 'grid-state') as unknown as {
+        saved: { gridState: { columnVisibility?: { hiddenColIds: string[] } } };
+      };
+      // Only the dimension column goes — that part is not a preference.
+      expect(gridState.saved.gridState.columnVisibility?.hiddenColIds).toEqual(['issuerSector']);
+    });
+
+    it('set_row_grouping pivots: rows, columns, measures, and pivot mode on general-settings', async () => {
+      const fake = fakeCtx();
+      boundGrid(fake);
+      fake.list.mockResolvedValue([]);
+
+      const result = await dispatchTool('set_row_grouping', fake.ctx, {
+        targetGridId: 'grid-test',
+        groupBy: ['issuerSector'],
+        pivotBy: ['ticker'],
+        aggregations: { marketValue: 'sum' },
+      });
+
+      expect(result.ok).toBe(true);
+      const gridState = savedState(fake.save, 'grid-state') as unknown as {
+        saved: { gridState: { pivot?: { pivotMode: boolean; pivotColIds: string[] } } };
+      };
+      expect(gridState.saved.gridState.pivot).toEqual({ pivotMode: true, pivotColIds: ['ticker'] });
+
+      const assignments = (savedState(fake.save, 'column-customization') as unknown as {
+        assignments: Record<string, { rowGrouping?: Record<string, unknown> }>;
+      }).assignments;
+      expect(assignments.issuerSector.rowGrouping).toMatchObject({ rowGroup: true, rowGroupIndex: 0 });
+      expect(assignments.ticker.rowGrouping).toMatchObject({ pivot: true, pivotIndex: 0 });
+
+      // The Settings drawer's toggle reads general-settings, not the snapshot —
+      // writing one alone leaves the panel claiming pivot is off.
+      const general = savedState(fake.save, 'general-settings') as unknown as { pivotMode?: boolean };
+      expect(general.pivotMode).toBe(true);
+    });
+
+    it('set_row_grouping refuses a pivot with no row dimension or no measure', async () => {
+      const fake = fakeCtx();
+      boundGrid(fake);
+      fake.list.mockResolvedValue([]);
+
+      const noRows = await dispatchTool('set_row_grouping', fake.ctx, {
+        targetGridId: 'grid-test', groupBy: [], pivotBy: ['ticker'], aggregations: { marketValue: 'sum' },
+      });
+      expect(noRows.ok).toBe(false);
+      expect(noRows.summary).toContain('row group');
+
+      const noMeasure = await dispatchTool('set_row_grouping', fake.ctx, {
+        targetGridId: 'grid-test', groupBy: ['issuerSector'], pivotBy: ['ticker'],
+      });
+      expect(noMeasure.ok).toBe(false);
+      expect(noMeasure.summary).toContain('measure');
+    });
+
+    it('flattening restores the columns the grouped view hid and clears pivot mode', async () => {
+      const fake = fakeCtx();
+      boundGrid(fake);
+      const profile = {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'grid-state': {
+            v: 1,
+            data: {
+              saved: {
+                schemaVersion: 3,
+                savedAt: '',
+                viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+                gridState: {
+                  rowGroup: { groupColIds: ['issuerSector'] },
+                  // `cusip` was hidden by the user, the rest by the grouping.
+                  columnVisibility: { hiddenColIds: ['issuerSector', 'ticker', 'isin', 'cusip'] },
+                },
+                assistantAutoHiddenColIds: ['issuerSector', 'ticker', 'isin'],
+              },
+            },
+          },
+        },
+      };
+      // This handler writes three modules in sequence and each write re-reads
+      // the profile, so the store has to remember the previous one — otherwise
+      // the last save replays a stale grid-state over the change under test.
+      fake.list.mockImplementation(async () => [profile]);
+      fake.save.mockImplementation(async (_target: unknown, snapshot: ProfileSnapshot) => {
+        profile.state = snapshot.state as typeof profile.state;
+      });
+
+      const result = await dispatchTool('set_row_grouping', fake.ctx, { targetGridId: 'grid-test', groupBy: [] });
+
+      expect(result.ok).toBe(true);
+      const gridState = savedState(fake.save, 'grid-state') as unknown as {
+        saved: { gridState: { columnVisibility?: { hiddenColIds: string[] }; pivot?: { pivotMode: boolean } } };
+      };
+      // Everything the view hid is back; the hand-hidden column stays hidden.
+      expect(gridState.saved.gridState.columnVisibility?.hiddenColIds).toEqual(['cusip']);
+      expect(gridState.saved.gridState.pivot?.pivotMode).toBe(false);
+
+      const assignments = (savedState(fake.save, 'column-customization') as unknown as {
+        assignments: Record<string, { initialHide?: boolean }>;
+      }).assignments;
+      expect(assignments.ticker.initialHide).toBe(false);
+      expect(assignments.issuerSector.initialHide).toBe(false);
+    });
+
+    /** A user who watches 250 columns become 3 with no explanation reads it as data loss. */
+    it('reports how many columns the grouped view hid', async () => {
+      const fake = fakeCtx();
+      boundGrid(fake);
+      fake.list.mockResolvedValue([]);
+
+      const result = await dispatchTool('set_row_grouping', fake.ctx, {
+        targetGridId: 'grid-test', groupBy: ['issuerSector'], aggregations: { marketValue: 'sum' },
+      });
+
+      expect(result.summary).toContain('3 column(s) are hidden');
+      expect(result.summary).toContain('brings them back');
     });
 
     /**

@@ -31,7 +31,7 @@ import type {
 } from "@wellsfargo-starui/openfin/config";
 import { ACTION_LAUNCH_COMPONENT } from "@wellsfargo-starui/openfin/config";
 import { Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/react";
-import { iconIdToSvgUrl } from "../dock-editor/iconUtils";
+import { IconGlyph } from "../IconGlyph";
 import type { EditorSelection } from "./types";
 
 // ─── Inline icon preview ─────────────────────────────────────────────
@@ -41,11 +41,20 @@ import type { EditorSelection } from "./types";
 // dropdowns or freshly-created action buttons before the user has
 // chosen an icon.
 
-function RowIcon({ iconId, isFolder }: { iconId: string | undefined; isFolder: boolean }) {
-  const url = iconId ? iconIdToSvgUrl(iconId, "currentColor") : "";
-  const size = 16;
-  if (url) {
-    return <img src={url} alt="" width={size} height={size} className="w-4 h-4 shrink-0 inline-flex items-center justify-center text-[var(--ds-text-secondary)]" />;
+function RowIcon({ iconId, isFolder, iconColor }: { iconId: string | undefined; isFolder: boolean; iconColor?: string }) {
+  // Inline SVG rather than an <img> to api.iconify.design: every row here is a
+  // separate network image otherwise, so the whole pane renders as blank or
+  // identical-looking placeholders until the CDN answers — and never resolves
+  // at all on a network that blocks it.
+  if (iconId) {
+    return (
+      <IconGlyph
+        iconId={iconId}
+        size={16}
+        color={iconColor || undefined}
+        className="w-4 h-4 shrink-0 text-[var(--ds-text-secondary)]"
+      />
+    );
   }
   return isFolder ? (
     <Folder className="w-4 h-4 shrink-0 text-[var(--ds-text-secondary)]" />
@@ -194,7 +203,7 @@ function DockButtonRow({
             textDecoration: broken ? "line-through" : "none",
           }}
         >
-          <RowIcon iconId={button.iconId} isFolder={isDropdown} />
+          <RowIcon iconId={button.iconId} isFolder={isDropdown} iconColor={button.iconColor} />
           <span className="font-medium flex-1 truncate">
             {isDropdown && <span className="text-muted-foreground">▾ </span>}
             {button.tooltip}
@@ -296,7 +305,7 @@ function DockMenuItemRow({
             textDecoration: broken ? "line-through" : "none",
           }}
         >
-          <RowIcon iconId={item.iconId} isFolder={isFolder} />
+          <RowIcon iconId={item.iconId} isFolder={isFolder} iconColor={item.iconColor} />
           <span className="flex-1 truncate">{item.tooltip}</span>
           {broken && (
             <span className="text-[10px] text-[var(--ds-accent-warning)]">

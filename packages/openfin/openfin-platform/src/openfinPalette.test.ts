@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import {
   rgbStringToHex,
   oklchComponentsToHex,
@@ -11,6 +11,7 @@ import {
   paletteContrastRatio,
   FALLBACK_OPENFIN_DARK_PALETTE,
   FALLBACK_OPENFIN_LIGHT_PALETTE,
+  resetOpenFinPaletteCache,
 } from './openfinPalette';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,10 @@ describe('applyDarkPaletteOverrides', () => {
 });
 
 describe('buildOpenFinPalettesFromDesignSystem', () => {
+  // Resolution is cached — it forces a full-document style recalculation, so
+  // it must not run per call — which means each test starts from a clean slate.
+  beforeEach(resetOpenFinPaletteCache);
+
   beforeAll(() => {
     const style = document.createElement('style');
     style.setAttribute('data-test-tokens', 'true');

@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { injectEditorStyles } from "@wellsfargo-starui/core";
+import { cn } from "@wellsfargo-starui/react";
 import { useRegistryEditor } from "./registry/useRegistryEditor";
 import {
   ACTION_LAUNCH_COMPONENT,
@@ -409,17 +410,22 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
     >
       {/* Fixed header — title + unsaved badge */}
       <header
-        className="flex items-center justify-between px-4 py-2 border-b shrink-0 border-[var(--ds-border-primary)] bg-background"
+        className="flex items-center justify-between gap-3 px-4 py-2.5 border-b shrink-0 border-[var(--ds-border-primary)] bg-[var(--ds-surface-secondary)]"
       >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">Workspace Setup</span>
-          <span className="text-[10px] text-muted-foreground">
-            {summary.totalComponents} component{summary.totalComponents === 1 ? "" : "s"} · {summary.dockButtons} dock button{summary.dockButtons === 1 ? "" : "s"}
+        <div className="flex items-baseline gap-3 min-w-0">
+          <h1 className="text-sm font-semibold tracking-tight text-[var(--ds-text-primary)]">
+            Workspace Setup
+          </h1>
+          <span className="text-[11px] text-muted-foreground truncate">
+            {summary.totalComponents} component{summary.totalComponents === 1 ? "" : "s"}
+            {" · "}
+            {summary.dockButtons} dock button{summary.dockButtons === 1 ? "" : "s"}
           </span>
         </div>
         {isDirty && (
-          <span className="text-[10px] flex items-center gap-1 text-[var(--ds-accent-warning)]">
-            <span>●</span> Unsaved changes
+          <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-[var(--ds-accent-warning)]/12 text-[var(--ds-accent-warning)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            Unsaved changes
           </span>
         )}
       </header>
@@ -427,7 +433,15 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       {/* Scrollable body — only the panes' inner content scrolls; the
           outer container has overflow-hidden so no scrollbar appears
           on the shell itself. */}
-      <main className="flex-1 grid grid-cols-[320px_1fr_360px] min-h-0 min-w-0 overflow-hidden">
+      {/* `grid-rows-[minmax(0,1fr)]` is load-bearing. With columns declared but
+          no row, the single implicit row is `auto` — it sizes to its tallest
+          pane and overflows `main`, which then clips it. Each pane's `h-full`
+          then resolved against that overflowing row, so its inner
+          `flex-1 overflow-auto` was never height-constrained and never
+          scrolled: long lists were simply cut off at the bottom edge.
+          `minmax(0,…)` rather than plain `1fr` because a grid track's implicit
+          minimum is `auto`, which refuses to shrink below content. */}
+      <main className="flex-1 grid grid-cols-[320px_1fr_360px] grid-rows-[minmax(0,1fr)] min-h-0 min-w-0 overflow-hidden">
         <ComponentsPane
           entries={registry.entries}
           inDockEntryIds={inDockEntryIds}
@@ -467,24 +481,44 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       {/* Fixed footer — Save / Discard. Anchored at the bottom so primary
           actions are reachable regardless of which pane is scrolled. */}
       <footer
-        className="flex items-center justify-end gap-2 px-4 py-2 border-t shrink-0 border-[var(--ds-border-primary)] bg-background"
+        className="flex items-center justify-between gap-3 px-4 py-2.5 border-t shrink-0 border-[var(--ds-border-primary)] bg-[var(--ds-surface-secondary)]"
       >
-        <button
-          type="button"
-          onClick={() => { void handleDiscard(); }}
-          disabled={!isDirty}
-          className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 bg-[var(--ds-surface-secondary)] text-[var(--ds-text-secondary)] border border-[var(--ds-border-primary)]"
-        >
-          Discard
-        </button>
-        <button
-          type="button"
-          onClick={() => { void handleSaveAll(); }}
-          disabled={!isDirty}
-          className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 bg-[var(--de-accent)] text-[var(--de-accent-foreground)]"
-        >
-          Save
-        </button>
+        {/* The footer is the only place that says whether there is anything to
+            save, so it carries the state rather than leaving the buttons to
+            imply it by being enabled. */}
+        <span className="text-[11px] text-muted-foreground">
+          {isDirty ? "You have unsaved changes." : "All changes saved."}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { void handleDiscard(); }}
+            disabled={!isDirty}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              "border border-[var(--ds-border-primary)] bg-[var(--ds-surface-primary)] text-[var(--ds-text-secondary)]",
+              "hover:bg-[var(--ds-surface-hover)] hover:text-[var(--ds-text-primary)]",
+              "disabled:opacity-40 disabled:pointer-events-none",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ds-state-focus-ring)]",
+            )}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            onClick={() => { void handleSaveAll(); }}
+            disabled={!isDirty}
+            className={cn(
+              "rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors",
+              "bg-[var(--de-accent)] text-[var(--de-accent-foreground)]",
+              "hover:brightness-110",
+              "disabled:opacity-40 disabled:pointer-events-none",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ds-state-focus-ring)]",
+            )}
+          >
+            Save
+          </button>
+        </div>
       </footer>
     </div>
   );

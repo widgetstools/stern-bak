@@ -6,9 +6,11 @@
  * a person actually reads: provenance, stat cards, a chart when the result is
  * grouped, and the table itself.
  *
- * Monochrome, like the rest of the panel — bars and text carry weight, not hue.
- * Colours come from design-system tokens via `chart-1`, so light and dark both
- * resolve from `[data-theme]`.
+ * Monochrome by default — bars and text carry weight, not hue. The one
+ * deliberate exception is `chart: 'heatmap'`: the table itself shades its
+ * numeric cells (see `heatmap.ts`), which is the whole point of asking for
+ * one. Every colour, chart or shading, comes from design-system tokens, so
+ * light and dark both resolve from `[data-theme]`.
  */
 import { useState } from 'react';
 import { cn } from '@wellsfargo-starui/react';
@@ -16,14 +18,8 @@ import { ChevronRight, Database, FlaskConical } from 'lucide-react';
 import type { DataCellPayload } from '../dataTools';
 import type { ColumnDigest, NumericStats } from '../dataDigest';
 import { buildChartSpec } from '../chartSpec';
-import { DataChart, compactNumber } from './DataChart';
-
-function compact(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'number') return compactNumber(value);
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  return String(value);
-}
+import { DataChart } from './DataChart';
+import { AnalysisTable, compact } from './AnalysisTable';
 
 /** Where the numbers came from. A generated sample must never read like live
  *  data — this is the visual half of that promise. */
@@ -79,47 +75,6 @@ function CategoryBars({ stat }: { stat: Extract<ColumnDigest, { kind: 'text' | '
   );
 }
 
-function ResultTable({ columns, rows }: { columns: string[]; rows: Array<Record<string, unknown>> }) {
-  if (rows.length === 0) return <div className="px-2.5 py-3 text-[11px] text-muted-foreground">No rows matched.</div>;
-  return (
-    // Wide results scroll inside the cell — the transcript itself must never
-    // scroll sideways, or `self-end` user bubbles get pushed off-screen.
-    <div className="overflow-x-auto">
-      <table className="w-full text-[10px] border-collapse">
-        <thead>
-          <tr className="border-b border-border/60">
-            {columns.map((col) => (
-              <th key={col} className="px-2 py-1 text-left font-mono font-normal text-muted-foreground whitespace-nowrap">
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/30 last:border-0 hover:bg-muted/30">
-              {columns.map((col) => {
-                const value = row[col];
-                return (
-                  <td
-                    key={col}
-                    className={cn(
-                      'px-2 py-1 whitespace-nowrap',
-                      typeof value === 'number' ? 'text-right font-mono tabular-nums' : 'text-foreground/90',
-                    )}
-                  >
-                    {compact(value)}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /**
  * What to draw, from whichever half of the payload carries a shape worth
  * charting. A grouped digest charts its buckets; a query result charts its own
@@ -153,7 +108,13 @@ export function DataResultCell({ payload }: { payload: DataCellPayload }) {
   const categories = (digest?.columns ?? []).filter(
     (c): c is Extract<ColumnDigest, { kind: 'text' | 'boolean' }> => c.kind === 'text' || c.kind === 'boolean',
   );
-  const chart = chartFor(payload);
+  // 'heatmap' is a table-shading MODE, not a chart — checked before calling
+  // into the chart pipeline at all, not after: `buildChartSpec` already bails
+  // to `undefined` for it, but that alone wouldn't turn shading ON, only
+  // prevent a broken chart. This is what actually wires the request to the
+  // table.
+  const isHeatmap = payload.chart === 'heatmap';
+  const chart = isHeatmap ? undefined : chartFor(payload);
 
   return (
     <div className="w-full rounded-lg border border-border/60 overflow-hidden">
@@ -195,7 +156,14 @@ export function DataResultCell({ payload }: { payload: DataCellPayload }) {
         </div>
       )}
 
-      {table && <ResultTable columns={table.columns} rows={table.rows} />}
+      {table && (
+        <AnalysisTable
+          columns={table.columns}
+          rows={table.rows}
+          stickyLeadingCols={table.pivot?.rowDims.length ?? 0}
+          heatmap={isHeatmap}
+        />
+      )}
       {table?.truncated && (
         <div className="px-2.5 py-1 text-[10px] text-muted-foreground border-t border-border/60">
           Showing {table.rows.length} of {table.matched} matching rows.
@@ -207,7 +175,7 @@ export function DataResultCell({ payload }: { payload: DataCellPayload }) {
           <summary className="cursor-pointer px-2.5 py-1 text-[10px] text-muted-foreground hover:bg-muted/30 select-none">
             sample rows ({digest.sample.length})
           </summary>
-          <ResultTable columns={Object.keys(digest.sample[0])} rows={digest.sample} />
+          <AnalysisTable columns={Object.keys(digest.sample[0])} rows={digest.sample} />
         </details>
       )}
 

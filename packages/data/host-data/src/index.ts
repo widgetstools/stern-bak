@@ -83,6 +83,15 @@ export {
   probeRest,
   probeMock,
   startMock,
+  // The described mock catalogue — datasets, grouped fields, and the curated
+  // default blotter layout. Inference says what fields exist; this says which
+  // ones matter and what a new blotter should open with.
+  MOCK_DATASETS,
+  mockDataset,
+  mockFieldGroups,
+  curatedColumns,
+  allCatalogColumns,
+  columnsForFields,
   createFiPositionsLargeConfig,
   createFiPositionsSmallConfig,
   inferFields,
@@ -91,6 +100,9 @@ export {
   type RestProbeResult,
   type InferOptions,
   type MockProviderOpts,
+  type MockDataType,
+  type MockFieldSpec,
+  type MockDatasetSpec,
   type FiPositionsConfigOverrides,
 } from './runtime/providers/index.js';
 

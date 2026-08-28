@@ -20,6 +20,30 @@ export interface CatalogColumn {
   colId: string;
   /** Effective label: a profile rename wins over the provider's headerName. */
   headerName?: string;
+  /**
+   * Declared cell type, when the provider or a calculated column states one.
+   * Providers use AG-Grid's names (`'text' | 'number' | 'boolean' | 'date' |
+   * 'dateString' | 'object'`); calculated columns add `'currency'` /
+   * `'percent'` / `'string'`. Undefined means "not declared", which is not the
+   * same as "not numeric" — see `isNumericColumn`.
+   */
+  cellDataType?: string;
+}
+
+/** Declared types that hold a number and can therefore be aggregated. */
+const NUMERIC_CELL_TYPES = new Set(['number', 'currency', 'percent']);
+
+/**
+ * Whether a column holds a measure.
+ *
+ * Only a DECLARED numeric type counts. An undeclared column is treated as
+ * non-numeric on purpose: the grouped/pivot views use this to decide what to
+ * hide, and hiding a column that turns out to be a measure is a visible,
+ * one-call fix, while leaving 200 text columns on a pivot is the mess this
+ * whole rule exists to prevent.
+ */
+export function isNumericColumn(column: CatalogColumn): boolean {
+  return column.cellDataType !== undefined && NUMERIC_CELL_TYPES.has(column.cellDataType);
 }
 
 /**
@@ -43,19 +67,21 @@ export async function readColumnCatalogue(
   if (providerId) {
     const provider = await configStore.get(providerId);
     const defs =
-      (provider?.config as { columnDefinitions?: Array<{ field?: string; headerName?: string }> } | undefined)
-        ?.columnDefinitions ?? [];
+      (provider?.config as
+        | { columnDefinitions?: Array<{ field?: string; headerName?: string; cellDataType?: string }> }
+        | undefined)?.columnDefinitions ?? [];
     for (const def of defs) {
-      if (def.field) byId.set(def.field, { colId: def.field, headerName: def.headerName });
+      if (def.field) byId.set(def.field, { colId: def.field, headerName: def.headerName, cellDataType: def.cellDataType });
     }
   }
 
   const profile = await readActiveProfile(configManager, gridScopeId(entry));
   const virtual =
-    (profile.state['calculated-columns']?.data as { virtualColumns?: Array<{ colId?: string; headerName?: string }> })
-      ?.virtualColumns ?? [];
+    (profile.state['calculated-columns']?.data as {
+      virtualColumns?: Array<{ colId?: string; headerName?: string; cellDataType?: string }>;
+    })?.virtualColumns ?? [];
   for (const col of virtual) {
-    if (col.colId) byId.set(col.colId, { colId: col.colId, headerName: col.headerName });
+    if (col.colId) byId.set(col.colId, { colId: col.colId, headerName: col.headerName, cellDataType: col.cellDataType });
   }
 
   const assignments =
@@ -64,8 +90,12 @@ export async function readColumnCatalogue(
   for (const [colId, assignment] of Object.entries(assignments)) {
     // A rename replaces the label the user sees, so it's the one to match on —
     // and it's added even for a column the provider doesn't list, since an
-    // assignment is evidence enough that the grid knows about it.
-    if (assignment?.headerName) byId.set(colId, { colId, headerName: assignment.headerName });
+    // assignment is evidence enough that the grid knows about it. The declared
+    // type is carried over rather than dropped: a rename must not turn a
+    // measure into an "untyped" column and get it hidden on the next pivot.
+    if (assignment?.headerName) {
+      byId.set(colId, { ...byId.get(colId), colId, headerName: assignment.headerName });
+    }
   }
 
   return [...byId.values()];

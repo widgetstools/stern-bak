@@ -123,6 +123,17 @@ describe('when there is nothing worth drawing', () => {
   it('honours an explicit "none"', () => {
     expect(grouped(SECTORS, ['sector', 'total'], 'none')).toBeUndefined();
   });
+
+  /**
+   * `'heatmap'` is a table-shading MODE, not a recharts kind. Without this
+   * bail, `resolveKind`'s unconditional passthrough for an explicit request
+   * would hand `DataChart` a `kind: 'heatmap'` its renderer has no branch
+   * for, and it would silently fall through to a nonsense bar chart instead
+   * of nothing being drawn.
+   */
+  it('honours an explicit "heatmap" — draws nothing, the caller renders a shaded table instead', () => {
+    expect(grouped(SECTORS, ['sector', 'total'], 'heatmap')).toBeUndefined();
+  });
 });
 
 describe('explicit overrides', () => {

@@ -13,7 +13,7 @@ import { COLUMN_TOOL_SCHEMAS } from './columnToolSchemas';
 import { TARGET_GRID_ID_PROPERTY, INSTANCE_ID_PROPERTY, type OpenAIToolSchema } from './toolSchemaShared';
 import { MODULE_COLLECTIONS } from './moduleCollections';
 import { FILTER_OPS, AGG_FNS } from './dataQuery';
-import { CHART_KINDS } from './chartSpec';
+import { CHART_KINDS, SUMMARY_CHART_KINDS } from './chartSpec';
 
 /** Modules that hold addressable items — the enum for the generic item tools. */
 const COLLECTION_MODULE_IDS = [...new Set(MODULE_COLLECTIONS.map((c) => c.moduleId))];
@@ -90,7 +90,7 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
     function: {
       name: 'open_blotter',
       description:
-        'Open a registered blotter on screen — the same thing clicking its dock button does. Use it when the user says "show me X", and after a change they will want to look at.',
+        'Open a registered blotter on screen — the same thing clicking its dock button does. Use it when the user says "show me X", and after a change they will want to look at. Safe to call repeatedly: a template-backed blotter has one window, so this focuses the one already open rather than spawning a copy. It does NOT reload — config changes are already live, and the two that need a reload do it themselves.',
       parameters: {
         type: 'object',
         properties: {
@@ -140,13 +140,17 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
     type: 'function',
     function: {
       name: 'create_blotter',
-      description: 'Create a new MarketsGrid blotter: registers it as a launchable component (hosted at the /#/blotters/marketsgrid route) and adds a dock button that opens it. Optionally binds a data provider so it shows data immediately.',
+      description: 'Create a new MarketsGrid blotter: registers it as a launchable, TEMPLATE-BACKED component (hosted at the /#/blotters/marketsgrid route) and files it under the "Assets" dropdown menu on the dock. Optionally binds a data provider so it shows data immediately. The component has one config row — its template — which the open window reads and writes, so later edits persist to the template, apply live, and re-opening focuses the existing window instead of making a copy.',
       parameters: {
         type: 'object',
         properties: {
           displayName: { type: 'string', description: 'Name shown on the dock button and as the blotter caption, e.g. "Credit Blotter".' },
           providerId: { type: 'string', description: 'Optional data-provider id to bind as the live feed — get one from list_data_providers, or create one first with create_data_provider.' },
-          addToDock: { type: 'boolean', description: 'Add a dock button for it. Defaults to true.' },
+          addToDock: { type: 'boolean', description: 'Put it on the dock. Defaults to true.' },
+          dockGroup: {
+            type: 'string',
+            description: 'Dock dropdown menu to file it under. Defaults to "Assets" — leave it unset unless the user names a different menu. The menu is created if it does not exist yet. Pass "" to give it its own top-level dock button instead.',
+          },
           asWindow: { type: 'boolean', description: 'true (default) opens it as its own OpenFin window; false docks it as a view in the workspace window.' },
           openNow: {
             type: 'boolean',
@@ -466,8 +470,77 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
   {
     type: 'function',
     function: {
+      name: 'list_mock_datasets',
+      description:
+        'List the datasets a mock provider can generate — positions, trades, and the two legacy shapes — with what each contains, its row identity, how many fields it has and how many are curated. Call this when the user wants a demo/test feed so you can offer the options rather than guessing.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_provider_fields',
+      description:
+        'Show the fields of a feed as a grouped picker — Identity, Pricing, Risk, Credit, P&L and so on — marking which are in the curated blotter set and which the provider currently shows. This is how you offer fields as choices instead of listing 256 names. Pass providerId for an existing provider, or dataType to browse the mock catalogue before creating one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          providerId: { type: 'string', description: 'An existing provider, from list_data_providers.' },
+          dataType: { type: 'string', enum: ['positions', 'trades', 'orders', 'custom'], description: 'Browse the mock catalogue without a provider.' },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'infer_provider_fields',
+      description:
+        'Probe a LIVE stomp or rest feed and see what fields it actually carries — the assistant\'s equivalent of the Data Provider Editor\'s "Probe → Fields" button, so a feed no longer has to be probed by hand before it can get columns. Opens a real connection and samples rows, so it can be slow or fail if the feed is unreachable; that failure is reported, not swallowed. Read-only — it shows a field picker (grouped like list_provider_fields, with a suggested subset starred) but saves nothing. Not applicable to mock (already has a curated catalogue — use list_provider_fields), appdata (not a row feed), or websocket/socketio (not supported yet).',
+      parameters: {
+        type: 'object',
+        properties: {
+          providerId: { type: 'string', description: 'An existing stomp or rest provider, from list_data_providers.' },
+          sampleSize: { type: 'number', description: 'Rows to sample before inferring. Defaults to 200.' },
+        },
+        required: ['providerId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_provider_columns',
+      description:
+        'Choose which fields a provider exposes as columns. `preset: "curated"` restores the default blotter layout, `preset: "all"` shows the whole catalogue, `fields` sets an exact list in order, and `add`/`remove` adjust the current set. Names come from list_provider_fields for a mock provider, or infer_provider_fields for a probed stomp/rest one — an unknown one is rejected rather than silently dropped. For stomp/rest this re-probes the live feed to resolve fields, so `preset: "curated"` here means the same shallow-fields-first suggestion infer_provider_fields shows, not a hand-picked catalogue. The keyColumn of the feed is kept even if you omit it, because the hub drops rows that cannot resolve it.',
+      parameters: {
+        type: 'object',
+        properties: {
+          providerId: { type: 'string' },
+          preset: { type: 'string', enum: ['curated', 'all'] },
+          fields: { type: 'array', items: { type: 'string' }, description: 'Exact set, in display order.' },
+          add: { type: 'array', items: { type: 'string' } },
+          remove: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['providerId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'create_data_provider',
-      description: 'Create a new data-provider configuration. `config` shape depends on `providerType` — see the system prompt for the exact fields of each provider type.',
+      description:
+        'Create a data-provider configuration. All four useful types are supported and each needs a different `config`:' + 
+        ' MOCK — { providerType: "mock", dataType: "positions" | "trades" | "orders" | "custom", rowCount?, updateIntervalMs? }.' + 
+        ' Generates realistic fixed-income data offline; the new provider is prepopulated with the curated blotter columns for that dataset, so it is usable immediately. Call list_mock_datasets first to show the options.' + 
+        ' STOMP — { providerType: "stomp", websocketUrl, listenerTopic, keyColumn, requestMessage?, snapshotEndToken?, dataType? }. Live streaming over websockets.' + 
+        ' REST — { providerType: "rest", baseUrl, endpoint, method: "GET" | "POST", keyColumn, pollInterval?, headers?, queryParams?, auth? }. Snapshot-only, no live tail.' + 
+        ' APPDATA — { providerType: "appdata" } plus its variables. Key/value app state, not a row feed.' + 
+        ' keyColumn is row identity and matters: the data hub keys its cache by it and silently drops rows that do not resolve one, which the user sees as an empty grid. STOMP and REST feeds save without columnDefinitions — call infer_provider_fields once the provider exists to probe it live, then set_provider_columns (preset: "curated" is a sensible default) to apply a column set.',
       parameters: {
         type: 'object',
         properties: {
@@ -594,9 +667,9 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
           groupBy: { type: 'string', description: 'Also break the summary down by this column, e.g. "sector" or "desk".' },
           chart: {
             type: 'string',
-            enum: [...CHART_KINDS],
+            enum: [...SUMMARY_CHART_KINDS],
             description:
-              'Chart to draw. Omit (or "auto") and the shape of the result decides — a few positive buckets get a pie, an ordered or dated key gets a line, many or long labels get horizontal bars, two numeric columns over raw rows get a scatter. Set it only when the user asks for one by name ("show that as a pie"), or "none" to suppress the chart.',
+              'Chart to draw. Omit (or "auto") and the shape of the result decides — a few positive buckets get a pie, an ordered or dated key gets a line, many or long labels get horizontal bars, two numeric columns over raw rows get a scatter. Set it only when the user asks for one by name ("show that as a pie"), or "none" to suppress the chart. No "heatmap" here — this tool\'s result has no 2D table to shade; use query_grid_data with pivotBy for that.',
           },
           allowSample: {
             type: 'boolean',
@@ -634,13 +707,19 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
           groupBy: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Roll rows up by these columns. Pair with `aggregate`; with no aggregate you get a row count per group.',
+            description: 'Roll rows up by these columns. Pair with `aggregate`; with no aggregate you get a row count per group. This is the ROW dimension of a pivot too — pair with pivotBy for a cross-tab.',
+          },
+          pivotBy: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'COLUMN dimension — turns the grouped table into a pivot (cross-tab). groupBy supplies the rows, pivotBy the columns, aggregate the measures that fill the cells; all three are required together. Use low-cardinality columns (currency, rating, sector) — pivoting on something like cusip is rejected once it would build more than 30 columns. Example: groupBy ["sector"], pivotBy ["currency"], aggregate [{ "column": "marketValue", "fn": "sum" }] reads "market value by sector, across currencies".',
           },
           aggregate: {
             type: 'array',
             description:
               'What to compute per group: { "column", "fn", "as"? }. Fns: ' + AGG_FNS.join(', ') +
-              '. Example: [{ "column": "marketValue", "fn": "sum" }, { "column": "cusip", "fn": "countDistinct", "as": "names" }]. Requires groupBy — for a grid-wide total use summarize_grid_data.',
+              '. Example: [{ "column": "marketValue", "fn": "sum" }, { "column": "cusip", "fn": "countDistinct", "as": "names" }]. Requires groupBy (and pivotBy, if set) — for a grid-wide total use summarize_grid_data.',
             items: { type: 'object' },
           },
           sortBy: {
@@ -652,7 +731,7 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
             type: 'string',
             enum: [...CHART_KINDS],
             description:
-              'Chart to draw. Omit (or "auto") and the shape of the result decides — a few positive buckets get a pie, an ordered or dated key gets a line, many or long labels get horizontal bars, two numeric columns over raw rows get a scatter. Set it only when the user asks for one by name ("show that as a pie"), or "none" to suppress the chart.',
+              'Chart to draw. Omit (or "auto") and the shape of the result decides — a few positive buckets get a pie, an ordered or dated key gets a line, many or long labels get horizontal bars, two numeric columns over raw rows get a scatter. Set it only when the user asks for one by name ("show that as a pie"), or "none" to suppress the chart. "heatmap" shades the table\'s numeric cells by magnitude instead of drawing a separate chart — good for a grouped or pivoted result the user wants to scan at a glance ("show that as a heatmap").',
           },
           allowSample: { type: 'boolean', description: 'See summarize_grid_data — generated rows, not the user\'s data.' },
         },
@@ -750,6 +829,20 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
         properties: { ...TARGET_GRID_ID_PROPERTY,
           ...INSTANCE_ID_PROPERTY, profileId: { type: 'string' } },
         required: ['targetGridId', 'profileId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reload_grid',
+      description:
+        'Force the blotter to reload its current profile from disk, right now — no profile switch needed. Most tool calls already show up live without this; call it only when the user reports a change is not showing, or explicitly asks you to refresh/reload the grid, instead of telling them to switch profiles away and back.',
+      parameters: {
+        type: 'object',
+        properties: { ...TARGET_GRID_ID_PROPERTY, ...INSTANCE_ID_PROPERTY },
+        required: ['targetGridId'],
         additionalProperties: false,
       },
     },

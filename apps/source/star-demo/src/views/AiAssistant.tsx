@@ -25,7 +25,9 @@ function AiAssistant() {
   const scopedGridName = params.get('name') ?? undefined;
   const locked = params.get('scope') === 'locked' && Boolean(scopedGridId || scopedInstanceId);
   // Reported by the panel once the instance id resolves to a registry entry.
-  const [scope, setScope] = useState<{ gridId: string; displayName?: string } | null>(null);
+  const [scope, setScope] = useState<
+    { gridId: string; displayName?: string; instanceId?: string; profileId?: string; profileName?: string } | null
+  >(null);
 
   // This route mounts outside StarGridApp/OpenFinRuntime — sync the dock theme
   // toggle directly so the panel flips with the rest of the platform.
@@ -69,9 +71,11 @@ function AiAssistant() {
           {locked && scope && (
             <span
               className="font-mono text-[10px] text-foreground/70"
-              title={`Scoped to ${scope.displayName ?? scope.gridId}${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}`}
+              title={`Scoped to ${scope.displayName ?? scope.gridId}${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}${scope.profileName ? ` · layout ${scope.profileName}` : ''}`}
             >
               {scope.gridId}
+              {scope.instanceId && ' · this window'}
+              {scope.profileName && ` · ${scope.profileName}`}
             </span>
           )}
           <span className="font-medium">AI Assistant</span>

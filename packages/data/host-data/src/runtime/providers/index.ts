@@ -49,6 +49,22 @@ export type { ProbeResult as RestProbeResult } from './transports/rest.js';
 
 export { probeMock, startMock, type MockProviderOpts } from './transports/mock.js';
 
+// The described catalogue — datasets, grouped fields, and the curated default
+// blotter layout. Inference tells you what fields exist; this tells you which
+// ones matter and what a blotter should open with.
+export {
+  MOCK_DATASETS,
+  mockDataset,
+  mockFieldGroups,
+  curatedColumns,
+  allCatalogColumns,
+  columnsForFields,
+  type MockDataType,
+  type MockFieldSpec,
+  type MockDatasetSpec,
+} from './transports/mockCatalog.js';
+
+
 export {
   createFiPositionsLargeConfig,
   createFiPositionsSmallConfig,

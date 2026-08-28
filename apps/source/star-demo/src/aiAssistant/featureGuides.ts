@@ -469,6 +469,87 @@ general-settings, smart-edit, bulk-update, plus-minus, shortcuts,
 data-change-history, visual-excel, toolbar-visibility, toolbar-date-settings
 and grid-state.`;
 
+const PIVOT = `## Pivot and grouped views
+
+A MarketsGrid pivot is one \`set_row_grouping\` call. There is no separate pivot
+tool and no pivot module to configure — the same call carries all three roles.
+
+### The three roles
+
+Every pivot answers "this measure, by this row dimension, across this column
+dimension". Name all three or the grid renders something empty:
+
+| Role | Argument | What it becomes | Good columns |
+|---|---|---|---|
+| Row dimension | \`groupBy\` | The rows down the left | sector, desk, trader, rating |
+| Column dimension | \`pivotBy\` | The column headers across the top | currency, rating, side — anything LOW-cardinality |
+| Measure | \`aggregations\` | The numbers in the cells | marketValue, dv01, notional |
+
+\`\`\`json
+{ "targetGridId": "grid-axe-blotter",
+  "groupBy": ["issuerSector"],
+  "pivotBy": ["currency"],
+  "aggregations": { "marketValue": "sum" } }
+\`\`\`
+
+That reads "market value by sector, across currencies" — sectors down the side,
+one column per currency, summed market value in each cell.
+
+Rules the tool enforces, so don't work around them:
+
+- **A pivot needs a row group.** \`pivotBy\` without \`groupBy\` is rejected: AG-Grid
+  pivots values *within* row groups, so with none you get a single total row.
+- **A pivot needs a measure.** \`pivotBy\` without \`aggregations\` is rejected — the
+  pivot columns would exist with nothing to put in them.
+- **A column can't be both dimensions.** The same colId in \`groupBy\` and
+  \`pivotBy\` is rejected.
+- **Cardinality matters.** Pivoting on \`cusip\` makes one column per bond.
+  Pivot on something with a handful of distinct values; if the user names a
+  high-cardinality column, say so and suggest the low-cardinality one.
+
+\`pivotMode\` defaults to true whenever \`pivotBy\` is non-empty, so you rarely pass
+it. Pass \`pivotMode: false\` to keep the pivot columns configured while showing a
+plain grouped view.
+
+### What disappears, and why — expect this, don't fight it
+
+Turning a grouped or pivot view on **hides columns**, automatically:
+
+1. **Every dimension column is hidden as an individual column.** A column being
+   grouped or pivoted already shows its value in the group column / pivot
+   headers, so leaving it in the body repeats that value on every row. Group by
+   \`issuerSector\` and the \`issuerSector\` column itself goes away — that is
+   correct, not a bug.
+2. **Every non-numeric column is hidden** while grouped or pivoting. A group row
+   is an aggregate; there is no sensible roll-up of \`cusip\` or \`issuerName\`
+   across 400 positions, so a blotter that keeps them shows a wall of blanks.
+   Anything in \`aggregations\` survives regardless of its declared type — asking
+   for the number is what makes it a measure.
+
+So a 250-column blotter grouped by sector comes back as: the group column, plus
+the measures. That is the point.
+
+**Clearing brings them back.** \`groupBy: []\` flattens the grid and restores
+exactly the columns this view hid — columns the user hid by hand stay hidden.
+
+**Overriding.** \`hideNonNumeric: false\` keeps text columns on a grouped grid.
+Only pass it when the user explicitly asks; the default is what makes the view
+readable. Individual columns can always be brought back afterwards with
+\`set_column_layout\`'s \`show\`.
+
+### Telling the user
+
+The response says how many columns were hidden. Pass that on — "grouped by
+sector, summing market value; the 240 non-numeric columns are hidden while
+grouped" — because a user who sees their blotter go from 250 columns to 3
+without explanation reads it as data loss.
+
+### Reading the current view
+
+\`list_grid_customizations\` and \`diagnose_grid\` report the active row grouping.
+If a user says "my columns vanished", check whether the grid is grouped before
+anything else — that is far and away the most likely cause.`;
+
 const GRID_LAYOUT = `## Column layout and row grouping
 
 Two tools, plus a third feature people confuse with them.
@@ -494,7 +575,7 @@ assignments (\`initialHide\`, \`initialPinned\`, \`initialWidth\`) apply. The to
 writes both so they can't disagree. Column ORDER is snapshot-only, since
 assignments have no ordering field.
 
-### set_row_grouping — rolling rows up
+### set_row_grouping — rolling rows up, and pivoting
 
 \`\`\`json
 { "targetGridId": "grid-axe-blotter",
@@ -505,6 +586,11 @@ assignments have no ordering field.
 Order is outermost-first, so this groups by sector, then currency inside it.
 \`groupBy: []\` flattens the grid and clears the aggregates. Aggregations are
 the named AG-Grid functions: sum, min, max, count, avg, first, last.
+
+Add \`pivotBy\` to the same call to turn it into a cross-tab. **A grouped or
+pivoted grid hides its dimension columns and every non-numeric column** — that
+is deliberate and it is the part users ask about, so read
+get_feature_guide("pivot") before your first grouping call on a grid.
 
 ### Column groups are a different feature
 
@@ -603,6 +689,12 @@ export const FEATURE_GUIDES: ReadonlyArray<FeatureGuide> = [
     title: 'Editing toolbar — smart edit, bulk update, history, nudges, shortcuts',
     summary: 'The five modules behind the editing toolbar and what each setting controls.',
     detail: EDITING_GUIDE,
+  },
+  {
+    id: 'pivot',
+    title: 'Pivot and grouped views — the three roles, and what gets hidden',
+    summary: 'Building a cross-tab with groupBy / pivotBy / aggregations, and why a grouped grid hides its dimension and non-numeric columns.',
+    detail: PIVOT,
   },
   {
     id: 'grid-state',

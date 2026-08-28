@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import { listProfiles, createProfile, updateProfile, deleteProfile, switchProfile } from './profileTools';
+import { listProfiles, createProfile, updateProfile, deleteProfile, switchProfile, reloadGrid } from './profileTools';
 
 const GRID_ENTRY = {
   id: 'grid-test', configId: 'grid-test', componentType: 'grid', componentSubType: 'test',
@@ -29,7 +29,7 @@ function fakeManager(profiles: Array<Record<string, unknown>> = [], instances: s
     profiles: { list, save, delete: del, loadGridLevelData, saveGridLevelData },
     findByComponentType,
   } as unknown as ConfigManager;
-  return { configManager, list, save, del, saveGridLevelData };
+  return { configManager, list, save, del, loadGridLevelData, saveGridLevelData };
 }
 
 beforeEach(() => {
@@ -60,15 +60,16 @@ describe('createProfile', () => {
     expect(snapshot.state).toEqual({});
   });
 
-  /** A profile on the template only would be missing from an open window. */
-  it('writes the profile to the template and every open instance', async () => {
+  /** A profile is part of the component's definition, so it lands on the
+   *  template — not sprayed across whichever windows happen to be open. */
+  it('writes the profile to the template', async () => {
     const { configManager, save } = fakeManager([{ id: '__default__', name: 'Default' }], ['inst-1', 'inst-2']);
 
     const result = await createProfile(configManager, { targetGridId: 'grid-test', name: 'Trading view' });
 
     expect(result.ok).toBe(true);
     const written = save.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId);
-    expect(written).toEqual(['grid-test', 'inst-1', 'inst-2']);
+    expect(written).toEqual(['grid-test']);
   });
 
   it('refuses a duplicate name rather than creating a confusing twin', async () => {
@@ -125,7 +126,7 @@ describe('deleteProfile', () => {
     expect(del).not.toHaveBeenCalled();
   });
 
-  it('requires confirmation, then deletes from every target', async () => {
+  it('requires confirmation, then deletes from the template', async () => {
     const { configManager, del } = fakeManager([{ id: 'p1', name: 'Trading view' }], ['inst-1']);
 
     const unconfirmed = await deleteProfile(configManager, { targetGridId: 'grid-test', profileId: 'p1' });
@@ -135,7 +136,7 @@ describe('deleteProfile', () => {
 
     const confirmed = await deleteProfile(configManager, { targetGridId: 'grid-test', profileId: 'p1', confirm: true });
     expect(confirmed.ok).toBe(true);
-    expect(del.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId)).toEqual(['grid-test', 'inst-1']);
+    expect(del.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId)).toEqual(['grid-test']);
   });
 });
 
@@ -158,6 +159,55 @@ describe('switchProfile', () => {
     const result = await switchProfile(configManager, { targetGridId: 'grid-test', profileId: 'nope' });
     expect(result.ok).toBe(false);
     expect(saveGridLevelData).not.toHaveBeenCalled();
+  });
+});
+
+describe('reloadGrid', () => {
+  /**
+   * The whole point: it requests a "switch" to whatever profile the window is
+   * ALREADY showing, which forces `ProfileManager.load()` to re-read from
+   * storage (it doesn't skip on an unchanged id) — a real reload, not a no-op.
+   */
+  it('requests the window\'s own active profile, not the default, when one is set', async () => {
+    const { configManager, saveGridLevelData, loadGridLevelData } = fakeManager([{ id: 'L1', name: 'Trading view' }]);
+    loadGridLevelData.mockResolvedValue({ activeProfileId: 'L1' });
+
+    const result = await reloadGrid(configManager, { targetGridId: 'grid-test' });
+
+    expect(result.ok).toBe(true);
+    const [, data] = saveGridLevelData.mock.calls[0] as [unknown, { requestedActiveProfileId: string; requestedActiveProfileAt: number }];
+    expect(data.requestedActiveProfileId).toBe('L1');
+    expect(data.requestedActiveProfileAt).toBeGreaterThan(0);
+  });
+
+  /** No published active profile yet — falls back to the platform default,
+   *  same as every other reader of `activeProfileId`. */
+  it('falls back to the default profile when none is published', async () => {
+    const { configManager, saveGridLevelData } = fakeManager([{ id: '__default__', name: 'Default' }]);
+
+    const result = await reloadGrid(configManager, { targetGridId: 'grid-test' });
+
+    expect(result.ok).toBe(true);
+    const [, data] = saveGridLevelData.mock.calls[0] as [unknown, { requestedActiveProfileId: string }];
+    expect(data.requestedActiveProfileId).toBe('__default__');
+  });
+
+  it('reports an unknown grid rather than writing anything', async () => {
+    mockLoadRegistryConfig.mockResolvedValue({ version: 2, entries: [] });
+    const { configManager, saveGridLevelData } = fakeManager();
+
+    const result = await reloadGrid(configManager, { targetGridId: 'ghost-grid' });
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('list_grids');
+    expect(saveGridLevelData).not.toHaveBeenCalled();
+  });
+
+  it('requires targetGridId', async () => {
+    const { configManager } = fakeManager();
+    const result = await reloadGrid(configManager, {});
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('targetGridId');
   });
 });
 

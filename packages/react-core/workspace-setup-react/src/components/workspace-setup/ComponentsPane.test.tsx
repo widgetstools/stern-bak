@@ -187,11 +187,14 @@ describe('ComponentsPane', () => {
   });
 
   it('renders the entry icon when one is set, and a placeholder when not', () => {
-    const { unmount } = renderPane({ entries: [entry({ iconId: 'mkt:bond' })] });
-    expect(screen.getByRole('presentation')).toBeDefined();
+    // Icons render as inline SVG, not <img> — a lucide iconId would otherwise
+    // resolve to an api.iconify.design URL and stay blank offline.
+    const { container, unmount } = renderPane({ entries: [entry({ iconId: 'mkt:bond' })] });
+    expect(container.querySelector('[data-icon-id="mkt:bond"]')).not.toBeNull();
+    expect(container.querySelector('img')).toBeNull();
     unmount();
 
-    renderPane({ entries: [entry({ iconId: '' })] });
-    expect(screen.queryByRole('presentation')).toBeNull();
+    const second = renderPane({ entries: [entry({ iconId: '' })] });
+    expect(second.container.querySelector('[data-icon-id]')).toBeNull();
   });
 });

@@ -1,5 +1,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { addRegistryEntry, addDockButton, registryEntryExists, buildRegistryEntry } from './registryOps';
+import {
+  addRegistryEntry,
+  addDockButton,
+  registryEntryExists,
+  buildRegistryEntry,
+  removeDockButtons,
+  renameDockButtons,
+  BLOTTER_DOCK_GROUP,
+} from './registryOps';
 import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 
 const mockLoadRegistryConfig = vi.fn();
@@ -154,5 +162,213 @@ describe('addDockButton', () => {
 
     expect(mockSaveDockConfig).not.toHaveBeenCalled();
     expect(mockPublish).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Two near-simultaneous self-heal calls (e.g. two windows booting at once)
+   * can each read the dock before either's write lands, each conclude "not
+   * present yet", and each append their own button — since a placement's `id`
+   * is a fresh UUID per call, `dockTargets`'s existence check doesn't catch
+   * that at add-time. This is the case actually reported: two identical
+   * AI Assistant buttons sitting side by side on the dock. Every future call
+   * collapses that back down to one rather than leaving it duplicated forever.
+   */
+  it('collapses pre-existing duplicates down to one instead of leaving them', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [
+        { type: 'ActionButton', id: 'first', tooltip: 'AI Assistant', iconUrl: '', actionId: 'launch-component', customData: { registryEntryId: 'ai-assistant' } },
+        { type: 'ActionButton', id: 'other', tooltip: 'Credit', iconUrl: '', actionId: 'launch-component', customData: { registryEntryId: 'grid-credit' } },
+        { type: 'ActionButton', id: 'second', tooltip: 'AI Assistant', iconUrl: '', actionId: 'launch-component', customData: { registryEntryId: 'ai-assistant' } },
+      ],
+    });
+
+    await expect(addDockButton({ registryEntryId: 'ai-assistant', tooltip: 'AI Assistant' })).resolves.toBe(true);
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<{ id: string; customData?: { registryEntryId?: string } } > };
+    const aiAssistantButtons = saved.buttons.filter((b) => b.customData?.registryEntryId === 'ai-assistant');
+    expect(aiAssistantButtons).toHaveLength(1);
+    expect(aiAssistantButtons[0].id).toBe('first');
+    // The unrelated button is untouched.
+    expect(saved.buttons.some((b) => b.id === 'other')).toBe(true);
+    expect(mockPublish).toHaveBeenCalledWith('dock-config-update', saved);
+  });
+
+  it('leaves a single existing target alone — no spurious save', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [{ type: 'ActionButton', id: 'only', tooltip: 'AI Assistant', iconUrl: '', actionId: 'launch-component', customData: { registryEntryId: 'ai-assistant' } }],
+    });
+
+    await addDockButton({ registryEntryId: 'ai-assistant', tooltip: 'AI Assistant' });
+
+    expect(mockSaveDockConfig).not.toHaveBeenCalled();
+    expect(mockPublish).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Blotters are filed under a dock dropdown rather than each taking a top-level
+ * slot. That makes the menu — not just the dock bar — part of every dock
+ * operation: an entry already in a menu must not also gain a button, and
+ * delete/rename have to reach into menus or they leave dead items behind.
+ */
+describe('addDockButton — grouped under a dropdown', () => {
+  const launchItem = (registryEntryId: string, tooltip: string, id = 'item-1') => ({
+    id,
+    tooltip,
+    iconId: '',
+    actionId: 'launch-component',
+    customData: { registryEntryId, asWindow: true },
+  });
+
+  it('files the entry under an existing dropdown instead of adding a top-level button', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [
+        { type: 'ActionButton', id: 'other', tooltip: 'Other', iconUrl: '', actionId: 'x' },
+        { type: 'DropdownButton', id: 'dd-assets', tooltip: 'Assets', iconUrl: '', options: [launchItem('grid-rates', 'Rates')] },
+      ],
+    });
+
+    await expect(
+      addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit', group: 'Assets', asWindow: true }),
+    ).resolves.toBe(true);
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<Record<string, any>> };
+    // No new top-level button — the dock bar keeps exactly what it had.
+    expect(saved.buttons).toHaveLength(2);
+    const assets = saved.buttons.find((b) => b.tooltip === 'Assets')!;
+    expect(assets.options).toHaveLength(2);
+    expect(assets.options[1]).toMatchObject({
+      tooltip: 'Credit',
+      actionId: 'launch-component',
+      customData: { registryEntryId: 'grid-credit', asWindow: true },
+    });
+  });
+
+  it('matches the dropdown by label the way a user reads it, not byte-for-byte', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [{ type: 'DropdownButton', id: 'dd', tooltip: ' assets ', iconUrl: '', options: [] }],
+    });
+
+    await addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit', group: 'Assets' });
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<Record<string, any>> };
+    expect(saved.buttons).toHaveLength(1);
+    expect(saved.buttons[0].options).toHaveLength(1);
+  });
+
+  it('creates the dropdown when the dock has no menu by that name', async () => {
+    mockLoadDockConfig.mockResolvedValue({ version: 1, buttons: [] });
+
+    await addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit', group: BLOTTER_DOCK_GROUP });
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<Record<string, any>> };
+    expect(saved.buttons[0]).toMatchObject({ type: 'DropdownButton', tooltip: 'Assets' });
+    expect(saved.buttons[0].options[0]).toMatchObject({ customData: { registryEntryId: 'grid-credit' } });
+  });
+
+  it('is a no-op when the entry is already an item in a menu', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [{ type: 'DropdownButton', id: 'dd', tooltip: 'Assets', iconUrl: '', options: [launchItem('grid-credit', 'Credit')] }],
+    });
+
+    await expect(
+      addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit', group: 'Assets' }),
+    ).resolves.toBe(true);
+
+    expect(mockSaveDockConfig).not.toHaveBeenCalled();
+  });
+
+  /** Otherwise an entry filed in a menu would also sprout a top-level button. */
+  it('does not add a top-level button for an entry already in a menu', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [{ type: 'DropdownButton', id: 'dd', tooltip: 'Assets', iconUrl: '', options: [launchItem('grid-credit', 'Credit')] }],
+    });
+
+    await addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit' });
+
+    expect(mockSaveDockConfig).not.toHaveBeenCalled();
+  });
+
+  it('still refuses to create the very first dock config, group or not', async () => {
+    mockLoadDockConfig.mockResolvedValue(null);
+
+    await expect(
+      addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit', group: 'Assets' }),
+    ).resolves.toBe(false);
+
+    expect(mockSaveDockConfig).not.toHaveBeenCalled();
+  });
+});
+
+describe('removeDockButtons / renameDockButtons reach into menus', () => {
+  const dockWith = (...options: Array<Record<string, unknown>>) => ({
+    version: 1,
+    buttons: [
+      { type: 'ActionButton', id: 'keep', tooltip: 'Other', iconUrl: '', actionId: 'x', customData: { registryEntryId: 'grid-other' } },
+      { type: 'DropdownButton', id: 'dd', tooltip: 'Assets', iconUrl: '', options },
+    ],
+  });
+  const item = (registryEntryId: string, tooltip: string, extra: Record<string, unknown> = {}) => ({
+    id: `item-${registryEntryId}`,
+    tooltip,
+    actionId: 'launch-component',
+    customData: { registryEntryId },
+    ...extra,
+  });
+
+  it('removes a menu item, leaving the group and its siblings in place', async () => {
+    mockLoadDockConfig.mockResolvedValue(dockWith(item('grid-credit', 'Credit'), item('grid-rates', 'Rates')));
+
+    await expect(removeDockButtons('grid-credit')).resolves.toBe(1);
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<Record<string, any>> };
+    const assets = saved.buttons.find((b) => b.id === 'dd')!;
+    expect(assets.options.map((o: { tooltip: string }) => o.tooltip)).toEqual(['Rates']);
+    // The group survives an emptying delete — it may be the user's own menu.
+    expect(saved.buttons.map((b) => b.id)).toEqual(['keep', 'dd']);
+  });
+
+  it('removes nested sub-menu items too', async () => {
+    mockLoadDockConfig.mockResolvedValue(
+      dockWith(item('grid-parent', 'Fixed Income', { options: [item('grid-credit', 'Credit')] })),
+    );
+
+    await expect(removeDockButtons('grid-credit')).resolves.toBe(1);
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<Record<string, any>> };
+    expect(saved.buttons.find((b) => b.id === 'dd')!.options[0].options).toEqual([]);
+  });
+
+  it('reports nothing removed — and writes nothing — when no entry matches', async () => {
+    mockLoadDockConfig.mockResolvedValue(dockWith(item('grid-rates', 'Rates')));
+
+    await expect(removeDockButtons('grid-credit')).resolves.toBe(0);
+
+    expect(mockSaveDockConfig).not.toHaveBeenCalled();
+  });
+
+  it('retitles a menu item so a rename is visible in the menu', async () => {
+    mockLoadDockConfig.mockResolvedValue(dockWith(item('grid-credit', 'Credit'), item('grid-rates', 'Rates')));
+
+    await renameDockButtons('grid-credit', 'Credit HY');
+
+    const saved = mockSaveDockConfig.mock.calls[0][0] as { buttons: Array<Record<string, any>> };
+    const assets = saved.buttons.find((b) => b.id === 'dd')!;
+    expect(assets.options.map((o: { tooltip: string }) => o.tooltip)).toEqual(['Credit HY', 'Rates']);
+    expect(mockPublish).toHaveBeenCalledWith('dock-config-update', saved);
+  });
+
+  it('writes nothing when a rename matches no dock entry', async () => {
+    mockLoadDockConfig.mockResolvedValue(dockWith(item('grid-rates', 'Rates')));
+
+    await renameDockButtons('grid-credit', 'Credit HY');
+
+    expect(mockSaveDockConfig).not.toHaveBeenCalled();
   });
 });

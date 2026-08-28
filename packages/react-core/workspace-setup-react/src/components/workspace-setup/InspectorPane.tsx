@@ -28,10 +28,11 @@ import {
   deriveTemplateConfigId,
   ACTION_LAUNCH_COMPONENT,
 } from "@wellsfargo-starui/openfin/config";
-import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from "@wellsfargo-starui/react";
+import { Checkbox, Input, Popover, PopoverContent, PopoverTrigger, cn } from "@wellsfargo-starui/react";
 import type { EditorSelection } from "./types";
 import { IconPicker } from "../IconPicker";
-import { iconIdToSvgUrl } from "../dock-editor/iconUtils";
+import { IconGlyph } from "../IconGlyph";
+import { IconColorField } from "../IconColorField";
 
 /**
  * Where in the dock a component is referenced. One DockPlacement per
@@ -533,6 +534,8 @@ function DockItemInspector({
   const label = resolved.kind === "button" ? resolved.button.tooltip : resolved.item.tooltip;
   const iconId =
     resolved.kind === "button" ? resolved.button.iconId ?? "" : resolved.item.iconId ?? "";
+  const iconColor =
+    resolved.kind === "button" ? resolved.button.iconColor ?? "" : resolved.item.iconColor ?? "";
   const actionId =
     resolved.kind === "button"
       ? (resolved.button as { actionId?: string }).actionId
@@ -565,6 +568,13 @@ function DockItemInspector({
       onEditMenuItem(resolved.topButtonId, resolved.item.id, resolved.parentItemId, { iconId: next });
     }
   };
+  const setIconColor = (next: string) => {
+    if (resolved.kind === "button") {
+      onEditButton(resolved.button.id, { iconColor: next } as Partial<DockButtonConfig>);
+    } else {
+      onEditMenuItem(resolved.topButtonId, resolved.item.id, resolved.parentItemId, { iconColor: next });
+    }
+  };
 
   const typeLine =
     resolved.kind === "button"
@@ -576,7 +586,8 @@ function DockItemInspector({
       <div className="flex flex-col gap-3">
         {/* Icon + Label — per-placement overrides */}
         <div className="flex gap-2 items-end">
-          <IconField iconId={iconId} onChange={setIconId} />
+          <IconField iconId={iconId} onChange={setIconId} iconColor={iconColor} />
+          <IconColorField iconId={iconId} iconColor={iconColor} onChange={setIconColor} />
           <div className="flex-1">
             <Field label="Label">
               <Input
@@ -734,9 +745,17 @@ function HostSurfacePicker({
 // icon set" (only meaningful for dock-item overrides where empty means
 // "fall back to component default").
 
-function IconField({ iconId, onChange }: { iconId: string; onChange: (iconId: string) => void }) {
+function IconField({
+  iconId,
+  onChange,
+  iconColor,
+}: {
+  iconId: string;
+  onChange: (iconId: string) => void;
+  /** Shown in the swatch so the preview matches what the dock will render. */
+  iconColor?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const previewUrl = useMemo(() => (iconId ? iconIdToSvgUrl(iconId, "currentColor") : ""), [iconId]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -747,32 +766,41 @@ function IconField({ iconId, onChange }: { iconId: string; onChange: (iconId: st
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="w-9 h-9 flex items-center justify-center rounded-md bg-[var(--ds-surface-secondary)] border border-[var(--ds-border-primary)] text-[var(--ds-text-secondary)]"
+            aria-label={iconId ? `Icon: ${iconId} — click to change` : "Pick an icon"}
+            className={cn(
+              "group relative w-9 h-9 flex items-center justify-center rounded-md transition-colors",
+              "bg-[var(--ds-surface-secondary)] border border-[var(--ds-border-primary)]",
+              "text-[var(--ds-text-primary)]",
+              "hover:border-[var(--ds-border-focus)] hover:bg-[var(--ds-surface-hover)]",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ds-state-focus-ring)]",
+              open && "border-[var(--ds-border-focus)] bg-[var(--ds-surface-hover)]",
+            )}
             title={iconId ? `Icon: ${iconId} — click to change` : "Pick an icon"}
           >
-            {previewUrl ? (
-              <img
-                src={previewUrl}
-                alt=""
-                width={20}
-                height={20}
-                className="block"
-              />
+            {/* Inline, not <img src=CDN>: a lucide iconId resolves to an
+                api.iconify.design URL, so the freshly-picked icon used to sit
+                blank here until a network round-trip finished — and stayed
+                blank on a network that blocks it. */}
+            {iconId ? (
+              <IconGlyph iconId={iconId} size={20} color={iconColor || undefined} />
             ) : (
               <ImageIcon className="w-4 h-4 text-muted-foreground" />
             )}
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="p-2 w-[360px] bg-background border-[var(--ds-border-primary)] text-foreground"
+          className="p-2 w-[360px] bg-[var(--ds-surface-overlay,var(--ds-surface-primary))] border-[var(--ds-border-primary)] text-foreground shadow-lg"
           align="start"
         >
           <IconPicker
             selectedIcon={iconId}
             color="currentColor"
             onSelect={(id) => {
-              onChange(id);
+              // Close first so the popover unmounts in the same commit that
+              // writes the new icon — the swatch then updates as it closes,
+              // rather than after the editor's state cascade settles.
               setOpen(false);
+              onChange(id);
             }}
           />
         </PopoverContent>

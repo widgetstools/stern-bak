@@ -13,10 +13,27 @@
  * Pure: no React, no recharts. The renderer reads the spec.
  */
 
-export const CHART_KINDS = ['auto', 'bar', 'hbar', 'line', 'area', 'pie', 'scatter', 'none'] as const;
+/**
+ * `'heatmap'` is a table-rendering MODE (per-cell background shading), not a
+ * recharts chart kind — `AnalysisTable` handles it directly and it never
+ * reaches `buildChartSpec`/`DataChart`. It lives in this const anyway
+ * because it's still a `chart` argument choice from the model's point of
+ * view, and `query_grid_data`'s schema enum is built from `CHART_KINDS`.
+ */
+export const CHART_KINDS = ['auto', 'bar', 'hbar', 'line', 'area', 'pie', 'scatter', 'heatmap', 'none'] as const;
 export type ChartKind = (typeof CHART_KINDS)[number];
-/** What `auto` can resolve to — `auto` itself is never a rendered kind. */
-export type ResolvedChartKind = Exclude<ChartKind, 'auto'>;
+/** What `auto` can resolve to — `auto` and `heatmap` are never a rendered
+ *  `DataChart` kind (`heatmap` is a table mode; see above). */
+export type ResolvedChartKind = Exclude<ChartKind, 'auto' | 'heatmap'>;
+
+/**
+ * `summarize_grid_data`'s result is a `DataDigest` — stat cards and at most a
+ * one-dimensional `groups` breakdown, never a 2D table — so there is nothing
+ * for `'heatmap'` to shade. Its tool schema and runtime validation both use
+ * this narrower list instead of spreading all of `CHART_KINDS`, so the
+ * question of "what does heatmap even do here" never comes up.
+ */
+export const SUMMARY_CHART_KINDS: readonly ChartKind[] = CHART_KINDS.filter((k) => k !== 'heatmap');
 
 /**
  * The design system's chart ramp, in order. Deliberately NOT `--primary` or
@@ -95,6 +112,12 @@ function numericColumns(input: ChartInput): string[] {
  */
 export function buildChartSpec(input: ChartInput): ChartSpec | undefined {
   if (input.requested === 'none') return undefined;
+  // A table-shading mode, not a recharts kind — the caller renders the table
+  // directly instead of calling this at all once it sees the request. Bailing
+  // here too means a caller that forgets that check gets nothing drawn rather
+  // than `resolveKind`'s unconditional passthrough handing back a `'heatmap'`
+  // kind `DataChart` has no branch for and silently rendering a bar chart.
+  if (input.requested === 'heatmap') return undefined;
   const numerics = numericColumns(input);
   const categorical = input.columns.filter((c) => !numerics.includes(c));
 

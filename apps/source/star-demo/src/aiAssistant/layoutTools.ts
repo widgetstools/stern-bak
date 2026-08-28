@@ -9,12 +9,13 @@ import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataProviderConfigStore } from '@wellsfargo-starui/data';
 import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 import { patchGridModule, describeFanOut, resolveGridEntry } from './gridProfiles';
-import { readColumnCatalogue, resolveColumns, resolveColumnKeys } from './columnResolver';
+import { readColumnCatalogue, resolveColumns, resolveColumnKeys, isNumericColumn } from './columnResolver';
 import {
   normalizeColumnLayoutArgs,
   normalizeRowGroupingArgs,
   applyColumnLayout,
   applyRowGrouping,
+  planGroupedVisibility,
   withGridStateSlices,
   type ColumnLayoutArgs,
   type SavedGridStateEnvelope,
@@ -135,27 +136,62 @@ export async function setRowGrouping(
   const groupBy = resolveColumns(patch.groupBy, catalogue);
   if (!groupBy.ok) return { ok: false, summary: groupBy.error };
   patch.groupBy = groupBy.colIds;
+  if (patch.pivotBy?.length) {
+    const pivotBy = resolveColumns(patch.pivotBy, catalogue);
+    if (!pivotBy.ok) return { ok: false, summary: pivotBy.error };
+    patch.pivotBy = pivotBy.colIds;
+  }
   if (patch.aggregations) {
     const aggregations = resolveColumnKeys(patch.aggregations, catalogue);
     if (!aggregations.ok) return { ok: false, summary: aggregations.error };
     patch.aggregations = aggregations.value;
   }
 
+  const columns = catalogue.map((c) => ({ colId: c.colId, numeric: isNumericColumn(c) }));
+
   const now = new Date().toISOString();
+  let plan = { hiddenColIds: [] as string[], autoHiddenColIds: [] as string[] };
+  // Columns the PREVIOUS grouped view hid, across every row this call patches.
+  // Their `initialHide` has to be cleared when this view no longer hides them.
+  const previouslyAutoHidden = new Set<string>();
   const fan = await patchGridModule(configManager, entry, 'grid-state', (prev) => {
     const prevSaved = (prev as { saved?: SavedGridStateEnvelope } | undefined)?.saved ?? null;
-    return { saved: withGridStateSlices(prevSaved, applyRowGrouping(prevSaved?.gridState ?? {}, patch), now) };
+    for (const colId of prevSaved?.assistantAutoHiddenColIds ?? []) previouslyAutoHidden.add(colId);
+    // Planned per instance: each window carries its own hidden set, and the
+    // auto-hidden bookkeeping has to be released against ITS previous view.
+    plan = planGroupedVisibility(patch, {
+      columns,
+      previouslyHidden: prevSaved?.gridState?.columnVisibility?.hiddenColIds ?? [],
+      previouslyAutoHidden: prevSaved?.assistantAutoHiddenColIds ?? [],
+    });
+    return {
+      saved: {
+        ...withGridStateSlices(prevSaved, applyRowGrouping(prevSaved?.gridState ?? {}, patch, plan), now),
+        assistantAutoHiddenColIds: plan.autoHiddenColIds,
+      },
+    };
   });
+
+  // Pivot mode also lives on general-settings, which is what the Settings
+  // drawer's toggle reads. Writing only the snapshot leaves the panel claiming
+  // pivot is off while the grid is pivoting.
+  await patchGridModule(configManager, entry, 'general-settings', (prev) => ({
+    ...((prev as Record<string, unknown> | undefined) ?? {}),
+    pivotMode: patch.pivotMode === true,
+  }));
 
   await patchGridModule(configManager, entry, 'column-customization', (prev) => {
     const prevState = (prev as { assignments?: Record<string, Record<string, unknown>> } | undefined) ?? {};
     const assignments = { ...prevState.assignments };
-    // Drop grouping from every column first so a re-group doesn't leave the
-    // previous grouping columns still flagged.
+    // Drop grouping AND pivoting from every column first so a re-group doesn't
+    // leave the previous dimension columns still flagged.
     for (const [colId, assignment] of Object.entries(assignments)) {
       const rowGrouping = assignment.rowGrouping as Record<string, unknown> | undefined;
-      if (rowGrouping?.rowGroup) {
-        assignments[colId] = { ...assignment, rowGrouping: { ...rowGrouping, rowGroup: false, rowGroupIndex: undefined } };
+      if (rowGrouping?.rowGroup || rowGrouping?.pivot) {
+        assignments[colId] = {
+          ...assignment,
+          rowGrouping: { ...rowGrouping, rowGroup: false, rowGroupIndex: undefined, pivot: false, pivotIndex: undefined },
+        };
       }
     }
     patch.groupBy.forEach((colId, index) => {
@@ -166,6 +202,14 @@ export async function setRowGrouping(
         rowGrouping: { ...((existing.rowGrouping as object) ?? {}), rowGroup: true, rowGroupIndex: index },
       };
     });
+    (patch.pivotBy ?? []).forEach((colId, index) => {
+      const existing = assignments[colId] ?? { colId };
+      assignments[colId] = {
+        ...existing,
+        colId,
+        rowGrouping: { ...((existing.rowGrouping as object) ?? {}), pivot: true, pivotIndex: index },
+      };
+    });
     for (const [colId, aggFunc] of Object.entries(patch.aggregations ?? {})) {
       const existing = assignments[colId] ?? { colId };
       assignments[colId] = {
@@ -174,16 +218,49 @@ export async function setRowGrouping(
         rowGrouping: { ...((existing.rowGrouping as object) ?? {}), aggFunc },
       };
     }
+
+    // Mirror the snapshot's visibility onto `initialHide`, the only layer a
+    // never-saved grid reads. Only columns this view hides, plus the ones the
+    // PREVIOUS view hid and this one doesn't, are touched — so a column the
+    // user hid by hand keeps its `initialHide` either way.
+    const autoHidden = new Set(plan.autoHiddenColIds);
+    for (const colId of new Set([...autoHidden, ...previouslyAutoHidden])) {
+      const existing = assignments[colId];
+      assignments[colId] = { ...(existing ?? { colId }), colId, initialHide: autoHidden.has(colId) };
+    }
     return { ...prevState, assignments };
   });
 
   const aggNote = Object.keys(patch.aggregations ?? {}).length
     ? `, aggregating ${Object.entries(patch.aggregations ?? {}).map(([c, f]) => `${c}=${f}`).join(', ')}`
     : '';
+  const where = `"${entry.displayName}"${describeFanOut(fan)}`;
+
+  if (!patch.groupBy.length && patch.pivotMode !== true) {
+    const restored = previouslyAutoHidden.size;
+    return {
+      ok: true,
+      summary:
+        `${where}: row grouping and pivot cleared` +
+        (restored > 0 ? `, and the ${restored} column(s) the grouped view had hidden are back` : '') +
+        '.',
+    };
+  }
+
+  // The hiding is a visible side effect, so it is reported rather than left for
+  // the user to discover as "where did my columns go?".
+  const hiddenNote = plan.autoHiddenColIds.length
+    ? ` ${plan.autoHiddenColIds.length} column(s) are hidden while this view is on — the ` +
+      `${patch.groupBy.length + (patch.pivotBy?.length ?? 0)} dimension column(s), which now read from the group ` +
+      'and pivot headers' +
+      (patch.hideNonNumeric === false ? '' : ', plus the non-numeric ones, which have nothing to aggregate') +
+      '. Clearing the grouping brings them back.'
+    : '';
+
   return {
     ok: true,
-    summary: patch.groupBy.length
-      ? `"${entry.displayName}"${describeFanOut(fan)}: rows grouped by ${patch.groupBy.join(' > ')}${aggNote}.`
-      : `"${entry.displayName}"${describeFanOut(fan)}: row grouping cleared.`,
+    summary: patch.pivotMode === true
+      ? `${where}: pivoting — rows by ${patch.groupBy.join(' > ')}, columns by ${(patch.pivotBy ?? []).join(' > ')}${aggNote}.${hiddenNote}`
+      : `${where}: rows grouped by ${patch.groupBy.join(' > ')}${aggNote}.${hiddenNote}`,
   };
 }

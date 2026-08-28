@@ -17,7 +17,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { probeMock, startMock } from './mock.js';
-import { __resetMockUniverse, getUniverse } from './mockUniverse.js';
+import { CORE_UNIVERSE_SIZE, __resetMockUniverse, getUniverse } from './mockUniverse.js';
 import type { ProviderEmitEvent } from '../Provider.js';
 import type { MockProviderConfig } from '@wellsfargo-starui/types';
 
@@ -90,19 +90,30 @@ describe('startMock — positions', () => {
     expect((h.rowEvents()[0].rows[0] as Record<string, unknown>).cusip).toBeTypeOf('string');
   });
 
-  it('fills rowCount from the universe size when unset', async () => {
+  it('fills rowCount from the core universe size when unset', async () => {
     const { h, emit, setTicker, clearTicker } = harness();
     startMock(cfg(), emit, { setTicker, clearTicker });
     await flush();
-    expect(h.rowEvents()[0].rows).toHaveLength(getUniverse().length);
+    expect(h.rowEvents()[0].rows).toHaveLength(CORE_UNIVERSE_SIZE);
   });
 
-  it('cycles the universe when rowCount exceeds it', async () => {
+  it('extends the universe with distinct securities when rowCount exceeds the core set', async () => {
     const { h, emit, setTicker, clearTicker } = harness();
-    const target = getUniverse().length + 5;
+    const target = CORE_UNIVERSE_SIZE + 5;
     startMock(cfg({ rowCount: target }), emit, { setTicker, clearTicker });
     await flush();
-    expect(h.rowEvents()[0].rows).toHaveLength(target);
+    const rows = h.rowEvents()[0].rows as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(target);
+    expect(new Set(rows.map((r) => r.cusip)).size).toBe(target);
+    expect(getUniverse()).toHaveLength(target);
+  });
+
+  it('defaults to the core size even after another feed grew the universe', async () => {
+    getUniverse(300);
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(cfg(), emit, { setTicker, clearTicker });
+    await flush();
+    expect(h.rowEvents()[0].rows).toHaveLength(CORE_UNIVERSE_SIZE);
   });
 
   it('ticks a non-empty batch of updated rows', async () => {
@@ -477,5 +488,88 @@ describe('probeMock', () => {
     probeMock(cfg());
     expect(setInterval).not.toHaveBeenCalled();
     setInterval.mockRestore();
+  });
+});
+
+describe('startMock — capacity', () => {
+  it('generates 2 000 positions that are unique by cusip, positionKey, id and isin', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(cfg({ rowCount: 2000 }), emit, { setTicker, clearTicker });
+    await flush();
+
+    const rows = h.rowEvents()[0].rows as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2000);
+    for (const key of ['cusip', 'positionKey', 'id', 'isin'] as const) {
+      expect(new Set(rows.map((r) => r[key])).size, key).toBe(2000);
+    }
+  });
+
+  it('seeds 5 000 trades with unique tradeIds that all join to the positions universe', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(cfg({ dataType: 'trades', rowCount: 5000 }), emit, { setTicker, clearTicker });
+    await flush();
+
+    const rows = h.rowEvents()[0].rows as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(5000);
+    expect(new Set(rows.map((r) => r.tradeId)).size).toBe(5000);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(5000);
+    const cusips = new Set(getUniverse().map((u) => u.cusip));
+    expect(rows.every((r) => cusips.has(r.cusip as string))).toBe(true);
+  });
+
+  it('keeps minting unique trades past a 5 000-row seed instead of recycling ids', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(cfg({ dataType: 'trades', rowCount: 5000 }), emit, { setTicker, clearTicker });
+    await flush();
+    const seeded = new Set((h.rowEvents()[0].rows as Array<Record<string, unknown>>).map((r) => r.tradeId));
+    const before = h.rowEvents().length;
+
+    // Pin the roll below the mint threshold so every tick mints — and,
+    // with the book already at the cap, evicts — one trade.
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.1);
+    try {
+      for (let i = 0; i < 20; i++) h.tick();
+    } finally {
+      random.mockRestore();
+    }
+
+    const minted = h
+      .rowEvents()
+      .slice(before)
+      .flatMap((b) => b.rows as Array<Record<string, unknown>>)
+      .map((r) => r.tradeId as string)
+      .filter((id) => !seeded.has(id));
+    expect(minted).toHaveLength(20);
+    expect(new Set(minted).size).toBe(20);
+  });
+
+  it('a positions feed grows the universe that later trades draw from', async () => {
+    const positions = harness();
+    startMock(cfg({ rowCount: 1500 }), positions.emit, { setTicker: positions.setTicker, clearTicker: positions.clearTicker });
+    await flush();
+    const positionCusips = new Set((positions.h.rowEvents()[0].rows as Array<Record<string, unknown>>).map((r) => r.cusip));
+
+    const trades = harness();
+    startMock(cfg({ dataType: 'trades', rowCount: 3000 }), trades.emit, { setTicker: trades.setTicker, clearTicker: trades.clearTicker });
+    await flush();
+    const tradeCusips = new Set((trades.h.rowEvents()[0].rows as Array<Record<string, unknown>>).map((r) => r.cusip));
+
+    // Every trade joins, and the draws spread well past the 50 archetypes.
+    for (const c of tradeCusips) expect(positionCusips.has(c)).toBe(true);
+    expect(tradeCusips.size).toBeGreaterThan(CORE_UNIVERSE_SIZE);
+  });
+
+  it('a standalone 5 000-trade book spans many securities, not just the 50 archetypes', async () => {
+    const { h, emit, setTicker, clearTicker } = harness();
+    startMock(cfg({ dataType: 'trades', rowCount: 5000 }), emit, { setTicker, clearTicker });
+    await flush();
+
+    const rows = h.rowEvents()[0].rows as Array<Record<string, unknown>>;
+    const cusips = new Set(rows.map((r) => r.cusip));
+    expect(cusips.size).toBeGreaterThan(CORE_UNIVERSE_SIZE * 4);
+    // Still a blotter: securities repeat across the book.
+    expect(cusips.size).toBeLessThan(rows.length);
+    const universeCusips = new Set(getUniverse().map((u) => u.cusip));
+    for (const c of cusips) expect(universeCusips.has(c)).toBe(true);
   });
 });

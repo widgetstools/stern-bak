@@ -28,6 +28,9 @@ vi.mock('./registryOps', () => ({
   addDockButton: (...args: unknown[]) => mockAddDockButton(...args),
   registryEntryExists: (...args: unknown[]) => mockRegistryEntryExists(...args),
   buildRegistryEntry: (spec: unknown) => spec,
+  // Real value, not a stand-in: the tests below assert blotters land under
+  // this exact menu, so a drifting constant should fail them.
+  BLOTTER_DOCK_GROUP: 'Assets',
 }));
 
 const GRID_ENTRY = {
@@ -46,6 +49,9 @@ function fakeCtx() {
   // Instance rows cloned from the template at dock-launch time. Empty by
   // default — the template-only case.
   const findByComponentType = vi.fn().mockResolvedValue([]);
+  // Resolves a per-window instance id to its cloned row's component identity —
+  // only needed by resolveGridForInstance, so undefined (no row) by default.
+  const getConfig = vi.fn().mockResolvedValue(undefined);
   const storeList = vi.fn().mockResolvedValue([]);
   const storeGet = vi.fn().mockResolvedValue(null);
   const storeSave = vi.fn().mockResolvedValue({});
@@ -53,11 +59,12 @@ function fakeCtx() {
     configManager: {
       profiles: { list, save, loadGridLevelData, saveGridLevelData },
       findByComponentType,
+      getConfig,
     } as unknown as ConfigManager,
     configStore: { list: storeList, get: storeGet, save: storeSave } as unknown as DataProviderConfigStore,
     appId: 'Star-Demo',
   };
-  return { ctx, list, save, loadGridLevelData, saveGridLevelData, findByComponentType, storeList, storeGet, storeSave };
+  return { ctx, list, save, loadGridLevelData, saveGridLevelData, findByComponentType, getConfig, storeList, storeGet, storeSave };
 }
 
 /**
@@ -229,17 +236,45 @@ describe('dispatchTool', () => {
         displayName: 'Credit Blotter',
         appId: 'Star-Demo',
         asWindow: true,
+        // Template-backed: a singleton skips the template→instance clone, so
+        // the window's config row IS the template. That is what makes every
+        // later edit persist to the template, apply live to the open window,
+        // and re-launch focus that window instead of spawning a second copy.
+        singleton: true,
       }),
     );
     // The third arg (`identity`) is required: without it the row's
     // componentType is rewritten to the generic 'markets-grid-profile-set'
-    // instead of matching the registered component.
+    // instead of matching the registered component. `singleton` has to agree
+    // with the registry entry, or the row stops describing what it is.
     expect(saveGridLevelData).toHaveBeenCalledWith(
       { instanceId: 'grid-credit-blotter' },
       { v: 1, provider: { liveProviderId: 'dp-1', historicalProviderId: null, mode: 'live' }, caption: 'Credit Blotter' },
-      { identity: { componentType: 'grid', componentSubType: 'credit-blotter', isTemplate: true, singleton: false } },
+      { identity: { componentType: 'grid', componentSubType: 'credit-blotter', isTemplate: true, singleton: true } },
     );
-    expect(mockAddDockButton).toHaveBeenCalledWith(expect.objectContaining({ registryEntryId: 'grid-credit-blotter', tooltip: 'Credit Blotter' }));
+    // Filed under the "Assets" menu, not as another top-level dock button —
+    // a dock that grows a button per blotter stops being navigable.
+    expect(mockAddDockButton).toHaveBeenCalledWith(
+      expect.objectContaining({ registryEntryId: 'grid-credit-blotter', tooltip: 'Credit Blotter', group: 'Assets' }),
+    );
+  });
+
+  it('create_blotter files under a caller-named menu when one is given', async () => {
+    const { ctx } = fakeCtx();
+
+    await dispatchTool('create_blotter', ctx, { displayName: 'Muni', dockGroup: 'Fixed Income' });
+
+    expect(mockAddDockButton).toHaveBeenCalledWith(expect.objectContaining({ group: 'Fixed Income' }));
+  });
+
+  it('create_blotter gives it a top-level dock button when dockGroup is blank', async () => {
+    const { ctx } = fakeCtx();
+
+    await dispatchTool('create_blotter', ctx, { displayName: 'Muni', dockGroup: '' });
+
+    const opts = mockAddDockButton.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(opts).toMatchObject({ registryEntryId: 'grid-muni' });
+    expect(opts.group).toBeUndefined();
   });
 
   it('create_blotter skips the dock button when addToDock is false', async () => {
@@ -261,6 +296,41 @@ describe('dispatchTool', () => {
     expect(result.summary).toContain('already exists');
     expect(mockAddRegistryEntry).not.toHaveBeenCalled();
     expect(mockAddDockButton).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The provider BINDING is read once when the container mounts, so it is one
+   * of the few changes that cannot be re-applied live. It must reload the
+   * window the user already has rather than tell them to reopen it — reopening
+   * a singleton only focuses, so the stale feed would survive the trip.
+   */
+  it('set_grid_provider reloads the open window instead of telling the user to reopen', async () => {
+    const { ctx } = fakeCtx();
+
+    const result = await dispatchTool('set_grid_provider', ctx, {
+      targetGridId: 'grid-test',
+      providerId: 'dp-9',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).not.toMatch(/reopen/i);
+    // Nothing is open in the unit environment, and the summary says exactly
+    // that rather than claiming a refresh that never happened.
+    expect(result.summary).toContain('Nothing is open to reload');
+  });
+
+  /** A module write lands in the row the open grid reads, so it needs no reload. */
+  it('update_module_settings does not tell the user to reopen', async () => {
+    const { ctx } = fakeCtx();
+
+    const result = await dispatchTool('update_module_settings', ctx, {
+      targetGridId: 'grid-test',
+      moduleId: 'general-settings',
+      settings: { enableCellChangeFlash: true },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).not.toMatch(/reopen/i);
   });
 
   it('update_module_settings merges one key without disturbing the rest', async () => {
@@ -516,7 +586,7 @@ describe('dispatchTool', () => {
       { configId: 'grid-test', componentType: 'grid', componentSubType: 'test', isTemplate: true, updatedTime: '2026-08-03T00:00:00.000Z' },
     ];
 
-    it('writes the rule to the template AND every open instance', async () => {
+    it('writes the rule to the template, leaving open instances alone', async () => {
       const { ctx, list, save, findByComponentType } = fakeCtx();
       findByComponentType.mockResolvedValue(INSTANCE_ROWS);
       list.mockResolvedValue([]);
@@ -531,12 +601,23 @@ describe('dispatchTool', () => {
 
       expect(result.ok).toBe(true);
       const written = save.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId);
-      expect(written).toEqual(['grid-test', 'dev1grid-test-1800000000000', 'dev1grid-test-1700000000000']);
-      expect(result.summary).toContain('2 open instance(s)');
+      // The component's definition is the template. Discovery still returns
+      // the two instance rows; they are deliberately not written.
+      expect(written).toEqual(['grid-test']);
+      expect(result.summary).not.toContain('instance(s)');
     });
 
-    it('applies the change against each row\'s own state, preserving per-window customizations', async () => {
+    /**
+     * A wand-scoped panel's `focusInstanceId` is the window it was opened
+     * from — dispatchTool defaults an unpinned call's pin to it, so the call
+     * lands on THAT window alone: never the template, never a sibling. This is
+     * the fix for "the chatbot doesn't know which instance it's working on and
+     * applies changes to every instance of the grid id" — it used to also
+     * write `grid-test` (the template) here.
+     */
+    it('pins an unpinned call to the focused window alone, never the template', async () => {
       const { ctx, list, save, findByComponentType } = fakeCtx();
+      const scoped = { ...ctx, focusInstanceId: 'dev1grid-test-1700000000000' };
       findByComponentType.mockResolvedValue(INSTANCE_ROWS.slice(0, 1));
       list.mockImplementation(async ({ instanceId }: { instanceId: string }) => [
         {
@@ -544,14 +625,14 @@ describe('dispatchTool', () => {
           state: {
             'conditional-styling': {
               v: 1,
-              // The instance carries a rule the template never had.
-              data: { rules: instanceId === 'grid-test' ? [] : [{ id: 'user-made', name: 'Mine' }] },
+              // The window already carries a rule the template never had.
+              data: { rules: [{ id: 'user-made', name: 'Mine' }] },
             },
           },
         },
       ]);
 
-      await dispatchTool('add_conditional_styling_rule', ctx, {
+      await dispatchTool('add_conditional_styling_rule', scoped, {
         targetGridId: 'grid-test',
         name: 'Losers',
         scope: { type: 'cell', columns: ['dailyPnl'] },
@@ -559,15 +640,39 @@ describe('dispatchTool', () => {
         style: { light: {}, dark: {} },
       });
 
-      const byInstance = new Map(
-        save.mock.calls.map(([scope, snapshot]) => [
-          (scope as { instanceId: string }).instanceId,
-          (snapshot as ProfileSnapshot).state['conditional-styling'].data as { rules: Array<{ id: string; name: string }> },
-        ]),
-      );
-      expect(byInstance.get('grid-test')!.rules.map((r) => r.name)).toEqual(['Losers']);
+      const written = save.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId);
+      expect(written).toEqual(['dev1grid-test-1700000000000']);
+      const [, snapshot] = save.mock.calls[0];
+      const rules = (snapshot as ProfileSnapshot).state['conditional-styling'].data as { rules: Array<{ id: string; name: string }> };
       // The window keeps its own rule and gains the new one.
-      expect(byInstance.get('dev1grid-test-1700000000000')!.rules.map((r) => r.name)).toEqual(['Mine', 'Losers']);
+      expect(rules.rules.map((r) => r.name)).toEqual(['Mine', 'Losers']);
+    });
+
+    /**
+     * A call can still override the default pin by naming a different window
+     * of the SAME blotter explicitly — "also do this on the other window" —
+     * proving the fix didn't turn the default into a hard lock.
+     */
+    it('lets an explicit instanceId override the focused window', async () => {
+      const { ctx, list, save, findByComponentType, getConfig } = fakeCtx();
+      const scoped = { ...ctx, focusInstanceId: 'dev1grid-test-1700000000000' };
+      findByComponentType.mockResolvedValue(INSTANCE_ROWS.slice(0, 1));
+      list.mockResolvedValue([{ id: '__default__', gridId: 'x', name: 'Default', createdAt: 1, updatedAt: 1, state: {} }]);
+      // resolveInstancePin has to be able to verify the named instance
+      // belongs to "grid-test" before it can override the focused window.
+      getConfig.mockResolvedValue({ componentType: 'grid', componentSubType: 'test' });
+
+      await dispatchTool('add_conditional_styling_rule', scoped, {
+        targetGridId: 'grid-test',
+        instanceId: 'dev1grid-test-1800000000000',
+        name: 'Losers',
+        scope: { type: 'cell', columns: ['dailyPnl'] },
+        expression: 'value < 0',
+        style: { light: {}, dark: {} },
+      });
+
+      const written = save.mock.calls.map(([scope]) => (scope as { instanceId: string }).instanceId);
+      expect(written).toEqual(['dev1grid-test-1800000000000']);
     });
 
     it('still writes the template when instances cannot be enumerated', async () => {

@@ -181,12 +181,44 @@ describe('ToolCallCard routing', () => {
     status: 'ok', summary: '3 rows', result: payload(), ...over,
   });
 
-  /** The analysis is the point of the turn — it renders in full, not collapsed
-   *  behind a disclosure triangle like a config write. */
-  it('renders a data payload as an output cell, expanded', () => {
+  /**
+   * A data-cell result used to render the FULL notebook cell inline; it now
+   * leaves a compact reference — the cell itself lives in the side panel.
+   * `screen.getByText('TestGrid')` alone would pass either way (both render
+   * the grid name), so the real assertion is that the full cell's own
+   * markers — its "raw result" toggle, unique to `DataResultCell` — are
+   * absent, and that the tool name still doesn't leak through for a
+   * successful call.
+   */
+  it('renders a data payload as a compact reference, not the full cell', () => {
     render(<ToolCallCard activity={activity()} />);
     expect(screen.getByText('TestGrid')).toBeTruthy();
     expect(screen.queryByText('summarize_grid_data')).toBeNull();
+    expect(screen.queryByRole('button', { name: /raw result/ })).toBeNull();
+  });
+
+  /**
+   * The card is the only place with access to which id to report, and the
+   * transcript item's OWN id, not the LLM backend's tool-call id (which
+   * isn't guaranteed unique across turns for every OpenAI-compatible
+   * server) — so `ToolCallCard` must never invent one itself. Passing a
+   * bare callback and asserting it fires with zero arguments is what locks
+   * that in: if a future change threaded an id through here, this breaks.
+   */
+  it('opens the panel via a bare callback — it never reports its own id', async () => {
+    const user = userEvent.setup();
+    const onOpenAnalysis = vi.fn();
+    render(<ToolCallCard activity={activity()} onOpenAnalysis={onOpenAnalysis} />);
+
+    await user.click(screen.getByRole('button', { name: /View in the analysis panel/ }));
+
+    expect(onOpenAnalysis).toHaveBeenCalledTimes(1);
+    expect(onOpenAnalysis.mock.calls[0]).toEqual([]);
+  });
+
+  it('is not clickable when no panel callback is given', () => {
+    render(<ToolCallCard activity={activity()} />);
+    expect(screen.getByRole('button', { name: /View in the analysis panel/ }).hasAttribute('disabled')).toBe(true);
   });
 
   it('falls back to the ordinary card for a failed data call', () => {

@@ -1,26 +1,29 @@
 /**
  * Profile reads and writes for a registered blotter — and the template /
- * instance distinction that decides whether a change is actually visible.
+ * instance distinction that decides where a change lands.
  *
- * ## Why writing the template alone isn't enough
+ * ## The assistant configures the COMPONENT
  *
  * A registry entry's `configId` addresses the component's TEMPLATE row
- * (`isTemplate: true`). Launching a blotter from the dock does NOT read that
- * row: `launch.ts` mints a per-window instance id and eagerly CLONES the
- * template into a fresh `isTemplate: false` row, after which "the view then
- * reads its own row directly — no lazy seed-from-template". The one exception
- * is a singleton component, whose instance id equals the template id.
+ * (`isTemplate: true`). That row is the component's definition, and it is what
+ * the dock-launched assistant writes — the same role Workspace Setup plays. It
+ * never edits a running instance, and never enumerates them.
  *
- * So a write to the template alone reaches:
- *   - singleton blotters (same row), and
- *   - windows opened AFTER the write (they clone the updated template),
- * but never a non-singleton blotter that is already open or was opened before.
- * That is exactly the "it only changed the template, not my grid" symptom.
+ * Whether that is also the row on screen depends on the component:
+ *   - a SINGLETON's window reuses the template id, so the template IS its live
+ *     row and the change applies immediately (`launch.ts`: "instanceId ===
+ *     templateId, the view IS the template"). Blotters `create_blotter` makes
+ *     are singletons, so this is the normal case;
+ *   - a MULTI-INSTANCE blotter clones the template into a per-window row at
+ *     launch, so its open windows keep what they were opened with until they
+ *     are opened again — exactly what editing it in Workspace Setup does.
  *
- * Every mutation therefore fans out across the template AND each live instance
- * row descended from it. The update callback runs against each row's OWN
- * previous state, so an instance keeps whatever the user customised there and
- * still receives the change.
+ * Two narrower scopes mean "this window", not "the component", and only they
+ * ever touch an instance row (see `resolveWriteTargets`): a panel opened from a
+ * blotter's wand button is pinned to the window it came from — an unpinned
+ * call in that session writes THAT row alone, never the template — and a call
+ * that names its own `instanceId` writes that row alone instead. The pinning
+ * itself happens one layer up, in `useToolExecutor.ts`'s `dispatchTool`.
  */
 import type { ConfigManager, ProfileSnapshot } from '@wellsfargo-starui/core/host/config';
 import { loadRegistryConfig, type RegistryEntry } from '@wellsfargo-starui/openfin/config';
@@ -117,13 +120,18 @@ export type { ProfileSnapshot };
  *
  * Two different things, deliberately separate:
  *
- *  - `focusInstanceId` — the window the request came FROM. A hint. Writes still
- *    fan out to every row; this one is merely guaranteed to be included, because
- *    instance discovery is visibility-filtered and can omit the very window the
- *    user is looking at.
- *  - `pinnedInstanceId` — the window the request is ABOUT, named explicitly.
- *    A boundary. Reads come from that row and writes go to it alone, so "make
- *    THIS window group by sector" doesn't reformat its three siblings.
+ *  - `focusInstanceId` — the window the request came FROM (the wand button).
+ *    On its own, at this layer, it is only a fan-out hint for `resolveWriteTargets`
+ *    (see its comment) — but `dispatchTool` in `useToolExecutor.ts` promotes it to
+ *    the DEFAULT `pinnedInstanceId` for any call that doesn't name its own
+ *    instance, which is what makes an ordinary unpinned call in a wand-scoped
+ *    session land on this window alone. It only stays a bare hint for a caller
+ *    that reaches `resolveWriteTargets`/`patchGridModule` directly without going
+ *    through `dispatchTool`.
+ *  - `pinnedInstanceId` — the window the request is ABOUT, named explicitly OR
+ *    defaulted from `focusInstanceId` as above. A boundary. Reads come from that
+ *    row and writes go to it alone, so "make THIS window group by sector"
+ *    doesn't reformat its three siblings.
  *
  * Ambient rather than threaded through a dozen handler signatures. Safe because
  * tool calls here are strictly sequential — the turn loop awaits each one — and
@@ -270,13 +278,33 @@ export async function listInstanceRows(
 }
 
 /**
- * Template row plus every live instance descended from it.
+ * Which rows a change is written to.
  *
- * `focusInstanceId` is the window the request came FROM — a scoped panel knows
- * it for certain. It's included unconditionally and first, because discovery
- * via `findByComponentType` is visibility-filtered and can silently omit the
- * very window the user is looking at; a change that misses that row is one the
- * user reports as "it says it worked but nothing happened".
+ * The dock-launched assistant configures the COMPONENT, exactly as Workspace
+ * Setup does: it writes the template and nothing else. It never edits a running
+ * instance, and it does not enumerate them — the template is the component's
+ * definition, and that is what "configure this blotter" means.
+ *
+ * That is why there is no instance fan-out here any more. Spraying every
+ * discovered instance row made a dock-launched edit behave differently
+ * depending on which windows happened to be open, and left the template and its
+ * instances disagreeing about what the component is. Blotters the assistant
+ * creates are singletons, so the template IS the row their window reads — the
+ * change is live there anyway (see `blotterTools.createBlotter`).
+ *
+ * The two narrower scopes remain, both of which mean "this window", not "the
+ * component":
+ *
+ *  - `pinned` — the caller named one window (explicitly, or via `dispatchTool`
+ *    defaulting it from `focusInstanceId` — see `GridScope` above). A boundary:
+ *    that row alone.
+ *  - `focusInstanceId` — reached here ONLY when nothing is pinned, i.e. a caller
+ *    that talks to `resolveWriteTargets`/`patchGridModule` directly rather than
+ *    through `dispatchTool`. Written ALONGSIDE the template, template included,
+ *    for that lower-level case. Every real tool call goes through `dispatchTool`,
+ *    which always promotes a wand-launched panel's focus to a pin before it gets
+ *    here — so in practice this branch is not what a wand-scoped conversation's
+ *    calls hit; it stays correct and tested as a generic primitive.
  */
 export async function resolveWriteTargets(
   configManager: ConfigManager,
@@ -289,31 +317,29 @@ export async function resolveWriteTargets(
   // this one" asks for.
   const pinned = currentPinnedInstance();
   if (pinned) {
-    return [{ instanceId: pinned, isTemplate: false, label: `${pinned} (this window only)` }];
+    // A singleton's window reuses the template id, so pinning one addresses the
+    // TEMPLATE row. Stamping it `isTemplate: false` would rewrite the template's
+    // own identity and strip its singleton flag — the row would stop being
+    // discoverable as this component's template.
+    const isTemplate = pinned === entry.configId;
+    return [{
+      instanceId: pinned,
+      isTemplate,
+      label: isTemplate ? `${entry.displayName} (template)` : `${pinned} (this window only)`,
+    }];
   }
 
   const targets: WriteTarget[] = [
     { instanceId: entry.configId, isTemplate: true, label: `${entry.displayName} (template)` },
   ];
-  const seen = new Set([entry.configId]);
 
-  if (focusInstanceId && !seen.has(focusInstanceId)) {
-    seen.add(focusInstanceId);
+  // The only instance a write ever reaches unpinned, and only for a panel
+  // opened FROM a window. `configManager` is kept on the signature because
+  // callers pass it and the pinned/template resolution above may grow to need
+  // it; nothing here reads a row any more.
+  void configManager;
+  if (focusInstanceId && focusInstanceId !== entry.configId) {
     targets.push({ instanceId: focusInstanceId, isTemplate: false, label: `${focusInstanceId} (this window)` });
-  }
-
-  // Never let a failure to enumerate instances block the writes above —
-  // the template and the focused window are the ones that must always land.
-  let instances: Array<{ configId: string }> = [];
-  try {
-    instances = await listInstanceRows(configManager, entry);
-  } catch (err) {
-    console.warn('[aiAssistant] could not enumerate instance rows — template only:', err);
-  }
-  for (const row of instances) {
-    if (seen.has(row.configId)) continue;
-    seen.add(row.configId);
-    targets.push({ instanceId: row.configId, isTemplate: false, label: row.configId });
   }
   return targets;
 }
@@ -387,10 +413,11 @@ export async function patchGridLevelData(
 }
 
 /**
- * " and 2 open instance(s), in profile "L1"" — appended to tool summaries so
- * both the fan-out and the profile being edited are visible. Naming the profile
- * matters: a change written to a profile the user isn't on looks like no change
- * at all, and this is what lets the model say which one it touched.
+ * Tail appended to tool summaries, naming what the change actually reached.
+ *
+ * Naming the profile matters: a change written to a profile the user isn't on
+ * looks like no change at all, and this is what lets the model say which one it
+ * touched.
  */
 export function describeFanOut(result: FanOutResult): string {
   const profile = result.profileId ? `, in the active profile "${result.profileId}"` : '';
@@ -399,6 +426,8 @@ export function describeFanOut(result: FanOutResult): string {
   if (result.pinnedInstanceId) {
     return ` — that window only, not the blotter's other windows or new ones${profile}`;
   }
-  const instances = result.instances > 0 ? ` and ${result.instances} open instance(s)` : '';
-  return `${instances}${profile}`;
+  // Unpinned writes are edits to the COMPONENT, so the tail says so rather than
+  // counting windows. The one extra row a wand-launched panel writes is the
+  // window it was opened from, which is already obvious to that user.
+  return `${result.instances > 0 ? ' (its template and this window)' : ''}${profile}`;
 }

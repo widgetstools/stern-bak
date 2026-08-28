@@ -316,8 +316,53 @@ describe('InspectorPane — dock item selected', () => {
     expect(props.onEditButton).toHaveBeenLastCalledWith('btn-1', { tooltip: 'CreditX' });
 
     await userEvent.click(screen.getByRole('button', { name: /Icon: mkt:bond/ }));
+    // The picker's grid is windowed, so reach a lucide icon the way a user
+    // does — by searching for it.
+    await userEvent.click(screen.getByPlaceholderText('Search icons…'));
+    await userEvent.paste('FileText');
     await userEvent.click(screen.getByRole('button', { name: 'FileText' }));
     expect(props.onEditButton).toHaveBeenLastCalledWith('btn-1', { iconId: 'lucide:file-text' });
+  });
+
+  /**
+   * `iconColor` has always existed on the dock config and `makeDualIcon` has
+   * always honoured it — the editor just never offered a way to set it, so it
+   * stayed "" from creation onwards.
+   */
+  it('sets and clears a dock button’s icon colour', async () => {
+    const { props } = renderPane({
+      selection: { kind: 'dock-item', itemId: 'btn-1' },
+      buttons: [launchButton('btn-1', 'Credit', 'grid-credit')],
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Icon colour/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cyan' }));
+    expect(props.onEditButton).toHaveBeenLastCalledWith('btn-1', { iconColor: '#22d3ee' });
+
+    // Empty means "follow the theme", which is what makes an icon render
+    // light-on-dark and dark-on-light instead of one baked colour.
+    await userEvent.click(screen.getByRole('button', { name: 'Follow theme' }));
+    expect(props.onEditButton).toHaveBeenLastCalledWith('btn-1', { iconColor: '' });
+  });
+
+  it('routes an icon-colour change on a nested menu item to its owning dropdown', async () => {
+    const { props } = renderPane({
+      selection: { kind: 'dock-item', itemId: 'mi-1-1' },
+      buttons: [
+        dropdownButton('dd-1', 'Reports', [
+          menuItem('mi-1', 'Risk', {
+            // Needs a recolourable icon: with none set there is nothing to
+            // colour, and the control is correctly unavailable.
+            options: [menuItem('mi-1-1', 'Risk EOD', { iconId: 'mkt:bond' })],
+          }),
+        ]),
+      ],
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Icon colour/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Amber' }));
+
+    expect(props.onEditMenuItem).toHaveBeenLastCalledWith('dd-1', 'mi-1-1', 'mi-1', { iconColor: '#ffb547' });
   });
 
   it('routes an edit on a nested menu item to its owning dropdown and parent', async () => {
@@ -342,6 +387,10 @@ describe('InspectorPane — dock item selected', () => {
     });
 
     await userEvent.click(screen.getByRole('button', { name: 'Pick an icon' }));
+    // The picker's grid is windowed, so reach a lucide icon the way a user
+    // does — by searching for it.
+    await userEvent.click(screen.getByPlaceholderText('Search icons…'));
+    await userEvent.paste('FileText');
     await userEvent.click(screen.getByRole('button', { name: 'FileText' }));
 
     expect(props.onEditMenuItem).toHaveBeenLastCalledWith('dd-1', 'mi-1', undefined, { iconId: 'lucide:file-text' });

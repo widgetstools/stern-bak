@@ -1,4 +1,4 @@
-import React, { Suspense, use, type ReactNode } from "react";
+import React, { Suspense, use, useEffect, type ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, Outlet, Route, Routes } from "react-router-dom";
 import App from "./App";
@@ -42,7 +42,35 @@ const WorkspaceSetup = React.lazy(() =>
  *  to the dock theme toggle directly (otherwise it freezes on the boot theme). */
 function WorkspaceSetupRoute() {
   useOpenFinThemeSync();
-  return <WorkspaceSetup />;
+
+  // Same flush-viewport treatment as AiAssistant.tsx / DataProviders.tsx. Two
+  // things were stopping the editor from fitting its window: the shell's
+  // `body { padding: 10px }` leaks into popouts, and nothing in the chain
+  // (html → body → #root) has a definite height, so the editor's own `h-full`
+  // resolved against an auto-height parent. Its panes could then never be
+  // constrained, and the Save/Discard footer scrolled off the bottom.
+  useEffect(() => {
+    const bodyStyle = document.body.style;
+    const prev = {
+      padding: bodyStyle.padding,
+      margin: bodyStyle.margin,
+      overflow: bodyStyle.overflow,
+    };
+    bodyStyle.padding = "0";
+    bodyStyle.margin = "0";
+    bodyStyle.overflow = "hidden";
+    return () => {
+      bodyStyle.padding = prev.padding;
+      bodyStyle.margin = prev.margin;
+      bodyStyle.overflow = prev.overflow;
+    };
+  }, []);
+
+  return (
+    <div className="h-screen w-screen overflow-hidden">
+      <WorkspaceSetup />
+    </div>
+  );
 }
 
 const LOADING = <div style={{ padding: 16 }}>Loading...</div>;

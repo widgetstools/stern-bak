@@ -540,14 +540,34 @@ export function tickTrade(row: TradeRow): TradeRow {
   return { ...row, ...patch };
 }
 
+// ─── CUSIP selection ─────────────────────────────────────────────────
+
+/**
+ * Asset-class pools, rebuilt only when the universe grows (growth hands
+ * out a new array, so identity is the cache key). Seeding a 5 000-row
+ * book would otherwise filter the whole universe once per trade.
+ */
+let poolsFor: ReadonlyArray<UniverseEntry> | null = null;
+let pools = { credit: [] as UniverseEntry[], govt: [] as UniverseEntry[], muni: [] as UniverseEntry[] };
+
+function tradingPools(universe: ReadonlyArray<UniverseEntry>): typeof pools {
+  if (poolsFor !== universe) {
+    poolsFor = universe;
+    pools = {
+      credit: universe.filter((e) => e.assetClass === 'CorpIG' || e.assetClass === 'CorpHY'),
+      govt: universe.filter((e) => e.assetClass === 'Rates' || e.assetClass === 'Agency' || e.assetClass === 'AgencyMBS'),
+      muni: universe.filter((e) => e.assetClass === 'Muni'),
+    };
+  }
+  return pools;
+}
+
 /** Return a random universe entry — biased to credit (which trades more). */
 export function pickTradingCusip(): UniverseEntry {
   const u = getUniverse();
-  // 60% credit, 25% rates+agency+mbs, 10% muni, 5% other
+  const p = tradingPools(u);
+  // 60% credit, 25% rates+agency+mbs, 10% muni, 5% anything
   const roll = Math.random();
-  const pool = roll < 0.60 ? u.filter((e) => e.assetClass === 'CorpIG' || e.assetClass === 'CorpHY')
-    : roll < 0.85 ? u.filter((e) => e.assetClass === 'Rates' || e.assetClass === 'Agency' || e.assetClass === 'AgencyMBS')
-    : roll < 0.95 ? u.filter((e) => e.assetClass === 'Muni')
-    : u;
+  const pool = roll < 0.60 ? p.credit : roll < 0.85 ? p.govt : roll < 0.95 ? p.muni : u;
   return pool[Math.floor(Math.random() * pool.length)] ?? u[0];
 }

@@ -12,7 +12,14 @@
  */
 import type { RuntimePort } from '@wellsfargo-starui/core/host';
 
-const POPOUT_WIDTH = 620;
+// Wide enough for the chat column AND the analysis side panel to open with
+// room to breathe (each needs a ~300px+ floor — see AiAssistantPanel.tsx's
+// ResizablePanel minSize values) rather than opening pre-cramped and forcing
+// an immediate manual resize. The OS window stays user-resizable regardless;
+// this only sets where it starts. Comfortably under the dock-launched
+// assistant's own 1200×800 (`launch.ts`), which is fine — this one is meant
+// to feel lighter, being scoped to a single blotter.
+const POPOUT_WIDTH = 1000;
 const POPOUT_HEIGHT = 820;
 
 export interface OpenAssistantOpts {

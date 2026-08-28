@@ -30,6 +30,12 @@ export interface DiagnosticInput {
   conditionalRules: Array<{ id: string; name?: string; enabled?: boolean; expression?: string }>;
   calculatedColumns: Array<{ colId?: string; expression?: string }>;
   rowGroupColIds: string[];
+  /** Column dimension of a pivot, empty when not pivoting. */
+  pivotColIds?: string[];
+  /** Whether pivot mode is on — a pivot can be configured but switched off. */
+  pivotMode?: boolean;
+  /** Columns the grouped/pivot view hid, as opposed to the user hiding them. */
+  autoHiddenColIds?: string[];
 }
 
 /** Column refs in the expression DSL: `[colId]`, plus `.old` / `.new` suffixes. */
@@ -88,21 +94,47 @@ export function diagnose(input: DiagnosticInput): Finding[] {
   }
 
   // ── Things that make a populated grid still look wrong ──
+  const pivotColIds = input.pivotColIds ?? [];
+  const pivoting = input.pivotMode === true;
+  const grouped = input.rowGroupColIds.length > 0 || pivoting;
+  const autoHidden = new Set(input.autoHiddenColIds ?? []);
+
   if (columnCount > 0 && input.hiddenColumns.length > 0) {
-    const allHidden = input.knownColumns.length > 0 && input.hiddenColumns.length >= input.knownColumns.length;
-    findings.push({
-      severity: allHidden ? 'blocker' : 'note',
-      what: allHidden
-        ? 'Every column is hidden, so the grid looks empty even though it has data.'
-        : `${input.hiddenColumns.length} column(s) are hidden: ${input.hiddenColumns.join(', ')}.`,
-      fix: 'Un-hide them with set_column_layout { show: [...] }.',
-    });
+    // A grouped view hides the dimension and non-numeric columns on purpose.
+    // Reporting that as "N columns are hidden, un-hide them" sends the reader
+    // to fight the view one column at a time, so it is called out as expected
+    // and the real lever — flattening — is the fix offered.
+    const byView = input.hiddenColumns.filter((colId) => autoHidden.has(colId));
+    const byHand = input.hiddenColumns.filter((colId) => !autoHidden.has(colId));
+
+    if (grouped && byView.length > 0) {
+      findings.push({
+        severity: 'note',
+        what:
+          `${byView.length} column(s) are hidden BY the grouped/pivot view — the dimension columns, which read from ` +
+          'the group and pivot headers, and the non-numeric ones, which have no aggregate. This is expected, not a fault.',
+        fix: 'They come back on set_row_grouping { groupBy: [] }; set_row_grouping { hideNonNumeric: false } keeps text columns while grouped.',
+      });
+    }
+    if (byHand.length > 0) {
+      const allHidden = input.knownColumns.length > 0 && input.hiddenColumns.length >= input.knownColumns.length;
+      findings.push({
+        severity: allHidden ? 'blocker' : 'note',
+        what: allHidden
+          ? 'Every column is hidden, so the grid looks empty even though it has data.'
+          : `${byHand.length} column(s) are hidden: ${byHand.join(', ')}.`,
+        fix: 'Un-hide them with set_column_layout { show: [...] }.',
+      });
+    }
   }
 
-  if (input.rowGroupColIds.length > 0) {
+  if (input.rowGroupColIds.length > 0 || pivotColIds.length > 0) {
+    const how = pivoting
+      ? `Pivoting: rows by ${input.rowGroupColIds.join(' > ')}, columns by ${pivotColIds.join(' > ')}`
+      : `Rows are grouped by ${input.rowGroupColIds.join(' > ')}`;
     findings.push({
       severity: 'note',
-      what: `Rows are grouped by ${input.rowGroupColIds.join(' > ')}, so the grid shows group rows rather than flat data.`,
+      what: `${how}, so the grid shows group rows rather than flat data.`,
       fix: 'Clear it with set_row_grouping { groupBy: [] } if that was not intended.',
     });
   }

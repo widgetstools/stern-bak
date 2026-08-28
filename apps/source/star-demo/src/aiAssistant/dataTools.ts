@@ -14,7 +14,7 @@ import { readColumnCatalogue, resolveColumns, resolveColumn } from './columnReso
 import { fetchGridRows, type DataHubClient, type RowSource } from './dataAccess';
 import { summariseRows, type DataDigest } from './dataDigest';
 import { runQuery, type DataQuery, type QueryResult } from './dataQuery';
-import { CHART_KINDS, type ChartKind } from './chartSpec';
+import { CHART_KINDS, SUMMARY_CHART_KINDS, type ChartKind } from './chartSpec';
 import type { ToolExecutionResult } from './toolResult';
 
 /** Marker the transcript keys on to render a rich cell instead of raw JSON. */
@@ -60,12 +60,15 @@ async function rowsFor(deps: DataToolDeps, args: Record<string, unknown>) {
 /**
  * `undefined` when the caller said nothing — the usual case, letting the
  * result's shape choose. `null` signals a bad value, so a typo becomes an
- * explanation rather than a silently ignored argument.
+ * explanation rather than a silently ignored argument. `allowed` is the
+ * calling tool's OWN menu — `summarize_grid_data` passes
+ * `SUMMARY_CHART_KINDS` so a stray `'heatmap'` (nothing there to shade) is
+ * caught here rather than silently accepted and doing nothing.
  */
-function readChartKind(args: Record<string, unknown>): ChartKind | undefined | null {
+function readChartKind(args: Record<string, unknown>, allowed: readonly ChartKind[]): ChartKind | undefined | null {
   const raw = args.chart;
   if (raw === undefined) return undefined;
-  return (CHART_KINDS as readonly unknown[]).includes(raw) ? (raw as ChartKind) : null;
+  return (allowed as readonly unknown[]).includes(raw) ? (raw as ChartKind) : null;
 }
 
 /** Column arguments come in the user's words, same as every other column tool. */
@@ -99,9 +102,9 @@ export async function summarizeGridData(
     groupBy = match.colId;
   }
 
-  const chart = readChartKind(args);
+  const chart = readChartKind(args, SUMMARY_CHART_KINDS);
 
-  if (chart === null) return { ok: false, summary: `chart must be one of: ${CHART_KINDS.join(", ")}.` };
+  if (chart === null) return { ok: false, summary: `chart must be one of: ${SUMMARY_CHART_KINDS.join(", ")}.` };
 
   const digest = summariseRows(rowSet.rows, { columns: columns.value, groupBy });
   const payload: DataCellPayload = {
@@ -150,6 +153,10 @@ export async function queryGridData(
   if (!grouping.ok) return { ok: false, summary: grouping.error };
   query.groupBy = grouping.value;
 
+  const pivoting = await resolveNames(deps, entry, args.pivotBy as string[] | undefined);
+  if (!pivoting.ok) return { ok: false, summary: pivoting.error };
+  query.pivotBy = pivoting.value;
+
   for (const clause of query.filter ?? []) {
     const match = resolveColumn(clause.column, catalogue);
     if (!match.ok) return { ok: false, summary: match.error };
@@ -166,7 +173,7 @@ export async function queryGridData(
     query.sortBy = { ...query.sortBy, column: match.colId };
   }
 
-  const chart = readChartKind(args);
+  const chart = readChartKind(args, CHART_KINDS);
 
   if (chart === null) return { ok: false, summary: `chart must be one of: ${CHART_KINDS.join(", ")}.` };
 
@@ -175,7 +182,9 @@ export async function queryGridData(
   const table = outcome.value;
 
   const ran = [
-    query.groupBy?.length ? `grouped by ${query.groupBy.join(', ')}` : `${table.matched} rows`,
+    query.pivotBy?.length
+      ? `pivoted: rows by ${query.groupBy?.join(', ')}, columns by ${query.pivotBy.join(', ')}`
+      : query.groupBy?.length ? `grouped by ${query.groupBy.join(', ')}` : `${table.matched} rows`,
     query.filter?.length ? `filtered (${query.filter.length})` : '',
     query.sortBy?.column ? `sorted by ${query.sortBy.column}` : '',
   ].filter(Boolean).join(' · ');

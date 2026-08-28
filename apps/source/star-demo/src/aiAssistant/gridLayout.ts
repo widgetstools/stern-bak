@@ -29,6 +29,8 @@ export interface GridStateSlices {
   columnSizing?: { columnSizingModel: Array<{ colId: string; width?: number; flex?: number }> };
   rowGroup?: { groupColIds: string[] };
   aggregation?: { aggregationModel: Array<{ colId: string; aggFunc: string }> };
+  /** AG-Grid's own pivot slice: the mode flag plus the column dimension. */
+  pivot?: { pivotMode: boolean; pivotColIds: string[] };
   [slice: string]: unknown;
 }
 
@@ -38,6 +40,17 @@ export interface SavedGridStateEnvelope {
   gridState: GridStateSlices;
   viewportAnchor: { firstRowIndex: number; leftColId: string | null; horizontalPixel: number };
   quickFilter?: string;
+  /**
+   * Columns hidden BY the grouped/pivot view rather than by the user, so
+   * flattening the grid restores exactly those and leaves deliberately hidden
+   * columns alone. AG-Grid ignores the key; it rides along in the envelope.
+   *
+   * It is lost if the user clicks Save while grouped (the module recaptures
+   * `saved` wholesale). The cost of that is columns staying hidden after an
+   * ungroup until someone shows them — visible and one call to fix, unlike
+   * silently un-hiding a column the user meant to keep hidden.
+   */
+  assistantAutoHiddenColIds?: string[];
   [key: string]: unknown;
 }
 
@@ -180,6 +193,15 @@ export function applyColumnLayout(prev: GridStateSlices, patch: ColumnLayoutArgs
 export interface RowGroupingArgs {
   groupBy: string[];
   aggregations?: Record<string, AggFuncName>;
+  /** Column dimension. Non-empty turns pivot mode on unless `pivotMode: false`. */
+  pivotBy?: string[];
+  /** Explicit pivot-mode toggle. Defaults to `pivotBy.length > 0`. */
+  pivotMode?: boolean;
+  /**
+   * Hide every column that isn't a measure while the view is grouped or
+   * pivoting. Defaults to TRUE — see `planGroupedVisibility`.
+   */
+  hideNonNumeric?: boolean;
 }
 
 export function normalizeRowGroupingArgs(args: Record<string, unknown>): LayoutResult<RowGroupingArgs> {
@@ -187,6 +209,36 @@ export function normalizeRowGroupingArgs(args: Record<string, unknown>): LayoutR
   if (isListError(groupBy)) return { ok: false, error: groupBy.error };
   if (args.groupBy === undefined) {
     return { ok: false, error: 'groupBy is required — pass an empty array to clear row grouping.' };
+  }
+
+  const pivotBy = stringList(args.pivotBy, 'pivotBy');
+  if (isListError(pivotBy)) return { ok: false, error: pivotBy.error };
+
+  if (args.pivotMode !== undefined && typeof args.pivotMode !== 'boolean') {
+    return { ok: false, error: 'pivotMode must be a boolean.' };
+  }
+  if (args.hideNonNumeric !== undefined && typeof args.hideNonNumeric !== 'boolean') {
+    return { ok: false, error: 'hideNonNumeric must be a boolean.' };
+  }
+  const pivotMode = (args.pivotMode as boolean | undefined) ?? pivotBy.length > 0;
+
+  // AG-Grid pivots the VALUE columns within each row group, so a pivot with no
+  // row group has nothing to put down the left-hand side and renders a single
+  // total row. Caught here rather than left to look like a broken grid.
+  if (pivotMode && groupBy.length === 0) {
+    return {
+      ok: false,
+      error:
+        'A pivot needs at least one row group: groupBy is the row dimension, pivotBy the column dimension. ' +
+        'Pass groupBy (e.g. ["issuerSector"]) alongside pivotBy, or clear pivotMode.',
+    };
+  }
+  const overlap = pivotBy.filter((id) => groupBy.includes(id));
+  if (overlap.length > 0) {
+    return {
+      ok: false,
+      error: `Column(s) in both groupBy and pivotBy: ${overlap.join(', ')}. A column can be the row dimension or the column dimension, not both.`,
+    };
   }
 
   const aggregations: Record<string, AggFuncName> = {};
@@ -202,15 +254,119 @@ export function normalizeRowGroupingArgs(args: Record<string, unknown>): LayoutR
       aggregations[colId] = fn as AggFuncName;
     }
   }
-  return { ok: true, value: { groupBy, aggregations } };
+
+  // A pivot with no measure produces a grid of empty cells — the pivot columns
+  // exist but have nothing to total.
+  if (pivotMode && Object.keys(aggregations).length === 0) {
+    return {
+      ok: false,
+      error:
+        'A pivot needs at least one aggregated measure — pass aggregations, e.g. { "marketValue": "sum" }. ' +
+        'Those are the numbers that fill the pivoted cells.',
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      groupBy,
+      aggregations,
+      pivotBy,
+      pivotMode,
+      hideNonNumeric: (args.hideNonNumeric as boolean | undefined) ?? true,
+    },
+  };
 }
 
-/** Row-group + aggregation slices for the snapshot layer. */
-export function applyRowGrouping(prev: GridStateSlices, patch: RowGroupingArgs): GridStateSlices {
+/** Columns a grouped/pivot view keeps on screen, and what it hides. */
+export interface GroupedVisibilityPlan {
+  /** Full hidden set for the snapshot, user-hidden columns included. */
+  hiddenColIds: string[];
+  /** The subset this view hid, so flattening can restore exactly it. */
+  autoHiddenColIds: string[];
+}
+
+export interface VisibilityInput {
+  /** Every column the grid has, with its declared type resolved to numeric-ness. */
+  columns: ReadonlyArray<{ colId: string; numeric: boolean }>;
+  /** Hidden set before this call. */
+  previouslyHidden: readonly string[];
+  /** What the previous grouped/pivot view hid, from the envelope. */
+  previouslyAutoHidden: readonly string[];
+}
+
+/**
+ * Decide what a grouped or pivoted grid shows.
+ *
+ * Two rules, both of which exist because the flat 250-column blotter is
+ * unreadable the moment it rolls up:
+ *
+ *  1. **Dimension columns disappear as individual columns.** A column being
+ *     grouped or pivoted moves into the auto group column / the pivot headers,
+ *     so leaving it in the body repeats the value on every row.
+ *  2. **Only measures stay.** A group row can only meaningfully show an
+ *     aggregate, so non-numeric columns are hidden while grouped. An explicitly
+ *     aggregated column always survives, whatever its declared type — the
+ *     caller asked for that number.
+ *
+ * Flattening (`groupBy: []`, no pivot) restores exactly what rule 2 hid and
+ * nothing else, so a column the user hid by hand stays hidden.
+ */
+export function planGroupedVisibility(
+  patch: Pick<RowGroupingArgs, 'groupBy' | 'pivotBy' | 'pivotMode' | 'aggregations' | 'hideNonNumeric'>,
+  input: VisibilityInput,
+): GroupedVisibilityPlan {
+  const autoHidden = new Set<string>();
+  const hidden = new Set(input.previouslyHidden);
+
+  // Whatever the last grouped view hid is released first; the rules below then
+  // re-hide what this one needs. Without this, ungrouping one dimension and
+  // grouping another would accumulate hidden columns forever.
+  for (const colId of input.previouslyAutoHidden) hidden.delete(colId);
+
+  const grouped = patch.groupBy.length > 0;
+  const pivoting = patch.pivotMode === true;
+  if (!grouped && !pivoting) {
+    return { hiddenColIds: [...hidden], autoHiddenColIds: [] };
+  }
+
+  const measures = new Set(Object.keys(patch.aggregations ?? {}));
+  const dimensions = new Set([...patch.groupBy, ...(patch.pivotBy ?? [])]);
+
+  for (const column of input.columns) {
+    if (dimensions.has(column.colId)) {
+      autoHidden.add(column.colId);
+      continue;
+    }
+    if (patch.hideNonNumeric === false) continue;
+    if (measures.has(column.colId) || column.numeric) continue;
+    autoHidden.add(column.colId);
+  }
+  for (const colId of autoHidden) hidden.add(colId);
+
+  return { hiddenColIds: [...hidden], autoHiddenColIds: [...autoHidden] };
+}
+
+/**
+ * Row-group / pivot / aggregation slices for the snapshot layer, plus the
+ * visibility the grouped view implies when a `plan` is supplied.
+ */
+export function applyRowGrouping(
+  prev: GridStateSlices,
+  patch: RowGroupingArgs,
+  plan?: GroupedVisibilityPlan,
+): GridStateSlices {
   const next: GridStateSlices = {
     ...prev,
     rowGroup: { groupColIds: [...patch.groupBy] },
   };
+
+  const pivotColIds = [...(patch.pivotBy ?? [])];
+  const pivotMode = patch.pivotMode === true;
+  // Written even when off, so leaving pivot mode actually clears the slice
+  // rather than letting a stale one be replayed on the next profile load.
+  next.pivot = { pivotMode, pivotColIds };
+
   const aggs = Object.entries(patch.aggregations ?? {});
   if (aggs.length > 0) {
     next.aggregation = { aggregationModel: aggs.map(([colId, aggFunc]) => ({ colId, aggFunc })) };
@@ -219,5 +375,7 @@ export function applyRowGrouping(prev: GridStateSlices, patch: RowGroupingArgs):
     // totals linger on an ungrouped grid.
     next.aggregation = { aggregationModel: [] };
   }
+
+  if (plan) next.columnVisibility = { hiddenColIds: plan.hiddenColIds };
   return next;
 }

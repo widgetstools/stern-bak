@@ -131,3 +131,58 @@ describe('summariseFindings', () => {
     expect(summary).toContain('+1 more');
   });
 });
+
+/**
+ * "Where did my columns go?" is the question a grouped blotter provokes, so
+ * the diagnostic has to separate columns the VIEW hid from columns the user
+ * hid — the fixes are opposites: flatten the grid vs un-hide one column.
+ */
+describe('diagnose — grouped and pivoted views', () => {
+  it('reports view-hidden columns as expected, and points at flattening rather than un-hiding', () => {
+    const findings = diagnose(healthy({
+      rowGroupColIds: ['issuerSector'],
+      hiddenColumns: ['issuerSector', 'ticker'],
+      autoHiddenColIds: ['issuerSector', 'ticker'],
+    }));
+
+    const hiddenNote = findings.find((f) => f.what.includes('hidden BY the grouped'));
+    expect(hiddenNote).toBeDefined();
+    expect(hiddenNote!.severity).toBe('note');
+    expect(hiddenNote!.what).toContain('expected, not a fault');
+    expect(hiddenNote!.fix).toContain('groupBy: []');
+    // The generic "un-hide them" advice would have the reader fighting the view.
+    expect(findings.some((f) => f.fix?.includes('set_column_layout'))).toBe(false);
+  });
+
+  it('still reports columns the user hid by hand, separately from the view', () => {
+    const findings = diagnose(healthy({
+      rowGroupColIds: ['issuerSector'],
+      hiddenColumns: ['issuerSector', 'cusip'],
+      autoHiddenColIds: ['issuerSector'],
+    }));
+
+    const byHand = findings.find((f) => f.fix?.includes('set_column_layout'));
+    expect(byHand).toBeDefined();
+    expect(byHand!.what).toContain('cusip');
+    expect(byHand!.what).not.toContain('issuerSector');
+  });
+
+  it('describes a pivot by both of its dimensions', () => {
+    const findings = diagnose(healthy({
+      rowGroupColIds: ['issuerSector'],
+      pivotColIds: ['currency'],
+      pivotMode: true,
+    }));
+
+    const note = findings.find((f) => f.what.includes('Pivoting'));
+    expect(note).toBeDefined();
+    expect(note!.what).toContain('rows by issuerSector');
+    expect(note!.what).toContain('columns by currency');
+  });
+
+  /** Without the grouping context this is the old, misleading advice. */
+  it('falls back to plain hidden-column advice on an ungrouped grid', () => {
+    const findings = diagnose(healthy({ hiddenColumns: ['ticker'] }));
+    expect(findings[0].fix).toContain('set_column_layout');
+  });
+});

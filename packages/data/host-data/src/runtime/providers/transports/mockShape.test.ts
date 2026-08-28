@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getUniverse, __resetMockUniverse } from './mockUniverse.js';
+import { CORE_UNIVERSE_SIZE, getUniverse, __resetMockUniverse } from './mockUniverse.js';
 import { buildPosition, tickPosition } from './mockPosition.js';
 import { buildTrade, tickTrade, pickTradingCusip } from './mockTrade.js';
 
@@ -92,5 +92,14 @@ describe('mock data shape', () => {
     for (const want of ['Rates', 'AgencyMBS', 'CMBS', 'RMBS', 'CorpIG', 'CorpHY', 'Muni', 'Convertible'] as const) {
       expect(classes.has(want)).toBe(true);
     }
+  });
+
+  it('trades minted after a positions feed grew the universe join to the larger set', () => {
+    __resetMockUniverse();
+    const cusips = new Set(getUniverse(1500).map((u) => u.cusip));
+    const picked = new Set<string>();
+    for (let i = 0; i < 2000; i++) picked.add(buildTrade(pickTradingCusip()).cusip);
+    for (const c of picked) expect(cusips.has(c)).toBe(true);
+    expect(picked.size).toBeGreaterThan(CORE_UNIVERSE_SIZE);
   });
 });

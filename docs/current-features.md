@@ -1297,7 +1297,8 @@ modules).
   - Restart overlay merged into POST body
   - `probeRest()` — one-shot probe for editor flows
 - **Mock** (`startMock()`)
-  - Synthetic data with tunable row count + emit rate
+  - Synthetic fixed-income data with tunable row count + emit rate. `positions` rows are distinct securities drawn from the shared universe (2 000 rows = 2 000 unique CUSIPs, seeded in ~0.3s); `trades` rows are unique `tradeId`s (default 200, 5 000 supported, seeded in ~0.5s) spread over ~one security per four trades, with the live book capped at `max(5000, rowCount)` so eviction never drops it below the seed
+  - Shared mock universe (`mockUniverse.ts`, internal) — 50 hand-written archetypes grown on demand by `getUniverse(minSize)` into deterministic same-issuer variants with unique CUSIPs (`CORE_UNIVERSE_SIZE`, `MAX_UNIVERSE_SIZE = 20 000`; past the ceiling positions cycle with a rotating account index); trades minted after growth draw from the larger set, so `trades.cusip → positions.cusip` holds at 2 000 positions × 5 000 trades
   - `probeMock()` — one-shot probe
 
 #### Stream subscription

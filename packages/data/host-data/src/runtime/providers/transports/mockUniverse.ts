@@ -1,12 +1,25 @@
 /**
- * mockUniverse — module-level singleton of ~50 realistic fixed-income
+ * mockUniverse — module-level singleton of realistic fixed-income
  * securities spanning rates, agency MBS, CMBS, RMBS, corporate IG, HY,
  * municipals, and convertibles. Positions and trades draw from the
  * same universe so trades.cusip joins to positions.cusip cleanly.
  *
+ * Two tiers:
+ *   - the CORE set — 50 hand-written archetypes (`RAW_UNIVERSE`),
+ *     always present, always first;
+ *   - synthesised VARIANTS — `getUniverse(minSize)` grows the universe
+ *     on demand so a `rowCount: 2000` positions feed is 2 000 *distinct*
+ *     securities rather than 50 cycled forty times. Entry `i` is a
+ *     variant of archetype `i % 50`: same issuer, a different coupon /
+ *     tenor / price / spread, and a unique CUSIP. It is a pure function
+ *     of `i`, so it is identical across reloads and however the growth
+ *     was batched. Growth is append-only (earlier entries never change)
+ *     and capped at `MAX_UNIVERSE_SIZE`.
+ *
  * The universe is intentionally process-local: the SharedWorker is one
  * OS process, so multiple provider instances inside it (one for
- * positions, one for trades) see the same registry. Reset via
+ * positions, one for trades) see the same registry, and trades minted
+ * after a positions feed grew it draw from the larger set. Reset via
  * `__resetMockUniverse()` (test hook).
  *
  * CUSIPs here are *plausible-looking* — 9 chars with realistic issuer
@@ -281,165 +294,287 @@ function fundamentalsForAssetClass(cls: AssetClass, issuer: string): {
   };
 }
 
-let cache: ReadonlyArray<UniverseEntry> | null = null;
 
-function hydrate(): ReadonlyArray<UniverseEntry> {
-  const today = isoToday();
-  return RAW_UNIVERSE.map((raw, i) => {
-    const cls = raw.assetClass;
-    const rating = ratingForAssetClass(cls);
-    const f = fundamentalsForAssetClass(cls, raw.issuerName);
-    const matYears = raw.originalMaturityYears ?? 10;
-    const maturityDate = isoDateAdd(today, Math.floor(matYears * 365));
-    const issueDate = isoDateAdd(today, -Math.floor(matYears * 365 * 0.1));
-    const isCallableCredit = cls === 'CorpIG' || cls === 'CorpHY';
-    const nextCallDate = isCallableCredit ? isoDateAdd(today, 365 * 2) : null;
-    const couponType: UniverseEntry['couponType'] = cls === 'Convertible' && (raw.couponRate ?? 0) === 0
-      ? 'Zero'
-      : 'Fixed';
+// ─── Variants ────────────────────────────────────────────────────────
 
-    const seniority: Seniority = cls === 'Rates' ? 'Treasury'
-      : cls === 'Agency' || cls === 'AgencyMBS' ? 'Agency'
-      : cls === 'CorpHY' ? 'SeniorUnsecured'
-      : cls === 'CMBS' || cls === 'RMBS' ? 'SeniorSecured'
-      : 'SeniorUnsecured';
+type RawSpec = (typeof RAW_UNIVERSE)[number];
 
-    const seqIso = pad(i + 100, 4);
-    const isin = `US${raw.cusip}${seqIso.slice(0, 1)}`;
+/** Hand-written archetypes — always the first entries of the universe. */
+export const CORE_UNIVERSE_SIZE = RAW_UNIVERSE.length;
 
-    return {
-      cusip: raw.cusip,
-      isin,
-      sedol: `B${pad(i + 1000, 6)}`,
-      ticker: raw.ticker ?? raw.issuerName.split(' ')[0].slice(0, 4).toUpperCase(),
-      figi: `BBG00${pad(i + 1, 7)}`,
-      internalId: `INT-${pad(i + 1, 6)}`,
-      assetClass: cls,
-      securityType: raw.securityType,
-      securitySubType: raw.mbsType ?? raw.muniSector ?? raw.securityType,
-      seniority,
-      currency: 'USD' as const,
+/**
+ * Growth ceiling. Well under the 34³ issue-code space per issuer prefix
+ * (the busiest prefix, `91282C`, owns a tenth of all entries), so the
+ * CUSIP collision scan always terminates. Above this the positions
+ * generator cycles the universe with a rotating account index.
+ */
+export const MAX_UNIVERSE_SIZE = 20_000;
 
-      issuerName: raw.issuerName,
-      issuerLei: `LEI${pad(i, 4)}${'00000000000000000'.slice(0, 17)}`,
-      issuerCountry: cls === 'Muni' ? 'United States' : 'United States',
-      issuerCountryCode: 'US',
-      issuerSector: raw.issuerSector ?? (cls === 'Rates' ? 'Sovereign' : cls === 'Agency' || cls === 'AgencyMBS' ? 'Agency' : cls === 'Muni' ? 'Municipal' : 'Securitized'),
-      issuerSubSector: raw.issuerSubSector ?? (raw.issuerSector ?? 'General'),
-      issuerIndustryGroup: raw.issuerSector ?? 'General',
-      parentIssuer: null,
-      ultimateParent: raw.issuerName,
-      guarantor: cls === 'AgencyMBS' ? 'US Government (implicit)' : null,
-      issuerType: cls === 'Rates' ? 'Sovereign' : cls === 'Agency' || cls === 'AgencyMBS' ? 'Agency' : cls === 'Muni' ? 'Municipal' : 'Corporate',
-      esgScore: Math.round((5 + (i * 0.13) % 5) * 10) / 10,
+function round(n: number, dp: number): number { return Number(n.toFixed(dp)); }
+function clamp(n: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, n)); }
 
-      issueDate,
-      firstSettleDate: isoDateAdd(issueDate, 1),
-      maturityDate,
-      originalMaturityYears: matYears,
-      workoutDate: maturityDate,
-      workoutPrice: 100,
+/** Deterministic 32-bit mix — variants must not depend on Math.random. */
+function hash32(i: number, salt: number): number {
+  let h = Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca77);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  return (h ^ (h >>> 15)) >>> 0;
+}
+/** Uniform in [0, 1) from the hash. */
+function unit(i: number, salt: number): number { return hash32(i, salt) / 0x1_0000_0000; }
 
-      couponType,
-      couponRate: raw.couponRate ?? 0,
-      couponFrequency: cls === 'Muni' ? 2 : cls === 'AgencyMBS' ? 12 : 2,
-      dayCount: cls === 'Rates' ? 'ACT/ACT' : cls === 'Muni' ? '30/360' : '30/360',
-      accrualBasis: cls === 'Rates' ? 'ACT/ACT' : '30/360',
-      businessDayConvention: 'Following',
+// Issue-code alphabet: digits + letters minus I and O, like real CUSIPs.
+const ISSUE_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const ISSUE_SPACE = ISSUE_ALPHABET.length ** 3; // 39 304
+/** Prime, coprime with 34³ — so `i ↦ (i·stride) mod space` is a bijection. */
+const ISSUE_STRIDE = 7919;
 
-      callable: isCallableCredit || cls === 'Muni' || cls === 'Convertible',
-      puttable: cls === 'Convertible',
-      sinkable: cls === 'AgencyMBS' || cls === 'CMBS' || cls === 'RMBS',
-      convertible: cls === 'Convertible',
-      nextCallDate,
-      nextCallPrice: isCallableCredit || cls === 'Convertible' ? 100 : null,
-      nextPutDate: cls === 'Convertible' ? isoDateAdd(today, 365 * 3) : null,
-      nextPutPrice: cls === 'Convertible' ? 100 : null,
-      callSchedule: isCallableCredit ? [
-        { date: isoDateAdd(today, 365 * 2), price: 102 },
-        { date: isoDateAdd(today, 365 * 3), price: 101 },
-        { date: isoDateAdd(today, 365 * 4), price: 100 },
-      ] : [],
-      sinkSchedule: cls === 'AgencyMBS' ? [
-        { date: isoDateAdd(today, 365),     amount: 0.12 },
-        { date: isoDateAdd(today, 365 * 2), amount: 0.18 },
-        { date: isoDateAdd(today, 365 * 3), amount: 0.22 },
-      ] : [],
-
-      anchorPrice: raw.anchorPrice ?? 100,
-      anchorYield: raw.anchorYield ?? 5,
-      anchorSpreadBps: raw.anchorSpreadBps ?? (cls === 'Rates' ? 0 : 50),
-      benchmark: cls === 'Rates' ? 'On-the-run' : `UST ${matYears}Y`,
-      benchmarkTenor: `${matYears}Y`,
-
-      moodysRating: rating.moodys,
-      moodysOutlook: 'Stable',
-      spRating: rating.sp,
-      spOutlook: 'Stable',
-      fitchRating: rating.fitch,
-      fitchOutlook: 'Stable',
-      dbrsRating: rating.fitch,
-      compositeRating: rating.sp,
-      ratingsBucket: rating.bucket,
-
-      poolNumber: raw.agency ? `${raw.agency.slice(0, 2)}${pad(i, 6)}` : null,
-      agency: raw.agency ?? null,
-      mbsType: raw.mbsType ?? null,
-      wac: raw.wac ?? null,
-      wam: raw.wam ?? null,
-      wala: raw.wala ?? null,
-      avgLoanSize: cls === 'AgencyMBS' ? 285000 + i * 1500 : cls === 'CMBS' ? 18_500_000 + i * 500_000 : null,
-      avgFico: cls === 'AgencyMBS' ? 745 + (i % 30) : null,
-      avgLtv: cls === 'AgencyMBS' ? 72 + (i % 8) : cls === 'CMBS' ? 60 + (i % 12) : null,
-      avgDti: cls === 'AgencyMBS' ? 36 + (i % 5) : null,
-      loanCount: cls === 'AgencyMBS' ? 4500 + i * 35 : cls === 'CMBS' ? 65 + i * 3 : cls === 'RMBS' ? 850 + i * 12 : null,
-
-      state: raw.state ?? null,
-      muniSector: raw.muniSector ?? null,
-      federalTaxStatus: cls === 'Muni' ? 'TaxExempt' : null,
-      stateTaxStatus: cls === 'Muni' ? 'TaxExempt' : null,
-      insured: cls === 'Muni' ? false : null,
-      insurer: cls === 'Muni' ? null : null,
-      useOfProceeds: cls === 'Muni' ? 'General' : null,
-      preRefunded: cls === 'Muni' ? false : null,
-
-      referenceRate: null,
-      floatSpreadBps: null,
-      floatCap: null,
-      floatFloor: null,
-      resetFrequency: null,
-
-      conversionRatio: raw.conversionRatio ?? null,
-      conversionPrice: raw.conversionPrice ?? null,
-      underlyingTicker: raw.underlyingTicker ?? null,
-
-      cfiCode: cls === 'Rates' ? 'DBFTFR' : 'DBFUFR',
-      micCode: 'XOTC',
-      exchange: 'OTC',
-      listingStatus: 'OTC',
-      trancheId: raw.trancheId ?? null,
-
-      issuerRevenueLtm: f.rev,
-      issuerEbitdaLtm: f.ebitda,
-      issuerLeverage: f.lev,
-      issuerCoverage: f.cov,
-      issuerCash: f.cash,
-      issuerDebt: f.debt,
-      issuerMcap: f.mcap,
-      issuerStockPrice: f.px,
-    } satisfies UniverseEntry;
-  });
+function issueCode(n: number): string {
+  const a = ISSUE_ALPHABET.length;
+  return ISSUE_ALPHABET[Math.floor(n / (a * a)) % a] + ISSUE_ALPHABET[Math.floor(n / a) % a] + ISSUE_ALPHABET[n % a];
 }
 
-export function getUniverse(): ReadonlyArray<UniverseEntry> {
-  if (cache === null) cache = hydrate();
+/**
+ * Issuer prefix of the archetype + a scrambled-but-deterministic issue
+ * code. Distinct `i` give distinct codes outright; the scan only moves
+ * on a clash with a hand-written CUSIP (or an earlier bump), and walks
+ * every code before repeating, so it terminates while the prefix has a
+ * free code — which `MAX_UNIVERSE_SIZE` guarantees.
+ */
+function uniqueCusip(base: string, i: number, used: ReadonlySet<string>): string {
+  const prefix = base.slice(0, 6);
+  for (let bump = 0; bump < ISSUE_SPACE; bump++) {
+    const candidate = prefix + issueCode((i * ISSUE_STRIDE + bump) % ISSUE_SPACE);
+    if (!used.has(candidate)) return candidate;
+  }
+  throw new Error(`mockUniverse: issue-code space exhausted for prefix ${prefix}`);
+}
+
+const NOTE_TENORS = [2, 3, 5, 7, 10];
+const BOND_TENORS = [20, 30];
+const TRANCHES = ['A-1', 'A-2', 'A-3', 'A-S', 'B', 'C'];
+
+/**
+ * Another bond from the same issuer: a different tenor and coupon, with
+ * yield, price and spread moved consistently (coupon above yield trades
+ * above par, scaled by duration). Bills and zeros keep their shape.
+ */
+function variantOf(base: RawSpec, i: number, today: string, used: ReadonlySet<string>): RawSpec {
+  const cls = base.assetClass;
+  const baseYears = base.originalMaturityYears ?? 10;
+  const years = baseYears < 1 ? baseYears
+    : base.securityType === 'TNote' ? NOTE_TENORS[hash32(i, 1) % NOTE_TENORS.length]
+    : base.securityType === 'TBond' ? BOND_TENORS[hash32(i, 1) % BOND_TENORS.length]
+    : Math.max(1, baseYears - 2 + (hash32(i, 1) % 8));
+  const baseCoupon = base.couponRate ?? 0;
+  const couponDelta = baseCoupon === 0 ? 0 : ((hash32(i, 2) % 9) - 4) * 0.125;
+  // ~4bp of curve per year of tenor, plus ±15bp idiosyncratic.
+  const yieldDelta = (years - baseYears) * 0.04 + (unit(i, 3) - 0.5) * 0.3;
+  const duration = Math.max(0.25, years * 0.85);
+  const baseSpread = base.anchorSpreadBps ?? (cls === 'Rates' ? 0 : 50);
+  // Spread maturities within a tenor by up to ±6 months so two variants
+  // sharing one still read as different bonds. Sub-2Y paper stays put.
+  const monthShift = years >= 2 ? (hash32(i, 4) % 13) - 6 : 0;
+  return {
+    ...base,
+    cusip: uniqueCusip(base.cusip, i, used),
+    originalMaturityYears: years,
+    maturityDate: isoDateAdd(today, Math.floor(years * 365) + monthShift * 30),
+    couponRate: round(Math.max(0, baseCoupon + couponDelta), 3),
+    anchorYield: round((base.anchorYield ?? 5) + yieldDelta, 3),
+    anchorPrice: round(clamp((base.anchorPrice ?? 100) + (couponDelta - yieldDelta) * duration, 40, 140), 2),
+    anchorSpreadBps: cls === 'Rates' ? 0 : round(baseSpread * (0.85 + unit(i, 5) * 0.3), 1),
+    ...(base.trancheId ? { trancheId: TRANCHES[hash32(i, 6) % TRANCHES.length] } : null),
+  };
+}
+
+// ─── Hydration ───────────────────────────────────────────────────────
+
+function hydrate(raw: RawSpec, i: number, today: string): UniverseEntry {
+  const cls = raw.assetClass;
+  const rating = ratingForAssetClass(cls);
+  const f = fundamentalsForAssetClass(cls, raw.issuerName);
+  const matYears = raw.originalMaturityYears ?? 10;
+  const maturityDate = raw.maturityDate ?? isoDateAdd(today, Math.floor(matYears * 365));
+  const issueDate = isoDateAdd(today, -Math.floor(matYears * 365 * 0.1));
+  const isCallableCredit = cls === 'CorpIG' || cls === 'CorpHY';
+  const nextCallDate = isCallableCredit ? isoDateAdd(today, 365 * 2) : null;
+  const couponType: UniverseEntry['couponType'] = cls === 'Convertible' && (raw.couponRate ?? 0) === 0
+    ? 'Zero'
+    : 'Fixed';
+
+  const seniority: Seniority = cls === 'Rates' ? 'Treasury'
+    : cls === 'Agency' || cls === 'AgencyMBS' ? 'Agency'
+    : cls === 'CorpHY' ? 'SeniorUnsecured'
+    : cls === 'CMBS' || cls === 'RMBS' ? 'SeniorSecured'
+    : 'SeniorUnsecured';
+
+  const seqIso = pad(i + 100, 4);
+  const isin = `US${raw.cusip}${seqIso.slice(0, 1)}`;
+
+  return {
+    cusip: raw.cusip,
+    isin,
+    sedol: `B${pad(i + 1000, 6)}`,
+    ticker: raw.ticker ?? raw.issuerName.split(' ')[0].slice(0, 4).toUpperCase(),
+    figi: `BBG00${pad(i + 1, 7)}`,
+    internalId: `INT-${pad(i + 1, 6)}`,
+    assetClass: cls,
+    securityType: raw.securityType,
+    securitySubType: raw.mbsType ?? raw.muniSector ?? raw.securityType,
+    seniority,
+    currency: 'USD' as const,
+
+    issuerName: raw.issuerName,
+    issuerLei: `LEI${pad(i, 4)}${'00000000000000000'.slice(0, 17)}`,
+    issuerCountry: cls === 'Muni' ? 'United States' : 'United States',
+    issuerCountryCode: 'US',
+    issuerSector: raw.issuerSector ?? (cls === 'Rates' ? 'Sovereign' : cls === 'Agency' || cls === 'AgencyMBS' ? 'Agency' : cls === 'Muni' ? 'Municipal' : 'Securitized'),
+    issuerSubSector: raw.issuerSubSector ?? (raw.issuerSector ?? 'General'),
+    issuerIndustryGroup: raw.issuerSector ?? 'General',
+    parentIssuer: null,
+    ultimateParent: raw.issuerName,
+    guarantor: cls === 'AgencyMBS' ? 'US Government (implicit)' : null,
+    issuerType: cls === 'Rates' ? 'Sovereign' : cls === 'Agency' || cls === 'AgencyMBS' ? 'Agency' : cls === 'Muni' ? 'Municipal' : 'Corporate',
+    esgScore: Math.round((5 + (i * 0.13) % 5) * 10) / 10,
+
+    issueDate,
+    firstSettleDate: isoDateAdd(issueDate, 1),
+    maturityDate,
+    originalMaturityYears: matYears,
+    workoutDate: maturityDate,
+    workoutPrice: 100,
+
+    couponType,
+    couponRate: raw.couponRate ?? 0,
+    couponFrequency: cls === 'Muni' ? 2 : cls === 'AgencyMBS' ? 12 : 2,
+    dayCount: cls === 'Rates' ? 'ACT/ACT' : cls === 'Muni' ? '30/360' : '30/360',
+    accrualBasis: cls === 'Rates' ? 'ACT/ACT' : '30/360',
+    businessDayConvention: 'Following',
+
+    callable: isCallableCredit || cls === 'Muni' || cls === 'Convertible',
+    puttable: cls === 'Convertible',
+    sinkable: cls === 'AgencyMBS' || cls === 'CMBS' || cls === 'RMBS',
+    convertible: cls === 'Convertible',
+    nextCallDate,
+    nextCallPrice: isCallableCredit || cls === 'Convertible' ? 100 : null,
+    nextPutDate: cls === 'Convertible' ? isoDateAdd(today, 365 * 3) : null,
+    nextPutPrice: cls === 'Convertible' ? 100 : null,
+    callSchedule: isCallableCredit ? [
+      { date: isoDateAdd(today, 365 * 2), price: 102 },
+      { date: isoDateAdd(today, 365 * 3), price: 101 },
+      { date: isoDateAdd(today, 365 * 4), price: 100 },
+    ] : [],
+    sinkSchedule: cls === 'AgencyMBS' ? [
+      { date: isoDateAdd(today, 365),     amount: 0.12 },
+      { date: isoDateAdd(today, 365 * 2), amount: 0.18 },
+      { date: isoDateAdd(today, 365 * 3), amount: 0.22 },
+    ] : [],
+
+    anchorPrice: raw.anchorPrice ?? 100,
+    anchorYield: raw.anchorYield ?? 5,
+    anchorSpreadBps: raw.anchorSpreadBps ?? (cls === 'Rates' ? 0 : 50),
+    benchmark: cls === 'Rates' ? 'On-the-run' : `UST ${matYears}Y`,
+    benchmarkTenor: `${matYears}Y`,
+
+    moodysRating: rating.moodys,
+    moodysOutlook: 'Stable',
+    spRating: rating.sp,
+    spOutlook: 'Stable',
+    fitchRating: rating.fitch,
+    fitchOutlook: 'Stable',
+    dbrsRating: rating.fitch,
+    compositeRating: rating.sp,
+    ratingsBucket: rating.bucket,
+
+    poolNumber: raw.agency ? `${raw.agency.slice(0, 2)}${pad(i, 6)}` : null,
+    agency: raw.agency ?? null,
+    mbsType: raw.mbsType ?? null,
+    wac: raw.wac ?? null,
+    wam: raw.wam ?? null,
+    wala: raw.wala ?? null,
+    avgLoanSize: cls === 'AgencyMBS' ? 285000 + i * 1500 : cls === 'CMBS' ? 18_500_000 + i * 500_000 : null,
+    avgFico: cls === 'AgencyMBS' ? 745 + (i % 30) : null,
+    avgLtv: cls === 'AgencyMBS' ? 72 + (i % 8) : cls === 'CMBS' ? 60 + (i % 12) : null,
+    avgDti: cls === 'AgencyMBS' ? 36 + (i % 5) : null,
+    loanCount: cls === 'AgencyMBS' ? 4500 + i * 35 : cls === 'CMBS' ? 65 + i * 3 : cls === 'RMBS' ? 850 + i * 12 : null,
+
+    state: raw.state ?? null,
+    muniSector: raw.muniSector ?? null,
+    federalTaxStatus: cls === 'Muni' ? 'TaxExempt' : null,
+    stateTaxStatus: cls === 'Muni' ? 'TaxExempt' : null,
+    insured: cls === 'Muni' ? false : null,
+    insurer: cls === 'Muni' ? null : null,
+    useOfProceeds: cls === 'Muni' ? 'General' : null,
+    preRefunded: cls === 'Muni' ? false : null,
+
+    referenceRate: null,
+    floatSpreadBps: null,
+    floatCap: null,
+    floatFloor: null,
+    resetFrequency: null,
+
+    conversionRatio: raw.conversionRatio ?? null,
+    conversionPrice: raw.conversionPrice ?? null,
+    underlyingTicker: raw.underlyingTicker ?? null,
+
+    cfiCode: cls === 'Rates' ? 'DBFTFR' : 'DBFUFR',
+    micCode: 'XOTC',
+    exchange: 'OTC',
+    listingStatus: 'OTC',
+    trancheId: raw.trancheId ?? null,
+
+    issuerRevenueLtm: f.rev,
+    issuerEbitdaLtm: f.ebitda,
+    issuerLeverage: f.lev,
+    issuerCoverage: f.cov,
+    issuerCash: f.cash,
+    issuerDebt: f.debt,
+    issuerMcap: f.mcap,
+    issuerStockPrice: f.px,
+  } satisfies UniverseEntry;
+}
+
+// ─── Registry ────────────────────────────────────────────────────────
+
+let cache: ReadonlyArray<UniverseEntry> | null = null;
+let byCusip: Map<string, UniverseEntry> | null = null;
+
+function grow(current: ReadonlyArray<UniverseEntry>, size: number): ReadonlyArray<UniverseEntry> {
+  const today = isoToday();
+  const used = new Set(current.map((e) => e.cusip));
+  const next = current.slice();
+  for (let i = next.length; i < size; i++) {
+    const raw = i < CORE_UNIVERSE_SIZE
+      ? RAW_UNIVERSE[i]
+      : variantOf(RAW_UNIVERSE[i % CORE_UNIVERSE_SIZE], i, today, used);
+    used.add(raw.cusip);
+    next.push(hydrate(raw, i, today));
+  }
+  return next;
+}
+
+/**
+ * The shared universe — at least the core set, grown to `minSize`
+ * entries (clamped to `MAX_UNIVERSE_SIZE`) when asked for more than it
+ * holds. Never shrinks; growth hands out a new array so callers that
+ * cache derived views by identity notice.
+ */
+export function getUniverse(minSize = 0): ReadonlyArray<UniverseEntry> {
+  const want = clamp(Number.isFinite(minSize) ? Math.floor(minSize) : 0, CORE_UNIVERSE_SIZE, MAX_UNIVERSE_SIZE);
+  if (cache === null || cache.length < want) {
+    cache = grow(cache ?? [], want);
+    byCusip = null;
+  }
   return cache;
 }
 
 /** Test hook — drops the cache so the next `getUniverse()` rebuilds. */
-export function __resetMockUniverse(): void { cache = null; }
+export function __resetMockUniverse(): void { cache = null; byCusip = null; }
 
-/** Find by CUSIP — O(n) over a ~50-row set, no index needed. */
+/** Find by CUSIP — indexed, rebuilt lazily after growth. */
 export function findByCusip(cusip: string): UniverseEntry | undefined {
-  return getUniverse().find((e) => e.cusip === cusip);
+  const universe = getUniverse();
+  if (byCusip === null) byCusip = new Map(universe.map((e) => [e.cusip, e]));
+  return byCusip.get(cusip);
 }

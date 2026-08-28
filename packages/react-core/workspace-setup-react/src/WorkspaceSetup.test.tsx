@@ -131,6 +131,50 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * The editor is a fixed-height shell: header, three independently scrolling
+ * panes, pinned footer. jsdom does no layout, so these assert the structural
+ * contract that produces it rather than measured pixels — worth pinning
+ * because the same trap has broken it twice.
+ *
+ * The failure is silent: a pane simply clips its content at the bottom edge
+ * with no scrollbar, and the footer walks off the window.
+ */
+describe('WorkspaceSetup — shell layout', () => {
+  it('gives the pane grid an explicit shrinkable row', async () => {
+    const { container } = await mount();
+    const main = container.querySelector('main');
+
+    // Columns without a row leaves the single implicit row at `auto`, which
+    // sizes to the tallest pane and overflows. `minmax(0,1fr)` rather than
+    // `1fr` because a track's implicit minimum is `auto` and won't shrink
+    // below its content.
+    expect(main?.className).toContain('grid-rows-[minmax(0,1fr)]');
+    expect(main?.className).toContain('min-h-0');
+    expect(main?.className).toContain('overflow-hidden');
+  });
+
+  it('makes every pane a fixed-height column with its own scroller', async () => {
+    const { container } = await mount();
+    const panes = container.querySelectorAll('main > div');
+
+    expect(panes).toHaveLength(3);
+    for (const pane of panes) {
+      // Grid items default to `min-height: auto` and refuse to shrink below
+      // their content, so the scroller inside never gets a bounded height.
+      expect(pane.className).toContain('min-h-0');
+      expect(pane.querySelector('.overflow-auto')).not.toBeNull();
+    }
+  });
+
+  it('keeps the footer outside the scrolling area', async () => {
+    const { container } = await mount();
+
+    expect(container.querySelector('footer')?.className).toContain('shrink-0');
+    expect(container.querySelector('header')?.className).toContain('shrink-0');
+  });
+});
+
 describe('WorkspaceSetup — shell', () => {
   it('shows a loading state until the platform scope is known', async () => {
     let resolveEnv!: (env: typeof hostEnv) => void;

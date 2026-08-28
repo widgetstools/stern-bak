@@ -48,7 +48,7 @@ describe('isMutatingTool', () => {
 
 describe('captureGrid', () => {
   /** A snapshot of the template alone would not restore an open window. */
-  it('captures every write target, template and instances', async () => {
+  it('captures the row a component-level change writes — the template', async () => {
     const { configManager } = fakeManager(
       { 'grid-test': [{ id: '__default__' }], 'inst-1': [{ id: '__default__' }] },
       ['inst-1'],
@@ -56,7 +56,8 @@ describe('captureGrid', () => {
 
     const backups = await captureGrid(configManager, 'grid-test');
 
-    expect(backups.map((b) => b.instanceId)).toEqual(['grid-test', 'inst-1']);
+    // Component-level change, so there is one row to back up: the template.
+    expect(backups.map((b) => b.instanceId)).toEqual(['grid-test']);
   });
 
   it('returns nothing for an unknown grid rather than throwing mid-turn', async () => {

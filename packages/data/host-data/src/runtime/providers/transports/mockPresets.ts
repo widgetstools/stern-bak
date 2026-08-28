@@ -2,8 +2,9 @@
  * Mock provider configuration presets.
  *
  * The underlying generator (`mockPosition.ts` + `mockUniverse.ts`) is
- * already a rich fixed-income simulator — 53 distinct issuers cycled
- * to any row count, 270+ fields per row including nested
+ * already a rich fixed-income simulator — a 50-archetype universe that
+ * grows to any row count with a distinct security (unique CUSIP) per
+ * row, 270+ fields per row including nested
  * ratings/exposure/key-rate-durations, and a tick function that walks
  * pricing, yields, spreads, accrued, and P&L.
  *
@@ -36,7 +37,7 @@
 import type { MockProviderConfig } from '@wellsfargo-starui/types';
 
 export interface FiPositionsConfigOverrides {
-  /** Row count. Universe has 53 issuers; counts above 53 cycle with rotating account ids. */
+  /** Row count. Every row is a distinct security (unique CUSIP) up to 20 000; beyond that the universe cycles with rotating account ids. */
   rowCount?: number;
   /** Tick interval in milliseconds. */
   updateIntervalMs?: number;

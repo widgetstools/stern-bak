@@ -61,6 +61,7 @@ import { withInferredColumns, describeMockFields } from './providerColumns';
 import { launchBlotter, describeLaunch } from './launchComponent';
 import { setColumnLayout, setRowGrouping } from './layoutTools';
 import { renameColumn, setColumnVisibility } from './simpleColumnTools';
+import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import type { DataHubClient } from './dataAccess';
 import { setColumnStyle, setColumnBehavior } from './columnStyleTools';
@@ -82,6 +83,7 @@ import {
   updateProfile,
   deleteProfile,
   switchProfile,
+  reloadGrid,
 } from './profileTools';
 import {
   listDataProviders,
@@ -184,7 +186,9 @@ async function updateModuleSettings(configManager: ConfigManager, args: Record<s
   }));
   return {
     ok: true,
-    summary: `Set ${keys.join(', ')} on "${entry.displayName}"${describeFanOut(fan)} (${a.moduleId}). Reopen the blotter to see it applied.`,
+    // No "reopen to see it" — a module write lands in the row the open grid is
+    // reading, and its live config sync re-applies it without a reload.
+    summary: `Set ${keys.join(', ')} on "${entry.displayName}"${describeFanOut(fan)} (${a.moduleId}).`,
   };
 }
 
@@ -363,9 +367,17 @@ async function diagnoseGrid(
   const assignments = ((profile.state['column-customization']?.data as {
     assignments?: Record<string, { initialHide?: boolean }>;
   })?.assignments) ?? {};
-  const gridState = (profile.state['grid-state']?.data as {
-    saved?: { gridState?: { columnVisibility?: { hiddenColIds?: string[] }; rowGroup?: { groupColIds?: string[] } } };
-  })?.saved?.gridState;
+  const savedGridState = (profile.state['grid-state']?.data as {
+    saved?: {
+      gridState?: {
+        columnVisibility?: { hiddenColIds?: string[] };
+        rowGroup?: { groupColIds?: string[] };
+        pivot?: { pivotMode?: boolean; pivotColIds?: string[] };
+      };
+      assistantAutoHiddenColIds?: string[];
+    };
+  })?.saved;
+  const gridState = savedGridState?.gridState;
 
   const hiddenColumns = [
     ...new Set([
@@ -390,6 +402,9 @@ async function diagnoseGrid(
     conditionalRules: ((profile.state['conditional-styling']?.data as { rules?: Array<{ id: string; name?: string; enabled?: boolean; expression?: string }> })?.rules) ?? [],
     calculatedColumns: ((profile.state['calculated-columns']?.data as { virtualColumns?: Array<{ colId?: string; expression?: string }> })?.virtualColumns) ?? [],
     rowGroupColIds: gridState?.rowGroup?.groupColIds ?? [],
+    pivotColIds: gridState?.pivot?.pivotColIds ?? [],
+    pivotMode: gridState?.pivot?.pivotMode === true,
+    autoHiddenColIds: savedGridState?.assistantAutoHiddenColIds ?? [],
   });
 
   return { ok: true, summary: summariseFindings(entry.displayName, findings), data: { findings } };
@@ -488,10 +503,12 @@ export interface ToolExecutionContext {
    */
   lockedGridId?: string;
   /**
-   * The blotter WINDOW this panel was opened from. Every write includes this
-   * row explicitly — instance discovery is visibility-filtered and can omit the
-   * very window the user is watching, which reads as "it said it worked but
-   * nothing happened".
+   * The blotter WINDOW this panel was opened from (the wand button). This is
+   * `dispatchTool`'s default pin: a call that doesn't name its own instance
+   * gets pinned to this one, so reads and writes stay on this window alone —
+   * never the template, never a sibling window. A call CAN still override it
+   * by naming a different `instanceId` explicitly (see `resolveInstancePin`),
+   * which is how "also do this on the other window" works from a scoped panel.
    */
   focusInstanceId?: string;
 }
@@ -593,6 +610,14 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return queryGridData({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'diagnose_grid':
       return diagnoseGrid(ctx.configManager, ctx.configStore, args);
+    case 'list_mock_datasets':
+      return listMockDatasets();
+    case 'list_provider_fields':
+      return listProviderFields(ctx.configStore, args);
+    case 'infer_provider_fields':
+      return inferProviderFields(ctx.configStore, args);
+    case 'set_provider_columns':
+      return setProviderColumns(ctx.configManager, ctx.configStore, args);
     case 'describe_data_fields':
       return describeDataFields(ctx.configStore, args);
     case 'rename_column':
@@ -613,6 +638,8 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return deleteProfile(ctx.configManager, args);
     case 'switch_profile':
       return switchProfile(ctx.configManager, args);
+    case 'reload_grid':
+      return reloadGrid(ctx.configManager, args);
     case 'create_blotter':
       return createBlotter(ctx.configManager, ctx.appId, args);
     case 'open_blotter':
@@ -688,7 +715,11 @@ export async function dispatchTool(
   }
   try {
     const result = await withGridScope(
-      { focusInstanceId: ctx.focusInstanceId, pinnedInstanceId: pinned.pinnedInstanceId },
+      // A call that doesn't pin anything of its own defaults to the window
+      // this panel is focused on — that's what turns a wand-scoped session's
+      // ordinary, unpinned calls into "this window alone", not "template +
+      // this window". An explicit pin from the call itself still wins.
+      { focusInstanceId: ctx.focusInstanceId, pinnedInstanceId: pinned.pinnedInstanceId ?? ctx.focusInstanceId },
       () => runTool(name, ctx, scoped.args),
     );
     console.debug(`${LOG} tool ← ${name}`, result);
@@ -704,7 +735,7 @@ export interface UseToolExecutorOptions {
   defaultGridId?: string;
   /** Set by a wand-launched panel — calls may not reach any other grid. */
   lockedGridId?: string;
-  /** The blotter window this panel was opened from; always written to. */
+  /** The blotter window this panel was opened from; the default pin for any call that doesn't name its own instance. */
   focusInstanceId?: string;
 }
 

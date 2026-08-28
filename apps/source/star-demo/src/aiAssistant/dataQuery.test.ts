@@ -94,6 +94,87 @@ describe('grouping and aggregation', () => {
   });
 });
 
+describe('pivot', () => {
+  it('cross-tabs rows by pivotBy, filling cells with the aggregate and leaving unmatched combinations null', () => {
+    const out = run({ groupBy: ['desk'], pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] });
+
+    // A single aggregate keeps the pivot value alone as the column header.
+    expect(out.columns).toEqual(['desk', 'Energy', 'Financials', 'Tech']);
+    expect(out.pivot).toEqual({ rowDims: ['desk'], colDims: ['sector'], measures: ['sum_marketValue'] });
+    expect(out.grouped).toBe(true);
+
+    const credit = out.rows.find((r) => r.desk === 'Credit');
+    // Credit desk holds Tech (100+200) and Energy (500), no Financials.
+    expect(credit).toMatchObject({ Tech: 300, Energy: 500, Financials: null });
+
+    const rates = out.rows.find((r) => r.desk === 'Rates');
+    // Rates desk holds only Financials (300+400) — the other two cells are gaps, not zeros.
+    expect(rates).toMatchObject({ Financials: 700, Tech: null, Energy: null });
+  });
+
+  it('prefixes the aggregate name in the column header once there is more than one', () => {
+    const out = run({
+      groupBy: ['desk'], pivotBy: ['sector'],
+      aggregate: [{ column: 'marketValue', fn: 'sum' }, { column: 'ticker', fn: 'count' }],
+    });
+    expect(out.columns).toContain('sum_marketValue · Tech');
+    expect(out.columns).toContain('count_ticker · Tech');
+  });
+
+  it('requires groupBy — pivotBy alone has no row dimension to roll up into', () => {
+    expect(reject({ pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] })).toContain('pivotBy needs groupBy');
+  });
+
+  it('requires an aggregate — nothing to fill the pivoted cells with otherwise', () => {
+    expect(reject({ groupBy: ['desk'], pivotBy: ['sector'] })).toContain('pivotBy needs aggregate');
+  });
+
+  it('refuses a column used as both the row and column dimension', () => {
+    const err = reject({ groupBy: ['sector'], pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] });
+    expect(err).toContain('sector');
+    expect(err).toContain('not both');
+  });
+
+  /** A wide-open pivot column (e.g. cusip) would otherwise silently build a
+   *  table nobody can read instead of failing with something actionable.
+   *  `reject()` runs against the module-level ROWS fixture, which is too
+   *  narrow to trip this — build data for the case instead. */
+  it('caps the number of distinct pivot columns rather than building an unusable table', () => {
+    const wide = Array.from({ length: 35 }, (_, i) => ({ g: 'x', grp: `v${i}`, val: i }));
+    const res = runQuery(wide, { groupBy: ['g'], pivotBy: ['grp'], aggregate: [{ column: 'val', fn: 'sum' }] });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toContain('35');
+    expect(res.ok === false && res.error).toContain('30');
+  });
+
+  /** Two distinct pivot tuples whose flattened labels collide must be caught,
+   *  not silently overwrite each other's numbers. */
+  it('rejects a flattened pivot-column name collision', () => {
+    const rows = [{ g: 'x', grp: 'Y · Z', v: 1 }, { g: 'x', grp: 'Z', v: 2 }];
+    const res = runQuery(rows, {
+      groupBy: ['g'], pivotBy: ['grp'],
+      aggregate: [{ column: 'v', fn: 'sum', as: 'X' }, { column: 'v', fn: 'sum', as: 'X · Y' }],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toContain('duplicate column name');
+  });
+
+  it('sorts a pivoted table by a generated column', () => {
+    const out = run({
+      groupBy: ['desk'], pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }],
+      sortBy: { column: 'Financials', direction: 'desc' },
+    });
+    expect(out.rows[0].desk).toBe('Rates');
+  });
+
+  it('limits and reports truncation on a pivoted table same as a flat one', () => {
+    const out = run({ groupBy: ['desk'], pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }], limit: 1 });
+    expect(out.matched).toBe(2);
+    expect(out.rows.length).toBe(1);
+    expect(out.truncated).toBe(true);
+  });
+});
+
 describe('sorting and limits', () => {
   it('defaults to descending, which is what "top N" means', () => {
     const out = run({ columns: ['ticker', 'marketValue'], sortBy: { column: 'marketValue' }, limit: 2 });

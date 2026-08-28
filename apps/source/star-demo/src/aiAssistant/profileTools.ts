@@ -13,12 +13,26 @@
  * config writing makes a grid switch. `switch_profile` therefore records the
  * request in gridLevelData and lets the open window act on it — see
  * `src/useLiveProfileSync.ts`, which already subscribes to this row.
+ *
+ * ## Why `reload_grid` is a "switch" to the SAME profile
+ *
+ * Ordinary config writes already show up live: any write to the grid's row
+ * fires the same subscription, which reloads whatever profile the window is
+ * currently on. `reload_grid` exists for when that isn't enough on its own —
+ * the user reports a change didn't show, or just asks to refresh — and it is
+ * built out of the identical mechanism `switch_profile` uses, just naming the
+ * profile the window is ALREADY showing. `ProfileManager.load()` re-reads
+ * from storage and resets the grid's modules unconditionally, whether or not
+ * the id changed, so requesting the current id is a genuine reload rather
+ * than a no-op. No new plumbing on the grid side was needed for this.
  */
 import type { ConfigManager, ProfileSnapshot } from '@wellsfargo-starui/core/host/config';
 import {
   readActiveProfile,
+  readActiveProfileId,
   resolveWriteTargets,
   resolveGridEntry,
+  gridScopeId,
   patchGridLevelData,
   describeFanOut,
   DEFAULT_PROFILE_ID,
@@ -220,5 +234,35 @@ export async function switchProfile(
     summary:
       `Asked "${entry.displayName}"${describeFanOut(fan)} to switch to profile "${target.name}". ` +
       'Open windows switch now; a window opened later starts on whichever profile it last had.',
+  };
+}
+
+/**
+ * Forces the open window to reload its current profile from disk — the
+ * explicit "make sure this is visible" action, so the user is never told to
+ * switch profiles away and back as a workaround for a change that should
+ * already be live. See the header note for how this reuses `switch_profile`'s
+ * mechanism against the window's own active profile id.
+ */
+export async function reloadGrid(
+  configManager: ConfigManager,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const targetGridId = args.targetGridId as string | undefined;
+  if (!targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  const entry = await resolveGridEntry(targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
+
+  const activeProfileId = await readActiveProfileId(configManager, gridScopeId(entry));
+
+  const fan = await patchGridLevelData(configManager, entry, (prev) => ({
+    ...prev,
+    requestedActiveProfileId: activeProfileId,
+    requestedActiveProfileAt: Date.now(),
+  }));
+
+  return {
+    ok: true,
+    summary: `Asked "${entry.displayName}"${describeFanOut(fan)} to reload its current profile from disk — any recent changes should now be visible.`,
   };
 }

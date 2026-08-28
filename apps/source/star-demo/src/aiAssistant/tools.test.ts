@@ -16,6 +16,7 @@ const DECLARED: ToolName[] = [
   'list_grids', 'list_data_providers', 'get_grid_columns', 'list_grid_instances',
   'describe_data_fields', 'diagnose_grid', 'list_cell_renderers', 'undo_last_change',
   'summarize_grid_data', 'query_grid_data',
+  'list_mock_datasets', 'list_provider_fields', 'infer_provider_fields', 'set_provider_columns',
   'list_grid_customizations', 'list_grid_modules', 'get_feature_guide',
   'get_module_settings', 'update_module_settings', 'list_module_items',
   'add_module_item', 'update_module_item', 'remove_module_item',
@@ -25,7 +26,7 @@ const DECLARED: ToolName[] = [
   'add_conditional_styling_rule', 'update_conditional_styling_rule', 'remove_conditional_styling_rule',
   'rename_column', 'set_column_visibility',
   'set_column_style', 'set_column_behavior', 'set_column_layout', 'set_row_grouping',
-  'list_profiles', 'create_profile', 'update_profile', 'delete_profile', 'switch_profile',
+  'list_profiles', 'create_profile', 'update_profile', 'delete_profile', 'switch_profile', 'reload_grid',
   'clear_column_style',
 ];
 
@@ -102,7 +103,7 @@ describe('the read-only set', () => {
   /** Auto-execution hangs off this: a mutating tool listed here would apply
    *  without the user ever being asked. */
   it('excludes everything that writes', () => {
-    const writers = DECLARED.filter((n) => /^(set|add|create|update|remove|delete|clear|switch|undo|open|rename)_/.test(n));
+    const writers = DECLARED.filter((n) => /^(set|add|create|update|remove|delete|clear|switch|reload|undo|open|rename)_/.test(n));
     expect(writers.filter(isReadOnlyTool)).toEqual([]);
   });
 

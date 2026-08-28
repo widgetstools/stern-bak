@@ -6,6 +6,7 @@ import {
   applyRowGrouping,
   withGridStateSlices,
   type GridStateSlices,
+  planGroupedVisibility,
 } from './gridLayout';
 
 describe('normalizeColumnLayoutArgs', () => {
@@ -138,5 +139,167 @@ describe('withGridStateSlices', () => {
     expect(env.viewportAnchor.firstRowIndex).toBe(12);
     expect(env.gridState.sort).toEqual({ sortModel: [] });
     expect(env.gridState.columnOrder).toEqual({ orderedColIds: ['b', 'a'] });
+  });
+});
+
+/**
+ * A grouped or pivoted blotter is a summary, so it shows a summary's columns:
+ * the dimensions move into the group column / pivot headers, and only measures
+ * are left in the body. Getting this wrong is what makes a 250-column blotter
+ * unreadable the moment it rolls up.
+ */
+describe('pivot arguments', () => {
+  it('turns pivot mode on as soon as a column dimension is named', () => {
+    const res = normalizeRowGroupingArgs({
+      groupBy: ['issuerSector'],
+      pivotBy: ['currency'],
+      aggregations: { marketValue: 'sum' },
+    });
+    expect(res.ok).toBe(true);
+    expect(res.ok === true && res.value.pivotMode).toBe(true);
+  });
+
+  it('leaves pivot mode off for a plain grouping', () => {
+    const res = normalizeRowGroupingArgs({ groupBy: ['issuerSector'] });
+    expect(res.ok === true && res.value.pivotMode).toBe(false);
+  });
+
+  it('lets a caller configure pivot columns while staying in grouped view', () => {
+    const res = normalizeRowGroupingArgs({
+      groupBy: ['issuerSector'],
+      pivotBy: ['currency'],
+      pivotMode: false,
+    });
+    expect(res.ok === true && res.value.pivotMode).toBe(false);
+  });
+
+  /** AG-Grid pivots values WITHIN row groups — with none it renders one total row. */
+  it('rejects a pivot with no row dimension', () => {
+    const res = normalizeRowGroupingArgs({ groupBy: [], pivotBy: ['currency'], aggregations: { mv: 'sum' } });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toContain('needs at least one row group');
+  });
+
+  /** Pivot columns with no measure produce a grid of empty cells. */
+  it('rejects a pivot with no measure', () => {
+    const res = normalizeRowGroupingArgs({ groupBy: ['issuerSector'], pivotBy: ['currency'] });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toContain('aggregated measure');
+  });
+
+  it('rejects a column used as both dimensions', () => {
+    const res = normalizeRowGroupingArgs({
+      groupBy: ['currency'],
+      pivotBy: ['currency'],
+      aggregations: { mv: 'sum' },
+    });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toContain('not both');
+  });
+
+  it('writes the pivot slice, and clears it when pivoting stops', () => {
+    const pivoted = applyRowGrouping({}, {
+      groupBy: ['issuerSector'],
+      pivotBy: ['currency'],
+      pivotMode: true,
+      aggregations: { marketValue: 'sum' },
+    });
+    expect(pivoted.pivot).toEqual({ pivotMode: true, pivotColIds: ['currency'] });
+
+    // Written even when off — a stale slice would otherwise be replayed on the
+    // next profile load and silently re-pivot the grid.
+    const flattened = applyRowGrouping(pivoted, { groupBy: [] });
+    expect(flattened.pivot).toEqual({ pivotMode: false, pivotColIds: [] });
+  });
+});
+
+describe('planGroupedVisibility', () => {
+  const columns = [
+    { colId: 'issuerSector', numeric: false },
+    { colId: 'currency', numeric: false },
+    { colId: 'cusip', numeric: false },
+    { colId: 'marketValue', numeric: true },
+    { colId: 'dv01', numeric: true },
+  ];
+  const fresh = { columns, previouslyHidden: [], previouslyAutoHidden: [] };
+
+  it('hides the grouped column itself — its value is in the group column already', () => {
+    const plan = planGroupedVisibility(
+      { groupBy: ['issuerSector'], aggregations: { marketValue: 'sum' } },
+      fresh,
+    );
+    expect(plan.autoHiddenColIds).toContain('issuerSector');
+  });
+
+  it('hides every non-numeric column but keeps the measures', () => {
+    const plan = planGroupedVisibility(
+      { groupBy: ['issuerSector'], aggregations: { marketValue: 'sum' } },
+      fresh,
+    );
+    expect(plan.hiddenColIds.sort()).toEqual(['currency', 'cusip', 'issuerSector']);
+    expect(plan.hiddenColIds).not.toContain('marketValue');
+    // Numeric but unaggregated columns stay too — they can still be totalled.
+    expect(plan.hiddenColIds).not.toContain('dv01');
+  });
+
+  it('hides both dimensions of a pivot', () => {
+    const plan = planGroupedVisibility(
+      { groupBy: ['issuerSector'], pivotBy: ['currency'], pivotMode: true, aggregations: { marketValue: 'sum' } },
+      fresh,
+    );
+    expect(plan.autoHiddenColIds).toEqual(expect.arrayContaining(['issuerSector', 'currency']));
+  });
+
+  /** Asking for the number is what makes a column a measure, whatever its type. */
+  it('keeps an explicitly aggregated column even when it is not numeric', () => {
+    const plan = planGroupedVisibility(
+      { groupBy: ['issuerSector'], aggregations: { cusip: 'count' } },
+      fresh,
+    );
+    expect(plan.hiddenColIds).not.toContain('cusip');
+  });
+
+  it('keeps text columns when the caller opts out', () => {
+    const plan = planGroupedVisibility(
+      { groupBy: ['issuerSector'], hideNonNumeric: false, aggregations: { marketValue: 'sum' } },
+      fresh,
+    );
+    // The grouped column still goes — that one is not a preference.
+    expect(plan.autoHiddenColIds).toEqual(['issuerSector']);
+    expect(plan.hiddenColIds).not.toContain('cusip');
+  });
+
+  it('hides nothing when the grid is neither grouped nor pivoting', () => {
+    const plan = planGroupedVisibility({ groupBy: [] }, fresh);
+    expect(plan.hiddenColIds).toEqual([]);
+    expect(plan.autoHiddenColIds).toEqual([]);
+  });
+
+  it('restores what the grouped view hid when the grid is flattened', () => {
+    const plan = planGroupedVisibility({ groupBy: [] }, {
+      columns,
+      previouslyHidden: ['issuerSector', 'currency', 'cusip'],
+      previouslyAutoHidden: ['issuerSector', 'currency', 'cusip'],
+    });
+    expect(plan.hiddenColIds).toEqual([]);
+  });
+
+  /** The whole point of tracking what WE hid rather than clearing the lot. */
+  it('leaves a column the user hid by hand hidden after flattening', () => {
+    const plan = planGroupedVisibility({ groupBy: [] }, {
+      columns,
+      previouslyHidden: ['cusip', 'issuerSector'],
+      previouslyAutoHidden: ['issuerSector'],
+    });
+    expect(plan.hiddenColIds).toEqual(['cusip']);
+  });
+
+  /** Otherwise re-grouping on a new dimension accumulates hidden columns forever. */
+  it('releases the previous view before applying the new one', () => {
+    const plan = planGroupedVisibility(
+      { groupBy: ['currency'], hideNonNumeric: false, aggregations: { marketValue: 'sum' } },
+      { columns, previouslyHidden: ['issuerSector'], previouslyAutoHidden: ['issuerSector'] },
+    );
+    expect(plan.hiddenColIds).toEqual(['currency']);
   });
 });

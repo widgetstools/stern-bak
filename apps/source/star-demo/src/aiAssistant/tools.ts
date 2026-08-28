@@ -14,6 +14,10 @@ export type ToolName =
   | 'get_grid_columns'
   | 'list_grid_instances'
   | 'describe_data_fields'
+  | 'list_mock_datasets'
+  | 'list_provider_fields'
+  | 'infer_provider_fields'
+  | 'set_provider_columns'
   | 'diagnose_grid'
   | 'summarize_grid_data'
   | 'query_grid_data'
@@ -52,6 +56,7 @@ export type ToolName =
   | 'update_profile'
   | 'delete_profile'
   | 'switch_profile'
+  | 'reload_grid'
   | 'clear_column_style';
 
 /** Tools that only read state — safe to auto-execute without user confirmation. */
@@ -60,6 +65,9 @@ export const READ_ONLY_TOOLS: readonly ToolName[] = [
   'list_data_providers',
   'get_grid_columns',
   'describe_data_fields',
+  'list_mock_datasets',
+  'list_provider_fields',
+  'infer_provider_fields',
   'list_grid_instances',
   'list_profiles',
   'diagnose_grid',
