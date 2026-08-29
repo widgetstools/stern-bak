@@ -105,6 +105,8 @@ vi.mock('@wellsfargo-starui/grid/customizer', async () => {
     savedFiltersModule: {},
     toolbarVisibilityModule: {},
     toolbarDateSettingsModule: {},
+    summaryPanelModule: {},
+    SummaryPanelView: () => null,
   };
 });
 

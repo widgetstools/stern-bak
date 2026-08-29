@@ -82,6 +82,14 @@ export interface MarketsGridProps<TData = unknown> {
   showFiltersToolbar?: boolean;
   /** Floating formatter toolbar (pill toggle on the filter bar). */
   showFormattingToolbar?: boolean;
+  /**
+   * Summary Panel — a horizontal strip of configurable stat/chart/heatmap
+   * widgets computed from the grid's own current rows, rendered above the
+   * primary toolbar. Configured via the `summary-panel` customizer module
+   * (Settings → Summary Panel, or the AI Assistant's module-item tools).
+   * Defaults to `false`.
+   */
+  showSummaryPanel?: boolean;
   /** Enables the editing toolbar toggle on the primary row (toolbar starts hidden). */
   showEditingToolbar?: boolean;
   /** @deprecated Use `showEditingToolbar` or pass as segment allow-list with other editing props. */

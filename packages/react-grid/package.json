@@ -76,6 +76,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
+  "//dependencies-registry-notes": "recharts pinned to the same ^3.6.x stable line as @wellsfargo-starui/react (packages/react-core/package.json), not the newer ^3.10.x apps/ pin — packages/ and apps/ are separate install roots, but a summary-panel widget chart and the AI Assistant's own DataChart render through the same recharts major regardless.",
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.4",
@@ -95,7 +96,8 @@
     "@wellsfargo-starui/react": "*",
     "@wellsfargo-starui/types": "*",
     "cmdk": "^1.1.1",
-    "lucide-react": "^0.554.0"
+    "lucide-react": "^0.554.0",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",

@@ -7,7 +7,7 @@ toolbar wand button, see [Toolbar entry point](#toolbar-entry-point)).
 
 - **55 source modules** + 37 test files under `src/aiAssistant/`
 - **49 tools** — 18 read-only, 31 mutating
-- App-wide suite: **648 tests across 59 files** (`npx vitest run` in `apps/source/star-demo`)
+- App-wide suite: **657 tests across 59 files** (`npx vitest run` in `apps/source/star-demo`)
 
 ---
 
@@ -252,6 +252,37 @@ since nothing about a probe's result is persisted beyond the columns actually
 chosen. `websocket`/`socketio` feeds still have no probe transport — that gap
 predates this and isn't something either tool builds.
 
+### Authoring `columnDefinitions` directly
+
+`set_provider_columns` covers *choosing* among fields the model already knows
+about (a mock catalogue, or a live probe). It doesn't cover a custom header, a
+pixel width, a hidden-by-default column, or a formatter — for that the model
+authors `ColumnDefinition[]` itself and passes it as `config.columnDefinitions`
+to `create_data_provider` / `update_data_provider`. Nothing new had to be built
+for this to work — `createDataProvider`/`updateDataProvider`
+(`providerTools.ts`) already merge and save whatever `config` object they're
+given, `columnDefinitions` included, and `validateProviderConfig`
+(`@wellsfargo-starui/types`) doesn't inspect it at all — the gap was that the
+model was never told the shape (`toolSchemas.ts`'s `config` property used to
+just say `"Provider-type-specific config object"`) or the one rule that
+actually matters: **`field` has to be a real key the feed's rows carry.**
+`snapshotChunkSize`'s "prune to `columnDefinitions[].field` + `keyColumn`"
+behavior (`dataProvider.ts`) means an invented field name doesn't error — the
+worker prunes it away before it ever reaches the hub, so the column just
+renders empty forever. There's no code check for this (the schema comment
+tells the model where to source real names: `infer_provider_fields`, a saved
+catalogue, or the user).
+
+**Fixed alongside this:** `updateDataProvider` saved a `columnDefinitions`
+edit correctly but never reloaded a blotter already bound to the provider —
+unlike `set_provider_columns`, which always has. Since a provider's columns
+are only read when a grid's container mounts, this made a column edit look
+like it silently failed on anything already open. `updateDataProvider` now
+takes `configManager` and calls the same `reloadBlottersUsingProvider` +
+`describeReload` tail `set_provider_columns` uses, gated on `a.config` being
+present — a plain rename/description edit still skips the walk, since
+nothing a mounted grid reads changed.
+
 ### Profiles
 
 `activeProfileId` lives on the **view's** customData, not in the config row, and
@@ -341,7 +372,7 @@ exist to reconcile drift — pinning to a stale layout would reintroduce the
 | `profileTools.ts` | profile CRUD and switching |
 | `providerTools.ts` | data-provider CRUD, `get_grid_columns`, `describe_data_fields` |
 | `providerFieldTools.ts` | field pickers — `list_provider_fields`/`infer_provider_fields`/`set_provider_columns` |
-| `moduleCollections.ts` | the 17 customizer modules and their 10 addressable collections |
+| `moduleCollections.ts` | the 18 customizer modules and their 11 addressable collections |
 | `moduleItemTools.ts` | generic item CRUD across every collection-shaped module |
 | `launchComponent.ts` | dynamic import of `@wellsfargo-starui/openfin` — a static import throws outside OpenFin |
 
@@ -361,26 +392,31 @@ exist to reconcile drift — pinning to a stale layout would reintroduce the
 
 ### Data analysis
 
+The pure statistics/query/chart-picking/heatmap-shading functions
+(`dataDigest.ts`, `dataQuery.ts`, `chartSpec.ts`, `chat/heatmap.ts` in an
+earlier version of this app) moved to `@wellsfargo-starui/data`'s `analytics`
+barrel, and the two rendering pieces (`chat/DataChart.tsx`,
+`chat/AnalysisTable.tsx`) moved into `@wellsfargo-starui/grid`'s
+`summary-panel` customizer module (`packages/react-grid/grid/src/customizer/modules/summary-panel/`) —
+both are now shared with the grid package's own summary-panel widgets instead
+of living only here. This app imports them back from
+`@wellsfargo-starui/data` and `@wellsfargo-starui/grid/customizer`
+respectively; nothing about `dataTools.ts`'s tool surface changed.
+
 | File | Role |
 |---|---|
 | `dataAccess.ts` | gets real rows from the SharedWorker hub; **carries provenance** |
-| `dataDigest.ts` | statistics — totals, means, medians, categories, highlights |
-| `dataQuery.ts` | the query language: filter, group, aggregate, sort, limit — and `pivotBy` for a cross-tab |
-| `dataTools.ts` | `summarize_grid_data`, `query_grid_data`, the `DataCellPayload` |
-| `chartSpec.ts` | picks the chart from the result's shape; owns the colour ramp |
-| `chat/DataChart.tsx` | renders bar / hbar / line / area / pie / scatter |
-| `chat/DataResultCell.tsx` | the notebook-style output cell — renders in the side panel, not inline |
-| `chat/AnalysisTable.tsx` | the shared table renderer: sort, sticky pivot row-labels, heatmap mode |
-| `chat/heatmap.ts` | per-column cell-shading colour math for heatmap mode |
+| `dataTools.ts` | `summarize_grid_data`, `query_grid_data`, the `DataCellPayload` — imports `summariseRows`/`runQuery`/chart-kind constants from `@wellsfargo-starui/data` |
+| `chat/DataResultCell.tsx` | the notebook-style output cell — renders in the side panel, not inline; imports `DataChart`/`AnalysisTable`/`compact` from `@wellsfargo-starui/grid/customizer` |
 | `chat/AnalysisPanel.tsx` | the side panel itself — entry tabs + the active result |
 | `chat/AnalysisResultCard.tsx` | the compact reference a result leaves in the transcript |
-| `chat/useThemeMode.ts` | reactive light/dark read, for heatmap's theme-specific alpha clamp |
 
 ### Support
 
 | File | Role |
 |---|---|
 | `featureGuides.ts` | on-demand worked examples, lifted from `markets-grid-lab` seeds |
+| `columnImportGuides.ts` / `summaryPanelGuide.ts` | guides split out of `featureGuides.ts` to stay under its 800-line ceiling |
 | `diagnostics.ts` | `diagnose_grid` — one walk of the whole chain |
 | `undo.ts` / `useUndoStack.ts` | per-turn profile snapshots; `IRREVERSIBLE_TOOLS` |
 | `providerColumns.ts` | field inference — `probeMock` for mock, `probeStomp`/`probeRest` + curation heuristic for live feeds |
@@ -394,6 +430,16 @@ The assistant window sits inside `<DataHubProvider>`, so
 `useDataServices().client` is the **same SharedWorker hub every open blotter is
 attached to**. When the provider is running, a snapshot is a cache replay — the
 assistant sees exactly the rows on screen, with no upstream fetch.
+
+The pure computation this section describes (`summariseRows`/`buildHighlights`,
+`runQuery`/`buildQueryHighlights`, `buildChartSpec`, heatmap shading) now lives
+in `@wellsfargo-starui/data`'s `analytics` barrel, not as files under this
+folder — moved there so `@wellsfargo-starui/grid`'s `summary-panel` customizer
+module (§3's `## 3. Module map`) could reuse the same implementation instead of
+duplicating it. Everything below still describes the CURRENT behavior; only the
+file location changed. `DataChart.tsx` and `AnalysisTable.tsx` moved the same
+way, into that module's own folder, and are imported back here from
+`@wellsfargo-starui/grid/customizer`.
 
 ### Provenance is load-bearing
 
@@ -529,6 +575,34 @@ dense by construction (every combination gets a cell), so most fixed-income
 cross-tabs have real gaps, and `0` in every one would read as a measured zero
 rather than "no data here". `compact()` (`AnalysisTable.tsx`) already renders
 `null` as `—`.
+
+### Insight is computed, not just asked for in the prompt
+
+`summarize_grid_data` has always had this: `DataDigest.highlights`
+(`buildHighlights()` in `dataDigest.ts`) computes plain-sentence observations —
+concentration, range, dominant category, sparse columns — rendered as a
+bulleted list in `DataResultCell.tsx`, right above the stat cards/chart/table.
+`query_grid_data` (a chart, a pivot, a heatmapped table) had no equivalent:
+`QueryResult` carried only the rolled-up table, so a chart or pivot's only
+interpretation was whatever the model chose to write in its own chat text —
+not attached to the result, and not guaranteed.
+
+`buildQueryHighlights()` (`dataQuery.ts`) closes that gap the same way, called
+from both of `runQuery`'s return paths:
+
+- **pivoted** — the single largest-magnitude cell across every non-row-label
+  column, and its share of the sum of all cell magnitudes;
+- **grouped, non-pivoted** — the leading group on the first (or default
+  `count`) aggregate, and its share of the total across the visible groups.
+
+Both are gated on `!result.truncated` — once some groups or cells are hidden
+past the row limit, a "% of total" claim would be dishonest, so the highlight
+is skipped rather than computed against a partial total. Not computed for a
+raw/ungrouped query (e.g. a scatter chart's two-numeric-column result) — there
+is no group or cell to call a leader. `QueryResult.highlights` lands in the
+exact same `DataCellPayload` slot `DataDigest.highlights` already uses —
+`DataResultCell.tsx` reads `digest?.highlights ?? table?.highlights ?? []`
+once and renders whichever is present, so no new UI was needed.
 
 ---
 

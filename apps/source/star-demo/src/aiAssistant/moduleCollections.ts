@@ -102,6 +102,13 @@ export const MODULE_COLLECTIONS: ReadonlyArray<CollectionSpec> = [
     kind: 'array',
     describes: 'Keyboard shortcuts that apply an arithmetic operation to the selection.',
   },
+  {
+    moduleId: 'summary-panel',
+    collection: 'widgets',
+    idField: 'id',
+    kind: 'array',
+    describes: 'Summary-panel widgets — a digest/chart/heatmap card computed from the grid\'s current rows, rendered in a strip above the toolbar. Each widget\'s query field is the same DataQuery shape query_grid_data uses.',
+  },
 ];
 
 export function collectionsForModule(moduleId: string): CollectionSpec[] {
@@ -207,4 +214,5 @@ export const GRID_MODULES: ReadonlyArray<{ id: string; describes: string }> = [
   { id: 'data-change-history', describes: 'Edit-history tracking and undo depth.' },
   { id: 'alerts', describes: 'Data-driven alert rules and history.' },
   { id: 'visual-excel', describes: 'Excel-style visual formatting options.' },
+  { id: 'summary-panel', describes: 'Configurable digest/chart/heatmap widgets summarizing the grid\'s own current rows, shown in a strip above the toolbar.' },
 ];

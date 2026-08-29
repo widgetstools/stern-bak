@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summariseRows, type NumericStats, type CategoryStats, type DateStats } from './dataDigest';
+import { summariseRows, type NumericStats, type CategoryStats, type DateStats } from './dataDigest.js';
 
 const ROWS = [
   { ticker: 'AAPL', sector: 'Tech', marketValue: 100, maturityDate: '2030-01-01', active: true },

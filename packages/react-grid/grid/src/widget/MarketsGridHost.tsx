@@ -38,6 +38,7 @@ import { LazySettingsSheet, preloadSettingsSheet } from './LazySettingsSheet';
 import { useMarketsGridController } from './useMarketsGridController';
 import { useToolbarDateSettingsBridge } from '../customizer/modules/toolbar-date-settings/useToolbarDateSettingsBridge';
 import { PrimaryToolbar } from './PrimaryToolbar';
+import { SummaryPanelView } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { ColumnSelectorDialog } from './column-selector';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog';
 import { MarketsGridSurface } from './MarketsGridSurface';
@@ -66,6 +67,7 @@ export interface MarketsGridHostProps<TData> {
   showToolbar: boolean;
   showFiltersToolbar: boolean;
   showFormattingToolbar: boolean;
+  showSummaryPanel: boolean;
   editingToolbarHostProps: EditingToolbarHostProps;
   showSaveButton: boolean;
   showSettingsButton: boolean;
@@ -123,6 +125,7 @@ function MarketsGridHostInner<TData>({
   showToolbar,
   showFiltersToolbar,
   showFormattingToolbar,
+  showSummaryPanel,
   editingToolbarHostProps,
   showSaveButton,
   showSettingsButton,
@@ -299,6 +302,7 @@ function MarketsGridHostInner<TData>({
           {headerExtras}
         </div>
       ) : null}
+      {showSummaryPanel && <SummaryPanelView />}
       {showToolbar && (
         <PrimaryToolbar
           tabsHidden={tabsHidden}

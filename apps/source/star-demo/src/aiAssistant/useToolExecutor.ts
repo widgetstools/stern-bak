@@ -665,7 +665,7 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
     case 'update_module_settings':
       return updateModuleSettings(ctx.configManager, args);
     case 'update_data_provider':
-      return updateDataProvider(ctx.configStore, args);
+      return updateDataProvider(ctx.configManager, ctx.configStore, args);
     case 'delete_data_provider':
       return deleteDataProvider(ctx.configManager, ctx.configStore, args);
     case 'remove_calculated_column':

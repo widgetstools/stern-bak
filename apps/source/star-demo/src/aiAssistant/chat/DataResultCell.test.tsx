@@ -60,10 +60,52 @@ vi.mock('recharts', () => {
   };
 });
 
+// `DataChart`/`AnalysisTable` moved into `@wellsfargo-starui/grid` (a root
+// workspace package) — `packages/react-grid/grid/src/customizer/modules/summary-panel/`.
+// Rendering the REAL components here hits the same "two Reacts" problem the
+// top-of-file comment describes for recharts, just one level up: a
+// root-workspace component binds the ROOT React, react-dom here binds
+// `apps/`'s own, and (unlike the wrapper-only recharts case) `DataChart.tsx`
+// imports raw recharts primitives directly, so even the `recharts` mock
+// above — keyed to the apps-root-resolved specifier — never intercepts it.
+// `src/staruiVitestMocks.ts` (global setup) already stubs this whole module
+// (down to `Button`/`Input`, for the many tests that only need those); this
+// file overrides it with stand-ins for what IT needs. Their real rendering —
+// roles, formatting, sorting, heatmap shading — is covered where they now
+// live: `packages/react-grid/grid/src/customizer/modules/summary-panel/*.test.tsx`.
+// What THIS file verifies is that `DataResultCell` hands them the right data,
+// so the stand-ins reuse the real, hook-free `compact()` formatter and render
+// plain semantic elements the existing role/text assertions still match.
+vi.mock('@wellsfargo-starui/grid/customizer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/grid/customizer')>();
+
+  function MockAnalysisTable({ columns, rows }: { columns: string[]; rows: Array<Record<string, unknown>> }) {
+    if (rows.length === 0) return <div>No rows matched.</div>;
+    return (
+      <table>
+        <thead>
+          <tr>{columns.map((c) => <th key={c}>{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i}>{columns.map((c) => <td key={c}>{actual.compact(row[c])}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  return {
+    DataChart: ({ spec }: { spec: { caption: string } }) => <div data-testid="DataChart">{spec.caption}</div>,
+    AnalysisTable: MockAnalysisTable,
+    compact: actual.compact,
+  };
+});
+
 import { DataResultCell } from './DataResultCell';
 import { ToolCallCard, type ToolActivity } from './ToolCallCard';
 import { DATA_CELL, type DataCellPayload } from '../dataTools';
-import { summariseRows } from '../dataDigest';
+import { summariseRows } from '@wellsfargo-starui/data';
 
 const ROWS = [
   { ticker: 'AAPL', sector: 'Tech', marketValue: 100 },
@@ -132,6 +174,29 @@ describe('DataResultCell', () => {
     expect(screen.getByRole('table')).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'ticker' })).toBeTruthy();
     expect(screen.getByRole('cell', { name: 'AAPL' })).toBeTruthy();
+  });
+
+  /**
+   * `QueryResult.highlights` (`dataQuery.ts`) is the query-engine counterpart
+   * of `digest.highlights` — a chart/pivot/heatmap result gets the same
+   * bulleted synopsis slot a summarize_grid_data digest already does.
+   */
+  it('lists a query result\'s own highlights in the same slot the digest uses', () => {
+    render(
+      <DataResultCell
+        payload={payload({
+          digest: undefined,
+          ran: 'grouped by sector',
+          table: {
+            columns: ['sector', 'sum_marketValue'],
+            rows: [{ sector: 'Financials', sum_marketValue: 700 }, { sector: 'Tech', sum_marketValue: 300 }],
+            matched: 2, scanned: 3, truncated: false, grouped: true,
+            highlights: ['Financials leads on sum_marketValue at 700 (70% of the 1000 total across 2 sector group(s)).'],
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText(/Financials leads on sum_marketValue/)).toBeTruthy();
   });
 
   it('says how much of a truncated result it showed', () => {

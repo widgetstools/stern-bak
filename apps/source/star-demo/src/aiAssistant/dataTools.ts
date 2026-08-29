@@ -8,13 +8,20 @@
  * it can narrate what the user is looking at.
  */
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import type { DataProviderConfigStore } from '@wellsfargo-starui/data';
+import {
+  type DataProviderConfigStore,
+  summariseRows,
+  type DataDigest,
+  runQuery,
+  type DataQuery,
+  type QueryResult,
+  CHART_KINDS,
+  SUMMARY_CHART_KINDS,
+  type ChartKind,
+} from '@wellsfargo-starui/data';
 import { resolveGridEntry } from './gridProfiles';
 import { readColumnCatalogue, resolveColumns, resolveColumn } from './columnResolver';
 import { fetchGridRows, type DataHubClient, type RowSource } from './dataAccess';
-import { summariseRows, type DataDigest } from './dataDigest';
-import { runQuery, type DataQuery, type QueryResult } from './dataQuery';
-import { CHART_KINDS, SUMMARY_CHART_KINDS, type ChartKind } from './chartSpec';
 import type { ToolExecutionResult } from './toolResult';
 
 /** Marker the transcript keys on to render a rich cell instead of raw JSON. */

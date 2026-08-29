@@ -15,19 +15,19 @@
 
 /**
  * `'heatmap'` is a table-rendering MODE (per-cell background shading), not a
- * recharts chart kind — `AnalysisTable` handles it directly and it never
- * reaches `buildChartSpec`/`DataChart`. It lives in this const anyway
- * because it's still a `chart` argument choice from the model's point of
- * view, and `query_grid_data`'s schema enum is built from `CHART_KINDS`.
+ * recharts chart kind — the renderer handles it directly and it never reaches
+ * `buildChartSpec`. It lives in this const anyway because it's still a
+ * `chart` argument choice from the model's point of view, and
+ * `query_grid_data`'s schema enum is built from `CHART_KINDS`.
  */
 export const CHART_KINDS = ['auto', 'bar', 'hbar', 'line', 'area', 'pie', 'scatter', 'heatmap', 'none'] as const;
 export type ChartKind = (typeof CHART_KINDS)[number];
 /** What `auto` can resolve to — `auto` and `heatmap` are never a rendered
- *  `DataChart` kind (`heatmap` is a table mode; see above). */
+ *  chart kind (`heatmap` is a table mode; see above). */
 export type ResolvedChartKind = Exclude<ChartKind, 'auto' | 'heatmap'>;
 
 /**
- * `summarize_grid_data`'s result is a `DataDigest` — stat cards and at most a
+ * `summarize_grid_data`'s result is a digest — stat cards and at most a
  * one-dimensional `groups` breakdown, never a 2D table — so there is nothing
  * for `'heatmap'` to shade. Its tool schema and runtime validation both use
  * this narrower list instead of spreading all of `CHART_KINDS`, so the
@@ -116,7 +116,7 @@ export function buildChartSpec(input: ChartInput): ChartSpec | undefined {
   // directly instead of calling this at all once it sees the request. Bailing
   // here too means a caller that forgets that check gets nothing drawn rather
   // than `resolveKind`'s unconditional passthrough handing back a `'heatmap'`
-  // kind `DataChart` has no branch for and silently rendering a bar chart.
+  // kind the renderer has no branch for and silently rendering a bar chart.
   if (input.requested === 'heatmap') return undefined;
   const numerics = numericColumns(input);
   const categorical = input.columns.filter((c) => !numerics.includes(c));

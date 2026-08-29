@@ -1,5 +1,5 @@
 /**
- * Per-column cell shading for `AnalysisTable`'s heatmap mode.
+ * Per-column cell shading for a heatmap-mode analysis table.
  *
  * Diverging (teal/rose) when a column's values meaningfully span both signs —
  * not a bare sign check, since one rounding-noise negative among otherwise

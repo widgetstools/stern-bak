@@ -9,14 +9,19 @@
  *   - `stickyLeadingCols` freezes a pivot's row-label columns while its
  *     (potentially many) pivoted columns scroll underneath;
  *   - `heatmap` shades numeric cells by magnitude instead of drawing a
- *     separate chart — see `heatmap.ts` for the color math.
+ *     separate chart — see `@wellsfargo-starui/data`'s `heatmapCellColor` for
+ *     the color math.
+ *
+ * Shared between this module's summary-panel heatmap widgets and the AI
+ * Assistant's own analysis panel (`apps/source/star-demo/src/aiAssistant/chat/`,
+ * which imports this from `@wellsfargo-starui/grid`).
  */
 import { useMemo, useState } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@wellsfargo-starui/react';
 import { compactNumber } from './DataChart';
-import { heatmapDomain, heatmapCellColor, type HeatmapDomain } from './heatmap';
-import { useThemeMode } from './useThemeMode';
+import { heatmapDomain, heatmapCellColor, type HeatmapDomain } from '@wellsfargo-starui/data';
+import { useActiveThemeMode } from '../../hooks/useActiveThemeMode';
 
 /** Blank/null/undefined → an em dash; numbers get the compact-magnitude
  *  format (12.3K, 4.5M, …) already used for stat cards. Shared with
@@ -51,13 +56,14 @@ export interface AnalysisTableProps {
    *  columns, so they stay visible while the (possibly many) pivoted
    *  columns scroll underneath. */
   stickyLeadingCols?: number;
-  /** Shades numeric cells by magnitude instead of plain text — see `heatmap.ts`. */
+  /** Shades numeric cells by magnitude instead of plain text — see
+   *  `@wellsfargo-starui/data`'s heatmap helpers. */
   heatmap?: boolean;
 }
 
 export function AnalysisTable({ columns, rows, stickyLeadingCols = 0, heatmap = false }: AnalysisTableProps) {
   const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
-  const theme = useThemeMode();
+  const theme = useActiveThemeMode();
 
   const numericCols = useMemo(
     () => new Set(columns.filter((c) => isNumericColumn(rows, c))),

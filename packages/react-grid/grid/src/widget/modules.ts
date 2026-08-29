@@ -14,6 +14,7 @@ import {
   savedFiltersModule,
   shortcutsModule,
   smartEditModule,
+  summaryPanelModule,
   toolbarDateSettingsModule,
   toolbarVisibilityModule,
   visualExcelModule,
@@ -43,6 +44,7 @@ export const DEFAULT_MODULES: AnyModule[] = [
   savedFiltersModule,
   toolbarVisibilityModule,
   toolbarDateSettingsModule,
+  summaryPanelModule,
   gridStateModule,
 ];
 

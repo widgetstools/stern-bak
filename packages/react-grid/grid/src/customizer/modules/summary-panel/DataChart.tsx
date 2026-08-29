@@ -5,6 +5,11 @@
  * monochrome so the cell still reads as part of a monochrome panel — the marks
  * are the only thing that needs to be distinguishable, and colouring the chrome
  * as well would make the chart shout over the transcript around it.
+ *
+ * Shared between this module's summary-panel widgets and the AI Assistant's
+ * own data-result cell (`apps/source/star-demo/src/aiAssistant/chat/DataResultCell.tsx`,
+ * which imports this from `@wellsfargo-starui/grid`) — one renderer, one place
+ * to fix a chart bug.
  */
 import {
   Area,
@@ -31,7 +36,7 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from '@wellsfargo-starui/react/chart';
-import { CHART_COLORS, type ChartSpec } from '../chartSpec';
+import { CHART_COLORS, type ChartSpec } from '@wellsfargo-starui/data';
 
 /** Named so recharts' `var(--color-<key>)` indirection resolves to the ramp. */
 const CHART_CONFIG = {

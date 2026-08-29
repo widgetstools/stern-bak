@@ -12,8 +12,7 @@ import { FEATURE_GUIDE_IDS } from './featureGuides';
 import { COLUMN_TOOL_SCHEMAS } from './columnToolSchemas';
 import { TARGET_GRID_ID_PROPERTY, INSTANCE_ID_PROPERTY, type OpenAIToolSchema } from './toolSchemaShared';
 import { MODULE_COLLECTIONS } from './moduleCollections';
-import { FILTER_OPS, AGG_FNS } from './dataQuery';
-import { CHART_KINDS, SUMMARY_CHART_KINDS } from './chartSpec';
+import { FILTER_OPS, AGG_FNS, CHART_KINDS, SUMMARY_CHART_KINDS } from '@wellsfargo-starui/data';
 
 /** Modules that hold addressable items — the enum for the generic item tools. */
 const COLLECTION_MODULE_IDS = [...new Set(MODULE_COLLECTIONS.map((c) => c.moduleId))];
@@ -353,14 +352,16 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
     type: 'function',
     function: {
       name: 'update_data_provider',
-      description: 'Update an existing data provider — rename it, or change config fields. Supplied `config` keys are merged over the existing ones; `providerType` cannot change.',
+      description:
+        'Update an existing data provider — rename it, or change config fields. Supplied `config` keys are merged over the existing ones; `providerType` cannot change. Passing `config` reloads every open blotter bound to this provider so the change actually shows (same reload set_provider_columns does) — name/description alone do not, since those are cosmetic. ' +
+        'To set columns directly, pass `config: { columnDefinitions: [...] }` — an array of { field, headerName, cellDataType?: "text"|"number"|"boolean"|"date"|"dateString"|"object", width?, filter?: boolean|string, sortable?, resizable?, hide?, cellRenderer?, valueFormatter?, valueGetter? }. field MUST match a real key the feed produces (get one from infer_provider_fields or the user, never invent it — the hub prunes rows to just these fields plus keyColumn, so a wrong name is a silently-empty column, not an error). For picking FROM known fields, set_provider_columns is usually simpler; use this when the user wants specific headers, widths, formatting or hidden columns.',
       parameters: {
         type: 'object',
         properties: {
           providerId: { type: 'string', description: 'From list_data_providers.' },
           name: { type: 'string' },
           description: { type: 'string' },
-          config: { type: 'object', description: 'Partial config; merged over the existing config.' },
+          config: { type: 'object', description: 'Partial config; merged over the existing config. See columnDefinitions shape above.' },
         },
         required: ['providerId'],
         additionalProperties: false,
@@ -540,7 +541,10 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
         ' STOMP — { providerType: "stomp", websocketUrl, listenerTopic, keyColumn, requestMessage?, snapshotEndToken?, dataType? }. Live streaming over websockets.' + 
         ' REST — { providerType: "rest", baseUrl, endpoint, method: "GET" | "POST", keyColumn, pollInterval?, headers?, queryParams?, auth? }. Snapshot-only, no live tail.' + 
         ' APPDATA — { providerType: "appdata" } plus its variables. Key/value app state, not a row feed.' + 
-        ' keyColumn is row identity and matters: the data hub keys its cache by it and silently drops rows that do not resolve one, which the user sees as an empty grid. STOMP and REST feeds save without columnDefinitions — call infer_provider_fields once the provider exists to probe it live, then set_provider_columns (preset: "curated" is a sensible default) to apply a column set.',
+        ' keyColumn is row identity and matters: the data hub keys its cache by it and silently drops rows that do not resolve one, which the user sees as an empty grid. STOMP and REST feeds save without columnDefinitions — call infer_provider_fields once the provider exists to probe it live, then set_provider_columns (preset: "curated" is a sensible default) to apply a column set.' +
+        ' `config.columnDefinitions` (any provider type) is how you author columns directly instead of picking from a catalogue or a probe — an array of { field, headerName, cellDataType?: "text"|"number"|"boolean"|"date"|"dateString"|"object", width?, filter?: boolean|string, sortable?, resizable?, hide?, cellRenderer?, valueFormatter?, valueGetter? }.' +
+        ' field MUST be the exact key the feed\'s rows actually carry — for stomp/rest get real ones from infer_provider_fields or from the user, never invent one: the hub prunes every incoming row down to just these fields plus keyColumn at parse time, so a wrong name produces a column that is always empty, not an error. valueGetter takes the same bracket-expression DSL as add_calculated_column ([fieldName], nested as [a.b.c]).' +
+        ' Prefer infer_provider_fields + set_provider_columns when choosing FROM known fields; author columnDefinitions directly here (or via update_data_provider) when the user wants specific headers, widths, formatting or a hidden/pinned default those tools do not cover.',
       parameters: {
         type: 'object',
         properties: {

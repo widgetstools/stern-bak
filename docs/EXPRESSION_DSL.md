@@ -4,7 +4,7 @@
 > expression/function into the StarUI expression DSL **correctly**.
 >
 > **Source of truth:** the CSP‑safe engine in
-> [`packages/shared/engine/src/expression/`](../packages/shared/engine/src/expression/)
+> [`packages/core/engine/src/expression/`](../packages/core/engine/src/expression/)
 > (`tokenizer.ts`, `parser.ts`, `evaluator.ts`, `functions.ts`). This document
 > is derived directly from that code. When in doubt, the code wins — but this
 > guide is kept in lockstep.

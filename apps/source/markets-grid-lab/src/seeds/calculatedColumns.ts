@@ -1,7 +1,7 @@
 import type { VirtualColumnDef } from '@wellsfargo-starui/grid/customizer';
 
 // Calculated columns authored against the module's expression DSL.
-// Field references use `[columnId]` syntax. Operators + IF/SUM/LOG10/ABS
+// Field references use `[columnId]` syntax. Operators + IF/SUM/LOG/ABS
 // are built-in. The engine re-evaluates each cell whenever a dependency
 // field changes — so flashes ride through to derived columns too.
 
@@ -66,7 +66,9 @@ export const CALCULATED_TAB_VIRTUAL: VirtualColumnDef[] = [
   {
     colId: 'calc_liquidityScore',
     headerName: 'Liquidity (log)',
-    expression: 'LOG10([avgDailyVolume30d])',
+    // LOG10 isn't a registered function — LOG is natural log, so base-10 is
+    // the change-of-base identity: log10(x) = ln(x) / ln(10).
+    expression: 'LOG([avgDailyVolume30d]) / LOG(10)',
     cellDataType: 'number',
     valueFormatterTemplate: { kind: 'preset', preset: 'number', options: { minimumFractionDigits: 2, maximumFractionDigits: 2 } },
     position: 106,

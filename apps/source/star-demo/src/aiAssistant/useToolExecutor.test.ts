@@ -495,6 +495,28 @@ describe('dispatchTool', () => {
     expect(missing.summary).toContain('conditional-styling');
   });
 
+  /**
+   * Split into columnImportGuides.ts to keep featureGuides.ts under the
+   * 800-line ceiling — this proves the split still wires into the same
+   * FEATURE_GUIDES list the tool reads from.
+   */
+  it('get_feature_guide serves the expression-dsl and column-def-import guides', async () => {
+    const { ctx } = fakeCtx();
+
+    const dsl = await dispatchTool('get_feature_guide', ctx, { featureId: 'expression-dsl' });
+    expect(dsl.ok).toBe(true);
+    const dslDetail = (dsl.data as { detail: string }).detail;
+    expect(dslDetail).toContain('ISNULL');
+    // The bug this task fixed: LOG10 doesn't exist, only LOG.
+    expect(dslDetail).not.toContain('LOG10(');
+
+    const importGuide = await dispatchTool('get_feature_guide', ctx, { featureId: 'column-def-import' });
+    expect(importGuide.ok).toBe(true);
+    const importDetail = (importGuide.data as { detail: string }).detail;
+    expect(importDetail).toContain('cellDataType');
+    expect(importDetail).toContain('list_cell_renderers');
+  });
+
   it('get_module_settings reports defaults-in-use when the module has no saved state', async () => {
     const { ctx, list } = fakeCtx();
     list.mockResolvedValue([{ id: '__default__', gridId: 'grid-test', name: 'Default', state: {}, createdAt: 1, updatedAt: 1 }]);
@@ -572,6 +594,51 @@ describe('dispatchTool', () => {
     expect(result.ok).toBe(false);
     expect(result.summary).toContain('unsupported providerType');
     expect(storeSave).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A provider's columns are read when a grid's container mounts, so an
+   * already-open blotter never picks up a config change on its own —
+   * set_provider_columns already reloads for this reason; update_data_provider
+   * used to skip it, so columnDefinitions written through raw JSON here saved
+   * fine but never appeared on a window already showing the feed.
+   */
+  it('update_data_provider reloads bound blotters when the config actually changes', async () => {
+    const { ctx, storeGet, storeSave, loadGridLevelData } = fakeCtx();
+    storeGet.mockResolvedValue({
+      providerId: 'p1', name: 'Positions', providerType: 'mock',
+      config: { providerType: 'mock', dataType: 'positions', columnDefinitions: [] },
+    });
+    storeSave.mockResolvedValue({
+      providerId: 'p1', name: 'Positions', providerType: 'mock',
+      config: { providerType: 'mock', dataType: 'positions', columnDefinitions: [{ field: 'cusip', headerName: 'CUSIP' }] },
+    });
+    loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'p1' } });
+
+    const result = await dispatchTool('update_data_provider', ctx, {
+      providerId: 'p1',
+      config: { columnDefinitions: [{ field: 'cusip', headerName: 'CUSIP' }] },
+    });
+
+    expect(result.ok).toBe(true);
+    // Proves the bound-blotter walk actually ran, not just that save succeeded.
+    expect(loadGridLevelData).toHaveBeenCalled();
+    expect(result.summary).toMatch(/reload|open to reload/i);
+  });
+
+  it('update_data_provider does not walk bound blotters for a cosmetic rename', async () => {
+    const { ctx, storeGet, storeSave, loadGridLevelData } = fakeCtx();
+    storeGet.mockResolvedValue({
+      providerId: 'p1', name: 'Positions', providerType: 'mock',
+      config: { providerType: 'mock', dataType: 'positions' },
+    });
+    storeSave.mockResolvedValue({ providerId: 'p1', name: 'Live Positions', providerType: 'mock', config: { providerType: 'mock', dataType: 'positions' } });
+
+    const result = await dispatchTool('update_data_provider', ctx, { providerId: 'p1', name: 'Live Positions' });
+
+    expect(result.ok).toBe(true);
+    expect(loadGridLevelData).not.toHaveBeenCalled();
+    expect(result.summary).not.toContain('reload');
   });
 
   /**

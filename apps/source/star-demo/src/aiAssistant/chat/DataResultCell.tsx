@@ -16,10 +16,8 @@ import { useState } from 'react';
 import { cn } from '@wellsfargo-starui/react';
 import { ChevronRight, Database, FlaskConical } from 'lucide-react';
 import type { DataCellPayload } from '../dataTools';
-import type { ColumnDigest, NumericStats } from '../dataDigest';
-import { buildChartSpec } from '../chartSpec';
-import { DataChart } from './DataChart';
-import { AnalysisTable, compact } from './AnalysisTable';
+import { buildChartSpec, type ColumnDigest, type NumericStats } from '@wellsfargo-starui/data';
+import { DataChart, AnalysisTable, compact } from '@wellsfargo-starui/grid/customizer';
 
 /** Where the numbers came from. A generated sample must never read like live
  *  data — this is the visual half of that promise. */
@@ -104,6 +102,10 @@ function chartFor(payload: DataCellPayload) {
 export function DataResultCell({ payload }: { payload: DataCellPayload }) {
   const [showRaw, setShowRaw] = useState(false);
   const { digest, table } = payload;
+  // The query engine's own `QueryResult.highlights` (`dataQuery.ts`) is the
+  // digest's counterpart for a chart/pivot/heatmap result — same slot below,
+  // whichever half of the payload is populated.
+  const highlights = digest?.highlights ?? table?.highlights ?? [];
   const numerics = (digest?.columns ?? []).filter((c): c is NumericStats => c.kind === 'number');
   const categories = (digest?.columns ?? []).filter(
     (c): c is Extract<ColumnDigest, { kind: 'text' | 'boolean' }> => c.kind === 'text' || c.kind === 'boolean',
@@ -126,9 +128,9 @@ export function DataResultCell({ payload }: { payload: DataCellPayload }) {
 
       <ProvenanceLine payload={payload} />
 
-      {digest && digest.highlights.length > 0 && (
+      {highlights.length > 0 && (
         <ul className="px-2.5 py-2 space-y-1 border-b border-border/60">
-          {digest.highlights.map((line) => (
+          {highlights.map((line) => (
             <li key={line} className="text-[11px] leading-relaxed text-foreground/90 flex gap-1.5">
               <span className="text-muted-foreground/60 select-none">·</span>
               <span className="min-w-0">{line}</span>

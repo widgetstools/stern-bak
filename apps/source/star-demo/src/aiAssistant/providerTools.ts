@@ -21,6 +21,8 @@ import { loadRegistryConfig } from '@wellsfargo-starui/openfin/config';
 import { resolveGridEntry, BLOTTER_COMPONENT_TYPE, gridScopeId } from './gridProfiles';
 import { readProviderBindings } from './columnCatalog';
 import { withInferredColumns, describeMockFields } from './providerColumns';
+import { reloadBlottersUsingProvider } from './blotterTools';
+import { describeReload } from './launchComponent';
 import type { ToolExecutionResult } from './toolResult';
 
 export async function listDataProviders(configStore: DataProviderConfigStore): Promise<ToolExecutionResult> {
@@ -134,6 +136,7 @@ export async function createDataProvider(
 }
 
 export async function updateDataProvider(
+  configManager: ConfigManager,
   configStore: DataProviderConfigStore,
   args: Record<string, unknown>,
 ): Promise<ToolExecutionResult> {
@@ -159,7 +162,17 @@ export async function updateDataProvider(
     },
     LOGGED_IN_USER_ID,
   );
-  return { ok: true, summary: `Updated data provider "${saved.name}" (id=${saved.providerId}).`, data: saved };
+  // A provider's columns (and any other config field) are read when a grid's
+  // container mounts, so a config change — unlike name/description, which are
+  // cosmetic — needs the same "reload the windows already showing it" step
+  // set_provider_columns already does. Without this, columnDefinitions written
+  // here through raw JSON save but never appear on an already-open blotter.
+  const reloaded = a.config ? await reloadBlottersUsingProvider(configManager, a.providerId) : 0;
+  return {
+    ok: true,
+    summary: `Updated data provider "${saved.name}" (id=${saved.providerId}).${a.config ? describeReload(reloaded) : ''}`,
+    data: saved,
+  };
 }
 
 /**

@@ -23,7 +23,7 @@ the profile, and they ride the same persistence as any other module.
 | `calc_bidAskBps` | B/A bps (calc) | `([askPrice] - [bidPrice]) * 100` | preset `number`, 2 dp |
 | `calc_riskBucket` | Risk Bucket | `IF([modifiedDuration] < 3, "Short", …)` | string |
 | `calc_spreadToBench` | Sprd→Bench (bps) | `([yieldToMaturity] - [benchmarkYield]) * 100` | preset `number`, 2 dp |
-| `calc_liquidityScore` | Liquidity (log) | `LOG10([avgDailyVolume30d])` | preset `number`, 2 dp |
+| `calc_liquidityScore` | Liquidity (log) | `LOG([avgDailyVolume30d]) / LOG(10)` | preset `number`, 2 dp |
 | `calc_pnlPctMkt` | P&L % of Mkt | `IF([marketValue] > 0, ([dailyPnL] / [marketValue]) * 100, null)` | preset `number` |
 | `calc_cs01Notional` | CS01 × Qty | `[cs01] * [quantityFace] / 1000000` | preset `currency` |
 | `calc_yieldSpread` | YTW − YTM | `[yieldToWorst] - [yieldToMaturity]` | preset `number`, 3 dp |
@@ -32,8 +32,8 @@ the profile, and they ride the same persistence as any other module.
 
 Field references use `[columnId]` syntax. Operators include `+ - * /`,
 comparisons `== != > < >= <=`, logical `&& || !`, set membership `in`,
-and built-in functions `IF`, `SUM`, `LOG10`, `ABS`, and more (see
-[`expression/functions.ts`](../../packages/shared/engine/src/expression/functions.ts)).
+and built-in functions `IF`, `SUM`, `LOG`, `ABS`, and more (see
+[`expression/functions.ts`](../../packages/core/engine/src/expression/functions.ts)).
 
 ```text
 IF([modifiedDuration] > 0, [yieldToMaturity] / [modifiedDuration], null)

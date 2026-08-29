@@ -113,3 +113,9 @@ export {
 } from './services/index.js';
 
 export { createDataPort } from './createDataPort.js';
+
+// Pure row-analytics — digest/highlights, chart-spec picking, the
+// filter/group/pivot query engine, and heatmap cell shading. Shared between
+// the AI Assistant (apps/source/star-demo) and the grid package's
+// summary-panel customizer module.
+export * from './analytics/index.js';

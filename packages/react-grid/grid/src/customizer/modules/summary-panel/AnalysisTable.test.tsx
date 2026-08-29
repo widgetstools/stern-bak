@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { AnalysisTable } from './AnalysisTable';
+import { AnalysisTable } from './AnalysisTable.js';
 
 const ROWS = [
   { sector: 'Tech', marketValue: 300 },

@@ -15,6 +15,9 @@
  * should be re-checked against them.
  */
 
+import { COLUMN_IMPORT_GUIDES } from './columnImportGuides';
+import { SUMMARY_PANEL_GUIDES } from './summaryPanelGuide';
+
 export interface FeatureGuide {
   /** Matches a `GRID_MODULES` id, so the model can go straight to
    *  get_module_settings / update_module_settings with the same key. */
@@ -61,8 +64,9 @@ mistake — it parses, saves, and paints nothing.
 - \`[columnId.old]\` / \`[columnId.new]\` — the PREVIOUS and current value of a
   column, for tick/diff rules. Only these see the change; \`value\` is not
   populated when the rule is timed (see activeDurationMs).
-- Functions: \`IF(...)\`, \`ABS(...)\`, \`SUM(...)\`, \`LOG10(...)\`, plus arithmetic
-  and comparisons.
+- Functions: \`IF(...)\`, \`ABS(...)\`, \`SUM(...)\`, plus arithmetic and comparisons.
+  Full grammar and the complete function catalog (44 functions):
+  get_feature_guide("expression-dsl").
 
 ### Transient rules — activeDurationMs
 
@@ -750,6 +754,8 @@ export const FEATURE_GUIDES: ReadonlyArray<FeatureGuide> = [
     summary: 'Row height, density, pagination, animations, and AG-Grid\'s built-in cell-change flash.',
     detail: GENERAL_SETTINGS,
   },
+  ...COLUMN_IMPORT_GUIDES,
+  ...SUMMARY_PANEL_GUIDES,
 ];
 
 export const FEATURE_GUIDE_IDS: readonly string[] = FEATURE_GUIDES.map((g) => g.id);

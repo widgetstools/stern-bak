@@ -2,7 +2,7 @@
  * A small, total query language over already-fetched rows — filter, group,
  * aggregate, sort, limit.
  *
- * This is the "cell" the assistant runs. The model doesn't write code and
+ * This is the "cell" the AI Assistant runs. The model doesn't write code and
  * nothing is evaluated: it fills in a structured query, and this executes it
  * deterministically. Same inputs, same table, every time — which is what makes
  * the numbers in an answer trustworthy, and what keeps arbitrary
@@ -69,6 +69,9 @@ export interface QueryResult {
   /** Set when `pivotBy` was used — tells the renderer which leading columns
    *  are row labels (freeze them) rather than pivoted data. */
   pivot?: PivotMeta;
+  /** Plain-sentence observations about THIS result — the query-engine
+   *  counterpart of `DataDigest.highlights` (`dataDigest.ts`). */
+  highlights?: string[];
 }
 
 export type QueryOutcome = { ok: true; value: QueryResult } | { ok: false; error: string };
@@ -303,8 +306,8 @@ function runPivot(rows: ReadonlyArray<Record<string, unknown>>, query: DataQuery
         // computed 0. A pivot is dense by construction (every row×column
         // combo gets a cell), so most sparse fixed-income cross-tabs will
         // have real gaps, and displaying "0" in every one would read as a
-        // measured zero rather than "no data here". `compact()` in the
-        // renderer already shows a null cell as "—".
+        // measured zero rather than "no data here". The renderer already
+        // shows a null cell as "—".
         record[flatName(pv, agg)] = cellRows ? applyAgg(cellRows, agg) : null;
       }
     }
@@ -312,6 +315,52 @@ function runPivot(rows: ReadonlyArray<Record<string, unknown>>, query: DataQuery
   });
 
   return { ok: true, value: { columns: [...rowDims, ...flatColumns], rows: out, pivot: { rowDims, colDims, measures } } };
+}
+
+/**
+ * The query-engine counterpart of `dataDigest.ts`'s `buildHighlights` — a
+ * plain sentence naming what dominates in a grouped or pivoted result, so a
+ * chart/pivot/heatmap carries a synopsis without depending on the model to
+ * write one every time. Gated on `!truncated`: a "% of total" claim would be
+ * dishonest once some groups or cells are hidden past the row limit, so this
+ * skips rather than mislead — same discipline as the provenance rule for a
+ * generated sample never reading like the whole book.
+ */
+function buildQueryHighlights(query: DataQuery, result: Pick<QueryResult, 'columns' | 'rows' | 'pivot' | 'truncated'>): string[] {
+  if (result.truncated || result.rows.length < 2) return [];
+
+  if (result.pivot) {
+    const { rowDims } = result.pivot;
+    const cellCols = result.columns.filter((c) => !rowDims.includes(c));
+    let best: { row: Record<string, unknown>; col: string; value: number } | undefined;
+    let total = 0;
+    for (const row of result.rows) {
+      for (const col of cellCols) {
+        const v = row[col];
+        if (typeof v !== 'number') continue;
+        total += Math.abs(v);
+        if (!best || Math.abs(v) > Math.abs(best.value)) best = { row, col, value: v };
+      }
+    }
+    if (!best || total === 0) return [];
+    const rowLabel = rowDims.map((d) => String(best!.row[d])).join(' / ');
+    const share = round((Math.abs(best.value) / total) * 100);
+    return [`Largest cell: ${rowLabel} × ${best.col} at ${round(best.value)} (${share}% of the ${round(total)} total).`];
+  }
+
+  if (!query.groupBy?.length) return [];
+  const agg = query.aggregate?.length ? query.aggregate[0] : { column: query.groupBy[0], fn: 'count' as const, as: 'count' };
+  const measureCol = aggName(agg);
+  const numericRows = result.rows.filter((r) => typeof r[measureCol] === 'number');
+  if (numericRows.length < 2) return [];
+  const total = numericRows.reduce((s, r) => s + Math.abs(r[measureCol] as number), 0);
+  if (total === 0) return [];
+  const leader = [...numericRows].sort((a, b) => Math.abs(b[measureCol] as number) - Math.abs(a[measureCol] as number))[0];
+  const label = query.groupBy.map((g) => String(leader[g])).join(' / ');
+  const share = round((Math.abs(leader[measureCol] as number) / total) * 100);
+  return [
+    `${label} leads on ${measureCol} at ${round(leader[measureCol] as number)} (${share}% of the ${round(total)} total across ${numericRows.length} ${query.groupBy.join('/')} group(s)).`,
+  ];
 }
 
 export function runQuery(rows: ReadonlyArray<Record<string, unknown>>, query: DataQuery): QueryOutcome {
@@ -336,18 +385,16 @@ export function runQuery(rows: ReadonlyArray<Record<string, unknown>>, query: Da
     }
 
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
-    return {
-      ok: true,
-      value: {
-        columns,
-        rows: result.slice(0, limit),
-        grouped: true,
-        matched: pivotRows.length,
-        scanned: rows.length,
-        truncated: pivotRows.length > limit,
-        pivot,
-      },
+    const value: QueryResult = {
+      columns,
+      rows: result.slice(0, limit),
+      grouped: true,
+      matched: pivotRows.length,
+      scanned: rows.length,
+      truncated: pivotRows.length > limit,
+      pivot,
     };
+    return { ok: true, value: { ...value, highlights: buildQueryHighlights(query, value) } };
   }
 
   const grouped = query.groupBy?.length ? runGrouped(filtered, query) : undefined;
@@ -370,17 +417,15 @@ export function runQuery(rows: ReadonlyArray<Record<string, unknown>>, query: Da
 
   const matched = grouped ? grouped.rows.length : filtered.length;
   const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
-  return {
-    ok: true,
-    value: {
-      columns,
-      rows: result.slice(0, limit).map((row) => Object.fromEntries(columns.map((c) => [c, row[c]]))),
-      grouped: Boolean(grouped),
-      matched,
-      scanned: rows.length,
-      truncated: matched > limit,
-    },
+  const value: QueryResult = {
+    columns,
+    rows: result.slice(0, limit).map((row) => Object.fromEntries(columns.map((c) => [c, row[c]]))),
+    grouped: Boolean(grouped),
+    matched,
+    scanned: rows.length,
+    truncated: matched > limit,
   };
+  return { ok: true, value: { ...value, highlights: buildQueryHighlights(query, value) } };
 }
 
 /** Columns to show when the query names none: the ones most rows populate. */

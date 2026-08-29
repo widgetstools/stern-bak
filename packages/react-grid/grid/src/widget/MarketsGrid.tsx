@@ -243,6 +243,7 @@ function MarketsGridInner<TData = unknown>(
     showToolbar = true,
     showFiltersToolbar = false,
     showFormattingToolbar = false,
+    showSummaryPanel = false,
     showEditingToolbar,
     showSmartEditToolbar,
     showBulkUpdateToolbar,
@@ -363,6 +364,7 @@ function MarketsGridInner<TData = unknown>(
         showToolbar={showToolbar}
         showFiltersToolbar={showFiltersToolbar}
         showFormattingToolbar={showFormattingToolbar}
+        showSummaryPanel={showSummaryPanel}
         editingToolbarHostProps={editingToolbarHostProps}
         showSaveButton={showSaveButton}
         showSettingsButton={showSettingsButton}

@@ -577,6 +577,23 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - **Saved filters** — named filter-model presets
 - **Toolbar visibility** — show/hide toolbar items
 - **Grid state** — serialise/restore AG Grid state
+- **Summary panel** (`summary-panel`) — a horizontal strip of configurable
+  digest/chart/heatmap widget cards computed from the grid's own current rows,
+  rendered above `PrimaryToolbar` (`MarketsGridHost`) when the host passes
+  `showSummaryPanel`. Pure config + presentation module — no `activate` — the
+  strip's own `SummaryPanelView` recomputes widgets from `useGridApi()` +
+  `platform.rows`, debounced on top of the shared `RowChangeBus` coalescing so
+  a busy streaming blotter doesn't re-aggregate every widget on every tick. A
+  widget's `query` reuses `@wellsfargo-starui/data`'s `DataQuery` shape (the
+  same one the AI Assistant's `query_grid_data` tool takes), run through
+  `runQuery` / `summariseRows` / `buildChartSpec`; `DataChart` (recharts) and
+  `AnalysisTable` (heatmap-mode table) are shared rendering pieces, also used
+  by the AI Assistant's own analysis panel via `@wellsfargo-starui/grid/customizer`.
+  Settings-sheet editor (`SummaryPanelPanel.tsx`) is direct-edit (no
+  draft/dirty staging, matching Plus/Minus rather than Alerts). Configured
+  from the AI Assistant via the generic `add_module_item` / `update_module_item`
+  / `remove_module_item` tools (moduleId `summary-panel`, collection
+  `widgets`) — no new tools were added for this module.
 
 ---
 
@@ -1404,6 +1421,31 @@ modules).
 #### Mock provider presets
 
 - `createFiPositionsLargeConfig()`, `createFiPositionsSmallConfig()` — canned FI positions provider configs for demos/tests
+
+#### Row analytics (`./analytics`, re-exported from the package root)
+
+Pure, zero-dependency row-analytics functions — no config, no I/O, no
+provider. Shared between the AI Assistant (`apps/source/star-demo`'s
+`summarize_grid_data` / `query_grid_data` tools) and
+`@wellsfargo-starui/grid`'s `summary-panel` customizer module, so both compute
+digests/charts/queries/heatmap shading through the same implementation.
+
+- `summariseRows()`, `buildHighlights()` — per-column digest (numeric/category/date
+  stats), optional single-column grouping with per-bucket totals, and a
+  plain-sentence highlights array. Types: `DataDigest`, `ColumnDigest`,
+  `NumericStats`, `CategoryStats`, `DateStats`, `GroupDigest`, `DigestOptions`.
+- `buildChartSpec()`, `chartColor()` — picks the chart kind that fits a result
+  (pie / line / area / bar / hbar / scatter) unless the caller names one.
+  `CHART_KINDS`, `SUMMARY_CHART_KINDS`, `CHART_COLORS` (design-system `--ds-chart-*`
+  ramp). Types: `ChartKind`, `ResolvedChartKind`, `ChartPoint`, `ChartSpec`, `ChartInput`.
+- `runQuery()`, `validateQuery()` — a total filter/group/aggregate/pivot/sort/limit
+  query engine over already-fetched rows, with pivot guardrails (column-count cap,
+  duplicate-name detection) and a `buildQueryHighlights()`-derived synopsis line
+  on the result. `FILTER_OPS`, `AGG_FNS`. Types: `DataQuery`, `QueryResult`,
+  `PivotMeta`, `FilterClause`, `Aggregation`, `FilterOp`, `AggFn`.
+- `heatmapDomain()`, `heatmapCellColor()` — per-column cell-shading domain
+  (diverging vs. sequential) and per-cell background colour for a heatmap-mode
+  table, theme-aware (`oklch(var(--x) / alpha)` tokens). Type: `HeatmapDomain`.
 
 ---
 

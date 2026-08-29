@@ -416,3 +416,16 @@ export {
   type GroupHeaderStyle,
   type GroupHeaderBorderSpec,
 } from './modules/column-groups';
+export {
+  summaryPanelModule,
+  SUMMARY_PANEL_MODULE_ID,
+  INITIAL_SUMMARY_PANEL,
+  SummaryPanelView,
+  DataChart,
+  compactNumber,
+  AnalysisTable,
+  compact,
+  type SummaryPanelState,
+  type SummaryWidget,
+  type SummaryWidgetKind,
+} from './modules/summary-panel/index.js';

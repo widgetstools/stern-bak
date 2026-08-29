@@ -63,6 +63,7 @@ export default defineConfig({
             { find: '@wellsfargo-starui/types/shared', replacement: resolve(__dirname, '../types/shared-types/src/index.ts') },
             { find: '@wellsfargo-starui/types', replacement: resolve(__dirname, '../types/types/src/index.ts') },
             { find: '@wellsfargo-starui/openfin/host', replacement: resolve(__dirname, '../openfin/host-openfin/src/index.ts') },
+            { find: '@wellsfargo-starui/react/chart', replacement: resolve(__dirname, '../react-core/ui/src/components/chart.tsx') },
             { find: '@wellsfargo-starui/react', replacement: resolve(__dirname, '../react-core/ui/src/index.ts') },
           ],
         },

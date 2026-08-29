@@ -100,6 +100,7 @@ function BlottersMarketsGrid(): ReactNode {
       onOpenAssistant={handleOpenAssistant}
       showFiltersToolbar
       showFormattingToolbar
+      showSummaryPanel
       showEditingToolbar
       defaultColDef={DEFAULT_COL_DEF}
       // OpenFin colour-based grid linking: dock-link two blotters to the same

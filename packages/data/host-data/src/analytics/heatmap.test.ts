@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heatmapDomain, heatmapCellColor } from './heatmap';
+import { heatmapDomain, heatmapCellColor } from './heatmap.js';
 
 describe('heatmapDomain', () => {
   it('is undefined for a column with no numeric values', () => {

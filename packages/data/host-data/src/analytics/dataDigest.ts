@@ -8,7 +8,10 @@
  * So the arithmetic is done here — exactly, deterministically, and cheaply —
  * and the model's job is to narrate the result.
  *
- * Everything in this module is pure. No config, no I/O, no provider.
+ * Everything in this module is pure. No config, no I/O, no provider. Shared
+ * between the AI Assistant (apps/source/star-demo) and any grid-package
+ * consumer (e.g. the summary-panel customizer module) — this is why it lives
+ * in the data package rather than the app: neither side should duplicate it.
  */
 
 export type ColumnKind = 'number' | 'date' | 'boolean' | 'text';

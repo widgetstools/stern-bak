@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runQuery, validateQuery, type DataQuery } from './dataQuery';
+import { runQuery, validateQuery, type DataQuery } from './dataQuery.js';
 
 const ROWS = [
   { ticker: 'AAPL', sector: 'Tech', desk: 'Credit', marketValue: 100, coupon: 3.5, maturityDate: '2030-01-01' },
@@ -172,6 +172,46 @@ describe('pivot', () => {
     expect(out.matched).toBe(2);
     expect(out.rows.length).toBe(1);
     expect(out.truncated).toBe(true);
+  });
+});
+
+/**
+ * The query-engine counterpart of `dataDigest.ts`'s `buildHighlights` — a
+ * chart/pivot/heatmap result carries the same kind of computed synopsis a
+ * summarize_grid_data digest does, rather than depending entirely on the
+ * model to write one every turn.
+ */
+describe('highlights', () => {
+  it('names the leading group and its share for a grouped result', () => {
+    const out = run({ groupBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] });
+    // Tech 300, Financials 700, Energy 500 — total 1500, Financials leads at 46.67%.
+    expect(out.highlights).toEqual([
+      'Financials leads on sum_marketValue at 700 (46.67% of the 1500 total across 3 sector group(s)).',
+    ]);
+  });
+
+  it('names the largest cell for a pivoted result', () => {
+    const out = run({ groupBy: ['desk'], pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] });
+    // Cells: Credit×Tech 300, Credit×Energy 500, Rates×Financials 700 — total 1500.
+    expect(out.highlights).toEqual(['Largest cell: Rates × Financials at 700 (46.67% of the 1500 total).']);
+  });
+
+  it('says nothing once the result is truncated — a share-of-total claim would be dishonest', () => {
+    const out = run({ groupBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }], limit: 1 });
+    expect(out.truncated).toBe(true);
+    expect(out.highlights).toEqual([]);
+  });
+
+  it('says nothing for a single group — nothing to compare it against', () => {
+    const out = run({ groupBy: ['sector'], filter: [{ column: 'sector', op: 'eq', value: 'Tech' }] });
+    expect(out.rows.length).toBe(1);
+    expect(out.highlights).toEqual([]);
+  });
+
+  it('says nothing for a raw, ungrouped query — no group or cell to call a leader', () => {
+    const out = run({ filter: [{ column: 'marketValue', op: 'gt', value: 0 }] });
+    expect(out.grouped).toBe(false);
+    expect(out.highlights).toEqual([]);
   });
 });
 

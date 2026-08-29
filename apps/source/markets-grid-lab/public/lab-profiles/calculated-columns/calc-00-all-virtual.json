@@ -99,7 +99,7 @@
             {
               "colId": "calc_liquidityScore",
               "headerName": "Liquidity (log)",
-              "expression": "LOG10([avgDailyVolume30d])",
+              "expression": "LOG([avgDailyVolume30d]) / LOG(10)",
               "cellDataType": "number",
               "valueFormatterTemplate": {
                 "kind": "preset",
