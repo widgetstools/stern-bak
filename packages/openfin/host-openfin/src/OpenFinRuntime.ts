@@ -45,9 +45,9 @@ export interface OpenFinRuntimeOptions {
  * Lifecycle bridging:
  *   - `onWindowShown`   → view `'shown'` event
  *   - `onWindowClosing` → view `'destroyed'` event
- *   - `onCustomDataChanged` → polls `view.getOptions()` and emits when
- *     `customData` changes (OpenFin doesn't broadcast a fine-grained
- *     event for it; the rate is configurable but defaults to 250ms).
+ *   - `onCustomDataChanged` → view `'options-changed'` event (emits when
+ *     `customData` actually changes); runtimes without the view event
+ *     API fall back to a 500ms `getOptions()` poll.
  *
  * Theme bridging reads `[data-theme]` on `document.documentElement`
  * first (apps wire that during workspace init), and falls back to
@@ -120,7 +120,7 @@ export class OpenFinRuntime implements RuntimePort {
    * on the `<title>` element resets the title back to `savedTitle`
    * whenever anything mutates it, so the user's chosen tab caption
    * always wins. The single source of truth is `customData.savedTitle`
-   * — when that key changes (via the customData poll), the observer's
+   * — when that key changes (via the customData watcher), the observer's
    * pinned value follows automatically because it reads through
    * `lastCustomData` on every firing.
    *
@@ -390,8 +390,8 @@ export class OpenFinRuntime implements RuntimePort {
 
   private attachViewWatchers(): void {
     const view = getCurrentView() as unknown as {
-      on?: (event: string, fn: () => void) => void;
-      removeListener?: (event: string, fn: () => void) => void;
+      on?: (event: string, fn: (evt?: unknown) => void) => void;
+      removeListener?: (event: string, fn: (evt?: unknown) => void) => void;
       getOptions?: () => Promise<{ customData?: unknown }>;
     } | null;
     if (!view) return;
@@ -406,6 +406,9 @@ export class OpenFinRuntime implements RuntimePort {
         try { fn(); } catch { /* swallow */ }
       }
     };
+
+    const hasEventApi =
+      typeof view.on === 'function' && typeof view.removeListener === 'function';
 
     if (typeof view.on === 'function') {
       try {
@@ -422,25 +425,65 @@ export class OpenFinRuntime implements RuntimePort {
       }
     }
 
-    // CustomData polling. OpenFin doesn't broadcast options-updated, so
-    // we sample on a slow interval. Stops as soon as listeners drop or
-    // the runtime is disposed.
+    // Dedupe + fan-out for a customData payload from either source below.
+    // Processing runs even with zero listeners: the title-pin observer
+    // (applySavedViewTitle) reads through `lastCustomData`, so it must
+    // stay current regardless of subscriber count.
+    const processCustomData = (raw: unknown): void => {
+      if (this.disposed) return;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+      const cd = raw as Record<string, unknown>;
+      if (sameShallow(cd, this.lastCustomData)) return;
+      this.lastCustomData = cd as Readonly<Record<string, unknown>>;
+      // Live rename: when the popout writes a new savedTitle into
+      // this view's customData, reflect it in document.title.
+      this.applyTitleFromCustomData(this.lastCustomData);
+      for (const fn of this.customDataListeners) {
+        try { fn(this.lastCustomData); } catch { /* swallow */ }
+      }
+    };
+
+    // Event-driven path — `options-changed` fires with the updated
+    // options whenever anything writes them (rename popout, profile
+    // publish, workspace restore). Zero standing IPC, versus the poll
+    // fallback's two `getOptions` round-trips per second PER VIEW that
+    // previously ran on every hosted blotter (see useViewTabTitle for
+    // the same event-first pattern this mirrors).
+    if (hasEventApi) {
+      const onOptionsChanged = (evt?: unknown): void => {
+        const options = (evt as { options?: { customData?: unknown } } | undefined)?.options;
+        if (options && 'customData' in options) {
+          processCustomData(options.customData);
+          return;
+        }
+        // Event without an options payload (runtime variation) — one
+        // targeted re-read, still no standing interval.
+        void (async () => {
+          try {
+            const fresh = await view.getOptions?.();
+            processCustomData(fresh?.customData);
+          } catch { /* view mid-teardown */ }
+        })();
+      };
+      try {
+        view.on!('options-changed', onOptionsChanged);
+        this.disposers.push(() => {
+          try { view.removeListener!('options-changed', onOptionsChanged); } catch { /* swallow */ }
+        });
+        return;
+      } catch {
+        // Subscription unsupported — fall through to the poll.
+      }
+    }
+
+    // Poll fallback for runtimes/stubs without the view event API.
     const intervalMs = 500;
     const timer = setInterval(() => {
       if (this.disposed || this.customDataListeners.size === 0) return;
       void (async () => {
         try {
           const options = await view.getOptions?.();
-          const cd = options?.customData;
-          if (!cd || typeof cd !== 'object' || Array.isArray(cd)) return;
-          if (sameShallow(cd as Record<string, unknown>, this.lastCustomData)) return;
-          this.lastCustomData = cd as Readonly<Record<string, unknown>>;
-          // Live rename: when the popout writes a new savedTitle into
-          // this view's customData, reflect it in document.title.
-          this.applyTitleFromCustomData(this.lastCustomData);
-          for (const fn of this.customDataListeners) {
-            try { fn(this.lastCustomData); } catch { /* swallow */ }
-          }
+          processCustomData(options?.customData);
         } catch {
           // View not reachable any more — keep polling so the runtime
           // recovers if the view becomes available again.

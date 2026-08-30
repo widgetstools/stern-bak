@@ -17,7 +17,6 @@ type OptionsCallback = (opts: unknown) => void;
 const callbacks = new Set<OptionsCallback>();
 let active: { win: any; handler: (evt: unknown) => void; lastOpts: unknown } | null = null;
 let initPromise: Promise<void> | null = null;
-let probedEventShape = false;
 
 function isOpenFinWindowOptions(): boolean {
   return typeof fin !== 'undefined' && fin?.me?.getCurrentWindow;
@@ -51,17 +50,6 @@ function ensureListener(): Promise<void> {
     try {
       const win = await fin.me.getCurrentWindow();
       const handler = (evt: unknown) => {
-        if (!probedEventShape) {
-          probedEventShape = true;
-          const e = evt as any;
-          // eslint-disable-next-line no-console
-          console.log('[windowOptionsSubscription] options-changed event shape:', {
-            keys: e && typeof e === 'object' ? Object.keys(e) : null,
-            hasOptions: Boolean(e?.options),
-            hasNewOptions: Boolean(e?.newOptions),
-            hasDirectWorkspacePlatform: Boolean(e?.workspacePlatform),
-          });
-        }
         const direct = extractOptionsFromEvent(evt);
         if (direct) {
           if (active) active.lastOpts = direct;
@@ -144,5 +132,4 @@ export function __resetWindowOptionsSubscriptionForTests(): void {
   callbacks.clear();
   active = null;
   initPromise = null;
-  probedEventShape = false;
 }

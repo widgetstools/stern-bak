@@ -432,8 +432,11 @@ describe('OpenFinRuntime', () => {
     });
   });
 
-  describe('customData polling', () => {
-    /** Build a view whose `getOptions()` returns whatever `current` holds. */
+  describe('customData watching — poll fallback (no view event API)', () => {
+    /** Build an event-less view whose `getOptions()` returns whatever
+     *  `current` holds. Without `on`/`removeListener` the runtime cannot
+     *  take the `options-changed` event path and falls back to the
+     *  500ms poll these tests exercise. */
     function installPollingView(initial: Record<string, unknown>) {
       const state = { customData: initial as unknown, fail: false };
       const fakeView = {
@@ -442,8 +445,6 @@ describe('OpenFinRuntime', () => {
           if (state.fail) throw new Error('view gone');
           return { customData: state.customData };
         },
-        on: () => {},
-        removeListener: () => {},
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (globalThis as any).fin = { View: { getCurrentSync: () => fakeView } };
@@ -548,14 +549,114 @@ describe('OpenFinRuntime', () => {
     });
   });
 
+  describe('customData watching — options-changed event path', () => {
+    /** Build a view with a working event API. The runtime must prefer
+     *  `options-changed` (zero standing IPC) and install NO poll. */
+    function installEventView(initial: Record<string, unknown>) {
+      const handlers = new Map<string, (evt?: unknown) => void>();
+      const state = {
+        customData: initial as unknown,
+        getOptionsCalls: 0,
+        emit(evt?: unknown) {
+          handlers.get('options-changed')?.(evt);
+        },
+      };
+      const fakeView = {
+        identity: { name: 'v' },
+        getOptions: async () => {
+          state.getOptionsCalls += 1;
+          return { customData: state.customData };
+        },
+        on: (event: string, fn: (evt?: unknown) => void) => { handlers.set(event, fn); },
+        removeListener: (event: string) => { handlers.delete(event); },
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).fin = { View: { getCurrentSync: () => fakeView } };
+      return state;
+    }
+
+    it('emits from the event payload with no standing poll', async () => {
+      vi.useFakeTimers();
+      const state = installEventView({ activeProfileId: 'p1' });
+      rt = await OpenFinRuntime.create();
+      state.getOptionsCalls = 0; // identity resolution reads once at construct
+      const seen: Array<Record<string, unknown>> = [];
+      rt.onCustomDataChanged((cd) => seen.push({ ...cd }));
+
+      state.emit({ options: { customData: { activeProfileId: 'p2' } } });
+      expect(seen).toEqual([{ activeProfileId: 'p2' }]);
+
+      // No interval was installed: time passing triggers zero IPC.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(state.getOptionsCalls).toBe(0);
+    });
+
+    it('dedupes an event whose customData is unchanged by value', async () => {
+      const state = installEventView({ activeProfileId: 'p1' });
+      rt = await OpenFinRuntime.create();
+      const seen: unknown[] = [];
+      rt.onCustomDataChanged((cd) => seen.push(cd));
+
+      state.emit({ options: { customData: { activeProfileId: 'p1' } } });
+      expect(seen).toEqual([]);
+    });
+
+    it('re-reads options once when the event carries no payload', async () => {
+      const state = installEventView({ a: 1 });
+      rt = await OpenFinRuntime.create();
+      state.getOptionsCalls = 0; // identity resolution reads once at construct
+      const seen: Array<Record<string, unknown>> = [];
+      rt.onCustomDataChanged((cd) => seen.push({ ...cd }));
+
+      state.customData = { a: 2 };
+      state.emit(undefined);
+      // The re-read is async — let the microtask settle.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(state.getOptionsCalls).toBe(1);
+      expect(seen).toEqual([{ a: 2 }]);
+    });
+
+    it('ignores non-object customData from the event', async () => {
+      const state = installEventView({ a: 1 });
+      rt = await OpenFinRuntime.create();
+      const seen: unknown[] = [];
+      rt.onCustomDataChanged((cd) => seen.push(cd));
+
+      for (const bad of [null, 'nope', ['a']]) {
+        state.emit({ options: { customData: bad } });
+      }
+      expect(seen).toEqual([]);
+    });
+
+    it('stops emitting after dispose removes the listener', async () => {
+      const state = installEventView({ a: 1 });
+      rt = await OpenFinRuntime.create();
+      const seen: unknown[] = [];
+      rt.onCustomDataChanged((cd) => seen.push(cd));
+      rt.dispose();
+
+      state.emit({ options: { customData: { a: 2 } } });
+      expect(seen).toEqual([]);
+      rt = null; // already disposed
+    });
+  });
+
   describe('saved view title', () => {
     function installTitleView(customData: Record<string, unknown>) {
-      const state = { customData: customData as unknown };
+      const handlers = new Map<string, (evt?: unknown) => void>();
+      const state = {
+        customData: customData as unknown,
+        /** Push the current customData through the options-changed path. */
+        emitOptionsChanged() {
+          handlers.get('options-changed')?.({ options: { customData: state.customData } });
+        },
+      };
       const fakeView = {
         identity: { name: 'v' },
         getOptions: async () => ({ customData: state.customData }),
-        on: () => {},
-        removeListener: () => {},
+        on: (event: string, fn: (evt?: unknown) => void) => { handlers.set(event, fn); },
+        removeListener: (event: string) => { handlers.delete(event); },
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (globalThis as any).fin = { View: { getCurrentSync: () => fakeView } };
@@ -613,14 +714,13 @@ describe('OpenFinRuntime', () => {
     });
 
     it('follows a live rename pushed through customData', async () => {
-      vi.useFakeTimers();
       const state = installTitleView({ savedTitle: 'Trader View' });
       rt = await OpenFinRuntime.create();
       rt.onCustomDataChanged(() => {});
       expect(document.title).toBe('Trader View');
 
       state.customData = { savedTitle: 'Renamed' };
-      await vi.advanceTimersByTimeAsync(500);
+      state.emitOptionsChanged();
       expect(document.title).toBe('Renamed');
     });
 
@@ -635,7 +735,7 @@ describe('OpenFinRuntime', () => {
       document.title = 'Trader View (2 unread)';
 
       state.customData = { savedTitle: 'Trader View', activeProfileId: 'p9' };
-      await vi.advanceTimersByTimeAsync(500);
+      state.emitOptionsChanged();
 
       // savedTitle is unchanged, so the runtime leaves the page's
       // dynamic title alone.
@@ -680,7 +780,8 @@ describe('OpenFinRuntime', () => {
       (globalThis as any).fin = { View: { getCurrentSync: () => fakeView } };
       rt = await OpenFinRuntime.create();
       rt.dispose();
-      expect(removeCalls.sort()).toEqual(['destroyed', 'shown']);
+      // shown + destroyed + the options-changed customData watcher.
+      expect(removeCalls.sort()).toEqual(['destroyed', 'options-changed', 'shown']);
       rt = null; // already disposed
     });
 
@@ -877,7 +978,8 @@ describe('OpenFinRuntime', () => {
       rt = await OpenFinRuntime.create();
       rt.dispose();
       rt.dispose();
-      expect(removeCalls.sort()).toEqual(['destroyed', 'shown']);
+      // Each listener removed exactly once despite the double dispose.
+      expect(removeCalls.sort()).toEqual(['destroyed', 'options-changed', 'shown']);
       rt = null; // already disposed
     });
   });
