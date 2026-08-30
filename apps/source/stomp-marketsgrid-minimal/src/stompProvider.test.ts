@@ -23,7 +23,7 @@ describe('stompProvider', () => {
   it('exports stable provider ids and cfg version', () => {
     expect(STOMP_LIVE_PROVIDER_ID).toBe('stomp-marketsgrid-minimal:positions-live');
     expect(STOMP_HISTORICAL_PROVIDER_ID).toBe('stomp-marketsgrid-minimal:positions-historical');
-    expect(STOMP_PROVIDER_CFG_VERSION).toBe(5);
+    expect(STOMP_PROVIDER_CFG_VERSION).toBe(6);
   });
 
   it('defines live provider draft for catalog seeding', () => {

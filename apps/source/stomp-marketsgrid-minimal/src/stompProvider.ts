@@ -47,7 +47,7 @@ const historicalListenerTopic = `/snapshot/positions/${TAG}/{{positions.asOfDate
 const historicalRequestMessage = `/snapshot/positions/${TAG}/{{positions.asOfDate}}/50`;
 
 /** Bump when STOMP wire destinations or cfg change so App re-persists catalog rows on load. */
-export const STOMP_PROVIDER_CFG_VERSION = 5;
+export const STOMP_PROVIDER_CFG_VERSION = 6;
 
 // ─── Deterministic catalog ids ───────────────────────────────────────
 // Stable, app-namespaced provider ids. Because configStore.save() upserts
