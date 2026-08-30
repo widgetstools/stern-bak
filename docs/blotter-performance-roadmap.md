@@ -105,6 +105,12 @@ worst case for streaming.
 
 ## Reference anchors
 
+> **Resolved incident:** a streaming blotter left minimized/backgrounded
+> crashed with a renderer out-of-memory — Chromium background-throttles AG
+> Grid's async-transaction flush timer while MessagePort delivery keeps
+> filling the queue. Diagnosis, evidence, and the arrival-driven drain fix
+> are written up in [`hidden-window-oom.md`](./hidden-window-oom.md).
+
 | Concern | Location |
 |---------|----------|
 | `asyncTransactionWaitMillis={0}` | `packages/react-grid/grid/src/widget/MarketsGridSurface.tsx:138` |

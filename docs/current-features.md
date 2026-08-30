@@ -577,23 +577,88 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - **Saved filters** — named filter-model presets
 - **Toolbar visibility** — show/hide toolbar items
 - **Grid state** — serialise/restore AG Grid state
-- **Summary panel** (`summary-panel`) — a horizontal strip of configurable
-  digest/chart/heatmap widget cards computed from the grid's own current rows,
-  rendered above `PrimaryToolbar` (`MarketsGridHost`) when the host passes
-  `showSummaryPanel`. Pure config + presentation module — no `activate` — the
-  strip's own `SummaryPanelView` recomputes widgets from `useGridApi()` +
-  `platform.rows`, debounced on top of the shared `RowChangeBus` coalescing so
-  a busy streaming blotter doesn't re-aggregate every widget on every tick. A
+- **Summary panel** (`summary-panel`) — configurable digest/chart/heatmap
+  widget cards computed from the grid's own current rows, docked freely
+  around the blotter itself when the host passes `showSummaryPanel`. Pure
+  config + presentation module — no `activate` — `useSummaryPanelData`
+  (`summaryWidgetContent.tsx`) recomputes widgets from `useGridApi()` +
+  `platform.rows`, throttled (not debounced — a pure debounce never settles
+  under continuous streaming) to at most once per 750ms on top of the shared
+  `RowChangeBus` coalescing, so a busy streaming blotter doesn't re-aggregate
+  every widget on every tick. With zero widgets configured the hook subscribes
+  to nothing and reads nothing — a summary-enabled blotter with no widgets
+  pays no per-tick row-scan cost at all, and the previous row snapshot is
+  released. Widget content refreshing is deliberately
+  decoupled from the dock's own rendering (`BlotterDock.tsx`'s memoized
+  `DockShell`) — a row-data refresh updates only the widget-content React
+  context, never re-rendering the dock layout tree the live AG-Grid instance
+  sits in. A
   widget's `query` reuses `@wellsfargo-starui/data`'s `DataQuery` shape (the
   same one the AI Assistant's `query_grid_data` tool takes), run through
   `runQuery` / `summariseRows` / `buildChartSpec`; `DataChart` (recharts) and
   `AnalysisTable` (heatmap-mode table) are shared rendering pieces, also used
   by the AI Assistant's own analysis panel via `@wellsfargo-starui/grid/customizer`.
+
+  **Layout — `widget/BlotterDock.tsx`, one `@widgetstools/react-dock-manager`
+  instance shared by the blotter and every widget** (matching the
+  `react-dock-manager` trading-app reference example's own use of AG-Grid as
+  ordinary dock-panel content). The blotter panel is built once at mount and
+  is never closed, re-added, or remounted — only ever repositioned by the
+  dock's own drag/resize handling — because AG-Grid's live state (column
+  widths, sort, filters, selection, scroll position) lives inside its own
+  instance and a remount would destroy it. Summary widgets are fully
+  interactive (closable, floatable, dockable, pinnable to any edge) and are
+  added/removed/renamed through the dock's mutation API
+  (`dispatch`/`ADD_PANEL`, `api.closePanel`, `api.updatePanel` —
+  `reconcileWidgets` in `BlotterDock.tsx`) rather than by rebuilding the
+  layout and remounting, for the same reason. New widgets dock relative to
+  the right-most currently-docked widget (or above the blotter, for the
+  first one) — read fresh from the live dock API on every reconcile pass,
+  not remembered across calls, so a widget the user has since floated,
+  unpinned, or closed by hand never leaves a stale anchor behind. Closing a
+  widget from its own dock header is a convenience alias for removing it
+  from `SummaryPanelState.widgets` (same effect as the settings-panel delete
+  button or `remove_module_item`); `SummaryPanelState.widgets` (existence +
+  order), not the dock's own internal state, stays the source of truth for
+  which widgets exist — where the user has dragged them is the dock's own
+  business and isn't written back.
+
+  **The blotter panel's own header** — a single-panel dock group's built-in
+  title bar — starts, and stays, collapsed (`SET_HEADER_COLLAPSED`) whenever
+  there are zero summary widgets, and un-collapses the moment one exists: a
+  lone permanent panel's header has nothing to say until there's a second
+  panel next to it to distinguish it from.
+
+  **`useBlotterVisibilityGuard.ts` — a documented AG-Grid + dock-manager
+  failure mode, guarded against.** Because widgets are freely dockable, one
+  can be dropped directly onto the blotter's own tab, sharing its group —
+  which would hide the blotter (collapse its container to zero width)
+  whenever that widget's tab is active. AG-Grid can't measure a viewport at
+  zero width, so it abandons column virtualisation and synchronously renders
+  every column instead of just the visible ones — a ~15x-worse render
+  (verified in a sibling app using the same dock library), landing exactly on
+  the click that triggers it, which is what makes it read as a UI freeze. The
+  guard unmounts AG-Grid via a `pointerdown` listener in the capture phase
+  (synchronously flushed) BEFORE the dock's own click handling collapses the
+  container — reacting to the visibility change itself is too late, since the
+  expensive render has already happened by then — and remounts via a
+  `ResizeObserver` once the panel is actually visible again, restoring
+  column state / filter model / scroll position across the cycle so a
+  hide/show doesn't reset the user's view. Costs nothing in the common case
+  (the blotter alone in its own group, never hidden). Every teardown/remount
+  cycle logs a `[blotter-dock] tab click→painted Nms` console line (measured
+  through a double-rAF, so it reflects actual paint) — deliberately always-on
+  as the canary: the guard silently stops firing if a dock-library upgrade
+  renames `.dock-tab`/`.dock-tab-group`, and this line disappearing is the
+  earliest observable symptom.
+
   Settings-sheet editor (`SummaryPanelPanel.tsx`) is direct-edit (no
-  draft/dirty staging, matching Plus/Minus rather than Alerts). Configured
-  from the AI Assistant via the generic `add_module_item` / `update_module_item`
-  / `remove_module_item` tools (moduleId `summary-panel`, collection
-  `widgets`) — no new tools were added for this module.
+  draft/dirty staging, matching Plus/Minus rather than Alerts) and is
+  independent of the dock — it edits the same `SummaryPanelState.widgets`
+  the dock reconciles against. Configured from the AI Assistant via the
+  generic `add_module_item` / `update_module_item` / `remove_module_item`
+  tools (moduleId `summary-panel`, collection `widgets`) — no new tools were
+  added for this module.
 
 ---
 
@@ -644,7 +709,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `MarketsGridContainer` — grid + two-provider picker + mode toggle (`Alt+Shift+P` /
   grid-level provider persistence; provider pickers live in grid customizer → Custom Settings (`providerGridHost`)
 - `MarketsGridContainer` — hub data via `useDataProvider` + `applyProviderToGrid` (no direct `client.subscribe` / cfg pass-through); optional `defaultLiveProviderId` for single-provider demos; live mode cold-starts STOMP immediately (hub attach dedupes concurrent windows); historical restore late-joins a running hub provider via `isProviderRunning` / `waitForProviderRunning` (≤2s) + `provider.start()` instead of `restartProvider` (avoids peer grid refresh and duplicate STOMP when several windows open at once)
-- `useProviderDataWiring` — provider→grid hot path inside `MarketsGridContainer`; live ticks apply regardless of `document.hidden` — hidden/minimized blotters stay fully current (trading policy: window-local alerting + instant correctness on restore; the old hidden-pause + refresh-on-visible dormancy was removed; Chromium's own background timer throttling is left at platform defaults); on STOMP auto-reconnect (`error` → `ready`) clears the stale banner and triggers `provider.refresh()` so every blotter replays the hub cache without a manual Reload
+- `useProviderDataWiring` — provider→grid hot path inside `MarketsGridContainer`; live ticks apply regardless of `document.hidden` — hidden/minimized blotters stay fully current (trading policy: window-local alerting + instant correctness on restore; the old hidden-pause + refresh-on-visible dormancy was removed). Hidden-window OOM guard: Chromium background-throttles timers (AG Grid's async-transaction flush stretches toward 1/min) but not MessagePort delivery, so without countermeasures the transaction queue retains every decoded batch until the renderer dies with an out-of-memory "Aw, Snap!" — while hidden, every applied tick is followed by a synchronous `flushAsyncTransactions()` (arrival-driven, needs no timer), keeping the queue bounded at zero extra cost when visible; on STOMP auto-reconnect (`error` → `ready`) clears the stale banner and triggers `provider.refresh()` so every blotter replays the hub cache without a manual Reload; perf-isolation debug hook — `?nofeed` in the query string (or `localStorage['starui:nofeed'] = '1'`) makes live ticks arrive but not apply to the grid (snapshot loads normally, transport still runs), so a profile can separate apply/render cost from everything else; inert by default, one loud `console.warn` when armed
 - `MarketsGridContainer` — when an active provider id is chosen but `useDataProviderConfig` is still loading, renders a lightweight placeholder (no throwaway `MarketsGrid` / AG Grid shell); the `__no_provider__` shell path is unchanged when no provider is selected or cfg is loaded but missing key/columns
 - `applyProviderToGrid` — live-tick add/update split with pending-add coalescing (`createApplyProviderToGridState`, `splitProviderRowsForGrid`, `splitProviderRowsWithResolver`); after snapshot commit, `markSnapshotLoaded` indexes row ids so live ticks avoid O(n) `getRowNode`; ticks for ids still in an async add queue retain the latest payload instead of being dropped so peer grids on the same hub provider stay row-count aligned; internal to `MarketsGridContainer` / `useBlotterDataConnection` (not on public barrel)
 - `buildColumnDefs` — maps a provider's persisted `ColumnDefinition[]` to AG Grid `ColDef[]` for `MarketsGridContainer`. Per column: a `valueGetter` DSL expression compiles once (bounded FIFO cache) to a CSP-safe `@wellsfargo-starui/core` **compiled closure** (not per-cell AST walk); dotted `field` uses cached `getPathAccessor`; flat field stays on AG Grid's native path. Every column with no explicit `filter` defaults to the **Multi Filter** (`agMultiColumnFilter`): tab 1 is the `cellDataType`-appropriate filter (`number`→`agNumberColumnFilter`, `date`/`dateString`→`agDateColumnFilter`, else `agTextColumnFilter`), tab 2 is always `agSetColumnFilter`; a column that already declares its own `filter` is left untouched (FilterEditor / host choice wins). Expression getters never throw — parse errors fall back to the field binding, runtime errors to the field value (warn once per expression); reusable per-getter `EvaluationContext` avoids per-cell allocations under high-frequency updates. Soak: `npm run soak:value-getter` (`valueGetter.soak.test.ts`, `SOAK=1`) — sustained eval load + heap-delta guard. **Internal** — not on public barrel
