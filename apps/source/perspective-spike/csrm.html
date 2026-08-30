@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perspective → AG Grid CSRM spike — window</title>
+    <style>
+      body { font: 13px/1.4 ui-monospace, monospace; background: #111; color: #ddd; margin: 12px; }
+      pre { white-space: pre-wrap; max-height: 140px; overflow: auto; }
+      #grid { height: 560px; width: 100%; }
+    </style>
+  </head>
+  <body>
+    <h3>AG Grid (client-side row model) fed from the hub's replicated Arrow stream</h3>
+    <pre id="out">booting…</pre>
+    <div id="grid"></div>
+    <script type="module" src="/src/csrm.ts"></script>
+  </body>
+</html>

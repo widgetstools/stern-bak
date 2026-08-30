@@ -77,5 +77,22 @@ Result (3 windows, 20k rows/sec, 200ms batches): hub engine **51%** and
 flat in window count; each replica engine **36%** on its own core; every
 window 74/74 deltas applied, own view 74/74 updates, 60fps.
 
-See the plan for read-outs and gate verdicts. Not yet covered: window-side
-row-object materialization for AG Grid, nested-feed flattening.
+## AG Grid client-side row model from the Arrow stream
+
+```bash
+node source/perspective-spike/scripts/runCsrm.mjs 1 20000 15 200   # windows, rate, seconds, batchMs
+```
+
+`csrm.html` hosts a real AG Grid (CSRM, 20k rows, `getRowId`,
+`asyncTransactionWaitMillis: 200`): Arrow snapshot → `apache-arrow` decode →
+row objects → grid; per relayed delta: decode → row objects →
+`applyTransactionAsync({ update })`.
+
+Result (1 window, 20k rows/sec, 4,000-row deltas): per delta 0.8ms decode +
+19.7ms materialize + 0.02ms apply-call (~10% of the main thread), zero
+long tasks, 59fps, hub engine 31%. Caveat: N windows in one Playwright
+context share ONE renderer thread, so multi-window CSRM numbers here
+measure N grids on one thread (OpenFin views each get their own).
+
+See the plan for read-outs and gate verdicts. Not yet covered:
+nested-feed flattening.

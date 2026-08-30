@@ -338,9 +338,37 @@ a replica window that is hidden should pause applying deltas (or drop
 its replica and re-snapshot on show — 100–250ms), the same hidden-window
 discipline as today's blotters.
 
-Not yet measured: window-side row-object materialization for AG Grid
-(the replica's `to_json` viewport windows, ~20ms/500 rows here, vs full
-row objects); nested-feed flattening.
+### Spike results — AG Grid client-side row model from the Arrow stream (2026-08-30, `src/csrm.ts`, `scripts/runCsrm.mjs`)
+
+Decision: grids stay on the **client-side row model for now** (SSRM later).
+So the window must materialize full row objects: `to_arrow()` snapshot →
+`apache-arrow` decode → 20k row objects → `createGrid` (`getRowId`,
+`asyncTransactionWaitMillis: 200`, cell flash on); per relayed delta:
+Arrow decode → row objects → `applyTransactionAsync({ update })`.
+Perspective row-mode deltas carry full rows of the changed keys, which is
+exactly what an AG `update` transaction needs (no partial-object merge).
+
+| metric (20k rows/sec, 200ms batches = 4,000-row deltas) | 1 window | 3 windows (one renderer, see caveat) |
+|---|---|---|
+| snapshot decode + materialize (20k rows) | 148ms | — |
+| per delta: Arrow decode / materialize / apply-call | **0.8 / 19.7 / 0.02 ms** | 0.9–1.2 / 22–32 / 0.04 ms |
+| window-side share of main thread | ~10% | — |
+| long tasks (15s) | **0** | W0: 2, W1: 3, leader: 20 (2.2s, max 151ms) |
+| fps / worst frame | **59 / 50ms** | 60/67ms, 58/133ms, leader 52/267ms |
+| AG async flushes | 37 (its own 200ms batching, ~2 deltas each) | 37 |
+| hub engine busy | **31%** | **30% — flat** |
+
+**Read-out.** A CSRM window at 20k rows/sec costs ~20ms of materialization
+per 200ms (≈5µs per row object) plus AG's own transaction work, with
+zero long tasks — comfortably inside budget. The 3-window degradation is
+a **test-harness artifact**: Playwright pages in one context share a
+single renderer main thread, so it measured three grids on one thread.
+In OpenFin every view has its own renderer process, so the 1-window
+column is the per-blotter truth; the shared-thread case is still
+informative as the "several grids in one window" bound (~3 at 20k/s).
+
+**CSRM materialization gate: PASS.** Remaining Phase 0 item:
+nested-feed flattening.
 
 **Hosting gate: PASS** (topology proven; sessions, naming, delivery all
 correct). Remaining spike items: window-side Arrow → row-object
