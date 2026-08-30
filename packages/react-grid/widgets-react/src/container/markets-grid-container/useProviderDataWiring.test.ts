@@ -220,6 +220,76 @@ describe('useProviderDataWiring', () => {
     expect(liveApi.applyTransactionAsync).toHaveBeenCalled();
   });
 
+  it('drains the async-transaction queue on every tick while the document is hidden', async () => {
+    // Chromium background-throttles AG Grid's flush timer in hidden
+    // windows while MessagePort delivery keeps arriving — without an
+    // arrival-driven drain the queued row batches accumulate until the
+    // renderer OOMs. The guard flushes synchronously per tick when hidden.
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const provider = makeProvider();
+    const liveApi = makeGridApi();
+    renderHook(() =>
+      useProviderDataWiring({
+        liveApi,
+        provider: provider as any,
+        activeId: 'p1',
+        subscriptionKey: null,
+        rowIdField: 'id',
+        rowIdFieldKey: 'id',
+        mode: 'live',
+        asOfDate: null,
+        toolbarDate: 'live',
+        dataHubClient: { isProviderRunning: vi.fn().mockResolvedValue(true), waitForProviderRunning: vi.fn() } as any,
+        restartProvider: vi.fn(),
+        containerEventBus: { emit: vi.fn() } as any,
+        setLoadRowCount: vi.fn(),
+        setProviderDisconnected: vi.fn(),
+        setDisconnectDetail: vi.fn(),
+        setResolvedSubKey: vi.fn(),
+        setIsRefetching: vi.fn(),
+      }),
+    );
+    await waitFor(() => expect(provider.start).toHaveBeenCalled());
+    act(() => {
+      provider.__emitTick([{ id: '2' }]);
+    });
+    expect(liveApi.applyTransactionAsync).toHaveBeenCalled();
+    expect(liveApi.flushAsyncTransactions).toHaveBeenCalled();
+  });
+
+  it('leaves flushing to AG Grid timer batching while the document is visible', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const provider = makeProvider();
+    const liveApi = makeGridApi();
+    renderHook(() =>
+      useProviderDataWiring({
+        liveApi,
+        provider: provider as any,
+        activeId: 'p1',
+        subscriptionKey: null,
+        rowIdField: 'id',
+        rowIdFieldKey: 'id',
+        mode: 'live',
+        asOfDate: null,
+        toolbarDate: 'live',
+        dataHubClient: { isProviderRunning: vi.fn().mockResolvedValue(true), waitForProviderRunning: vi.fn() } as any,
+        restartProvider: vi.fn(),
+        containerEventBus: { emit: vi.fn() } as any,
+        setLoadRowCount: vi.fn(),
+        setProviderDisconnected: vi.fn(),
+        setDisconnectDetail: vi.fn(),
+        setResolvedSubKey: vi.fn(),
+        setIsRefetching: vi.fn(),
+      }),
+    );
+    await waitFor(() => expect(provider.start).toHaveBeenCalled());
+    act(() => {
+      provider.__emitTick([{ id: '2' }]);
+    });
+    expect(liveApi.applyTransactionAsync).toHaveBeenCalled();
+    expect(liveApi.flushAsyncTransactions).not.toHaveBeenCalled();
+  });
+
   it('restarts historical providers when the hub slot is cold', async () => {
     vi.mocked(isHistoricalToolbarDate).mockReturnValue(true);
     const provider = makeProvider();

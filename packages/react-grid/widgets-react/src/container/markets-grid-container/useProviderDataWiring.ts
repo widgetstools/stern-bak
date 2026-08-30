@@ -30,6 +30,36 @@ const PEER_PROVIDER_WAIT_MS = 2_000;
  */
 const DEBUG = false;
 
+/**
+ * Perf-isolation debug hook: when active, live ticks are received but NOT
+ * applied to the grid (the snapshot still loads normally). Profiling with
+ * this on separates "what does applying + rendering streaming updates cost"
+ * from every other cost in the window — the same isolation lever the
+ * reference dock-performance investigation used (`LIVE_UPDATES_ENABLED`).
+ * Note the transport still runs: SharedWorker messages still arrive and
+ * decode, so transport cost stays visible in a profile even with this on.
+ *
+ * Two ways to arm it, both inert by default:
+ *   • `?nofeed` in the window's query string (before the `#` on hash routes)
+ *   • `localStorage['starui:nofeed'] = '1'` + reload — for workspace views
+ *     whose URL comes from a manifest and can't easily be edited.
+ */
+const LIVE_APPLY_DISABLED = ((): boolean => {
+  try {
+    if (typeof location !== 'undefined' && /[?&]nofeed\b/.test(location.search)) return true;
+    return typeof localStorage !== 'undefined' && localStorage.getItem('starui:nofeed') === '1';
+  } catch {
+    return false; // sandboxed/denied storage — the hook just stays off
+  }
+})();
+if (LIVE_APPLY_DISABLED) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[MarketsGridContainer] nofeed debug hook is ACTIVE — live ticks are not applied to the grid. ' +
+      "Remove `?nofeed` / localStorage 'starui:nofeed' and reload to restore streaming.",
+  );
+}
+
 type DataHubClient = ReturnType<typeof useDataServices>['client'];
 type ContainerEventBus = ReturnType<typeof createMarketsGridContainerEventBus>;
 
@@ -192,14 +222,39 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
     });
 
     let updateBatchCount = 0;
+
+    // Hidden-window OOM guard. Chromium throttles TIMERS in hidden /
+    // minimized windows (toward 1s, then 1/min under intensive
+    // throttling) but does NOT throttle MessagePort delivery — so live
+    // batches keep arriving at full rate while AG Grid's
+    // asyncTransactionWaitMillis flush timer barely fires. Every
+    // applyTransactionAsync call then queues its decoded row arrays
+    // inside AG Grid, the queue grows without bound, and after enough
+    // hidden minutes under a fast feed the renderer dies with
+    // "Aw, Snap! — Out of Memory" (observed live; heap profiling showed
+    // the retained decoded batches dominating the heap). The fix keeps
+    // the "hidden blotters stay fully current" policy above intact:
+    // apply every tick as usual, but while hidden drain AG's queue
+    // synchronously ON MESSAGE ARRIVAL — the one signal background
+    // throttling can't starve. Paint is skipped by the browser anyway,
+    // so this costs model-update work only, at the conflated batch rate.
+    const drainIfHidden = (): void => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') return;
+      try {
+        liveApi.flushAsyncTransactions();
+      } catch {
+        /* grid mid-teardown */
+      }
+    };
+
     const unsubTick = provider.onTick((updateRows) => {
       // Live ticks apply regardless of document visibility: this is a
       // trading platform — hidden/minimized blotters must stay current
       // (window-local alerting, instant correctness on restore). The
       // old hidden-pause + refresh-on-visible dormancy was removed
-      // deliberately. Chromium's own background timer throttling still
-      // applies to hidden windows (flush timers stretch toward 1s/1min)
-      // — an OS/runtime concern deliberately left at platform defaults.
+      // deliberately. See drainIfHidden above for how the queue stays
+      // bounded while Chromium background-throttles the flush timer.
+      if (LIVE_APPLY_DISABLED) return; // perf-isolation debug hook — see top of file
       if (cancelled || updateRows.length === 0) return;
       updateBatchCount += 1;
 
@@ -209,6 +264,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
           console.log(`[v2/grid] %cupdate#%d%c %d rows (no rowIdField → all update)`, 'color:#f59e0b', '', updateBatchCount, updateRows.length);
         }
         gridApply.applyTick(liveApi, updateRows, undefined);
+        drainIfHidden();
         return;
       }
 
@@ -217,6 +273,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
         updateRows,
         rowIdField,
       );
+      drainIfHidden();
       if (coalescedPending > 0 && DEBUG) {
         // eslint-disable-next-line no-console
         console.log(
