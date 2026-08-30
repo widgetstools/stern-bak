@@ -262,6 +262,27 @@ confuse the differ).
   by a cap. Paths map onto Arrow struct/list navigation cleanly for the
   `arrow-json` tier.
 
+**Editor workflow contract** (how this meets the provider editor):
+
+1. **Infer Fields** (`probeStomp` → `inferFields`) always runs on RAW,
+   unflattened rows — the probe path bypasses projection today for the
+   same reason, and flattening must never run before it.
+2. The user selects inferred fields and/or adds columns manually in the
+   Columns tab; both produce `columnDefinitions[].field` paths in the
+   canonical grammar. The Add-column form validates the grammar and
+   *warns* (does not block) when a path was not seen during inference.
+3. On provider (re)start, `collectProjectionPaths(columnDefinitions,
+   keyColumn)` is compiled into the flatten/projection trie — the same
+   restart boundary projection has today, and the same one Perspective's
+   fixed table schema implies.
+
+Two current gaps the nested-feed spike closes: `inferFields` stops at
+arrays (typed `'array'`, never descended) so it cannot offer `z[0].abc`
+— it must descend arrays and present observed positional element paths;
+and `collectProjectionPaths` / `createFieldProjector` split on `.` only
+(no `[n]`, no bracket-quoted keys) — inference, projection, flattening
+and the Add-column validator must share one path-grammar parser.
+
 Spike gate addition: nested (wide) corpus must reach the same
 rows/sec budget as the flat corpus via path 2 or 3.
 
