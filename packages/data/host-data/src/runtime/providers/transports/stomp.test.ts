@@ -463,13 +463,18 @@ describe('startStomp', () => {
   });
 
   it('restart() during the in-flight initial connect adopts the overlay — single dial, no duplicate session', async () => {
-    // No `createClient` here: this exercises the real dynamic-import
-    // path (mocked above), whose await opens the pre-dial window the
-    // Hub's CREATE+RESTART / RESTART+RECONFIG paths land in when they
-    // call restart() synchronously right after startStomp().
+    // No `createClient` here: this exercises the default-ctor await
+    // path, whose pre-dial window the Hub's CREATE+RESTART /
+    // RESTART+RECONFIG paths land in when they call restart()
+    // synchronously right after startStomp(). `stompImpl: 'stompjs'`
+    // routes through the mocked @stomp/stompjs import (the escape
+    // hatch), doubling as coverage that the opt-out still loads it.
     mockedStomp.instances.length = 0;
     const events: ProviderEmitEvent[] = [];
-    const handle = startStomp(cfg({ requestBody: '{"clientId":"X"}' }), (e) => events.push(e));
+    const handle = startStomp(
+      cfg({ requestBody: '{"clientId":"X"}', stompImpl: 'stompjs' }),
+      (e) => events.push(e),
+    );
     void handle.restart({ asOfDate: '2026-04-01', __refresh: 123 });
     await new Promise((r) => setTimeout(r, 0));
 

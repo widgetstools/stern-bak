@@ -110,6 +110,11 @@ worst case for streaming.
 > Grid's async-transaction flush timer while MessagePort delivery keeps
 > filling the queue. Diagnosis, evidence, and the arrival-driven drain fix
 > are written up in [`hidden-window-oom.md`](./hidden-window-oom.md).
+>
+> **Campaign record:** the August 2026 performance investigation — every
+> root cause, fix, upgrade (AG Grid 36.1, OpenFin 43.104.2/23.2.25),
+> measurement, ruled-out suspect, and remaining lever — is consolidated in
+> [`performance-upgrades-2026-08.md`](./performance-upgrades-2026-08.md).
 
 | Concern | Location |
 |---------|----------|

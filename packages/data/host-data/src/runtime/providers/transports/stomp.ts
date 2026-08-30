@@ -62,6 +62,7 @@ import { createFieldProjector } from '../fieldProjection.js';
 import { composeRowId } from '@wellsfargo-starui/types';
 import type { ProviderEmit, ProviderHandle } from '../Provider.js';
 import { bufferedDispatch } from './bufferedDispatch.js';
+import { FastStompClient } from './fastStompClient.js';
 import { resolveBracketCfg } from '../../template/bracketResolver.js';
 import {
   assertAppDataResolved,
@@ -165,6 +166,22 @@ async function loadDefaultClientCtor(): Promise<new (cfg: StompClientCfg) => Sto
     });
   }
   return _ctorPromise;
+}
+
+/**
+ * Pick the client implementation. `'fast'` (the default) is the
+ * platform's own vectorized client — @stomp/stompjs's per-byte frame
+ * parser measured ~30% of the SharedWorker thread at streaming rates
+ * (see fastStompParser.ts). `cfg.stompImpl: 'stompjs'` is the escape
+ * hatch for brokers with behaviours outside the fast client's surface;
+ * it keeps the historical lazy import so main-thread consumers that
+ * never opt in don't pay for the stompjs bundle.
+ */
+async function selectClientCtor(
+  impl: 'fast' | 'stompjs' | undefined,
+): Promise<new (cfg: StompClientCfg) => StompClient> {
+  if (impl === 'stompjs') return loadDefaultClientCtor();
+  return FastStompClient as unknown as new (cfg: StompClientCfg) => StompClient;
 }
 
 export interface StompOpts {
@@ -566,7 +583,7 @@ export function startStomp(
     try {
       const Ctor = opts.createClient
         ? null
-        : await loadDefaultClientCtor();
+        : await selectClientCtor(cfg.stompImpl);
       if (state.stopped || generation !== state.connectGeneration) {
         trace(`start() gen=${generation} superseded pre-dial — abandoned`);
         return;
@@ -950,7 +967,7 @@ export async function connectStomp(
       try {
         // eslint-disable-next-line no-console
         console.log(`[connect] resolving Client ctor (injected=${Boolean(opts.createClient)})`);
-        Ctor = opts.createClient ? null : await loadDefaultClientCtor();
+        Ctor = opts.createClient ? null : await selectClientCtor(resolvedCfg.stompImpl);
         // eslint-disable-next-line no-console
         console.log('[connect] Client ctor ready');
       } catch (err) {

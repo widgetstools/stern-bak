@@ -208,6 +208,19 @@ export interface StompProviderConfig {
    */
   wireFormat?: 'json' | 'columnar';
   /**
+   * STOMP client implementation.
+   *   - `'fast'` (default) — the platform's vectorized frame parser
+   *     (`fastStompClient`): native `indexOf` boundary scans instead of
+   *     @stomp/stompjs's per-byte state machine, which measured ~30% of
+   *     the SharedWorker thread at ~4.4MB/s. Covers the protocol
+   *     surface the platform uses (CONNECTED/MESSAGE/ERROR, heart-beats,
+   *     auto-redial); no transactions/acks/receipts.
+   *   - `'stompjs'` — the @stomp/stompjs Client, kept as an escape
+   *     hatch for brokers with behaviours the fast client doesn't
+   *     cover.
+   */
+  stompImpl?: 'fast' | 'stompjs';
+  /**
    * Reconnect policy. Today only `initialDelayMs` is honoured (it
    * becomes the stompjs `reconnectDelay`); full exponential backoff +
    * jitter + maxAttempts requires bypassing stompjs's auto-reconnect
