@@ -38,10 +38,10 @@ import { LazySettingsSheet, preloadSettingsSheet } from './LazySettingsSheet';
 import { useMarketsGridController } from './useMarketsGridController';
 import { useToolbarDateSettingsBridge } from '../customizer/modules/toolbar-date-settings/useToolbarDateSettingsBridge';
 import { PrimaryToolbar } from './PrimaryToolbar';
-import { SummaryPanelView } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 import { ColumnSelectorDialog } from './column-selector';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog';
 import { MarketsGridSurface } from './MarketsGridSurface';
+import { BlotterDock } from './BlotterDock';
 import { buildGridContextMenuItems } from './gridContextMenu';
 import { StaleDataBanner } from './StaleDataBanner';
 import { HistoricalViewBanner } from './HistoricalViewBanner';
@@ -302,7 +302,6 @@ function MarketsGridHostInner<TData>({
           {headerExtras}
         </div>
       ) : null}
-      {showSummaryPanel && <SummaryPanelView />}
       {showToolbar && (
         <PrimaryToolbar
           tabsHidden={tabsHidden}
@@ -361,24 +360,46 @@ function MarketsGridHostInner<TData>({
         </div>
       )}
 
-      <MarketsGridSurface
-        gridRef={gridRef}
-        gridOptions={gridOptions}
-        hostOverrideKeys={hostOverrideKeys}
-        theme={theme}
-        rowData={rowData}
-        columnDefs={columnDefs}
-        rowHeight={rowHeight}
-        headerHeight={headerHeight}
-        animateRows={animateRows}
-        sideBar={sideBar}
-        statusBar={statusBar}
-        defaultColDef={defaultColDef}
-        getContextMenuItems={getContextMenuItems}
-        onGridReady={handleGridReady}
-        onGridPreDestroyed={onGridPreDestroyed}
-        includeAllStreamSafeFilters={includeAllStreamSafeFilters}
-      />
+      {showSummaryPanel ? (
+        <BlotterDock
+          title={componentName}
+          gridRef={gridRef}
+          gridOptions={gridOptions}
+          hostOverrideKeys={hostOverrideKeys}
+          theme={theme}
+          rowData={rowData}
+          columnDefs={columnDefs}
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          animateRows={animateRows}
+          sideBar={sideBar}
+          statusBar={statusBar}
+          defaultColDef={defaultColDef}
+          getContextMenuItems={getContextMenuItems}
+          onGridReady={handleGridReady}
+          onGridPreDestroyed={onGridPreDestroyed}
+          includeAllStreamSafeFilters={includeAllStreamSafeFilters}
+        />
+      ) : (
+        <MarketsGridSurface
+          gridRef={gridRef}
+          gridOptions={gridOptions}
+          hostOverrideKeys={hostOverrideKeys}
+          theme={theme}
+          rowData={rowData}
+          columnDefs={columnDefs}
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          animateRows={animateRows}
+          sideBar={sideBar}
+          statusBar={statusBar}
+          defaultColDef={defaultColDef}
+          getContextMenuItems={getContextMenuItems}
+          onGridReady={handleGridReady}
+          onGridPreDestroyed={onGridPreDestroyed}
+          includeAllStreamSafeFilters={includeAllStreamSafeFilters}
+        />
+      )}
 
       {(settingsMounted || settingsOpen) && (
         <LazySettingsSheet

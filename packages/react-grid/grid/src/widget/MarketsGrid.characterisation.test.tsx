@@ -164,7 +164,6 @@ vi.mock('@wellsfargo-starui/grid/customizer', () => ({
   toolbarVisibilityModule: {},
   toolbarDateSettingsModule: {},
   summaryPanelModule: {},
-  SummaryPanelView: () => null,
 }));
 
 vi.mock('./useGridHost', () => ({

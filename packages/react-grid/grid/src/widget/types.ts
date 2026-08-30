@@ -83,11 +83,14 @@ export interface MarketsGridProps<TData = unknown> {
   /** Floating formatter toolbar (pill toggle on the filter bar). */
   showFormattingToolbar?: boolean;
   /**
-   * Summary Panel — a horizontal strip of configurable stat/chart/heatmap
-   * widgets computed from the grid's own current rows, rendered above the
-   * primary toolbar. Configured via the `summary-panel` customizer module
-   * (Settings → Summary Panel, or the AI Assistant's module-item tools).
-   * Defaults to `false`.
+   * Summary Panel — configurable stat/chart/heatmap widgets computed from
+   * the grid's own current rows, docked freely around the grid itself (drag,
+   * float, or pin to any edge) via `BlotterDock`, the one
+   * `@widgetstools/react-dock-manager` instance the blotter and every widget
+   * share. Configured via the `summary-panel` customizer module (Settings →
+   * Summary Panel, or the AI Assistant's module-item tools). Defaults to
+   * `false`, in which case the grid renders as a plain `MarketsGridSurface`
+   * with no dock manager at all.
    */
   showSummaryPanel?: boolean;
   /** Enables the editing toolbar toggle on the primary row (toolbar starts hidden). */

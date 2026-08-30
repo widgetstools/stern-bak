@@ -1,23 +1,27 @@
 /**
- * Summary Panel — a horizontal strip of configurable stat/chart/heatmap
- * widgets computed from the grid's own current rows, refreshed as the grid
- * ticks. Rendered above the primary toolbar (`MarketsGridHost`), gated by the
- * host-prop `showSummaryPanel` — same pattern `showFiltersToolbar` already
- * uses for `FiltersToolbar`.
+ * Summary Panel — configurable stat/chart/heatmap widgets computed from the
+ * grid's own current rows, refreshed as the grid ticks, docked around the
+ * blotter as ordinary panels in the SAME dock instance the blotter itself
+ * lives in — see `widget/BlotterDock.tsx`, which owns that one dock and
+ * reconciles it against this module's state. Gated by the host-prop
+ * `showSummaryPanel`, same pattern `showFiltersToolbar` uses for
+ * `FiltersToolbar`.
  *
  * A widget's `query` reuses `DataQuery` (`@wellsfargo-starui/data`) — the
  * exact shape `query_grid_data` already teaches the model, so configuring a
  * panel needs no new vocabulary. Pure config + presentation: unlike alerts,
- * there is no runtime to `activate` — `SummaryPanelView` reads rows itself via
- * `useGridApi()` / `platform.rows`, recomputing widgets from the live row set
- * rather than reacting to per-cell deltas.
+ * there is no runtime to `activate` — `useSummaryPanelData` (in
+ * `summaryWidgetContent.tsx`) reads rows itself via `useGridApi()` /
+ * `platform.rows`, recomputing widgets from the live row set rather than
+ * reacting to per-cell deltas.
  *
  * Layout — this file is the module shell only:
  *
- *   ./SummaryPanelPanel.tsx   — ListPane / EditorPane / SettingsPanel
- *   ./SummaryPanelView.tsx    — the always-visible widget strip
- *   ./DataChart.tsx           — recharts rendering (shared with the AI Assistant)
- *   ./AnalysisTable.tsx       — shared table/heatmap renderer (shared with the AI Assistant)
+ *   ./SummaryPanelPanel.tsx      — ListPane / EditorPane / SettingsPanel
+ *   ./summaryWidgetContent.tsx   — live row data + widget-card rendering
+ *                                  (consumed by widget/BlotterDock.tsx)
+ *   ./DataChart.tsx              — recharts rendering (shared with the AI Assistant)
+ *   ./AnalysisTable.tsx          — shared table/heatmap renderer (shared with the AI Assistant)
  */
 
 import type { Module } from '@wellsfargo-starui/core';
@@ -107,6 +111,6 @@ export const summaryPanelModule: Module<SummaryPanelState> = {
   EditorPane: SummaryPanelEditor,
 };
 
-export { SummaryPanelView } from './SummaryPanelView.js';
+export { useSummaryPanelData, SummaryWidgetContent, DigestCard, QueryCard } from './summaryWidgetContent.js';
 export { DataChart, compactNumber } from './DataChart.js';
 export { AnalysisTable, compact } from './AnalysisTable.js';
