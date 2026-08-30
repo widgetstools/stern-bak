@@ -228,7 +228,9 @@ function resolveColDef<TData>(def: ColDef<TData>): ColDef<TData> {
     }
   }
 
-  if (field && field.includes('.')) {
+  // Any path with grammar (`a.b`, `legs[0].rate`, `["a.b"]`) goes through
+  // the shared accessor: literal flat key first, then the parsed walk.
+  if (field && (field.includes('.') || field.includes('['))) {
     const accessor = getPathAccessor(field);
     return {
       ...def,

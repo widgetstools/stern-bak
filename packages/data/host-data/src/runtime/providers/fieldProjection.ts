@@ -9,23 +9,30 @@
  * and client parse in every window. Projection cuts all of it at the
  * earliest possible point.
  *
- * Nested paths (`a.b.c`) copy just the needed subtree. Values are
- * copied by reference (rows are never mutated downstream), and prefix
- * dedupe guarantees a projected row never aliases a subtree that a
- * longer path would then write into.
+ * Paths follow the shared field-path grammar (`a.b.c`, `legs[0].rate`,
+ * `["a.b"]`) and copy just the needed subtree — an index segment keeps
+ * only that element (other slots stay empty). Values are copied by
+ * reference (rows are never mutated downstream), and prefix dedupe
+ * guarantees a projected row never aliases a subtree that a longer path
+ * would then write into.
  */
 
-import type { ColumnDefinition } from '@wellsfargo-starui/types';
+import {
+  fieldPathSegments,
+  isFieldPathPrefix,
+  type ColumnDefinition,
+  type FieldPathSegment,
+} from '@wellsfargo-starui/types';
 
 export type FieldProjector = (row: unknown) => unknown;
 
 /**
- * Union of column field paths and keyColumn component(s), with any
- * path covered by a shorter prefix path dropped (`a.b` copies the
- * whole subtree by reference, so also writing `a.b.c` afterwards would
- * mutate the shared SOURCE subtree).
+ * Every requested path — column fields plus keyColumn component(s) —
+ * deduped by exact string, in first-seen order. This is the input for
+ * the flatten plan (`jsonFlatten.ts`), which wants ALL paths (a user may
+ * legitimately show both `risk` opaque and `risk.dv01`).
  */
-export function collectProjectionPaths(
+export function collectFieldPaths(
   columnDefinitions: readonly ColumnDefinition[] | undefined,
   keyColumn: string | readonly string[] | undefined,
 ): string[] {
@@ -37,11 +44,27 @@ export function collectProjectionPaths(
   else if (Array.isArray(keyColumn)) {
     for (const k of keyColumn) if (typeof k === 'string') raw.add(k);
   }
+  return [...raw];
+}
 
-  return [...raw].filter((p) => {
-    const parts = p.split('.');
-    for (let i = 1; i < parts.length; i++) {
-      if (raw.has(parts.slice(0, i).join('.'))) return false;
+/**
+ * {@link collectFieldPaths} with any path covered by a shorter prefix
+ * path dropped (`a.b` copies the whole subtree by reference, so also
+ * writing `a.b.c` afterwards would mutate the shared SOURCE subtree).
+ * Prefixes compare segment-wise, so `ab` never covers `abc`.
+ */
+export function collectProjectionPaths(
+  columnDefinitions: readonly ColumnDefinition[] | undefined,
+  keyColumn: string | readonly string[] | undefined,
+): string[] {
+  const paths = collectFieldPaths(columnDefinitions, keyColumn);
+  const parsed = paths.map((p) => fieldPathSegments(p));
+  return paths.filter((_, i) => {
+    const segs = parsed[i] as readonly FieldPathSegment[];
+    for (let j = 0; j < parsed.length; j++) {
+      if (j === i) continue;
+      const other = parsed[j] as readonly FieldPathSegment[];
+      if (other.length < segs.length && isFieldPathPrefix(other, segs)) return false;
     }
     return true;
   });
@@ -61,10 +84,11 @@ export function createFieldProjector(
   if (paths.length === 0) return null;
 
   const top: string[] = [];
-  const nested: string[][] = [];
+  const nested: (readonly FieldPathSegment[])[] = [];
   for (const p of paths) {
-    if (p.includes('.')) nested.push(p.split('.'));
-    else top.push(p);
+    const segs = fieldPathSegments(p);
+    if (segs.length === 1 && typeof segs[0] === 'string') top.push(segs[0]);
+    else nested.push(segs);
   }
 
   return (row: unknown): unknown => {
@@ -77,34 +101,37 @@ export function createFieldProjector(
       if (v !== undefined) out[f] = v;
     }
 
-    for (const parts of nested) {
+    for (const segs of nested) {
       let cur: unknown = src;
-      for (const seg of parts) {
-        if (!cur || typeof cur !== 'object' || Array.isArray(cur)) {
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i] as FieldPathSegment;
+        // Strict like the flattener: `[n]` reads arrays only, a key reads
+        // objects only — the projected row must keep the source's shape.
+        if (!cur || typeof cur !== 'object' || Array.isArray(cur) !== (typeof seg === 'number')) {
           cur = undefined;
           break;
         }
-        cur = (cur as Record<string, unknown>)[seg];
+        cur = (cur as Record<string | number, unknown>)[seg];
         if (cur === undefined) break;
       }
       if (cur === undefined) continue;
 
-      // Intermediate objects in `out` are always freshly created here
+      // Intermediate containers in `out` are always freshly created here
       // (prefix dedupe means no nested path shares a prefix with a
       // copied top-level field), so these writes can't reach `src`.
-      let tgt = out;
-      for (let i = 0; i < parts.length - 1; i++) {
-        const seg = parts[i]!;
+      let tgt: Record<string | number, unknown> = out;
+      for (let i = 0; i < segs.length - 1; i++) {
+        const seg = segs[i] as FieldPathSegment;
         const next = tgt[seg];
-        if (next && typeof next === 'object' && !Array.isArray(next)) {
-          tgt = next as Record<string, unknown>;
+        if (next && typeof next === 'object') {
+          tgt = next as Record<string | number, unknown>;
         } else {
-          const child: Record<string, unknown> = {};
+          const child = (typeof segs[i + 1] === 'number' ? [] : {}) as Record<string | number, unknown>;
           tgt[seg] = child;
           tgt = child;
         }
       }
-      tgt[parts[parts.length - 1]!] = cur;
+      tgt[segs[segs.length - 1] as FieldPathSegment] = cur;
     }
 
     return out;

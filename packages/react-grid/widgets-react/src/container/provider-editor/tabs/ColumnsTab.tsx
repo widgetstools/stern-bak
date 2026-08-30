@@ -30,7 +30,7 @@ import { ChevronDown, Download, Plus, SquareFunction, Trash2, Upload } from 'luc
 import { ExpressionEditor } from '@wellsfargo-starui/grid/customizer';
 import { ExpressionEngine } from '@wellsfargo-starui/core';
 import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
-import { normalizeKeyColumns } from '@wellsfargo-starui/types/shared';
+import { normalizeKeyColumns, parseFieldPath } from '@wellsfargo-starui/types/shared';
 import { MultiSelect } from '../MultiSelect.js';
 import { ensureProviderEditorAgGridModules } from '../ensureProviderEditorAgGridModules.js';
 import { exportColumnDefs, parseColumnDefsImport } from '../columnDefsIo.js';
@@ -92,6 +92,21 @@ export function ColumnsTab({ columns, onChange, keyColumn, onKeyColumnChange }: 
   const [newDataType, setNewDataType] = useState<NonNullable<ColumnDefinition['cellDataType']>>('text');
 
   const fieldNames = useMemo(() => new Set(columns.map((c) => c.field)), [columns]);
+
+  // The field must parse under the shared path grammar (`a.b`,
+  // `legs[0].rate`, `["a.b"]`) — the same parser inference, projection
+  // and flattening use, so a column added here always resolves the way
+  // the data plane reads it.
+  const fieldPathError = useMemo(() => {
+    const path = newFieldName.trim();
+    if (!path) return null;
+    try {
+      parseFieldPath(path);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, [newFieldName]);
 
   // Clear all columns — wipes the column list AND the (now-stale) key
   // column. Confirmed via dialog since it's a full reset (recoverable by
@@ -164,6 +179,7 @@ export function ColumnsTab({ columns, onChange, keyColumn, onKeyColumnChange }: 
   const handleAddColumn = useCallback(() => {
     if (!newFieldName.trim()) return;
     if (fieldNames.has(newFieldName)) return;
+    if (fieldPathError) return;
 
     const newColumn: ColumnDefinition = {
       field: newFieldName,
@@ -175,7 +191,7 @@ export function ColumnsTab({ columns, onChange, keyColumn, onKeyColumnChange }: 
     setNewFieldName('');
     setNewHeaderName('');
     setNewDataType('text');
-  }, [newFieldName, newHeaderName, newDataType, columns, onChange, fieldNames]);
+  }, [newFieldName, newHeaderName, newDataType, columns, onChange, fieldNames, fieldPathError]);
 
   // Enrich with a stable row id so AG-Grid tracks rows across
   // parent-driven re-renders. field+idx handles duplicate field names.
@@ -392,6 +408,7 @@ export function ColumnsTab({ columns, onChange, keyColumn, onKeyColumnChange }: 
           onAddColumn={handleAddColumn}
           fieldNameExists={fieldNames.has(newFieldName)}
           fieldNameEmpty={!newFieldName.trim()}
+          fieldPathError={fieldPathError}
         />
 
         <div className="flex items-center justify-between flex-shrink-0">
@@ -624,6 +641,7 @@ function AddColumnForm({
   onAddColumn,
   fieldNameExists,
   fieldNameEmpty,
+  fieldPathError,
 }: {
   newFieldName: string;
   newHeaderName: string;
@@ -634,8 +652,10 @@ function AddColumnForm({
   onAddColumn(): void;
   fieldNameExists: boolean;
   fieldNameEmpty: boolean;
+  /** Grammar error for the typed path (`null` when it parses). */
+  fieldPathError: string | null;
 }) {
-  const canAdd = !fieldNameEmpty && !fieldNameExists;
+  const canAdd = !fieldNameEmpty && !fieldNameExists && !fieldPathError;
   const [open, setOpen] = useState(true);
 
   return (
@@ -657,13 +677,16 @@ function AddColumnForm({
             Field Name *
           </label>
           <Input
-            placeholder="e.g., trade_id"
+            placeholder="e.g., trade_id, risk.dv01, legs[0].rate"
             value={newFieldName}
             onChange={(e) => onFieldNameChange(e.target.value)}
             className="h-8 text-xs"
           />
           {fieldNameExists && (
             <p className="text-[10px] text-destructive">Field already exists</p>
+          )}
+          {!fieldNameExists && fieldPathError && (
+            <p className="text-[10px] text-destructive">{fieldPathError}</p>
           )}
         </div>
 
@@ -698,7 +721,13 @@ function AddColumnForm({
           onClick={onAddColumn}
           disabled={!canAdd}
           className="h-8"
-          title={fieldNameEmpty ? 'Enter a field name' : fieldNameExists ? 'Field already exists' : 'Add column'}
+          title={
+            fieldNameEmpty
+              ? 'Enter a field name'
+              : fieldNameExists
+                ? 'Field already exists'
+                : fieldPathError ?? 'Add column'
+          }
         >
           <Plus className="h-3.5 w-3.5 mr-1" />
           Add

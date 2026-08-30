@@ -3,6 +3,7 @@
  */
 
 import type { FieldInfo } from './dataProvider.js';
+import { fieldPathLeafName } from './fieldPath.js';
 
 export interface FieldNode {
   path: string;
@@ -20,12 +21,9 @@ export interface FieldNode {
  * Convert a FieldInfo (server schema) to a FieldNode (UI tree node).
  */
 export function convertFieldInfoToNode(info: FieldInfo): FieldNode {
-  const parts = info.path.split('.');
-  const name = parts[parts.length - 1];
-
   const node: FieldNode = {
     path: info.path,
-    name,
+    name: fieldPathLeafName(info.path),
     type: info.type,
     nullable: info.nullable,
     sample: info.sample,
@@ -52,9 +50,7 @@ export function convertFieldNodeToInfo(node: FieldNode): FieldInfo {
   if (node.children && node.children.length > 0) {
     info.children = {};
     node.children.forEach(child => {
-      const parts = child.path.split('.');
-      const key = parts[parts.length - 1];
-      info.children![key] = convertFieldNodeToInfo(child);
+      info.children![fieldPathLeafName(child.path)] = convertFieldNodeToInfo(child);
     });
   }
 

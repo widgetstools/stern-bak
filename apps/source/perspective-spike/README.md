@@ -94,5 +94,30 @@ long tasks, 59fps, hub engine 31%. Caveat: N windows in one Playwright
 context share ONE renderer thread, so multi-window CSRM numbers here
 measure N grids on one thread (OpenFin views each get their own).
 
-See the plan for read-outs and gate verdicts. Not yet covered:
-nested-feed flattening.
+## Nested-feed flattening gate (Node, no browser)
+
+```bash
+npm run build                                   # repo root — packages/data dist
+cd apps && node source/perspective-spike/scripts/nestedBench.mjs 20000 7   # rows, repeats
+```
+
+Benchmarks the production flattener (`packages/data … providers/jsonFlatten.ts`,
+`flattenJsonText` = column-driven text-level pass that never builds row
+objects) against `JSON.parse` and the object-level route on three corpora:
+a wide nested row (1,774 B, 39 requested columns incl. `legs[0].rate`,
+`tenorBuckets[9]`), the same 39 values flat (control), and sparse nested
+ticks. Node 22 is the same V8 the SharedWorker runs.
+
+Result (median of 7, 20k rows): flat `JSON.parse` 4.2 µs/row; nested
+`flattenJsonText` **19.4 µs/row** (engine-ready text; vs 34.4 for
+parse → flattenRow → stringify, vs 17.1 for `JSON.parse` alone); ticks
+**3.6 µs/row = 7% of a core at 20k ticks/s**. A bare JS `charCodeAt`
+loop over the row is already 6.5 µs, so no JS text scanner beats native
+`JSON.parse` by much: the gate as written fails for wide full-row
+streams (39% of a core at 20k rows/s) and passes for the tick shape.
+Decision in the plan: flat-at-source contract, JS tier for nested
+feeds, `arrow-json` WASM tier deferred until a real wide full-row feed
+needs it.
+
+All Phase 0 gates are now measured — see the plan for read-outs and
+verdicts.

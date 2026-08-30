@@ -55,4 +55,58 @@ describe('inferFields', () => {
     const { fields } = inferFields([wide], { maxFields: 3 });
     expect(fields.map((f) => f.path)).toEqual(['a', 'b', 'c']);
   });
+
+  it('descends arrays into positional element paths (legs[0].rate)', () => {
+    const { fields } = inferFields([
+      { id: 'a', legs: [{ rate: 0.05, ccy: 'USD' }, { rate: 0.03, ccy: 'EUR' }], tenors: [1, 2, 3] },
+      { id: 'b', legs: [{ rate: 0.04, ccy: 'GBP' }], tenors: [4, 5] },
+    ]);
+    const legs = fields.find((f) => f.path === 'legs')!;
+    expect(legs.type).toBe('array');
+    expect(legs.name).toBe('legs');
+    expect(legs.children?.map((c) => [c.path, c.name, c.type, c.nullable])).toEqual([
+      ['legs[0]', '[0]', 'object', false],
+      ['legs[1]', '[1]', 'object', true], // only row a has a second leg
+    ]);
+    expect(legs.children![0]!.children?.map((c) => c.path)).toEqual(['legs[0].rate', 'legs[0].ccy']);
+    expect(legs.children![0]!.children![0]!.type).toBe('number');
+
+    const tenors = fields.find((f) => f.path === 'tenors')!;
+    expect(tenors.children?.map((c) => [c.path, c.type, c.nullable])).toEqual([
+      ['tenors[0]', 'number', false],
+      ['tenors[1]', 'number', false],
+      ['tenors[2]', 'number', true],
+    ]);
+  });
+
+  it('bounds array descent by maxArrayElements (0 keeps arrays opaque)', () => {
+    const rows = [{ xs: [1, 2, 3, 4] }];
+    expect(inferFields(rows, { maxArrayElements: 2 }).fields[0]!.children?.map((c) => c.path))
+      .toEqual(['xs[0]', 'xs[1]']);
+    const opaque = inferFields(rows, { maxArrayElements: 0 }).fields[0]!;
+    expect(opaque.type).toBe('array');
+    expect(opaque.children).toBeUndefined();
+  });
+
+  it('descends nested arrays (m[1][0]) and empty arrays stay childless', () => {
+    const { fields } = inferFields([{ m: [[1, 2], [3]], empty: [] }]);
+    const m = fields.find((f) => f.path === 'm')!;
+    expect(m.children![1]!.children?.map((c) => c.path)).toEqual(['m[1][0]']);
+    expect(fields.find((f) => f.path === 'empty')!.children).toBeUndefined();
+  });
+
+  it('bracket-quotes keys that contain grammar characters and keeps the raw name', () => {
+    const { fields } = inferFields([{ 'a.b': { c: 1 }, 'we[ird': 2 }]);
+    expect(fields.map((f) => [f.path, f.name])).toEqual([
+      ['["a.b"]', 'a.b'],
+      ['["we[ird"]', 'we[ird'],
+    ]);
+    expect(fields[0]!.children![0]!.path).toBe('["a.b"].c');
+  });
+
+  it('lets the first non-null value decide the type', () => {
+    const { fields } = inferFields([{ v: null }, { v: 3 }]);
+    expect(fields[0]!.type).toBe('number');
+    expect(fields[0]!.nullable).toBe(true);
+  });
 });

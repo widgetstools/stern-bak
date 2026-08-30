@@ -72,3 +72,18 @@ export {
 } from './transports/mockPresets.js';
 
 export { inferFields, type InferOptions } from './inferFields.js';
+
+export {
+  collectFieldPaths,
+  collectProjectionPaths,
+  createFieldProjector,
+  type FieldProjector,
+} from './fieldProjection.js';
+
+export {
+  compileFlattenPlan,
+  flattenRow,
+  flattenJsonText,
+  type FlattenPlan,
+  type FlattenNode,
+} from './jsonFlatten.js';

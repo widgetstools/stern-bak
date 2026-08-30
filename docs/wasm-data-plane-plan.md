@@ -215,11 +215,11 @@ the materialization cost the whole plan exists to remove). Layered:
 1. **Flat at the source where we own the feed.** `stomp-view-server`
    gains a flat-keys mode (`"rating.moody": ...`); "flat-or-flattenable"
    becomes the documented feed contract. Many real feeds are flat already.
-2. **Text-level rewriter in the fast STOMP path** (Phase 0 baseline):
-   native `indexOf(':{')` jumps to nested-object spans and rewrites only
-   those into dotted keys. Cheap when nesting is a minority of bytes;
-   degrades toward a full JS scan on wide mostly-nested feeds — measure,
-   don't assume.
+2. **Text-level rewriter in the fast STOMP path** (Phase 0 baseline,
+   built as `jsonFlatten.ts` — a column-driven tokenizer rather than an
+   `indexOf(':{')` rewriter, because a rewriter cannot honour `[n]` or
+   skip unrequested subtrees). Measured: see "nested-feed flattening
+   gate" below — fine for tick streams, not for wide full-row streams.
 3. **Small Rust/WASM `JSON → Arrow` flattener** (if 2 fails its gate):
    `arrow-json` already does schema-driven JSON → Arrow record batches with
    nested-struct support; flattening struct columns into `a.b` names is a
@@ -276,15 +276,21 @@ confuse the differ).
    restart boundary projection has today, and the same one Perspective's
    fixed table schema implies.
 
-Two current gaps the nested-feed spike closes: `inferFields` stops at
-arrays (typed `'array'`, never descended) so it cannot offer `z[0].abc`
-— it must descend arrays and present observed positional element paths;
-and `collectProjectionPaths` / `createFieldProjector` split on `.` only
-(no `[n]`, no bracket-quoted keys) — inference, projection, flattening
-and the Add-column validator must share one path-grammar parser.
+Two gaps the nested-feed spike closed (2026-08-30, shipped as production
+code, not spike-only): `inferFields` used to stop at arrays — it now
+descends them and presents observed positional element paths
+(`legs[0].rate`, capped by `maxArrayElements`, default 16); and
+`collectProjectionPaths` / `createFieldProjector` split on `.` only —
+inference, projection, flattening, the row-path accessors
+(`getValueByPath` / `getPathAccessor` / `getPathSetter` / `composeRowId`,
+now ONE implementation in `shared-types/rowPath.ts`), `buildColumnDefs`
+and the Add-column validator all share the one grammar parser
+(`@wellsfargo-starui/types` `fieldPath.ts`: `parseFieldPath`,
+`formatFieldPath`, `appendFieldPath`, `fieldPathLeafName`,
+`fieldPathSegments` memo).
 
-Spike gate addition: nested (wide) corpus must reach the same
-rows/sec budget as the flat corpus via path 2 or 3.
+Spike gate as written: nested (wide) corpus must reach the same
+rows/sec budget as the flat corpus via path 2 or 3. Result below.
 
 ### Spike results — engine ingest gate (2026-08-30, `apps/source/perspective-spike`)
 
@@ -414,7 +420,71 @@ column is the per-blotter truth; the shared-thread case is still
 informative as the "several grids in one window" bound (~3 at 20k/s).
 
 **CSRM materialization gate: PASS.** Remaining Phase 0 item:
-nested-feed flattening.
+nested-feed flattening (next section).
+
+### Spike results — nested-feed flattening gate (2026-08-30, `packages/data … providers/jsonFlatten.ts`, `apps/source/perspective-spike/scripts/nestedBench.mjs`)
+
+What exists now: `compileFlattenPlan(paths)` compiles the requested
+paths (`collectFieldPaths(columnDefinitions, keyColumn)` — ALL paths, a
+node may be both a column and a prefix) into a segment trie;
+`flattenRow` is the object-level reference; `flattenJsonText` is the
+text-level pass — it tokenises the JSON row-array text once, matches
+member keys in place (length-bucketed candidates + native `startsWith`,
+no key slicing or hashing), skips strings with native `indexOf`, tracks
+backslashes lazily, copies each matched scalar's raw text into the flat
+output and skips every unrequested subtree; no row objects are built.
+Opaque columns (`risk`, `legs`) come out as JSON strings; `[n]` reads
+arrays only. 23 tests, including text ≡ object equivalence on escapes,
+unicode, nested arrays and pretty-printed input.
+
+Measured in Node 22 (same V8 as the SharedWorker), 20k rows, 39
+requested columns (18 flat + 21 nested incl. `legs[0].rate`,
+`legs[1].schedule.end`, `tenorBuckets[9]`, `limits.var.d10`), median of 7:
+
+| corpus / path | µs/row | MB/s | one core @ 20k rows/s |
+|---|---|---|---|
+| flat (1,056 B/row) `JSON.parse` — today's flat-feed cost | 4.2 | 237 | 8% |
+| flat `flattenJsonText` (pass-through) | 6.5 | 155 | 13% |
+| nested (1,774 B/row) `JSON.parse` | 17.1 | 99 | 34% |
+| nested `JSON.parse` + `flattenRow` (objects) | 25.3 | 67 | 51% |
+| nested parse + flatten + `JSON.stringify` (engine-ready text) | 34.4 | 49 | 69% |
+| nested `flattenJsonText` (engine-ready text) | **19.4** | 87 | **39%** |
+| ↳ scanner floor: skip everything (no columns) | 6.5 | 260 | 13% |
+| sparse nested ticks (~150 B/row, 1,000-row batches) `JSON.parse` | 2.4 | 78 | 5% |
+| ticks parse + flatten + stringify | 5.0 | 37 | 10% |
+| ticks `flattenJsonText` | **3.6** | 51 | **7%** |
+
+**Read-out.**
+
+- `flattenJsonText` is the best JS route to engine-ready flat text: 1.8×
+  cheaper than parse → flatten → stringify on wide rows, 1.4× on ticks,
+  and it allocates no row objects (GC-quiet), which was the design rule.
+- It cannot beat native `JSON.parse` by much, and no JS scanner can: a
+  bare `charCodeAt` loop over a row already runs at ~260 MB/s (the
+  "skip everything" floor) while V8's C++ parser does ~100 MB/s on the
+  nested corpus; key matching, scalar scanning and emission are the rest.
+  Wide **full-row** nested rows at 20k rows/s (35 MB/s of wire) cost
+  39% of a core — 4.6× the flat feed's budget. **Gate as written: FAIL
+  for the full-row shape.**
+- The shape that actually streams — sparse ticks — **passes with room**:
+  7% of a core at 20k ticks/s (vs 5% for `JSON.parse` alone). Wide
+  snapshots are one-time: 20k nested rows flatten in ~0.4 s.
+
+**Decision.**
+
+1. Flat-at-source remains the feed contract (`stomp-view-server`
+   flat-keys mode; zero client cost). Nested feeds are supported, not
+   preferred.
+2. `flattenJsonText` ships now as the JS tier for nested feeds — adequate
+   for tick streams and one-time snapshots, and it also retires the
+   `thinDeltas` + `projectFields` nested-path interaction.
+3. The `arrow-json` WASM tier (item 3 above) is **deferred, not
+   started**: only a feed that streams full wide nested rows at ≥10k
+   rows/s justifies it — measure that feed first. Rust/`simd-json`-class
+   parsers reach 0.5–1 GB/s, i.e. 5–10× this path, which is the number
+   to beat if it is ever built.
+4. **Phase 0 is complete.** Next: Phase 1 (per-provider sub-workers,
+   engine-agnostic), then the Perspective integration phases.
 
 **Hosting gate: PASS** (topology proven; sessions, naming, delivery all
 correct). Remaining spike items: window-side Arrow → row-object
@@ -518,6 +588,15 @@ in week one and is worth doing regardless of the WASM decision.
   pending the Phase 0 spike gates; Phases 2–3 are then integration work
   (hosting the Server in the hub, MessagePort transport, Arrow/`to_json`
   delta path to windows, upstream flattening) rather than engine work.
+  **Phase 0 status (2026-08-30): all gates measured** — ingest PASS,
+  hosting PASS, replicated mode PASS, CSRM materialization PASS,
+  nested-feed flattening PASS for the streaming (tick) shape / FAIL for
+  wide full-row streams, where the answer is flat-at-source, with the
+  `arrow-json` WASM tier deferred until a real feed needs it.
+- **Nested feeds:** accept "flat-or-flattenable" as the feed contract and
+  the JS `flattenJsonText` tier for nested feeds (ticks 7% of a core at
+  20k/s), or fund the WASM flattener now (~500 lines Rust, 5–10× faster)
+  on the expectation of wide full-row nested streams?
 - Approve Phase 1 (sub-workers) immediately? It is pure TS and pays for
   itself even if WASM is later rejected — and it is engine-agnostic.
 - `wasm-bindgen` glue vs hand-rolled loader (plan prefers hand-rolled for

@@ -97,7 +97,7 @@ describe('ColumnsTab — rendering', () => {
     render(
       <ColumnsTab columns={columns} onChange={onChange} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
     );
-    await user.type(screen.getByPlaceholderText('e.g., trade_id'), 'qty');
+    await user.type(screen.getByPlaceholderText('e.g., trade_id, risk.dv01, legs[0].rate'), 'qty');
     await user.click(screen.getByTitle('Add column'));
     expect(onChange).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ field: 'qty' })]),
@@ -105,6 +105,31 @@ describe('ColumnsTab — rendering', () => {
     await user.click(screen.getByTestId('columns-tab-clear-all'));
     await user.click(await screen.findByRole('button', { name: /^Clear all$/i }));
     expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it('rejects a field path that fails the shared grammar and accepts an index path', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ColumnsTab columns={columns} onChange={onChange} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
+    );
+    const input = screen.getByPlaceholderText('e.g., trade_id, risk.dv01, legs[0].rate');
+    await user.type(input, 'legs..rate');
+    expect(screen.getByText(/Invalid field path/)).toBeInTheDocument();
+    const add = screen.getByTitle(/Invalid field path/);
+    expect(add).toBeDisabled();
+    await user.click(add);
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    // user-event treats `[` as a key-descriptor opener; `[[` types a literal `[`.
+    await user.type(input, 'legs[[0].rate');
+    expect(input).toHaveValue('legs[0].rate');
+    expect(screen.queryByText(/Invalid field path/)).toBeNull();
+    await user.click(screen.getByTitle('Add column'));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ field: 'legs[0].rate' })]),
+    );
   });
 
   it('imports column JSON from a file', async () => {
@@ -187,7 +212,7 @@ describe('ColumnsTab — rendering', () => {
     render(
       <ColumnsTab columns={columns} onChange={onChange} keyColumn="positionId" onKeyColumnChange={vi.fn()} />,
     );
-    await user.type(screen.getByPlaceholderText('e.g., trade_id'), 'positionId');
+    await user.type(screen.getByPlaceholderText('e.g., trade_id, risk.dv01, legs[0].rate'), 'positionId');
     expect(screen.getByTitle('Field already exists')).toBeDisabled();
     fireEvent.change(screen.getByTestId('columns-tab-import-input'), { target: { files: [] } });
     expect(onChange).not.toHaveBeenCalled();

@@ -31,6 +31,16 @@
       "types": "./shared-types/dist/fieldSelector.d.ts",
       "import": "./shared-types/dist/fieldSelector.js",
       "require": "./shared-types/dist/fieldSelector.js"
+    },
+    "./shared/fieldPath": {
+      "types": "./shared-types/dist/fieldPath.d.ts",
+      "import": "./shared-types/dist/fieldPath.js",
+      "require": "./shared-types/dist/fieldPath.js"
+    },
+    "./shared/rowPath": {
+      "types": "./shared-types/dist/rowPath.d.ts",
+      "import": "./shared-types/dist/rowPath.js",
+      "require": "./shared-types/dist/rowPath.js"
     }
   },
   "files": [

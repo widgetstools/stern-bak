@@ -7,3 +7,5 @@ export * from './fieldSelector.js';
 export * from './simpleBlotter.js';
 export * from './theme.js';
 export * from './widget.js';
+export * from './fieldPath.js';
+export * from './rowPath.js';

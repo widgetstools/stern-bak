@@ -1,10 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { collectProjectionPaths, createFieldProjector } from './fieldProjection';
+import { collectFieldPaths, collectProjectionPaths, createFieldProjector } from './fieldProjection';
 import type { ColumnDefinition } from '@wellsfargo-starui/types';
 
 const col = (field: string): ColumnDefinition => ({ field, headerName: field });
 
+describe('collectFieldPaths', () => {
+  it('keeps every requested path, including prefixes of others', () => {
+    expect(collectFieldPaths([col('risk'), col('risk.dv01'), col('risk')], ['id', 'risk.dv01']))
+      .toEqual(['risk', 'risk.dv01', 'id']);
+  });
+});
+
 describe('collectProjectionPaths', () => {
+  it('drops paths covered by an index prefix and compares prefixes segment-wise', () => {
+    expect(collectProjectionPaths([col('legs[0]'), col('legs[0].rate'), col('legs[1].rate')], undefined))
+      .toEqual(['legs[0]', 'legs[1].rate']);
+    expect(collectProjectionPaths([col('ab'), col('abc'), col('a.b'), col('a.bc')], undefined))
+      .toEqual(['ab', 'abc', 'a.b', 'a.bc']);
+  });
+
   it('unions column fields with the keyColumn', () => {
     expect(collectProjectionPaths([col('a'), col('b')], 'id').sort()).toEqual(['a', 'b', 'id']);
   });
@@ -73,5 +87,29 @@ describe('createFieldProjector', () => {
     const project = createFieldProjector([col('risk'), col('risk.dv01')], 'id')!;
     const src = { id: 'r1', risk: { dv01: 1, gamma: 2 }, junk: true };
     expect(project(src)).toEqual({ id: 'r1', risk: { dv01: 1, gamma: 2 } });
+  });
+
+  it('projects positional array elements, keeping the array shape', () => {
+    const project = createFieldProjector([col('legs[1].rate'), col('legs[0].ccy'), col('m[1][0]')], 'id')!;
+    const src = {
+      id: 'r1',
+      legs: [{ rate: 1, ccy: 'USD', junk: 0 }, { rate: 2, ccy: 'EUR', junk: 0 }],
+      m: [[1, 2], [3, 4]],
+    };
+    const out = project(src) as Record<string, unknown>;
+    expect(out).toEqual({ id: 'r1', legs: [{ ccy: 'USD' }, { rate: 2 }], m: [undefined, [3]] });
+    expect(Array.isArray(out.legs)).toBe(true);
+    expect(Array.isArray((out.m as unknown[])[1])).toBe(true);
+    expect(src.legs[0]).toEqual({ rate: 1, ccy: 'USD', junk: 0 });
+  });
+
+  it('skips an index segment on a non-array and a key segment on an array', () => {
+    const project = createFieldProjector([col('legs[0].rate'), col('xs.k')], 'id')!;
+    expect(project({ id: 'r1', legs: { 0: { rate: 1 } }, xs: [{ k: 1 }] })).toEqual({ id: 'r1' });
+  });
+
+  it('reads bracket-quoted literal keys', () => {
+    const project = createFieldProjector([col('["a.b"].c')], undefined)!;
+    expect(project({ 'a.b': { c: 1, d: 2 }, a: { b: { c: 3 } } })).toEqual({ 'a.b': { c: 1 } });
   });
 });

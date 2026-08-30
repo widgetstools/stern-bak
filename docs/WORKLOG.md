@@ -10,7 +10,7 @@ Each entry states what is wrong, why it was left, and what "done" looks like, so
 it can be picked up cold. Close an item by deleting its section in the same
 change that fixes it.
 
-Last updated: 2026-08-02.
+Last updated: 2026-08-30.
 
 ---
 
@@ -768,3 +768,13 @@ Not repeated here to avoid two lists drifting — see
 
 Item 1 there refers to "in-repo demos", which now live under `apps/source/` —
 the fix belongs in those apps.
+
+---
+
+## 15. `config-browser` DataGrid "pins and mono-styles the primary key column" fails under jsdom
+
+**Area:** `packages/react-grid/config-browser` · **Found:** 2026-08-30, while running the full `turbo test` gate on `feature/wasm-data-plane`
+
+The assertion `document.querySelector(".ag-pinned-left-cols-container")?.contains(pk)` gets `undefined` — AG Grid renders no pinned-left container in jsdom for this grid, though the cell itself is found and carries the expected mono font/weight. It fails identically on `HEAD` with the branch changes stashed, so it predates the nested-feed work (most likely the AG Grid 35 -> 36 upgrade on `feature/llm_bot`, which changed how pinned containers mount when the viewport has no width). It is the only red test in the grid package (1 of 1,246).
+
+**Done looks like:** either give the test container a real width (`style.width`/`ResizeObserver` shim) so AG Grid 36 mounts the pinned container, or assert pinning through the column API (`api.getColumn("configId").getPinned() === "left"`) instead of the DOM.
