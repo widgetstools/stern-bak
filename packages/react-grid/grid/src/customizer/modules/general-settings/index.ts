@@ -221,12 +221,12 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
       groupHideOpenParents: s.groupHideOpenParents,
       suppressAggFuncInHeader: s.suppressAggFuncInHeader,
       showOpenedGroup: s.showOpenedGroup,
-      // groupHideColumnsUntilExpanded is intentionally NOT emitted —
-      // AG-Grid 35.1.0 doesn't recognise it (logs an "invalid
-      // gridOptions property" warning) and there's no like-for-like
-      // replacement. The state is still tracked + shown in the
-      // settings panel so the toggle is preserved if AG-Grid adds
-      // it back in a later minor.
+      // Emitted since the AG-Grid 36.1.0 upgrade — 35.1.0 didn't
+      // recognise this option (its state was tracked-but-suppressed to
+      // avoid the "invalid gridOptions property" warning); 36.1.0's
+      // GridOptions declares it, so the settings-panel toggle is live
+      // again.
+      groupHideColumnsUntilExpanded: s.groupHideColumnsUntilExpanded,
       groupHideParentOfSingleChild: s.groupHideParentOfSingleChild,
       groupAllowUnbalanced: s.groupAllowUnbalanced,
       groupMaintainOrder: s.groupMaintainOrder,
@@ -333,11 +333,10 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
       suppressMaxRenderedRowRestriction: s.suppressMaxRenderedRowRestriction,
       suppressAnimationFrame: s.suppressAnimationFrame,
       debounceVerticalScrollbar: s.debounceVerticalScrollbar,
-    // Double-cast: some grid-option fields (e.g. groupHideColumnsUntilExpanded)
-    // exist in newer AG-Grid minor releases but aren't in 35.1.0's type defs.
-    // Pinning to 35.1.0 exact (corporate requirement) means TS flags them as
-    // excess-properties; we pass them through at runtime since AG-Grid silently
-    // ignores unknown options.
+    // Double-cast: kept so grid-option fields added in AG-Grid minors newer
+    // than the pinned 36.1.0 can be emitted before the pin catches up — TS
+    // would flag them as excess-properties; AG-Grid silently ignores unknown
+    // options at runtime.
     } as unknown as Partial<GridOptions>;
   },
 

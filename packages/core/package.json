@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/core",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI core runtime — vanilla-TS grid engine, host ports (browser adapter + Dexie config store), and widget framework. Consolidates engine, host, host-browser, host-config, widget, widget-browser.",
+  "description": "MarketsUI core runtime â€” vanilla-TS grid engine, host ports (browser adapter + Dexie config store), and widget framework. Consolidates engine, host, host-browser, host-config, widget, widget-browser.",
   "type": "module",
   "main": "./engine/dist/index.cjs",
   "module": "./engine/dist/index.js",
@@ -50,7 +50,7 @@
     "bench": "vitest bench --run"
   },
   "peerDependencies": {
-    "ag-grid-community": "^35.1.0"
+    "ag-grid-community": "^36.1.0"
   },
   "dependencies": {
     "@wellsfargo-starui/types": "*",
@@ -59,9 +59,9 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "ag-grid-community": "35.1.0",
-    "ag-grid-enterprise": "35.1.0",
-    "ag-grid-react": "35.1.0",
+    "ag-grid-community": "36.1.0",
+    "ag-grid-enterprise": "36.1.0",
+    "ag-grid-react": "36.1.0",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.0.2",
     "rimraf": "^6.0.1",
