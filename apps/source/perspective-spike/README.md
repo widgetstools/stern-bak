@@ -61,5 +61,21 @@ received 740/740 deltas at 60fps; engine ~90% busy (vs ~48% single-client)
 because each window View serializes its own delta — see the plan's
 "one hub-side view, relay bytes" finding.
 
+## Replicated mode (per-subscriber views, parallel by construction)
+
+```bash
+node source/perspective-spike/scripts/runReplica.mjs 3 20000 15 200   # windows, rate, seconds, batchMs
+```
+
+`replica.html` windows take one Arrow snapshot from the hub, run their
+OWN engine (`perspective.worker()`, dedicated worker), apply the hub's
+single relayed Arrow delta stream (`update(arrow)`), and host their own
+filtered/sorted view on the replica. The runner profiles the hub shared
+worker and one replica worker.
+
+Result (3 windows, 20k rows/sec, 200ms batches): hub engine **51%** and
+flat in window count; each replica engine **36%** on its own core; every
+window 74/74 deltas applied, own view 74/74 updates, 60fps.
+
 See the plan for read-outs and gate verdicts. Not yet covered: window-side
-Arrow materialization, nested-feed flattening, single-view relay fan-out.
+row-object materialization for AG Grid, nested-feed flattening.

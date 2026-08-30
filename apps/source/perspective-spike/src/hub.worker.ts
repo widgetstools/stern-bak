@@ -131,19 +131,37 @@ async function boot(): Promise<void> {
   const tLoad = performance.now();
   const table = await client.table(snapshotJson, { index: 'positionId', format: 'json', name: 'positions' });
   log(`table 'positions' hosted: ${await table.size()} rows in ${Math.round(performance.now() - tLoad)}ms`);
+
+  // Replicated-mode relay: ONE hub-side view emits row-mode Arrow deltas;
+  // replica windows apply them to their own engine. BroadcastChannel is
+  // the spike's transport (structured-clone copy per receiver); the
+  // production hub would post the same buffer on each subscriber port.
+  const relay = new BroadcastChannel('perspective-spike-relay');
+  const relayView = await table.view();
+  let relayed = 0;
+  await relayView.on_update(
+    (updated: { delta?: ArrayBuffer | Uint8Array }) => {
+      const d = updated.delta;
+      if (!d) return;
+      const buf = d instanceof ArrayBuffer ? d : (d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength) as ArrayBuffer);
+      relayed += 1;
+      relay.postMessage({ seq: relayed, delta: buf });
+    },
+    { mode: 'row' },
+  );
   control.postMessage({ cmd: 'ready' });
 
   control.addEventListener('message', (evt: MessageEvent) => {
-    const m = evt.data as { cmd: string; rate?: number; seconds?: number };
+    const m = evt.data as { cmd: string; rate?: number; seconds?: number; batchMs?: number };
     if (m.cmd !== 'start') return;
-    void ingest(table, m.rate ?? 20_000, m.seconds ?? 15);
+    void ingest(table, m.rate ?? 20_000, m.seconds ?? 15, m.batchMs ?? BATCH_MS);
   });
 }
 
-async function ingest(table: LocalTable, rate: number, seconds: number): Promise<void> {
-  const batchRows = Math.max(1, Math.round(rate / (1000 / BATCH_MS)));
+async function ingest(table: LocalTable, rate: number, seconds: number, batchMs: number): Promise<void> {
+  const batchRows = Math.max(1, Math.round(rate / (1000 / batchMs)));
   const pool = buildUpdatePool(ROWS, batchRows, POOL);
-  log(`ingest start: ${rate} rows/s, ${batchRows} rows/${BATCH_MS}ms for ${seconds}s, ports served=${portsServed}`);
+  log(`ingest start: ${rate} rows/s, ${batchRows} rows/${batchMs}ms for ${seconds}s, ports served=${portsServed}`);
   const latencies: number[] = [];
   let inFlight = 0;
   let maxInFlight = 0;
@@ -165,13 +183,13 @@ async function ingest(table: LocalTable, rate: number, seconds: number): Promise
         inFlight -= 1;
         latencies.push(performance.now() - tu);
       });
-    }, BATCH_MS);
+    }, batchMs);
   });
   while (inFlight > 0) await new Promise((r) => setTimeout(r, 10));
   const wallMs = performance.now() - tIngest;
   latencies.sort((a, b) => a - b);
   const stats = {
-    rate, seconds, batchRows, portsServed,
+    rate, seconds, batchMs, batchRows, portsServed,
     wallMs: Math.round(wallMs),
     batchesSent: sent,
     rowsSent,

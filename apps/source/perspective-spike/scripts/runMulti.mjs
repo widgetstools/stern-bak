@@ -13,7 +13,8 @@ const WebSocket = WebSocketMod.WebSocket ?? WebSocketMod;
 const windows = Number(process.argv[2] ?? 3);
 const rate = Number(process.argv[3] ?? 20_000);
 const seconds = Number(process.argv[4] ?? 15);
-const base = process.argv[5] ?? 'http://localhost:5214/multi.html';
+const batchMs = Number(process.argv[5] ?? 20);
+const base = process.argv[6] ?? 'http://localhost:5214/multi.html';
 const DEBUG_PORT = 9335;
 
 const browser = await chromium.launch({
@@ -27,7 +28,7 @@ for (let i = 0; i < windows; i++) {
   const page = await context.newPage();
   page.on('console', (m) => { if (leader && /\[spike\]|\[hub\]/.test(m.text())) console.log(`w${i} ${m.text()}`); });
   page.on('pageerror', (e) => console.log(`w${i} PAGE ERROR`, e.message));
-  const url = `${base}?rate=${rate}&seconds=${seconds}${leader ? '&leader=1' : ''}`;
+  const url = `${base}?rate=${rate}&seconds=${seconds}&batchMs=${batchMs}${leader ? '&leader=1' : ''}`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   if (!leader) {
     // Followers must be subscribed before the leader starts ingest.

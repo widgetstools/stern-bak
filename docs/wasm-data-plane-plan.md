@@ -294,14 +294,53 @@ Two engineering findings that reshape the integration design:
    session-per-port, poll) and takes the real engine bytes from the
    client's `init` message exactly as the shim does. This is the piece a
    production hub would own (or upstream as a PR — the fix is small).
-2. **Fan-out must be one hub-side view relayed as bytes, not one engine
-   view per window.** Each window View costs its own delta
-   serialization: 48% → ~90% engine busy for +3 subscribers at 20k/s
-   (~+14 points per view). Relaying a single hub view's Arrow delta to N
-   ports keeps engine cost flat and makes fan-out N `postMessage` copies
-   — which is precisely the platform hub's existing delta-bin shape.
-   Per-window engine views remain available for windows that need their
-   own filters/sorts/pivots, at that cost.
+2. **Per-subscriber views on one engine scale with rows × views.** Each
+   window View serializes its own row delta: 48% → ~90% engine busy for
+   +3 views at 20k/s with 20ms batches. Batch cadence helps but has a
+   floor — same 3 views at 100ms batches: 83%; at 200ms: **66%** (each
+   window still receives ~60MB of deltas per 15s regardless of cadence).
+   So one engine sustains roughly 3–4 subscriber views at 20k/s.
+
+   Product requirement (confirmed): **subscribers must have their own
+   views** — per-blotter filters/sorts/pivots evaluated in the engine.
+   The design that satisfies it at scale is Perspective's own
+   **replicated mode** (the maintainer-recommended streaming path):
+   the hub engine ingests and emits ONE row-mode Arrow delta stream
+   (~48%, flat in subscriber count); each window runs a *replica* engine
+   in its own worker, applies the delta with `update(arrow)` (the fastest
+   ingest path), and hosts that window's views on its own core. Per-view
+   cost becomes parallel by construction; hub fan-out is N `postMessage`
+   copies of one buffer. The spike's `replica.html` measures this shape.
+
+### Spike results — replicated mode (2026-08-30, `src/replica.ts`, `scripts/runReplica.mjs`)
+
+3 windows, 20k rows/sec, 200ms batches (4,000-row Arrow deltas). Each
+window: one-time `to_arrow()` snapshot from the hub, its own engine in a
+dedicated worker (`perspective.worker()`), `update(arrow)` per relayed
+delta, and its own view (`filter: desk == X`, `sort: pnl desc`, ~4,000
+rows) with a row-mode delta subscription.
+
+| metric | result |
+|---|---|
+| hub engine busy (ingest + ONE relay view) | **51%** — flat in window count (vs 66% with 3 engine-side views, 90% at 20ms batches) |
+| replica engine busy (per window, own worker) | **36%** |
+| relayed deltas applied per window | 74 / 74 (57MB), ~12–14ms per 4,000-row Arrow apply |
+| window's own view | 74 / 74 updates, ~11.7MB of view deltas |
+| window main thread | 60fps, worst frame 18ms, 0 frames >50ms — all three |
+| snapshot / replica boot | 95–134ms / 153–232ms |
+| `to_json(500)` on the replica view | ~20ms |
+
+**Verdict: per-subscriber views at 20k/s are solved by replication.** Hub
+cost stays ~51% regardless of subscriber count; each blotter pays ~36%
+of its *own* core for a full replica + its own view. Memory per window:
+one Arrow-backed copy (~4MB for 20k rows). Trade-off recorded honestly:
+a replica window that is hidden should pause applying deltas (or drop
+its replica and re-snapshot on show — 100–250ms), the same hidden-window
+discipline as today's blotters.
+
+Not yet measured: window-side row-object materialization for AG Grid
+(the replica's `to_json` viewport windows, ~20ms/500 rows here, vs full
+row objects); nested-feed flattening.
 
 **Hosting gate: PASS** (topology proven; sessions, naming, delivery all
 correct). Remaining spike items: window-side Arrow → row-object

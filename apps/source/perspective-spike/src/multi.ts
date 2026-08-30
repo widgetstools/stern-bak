@@ -20,6 +20,7 @@ const params = new URLSearchParams(location.search);
 const LEADER = params.get('leader') === '1';
 const RATE = Number(params.get('rate') ?? 20_000);
 const SECONDS = Number(params.get('seconds') ?? 15);
+const BATCH_MS = Number(params.get('batchMs') ?? 20);
 
 const out = document.getElementById('out')!;
 const log = (msg: string) => {
@@ -98,8 +99,8 @@ async function main(): Promise<void> {
     });
   });
   if (LEADER) {
-    log(`leader: starting hub ingest at ${RATE} rows/s for ${SECONDS}s`);
-    control.postMessage({ cmd: 'start', rate: RATE, seconds: SECONDS });
+    log(`leader: starting hub ingest at ${RATE} rows/s for ${SECONDS}s (batch ${BATCH_MS}ms)`);
+    control.postMessage({ cmd: 'start', rate: RATE, seconds: SECONDS, batchMs: BATCH_MS });
   }
   const hubStats = await done;
   // Let trailing deltas land.
