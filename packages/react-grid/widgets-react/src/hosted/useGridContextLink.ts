@@ -34,6 +34,11 @@ import {
   type GridLinkSelectionContext,
 } from './gridContextLink.js';
 
+/** Trailing debounce for selection broadcasts — long enough to collapse a
+ *  held-key selection walk into one publish, short enough that a mouse
+ *  click still feels instant to linked peers. */
+const PUBLISH_DEBOUNCE_MS = 120;
+
 export interface GridContextLinkConfig {
   /** Master switch. Linking is inactive unless this is `true`. */
   enabled?: boolean;
@@ -213,7 +218,7 @@ export function useGridContextLink({
   useEffect(() => {
     if (!active || !publish || !gridApi) return;
     const fields = normalizeRowIdField(rowIdField);
-    const onSelectionChanged = () => {
+    const doPublish = () => {
       if (applyingRemoteRef.current) return;
       const context = build(gridApi, { instanceId: sourceId, rowIdField: fields });
       if (!context) return;
@@ -233,8 +238,22 @@ export function useGridContextLink({
       void broadcast(context);
       onPublishRef.current?.(context);
     };
+    // Trailing debounce: a keyboard selection walk (held shift+arrow)
+    // fires `selectionChanged` per keypress — without this, each press
+    // broadcasts a full selection context over the IAB. The final
+    // selection is what peers care about; intermediate states are noise.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onSelectionChanged = () => {
+      if (applyingRemoteRef.current) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        doPublish();
+      }, PUBLISH_DEBOUNCE_MS);
+    };
     gridApi.addEventListener('selectionChanged', onSelectionChanged);
     return () => {
+      if (timer !== null) clearTimeout(timer);
       try {
         gridApi.removeEventListener('selectionChanged', onSelectionChanged);
       } catch {

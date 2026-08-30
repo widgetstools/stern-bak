@@ -65,7 +65,8 @@ describe('useGridContextLink', () => {
     expect(fdc3.broadcast).not.toHaveBeenCalled();
   });
 
-  it('broadcasts selection on change in rowId mode', () => {
+  it('broadcasts selection on change in rowId mode (debounced)', () => {
+    vi.useFakeTimers();
     const api = fakeApi([{ id: 'row-1', data: { id: 'row-1' } }]);
     const fdc3 = fakeFdc3();
     const onPublish = vi.fn();
@@ -80,9 +81,18 @@ describe('useGridContextLink', () => {
     );
     act(() => {
       (api as any).__fireSelection();
+      // A rapid burst (held shift+arrow) collapses to ONE publish at the
+      // trailing edge of the debounce window.
+      (api as any).__fireSelection();
+      (api as any).__fireSelection();
     });
-    expect(fdc3.broadcast).toHaveBeenCalled();
-    expect(onPublish).toHaveBeenCalled();
+    expect(fdc3.broadcast).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(fdc3.broadcast).toHaveBeenCalledTimes(1);
+    expect(onPublish).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it('applies peer context and notifies on receive', () => {
@@ -128,6 +138,7 @@ describe('useGridContextLink', () => {
   });
 
   it('ignores its own broadcast echo on receive', () => {
+    vi.useFakeTimers();
     const api = fakeApi([{ id: 'row-1', data: { id: 'row-1' } }]);
     const fdc3 = fakeFdc3();
     const onReceive = vi.fn();
@@ -142,7 +153,9 @@ describe('useGridContextLink', () => {
     );
     act(() => {
       (api as any).__fireSelection();
+      vi.advanceTimersByTime(150); // flush the publish debounce
     });
+    vi.useRealTimers();
     const source = (fdc3.broadcast.mock.calls[0]?.[0] as { source?: string })?.source;
     act(() => {
       fdc3.__emit('starui.gridSelection', {

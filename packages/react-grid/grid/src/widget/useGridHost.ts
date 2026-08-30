@@ -3,6 +3,7 @@ import type { GridOptions, GridReadyEvent } from 'ag-grid-community';
 import { GridPlatform, type AnyColDef, type AnyModule, type AppDataLookup } from '@wellsfargo-starui/core';
 import { shouldSkipGridOptionSync } from './gridSurfaceOptions';
 import { functionOptionValuesEqual, gridOptionValuesEqual } from './gridOptionCompare';
+import { installGridApiSpy } from './gridApiSpy';
 
 /**
  * AG-Grid options that can ONLY be set at construction time. Calling
@@ -220,6 +221,7 @@ export function useGridHost(opts: {
   // identity on remount, so [platform] deps keep them stable for the
   // grid instance's life.
   const onGridReady = useCallback((event: GridReadyEvent) => {
+    installGridApiSpy(event.api); // inert unless armed — see gridApiSpy.ts
     platform.onGridReady(event.api);
     setTick((n) => n + 1); // re-run transforms now that api is live
   }, [platform]);
