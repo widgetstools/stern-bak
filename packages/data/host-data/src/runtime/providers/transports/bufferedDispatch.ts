@@ -17,16 +17,30 @@
  * from `conflateByKey: string` to a key function so composite-key
  * providers can conflate via `composeRowId(row, keyColumn)`.
  *
- * The buffer is intentionally NOT bounded — we trust the throttle window
- * to keep memory in check. If a producer fires faster than conflation
- * can collapse, the buffer grows; that's a sign throttleMs is too high
- * for the data rate.
+ * A third knob bounds the BATCH, not the memory:
+ *   • maxBufferedRows — flush immediately (timer cancelled) the moment
+ *     the buffer holds this many entries. Timers starve on a saturated
+ *     thread: measured live, a worker at ~91% CPU delivered its 100ms
+ *     conflation timer every ~1.4s, so ~3,800-row mega-batches reached
+ *     the grid as single giant flushes (100-200ms main-thread tasks)
+ *     instead of ten small ones. `push()` runs on every incoming frame
+ *     regardless of timer health, so a size cap preserves batch
+ *     granularity precisely when the timer cannot. Unset → timer-only
+ *     flushing (the buffer is then unbounded by design; conflation
+ *     bounds memory by unique keys).
  */
 
 export interface BufferedDispatchOpts<TRow> {
   /** Resolve a row's conflation key. Omit to disable conflation (order-preserving). */
   conflateKeyFn?: (row: TRow) => unknown;
   throttleMs?: number;
+  /**
+   * Flush as soon as the buffer holds this many entries, without waiting
+   * for the throttle timer — see the module doc for why (timer
+   * starvation under CPU saturation). Only meaningful with `throttleMs`
+   * set; ignored in immediate mode. Unset → no cap.
+   */
+  maxBufferedRows?: number;
   /** Receives the flushed batch. Called with at least one row. */
   flush: (rows: TRow[]) => void;
   /** Optional clock injection for tests. Defaults to global setTimeout/clearTimeout. */
@@ -46,7 +60,7 @@ export interface BufferedDispatchHandle<TRow> {
 export function bufferedDispatch<TRow>(
   opts: BufferedDispatchOpts<TRow>,
 ): BufferedDispatchHandle<TRow> {
-  const { conflateKeyFn, throttleMs, flush } = opts;
+  const { conflateKeyFn, throttleMs, flush, maxBufferedRows } = opts;
   const setTimer = opts.setTimer ?? ((cb, ms) => setTimeout(cb, ms));
   const clearTimer = opts.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
 
@@ -95,6 +109,18 @@ export function bufferedDispatch<TRow>(
       // Indexed push — arg-spread copies the batch onto the call stack
       // and overflows past ~65k rows.
       for (let i = 0; i < rows.length; i++) list.push(rows[i]);
+    }
+
+    // Size cap: a starved timer must not turn the window into one
+    // mega-batch — flush synchronously the moment the buffer is full.
+    // Runs from the producer's own call stack, so it fires even when
+    // the event loop can't service timers on schedule.
+    if (
+      maxBufferedRows !== undefined &&
+      (map ? map.size : 0) + list.length >= maxBufferedRows
+    ) {
+      flushNow();
+      return;
     }
     scheduleFlush();
   };

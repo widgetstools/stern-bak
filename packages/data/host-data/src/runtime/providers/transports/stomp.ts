@@ -346,6 +346,17 @@ export function startStomp(
   // 10k msg/sec feed otherwise ran bufferedDispatch in passthrough
   // mode — one emit → encode → fan-out PER MESSAGE.
   const liveThrottleMs = throttleEnabled ? (cfg.throttleMs ?? 25) : 0;
+  // Batch-size cap alongside the timer. On a saturated worker thread the
+  // conflation timer starves (measured: a 100ms window delivered every
+  // ~1.4s at 91% CPU), so the buffer accumulated ~3,800 rows and every
+  // subscribing grid received one mega-flush — 100-200ms main-thread
+  // tasks instead of ten small ones. push() runs per incoming frame
+  // regardless of timer health, so capping here keeps grid transactions
+  // small and frequent exactly when the worker is busiest. 1000 rows is
+  // comfortably above any healthy window's conflated size (a 100ms
+  // window at 4k updates/sec holds ~400 unique keys), so under normal
+  // load the timer alone still decides the cadence.
+  const LIVE_FLUSH_MAX_ROWS = 1000;
   // `uniqueKeys` only when the conflation MAP actually builds the
   // batch — with a zero window, bufferedDispatch passes rows through
   // un-conflated and the claim would be false.
@@ -355,6 +366,7 @@ export function startStomp(
     : bufferedDispatch<unknown>({
         conflateKeyFn,
         throttleMs: liveThrottleMs,
+        maxBufferedRows: liveThrottleMs > 0 ? LIVE_FLUSH_MAX_ROWS : undefined,
         flush: liveConflated
           ? (rows) => emit({ rows, uniqueKeys: true })
           : (rows) => emit({ rows }),

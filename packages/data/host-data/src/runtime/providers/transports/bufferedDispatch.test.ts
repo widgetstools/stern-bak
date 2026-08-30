@@ -103,6 +103,71 @@ describe('bufferedDispatch — throttled mode', () => {
   });
 });
 
+describe('bufferedDispatch — maxBufferedRows size cap', () => {
+  it('flushes synchronously from push() the moment the cap is reached', () => {
+    const flush = vi.fn();
+    const t = withFakeTimer();
+    const h = bufferedDispatch<Row>({
+      flush, throttleMs: 100, maxBufferedRows: 3,
+      setTimer: t.setTimer, clearTimer: t.clearTimer,
+    });
+
+    h.push([{ id: 1, name: 'a' }]);
+    h.push([{ id: 2, name: 'b' }]);
+    expect(flush).not.toHaveBeenCalled();
+
+    // Third row hits the cap — flush fires WITHOUT the timer, and the
+    // pending timer is cancelled so the window doesn't double-fire.
+    h.push([{ id: 3, name: 'c' }]);
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0]?.[0]).toHaveLength(3);
+    expect(t.clearTimer).toHaveBeenCalled();
+  });
+
+  it('keeps batches bounded when the timer never fires (starved thread)', () => {
+    const flush = vi.fn();
+    const t = withFakeTimer();
+    const h = bufferedDispatch<Row>({
+      flush, throttleMs: 100, maxBufferedRows: 2,
+      setTimer: t.setTimer, clearTimer: t.clearTimer,
+    });
+
+    // Six rows arrive with the timer never serviced — the cap turns
+    // them into three bounded flushes instead of one mega-batch.
+    for (let i = 1; i <= 6; i++) h.push([{ id: i, name: `r${i}` }]);
+    expect(flush).toHaveBeenCalledTimes(3);
+    for (const call of flush.mock.calls) {
+      expect((call[0] as Row[]).length).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('counts unique keys under conflation — same-key churn never triggers the cap', () => {
+    const flush = vi.fn();
+    const t = withFakeTimer();
+    const h = bufferedDispatch<Row>({
+      flush, throttleMs: 100, maxBufferedRows: 3, conflateKeyFn: (r) => r.id,
+      setTimer: t.setTimer, clearTimer: t.clearTimer,
+    });
+
+    // 10 updates for the same 2 keys — buffer size stays 2, below the cap.
+    for (let i = 0; i < 10; i++) h.push([{ id: i % 2, name: `v${i}` }]);
+    expect(flush).not.toHaveBeenCalled();
+
+    t.fire();
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0]?.[0]).toHaveLength(2);
+  });
+
+  it('cap flush is ignored in passthrough mode (throttleMs unset)', () => {
+    const flush = vi.fn();
+    const h = bufferedDispatch<Row>({ flush, maxBufferedRows: 1 });
+    h.push([{ id: 1, name: 'a' }, { id: 2, name: 'b' }]);
+    // Passthrough forwards the batch as-is; the cap changes nothing.
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0]?.[0]).toHaveLength(2);
+  });
+});
+
 describe('bufferedDispatch — conflate-by-key', () => {
   it('upserts by key — last write wins within a window', () => {
     const flush = vi.fn();
