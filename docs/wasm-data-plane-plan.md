@@ -266,7 +266,49 @@ roughly **3× cheaper per row**, and ~6× more headroom than the JS
 plane's projected ~7–8k/s saturation. The Client on the page thread is
 free (60fps, worst frame 18ms at every rate).
 
-**Gate verdict.** The plan's "≤30% of one core at 20k/s" was set before
+### Spike results — hosting gate (2026-08-30, `src/hub.worker.ts` + `src/multi.ts`)
+
+Engine hosted **inside our own SharedWorker script**, one session per
+connected port, hub-side local client driving ingest, three windows each
+opening the hosted table by name and subscribing to row-mode deltas.
+
+| metric (3 windows + hub, 20k rows/sec, 15s) | result |
+|---|---|
+| rows/sec achieved | 19,728 |
+| deltas received per window | **740 / 740** (lossless), 95KB avg, 69MB each |
+| window main thread | 60fps, worst frame 17ms, 0 frames >50ms — all three |
+| `to_json(500 rows)` from a window | 9–15ms |
+| engine worker busy | **~90%** (vs ~48% single-client at the same rate) |
+| hub `update()` latency p50 / p99 | 17 / 26 ms (vs 2 / 4 single-client) |
+
+Two engineering findings that reshape the integration design:
+
+1. **Perspective's own worker shim cannot host multiple sessions.** It
+   keeps one module-level session and routes every port's requests
+   through whichever client `init`'d last — a dedicated-worker
+   assumption. Its engine-host classes are bundled but not exported, and
+   the shipped `perspective-server.wasm` is a stage-0 self-extracting
+   wrapper (5 exports, 0 imports), not the engine. The spike therefore
+   re-implements the host (`apps/source/perspective-spike/src/engineHost.ts`,
+   ~150 lines: emscripten import shims, request/response marshalling,
+   session-per-port, poll) and takes the real engine bytes from the
+   client's `init` message exactly as the shim does. This is the piece a
+   production hub would own (or upstream as a PR — the fix is small).
+2. **Fan-out must be one hub-side view relayed as bytes, not one engine
+   view per window.** Each window View costs its own delta
+   serialization: 48% → ~90% engine busy for +3 subscribers at 20k/s
+   (~+14 points per view). Relaying a single hub view's Arrow delta to N
+   ports keeps engine cost flat and makes fan-out N `postMessage` copies
+   — which is precisely the platform hub's existing delta-bin shape.
+   Per-window engine views remain available for windows that need their
+   own filters/sorts/pivots, at that cost.
+
+**Hosting gate: PASS** (topology proven; sessions, naming, delivery all
+correct). Remaining spike items: window-side Arrow → row-object
+materialization cost; nested-feed flattening; and the single-view relay
+variant to confirm flat engine cost with N windows.
+
+**Gate verdict (ingest).** The plan's "≤30% of one core at 20k/s" was set before
 any data; measured 48% *includes* per-batch Arrow delta emission the
 gate didn't account for, and the roadmap's 20k/s sits well inside the
 knee. **Ingest gate: PASS** (with the honest note that it is a

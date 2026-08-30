@@ -39,6 +39,27 @@ Query params: `?rate=&seconds=&rows=`. Results land on `window.__spike`.
 | 40,000 | ~80% (knee) | 3 / 17 ms | 182KB | 60fps |
 
 Snapshot load 421ms (20k rows, 13.5MB JSON); `to_arrow` all rows ~60-80ms
-/ 3.96MB; `to_json` 500 rows ~8ms. See the plan for the read-out and gate
-verdict. Not yet covered here: SharedWorker hosting, window-side Arrow
-materialization, nested-feed flattening.
+/ 3.96MB; `to_json` 500 rows ~8ms.
+
+## Hosting test (multi-window, one engine in OUR SharedWorker)
+
+```bash
+# dev server on :5214, then from apps/:
+node source/perspective-spike/scripts/runMulti.mjs 3 20000 15   # windows, rate, seconds
+```
+
+`src/hub.worker.ts` hosts the engine via `src/engineHost.ts` (a clean
+per-port-session host — Perspective's own worker shim assumes a single
+session and cannot serve multiple windows; its host classes aren't
+exported, and the shipped `perspective-server.wasm` is a stage-0
+self-extracting wrapper, so the engine bytes come from the client's
+`init` message). `multi.html` windows open the hosted table by name and
+subscribe to row-mode deltas; the last window (`?leader=1`) starts ingest.
+
+Result (3 windows + hub, 20k rows/sec): 19,728 rows/s; every window
+received 740/740 deltas at 60fps; engine ~90% busy (vs ~48% single-client)
+because each window View serializes its own delta — see the plan's
+"one hub-side view, relay bytes" finding.
+
+See the plan for read-outs and gate verdicts. Not yet covered: window-side
+Arrow materialization, nested-feed flattening, single-view relay fan-out.
