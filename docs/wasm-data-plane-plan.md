@@ -237,6 +237,31 @@ Side effect: ingest-time flattening retires the `thinDeltas` +
 `projectFields` incompatibility on nested feeds (no subtree rebuilds to
 confuse the differ).
 
+**Path grammar and array policy** (settled 2026-08-30, test case
+`x,y.z[0].abc`):
+
+- Canonical paths use JS property-path syntax: dotted keys, `[n]` array
+  indices, bracket-quoted keys when a key contains `.`, `[`, `]` or a
+  quote (`["a.b"].z[0].abc`). A comma is an ordinary key character.
+  The canonical path string IS the flat column name — for the test case,
+  literally `x,y.z[0].abc`. Perspective and AG Grid both accept arbitrary
+  column-name strings; downstream code must read the flat key literally
+  (the `buildColumnDefs` valueGetter route, flat-key-first), never
+  re-parse it as a nested path.
+- Arrays are never guessed: **positional** (`z[0].abc` — fixed-shape
+  arrays such as swap legs / tenor buckets; missing element → null),
+  **opaque** (`z` stringified — Perspective `list_flatten: 'stringify'`
+  covers scalar lists natively), or **exploded** (one row per element —
+  analytics views only; incompatible with a keyed table).
+- **Flattening is driven by the column definitions**: the provider's
+  `columnDefinitions` + `keyColumn` enumerate every requested path (the
+  set `projectFields` already walks), compiled into a segment trie. The
+  extractor tracks the current path as a stack while tokenizing and
+  emits a value only when the path is in the trie — so projection and
+  flattening are one pass, and arrays are bounded by configuration, not
+  by a cap. Paths map onto Arrow struct/list navigation cleanly for the
+  `arrow-json` tier.
+
 Spike gate addition: nested (wide) corpus must reach the same
 rows/sec budget as the flat corpus via path 2 or 3.
 
