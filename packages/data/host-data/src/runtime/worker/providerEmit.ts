@@ -269,12 +269,21 @@ function applyRows(
     // decodes under the receiver's long-task budget (STOMP already
     // flushes 500-row chunks and hits the single-slice path; REST /
     // mock one-shot replaces get sliced here).
-    const bufs: EncodedChunk[] = [];
-    for (let i = 0; i < broadcastRows.length; i += LATE_JOIN_CHUNK_SIZE) {
-      bufs.push(encodeChunk(
-        broadcastRows.slice(i, i + LATE_JOIN_CHUNK_SIZE),
-        slot.columnar,
-      ));
+    // A provider sub-worker may have encoded these exact rows already
+    // (same slicing, same codec rule) — relay its chunks instead of
+    // paying the encode again on this thread. Only when the batch goes
+    // out unchanged: any drop / dedup above rebuilt `broadcastRows`.
+    let bufs: EncodedChunk[];
+    if (event.encoded && broadcastRows === event.rows) {
+      bufs = [...event.encoded];
+    } else {
+      bufs = [];
+      for (let i = 0; i < broadcastRows.length; i += LATE_JOIN_CHUNK_SIZE) {
+        bufs.push(encodeChunk(
+          broadcastRows.slice(i, i + LATE_JOIN_CHUNK_SIZE),
+          slot.columnar,
+        ));
+      }
     }
     if (event.replace) {
       // A replace broadcast always equals the cache contents

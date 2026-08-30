@@ -5,6 +5,7 @@ import {
   type ResolvedDataServicesHubBundle,
 } from '@wellsfargo-starui/data';
 import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
+import providerWorkerAssetUrl from '@wellsfargo-starui/data/assets/data-provider-worker.js?url';
 
 export interface PlatformBootstrapResult {
   config: PlatformBootstrapConfig;
@@ -22,7 +23,10 @@ export function getPlatform(): ResolvedDataServicesHubBundle {
 
 export async function initPlatformBootstrap(): Promise<PlatformBootstrapResult> {
   const config = await resolvePlatformBootstrapFromJson('/app-config.json');
-  const platform = await ensurePlatformReady(config, { workerScriptUrl: workerAssetUrl });
+  const platform = await ensurePlatformReady(config, {
+    workerScriptUrl: workerAssetUrl,
+    providerWorkerScriptUrl: providerWorkerAssetUrl,
+  });
   platformRef = platform;
   return { config, platform };
 }

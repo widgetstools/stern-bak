@@ -47,6 +47,7 @@ import type {
   SubscriberMeta,
 } from '../protocol.js';
 import { SUBSCRIBER_PING_INTERVAL_MS } from '../worker/hubTypes.js';
+import { providerWorkerName } from '../worker/providerWorkerProtocol.js';
 import { isCatalogEvent, isEvent, isAppDataEvent } from '../protocol.js';
 import { composeRowId, type DataProviderConfig, type ProviderConfig } from '@wellsfargo-starui/types';
 import { decodeColumnar } from '../wire/columnarCodec.js';
@@ -166,6 +167,15 @@ interface ThinSubState {
 }
 
 export interface SharedWorkerDataServicesClientOpts {
+  /**
+   * URL of the provider sub-worker script
+   * (`@wellsfargo-starui/data/assets/data-provider-worker.js?url`). When the hub
+   * asks (`provider-worker-needed`, a `dataPlane: 'subworker'` provider),
+   * this window constructs / joins `new SharedWorker(url, { name })` and
+   * transfers its port to the hub. Absent → the window answers
+   * "unavailable" and the hub runs that transport on its own thread.
+   */
+  providerWorkerUrl?: string;
   /** Inject for tests. Default: `() => crypto.randomUUID()`. */
   generateSubId?: () => string;
   /** Disable window `pagehide` → `close()` wiring (tests). Default false. */
@@ -174,6 +184,13 @@ export interface SharedWorkerDataServicesClientOpts {
 
 export class SharedWorkerDataServicesClient {
   private readonly port: MessagePort;
+  private readonly providerWorkerUrl: string | undefined;
+  /**
+   * Provider sub-workers this window has joined. Held for the document's
+   * lifetime: each connection is what keeps that provider's SharedWorker
+   * alive while this window subscribes (its port lives in the hub).
+   */
+  private readonly providerWorkers: SharedWorker[] = [];
   private readonly subs = new Map<SubId, Sub>();
   private readonly thinSubs = new Map<SubId, ThinSubState>();
   private readonly generateSubId: () => string;
@@ -198,6 +215,7 @@ export class SharedWorkerDataServicesClient {
 
   constructor(port: MessagePort, opts: SharedWorkerDataServicesClientOpts = {}) {
     this.port = port;
+    this.providerWorkerUrl = opts.providerWorkerUrl;
     this.generateSubId = opts.generateSubId ?? (() => crypto.randomUUID());
     this.port.addEventListener('message', this.handleMessage);
     this.port.start();
@@ -817,6 +835,37 @@ export class SharedWorkerDataServicesClient {
     }
   }
 
+  /**
+   * Answer the hub's `provider-worker-needed`: construct (or join — same
+   * URL + name resolves to the one worker per provider) the provider's
+   * SharedWorker and transfer its port to the hub. Every window attached
+   * to a sub-worker provider does this, which is also what keeps the
+   * worker alive (a SharedWorker lives while a document holds it).
+   * Anything that prevents it answers `unavailable`, so the hub falls
+   * back to its own thread instead of waiting for a timeout.
+   */
+  private provideProviderWorker(providerId: string): void {
+    if (this.closed) return;
+    const url = this.providerWorkerUrl;
+    if (!url || typeof SharedWorker === 'undefined') {
+      this.send({ kind: 'provider-port', providerId, unavailable: true });
+      return;
+    }
+    try {
+      const worker = new SharedWorker(url, { name: providerWorkerName(providerId) });
+      worker.addEventListener('error', (ev) => {
+        // eslint-disable-next-line no-console
+        console.error(`[SharedWorkerDataServicesClient] provider worker '${providerId}' error`, ev);
+      });
+      this.providerWorkers.push(worker);
+      this.port.postMessage({ kind: 'provider-port', providerId } satisfies Request, [worker.port]);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(`[SharedWorkerDataServicesClient] cannot create provider worker '${providerId}' — hub thread fallback`, err);
+      this.send({ kind: 'provider-port', providerId, unavailable: true });
+    }
+  }
+
   private sendAppData(req: AppDataRequest): void {
     if (this.closed) return;
     try {
@@ -856,6 +905,11 @@ export class SharedWorkerDataServicesClient {
     }
     if (!isEvent(ev.data)) return;
     const event: Event = ev.data;
+    if (event.kind === 'provider-worker-needed') {
+      // Port-level (no subscription): hand the hub a provider sub-worker port.
+      this.provideProviderWorker(event.providerId);
+      return;
+    }
     const sub = this.subs.get(event.subId);
     if (!sub) return; // listener detached before this event landed; drop.
     switch (event.kind) {

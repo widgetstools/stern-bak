@@ -142,5 +142,8 @@ export function createDataServicesClient(
     worker,
     configManager,
     userId: opts.userId,
+    // Same inline-`new URL` rule as the hub asset above: bundlers rewrite it
+    // into a real emitted asset only when the literal stays here.
+    providerWorkerUrl: new URL('../../assets/data-provider-worker.js', import.meta.url).href,
   });
 }

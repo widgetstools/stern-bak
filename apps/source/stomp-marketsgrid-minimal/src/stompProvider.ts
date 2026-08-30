@@ -7,14 +7,31 @@
 
 import type { DataProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
 
-/** Must match a tag published by stomp-view-server (`npm run dev` there). */
-const TAG = 'TRADER001';
+// ─── Perf-harness overrides (query string) ───────────────────────────
+// `?tag=TRADER002&rate=20000&batch=200&dataPlane=subworker` — the
+// sub-worker benchmark (`scripts/subworkerBench.mjs`) runs one provider
+// per tab; a non-default tag mints a tag-suffixed provider id, so several
+// tabs attach DIFFERENT providers to the one shared hub. The server keys
+// its streams by clientId and takes any tag, and `rate` drives both the
+// snapshot delivery and the live tick rate. No params → the defaults.
+const query =
+  typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+/** Client tag the server streams for (any string; `TRADER001` is the default book). */
+const TAG = query.get('tag') || 'TRADER001';
+const LIVE_RATE = query.get('rate') || '1000';
+const LIVE_BATCH = query.get('batch') || '50';
+const DATA_PLANE = query.get('dataPlane') === 'subworker' ? ('subworker' as const) : undefined;
+/** True when any override is present — App re-saves the catalog rows on every load then. */
+export const STOMP_PROVIDER_OVERRIDES_ACTIVE =
+  query.has('tag') || query.has('rate') || query.has('batch') || query.has('dataPlane');
+const ID_SUFFIX = TAG === 'TRADER001' ? '' : `:${TAG}`;
+const NAME_SUFFIX = ID_SUFFIX ? ` [${TAG}]` : '';
 
 // ─── Live wire destinations ──────────────────────────────────────────
 // Live snapshot + realtime tail. No date token — the broker streams the
 // current book and keeps pushing deltas.
 const liveListenerTopic = `/snapshot/positions/${TAG}`;
-const liveRequestMessage = `/snapshot/positions/${TAG}/1000/50`;
+const liveRequestMessage = `/snapshot/positions/${TAG}/${LIVE_RATE}/${LIVE_BATCH}`;
 
 // ─── Historical wire destinations (HOW HISTORICAL DATA IS FETCHED) ────
 // These carry the `{{positions.asOfDate}}` template token. The date is
@@ -57,8 +74,8 @@ export const STOMP_PROVIDER_CFG_VERSION = 6;
 // empty catalog twice and minted two random-id rows each — now write the
 // SAME row instead of duplicating it. See App.tsx for the self-heal that
 // also removes any pre-existing random-id duplicates.
-export const STOMP_LIVE_PROVIDER_ID = 'stomp-marketsgrid-minimal:positions-live';
-export const STOMP_HISTORICAL_PROVIDER_ID = 'stomp-marketsgrid-minimal:positions-historical';
+export const STOMP_LIVE_PROVIDER_ID = `stomp-marketsgrid-minimal:positions-live${ID_SUFFIX}`;
+export const STOMP_HISTORICAL_PROVIDER_ID = `stomp-marketsgrid-minimal:positions-historical${ID_SUFFIX}`;
 
 /** StompProviderConfig — passed to hub startStomp() after catalog resolve. */
 const stompLive: StompProviderConfig = {
@@ -72,6 +89,9 @@ const stompLive: StompProviderConfig = {
   dataType: 'positions',
   keyColumn: 'positionId',
   autoStart: false,
+  // `?dataPlane=subworker` → the hub runs this provider's transport in a
+  // dedicated worker (undefined = hub thread, the platform default).
+  dataPlane: DATA_PLANE,
   // Snapshot flush frame size (rows per worker→client postMessage).
   // Smaller keeps each main-thread message under the long-task budget.
   snapshotChunkSize: 1000,
@@ -132,7 +152,7 @@ const stompHistorical: StompProviderConfig = {
 /** DataProviderConfig row shape for configStore.save() → appConfig in Dexie. */
 export const stompProviderDraft: DataProviderConfig = {
   providerId: STOMP_LIVE_PROVIDER_ID,
-  name: 'STOMP Positions',
+  name: `STOMP Positions${NAME_SUFFIX}`,
   providerType: 'stomp',
   userId: 'dev1',
   public: false,
@@ -145,7 +165,7 @@ export const stompProviderDraft: DataProviderConfig = {
 // toolbar date picker switches to for past dates.
 export const stompHistoricalProviderDraft: DataProviderConfig = {
   providerId: STOMP_HISTORICAL_PROVIDER_ID,
-  name: 'STOMP Positions (Historical)',
+  name: `STOMP Positions (Historical)${NAME_SUFFIX}`,
   providerType: 'stomp',
   userId: 'dev1',
   public: false,

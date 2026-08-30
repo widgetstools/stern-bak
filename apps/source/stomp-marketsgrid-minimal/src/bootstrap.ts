@@ -11,6 +11,7 @@ import {
   type ResolvedDataServicesHubBundle,
 } from '@wellsfargo-starui/data';
 import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
+import providerWorkerAssetUrl from '@wellsfargo-starui/data/assets/data-provider-worker.js?url';
 import { appDataBootstrapHooks } from './platform/appDataBootstrap.js';
 
 /** Set by bootstrap(); read by App for HostedMarketsGrid layout persistence. */
@@ -31,6 +32,8 @@ export async function bootstrap() {
   //   3. wait for AppData mirror + worker catalog ready
   platform = await ensurePlatformReady(config, {
     workerScriptUrl: workerAssetUrl,
+    // Per-provider SharedWorkers for `dataPlane: 'subworker'` providers.
+    providerWorkerScriptUrl: providerWorkerAssetUrl,
     appDataBootstrapHooks,
   });
 

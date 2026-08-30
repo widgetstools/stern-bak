@@ -5,6 +5,7 @@ import {
 } from '@wellsfargo-starui/data';
 import type { DataServices } from '@wellsfargo-starui/data/runtime';
 import workerAssetUrl from '@wellsfargo-starui/data/assets/data-services-worker.mjs?url';
+import providerWorkerAssetUrl from '@wellsfargo-starui/data/assets/data-provider-worker.js?url';
 import { asLegacyDataServices } from './bootstrap/asLegacyDataServices.js';
 
 export interface PlatformBootstrapResult {
@@ -19,7 +20,10 @@ export interface PlatformBootstrapResult {
  */
 export async function initPlatformBootstrap(): Promise<PlatformBootstrapResult> {
   const config = await resolvePlatformBootstrapFromJson('/app-config.json');
-  const platform = await ensurePlatformReady(config, { workerScriptUrl: workerAssetUrl });
+  const platform = await ensurePlatformReady(config, {
+    workerScriptUrl: workerAssetUrl,
+    providerWorkerScriptUrl: providerWorkerAssetUrl,
+  });
   return {
     config,
     platform,

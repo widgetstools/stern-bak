@@ -73,6 +73,7 @@ describe('platformBootstrap', () => {
 
     expect(mockEnsurePlatformReady).toHaveBeenCalledWith(config, {
       workerScriptUrl: '/mock-worker.mjs',
+      providerWorkerScriptUrl: '/mock-provider-worker.js',
     });
     expect(result).toEqual({ config, platform });
     expect(mockSetConfigManager).toHaveBeenCalledWith(configManager);

@@ -5,6 +5,11 @@ declare module '@wellsfargo-starui/data/assets/data-services-worker.mjs?url' {
   export default url;
 }
 
+declare module '@wellsfargo-starui/data/assets/data-provider-worker.js?url' {
+  const url: string;
+  export default url;
+}
+
 // ─── Custom environment variables ───────────────────────────────────
 //
 // Add a typed entry here when introducing a new VITE_* variable.

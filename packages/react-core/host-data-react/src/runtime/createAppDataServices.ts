@@ -22,6 +22,8 @@ export interface CreateAppDataServicesOpts {
   configServiceRestUrl?: string;
   /** Async resolver (e.g. OpenFin manifest read on the main thread). */
   resolveConfigServiceRestUrl?: () => Promise<string | undefined>;
+  /** `@wellsfargo-starui/data/assets/data-provider-worker.js?url` — enables `dataPlane: 'subworker'` providers. */
+  providerWorkerScriptUrl?: string;
 }
 
 /**
@@ -42,5 +44,6 @@ export async function createAppDataServices(
     appName: opts.appName,
     userId: opts.userId ?? LOGGED_IN_USER_ID,
     configServiceRestUrl,
+    providerWorkerScriptUrl: opts.providerWorkerScriptUrl,
   });
 }

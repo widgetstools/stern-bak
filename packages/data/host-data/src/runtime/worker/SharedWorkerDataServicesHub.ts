@@ -66,6 +66,24 @@ import {
 } from './hubCatalogRpc.js';
 import { HubAppDataService } from './HubAppDataService.js';
 import { SubscriberRegistry } from './SubscriberRegistry.js';
+import { startProviderInWorker, type ProviderWorkerPort } from './providerWorkerHost.js';
+import { createDeferredProviderHandle, type DeferredProviderHandle } from './deferredProviderHandle.js';
+import type { DataPlane } from '@wellsfargo-starui/types';
+import type { ProviderPortRequest } from '../protocol.js';
+
+/** Default wait for a window's `provider-port` answer before the hub-thread fallback. */
+const PROVIDER_PORT_TIMEOUT_MS = 4000;
+/** Spare provider-worker ports kept per provider for fail-over / re-create. */
+const MAX_SPARE_PROVIDER_PORTS = 4;
+
+/** A provider whose transport is waiting for a window to supply a sub-worker port. */
+interface PendingProviderPort {
+  slot: ProviderSlot;
+  cfg: ProviderConfig;
+  emit: ProviderEmit;
+  deferred: DeferredProviderHandle;
+  timer: ReturnType<typeof setTimeout>;
+}
 
 // Re-exported for back-compat with `worker/index.ts` consumers.
 export type { PortLike, SharedWorkerDataServicesHubOpts } from './hubTypes.js';
@@ -93,7 +111,17 @@ export class SharedWorkerDataServicesHub {
   private readonly emitCtx: ProviderEmitContext;
   private readonly catalogRpcCtx: CatalogRpcContext;
 
+  /** Data plane for providers whose cfg doesn't choose one. */
+  private readonly defaultDataPlane: DataPlane;
+  private readonly providerPortTimeoutMs: number;
+  /** Sub-worker ports windows handed over beyond the one in use (fail-over / re-create). */
+  private readonly spareProviderPorts = new Map<string, ProviderWorkerPort[]>();
+  /** Providers whose transport start is waiting for a window's `provider-port`. */
+  private readonly pendingProviderPorts = new Map<string, PendingProviderPort>();
+
   constructor(opts: SharedWorkerDataServicesHubOpts = {}) {
+    this.defaultDataPlane = opts.dataPlane ?? 'hub';
+    this.providerPortTimeoutMs = opts.providerPortTimeoutMs ?? PROVIDER_PORT_TIMEOUT_MS;
     this.statsIntervalMs = opts.statsIntervalMs ?? 1000;
     this.setTimer = opts.setTimer ?? ((cb, ms) => setInterval(cb, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
@@ -123,9 +151,15 @@ export class SharedWorkerDataServicesHub {
 
   // ─── Public surface ────────────────────────────────────────────
 
-  handleRequest(port: PortLike, req: Request): void {
+  /**
+   * @param transferred MessagePorts that rode in the message's transfer
+   *   list — a window handing over a provider sub-worker's port
+   *   (`provider-port`). Ignored for every other request.
+   */
+  handleRequest(port: PortLike, req: Request, transferred?: readonly MessagePort[]): void {
     this.trackPort(port);
     switch (req.kind) {
+      case 'provider-port': this.handleProviderPort(req, transferred?.[0]); return;
       case 'attach':  this.handleAttach(port, req); return;
       case 'detach':  this.handleDetach(req); return;
       // Clean window close: postMessage to a dead port never throws and
@@ -220,6 +254,7 @@ export class SharedWorkerDataServicesHub {
 
   /** Stop every provider + cancel sampler. For shutdown only. */
   async dispose(): Promise<void> {
+    for (const providerId of [...this.pendingProviderPorts.keys()]) this.cancelPendingProviderPort(providerId);
     for (const [, slot] of this.providers) await slot.handle.stop();
     this.providers.clear();
     this.subscribers.clear();
@@ -248,6 +283,7 @@ export class SharedWorkerDataServicesHub {
   private handleAttach(port: PortLike, req: AttachRequest): void {
     let slot = this.providers.get(req.providerId);
     let isRestartAttach = false;
+    let createdHere = false;
 
     if (!slot) {
       const cfg = req.cfg ?? this.configCatalog?.getProviderConfig(req.providerId) ?? undefined;
@@ -266,7 +302,8 @@ export class SharedWorkerDataServicesHub {
       // eslint-disable-next-line no-console
       if (DEBUG) console.log(`[v2/hub] attach CREATE subId=${req.subId} provider=${req.providerId}`);
       try {
-        slot = this.createProvider(req.providerId, cfg);
+        slot = this.createProvider(req.providerId, cfg, port);
+        createdHere = true;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         port.postMessage({
@@ -303,7 +340,8 @@ export class SharedWorkerDataServicesHub {
         this.traceStompAttachCfg('hub.attach RESTART+RECONFIG (running provider)', req.providerId, req.cfg, req.extra);
         // eslint-disable-next-line no-console
         console.log(`[v2/hub][trace] attach RESTART+RECONFIG provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
-        slot = this.recreateProvider(req.providerId, req.cfg);
+        slot = this.recreateProvider(req.providerId, req.cfg, port);
+        createdHere = true;
         void slot.handle.restart(req.extra);
         slot.activeRestartExtra = req.extra;
         isRestartAttach = true;
@@ -323,12 +361,142 @@ export class SharedWorkerDataServicesHub {
       if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
     }
 
+    // Every window on a sub-worker provider joins its SharedWorker (the
+    // connection is what keeps the worker alive) and hands the hub a port
+    // — the creating attach already asked inside `startTransport`.
+    if (slot.dataPlane === 'subworker' && !createdHere) {
+      this.requestProviderWorker(req.providerId, port);
+    }
+
     if (req.mode === 'data') {
       this.attachDataListener(req.providerId, req.subId, port, slot, {
         skipCacheReplay: isRestartAttach,
       });
     } else {
       this.attachStatsListener(req.providerId, req.subId, port);
+    }
+  }
+
+  // ─── Provider sub-workers (dataPlane: 'subworker') ──────────────
+
+  /** Ask a window to construct / join the provider's SharedWorker and send its port. */
+  private requestProviderWorker(providerId: string, port: PortLike): void {
+    try {
+      port.postMessage({ kind: 'provider-worker-needed', providerId, subId: '' } satisfies Event);
+    } catch {
+      /* dead port — cleanup happens via onPortClosed */
+    }
+  }
+
+  /** A window answered `provider-worker-needed` (with a port, or `unavailable`). */
+  private handleProviderPort(req: ProviderPortRequest, port: MessagePort | undefined): void {
+    const pending = this.pendingProviderPorts.get(req.providerId);
+    if (req.unavailable || !port) {
+      if (pending) {
+        this.cancelPendingProviderPort(req.providerId);
+        this.fallBackToHubThread(pending.slot, req.providerId, pending.cfg, pending.emit, 'this window cannot provide a sub-worker', pending.deferred);
+      }
+      return;
+    }
+    if (pending) {
+      this.cancelPendingProviderPort(req.providerId);
+      // No start overlay here: an attach-time `extra` is queued on the
+      // deferred handle and replays as a restart on resolve, exactly like
+      // the in-thread CREATE+RESTART path.
+      pending.deferred.resolve(this.startOnPort(req.providerId, pending.cfg, pending.emit, pending.slot, port));
+      return;
+    }
+    const spares = this.spareProviderPorts.get(req.providerId) ?? [];
+    if (spares.length >= MAX_SPARE_PROVIDER_PORTS) {
+      try { port.close(); } catch { /* ignore */ }
+      return;
+    }
+    spares.push(port);
+    this.spareProviderPorts.set(req.providerId, spares);
+  }
+
+  private takeSpareProviderPort(providerId: string): ProviderWorkerPort | undefined {
+    const spares = this.spareProviderPorts.get(providerId);
+    const port = spares?.shift();
+    if (spares && spares.length === 0) this.spareProviderPorts.delete(providerId);
+    return port;
+  }
+
+  private cancelPendingProviderPort(providerId: string): void {
+    const pending = this.pendingProviderPorts.get(providerId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingProviderPorts.delete(providerId);
+  }
+
+  private startOnPort(
+    providerId: string,
+    cfg: ProviderConfig,
+    emit: ProviderEmit,
+    slot: ProviderSlot,
+    port: ProviderWorkerPort,
+    extra?: Record<string, unknown>,
+  ): ProviderHandle {
+    return startProviderInWorker(cfg, emit, {
+      providerId,
+      appData: this.appDataSvc,
+      port,
+      extra,
+      onDead: (reason) => this.onProviderWorkerDead(providerId, slot, cfg, emit, reason),
+    });
+  }
+
+  /**
+   * The slot's sub-worker died (no start ack, missed heartbeat, fatal
+   * start error). Fail over to a spare port another window handed us,
+   * else run the transport on the hub thread. Either way the replacement
+   * restarts with the slot's active overlay.
+   */
+  private onProviderWorkerDead(
+    providerId: string,
+    slot: ProviderSlot,
+    cfg: ProviderConfig,
+    emit: ProviderEmit,
+    reason: string,
+  ): void {
+    if (this.providers.get(providerId) !== slot) return;
+    const spare = this.takeSpareProviderPort(providerId);
+    if (spare) {
+      // eslint-disable-next-line no-console
+      console.warn(`[hub] provider '${providerId}' sub-worker ${reason} — failing over to a spare sub-worker port`);
+      slot.handle = this.startOnPort(providerId, cfg, emit, slot, spare, slot.activeRestartExtra ?? undefined);
+      return;
+    }
+    this.fallBackToHubThread(slot, providerId, cfg, emit, reason);
+  }
+
+  /** Run (or re-run) the slot's transport on the hub thread and record that in the slot. */
+  private fallBackToHubThread(
+    slot: ProviderSlot,
+    providerId: string,
+    cfg: ProviderConfig,
+    emit: ProviderEmit,
+    reason: string,
+    deferred?: DeferredProviderHandle,
+  ): void {
+    if (this.providers.get(providerId) !== slot) return;
+    // eslint-disable-next-line no-console
+    console.warn(`[hub] provider '${providerId}': ${reason} — running its transport on the hub thread`);
+    slot.dataPlane = 'hub';
+    let real: ProviderHandle;
+    try {
+      real = startProvider(cfg, emit, {
+        appDataLookup: (name, key) => this.appDataSvc.get(name, key),
+      });
+    } catch (err) {
+      emit({ status: 'error', error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    if (deferred) {
+      deferred.resolve(real);
+    } else {
+      slot.handle = real;
+      if (slot.activeRestartExtra) void real.restart(slot.activeRestartExtra);
     }
   }
 
@@ -409,6 +577,7 @@ export class SharedWorkerDataServicesHub {
   }
 
   private async stopProvider(providerId: string): Promise<void> {
+    this.cancelPendingProviderPort(providerId);
     const slot = this.providers.get(providerId);
     if (!slot) return;
 
@@ -467,16 +636,28 @@ export class SharedWorkerDataServicesHub {
     });
   }
 
-  private createProvider(providerId: string, cfg: ProviderConfig): ProviderSlot {
+  /**
+   * @param requester the attaching window's port — asked for a sub-worker
+   *   port when the slot's data plane is `'subworker'`. Absent (e.g.
+   *   `refresh-provider`), an already-attached window is asked instead.
+   */
+  private createProvider(providerId: string, cfg: ProviderConfig, requester?: PortLike): ProviderSlot {
     const now = Date.now();
     const flags = cfg as {
       keyColumn?: string | readonly string[];
       thinDeltas?: boolean;
       wireFormat?: string;
+      dataPlane?: string;
     };
     const slot: ProviderSlot = {
       handle: undefined as unknown as ProviderHandle, // set immediately below
       cfg,
+      // Per-provider cfg wins over the hub default; `startTransport` may
+      // still downgrade this to 'hub' if no sub-worker can be spawned.
+      dataPlane:
+        flags.dataPlane === 'subworker' || flags.dataPlane === 'hub'
+          ? flags.dataPlane
+          : this.defaultDataPlane,
       cache: new Map<string, unknown>(),
       status: 'loading',
       byteCount: 0,
@@ -529,14 +710,70 @@ export class SharedWorkerDataServicesHub {
     // flight restart path doesn't).
     this.providers.set(providerId, slot);
     try {
-      slot.handle = startProvider(cfg, emit, {
-        appDataLookup: (name, key) => this.appDataSvc.get(name, key),
-      });
+      slot.handle = this.startTransport(providerId, cfg, emit, slot, requester);
     } catch (err) {
       this.providers.delete(providerId);
       throw err;
     }
     return slot;
+  }
+
+  /**
+   * Start `cfg`'s transport on the slot's data plane.
+   *
+   * `'subworker'`: use a spare sub-worker port if a window already handed
+   * one over; otherwise ask a window (`provider-worker-needed`) and hand
+   * back a deferred handle — listeners see `loading` now, the transport
+   * starts when the port arrives, and the hub thread takes over if no
+   * port arrives within `providerPortTimeoutMs` (recorded on the slot,
+   * so introspection shows where the transport really runs).
+   */
+  private startTransport(
+    providerId: string,
+    cfg: ProviderConfig,
+    emit: ProviderEmit,
+    slot: ProviderSlot,
+    requester?: PortLike,
+  ): ProviderHandle {
+    if (slot.dataPlane === 'subworker') {
+      const spare = this.takeSpareProviderPort(providerId);
+      if (spare) return this.startOnPort(providerId, cfg, emit, slot, spare);
+
+      const asker = requester ?? this.anyListenerPort(providerId);
+      if (asker) {
+        const deferred = createDeferredProviderHandle();
+        this.pendingProviderPorts.set(providerId, {
+          slot,
+          cfg,
+          emit,
+          deferred,
+          timer: setTimeout(() => {
+            const pending = this.pendingProviderPorts.get(providerId);
+            if (!pending) return;
+            this.pendingProviderPorts.delete(providerId);
+            this.fallBackToHubThread(slot, providerId, cfg, emit, 'no window supplied a sub-worker port in time', pending.deferred);
+          }, this.providerPortTimeoutMs),
+        });
+        // In-thread transports emit `loading` synchronously from start;
+        // keep that contract while the port is in flight.
+        applyProviderEmit(this.emitCtx, providerId, slot, { status: 'loading' });
+        this.requestProviderWorker(providerId, asker);
+        return deferred.handle;
+      }
+      slot.dataPlane = 'hub';
+      // eslint-disable-next-line no-console
+      console.warn(`[hub] provider '${providerId}' asked for dataPlane 'subworker' but no window is attached to supply a sub-worker — running its transport on the hub thread`);
+    }
+    return startProvider(cfg, emit, {
+      appDataLookup: (name, key) => this.appDataSvc.get(name, key),
+    });
+  }
+
+  /** Any window port currently subscribed (data or stats) to a provider. */
+  private anyListenerPort(providerId: string): PortLike | undefined {
+    for (const l of this.subscribers.dataListeners(providerId)?.values() ?? []) return l.port;
+    for (const l of this.subscribers.statsListeners(providerId)?.values() ?? []) return l.port;
+    return undefined;
   }
 
   /**
@@ -547,8 +784,9 @@ export class SharedWorkerDataServicesHub {
    * settings were edited: the running slot was created with the old cfg,
    * so a plain `restart()` would reconnect with stale values.
    */
-  private recreateProvider(providerId: string, cfg: ProviderConfig): ProviderSlot {
+  private recreateProvider(providerId: string, cfg: ProviderConfig, requester?: PortLike): ProviderSlot {
     const old = this.providers.get(providerId);
+    this.cancelPendingProviderPort(providerId);
     // Drop the old slot from the registry first. The emit guard keys on
     // the currently-registered slot, so any in-flight frames from the
     // old connection are ignored the moment it stops being that slot.
@@ -556,7 +794,7 @@ export class SharedWorkerDataServicesHub {
     if (old) void old.handle.stop();
     // createProvider registers the fresh slot before starting it, so its
     // synchronous `loading` emission reaches every existing listener.
-    const fresh = this.createProvider(providerId, cfg);
+    const fresh = this.createProvider(providerId, cfg, requester);
     this.ensureStatsSampler();
     return fresh;
   }

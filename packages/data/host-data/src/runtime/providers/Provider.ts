@@ -28,7 +28,18 @@
  *      base class to extend.
  */
 
-import type { ProviderStatus } from '../protocol.js';
+import type { ProviderStatus, WireEncoding } from '../protocol.js';
+
+/**
+ * One pre-encoded broadcast/replay chunk plus the codec it used (`json`
+ * UTF-8 or the typed-array `col` codec). `enc` is per chunk because the
+ * columnar encoder can decline a slice (non-object rows) and fall back
+ * to JSON, so chunks of mixed encodings may coexist.
+ */
+export interface EncodedChunk {
+  buf: Uint8Array;
+  enc: WireEncoding;
+}
 
 export interface ProviderHandle {
   /** Idempotent. Disconnects upstream + releases resources. */
@@ -47,7 +58,20 @@ export type ProviderEmitEvent =
    * (bufferedDispatch with a conflate key) produced the batch. Lets the
    * hub skip its per-batch duplicate-key Set on the live hot path.
    */
-  | { rows: readonly unknown[]; replace?: boolean; uniqueKeys?: boolean }
+  | {
+      rows: readonly unknown[];
+      replace?: boolean;
+      uniqueKeys?: boolean;
+      /**
+       * Wire chunks that encode exactly `rows`, in order, at most
+       * `LATE_JOIN_CHUNK_SIZE` rows each, using the hub's own chunk codec
+       * rule — produced by a provider sub-worker that already did the
+       * encoding on its thread. A hub that broadcasts the batch unchanged
+       * (no key drops, no intra-batch duplicates) relays / replay-seeds
+       * these instead of re-encoding; otherwise it re-encodes as usual.
+       */
+      encoded?: readonly EncodedChunk[];
+    }
   | { status: ProviderStatus; error?: string }
   | { byteSize: number }
   | { rowsReceived: number }

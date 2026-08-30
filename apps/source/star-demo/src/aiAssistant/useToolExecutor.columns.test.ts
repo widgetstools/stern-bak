@@ -11,7 +11,8 @@ import { dispatchTool, type ToolExecutionContext } from './useToolExecutor';
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({ useDataServices: vi.fn() }));
 
-vi.mock('@wellsfargo-starui/types', () => ({
+vi.mock('@wellsfargo-starui/types', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   LOGGED_IN_USER_ID: 'dev1',
   getDefaultProviderConfig: (type: string) => ({ providerType: type, updateInterval: 2000 }),
   validateProviderConfig: (config: { providerType?: string }) =>

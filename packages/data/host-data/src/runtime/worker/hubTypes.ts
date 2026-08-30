@@ -5,7 +5,7 @@
  * boilerplate. No runtime logic lives here.
  */
 
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import type { DataPlane, ProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus, WireEncoding, AppDataEvent, SubscriberMeta } from '../protocol.js';
 import type { ProviderHandle } from '../providers/Provider.js';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
@@ -78,19 +78,21 @@ export interface PortLike {
 }
 
 /**
- * One pre-encoded broadcast/replay chunk plus the codec it used.
- * `enc` is per-chunk (not per-slot) because the columnar encoder can
- * decline a frame (non-object rows) and fall back to JSON, so chunks
- * of mixed encodings may coexist within one replay snapshot.
+ * One pre-encoded broadcast/replay chunk plus the codec it used — defined
+ * with the provider contract (`providers/Provider.ts`) because sub-workers
+ * produce them too; re-exported here for the hub modules.
  */
-export interface EncodedChunk {
-  buf: Uint8Array;
-  enc: WireEncoding;
-}
+export type { EncodedChunk } from '../providers/Provider.js';
 
 export interface ProviderSlot {
   handle: ProviderHandle;
   cfg: ProviderConfig;
+  /**
+   * Where this slot's transport actually runs — `cfg.dataPlane` (or the
+   * hub default) after the fail-soft fallback, so `'subworker'` here
+   * means a dedicated Worker really was spawned.
+   */
+  dataPlane: DataPlane;
   cache: Map<string, unknown>;
   status: ProviderStatus;
   lastError?: string;
@@ -209,6 +211,21 @@ export interface SharedWorkerDataServicesHubOpts {
    * is set, the hub constructs one automatically.
    */
   configCatalog?: ConfigCatalogCache;
+
+  /**
+   * Default data plane for providers whose cfg does not set `dataPlane`:
+   * `'hub'` (default) runs transports on the hub thread; `'subworker'`
+   * runs each provider's transport in its own SharedWorker, created by
+   * the subscribing windows and driven by the hub over a transferred port
+   * (see `providerWorkerProtocol.ts`). Per-provider `cfg.dataPlane` wins.
+   */
+  dataPlane?: DataPlane;
+  /**
+   * How long the hub waits for a window to answer `provider-worker-needed`
+   * with a `provider-port` before running that provider's transport on
+   * the hub thread instead. Default 4000ms.
+   */
+  providerPortTimeoutMs?: number;
 
   /** Tick interval for the stats sampler (default 1000ms). */
   statsIntervalMs?: number;

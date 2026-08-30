@@ -11,6 +11,21 @@ export {
 } from './SharedWorkerDataServicesHub.js';
 export { WorkerAppDataStore, type AppDataListener } from './WorkerAppDataStore.js';
 export {
+  startProviderInWorker,
+  type ProviderWorkerPort,
+  type ProviderWorkerHostOpts,
+} from './providerWorkerHost.js';
+export {
+  installProviderWorker,
+  type ProviderWorkerGlobal,
+  type InstalledProviderWorker,
+} from './providerWorkerEntry.js';
+export {
+  providerWorkerName,
+  type ProviderWorkerRequest,
+  type ProviderWorkerMessage,
+} from './providerWorkerProtocol.js';
+export {
   installSharedWorkerHub,
   type InstallOpts,
   type InstalledWorker,

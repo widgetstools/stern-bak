@@ -102,6 +102,12 @@ export interface ColumnDefinition {
 /**
  * STOMP Provider Configuration
  */
+/**
+ * Which thread a provider's transport runs on — see `StompProviderConfig.dataPlane`.
+ * Honoured by the hub for every provider type; `'hub'` is the default.
+ */
+export type DataPlane = 'hub' | 'subworker';
+
 export interface StompProviderConfig {
   providerType: 'stomp';
   websocketUrl: string;
@@ -220,6 +226,15 @@ export interface StompProviderConfig {
    *     cover.
    */
   stompImpl?: 'fast' | 'stompjs';
+  /**
+   * Where the transport runs. `'hub'` (default) runs the connection, frame
+   * parsing and conflation on the data hub's own thread; `'subworker'`
+   * runs them in a dedicated Worker spawned by the hub, so a busy feed
+   * cannot starve the hub's fan-out (nor the reverse). The hub keeps the
+   * cache / replay / encode / fan-out either way. Falls back to `'hub'`
+   * where nested workers are unavailable. Requires a provider Restart.
+   */
+  dataPlane?: DataPlane;
   /**
    * Reconnect policy. Today only `initialDelayMs` is honoured (it
    * becomes the stompjs `reconnectDelay`); full exponential backoff +

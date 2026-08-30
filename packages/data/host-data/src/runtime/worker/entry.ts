@@ -90,13 +90,15 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   const pendingPorts: MessagePort[] = [];
   let attachPort: ((port: MessagePort) => void) | null = null;
 
-  const dispatch = (target: PortLike, data: unknown) => {
-    if (isRequest(data)) hub.handleRequest(target, data);
+  // `ports` carries transferred MessagePorts (a window handing the hub a
+  // provider sub-worker's port — see `provider-port` in protocol.ts).
+  const dispatch = (target: PortLike, data: unknown, ports?: readonly MessagePort[]) => {
+    if (isRequest(data)) hub.handleRequest(target, data, ports);
     else if (isAppDataRequest(data)) hub.handleAppDataRequest(target, data);
   };
 
   const attach = (port: MessagePort): PortLike => {
-    const onMessage = (ev: MessageEvent) => dispatch(portLike, ev.data);
+    const onMessage = (ev: MessageEvent) => dispatch(portLike, ev.data, ev.ports);
     const onError = () => hub.onPortClosed(portLike);
     const portLike: PortLike = {
       postMessage: (m) => port.postMessage(m),
@@ -154,7 +156,7 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
     const dw = globalRef as DedicatedWorkerLike;
     const fakePort: PortLike = { postMessage: (m) => dw.postMessage(m) };
     dw.onmessage = (ev: MessageEvent) => {
-      if (isRequest(ev.data)) hub.handleRequest(fakePort, ev.data);
+      if (isRequest(ev.data)) hub.handleRequest(fakePort, ev.data, ev.ports);
       else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(fakePort, ev.data);
     };
   }

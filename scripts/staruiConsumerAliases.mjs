@@ -291,34 +291,40 @@ export function auditSourceModePaths(appDir, opts = {}) {
     }
   }
 
-  const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs');
-  if (!existsSync(workerPath)) {
-    requiresBuild.push({
-      label: '@wellsfargo-starui/data/assets/data-services-worker.mjs',
-      relTarget: './dist/assets/data-services-worker.mjs',
-      path: workerPath,
-      member: '@wellsfargo-starui/data',
-    });
-  } else {
-    ok.push('@wellsfargo-starui/data/assets/data-services-worker.mjs');
+  for (const asset of HOST_DATA_WORKER_ASSETS) {
+    const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets', asset);
+    if (!existsSync(workerPath)) {
+      requiresBuild.push({
+        label: `@wellsfargo-starui/data/assets/${asset}`,
+        relTarget: `./dist/assets/${asset}`,
+        path: workerPath,
+        member: '@wellsfargo-starui/data',
+      });
+    } else {
+      ok.push(`@wellsfargo-starui/data/assets/${asset}`);
+    }
   }
 
   return { broken, requiresBuild, ok };
 }
 
-const HOST_DATA_WORKER_ASSET_RE =
-  /^@wellsfargo-starui\/data\/assets\/data-services-worker\.mjs\?url$/;
+/** Build-generated worker scripts under `packages/data/host-data/dist/assets/`. */
+const HOST_DATA_WORKER_ASSETS = ['data-services-worker.mjs', 'data-provider-worker.js'];
 
-/** Resolve `@wellsfargo-starui/data/assets/data-services-worker.mjs?url` for Vite. */
+const HOST_DATA_WORKER_ASSET_RE =
+  /^@wellsfargo-starui\/data\/assets\/(data-services-worker\.mjs|data-provider-worker\.js)\?url$/;
+
+/** Resolve `@wellsfargo-starui/data/assets/<worker asset>?url` for Vite. */
 export function resolveHostDataWorkerAssetUrl(source, appDir) {
-  if (!HOST_DATA_WORKER_ASSET_RE.test(source)) return null;
+  const match = HOST_DATA_WORKER_ASSET_RE.exec(source);
+  if (!match) return null;
   void appDir;
 
-  // Only one candidate now. This used to also search installed bucket tarballs
+  // Only one candidate. This used to also search installed bucket tarballs
   // under the app's node_modules; buckets are gone, and a consumer installing
   // real member packages resolves the asset through normal node resolution
   // without needing this plugin at all.
-  const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs');
+  const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets', match[1]);
   return existsSync(workerPath) ? `${workerPath}?url` : null;
 }
 
@@ -343,6 +349,7 @@ export function staruiHostDataWorkerAssetPlugin(appDir) {
 const BUILD_ASSET_SENTINELS = [
   'packages/design-system/design-system/dist/css/theme.css',
   'packages/data/host-data/dist/assets/data-services-worker.mjs',
+  'packages/data/host-data/dist/assets/data-provider-worker.js',
 ];
 
 /** True when every build-generated package asset an app needs is present. */

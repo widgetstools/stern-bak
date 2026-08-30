@@ -25,6 +25,7 @@ describe('bootstrap', () => {
     expect(staruiTestState.resolvePlatformBootstrapFromJson).toHaveBeenCalledWith('/app-config.json');
     expect(staruiTestState.ensurePlatformReady).toHaveBeenCalledWith(config, {
       workerScriptUrl: '/mock-worker.mjs',
+      providerWorkerScriptUrl: expect.stringContaining('data-provider-worker'),
       appDataBootstrapHooks: expect.objectContaining({
         'session-context': expect.any(Function),
       }),

@@ -57,6 +57,7 @@ export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSn
       errorCount: stats.errorCount,
       lastError: slot.lastError,
       keyDropCount: slot.keyDropCount,
+      dataPlane: slot.dataPlane,
       cfg: slot.cfg,
       subscribers: subscribers.introspectRows(providerId),
     });

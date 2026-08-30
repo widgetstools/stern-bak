@@ -135,6 +135,25 @@ function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <Switch
+              id="dataPlane"
+              checked={cfg.dataPlane === 'subworker'}
+              onCheckedChange={(v) => onChange({ dataPlane: v ? 'subworker' : undefined })}
+            />
+            <Label htmlFor="dataPlane" className="text-xs font-medium text-muted-foreground">
+              Dedicated transport worker
+            </Label>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Run this provider&apos;s connection, frame parsing and conflation in its own
+            worker thread spawned by the data hub, so a busy feed cannot starve the hub&apos;s
+            fan-out to windows (or the reverse). The hub still owns the cache and replay.
+            Falls back to the hub thread where nested workers are unavailable. Requires a
+            provider Restart.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Switch
               id="conflateEnabled"
               checked={conflateEnabled}
               onCheckedChange={(v) => onChange({ conflateEnabled: v })}

@@ -59,6 +59,7 @@ export interface DataHubProviderWithPlatformProps extends DataHubProviderCommonP
   platform: ResolvedDataServicesHubBundle;
   bootstrapConfig?: never;
   workerScriptUrl?: never;
+  providerWorkerScriptUrl?: never;
 }
 
 export interface DataHubProviderWithBootstrapProps extends DataHubProviderCommonProps {
@@ -66,6 +67,8 @@ export interface DataHubProviderWithBootstrapProps extends DataHubProviderCommon
   bootstrapConfig: PlatformBootstrapConfig;
   /** Optional — omit to use the library's own bundled worker entry. */
   workerScriptUrl?: string;
+  /** `@wellsfargo-starui/data/assets/data-provider-worker.js?url` — enables `dataPlane: 'subworker'` providers. */
+  providerWorkerScriptUrl?: string;
 }
 
 export type DataHubProviderProps =
@@ -94,12 +97,13 @@ function DataHubProviderInner({
 function DataHubProviderBootstrap({
   bootstrapConfig,
   workerScriptUrl,
+  providerWorkerScriptUrl,
   mode = 'lazy',
   userId,
   children,
 }: DataHubProviderWithBootstrapProps): ReactNode {
   const bootstrapPromise = useMemo(
-    () => ensurePlatformReady(bootstrapConfig, { workerScriptUrl }),
+    () => ensurePlatformReady(bootstrapConfig, { workerScriptUrl, providerWorkerScriptUrl }),
     [
       bootstrapConfig.appId,
       bootstrapConfig.userId,
@@ -107,6 +111,7 @@ function DataHubProviderBootstrap({
       bootstrapConfig.configServiceRestUrl,
       bootstrapConfig.seedConfigUrl,
       workerScriptUrl,
+      providerWorkerScriptUrl,
     ],
   );
 

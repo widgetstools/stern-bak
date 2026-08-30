@@ -27,7 +27,8 @@
       "types": "./host-data/dist/runtime/worker/defaultEntry.d.ts",
       "import": "./host-data/dist/runtime/worker/defaultEntry.js"
     },
-    "./assets/data-services-worker.mjs": "./host-data/dist/assets/data-services-worker.mjs"
+    "./assets/data-services-worker.mjs": "./host-data/dist/assets/data-services-worker.mjs",
+    "./assets/data-provider-worker.js": "./host-data/dist/assets/data-provider-worker.js"
   },
   "files": [
     "host-data/dist"

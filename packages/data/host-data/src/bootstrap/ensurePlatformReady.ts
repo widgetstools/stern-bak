@@ -31,6 +31,13 @@ export interface EnsurePlatformReadyOpts {
    * URL only for CDN / OpenFin-manifest / plain-<script> hosting.
    */
   workerScriptUrl?: string;
+  /**
+   * URL of `@wellsfargo-starui/data/assets/data-provider-worker.js` (Vite `?url`
+   * import). Lets this window supply per-provider SharedWorkers for
+   * `dataPlane: 'subworker'` providers; without it those run on the hub
+   * thread.
+   */
+  providerWorkerScriptUrl?: string;
   /** App-authored hook registry keyed by stable ids from app-config.json. */
   appDataBootstrapHooks?: AppDataBootstrapHookRegistry;
 }
@@ -157,13 +164,18 @@ async function bootstrapPlatformOnce(
   // spawns (and seeds, on cold start) while the main-thread ConfigManager
   // opens IndexedDB. The same connection is reused by the hub below —
   // one port per window, no throwaway probe connection.
-  warmHubConnection({ ...config, workerScriptUrl: opts.workerScriptUrl });
+  warmHubConnection({
+    ...config,
+    workerScriptUrl: opts.workerScriptUrl,
+    providerWorkerScriptUrl: opts.providerWorkerScriptUrl,
+  });
 
   const { configManager } = await ensureConfigReady(config);
 
   const bundle = await ensureDataServicesHub({
     ...config,
     workerScriptUrl: opts.workerScriptUrl,
+    providerWorkerScriptUrl: opts.providerWorkerScriptUrl,
     mainThreadConfigManager: configManager,
   });
 

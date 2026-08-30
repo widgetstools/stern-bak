@@ -9,6 +9,7 @@ import {
   stompProviderDraft,
   STOMP_PROVIDER_CFG_VERSION,
   STOMP_LIVE_PROVIDER_ID,
+  STOMP_PROVIDER_OVERRIDES_ACTIVE,
   STOMP_HISTORICAL_PROVIDER_ID,
 } from './stompProvider.js';
 
@@ -49,8 +50,11 @@ export function App() {
       const storedVersion = localStorage.getItem('stomp-marketsgrid-minimal.stomp-cfg-version');
       const shouldRefresh = storedVersion !== String(STOMP_PROVIDER_CFG_VERSION);
 
-      if (shouldRefresh || !liveExists) await configStore.save(stompProviderDraft, userId);
-      if (shouldRefresh || !histExists) await configStore.save(stompHistoricalProviderDraft, userId);
+      // Query-string overrides (perf harness) change the cfg without a
+      // version bump, so re-save on every load while they are active.
+      const forceSave = shouldRefresh || STOMP_PROVIDER_OVERRIDES_ACTIVE;
+      if (forceSave || !liveExists) await configStore.save(stompProviderDraft, userId);
+      if (forceSave || !histExists) await configStore.save(stompHistoricalProviderDraft, userId);
 
       // Self-heal: remove any same-name rows left by the old random-id
       // seeding (the duplicate "STOMP Positions" / "(Historical)" rows that

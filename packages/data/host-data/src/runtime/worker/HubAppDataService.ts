@@ -137,9 +137,17 @@ export class HubAppDataService {
     return this.memory.get(name, key);
   }
 
-  /** Current rows (introspect + STOMP cfg tracing). */
+  /** Current rows (introspect + STOMP cfg tracing + sub-worker seeding). */
   snapshotRows(): readonly AppDataRow[] {
     return this.memory.snapshot();
+  }
+
+  /**
+   * Observe every store change (provider sub-workers mirror AppData so
+   * `{{name.key}}` resolves against current values on reconnect).
+   */
+  subscribe(listener: (op: 'upsert' | 'remove', row: AppDataRow) => void): () => void {
+    return this.memory.subscribe(listener);
   }
 
   get listenerCount(): number {

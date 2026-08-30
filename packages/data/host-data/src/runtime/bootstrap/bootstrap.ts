@@ -45,6 +45,14 @@ export interface BootstrapDataServicesOpts {
   worker: SharedWorker;
 
   /**
+   * URL of the provider sub-worker script
+   * (`@wellsfargo-starui/data/assets/data-provider-worker.js?url`). Lets this
+   * window supply per-provider SharedWorkers for `dataPlane: 'subworker'`
+   * providers; without it those run on the hub thread.
+   */
+  providerWorkerUrl?: string;
+
+  /**
    * Pre-constructed client around `worker.port`. When provided, bootstrap
    * adopts it instead of wrapping the port itself — used by the hub path
    * so an early-opened connection (worker warm-up) and the hub share one
@@ -91,7 +99,9 @@ export function bootstrapDataServices(opts: BootstrapDataServicesOpts): DataServ
   const existing = registry.get(opts.appName);
   if (existing) return existing;
 
-  const client = opts.client ?? new SharedWorkerDataServicesClient(opts.worker.port);
+  const client =
+    opts.client ??
+    new SharedWorkerDataServicesClient(opts.worker.port, { providerWorkerUrl: opts.providerWorkerUrl });
   // The mirror is now a pure RPC client — it sends operations to the
   // hub and receives snapshot/delta events back. The hub owns
   // IndexedDB persistence (it constructs its own ConfigManager inside

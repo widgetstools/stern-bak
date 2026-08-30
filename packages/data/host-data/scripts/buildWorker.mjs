@@ -1,10 +1,18 @@
 /**
- * Bundle the default SharedWorker entry into a single ESM asset.
+ * Bundle the worker entries into single-file assets.
  *
  * tsc emits `defaultEntry.js` with bare `@wellsfargo-starui/*` imports that the
  * browser cannot resolve when loaded as a standalone worker script.
  * esbuild inlines host-data, host-config, dexie, and optional stomp
  * into `dist/assets/data-services-worker.mjs` for Vite `?url` imports.
+ *
+ * Two bundles:
+ *   1. `data-provider-worker.js` — the per-provider SharedWorker
+ *      (`dataPlane: 'subworker'`): a classic script holding the transports
+ *      only (no ConfigManager / dexie). Windows construct it by URL
+ *      (`@wellsfargo-starui/data/assets/data-provider-worker.js?url`) and hand its
+ *      port to the hub.
+ *   2. `data-services-worker.mjs` — the SharedWorker hub.
  */
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
@@ -17,15 +25,10 @@ const outDir = path.join(pkgRoot, 'dist', 'assets');
 
 fs.mkdirSync(outDir, { recursive: true });
 
-await esbuild.build({
-  entryPoints: [path.join(pkgRoot, 'src/runtime/worker/defaultEntry.ts')],
-  outdir: outDir,
-  entryNames: '[name]',
+const shared = {
   bundle: true,
-  format: 'esm',
   platform: 'browser',
   target: ['es2022'],
-  sourcemap: true,
   logLevel: 'info',
   packages: 'bundle',
   mainFields: ['module', 'import', 'main'],
@@ -34,6 +37,31 @@ await esbuild.build({
     '@stomp/stompjs': path.join(pkgRoot, '../../../node_modules/@stomp/stompjs/esm6/index.js'),
   },
   legalComments: 'none',
+};
+
+// ── 1. provider sub-worker (classic script, self-contained) ─────────────
+const providerWorkerPath = path.join(outDir, 'data-provider-worker.js');
+await esbuild.build({
+  ...shared,
+  entryPoints: [path.join(pkgRoot, 'src/runtime/worker/providerWorkerMain.ts')],
+  outfile: providerWorkerPath,
+  format: 'iife',
+  sourcemap: true,
+});
+const providerWorkerCode = fs.readFileSync(providerWorkerPath, 'utf8');
+if (/from\s+["']dexie["']|Dexie\.version/i.test(providerWorkerCode)) {
+  throw new Error('data-provider-worker.js must not bundle dexie/ConfigManager — check providerWorkerEntry imports');
+}
+console.log(`data-provider-worker.js: ${(providerWorkerCode.length / 1024).toFixed(0)} KB`);
+
+// ── 2. hub ──────────────────────────────────────────────────────────────
+await esbuild.build({
+  ...shared,
+  entryPoints: [path.join(pkgRoot, 'src/runtime/worker/defaultEntry.ts')],
+  outdir: outDir,
+  entryNames: '[name]',
+  format: 'esm',
+  sourcemap: true,
 });
 
 // Stable public names for Vite ?url imports.

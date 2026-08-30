@@ -238,6 +238,12 @@ export interface HubProviderIntrospectRow {
    * of "provider fetched data but the grid is empty".
    */
   keyDropCount?: number;
+  /**
+   * Where the running transport executes: `'hub'` (hub thread) or
+   * `'subworker'` (a dedicated Worker spawned by the hub). Reflects the
+   * fail-soft outcome, not just the cfg. Absent when not running.
+   */
+  dataPlane?: 'hub' | 'subworker';
   /** Transport cfg held in the worker (runtime slot or catalog cache). */
   cfg?: ProviderConfig;
   /** Live subscriber registry for this provider (empty when not running). */
@@ -369,6 +375,23 @@ export interface WorkerBootstrapRequest {
   payload: WorkerBootstrapPayload;
 }
 
+/**
+ * A provider sub-worker's `MessagePort`, sent by a window in answer to a
+ * `provider-worker-needed` event: the window does
+ * `new SharedWorker(providerWorkerUrl, { name: 'starui-provider:<id>' })`
+ * (creating the worker or joining it — every subscribing window holds a
+ * connection, which is what keeps it alive) and transfers `worker.port`
+ * in the `postMessage` transfer list. The hub drives the transport over
+ * that port. `unavailable: true` (no port) means this window cannot
+ * provide one (no asset URL, no `SharedWorker`, CSP) — the hub falls
+ * back to running the transport on its own thread.
+ */
+export interface ProviderPortRequest {
+  kind: 'provider-port';
+  providerId: string;
+  unavailable?: boolean;
+}
+
 export type Request =
   | AttachRequest
   | DetachRequest
@@ -381,7 +404,8 @@ export type Request =
   | ConfigInvalidateRequest
   | RefreshProviderRequest
   | HubIntrospectRequest
-  | ProviderRunningRequest;
+  | ProviderRunningRequest
+  | ProviderPortRequest;
 
 // ─── Worker → Client events ────────────────────────────────────────
 
@@ -522,6 +546,19 @@ export interface SubscriptionLostEvent {
   reason: 'stale' | 'port-dead';
 }
 
+/**
+ * Hub → window: connect to (or create) the provider's sub-worker and send
+ * its port back as a `provider-port` request. Sent to every window that
+ * attaches to a `dataPlane: 'subworker'` provider — the first reply carries
+ * the transport, later ones are keep-alive connections + spare ports.
+ * Port-level, not subscription-level (`subId` is always `''`).
+ */
+export interface ProviderWorkerNeededEvent {
+  subId: string;
+  kind: 'provider-worker-needed';
+  providerId: string;
+}
+
 export type Event =
   | DeltaEvent
   | DeltaBinEvent
@@ -530,7 +567,8 @@ export type Event =
   | StatusEvent
   | StatsEvent
   | RowsReceivedEvent
-  | SubscriptionLostEvent;
+  | SubscriptionLostEvent
+  | ProviderWorkerNeededEvent;
 
 /** Detail payload for {@link CatalogReadyEvent} broadcasts. */
 export interface CatalogChangeDetail {
@@ -642,7 +680,8 @@ export function isRequest(value: unknown): value is Request {
     k === 'config-invalidate' ||
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
-    k === 'provider-running'
+    k === 'provider-running' ||
+    k === 'provider-port'
   );
 }
 
@@ -658,7 +697,8 @@ export function isEvent(value: unknown): value is Event {
     v.kind === 'status' ||
     v.kind === 'stats' ||
     v.kind === 'rows-received' ||
-    v.kind === 'subscription-lost'
+    v.kind === 'subscription-lost' ||
+    v.kind === 'provider-worker-needed'
   );
 }
 

@@ -74,7 +74,10 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('@wellsfargo-starui/types', () => ({
+// Pure types/helpers (field-path grammar, row-path accessors) stay real —
+// the un-mocked `inferFields` below depends on them; only the user id is pinned.
+vi.mock('@wellsfargo-starui/types', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   LOGGED_IN_USER_ID: 'dev1',
 }));
 
@@ -136,6 +139,10 @@ vi.mock('@wellsfargo-starui/openfin/config', () => ({
 
 vi.mock('@wellsfargo-starui/data/assets/data-services-worker.mjs?url', () => ({
   default: '/mock-worker.mjs',
+}));
+
+vi.mock('@wellsfargo-starui/data/assets/data-provider-worker.js?url', () => ({
+  default: '/mock-provider-worker.js',
 }));
 
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({

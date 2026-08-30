@@ -9,6 +9,8 @@ export interface BootstrapDataServicesWithWorkerAssetOpts
   extends CreateDataServicesWorkerOpts {
   userId: string;
   mainThreadConfigManager?: ConfigManager;
+  /** `@wellsfargo-starui/data/assets/data-provider-worker.js?url` — enables `dataPlane: 'subworker'` providers. */
+  providerWorkerScriptUrl?: string;
 }
 
 /**
@@ -34,5 +36,6 @@ export function bootstrapDataServicesWithWorkerAsset(
     worker,
     configManager,
     userId: opts.userId,
+    providerWorkerUrl: opts.providerWorkerScriptUrl,
   });
 }

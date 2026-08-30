@@ -30,6 +30,13 @@ export interface EnsureHubOpts extends PlatformBootstrapConfig {
    * URL only for CDN / OpenFin-manifest / plain-<script> hosting.
    */
   workerScriptUrl?: string;
+  /**
+   * URL of `@wellsfargo-starui/data/assets/data-provider-worker.js` (Vite `?url`
+   * import). Lets this window supply per-provider SharedWorkers for
+   * `dataPlane: 'subworker'` providers; without it those run on the hub
+   * thread.
+   */
+  providerWorkerScriptUrl?: string;
   /** Main-thread ConfigManager (initialized before hub connect). */
   mainThreadConfigManager: ConfigManager;
 }
@@ -44,6 +51,8 @@ export interface HubConnection {
 export type WarmHubConnectionOpts = PlatformBootstrapConfig & {
   /** Optional — see EnsureHubOpts.workerScriptUrl. */
   workerScriptUrl?: string;
+  /** Optional — see EnsureHubOpts.providerWorkerScriptUrl. */
+  providerWorkerScriptUrl?: string;
 };
 
 const hubPromises = new Map<string, Promise<ResolvedDataServicesHubBundle>>();
@@ -69,7 +78,9 @@ function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
   });
   const connection: HubConnection = {
     worker,
-    client: new SharedWorkerDataServicesClient(worker.port),
+    client: new SharedWorkerDataServicesClient(worker.port, {
+      providerWorkerUrl: opts.providerWorkerScriptUrl,
+    }),
   };
   hubConnections.set(opts.appId, connection);
   return connection;
