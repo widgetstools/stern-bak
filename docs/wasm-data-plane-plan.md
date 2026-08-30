@@ -158,6 +158,89 @@ the hub for fan-out.
 | `ensureReplayChunks` | `replay` |
 | snapshot buffering FSM | stays TS; bodies stream into WASM either way |
 
+## 5b. Option B — adopt Perspective as the data-plane engine instead of writing one
+
+[Perspective](https://github.com/perspective-dev/perspective) (FINOS, ex-JPMorgan,
+Apache-2.0) is a C++→WASM columnar streaming engine built for exactly this
+workload — real-time ticking tables in banks. Packages were renamed in
+2025: `@finos/perspective` (last 3.8.0) → **`@perspective-dev/client` +
+`@perspective-dev/server`** (5.3.0 at time of writing). Facts below were
+verified against current docs/source discussions (2026-08-30).
+
+### What it gives us, mapped to the hub's data-plane responsibilities
+
+| Hub responsibility | Perspective primitive | Verified? |
+|---|---|---|
+| Parse incoming JSON without JS materialization | `Table.update(jsonString)` — CSV/JSON-rows/JSON-columns/NDJSON strings parsed **inside the engine**; maintainer ordering: Arrow (best) > JSON strings > JS objects (much worse) | yes — loading-data guide, discussion #2995 |
+| Keyed cache + conflation | `index` primary key → `update()` upserts in place; `remove([keys])`; partial-column updates allowed (missing columns omitted) | yes — update/remove guide |
+| Delta fan-out | `view.on_update(cb, { mode: "row" })` → **Arrow buffer of the updated rows**; one `Server` hosts tables for **many `Client`s** | yes — perspective-js `View` API; 3.0 architecture |
+| Late-join snapshot | `view.to_arrow()` / `to_json()` / `to_columns()` with row/column windows | yes |
+| Hosting in our SharedWorker | `perspective.worker(new SharedWorker(url))` is documented (with a "needs special consideration" caveat); 3.x Server API is **2 methods over `[uint8_t]` protobuf**, Client is Rust/WASM needing only a duplex byte stream — i.e. transport-agnostic (`Session.handle_request` + `poll`), MessagePort-bridgeable | yes — custom-worker guide, 3.0 announcement, PR #2615 |
+| Projection | schema fixed at table creation; fields outside the schema are dropped on ingest | yes (schema inference docs) |
+| Engine size | `perspective.inline.js` 5.7MB (engine inlined; loaded once in the SharedWorker), 8KB worker shim | yes — npm pack |
+| **Bonus**: views with `group_by`/`split_by`/aggregates/expressions/sorts run **in the engine** | could serve summary-panel digests and pivots server-side instead of `forEachNode` scans in windows | yes (core feature) |
+
+### Costs and open questions (must be settled by the spike, not assumed)
+
+1. **Nested fields.** Perspective columns are flat scalars; our feeds carry
+   dot-path fields (`rating.moody`, and 300+ nested paths on wide feeds).
+   Flattening must happen upstream (server-side, or a cheap text-level
+   pre-pass in the fast STOMP path) — any JS-object flatten reintroduces
+   the materialization cost we are removing. *Assumption: no native nested
+   support; verify.*
+2. **Window-side decode.** AG Grid needs JS row objects. Arrow row deltas
+   must be materialized in each window either via `apache-arrow` JS
+   (5.8MB unpacked — heavy per window) or via a remote Perspective `Client`
+   per window calling `view.to_json()` (the engine serializes in C++; the
+   window materializes — same wall as today's COL1 decode, not worse).
+   Either way the window cost is unchanged by Option B, same as Option A.
+3. **Conflation cadence.** `on_update` fires per `update()` call; the
+   200ms/size-capped batching we have (`bufferedDispatch`) stays in front
+   of the engine to shape flush cadence — it is not replaced.
+4. **Thin deltas.** Row-mode deltas are whole changed rows (all schema
+   columns), not per-field patches — a wire-size regression vs
+   `thinDeltas` unless sparse feeds send partial columns (which
+   Perspective's partial-update ingest handles natively).
+5. **No published streaming throughput numbers** for JSON-string ingest at
+   20k rows/sec. The spike measures it.
+6. Schema is fixed per table: a `columnDefinitions` change means a new
+   table (today: provider restart — equivalent).
+
+### Decision matrix vs Option A (bespoke Rust core)
+
+| Criterion | A: bespoke Rust | B: Perspective |
+|---|---|---|
+| Maintenance / bus-factor risk | ours to own, second language | mature, bank-proven, maintained upstream |
+| Time to first production value | ~6–8 weeks | ~3–4 weeks (integration, not engine work) |
+| Exact fit (nested paths, thin deltas, COL1 wire unchanged) | perfect by construction | flatten upstream; deltas are full rows; new wire format (Arrow) |
+| Asset size | ≤300KB target | ~5.7MB (once, in the SharedWorker) |
+| Extra capability | none | in-engine views/aggregates/pivots for summary panels |
+| Fail-soft fallback | JS plane | JS plane (same flag pattern) |
+
+**Recommendation:** Perspective is the better default *if* the spike clears
+its two real unknowns (nested-field handling and JSON-string ingest rate).
+Writing a bespoke engine is only justified if Perspective fails those
+gates. Phase 0 below becomes a head-to-head spike.
+
+### Phase 0 (revised): head-to-head spike, 3–5 days
+
+1. Host a Perspective `Server` inside our existing SharedWorker script and
+   bridge one window `Client` over a MessagePort (the transport-agnostic
+   3.x protobuf contract) — proves the hosting model.
+2. Feed the spike engine STOMP JSON bodies **as strings** from the fast
+   parser at 20k rows/sec (stomp-view-server, `rate=20000`), indexed on
+   `positionId`; measure worker CPU, `update()` latency, `on_update`
+   Arrow delta emit cost, and conflation cadence with `bufferedDispatch`
+   in front.
+3. Measure window-side materialization: Arrow delta → AG Grid rows via
+   `apache-arrow` vs `view.to_json()` through a remote Client, against
+   today's COL1 decode.
+4. Nested-field strategy: cost of a text-level flatten in the STOMP path
+   vs server-side flattening; confirm dropped-field projection behavior.
+5. Go/no-go gates: ≥20k rows/sec at ≤30% of one worker core; window decode
+   cost ≤ today's COL1 path; nested feeds handled without JS-object
+   materialization. Pass → Option B; fail → Option A as specified in §4.
+
 ## 6. Parallelism: sub-workers first (independent of WASM)
 
 Phase 1 (pure TS, no WASM) moves each provider's socket+parse+conflate
@@ -170,7 +253,7 @@ sub-worker unchanged). COOP/COEP never needed.
 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
-| **0. Bench + goldens** (~2-3d) | Captured real frame corpora (slim/wide/sparse); differential harness JS-vs-X; perf bench script with budget thresholds | Corpus committed; JS baseline numbers recorded |
+| **0. Bench + goldens + engine spike** (~1wk) | Captured real frame corpora (slim/wide/sparse); differential harness JS-vs-X; perf bench script with budget thresholds; **Perspective head-to-head spike (§5b)** | Corpus committed; JS baseline recorded; **engine decision made on the §5b gates** |
 | **1. Sub-worker split** (~4-5d) | Per-provider TS sub-worker; hub relays encoded frames; flag `dataPlane: 'subworker'` | 20k/s sustained across ≥2 providers on a 4-core box; all transport tests green; soak 1h minimized+visible |
 | **2. WASM core: parse→conflate→encode** (~2-3wk) | Rust core (modules 1-3, 6) inside the sub-worker; cache still TS-fed from tape *only when features require it* (thinDeltas off ⇒ no materialization at all); flag `dataPlane: 'wasm'` | Differential harness: byte-identical emits vs JS on the corpus; 20k/s at ≤30% of one core |
 | **3. Cache/diff/replay in WASM** (~2wk) | Modules 4, 5, 7; JS row cache retired from the data plane; `get_rows_json` for the rare readers | thinDeltas parity on corpus; late-join replay parity; memory flat over 8h soak |
@@ -205,8 +288,13 @@ in week one and is worth doing regardless of the WASM decision.
 
 ## 10. Decision points for review
 
+- **Engine choice: Perspective (Option B, §5b) vs bespoke Rust core
+  (Option A, §4).** Plan's position: Perspective is the better default
+  pending the Phase 0 spike gates; Phases 2–3 are then integration work
+  (hosting the Server in the hub, MessagePort transport, Arrow/`to_json`
+  delta path to windows, upstream flattening) rather than engine work.
 - Approve Phase 1 (sub-workers) immediately? It is pure TS and pays for
-  itself even if WASM is later rejected.
+  itself even if WASM is later rejected — and it is engine-agnostic.
 - `wasm-bindgen` glue vs hand-rolled loader (plan prefers hand-rolled for
   auditability — revisit after a Phase 2 spike).
 - Whether Phase 3 retires the JS cache entirely or keeps lazy
