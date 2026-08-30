@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "description": "Consumer/reference apps for @wellsfargo-starui. Two tracks: source/ resolves @wellsfargo-starui/* out of the platform checkout, tarball/ installs the packed bucket tarballs the way an external team would. Never deployed.",
-  "//platform-link": "The platform checkout is located at install time by scripts/resolvePlatform.mjs (STARUI_PLATFORM env, else a sibling directory, else a scan) — no directory name is hardcoded here. preinstall vendors its packed tarballs for the tarball track; postinstall symlinks node_modules/@wellsfargo-starui/platform for the source track.",
-  "//workspaces-note": "tarball/* is deliberately NOT a workspace. Its file: deps point at tarball/.vendor/*.tgz, which scripts/setup.mjs creates — and npm resolves the workspace tree BEFORE running any root lifecycle script, so a workspace member can never depend on files an install-time hook produces. Installing it separately is also higher fidelity: an external consumer has its own isolated node_modules, not this repo's hoisted one. Use `npm run setup:tarball`.",
+  "//platform-link": "The platform checkout is located at install time by scripts/resolvePlatform.mjs (STARUI_PLATFORM env, else a sibling directory, else a scan) â€” no directory name is hardcoded here. preinstall vendors its packed tarballs for the tarball track; postinstall symlinks node_modules/@wellsfargo-starui/platform for the source track.",
+  "//workspaces-note": "tarball/* is deliberately NOT a workspace. Its file: deps point at tarball/.vendor/*.tgz, which scripts/setup.mjs creates â€” and npm resolves the workspace tree BEFORE running any root lifecycle script, so a workspace member can never depend on files an install-time hook produces. Installing it separately is also higher fidelity: an external consumer has its own isolated node_modules, not this repo's hoisted one. Use `npm run setup:tarball`.",
   "workspaces": [
     "source/*"
   ],
@@ -29,7 +29,7 @@
     "e2e:headed": "playwright test --headed",
     "e2e:ui": "playwright test --ui"
   },
-  "//types-note": "React types live at the repo root so every app — and the package .d.ts they pull in — sees exactly one copy. Two @types/react in one graph produce spurious JSX type conflicts.",
+  "//types-note": "React types live at the repo root so every app â€” and the package .d.ts they pull in â€” sees exactly one copy. Two @types/react in one graph produce spurious JSX type conflicts.",
   "devDependencies": {
     "@playwright/test": "1.59.1",
     "@testing-library/dom": "^10.4.0",
@@ -46,7 +46,7 @@
     "node": ">=20.0.0"
   },
   "overrides": {
-    "@openfin/core": "43.101.2",
+    "@openfin/core": "43.104.2",
     "esbuild": "0.28.0",
     "hono": "^4.12.20"
   }

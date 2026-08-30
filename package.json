@@ -2,9 +2,9 @@
   "name": "@wellsfargo-starui/platform",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI platform — modular Markets UI monorepo.",
+  "description": "MarketsUI platform â€” modular Markets UI monorepo.",
   "packageManager": "npm@10.9.0",
-  "//workspaces-note": "The angular-* buckets were deleted. host-data-angular is the last Angular package and stays excluded — the build pipeline targets the React + types/core buckets only — which is why packages/data is listed individually rather than globbed (host-data-angular is the only other entry left in packages/data/, and must stay out of the workspace).",
+  "//workspaces-note": "The angular-* buckets were deleted. host-data-angular is the last Angular package and stays excluded â€” the build pipeline targets the React + types/core buckets only â€” which is why packages/data is listed individually rather than globbed (host-data-angular is the only other entry left in packages/data/, and must stay out of the workspace).",
   "workspaces": [
     "packages/design-system",
     "packages/react-grid",
@@ -73,7 +73,7 @@
     "node": ">=20.0.0"
   },
   "overrides": {
-    "@openfin/core": "43.101.2",
+    "@openfin/core": "43.104.2",
     "esbuild": "0.28.0",
     "hono": "^4.12.20",
     "dompurify": "^3.4.8"

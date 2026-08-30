@@ -49,9 +49,9 @@
     "@wellsfargo-starui/types": "*"
   },
   "peerDependencies": {
-    "@openfin/core": "43.101.2",
-    "@openfin/workspace": "23.0.20",
-    "@openfin/workspace-platform": "23.0.20"
+    "@openfin/core": "43.104.2",
+    "@openfin/workspace": "23.2.25",
+    "@openfin/workspace-platform": "23.2.25"
   },
   "peerDependenciesMeta": {
     "@openfin/core": {
@@ -65,9 +65,9 @@
     }
   },
   "devDependencies": {
-    "@openfin/core": "43.101.2",
-    "@openfin/workspace": "23.0.20",
-    "@openfin/workspace-platform": "23.0.20",
+    "@openfin/core": "43.104.2",
+    "@openfin/workspace": "23.2.25",
+    "@openfin/workspace-platform": "23.2.25",
     "jsdom": "^29.0.2",
     "rimraf": "^6.0.1",
     "typescript": "~5.9.3",

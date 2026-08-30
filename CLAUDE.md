@@ -40,11 +40,12 @@ lock on `npm install` against whatever registry its `.npmrc` points at (see
 pins in `package.json`.
 
 One root `overrides` entry remains: `@openfin/core` is pinned to
-`43.101.4` to keep the workspace direct deps aligned with the version
-that `@openfin/workspace-platform` / `@openfin/notifications` /
-`@openfin/workspace` declare as a transitive (currently `43.101.2`).
-Drop the override only by aligning all five packages on the same
-version in the same change.
+`43.104.2` — the exact version `@openfin/workspace-platform` /
+`@openfin/workspace` `23.2.25` declare as their peer and
+`@openfin/notifications` `2.14.4` declares as a dependency, so every
+direct and transitive resolution agrees. Keep the override, the
+package pins, `@openfin/node-adapter`, and the star-demo manifest
+`runtime.version` (`43.142.104.2`) moving together in one change.
 
 ## Package layout
 

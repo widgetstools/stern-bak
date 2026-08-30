@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/react",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI React core — shadcn/Radix primitives, widget SDK, host wrapper, workspace setup, data bindings. Consolidates ui, widget-sdk, host-wrapper-react, workspace-setup-react, host-data-react.",
+  "description": "MarketsUI React core â€” shadcn/Radix primitives, widget SDK, host wrapper, workspace setup, data bindings. Consolidates ui, widget-sdk, host-wrapper-react, workspace-setup-react, host-data-react.",
   "type": "module",
   "main": "./ui/dist/index.js",
   "module": "./ui/dist/index.js",
@@ -125,7 +125,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
-    "@openfin/workspace-platform": "23.0.20",
+    "@openfin/workspace-platform": "23.2.25",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

@@ -19,9 +19,9 @@
     "client": "node launch.mjs http://localhost:5175/platform/manifest.fin.json"
   },
   "dependencies": {
-    "@openfin/core": "43.101.2",
-    "@openfin/workspace": "23.0.20",
-    "@openfin/workspace-platform": "23.0.20",
+    "@openfin/core": "43.104.2",
+    "@openfin/workspace": "23.2.25",
+    "@openfin/workspace-platform": "23.2.25",
     "@tanstack/react-query": "^5.80.7",
     "ag-grid-community": "36.1.0",
     "ag-grid-enterprise": "36.1.0",
@@ -38,7 +38,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
-    "@openfin/node-adapter": "43.101.2",
+    "@openfin/node-adapter": "43.104.2",
     "@vitejs/plugin-react": "~4.5.2",
     "autoprefixer": "^10.4.27",
     "cross-env": "^7.0.3",

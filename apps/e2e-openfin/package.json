@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@openfin/node-adapter": "43.101.2",
+    "@openfin/node-adapter": "43.104.2",
     "@playwright/test": "1.59.1",
     "typescript": "~5.9.3"
   }
