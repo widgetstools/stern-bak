@@ -206,6 +206,40 @@ verified against current docs/source discussions (2026-08-30).
 6. Schema is fixed per table: a `columnDefinitions` change means a new
    table (today: provider restart — equivalent).
 
+### Nested objects — the flattening design
+
+Perspective columns are flat scalars; our feeds carry dot-path fields.
+Governing rule: **flattening must never build JS objects** (that re-buys
+the materialization cost the whole plan exists to remove). Layered:
+
+1. **Flat at the source where we own the feed.** `stomp-view-server`
+   gains a flat-keys mode (`"rating.moody": ...`); "flat-or-flattenable"
+   becomes the documented feed contract. Many real feeds are flat already.
+2. **Text-level rewriter in the fast STOMP path** (Phase 0 baseline):
+   native `indexOf(':{')` jumps to nested-object spans and rewrites only
+   those into dotted keys. Cheap when nesting is a minority of bytes;
+   degrades toward a full JS scan on wide mostly-nested feeds — measure,
+   don't assume.
+3. **Small Rust/WASM `JSON → Arrow` flattener** (if 2 fails its gate):
+   `arrow-json` already does schema-driven JSON → Arrow record batches with
+   nested-struct support; flattening struct columns into `a.b` names is a
+   schema transform on top. ~500 lines, no engine semantics — a tenth of
+   the bespoke-core scope — and it moves Perspective ingest onto Arrow
+   IPC, its fastest documented path. Remains valuable regardless of the
+   engine decision.
+4. **Window side**: rows stay flat with literal dotted keys;
+   `buildColumnDefs`' dotted-field accessor and the expression engine's
+   `[a.b]` resolution try the flat key first, then the deep path (one
+   helper each). Perspective column names may contain dots (expressions
+   quote column names).
+
+Side effect: ingest-time flattening retires the `thinDeltas` +
+`projectFields` incompatibility on nested feeds (no subtree rebuilds to
+confuse the differ).
+
+Spike gate addition: nested (wide) corpus must reach the same
+rows/sec budget as the flat corpus via path 2 or 3.
+
 ### Decision matrix vs Option A (bespoke Rust core)
 
 | Criterion | A: bespoke Rust | B: Perspective |
