@@ -1,0 +1,19 @@
+{
+  "name": "@wellsfargo-starui/perspective-spike",
+  "private": true,
+  "type": "module",
+  "//purpose": "Phase 0 engine spike for docs/wasm-data-plane-plan.md §5b — measures Perspective WASM ingest of JSON-string batches, Arrow row-delta cost, and snapshot cost at 20k rows/sec. Not a product app; no platform aliases.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"perspective-spike: no unit tests (benchmark app)\""
+  },
+  "dependencies": {
+    "@perspective-dev/client": "5.3.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "~7.3.2"
+  }
+}

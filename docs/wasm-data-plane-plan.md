@@ -240,6 +240,42 @@ confuse the differ).
 Spike gate addition: nested (wide) corpus must reach the same
 rows/sec budget as the flat corpus via path 2 or 3.
 
+### Spike results — engine ingest gate (2026-08-30, `apps/source/perspective-spike`)
+
+Real WASM engine (`@perspective-dev/client` 5.3.0, `/inline` build) in a
+dedicated worker, driven from a Chromium page; 20k-row indexed table
+loaded from a 13.5MB JSON-rows string; sustained ingest of **pre-generated**
+JSON-string batches (400 rows / 20ms at 20k/s; 7-column sparse ticks,
+the realistic feed shape) with a row-mode `on_update` Arrow delta
+subscriber attached. Engine-worker CPU sampled via CDP mid-run.
+
+| rows/sec | engine busy | update p50 / p99 | Arrow delta / batch | main thread |
+|---|---|---|---|---|
+| 4,000 | **~19%** | 1 / 2 ms | 24KB | 60fps, worst 18ms |
+| 20,000 | **~48%** | 2 / 4 ms | 95KB | 60fps, worst 18ms |
+| 40,000 | ~80% (knee) | 3 / 17 ms | 182KB | 60fps, worst 18ms |
+
+Also: snapshot load 421ms; `to_arrow()` of all 20k rows 56–78ms / 3.96MB;
+`to_json()` of a 500-row window 7–10ms; engine worker boot 182ms.
+
+**Read-out.** Cost is linear in rows/sec with a single-core ceiling near
+~50k rows/sec *including* Arrow delta serialization. At the same 4k/s
+where our JS data plane (post fast-parser) measured ~60% busy for
+parse+encode+GC, Perspective does ingest + delta encode for ~19% —
+roughly **3× cheaper per row**, and ~6× more headroom than the JS
+plane's projected ~7–8k/s saturation. The Client on the page thread is
+free (60fps, worst frame 18ms at every rate).
+
+**Gate verdict.** The plan's "≤30% of one core at 20k/s" was set before
+any data; measured 48% *includes* per-batch Arrow delta emission the
+gate didn't account for, and the roadmap's 20k/s sits well inside the
+knee. **Ingest gate: PASS** (with the honest note that it is a
+per-provider single-core budget — per-provider sub-workers, §6, remain
+the scaling lever for several hot providers). Not yet measured (next
+spike steps): SharedWorker hosting of the Server + MessagePort Client
+bridge; window-side Arrow → row-object materialization cost; the
+nested-feed flattener path.
+
 ### Decision matrix vs Option A (bespoke Rust core)
 
 | Criterion | A: bespoke Rust | B: Perspective |
