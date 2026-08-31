@@ -33,7 +33,6 @@ import type {
   RefreshProviderRequest,
   HubIntrospectSnapshot,
 } from '../protocol.js';
-import { startProvider } from '../providers/registry.js';
 import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider.js';
 import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import {
@@ -51,7 +50,7 @@ import {
   SUBSCRIBER_SWEEP_INTERVAL_MS,
 } from './hubTypes.js';
 import { restartClickLatency, restartExtrasEqual } from './hubHelpers.js';
-import { newReplayCache, ensureReplayChunks } from './replayCache.js';
+import { newReplayCache } from './replayCache.js';
 import { rotateStatsBuckets, snapshotProviderStats, zeroedStats } from './hubStats.js';
 import { applyProviderEmit, type ProviderEmitContext } from './providerEmit.js';
 import { buildIntrospectSnapshot, type IntrospectSources } from './hubIntrospect.js';
@@ -71,6 +70,7 @@ import {
   type ProviderWorkerControl,
   type ProviderWorkerPort,
 } from './providerWorkerHost.js';
+import { createLocalProviderChannel } from './localProviderChannel.js';
 import type { ProviderWorkerBatchMeta } from './providerWorkerProtocol.js';
 import type { EncodedChunk } from '../providers/Provider.js';
 import { createDeferredProviderHandle, type DeferredProviderHandle } from './deferredProviderHandle.js';
@@ -413,7 +413,7 @@ export class SharedWorkerDataServicesHub {
     if (req.unavailable || !port) {
       if (pending) {
         this.cancelPendingProviderPort(req.providerId);
-        this.fallBackToHubThread(pending.slot, req.providerId, pending.cfg, pending.emit, 'this window cannot provide a sub-worker', pending.deferred);
+        this.fallBackToLocalChannel(pending.slot, req.providerId, pending.cfg, pending.emit, 'this window cannot provide a sub-worker', pending.deferred);
       }
       return;
     }
@@ -421,8 +421,11 @@ export class SharedWorkerDataServicesHub {
       this.cancelPendingProviderPort(req.providerId);
       // No start overlay here: an attach-time `extra` is queued on the
       // deferred handle and replays as a restart on resolve, exactly like
-      // the in-thread CREATE+RESTART path.
+      // the CREATE+RESTART path.
       pending.deferred.resolve(this.startOnPort(req.providerId, pending.cfg, pending.emit, pending.slot, port));
+      // Listeners that attached while the port was in flight have their
+      // replays parked (no control existed to ask) — issue them now.
+      this.settlePendingReplays(req.providerId, pending.slot);
       return;
     }
     const spares = this.spareProviderPorts.get(req.providerId) ?? [];
@@ -484,12 +487,16 @@ export class SharedWorkerDataServicesHub {
     events: readonly Event[],
     meta: ProviderWorkerBatchMeta,
   ): void {
-    if (this.providers.get(providerId) !== slot) return;
+    if (this.providers.get(providerId) !== slot) {
+      if (DEBUG) console.log(`[v2/hub] remote batch DROPPED (superseded slot) provider=${providerId}`);
+      return;
+    }
     slot.msgCount += 1;
     slot.msgsByBucket[slot.bucketIdx] += 1;
     slot.lastMessageAt = Date.now();
     slot.keyDropCount = meta.keyDropCount;
     slot.remote = { cacheSize: meta.cacheSize, cacheBytes: meta.cacheBytes };
+    if (DEBUG) console.log(`[v2/hub] remote batch provider=${providerId} events=${events.length} cacheSize=${meta.cacheSize} listeners=${this.subscribers.dataCount(providerId)} pending=${this.pendingReplaySubIds.size}`);
     for (const eventTemplate of events) {
       this.broadcastData(providerId, slot, eventTemplate);
     }
@@ -516,16 +523,25 @@ export class SharedWorkerDataServicesHub {
     slot: ProviderSlot,
     providerId: string,
     mode: 'attach' | 'refresh',
+    opts?: { suppressLoading?: boolean },
   ): void {
-    port.postMessage({ subId, kind: 'status', status: 'loading' } satisfies Event);
+    // The replay round-trips to the provider worker, so a `loading` here
+    // is PAINTABLE (the old hub-cache replay was synchronous and never
+    // was). Joining a READY provider must not flash a loading state —
+    // the replace repaints in one shot; only cold starts and explicit
+    // refreshes surface `loading`.
+    const showLoading = !opts?.suppressLoading && (mode === 'refresh' || slot.status !== 'ready');
+    if (showLoading) port.postMessage({ subId, kind: 'status', status: 'loading' } satisfies Event);
     const reqId = `rp${++this.replayReqSeq}`;
     this.pendingReplays.set(reqId, { providerId, subId, port, slot, mode });
     if (mode === 'attach') this.pendingReplaySubIds.add(subId);
+    if (DEBUG) console.log(`[v2/hub] replay ${reqId} sub=${subId} mode=${mode} control=${slot.remoteControl ? 'yes' : 'PARKED'}`);
     slot.remoteControl?.requestReplay(reqId);
   }
 
   private completeRemoteReplay(reqId: string, chunks: readonly EncodedChunk[], cacheSize: number): void {
     const pending = this.pendingReplays.get(reqId);
+    if (DEBUG) console.log(`[v2/hub] replay ${reqId} answered chunks=${chunks.length} cacheSize=${cacheSize} pending=${pending ? pending.subId : 'NONE'}`);
     if (!pending) return;
     this.pendingReplays.delete(reqId);
     this.pendingReplaySubIds.delete(pending.subId);
@@ -558,16 +574,14 @@ export class SharedWorkerDataServicesHub {
    * fallback, resolve from the hub cache (empty until the restarted
    * transport replaces it — the replace then reaches those listeners).
    */
-  private settlePendingReplays(providerId: string, slot: ProviderSlot, next: ProviderWorkerControl | null): void {
+  private settlePendingReplays(providerId: string, slot: ProviderSlot): void {
     for (const [reqId, pending] of [...this.pendingReplays]) {
       if (pending.providerId !== providerId || pending.slot !== slot) continue;
       this.pendingReplays.delete(reqId);
       this.pendingReplaySubIds.delete(pending.subId);
-      if (next) {
-        this.replayRemoteToPort(pending.subId, pending.port, slot, providerId, pending.mode);
-      } else {
-        this.replayCacheToPort(pending.subId, pending.port, slot, pending.mode);
-      }
+      // The original attach already posted any loading state — re-issuing
+      // the replay must not post a second one.
+      this.replayRemoteToPort(pending.subId, pending.port, slot, providerId, pending.mode, { suppressLoading: true });
     }
   }
 
@@ -591,14 +605,17 @@ export class SharedWorkerDataServicesHub {
       // eslint-disable-next-line no-console
       console.warn(`[hub] provider '${providerId}' sub-worker ${reason} — failing over to a spare sub-worker port`);
       slot.handle = this.startOnPort(providerId, cfg, emit, slot, spare, slot.activeRestartExtra ?? undefined);
-      this.settlePendingReplays(providerId, slot, slot.remoteControl ?? null);
+      this.settlePendingReplays(providerId, slot);
       return;
     }
-    this.fallBackToHubThread(slot, providerId, cfg, emit, reason);
+    this.fallBackToLocalChannel(slot, providerId, cfg, emit, reason);
   }
 
-  /** Run (or re-run) the slot's transport on the hub thread and record that in the slot. */
-  private fallBackToHubThread(
+  /**
+   * Fail-soft: run the slot's data plane on the hub thread — the SAME
+   * worker entry over an in-process channel — and record that on the slot.
+   */
+  private fallBackToLocalChannel(
     slot: ProviderSlot,
     providerId: string,
     cfg: ProviderConfig,
@@ -608,26 +625,15 @@ export class SharedWorkerDataServicesHub {
   ): void {
     if (this.providers.get(providerId) !== slot) return;
     // eslint-disable-next-line no-console
-    console.warn(`[hub] provider '${providerId}': ${reason} — running its transport on the hub thread`);
+    console.warn(`[hub] provider '${providerId}': ${reason} — running its data plane on the hub thread`);
     slot.dataPlane = 'hub';
-    slot.remoteControl = undefined;
-    slot.remote = undefined;
-    this.settlePendingReplays(providerId, slot, null);
-    let real: ProviderHandle;
-    try {
-      real = startProvider(cfg, emit, {
-        appDataLookup: (name, key) => this.appDataSvc.get(name, key),
-      });
-    } catch (err) {
-      emit({ status: 'error', error: err instanceof Error ? err.message : String(err) });
-      return;
-    }
-    if (deferred) {
-      deferred.resolve(real);
-    } else {
-      slot.handle = real;
-      if (slot.activeRestartExtra) void real.restart(slot.activeRestartExtra);
-    }
+    const handle = this.startOnLocalChannel(
+      providerId, cfg, emit, slot,
+      deferred ? undefined : slot.activeRestartExtra ?? undefined,
+    );
+    if (deferred) deferred.resolve(handle); // queued attach-time restarts replay here
+    else slot.handle = handle;
+    this.settlePendingReplays(providerId, slot);
   }
 
   private handleDetach(req: DetachRequest): void {
@@ -706,8 +712,7 @@ export class SharedWorkerDataServicesHub {
     if (!slot) return;
     const listener = this.subscribers.dataListeners(req.providerId)?.get(req.subId);
     if (!listener) return;
-    if (slot.remoteControl) this.replayRemoteToPort(req.subId, listener.port, slot, req.providerId, 'refresh');
-    else this.replayCacheToPort(req.subId, listener.port, slot, 'refresh');
+    this.replayRemoteToPort(req.subId, listener.port, slot, req.providerId, 'refresh');
   }
 
   private async stopProvider(providerId: string): Promise<void> {
@@ -890,7 +895,7 @@ export class SharedWorkerDataServicesHub {
             const pending = this.pendingProviderPorts.get(providerId);
             if (!pending) return;
             this.pendingProviderPorts.delete(providerId);
-            this.fallBackToHubThread(slot, providerId, cfg, emit, 'no window supplied a sub-worker port in time', pending.deferred);
+            this.fallBackToLocalChannel(slot, providerId, cfg, emit, 'no window supplied a sub-worker port in time', pending.deferred);
           }, this.providerPortTimeoutMs),
         });
         // In-thread transports emit `loading` synchronously from start;
@@ -901,11 +906,42 @@ export class SharedWorkerDataServicesHub {
       }
       slot.dataPlane = 'hub';
       // eslint-disable-next-line no-console
-      console.warn(`[hub] provider '${providerId}' asked for dataPlane 'subworker' but no window is attached to supply a sub-worker — running its transport on the hub thread`);
+      console.warn(`[hub] provider '${providerId}' asked for a sub-worker but no window is attached to supply one — running its data plane on the hub thread`);
     }
-    return startProvider(cfg, emit, {
-      appDataLookup: (name, key) => this.appDataSvc.get(name, key),
+    // The hub thread runs the SAME worker data plane over a synchronous
+    // in-process channel — there is no separate hub pipeline.
+    return this.startOnLocalChannel(providerId, cfg, emit, slot);
+  }
+
+  /**
+   * The one data plane, hosted on the hub thread (`localProviderChannel`).
+   * A fatal start error here has no further fallback — the error status
+   * the host already emitted stands, and a Restart recreates the slot.
+   */
+  private startOnLocalChannel(
+    providerId: string,
+    cfg: ProviderConfig,
+    emit: ProviderEmit,
+    slot: ProviderSlot,
+    extra?: Record<string, unknown>,
+  ): ProviderHandle {
+    const control = startProviderInWorker(cfg, {
+      providerId,
+      appData: this.appDataSvc,
+      port: createLocalProviderChannel(),
+      extra,
+      dataListenerCount: this.subscribers.dataCount(providerId),
+      emit,
+      onBatch: (events, meta) => this.applyRemoteBatch(providerId, slot, events, meta),
+      onReplayChunks: (reqId, chunks, cacheSize) => this.completeRemoteReplay(reqId, chunks, cacheSize),
+      onDead: (reason) => {
+        // eslint-disable-next-line no-console
+        console.warn(`[hub] provider '${providerId}' local data plane ${reason}`);
+      },
     });
+    slot.remoteControl = control;
+    slot.remote = { cacheSize: slot.remote?.cacheSize ?? 0, cacheBytes: slot.remote?.cacheBytes ?? null };
+    return control.handle;
   }
 
   /** Any window port currently subscribed (data or stats) to a provider. */
@@ -970,64 +1006,7 @@ export class SharedWorkerDataServicesHub {
       return;
     }
 
-    if (slot.remoteControl) this.replayRemoteToPort(subId, port, slot, providerId, 'attach');
-    else this.replayCacheToPort(subId, port, slot, 'attach');
-  }
-
-  /**
-   * Chunked cache replay to a single port (late-join attach or
-   * refresh-provider).
-   *
-   * Ships pre-encoded `delta-bin` chunks (see {@link DeltaBinEvent}):
-   * the replay cache re-encodes only the buckets dirtied since the
-   * last replay and posts the SAME byte buffers to every replaying
-   * port. Cloning a Uint8Array across the port is a flat memcpy — no
-   * per-row object graph walk per subscriber, which is what made
-   * simultaneous multi-window attaches GC-storm the worker.
-   */
-  private replayCacheToPort(
-    subId: string,
-    port: PortLike,
-    slot: ProviderSlot,
-    mode: 'attach' | 'refresh',
-  ): void {
-    // eslint-disable-next-line no-console
-    if (DEBUG) console.log(
-      `[v2/hub] → subId=${subId}: replay rows=${slot.cache.size} in ${
-        Math.max(1, Math.ceil(slot.cache.size / LATE_JOIN_CHUNK_SIZE))
-      } chunk(s), status=${slot.status}`,
-    );
-    port.postMessage({ subId, kind: 'status', status: 'loading' } satisfies Event);
-    if (slot.cache.size === 0) {
-      port.postMessage({ subId, kind: 'delta', rows: [], replace: true } satisfies Event);
-      this.recordPublish(slot, 1);
-    } else {
-      const chunks = ensureReplayChunks(slot.replay, slot.cache, slot.columnar);
-      for (let i = 0; i < chunks.length; i++) {
-        port.postMessage({
-          subId,
-          kind: 'delta-bin',
-          buf: chunks[i].buf,
-          enc: chunks[i].enc,
-          replace: i === 0,
-        } satisfies Event);
-        this.recordPublish(slot, 1);
-      }
-    }
-    // Refresh always ends with `ready` so the busy overlay clears. Attach
-    // replay on an empty cache must NOT settle the client snapshot — the
-    // upstream provider still owes rows + ready.
-    const emitReady = mode === 'refresh' || slot.cache.size > 0;
-    if (emitReady) {
-      port.postMessage({
-        subId,
-        kind: 'status',
-        // Replay succeeded — surface `ready` so the grid clears any stale
-        // banner even if the upstream transport is still recovering.
-        status: 'ready',
-        error: undefined,
-      } satisfies Event);
-    }
+    this.replayRemoteToPort(subId, port, slot, providerId, 'attach');
   }
 
   private attachStatsListener(providerId: string, subId: string, port: PortLike): void {

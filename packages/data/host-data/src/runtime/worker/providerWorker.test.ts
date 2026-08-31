@@ -446,7 +446,7 @@ describe('SharedWorkerDataServicesHub — dataPlane: subworker (worker-owned dat
     expect(transports).toHaveLength(0);
     await flush();
     expect(transports).toHaveLength(1); // started in-thread after the window declined
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('running its transport on the hub thread'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('running its data plane on the hub thread'));
     expect(introspect(hub, 'p1')?.dataPlane).toBe('hub');
     // Hub-plane data flow still works end to end.
     transports[0]!.emit({ rows: wide(10), replace: true });

@@ -170,9 +170,12 @@ describe('SharedWorkerDataServicesHub — attach lifecycle', () => {
     expect(replaceB).toBeTruthy();
     expect(rowsOf(replaceB!)).toHaveLength(2);
 
-    // ...and the current status (loading precedes ready on replay).
+    // ...and the current status. Joining a READY provider posts no
+    // `loading`: the worker replay round-trip makes loading paintable
+    // (the old synchronous hub-cache replay never was), and flashing it
+    // on a warm join made every new window look like a double load.
     const statusesB = portB.messages.filter((m) => m.kind === 'status');
-    expect(statusesB.map((s) => s.status)).toEqual(['loading', 'ready']);
+    expect(statusesB.map((s) => s.status)).toEqual(['ready']);
   });
 
   it('passes extra to provider.restart on a re-attach', () => {

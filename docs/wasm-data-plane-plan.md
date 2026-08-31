@@ -584,6 +584,17 @@ only agent that can create workers is a window, so:
   (`dataPlane`). A deferred `ProviderHandle` stands in while the port is
   in flight so attach-time overlays still replay.
 
+**The old hub pipeline is deleted (2026-08-31).** There is ONE data
+plane: `installProviderWorker`. `dataPlane: 'hub'` (and every fail-soft
+landing) runs that same entry on the hub thread over a synchronous
+in-process channel (`localProviderChannel.ts`) — `postMessage` is a
+direct call, so wire-visible behaviour (synchronous `loading`, inline
+replay runs, same-turn broadcasts) is identical to the removed in-hub
+pipeline, and the full hub test suite passes against it unchanged. Gone
+with it: the hub's in-thread `startProvider` path, the hub-cache replay
+(`replayCacheToPort`), and the in-thread fallback — the hub never runs
+a transport or touches a row on any plane.
+
 **Measured** (`apps/source/stomp-marketsgrid-minimal/scripts/subworkerBench.mjs`,
 2 providers × 20k rows/s from stomp-server, 200-row batches, 20 s CDP
 profile windows, 16-core box):

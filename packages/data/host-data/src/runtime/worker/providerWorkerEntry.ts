@@ -194,7 +194,11 @@ export function installProviderWorker(
     if (handle) {
       const old = handle;
       handle = null;
-      void Promise.resolve().then(() => old.stop()).catch(() => undefined);
+      // Synchronous — a superseded transport must be torn down before the
+      // replacement dials (same turn, like the hub's recreate always was).
+      try {
+        void Promise.resolve(old.stop()).catch(() => undefined);
+      } catch { /* stop() threw synchronously — nothing left to tear down */ }
     }
     active = from;
     providerId = req.providerId;
@@ -289,8 +293,16 @@ export function installProviderWorker(
     slot = null;
     engine?.dispose();
     engine = null;
-    void Promise.resolve()
-      .then(() => current?.stop())
+    // Synchronous — the hub's idle-teardown / explicit-stop semantics
+    // expect the transport to disconnect in the same turn; only the
+    // returned promise (if any) is awaited before the `pw-stopped` ack.
+    let result: void | Promise<void>;
+    try {
+      result = current?.stop();
+    } catch {
+      result = undefined;
+    }
+    void Promise.resolve(result)
       .catch(() => undefined)
       .then(() => {
         from.postMessage({ kind: 'pw-stopped' } satisfies ProviderWorkerMessage);
