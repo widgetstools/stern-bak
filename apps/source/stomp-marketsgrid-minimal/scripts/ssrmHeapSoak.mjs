@@ -13,10 +13,22 @@
  * (worker/wasm) is accumulating — the layer a plain performance.memory soak
  * is blind to.
  *
- *   node scripts/ssrmHeapSoak.mjs [minutes] [rate] [ssrm|csrm]
+ *   node scripts/ssrmHeapSoak.mjs [minutes] [rate] [ssrm|csrm] [hidden]
  *
  * The csrm arm is the control: no Perspective in the window at all, so any
  * growth it shows is AG Grid / DOM / wire-decode, not the engine.
+ *
+ * `hidden` reproduces a BACKGROUNDED tab's regime by EMULATION: after the
+ * grid loads, the page's `setTimeout`/`setInterval` are floored to 60s and
+ * `requestAnimationFrame` is suspended — which is what Chromium's intensive
+ * background throttling does to a hidden tab — while MessagePort delivery
+ * keeps streaming at full rate, exactly as it does for real. Emulation
+ * because DRIVING real visibility under automation failed three ways:
+ * headless has no tab visibility at all, headed Playwright gives every page
+ * its own window (focusing another hides nothing), and even CDP
+ * `Browser.setWindowBounds` minimize left `visibilityState` 'visible'.
+ * Every sample reports a 1s-interval tick delta (created AFTER the wrap) as
+ * PROOF of the regime: ≈15/sample unthrottled, ~0 under the emulation.
  */
 import { execFile } from 'node:child_process';
 import { chromium } from 'playwright';
@@ -24,6 +36,7 @@ import { chromium } from 'playwright';
 const minutes = Number(process.argv[2] ?? 8);
 const rate = process.argv[3] ?? '20000';
 const mode = process.argv[4] ?? 'ssrm';
+const hidden = process.argv[5] === 'hidden';
 const url = `http://localhost:5213/?tag=SOAK&rate=${rate}&batch=50&gridspy${mode === 'ssrm' ? '&ssrm' : ''}`;
 
 function processWorkingSets(pids) {
@@ -50,7 +63,8 @@ const browser = await chromium.launch({
   headless: true,
   args: ['--enable-precise-memory-info'],
 });
-const page = await browser.newPage();
+const context = await browser.newContext();
+const page = await context.newPage();
 page.on('pageerror', (err) => console.log('[pageerror]', String(err).slice(0, 200)));
 page.on('crash', () => {
   console.log('!!! PAGE CRASHED (renderer died — the exact failure this soak guards)');
@@ -63,10 +77,33 @@ await page.waitForFunction(
   { timeout: 90000 },
 );
 
+if (hidden) {
+  // Emulate intensive background throttling: floor page timers to 60s and
+  // suspend rAF. Ports and microtasks stay untouched — as in a real hidden
+  // tab. Applied AFTER load, like a user backgrounding a warmed-up blotter.
+  await page.evaluate(() => {
+    const realSetTimeout = window.setTimeout.bind(window);
+    const realSetInterval = window.setInterval.bind(window);
+    window.__soakThrottleWrap = true;
+    window.setTimeout = (fn, delay, ...args) => realSetTimeout(fn, Math.max(delay ?? 0, 60000), ...args);
+    window.setInterval = (fn, delay, ...args) => realSetInterval(fn, Math.max(delay ?? 0, 60000), ...args);
+    window.requestAnimationFrame = () => 0;
+  });
+  console.log('emulated hidden-tab throttling ACTIVE (timers floored to 60s, rAF suspended; ports untouched)');
+}
+
+// 1s heartbeat inside the page — created AFTER any throttle wrap, so its
+// per-sample delta PROVES which regime the page's timers are actually in.
+await page.evaluate(() => {
+  window.__soakTick = 0;
+  window.setInterval(() => {
+    window.__soakTick++;
+  }, 1000);
+});
+
 // Attach to the page's workers (Perspective engine included) for isolate heaps.
-const cdp = await page.context().newCDPSession(page);
+const cdp = await context.newCDPSession(page);
 const workerSessions = new Map();
-cdp.on('sessionattached', () => {});
 cdp.on('Target.attachedToTarget', ({ sessionId, targetInfo }) => {
   if (targetInfo.type === 'worker') workerSessions.set(sessionId, targetInfo.url.split('/').pop());
 });
@@ -97,16 +134,18 @@ async function browserPids() {
   }
 }
 
-console.log(`[${mode} rate=${rate}] grid full — soaking ${minutes}min, sampling every 15s`);
+console.log(`[${mode}${hidden ? '+hidden(emulated)' : ''} rate=${rate}] grid full — soaking ${minutes}min, sampling every 15s`);
 const samples = [];
 const t0 = Date.now();
+let lastTick = 0;
 while (Date.now() - t0 < minutes * 60000) {
   await new Promise((r) => setTimeout(r, 15000));
   try {
-    const pageMB = await page.evaluate(() =>
-      Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576),
-    );
-    const rows = await page.evaluate(() => window.__gridSpy?.api?.getDisplayedRowCount?.() ?? -1);
+    const s = await page.evaluate(() => ({
+      pageMB: Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576),
+      rows: window.__gridSpy?.api?.getDisplayedRowCount?.() ?? -1,
+      tick: window.__soakTick ?? -1,
+    }));
     const workerMB = await workerHeapsMB();
     const procs = await browserPids();
     const ws = await processWorkingSets(procs.map((p) => p.pid));
@@ -115,9 +154,11 @@ while (Date.now() - t0 < minutes * 60000) {
       .map((p) => ws.get(p.pid) ?? 0);
     const rendererMB = Math.max(0, ...renderers);
     const t = Math.round((Date.now() - t0) / 1000);
-    samples.push({ t, pageMB, workerMB, rendererMB });
+    const tickDelta = s.tick - lastTick;
+    lastTick = s.tick;
+    samples.push({ t, pageMB: s.pageMB, workerMB, rendererMB });
     console.log(
-      `t+${t}s page=${pageMB}MB workers=${workerMB}MB rendererWS=${rendererMB}MB rows=${rows} (workers attached: ${workerSessions.size})`,
+      `t+${t}s page=${s.pageMB}MB workers=${workerMB}MB rendererWS=${rendererMB}MB rows=${s.rows} ticks=${tickDelta}/sample`,
     );
   } catch (err) {
     console.log('sample failed (page gone?):', String(err).slice(0, 140));

@@ -62,6 +62,23 @@ export class ViewCache {
     }
   }
 
+  /**
+   * Touches every cached view with a cheap engine read (`num_rows`) so the
+   * engine processes any updates pending against it. Live views must keep
+   * consuming table updates or engine-side state accumulates without bound
+   * under a streaming table — and the timers that would normally poll them
+   * are throttled toward 1/min in hidden tabs and held during scrolls, so
+   * the caller drives this off DATA ARRIVAL (ports and microtasks are never
+   * throttled). Engine-only work: nothing here touches the grid.
+   */
+  pollAll(): void {
+    for (const entry of this.entries.values()) {
+      void entry.view.then((view) => view.num_rows()).catch(() => {
+        // A view that failed to build has nothing to drain.
+      });
+    }
+  }
+
   /** Deletes every view, waiting for any read still in flight to finish. */
   async clear(): Promise<void> {
     const entries = [...this.entries.values()];

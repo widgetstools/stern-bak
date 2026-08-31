@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Table, View, ViewConfigUpdate } from '@perspective-dev/client';
 import { ViewCache } from './viewCache.js';
 
@@ -84,6 +84,17 @@ describe('ViewCache', () => {
     expect(cache.size).toBe(0);
     await cache.withView({ columns: ['a'] }, async () => 0);
     expect(engine.created).toHaveLength(1);
+  });
+
+  it('pollAll() touches every cached view so the engine drains pending updates', async () => {
+    const { table, created } = fakeEngine();
+    const cache = new ViewCache(table);
+    await cache.withView({ columns: ['a'] }, async () => 0);
+    await cache.withView({ columns: ['b'] }, async () => 0);
+    const counts = created.map((view) => vi.spyOn(view, 'num_rows'));
+    cache.pollAll();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    for (const spy of counts) expect(spy).toHaveBeenCalled();
   });
 
   it('clear() deletes everything', async () => {

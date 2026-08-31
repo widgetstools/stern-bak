@@ -67,6 +67,17 @@ const GROUP_SCAN_LIMIT = 1000;
  */
 const SCROLL_QUIESCENCE_MS = 200;
 
+/**
+ * How often the cached engine views are drained (`ViewCache.pollAll`),
+ * driven off data ARRIVAL rather than timers: in a hidden tab Chromium
+ * throttles timers toward 1/min while MessagePort delivery keeps streaming,
+ * so a timer-driven poll starves exactly when the table updates fastest —
+ * and un-drained live views accumulate engine-side state until the renderer
+ * dies of an OOM. Same principle as the client-side row model's
+ * flushAsyncTransactions-on-arrival hidden-tab guard.
+ */
+const VIEW_DRAIN_INTERVAL_MS = 1000;
+
 const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /**
@@ -121,6 +132,8 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
    * clocks (real or faked) may start near zero.
    */
   private lastScrollAt = Number.NEGATIVE_INFINITY;
+  /** When the cached views were last drained (see VIEW_DRAIN_INTERVAL_MS). */
+  private lastViewDrain = Number.NEGATIVE_INFINITY;
   private scrollApi: GridApi | null = null;
   private readonly onBodyScroll = (): void => {
     this.lastScrollAt = now();
@@ -302,7 +315,19 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   // ---------------------------------------------------------------- live data
 
   private onTableEvent(event: FeedTableEvent): void {
-    if (this.destroyed || this.options.liveUpdates === 'off') return;
+    if (this.destroyed) return;
+    /*
+     * Engine hygiene, independent of the live-update mode and of every gate
+     * below: the cached views must keep consuming table updates. Runs off
+     * arrival on purpose — this is the only signal a background-throttled
+     * tab still receives at full rate.
+     */
+    const arrivedAt = now();
+    if (arrivedAt - this.lastViewDrain > VIEW_DRAIN_INTERVAL_MS) {
+      this.lastViewDrain = arrivedAt;
+      this.views.pollAll();
+    }
+    if (this.options.liveUpdates === 'off') return;
     if (event.type === 'snapshot') {
       // A snapshot follows a reconnect or refresh: open blocks must reload,
       // and any block that failed while the feed was down is retried rather

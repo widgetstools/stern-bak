@@ -18,8 +18,13 @@ type Responder = (config: ViewConfigUpdate) => {
   numRows: number;
 };
 
-function fakeTable(respond: Responder): { table: Promise<Table>; viewConfigs: ViewConfigUpdate[] } {
+function fakeTable(respond: Responder): {
+  table: Promise<Table>;
+  viewConfigs: ViewConfigUpdate[];
+  numRowsCalls: { count: number };
+} {
   const viewConfigs: ViewConfigUpdate[] = [];
+  const numRowsCalls = { count: 0 };
   const table = {
     view: async (config: ViewConfigUpdate): Promise<View> => {
       viewConfigs.push(config);
@@ -28,14 +33,17 @@ function fakeTable(respond: Responder): { table: Promise<Table>; viewConfigs: Vi
           void window;
           return respond(config).columns;
         },
-        num_rows: async () => respond(config).numRows,
+        num_rows: async () => {
+          numRowsCalls.count++;
+          return respond(config).numRows;
+        },
         column_paths: async () => Object.keys(respond(config).columns),
         delete: async () => {},
       };
       return view as unknown as View;
     },
   };
-  return { table: Promise.resolve(table as unknown as Table), viewConfigs };
+  return { table: Promise.resolve(table as unknown as Table), viewConfigs, numRowsCalls };
 }
 
 function fakeFeed(): {
@@ -304,6 +312,38 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
     emit({ type: 'update', ids: new Set(['A']) });
     await vi.advanceTimersByTimeAsync(80);
     expect(api.refreshServerSide).toHaveBeenCalledWith({ purge: false });
+    ds.destroy();
+  });
+
+  it('drains cached engine views on data arrival, even with live updates off', async () => {
+    const { table, numRowsCalls } = fakeTable(() => ({
+      columns: { desk: [], pnl: [], [INDEX_COLUMN]: [] },
+      numRows: 0,
+    }));
+    const { feed, emit } = fakeFeed();
+    // 'off' skips every grid-facing path — the engine drain must run anyway,
+    // or an unwatched grid accumulates view state until the renderer dies.
+    const ds = new PerspectiveSsrmDatasource({ table, feed, schema, leafColumns, liveUpdates: 'off' });
+    const api = fakeApi();
+    ds.getRows(loadParams(api, request()));
+    await vi.advanceTimersByTimeAsync(1);
+    const baseline = numRowsCalls.count;
+
+    emit({ type: 'update', ids: new Set(['A']) });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(numRowsCalls.count).toBe(baseline + 1);
+
+    // Within the drain interval: arrival does NOT poll again.
+    emit({ type: 'update', ids: new Set(['B']) });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(numRowsCalls.count).toBe(baseline + 1);
+
+    // Past the interval: the next arrival drains again. No timers involved —
+    // this is exactly what keeps a background-throttled tab bounded.
+    await vi.advanceTimersByTimeAsync(1100);
+    emit({ type: 'update', ids: new Set(['C']) });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(numRowsCalls.count).toBe(baseline + 2);
     ds.destroy();
   });
 
