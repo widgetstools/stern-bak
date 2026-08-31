@@ -88,6 +88,10 @@ describe('Provider', () => {
       expect(console.info).toHaveBeenCalledWith(
         expect.stringMatching(/\[provider\] prefetched \d+\/\d+ tool-window chunks/),
       );
-    });
+      // RTL waitFor's own default is 1s — separate from the config's raised
+      // testTimeout. A COLD vitest process pays first-transform cost for the
+      // real route chunks here (the full suite passes on a warm transform
+      // cache while isolation fails — the giveaway).
+    }, { timeout: 15_000 });
   });
 });

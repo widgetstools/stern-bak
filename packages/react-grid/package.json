@@ -53,6 +53,10 @@
     "./widgets/hosted": {
       "types": "./widgets-react/dist/hosted/index.d.ts",
       "import": "./widgets-react/dist/hosted/index.js"
+    },
+    "./widgets/ssrm": {
+      "types": "./widgets-react/dist/container/markets-grid-container/ssrm/index.d.ts",
+      "import": "./widgets-react/dist/container/markets-grid-container/ssrm/index.js"
     }
   },
   "files": [

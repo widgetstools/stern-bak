@@ -21,6 +21,7 @@ describe('Provider prefetch failures', () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringMatching(/\[provider\] prefetched \d+\/\d+ tool-window chunks/),
       );
-    });
+      // Same cold-transform budget as Provider.test — see the note there.
+    }, { timeout: 15_000 });
   });
 });

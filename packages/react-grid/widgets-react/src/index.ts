@@ -62,28 +62,8 @@ export type {
 export { HostedMarketsGrid, useGridContextLink } from './hosted/index.js';
 
 // ─── Server-Side Row Model (Perspective replica) ──
-// MarketsGridContainer mounts this via `rowModel="serverSide"`; the pieces
-// are exported for consumers building custom containers on the same engine.
-export {
-  PerspectiveSsrmDatasource,
-  ROW_ID_FIELD,
-  INDEX_COLUMN,
-  buildSchemaFromColDefs,
-  createSsrmFeedTable,
-  createSsrmGridOptions,
-  engineAssetsFromWorkerUrl,
-  getSsrmEngineClient,
-  useSsrmData,
-} from './container/markets-grid-container/ssrm/index.js';
-export type {
-  FeedTableEvent,
-  PerspectiveSchema,
-  PerspectiveSsrmDatasourceOptions,
-  SsrmEngineAssets,
-  SsrmFeedTable,
-  SsrmFeedTableOptions,
-  SsrmGridOptionsConfig,
-  SsrmLiveUpdateMode,
-  UseSsrmDataParams,
-  UseSsrmDataResult,
-} from './container/markets-grid-container/ssrm/index.js';
+// Deliberately NOT re-exported here: the ssrm module rides its own subpath,
+// `@wellsfargo-starui/grid/widgets/ssrm`. Putting it on this barrel made
+// every widgets consumer (Hosted grid, provider editor, …) pay its import
+// cost — enough to push star-demo's chunk-prefetch tests over their waitFor
+// budget. MarketsGridContainer reaches it by relative import.

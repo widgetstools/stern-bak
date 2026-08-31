@@ -28,7 +28,7 @@ import {
   engineAssetsFromWorkerUrl,
   getSsrmEngineClient,
   type SsrmFeedTable,
-} from '@wellsfargo-starui/grid/widgets';
+} from '@wellsfargo-starui/grid/widgets/ssrm';
 
 ModuleRegistry.registerModules([AllEnterpriseModule]);
 
