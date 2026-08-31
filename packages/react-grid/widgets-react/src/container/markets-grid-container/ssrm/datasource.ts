@@ -108,6 +108,8 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   private inFlight = 0;
   /** Ids that ticked since the last flush; values come lazily from the feed. */
   private pendingIds = new Set<string>();
+  /** A snapshot replaced the table; open blocks reload at the next flush. */
+  private pendingSnapshotRefresh = false;
   /** Leaf rows on screen at the last flush, so newly visible ones get caught. */
   private lastRenderedIds = new Set<string>();
   private flushHandle: ReturnType<typeof setTimeout> | null = null;
@@ -302,10 +304,13 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   private onTableEvent(event: FeedTableEvent): void {
     if (this.destroyed || this.options.liveUpdates === 'off') return;
     if (event.type === 'snapshot') {
-      // A snapshot follows a reconnect or refresh, so any block that failed
-      // while the feed was down is retried rather than left in its error state.
-      this.api?.retryServerSideLoads();
-      this.api?.refreshServerSide({ purge: false });
+      // A snapshot follows a reconnect or refresh: open blocks must reload,
+      // and any block that failed while the feed was down is retried rather
+      // than left in its error state. Routed through the flush so it obeys
+      // the same scroll-quiescence gate as every other grid-touching update —
+      // reloading blocks mid-fling is the costliest patch of all.
+      this.pendingSnapshotRefresh = true;
+      this.scheduleFlush();
       return;
     }
     for (const id of event.ids) this.pendingIds.add(id);
@@ -336,6 +341,16 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
     if (now() - this.lastScrollAt < SCROLL_QUIESCENCE_MS) {
       // Mid-fling: leave everything pending and try again after the debounce.
       this.scheduleFlush();
+      return;
+    }
+    if (this.pendingSnapshotRefresh) {
+      // The table was replaced under the open blocks: reload them and retry
+      // any failed ones. Patches pending alongside are superseded by the
+      // reload, which serves current values anyway.
+      this.pendingSnapshotRefresh = false;
+      this.pendingIds = new Set();
+      api.retryServerSideLoads();
+      api.refreshServerSide({ purge: false });
       return;
     }
     const ids = this.pendingIds;

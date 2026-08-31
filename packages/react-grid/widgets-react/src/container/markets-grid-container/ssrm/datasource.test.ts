@@ -199,15 +199,49 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
     vi.useRealTimers();
   });
 
-  it('a snapshot event retries failed loads and refreshes open blocks', async () => {
+  it('a snapshot event retries failed loads and refreshes open blocks (debounced)', async () => {
     const { table } = fakeTable(() => ({ columns: { [INDEX_COLUMN]: [] }, numRows: 0 }));
     const { feed, emit } = fakeFeed();
-    const ds = new PerspectiveSsrmDatasource({ table, feed, schema, leafColumns });
+    const ds = new PerspectiveSsrmDatasource({
+      table,
+      feed,
+      schema,
+      leafColumns,
+      liveUpdateDebounceMs: 50,
+    });
     const api = fakeApi();
     ds.getRows(loadParams(api, request()));
+    await vi.advanceTimersByTimeAsync(1);
     emit({ type: 'snapshot' });
+    expect(api.refreshServerSide).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(80);
     expect(api.retryServerSideLoads).toHaveBeenCalled();
     expect(api.refreshServerSide).toHaveBeenCalledWith({ purge: false });
+    ds.destroy();
+  });
+
+  it('defers a snapshot-driven reload while the viewport is scrolling', async () => {
+    const { table } = fakeTable(() => ({ columns: { [INDEX_COLUMN]: [] }, numRows: 0 }));
+    const { feed, emit } = fakeFeed();
+    const ds = new PerspectiveSsrmDatasource({
+      table,
+      feed,
+      schema,
+      leafColumns,
+      liveUpdateDebounceMs: 50,
+    });
+    const api = fakeApi();
+    ds.getRows(loadParams(api, request()));
+    await vi.advanceTimersByTimeAsync(1);
+    emit({ type: 'snapshot' });
+    for (let i = 0; i < 5; i++) {
+      api.fireScroll();
+      await vi.advanceTimersByTimeAsync(60);
+    }
+    expect(api.refreshServerSide).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(api.refreshServerSide).toHaveBeenCalledWith({ purge: false });
+    expect(api.refreshServerSide).toHaveBeenCalledTimes(1);
     ds.destroy();
   });
 
