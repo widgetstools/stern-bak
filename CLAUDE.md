@@ -173,7 +173,11 @@ on the next run. Don't remove it.
   `scripts/staruiConsumerAliases.mjs`) checks for them at `buildStart` and runs
   `npm run build:packages` automatically if either is missing — so any app
   `dev`/`build` works even after a `clean`/`rimraf` wiped `dist/`. Set
-  `STARUI_SKIP_ENSURE_BUILD=1` to bypass. App typecheck `tsconfig`s map
+  `STARUI_SKIP_ENSURE_BUILD=1` to bypass. The same plugin also watches
+  `packages/*/dist` on the dev server and full-reloads connected apps when a
+  rebuild lands — without it, Vite never invalidates its cached transforms of
+  aliased dist files, and a long-lived dev server silently serves the OLD
+  build forever. App typecheck `tsconfig`s map
   `react`/`react-dom` → the single repo-root `@types/react` (`compilerOptions.paths`)
   so deep-typechecking `@wellsfargo-starui/grid` source doesn't collide with a second
   transitively-installed `@types/react`.

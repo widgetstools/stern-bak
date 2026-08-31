@@ -364,12 +364,48 @@ export function staruiBuiltAssetsPresent() {
  * `npm run build:packages`; without this an app run after a clean/`rimraf`
  * fails with `ENOENT … dist/css/theme.css`. Skips when assets are present
  * (a cheap stat) or when STARUI_SKIP_ENSURE_BUILD=1.
+ *
+ * It ALSO keeps a long-lived dev server honest about package rebuilds: the
+ * aliases serve `packages/<member>/dist` files, but Vite does not watch or
+ * invalidate modules outside the app root — so a dev server started before a
+ * `build:packages` keeps serving its cached transforms of the OLD dist
+ * forever, silently. (Bitten in production debugging: a day-old server kept
+ * serving a since-fixed leaking build through four fixes.) `configureServer`
+ * adds the packages tree to the watcher (Vite's ignore list still skips
+ * node_modules) and, when anything under a `dist/` changes, invalidates the
+ * module graph and full-reloads connected pages — debounced so one rebuild's
+ * many file writes produce one reload after it settles.
  */
 export function staruiEnsureBuiltAssetsPlugin() {
   let ensured = false;
+  const packagesRoot = join(REPO_ROOT, 'packages');
+  const normalize = (p) => String(p).replace(/\\/g, '/').toLowerCase();
+  const packagesRootNorm = normalize(packagesRoot);
   return {
     name: 'starui-ensure-built-assets',
     enforce: 'pre',
+    configureServer(server) {
+      server.watcher.add(packagesRoot);
+      server.config.logger.info('[starui] packages dist watch armed', { timestamp: true });
+      let timer = null;
+      const onFsEvent = (file) => {
+        const norm = normalize(file);
+        if (!norm.startsWith(packagesRootNorm) || !norm.includes('/dist/')) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
+          server.moduleGraph.invalidateAll();
+          server.ws.send({ type: 'full-reload' });
+          server.config.logger.info(
+            '[starui] packages dist changed — invalidated module graph, reloading apps',
+            { timestamp: true },
+          );
+        }, 400);
+      };
+      server.watcher.on('change', onFsEvent);
+      server.watcher.on('add', onFsEvent);
+      server.watcher.on('unlink', onFsEvent);
+    },
     buildStart() {
       if (ensured || process.env.STARUI_SKIP_ENSURE_BUILD === '1') return;
       ensured = true;
