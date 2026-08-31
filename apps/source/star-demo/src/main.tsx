@@ -29,6 +29,8 @@ const RenameViewTab       = React.lazy(() => import("./views/RenameViewTab"));
 const blottersMarketsGridChunk = import("./views/BlottersMarketsGrid");
 const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
+/** Perf control rig: bare AG Grid on the SSRM engine — no MarketsGrid stack. */
+const SimpleSsrmGrid      = React.lazy(() => import("./views/SimpleSsrmGrid"));
 const AiAssistant         = React.lazy(() => import("./views/AiAssistant"));
 
 // The `./workspace-setup` subpath, not the bare barrel: the package's `.` export
@@ -184,6 +186,16 @@ function AppTree() {
             element={
               <React.Suspense fallback={LOADING}>
                 <BlottersMarketsGrid />
+              </React.Suspense>
+            }
+          />
+          {/* Perf control rig: bare AG Grid + SSRM engine, no platform stack.
+              Compare against /blotters/marketsgrid on the same feed. */}
+          <Route
+            path="/simplegrid"
+            element={
+              <React.Suspense fallback={LOADING}>
+                <SimpleSsrmGrid />
               </React.Suspense>
             }
           />
