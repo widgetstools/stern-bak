@@ -51,6 +51,7 @@ import { useProfileSelectorActions } from './useProfileSelectorActions';
 
 export interface MarketsGridHostProps<TData> {
   rowData: TData[];
+  serverSideGridOptions?: Record<string, unknown>;
   columnDefs: unknown[];
   gridOptions: Record<string, unknown>;
   hostOverrideKeys: ReadonlySet<string>;
@@ -109,6 +110,7 @@ export interface MarketsGridHostProps<TData> {
 
 function MarketsGridHostInner<TData>({
   rowData,
+  serverSideGridOptions,
   columnDefs,
   gridOptions,
   hostOverrideKeys,
@@ -368,6 +370,7 @@ function MarketsGridHostInner<TData>({
           hostOverrideKeys={hostOverrideKeys}
           theme={theme}
           rowData={rowData}
+          serverSideGridOptions={serverSideGridOptions}
           columnDefs={columnDefs}
           rowHeight={rowHeight}
           headerHeight={headerHeight}
@@ -387,6 +390,7 @@ function MarketsGridHostInner<TData>({
           hostOverrideKeys={hostOverrideKeys}
           theme={theme}
           rowData={rowData}
+          serverSideGridOptions={serverSideGridOptions}
           columnDefs={columnDefs}
           rowHeight={rowHeight}
           headerHeight={headerHeight}

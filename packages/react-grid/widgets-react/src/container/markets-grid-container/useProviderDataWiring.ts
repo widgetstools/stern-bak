@@ -64,6 +64,13 @@ type DataHubClient = ReturnType<typeof useDataServices>['client'];
 type ContainerEventBus = ReturnType<typeof createMarketsGridContainerEventBus>;
 
 export interface UseProviderDataWiringParams<TData extends Record<string, unknown>> {
+  /**
+   * False = another data path (the SSRM Perspective replica — see
+   * `./ssrm/useSsrmData`) owns the provider subscription for this grid;
+   * this hook then subscribes nothing and kicks no start/restart.
+   * Default true.
+   */
+  enabled?: boolean;
   liveApi: GridApi<TData> | null;
   provider: IDataProvider<TData> | null;
   activeId: string | null;
@@ -93,6 +100,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
   params: UseProviderDataWiringParams<TData>,
 ): void {
   const {
+    enabled = true,
     liveApi,
     provider,
     activeId,
@@ -135,7 +143,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
   onErrorRef.current = onError;
 
   useEffect(() => {
-    if (!liveApi || !provider || !activeId) {
+    if (!enabled || !liveApi || !provider || !activeId) {
       if (DEBUG) {
         // eslint-disable-next-line no-console
         console.log(`[v2/grid]   provider wiring skipped: liveApi=%s provider=%s activeId=%s`,
@@ -396,5 +404,5 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveApi, provider, activeId, rowIdFieldKey, dataHubClient, restartProvider]);
+  }, [enabled, liveApi, provider, activeId, rowIdFieldKey, dataHubClient, restartProvider]);
 }

@@ -185,6 +185,17 @@ export interface SharedWorkerDataServicesClientOpts {
 export class SharedWorkerDataServicesClient {
   private readonly port: MessagePort;
   private readonly providerWorkerUrl: string | undefined;
+
+  /**
+   * URL of the provider-worker asset this window would spawn sub-workers
+   * from, when configured. Exposed read-only because the wasm binaries the
+   * window-side Perspective engine needs (`perspective-js.wasm`,
+   * `perspective-server.wasm`) are shipped as this asset's siblings — see
+   * `engineAssetsFromWorkerUrl` in `@wellsfargo-starui/grid/widgets`.
+   */
+  get providerWorkerAssetUrl(): string | undefined {
+    return this.providerWorkerUrl;
+  }
   /**
    * Provider sub-workers this window has joined. Held for the document's
    * lifetime: each connection is what keeps that provider's SharedWorker

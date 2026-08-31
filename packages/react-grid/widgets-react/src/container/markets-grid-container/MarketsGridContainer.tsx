@@ -45,6 +45,7 @@ import {
 } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from './buildColumnDefs.js';
 import { useProviderDataWiring } from './useProviderDataWiring.js';
+import { useSsrmData } from './ssrm/index.js';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
@@ -138,6 +139,16 @@ export interface MarketsGridContainerProps<TData extends Record<string, unknown>
    * fields without hardcoding them. `null` until a provider/key resolves.
    */
   onRowIdFieldChange?(rowIdField: string | readonly string[] | null): void;
+  /**
+   * Row model for the data-attached grid. `'serverSide'` mounts AG Grid's
+   * server-side row model served by a per-window Perspective (WASM) replica
+   * table — the same provider subscription feeds the table instead of grid
+   * transactions, and every block / group / aggregate / filter request is
+   * answered by the engine (see `./ssrm/`). Falls back to the client-side
+   * row model automatically when the SSRM layer cannot boot (no provider
+   * worker asset URL). Default `'clientSide'`.
+   */
+  rowModel?: 'clientSide' | 'serverSide';
 }
 
 export function MarketsGridContainer<TData extends Record<string, unknown> = Record<string, unknown>>(
@@ -154,6 +165,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     gridEventHandlers,
     handlerMeta,
     onRowIdFieldChange,
+    rowModel = 'clientSide',
     ...marketsGridProps
   } = props;
 
@@ -596,7 +608,40 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     );
   }
 
+  // ── Server-side row model (Perspective replica) ──────────────────
+  //
+  // Inert unless `rowModel === 'serverSide'`. When active it owns the
+  // provider subscription (feeding the per-window Perspective table) and the
+  // client-side wiring below is disabled; the grid mounts with the SSRM
+  // options threaded through `serverSideGridOptions`.
+  const ssrmEnabled = rowModel === 'serverSide';
+  const { serverSideGridOptions } = useSsrmData<TData>({
+    enabled: ssrmEnabled,
+    provider,
+    activeId,
+    subscriptionKey,
+    rowIdField,
+    rowIdFieldKey,
+    columnDefs,
+    mode: selection.mode,
+    asOfDate,
+    toolbarDate,
+    dataHubClient,
+    restartProvider,
+    onError,
+    containerEventBus,
+    setLoadRowCount,
+    setProviderDisconnected,
+    setDisconnectDetail,
+    setResolvedSubKey,
+    setIsRefetching,
+  });
+  // SSRM is "active" only once its bundle exists — before that (or when the
+  // wasm assets are unlocatable) the client-side wiring stays in charge.
+  const ssrmActive = ssrmEnabled && serverSideGridOptions !== null;
+
   useProviderDataWiring<TData>({
+    enabled: !ssrmActive,
     liveApi,
     provider,
     activeId,
@@ -674,7 +719,10 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
         'color:#ec4899;font-weight:bold', '',
         activeId, selection.mode, asOfDate ?? '—', JSON.stringify(extra));
     }
-    if (liveApi) {
+    // SSRM: no grid-side clear — the snapshot replayed into the replica
+    // table retries failed blocks and refreshes open ones (datasource
+    // 'snapshot' event); clearing rowData is a client-side-row-model move.
+    if (liveApi && !ssrmActive) {
       try {
         liveApi.flushAsyncTransactions();
         if (DEBUG) {
@@ -700,7 +748,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     void restartProvider(extra).catch((err: unknown) => {
       (onError ?? defaultOnError)(err instanceof Error ? err : new Error(String(err)));
     });
-  }, [activeId, provider, selection.mode, asOfDate, toolbarDate, liveApi, restartProvider, onError, activeRow.cfg, appData.store, historicalDateAppDataRef]);
+  }, [activeId, provider, selection.mode, asOfDate, toolbarDate, liveApi, ssrmActive, restartProvider, onError, activeRow.cfg, appData.store, historicalDateAppDataRef]);
 
   // Restart the active provider after toolbar date / mode changes.
   // Wait for `liveApi` so the provider wiring effect registers snapshot
@@ -916,8 +964,9 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
         <div style={{ position: 'relative', height: '100%', minHeight: 0 }}>
           <MarketsGrid<TData>
             {...(marketsGridProps as MarketsGridProps<TData>)}
-            key={`${activeId}::${rowIdFieldKey}`}
+            key={`${activeId}::${rowIdFieldKey}${ssrmActive ? '::ssrm' : ''}`}
             rowData={EMPTY as TData[]}
+            serverSideGridOptions={ssrmActive ? (serverSideGridOptions as Record<string, unknown>) : undefined}
             rowIdField={rowIdField}
             columnDefs={columnDefs}
             appData={appDataLookup}

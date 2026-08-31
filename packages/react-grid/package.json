@@ -76,7 +76,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
-  "//dependencies-registry-notes": "recharts pinned to the same ^3.6.x stable line as @wellsfargo-starui/react (packages/react-core/package.json), not the newer ^3.10.x apps/ pin â€” packages/ and apps/ are separate install roots, but a summary-panel widget chart and the AI Assistant's own DataChart render through the same recharts major regardless.",
+  "//dependencies-registry-notes": "recharts pinned to the same ^3.6.x stable line as @wellsfargo-starui/react (packages/react-core/package.json), not the newer ^3.10.x apps/ pin â€” packages/ and apps/ are separate install roots, but a summary-panel widget chart and the AI Assistant's own DataChart render through the same recharts major regardless. @perspective-dev/client pinned EXACTLY 5.3.0 in lockstep with packages/data (client+server must move together; the wasm binaries the widgets-react SSRM layer fetches are emitted by packages/data's buildWorker.mjs from @perspective-dev/server 5.3.0) â€” re-run the spike gates in docs/wasm-data-plane-plan.md on any bump.",
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.4",
@@ -88,6 +88,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@lezer/highlight": "^1.2.3",
+    "@perspective-dev/client": "5.3.0",
     "@radix-ui/react-popover": "^1.1.15",
     "@wellsfargo-starui/core": "*",
     "@wellsfargo-starui/data": "*",

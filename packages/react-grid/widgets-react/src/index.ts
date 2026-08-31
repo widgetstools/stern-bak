@@ -60,3 +60,30 @@ export type {
   GridLinkSelectionBuilder,
 } from './hosted/index.js';
 export { HostedMarketsGrid, useGridContextLink } from './hosted/index.js';
+
+// ─── Server-Side Row Model (Perspective replica) ──
+// MarketsGridContainer mounts this via `rowModel="serverSide"`; the pieces
+// are exported for consumers building custom containers on the same engine.
+export {
+  PerspectiveSsrmDatasource,
+  ROW_ID_FIELD,
+  INDEX_COLUMN,
+  buildSchemaFromColDefs,
+  createSsrmFeedTable,
+  createSsrmGridOptions,
+  engineAssetsFromWorkerUrl,
+  getSsrmEngineClient,
+  useSsrmData,
+} from './container/markets-grid-container/ssrm/index.js';
+export type {
+  FeedTableEvent,
+  PerspectiveSchema,
+  PerspectiveSsrmDatasourceOptions,
+  SsrmEngineAssets,
+  SsrmFeedTable,
+  SsrmFeedTableOptions,
+  SsrmGridOptionsConfig,
+  SsrmLiveUpdateMode,
+  UseSsrmDataParams,
+  UseSsrmDataResult,
+} from './container/markets-grid-container/ssrm/index.js';

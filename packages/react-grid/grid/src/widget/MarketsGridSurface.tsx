@@ -27,7 +27,7 @@ import {
   type ReactElement,
   type RefObject,
 } from 'react';
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact, type AgGridReactProps } from 'ag-grid-react';
 import type { GetContextMenuItems, GridReadyEvent } from 'ag-grid-community';
 import type { MarketsGridProps } from './types';
 import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
@@ -41,6 +41,13 @@ export interface MarketsGridSurfaceProps<TData> {
   readonly hostOverrideKeys: ReadonlySet<string>;
   readonly theme: MarketsGridProps<TData>['theme'];
   readonly rowData: TData[];
+  /**
+   * Server-side row model options, spread onto AgGridReact AFTER the pipeline
+   * spread so `rowModelType` / `serverSideDatasource` / `getRowId` /
+   * `getChildCount` win at mount. When set, `rowData` is withheld from the
+   * grid (the two row models are mutually exclusive).
+   */
+  readonly serverSideGridOptions?: Record<string, unknown>;
   readonly columnDefs: unknown[];
   readonly rowHeight?: number;
   readonly headerHeight?: number;
@@ -70,6 +77,7 @@ function surfacePropsEqual<TData>(
     && prev.hostOverrideKeys === next.hostOverrideKeys
     && prev.theme === next.theme
     && prev.rowData === next.rowData
+    && prev.serverSideGridOptions === next.serverSideGridOptions
     && prev.columnDefs === next.columnDefs
     && prev.rowHeight === next.rowHeight
     && prev.headerHeight === next.headerHeight
@@ -90,6 +98,7 @@ export const MarketsGridSurface = memo(function MarketsGridSurface<TData>({
   hostOverrideKeys,
   theme,
   rowData,
+  serverSideGridOptions,
   columnDefs,
   rowHeight,
   headerHeight,
@@ -148,8 +157,9 @@ export const MarketsGridSurface = memo(function MarketsGridSurface<TData>({
         ref={gridRef}
         {...pipelineGridOptions}
         {...hostOverrides}
+        {...((serverSideGridOptions ?? {}) as unknown as Partial<AgGridReactProps<TData>>)}
         theme={theme}
-        rowData={rowData}
+        rowData={serverSideGridOptions ? undefined : rowData}
         columnDefs={columnDefs as never}
         maintainColumnOrder
         cellSelection={true}

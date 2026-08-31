@@ -69,6 +69,16 @@ export interface MarketsGridProps<TData = unknown> {
    */
   rowIdField?: string | readonly string[];
   /**
+   * When set, the grid mounts AG Grid's **server-side row model** with these
+   * options spread onto the grid surface last (so `rowModelType`,
+   * `serverSideDatasource`, `getRowId`, `getChildCount`, block sizing, … win
+   * over the module pipeline's client-side defaults at mount) and `rowData`
+   * is not passed to the grid at all. Built by the SSRM layer in
+   * `@wellsfargo-starui/grid/widgets` (`useSsrmData` → `createSsrmGridOptions`);
+   * plain client-side grids leave this unset.
+   */
+  serverSideGridOptions?: Record<string, unknown>;
+  /**
    * Optional adapter over the host application's named-data registry
    * (e.g. data-services' AppDataStore). When supplied, column-customization's
    * cell-editor `valuesSource` bindings (`{{providerName.key}}`) resolve

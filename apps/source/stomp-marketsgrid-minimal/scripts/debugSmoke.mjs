@@ -4,7 +4,10 @@
  * page errors — then report the grid row count. For chasing end-to-end
  * regressions the in-process suites cannot see.
  *
- *   node scripts/debugSmoke.mjs [rate] [seconds] [plane]
+ *   node scripts/debugSmoke.mjs [rate] [seconds] [plane] [extraQuery]
+ *
+ * `extraQuery` is appended raw to the page query string — e.g. `ssrm` to
+ * smoke the server-side row model (`?ssrm`), or `ssrm&nofeed`.
  */
 import { chromium } from 'playwright';
 import WebSocketMod from 'ws';
@@ -13,6 +16,7 @@ const WebSocket = WebSocketMod.WebSocket ?? WebSocketMod;
 const rate = Number(process.argv[2] ?? 2000);
 const seconds = Number(process.argv[3] ?? 25);
 const plane = process.argv[4] ?? 'subworker';
+const extraQuery = process.argv[5] ? `&${process.argv[5]}` : '';
 const DEBUG_PORT = 9346;
 
 const browser = await chromium.launch({ headless: true, args: [`--remote-debugging-port=${DEBUG_PORT}`] });
@@ -20,7 +24,7 @@ const context = await browser.newContext();
 const page = await context.newPage();
 page.on('console', (m) => console.log(`[page:${m.type()}] ${m.text().slice(0, 220)}`));
 page.on('pageerror', (e) => console.log(`[page:ERROR] ${String(e).slice(0, 300)}`));
-await page.goto(`http://localhost:5213/?tag=SMOKE&rate=${rate}&batch=50&dataPlane=${plane}&gridspy`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+await page.goto(`http://localhost:5213/?tag=SMOKE&rate=${rate}&batch=50&dataPlane=${plane}&gridspy${extraQuery}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
 async function cdpConnect(wsUrl) {
   const ws = new WebSocket(wsUrl, { maxPayload: 64 * 1024 * 1024 });

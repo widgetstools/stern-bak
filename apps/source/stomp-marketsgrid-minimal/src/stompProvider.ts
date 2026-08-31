@@ -14,6 +14,8 @@ import type { DataProviderConfig, StompProviderConfig } from '@wellsfargo-starui
 // tabs attach DIFFERENT providers to the one shared hub. The server keys
 // its streams by clientId and takes any tag, and `rate` drives both the
 // snapshot delivery and the live tick rate. No params → the defaults.
+// `?ssrm` (read in App.tsx, not here) additionally mounts the grid on the
+// server-side row model backed by a per-window Perspective replica table.
 const query =
   typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 /** Client tag the server streams for (any string; `TRADER001` is the default book). */

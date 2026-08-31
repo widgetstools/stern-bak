@@ -19,6 +19,13 @@ import {
  *
  * Requires DataHubProvider ancestor (main.tsx) so useDataServices resolves.
  */
+/**
+ * `?ssrm` mounts the blotter on AG Grid's server-side row model, served by a
+ * per-window Perspective (WASM) replica table — see `useSsrmData` in
+ * `@wellsfargo-starui/grid/widgets`. Default stays the client-side row model.
+ */
+const SSRM_ENABLED = new URLSearchParams(window.location.search).has('ssrm');
+
 export function App() {
   // useDataServices — React context from DataHubProvider → DataServicesProvider.
   // configStore wraps main-thread ConfigManager (IndexedDB writes for provider rows).
@@ -134,6 +141,7 @@ export function App() {
       showFiltersToolbar
       showFormattingToolbar
       showEditingToolbar
+      rowModel={SSRM_ENABLED ? 'serverSide' : 'clientSide'}
     />
   );
 }
