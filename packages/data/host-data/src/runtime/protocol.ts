@@ -239,11 +239,12 @@ export interface HubProviderIntrospectRow {
    */
   keyDropCount?: number;
   /**
-   * Where the running transport executes: `'hub'` (hub thread) or
-   * `'subworker'` (a dedicated Worker spawned by the hub). Reflects the
+   * Where the running data plane executes: `'hub'` (hub thread),
+   * `'subworker'` (the provider's own SharedWorker) or `'engine'`
+   * (sub-worker plus the shadow Perspective engine). Reflects the
    * fail-soft outcome, not just the cfg. Absent when not running.
    */
-  dataPlane?: 'hub' | 'subworker';
+  dataPlane?: 'hub' | 'subworker' | 'engine';
   /** Transport cfg held in the worker (runtime slot or catalog cache). */
   cfg?: ProviderConfig;
   /** Live subscriber registry for this provider (empty when not running). */

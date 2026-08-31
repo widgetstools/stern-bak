@@ -199,6 +199,14 @@ export interface StompOpts {
   passthroughSnapshot?: boolean;
   /** Resolve `{{name.key}}` on every STOMP connect/restart (worker AppData). */
   appDataLookup?: AppDataLookup;
+  /**
+   * Called once per data frame with the RAW body text and the extracted
+   * (unprojected) rows, before buffering / conflation / projection. The
+   * `dataPlane: 'engine'` sub-worker feeds its Perspective table from
+   * the text (`flattenJsonText`) so the engine path never builds row
+   * objects. Must not throw and must not mutate `rows`.
+   */
+  frameTap?: (bodyText: string, rows: readonly unknown[]) => void;
   /** Clock injection for the live-phase throttle. Defaults to setTimeout/clearTimeout. */
   setTimer?: (cb: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
@@ -549,6 +557,7 @@ export function startStomp(
       emit({ byteSize });
       return;
     }
+    opts.frameTap?.(trimmed, rawRows);
     const rows = projector ? rawRows.map(projector) : rawRows;
 
     if (!state.snapshotComplete) {

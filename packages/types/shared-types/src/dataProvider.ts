@@ -103,10 +103,12 @@ export interface ColumnDefinition {
  * STOMP Provider Configuration
  */
 /**
- * Which thread a provider's transport runs on — see `StompProviderConfig.dataPlane`.
- * Honoured by the hub for every provider type; `'hub'` is the default.
+ * Where a provider's data plane runs — see `StompProviderConfig.dataPlane`.
+ * Honoured by the hub for every provider type. `'engine'` is `'subworker'`
+ * plus a shadow Perspective engine table inside the provider's worker
+ * (Phase 2 of docs/wasm-data-plane-plan.md; measurement stage).
  */
-export type DataPlane = 'hub' | 'subworker';
+export type DataPlane = 'hub' | 'subworker' | 'engine';
 
 export interface StompProviderConfig {
   providerType: 'stomp';
@@ -227,12 +229,15 @@ export interface StompProviderConfig {
    */
   stompImpl?: 'fast' | 'stompjs';
   /**
-   * Where the transport runs. `'hub'` (default) runs the connection, frame
-   * parsing and conflation on the data hub's own thread; `'subworker'`
-   * runs them in a dedicated Worker spawned by the hub, so a busy feed
-   * cannot starve the hub's fan-out (nor the reverse). The hub keeps the
-   * cache / replay / encode / fan-out either way. Falls back to `'hub'`
-   * where nested workers are unavailable. Requires a provider Restart.
+   * Where the provider's data plane runs. `'subworker'` — the shipped
+   * hub's default — runs the connection, frame parsing, conflation, row
+   * cache, replay and encoding in the provider's own SharedWorker, so a
+   * busy feed cannot starve the hub's fan-out (nor the reverse); `'hub'`
+   * opts this provider back onto the hub thread. Unset defers to the
+   * hub's configured default (`SharedWorkerDataServicesHubOpts.dataPlane`;
+   * the class default is `'hub'`, the shipped worker entry passes
+   * `'subworker'`). Falls back to the hub thread automatically where
+   * sub-workers are unavailable. Requires a provider Restart.
    */
   dataPlane?: DataPlane;
   /**

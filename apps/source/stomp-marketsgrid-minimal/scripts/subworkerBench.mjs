@@ -104,9 +104,19 @@ async function runPlane(plane) {
   if (!hubTarget) throw new Error('no hub shared_worker target — is the hub running?');
   const providerTargets = workers.filter((t) => /starui-provider/.test(t.title));
   const sessions = [];
+  const workerSessionIds = new Set();
+  cdp.on((m) => {
+    if (m.method !== 'Runtime.consoleAPICalled' || !workerSessionIds.has(m.sessionId)) return;
+    const text = m.params.args.map((a) => a.value ?? a.description ?? '').join(' ');
+    if (/provider-engine|psp-engine|provider-worker/.test(text)) console.log(`  [worker] ${text.slice(0, 200)}`);
+  });
   for (const t of [hubTarget, ...providerTargets]) {
     const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: t.targetId, flatten: true });
     sessions.push([t === hubTarget ? 'hub (SharedWorker)' : `provider worker (${t.title.replace('starui-provider:', '').slice(-28)})`, sessionId]);
+    if (t !== hubTarget) {
+      workerSessionIds.add(sessionId);
+      await cdp.send('Runtime.enable', {}, sessionId);
+    }
   }
   console.log(`  profiling ${sessions.length} worker session(s) for ${seconds}s: ${sessions.map(([n]) => n).join(' | ')}`);
 

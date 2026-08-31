@@ -105,6 +105,8 @@ describe('defaultEntry — worker bootstrap handshake', () => {
     expect(opts.configManager).toBe(fakeConfigManager);
     expect(opts.adoptPorts).toHaveLength(1);
     expect(opts.adoptPorts[0].port).toBe(channel.port2);
+    // The shipped entry defaults providers to their own sub-workers.
+    expect((installSharedWorkerHub.mock.calls[0]![0] as { dataPlane?: string }).dataPlane).toBe('subworker');
   });
 
   it('buffers requests the client sends before the hub exists, in order', async () => {

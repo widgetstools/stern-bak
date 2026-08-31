@@ -20,7 +20,13 @@ const query =
 const TAG = query.get('tag') || 'TRADER001';
 const LIVE_RATE = query.get('rate') || '1000';
 const LIVE_BATCH = query.get('batch') || '50';
-const DATA_PLANE = query.get('dataPlane') === 'subworker' ? ('subworker' as const) : undefined;
+const DATA_PLANE_PARAM = query.get('dataPlane');
+// The platform default is now 'subworker' (shipped worker entry); the bench's
+// `?dataPlane=hub` arm must force the hub plane EXPLICITLY to measure it.
+const DATA_PLANE =
+  DATA_PLANE_PARAM === 'subworker' || DATA_PLANE_PARAM === 'hub' || DATA_PLANE_PARAM === 'engine'
+    ? (DATA_PLANE_PARAM as 'subworker' | 'hub' | 'engine')
+    : undefined;
 /** True when any override is present — App re-saves the catalog rows on every load then. */
 export const STOMP_PROVIDER_OVERRIDES_ACTIVE =
   query.has('tag') || query.has('rate') || query.has('batch') || query.has('dataPlane');

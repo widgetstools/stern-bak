@@ -383,7 +383,7 @@ export class SharedWorkerDataServicesHub {
     // Every window on a sub-worker provider joins its SharedWorker (the
     // connection is what keeps the worker alive) and hands the hub a port
     // — the creating attach already asked inside `startTransport`.
-    if (slot.dataPlane === 'subworker' && !createdHere) {
+    if (slot.dataPlane !== 'hub' && !createdHere) {
       this.requestProviderWorker(req.providerId, port);
     }
 
@@ -794,7 +794,7 @@ export class SharedWorkerDataServicesHub {
       // Per-provider cfg wins over the hub default; `startTransport` may
       // still downgrade this to 'hub' if no sub-worker can be spawned.
       dataPlane:
-        flags.dataPlane === 'subworker' || flags.dataPlane === 'hub'
+        flags.dataPlane === 'subworker' || flags.dataPlane === 'hub' || flags.dataPlane === 'engine'
           ? flags.dataPlane
           : this.defaultDataPlane,
       cache: new Map<string, unknown>(),
@@ -874,7 +874,7 @@ export class SharedWorkerDataServicesHub {
     slot: ProviderSlot,
     requester?: PortLike,
   ): ProviderHandle {
-    if (slot.dataPlane === 'subworker') {
+    if (slot.dataPlane !== 'hub') {
       const spare = this.takeSpareProviderPort(providerId);
       if (spare) return this.startOnPort(providerId, cfg, emit, slot, spare);
 

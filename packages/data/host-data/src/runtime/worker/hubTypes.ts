@@ -228,10 +228,12 @@ export interface SharedWorkerDataServicesHubOpts {
 
   /**
    * Default data plane for providers whose cfg does not set `dataPlane`:
-   * `'hub'` (default) runs transports on the hub thread; `'subworker'`
-   * runs each provider's transport in its own SharedWorker, created by
-   * the subscribing windows and driven by the hub over a transferred port
-   * (see `providerWorkerProtocol.ts`). Per-provider `cfg.dataPlane` wins.
+   * `'hub'` (the class default) runs data planes on the hub thread;
+   * `'subworker'` runs each provider's in its own SharedWorker, created
+   * by the subscribing windows and driven by the hub over a transferred
+   * port (see `providerWorkerProtocol.ts`). The SHIPPED worker entry
+   * (`defaultEntry.ts`) passes `'subworker'`, so production hubs default
+   * on. Per-provider `cfg.dataPlane` wins.
    */
   dataPlane?: DataPlane;
   /**

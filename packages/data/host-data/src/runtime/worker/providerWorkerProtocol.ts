@@ -75,6 +75,10 @@ export interface ProviderWorkerBatchMeta {
   cacheBytes: number | null;
   /** Cumulative key-drop count this (re)start cycle. */
   keyDropCount: number;
+  /** `dataPlane: 'engine'` shadow: engine table size (sampled) after the batch. */
+  engineRows?: number;
+  /** `dataPlane: 'engine'` shadow: the engine failed and the shadow is off. */
+  engineError?: string;
 }
 
 export type ProviderWorkerMessage =

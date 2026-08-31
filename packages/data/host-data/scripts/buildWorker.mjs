@@ -54,6 +54,21 @@ if (/from\s+["']dexie["']|Dexie\.version/i.test(providerWorkerCode)) {
 }
 console.log(`data-provider-worker.js: ${(providerWorkerCode.length / 1024).toFixed(0)} KB`);
 
+// Perspective wasm assets for `dataPlane: 'engine'` — served next to the
+// provider worker script, which resolves them via its own location.
+const WASM_ASSETS = [
+  ['@perspective-dev/client/dist/wasm/perspective-js.wasm', 'perspective-js.wasm'],
+  ['@perspective-dev/server/dist/wasm/perspective-server.wasm', 'perspective-server.wasm'],
+];
+for (const [srcRel, destName] of WASM_ASSETS) {
+  const srcPath = path.join(pkgRoot, '../../../node_modules', srcRel);
+  if (!fs.existsSync(srcPath)) {
+    throw new Error(`buildWorker: missing ${srcRel} — run npm install at the repo root`);
+  }
+  fs.copyFileSync(srcPath, path.join(outDir, destName));
+  console.log(`${destName}: ${(fs.statSync(srcPath).size / 1024).toFixed(0)} KB (copied)`);
+}
+
 // ── 2. hub ──────────────────────────────────────────────────────────────
 await esbuild.build({
   ...shared,

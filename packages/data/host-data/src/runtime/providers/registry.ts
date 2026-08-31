@@ -43,6 +43,8 @@ const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>
  */
 export interface StartProviderOpts {
   appDataLookup?: AppDataLookup;
+  /** Raw-frame tap for the engine data plane — see `StompOpts.frameTap` (STOMP only). */
+  frameTap?: (bodyText: string, rows: readonly unknown[]) => void;
 }
 
 export function startProvider(
@@ -60,6 +62,7 @@ export function startProvider(
   if (cfg.providerType === 'stomp') {
     return startStomp(bracketResolved as StompProviderConfig, emit, {
       appDataLookup: opts?.appDataLookup,
+      frameTap: opts?.frameTap,
     });
   }
 

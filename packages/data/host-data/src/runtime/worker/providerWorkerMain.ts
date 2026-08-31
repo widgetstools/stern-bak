@@ -7,4 +7,25 @@
  */
 import { installProviderWorker } from './providerWorkerEntry.js';
 
-installProviderWorker();
+/**
+ * The Perspective wasm assets ship next to this script in `dist/assets/`
+ * (buildWorker.mjs copies them), so resolve them against the worker's
+ * own URL. Hosts that serve the script from somewhere the assets are
+ * not (blob URLs, exotic CSP setups) simply run `dataPlane: 'engine'`
+ * providers as plain sub-workers.
+ */
+function engineAssets(): { clientWasmUrl: string; serverWasmUrl: string } | undefined {
+  try {
+    const base = (globalThis as { location?: { href?: string } }).location?.href;
+    if (!base || base.startsWith('blob:')) return undefined;
+    return {
+      clientWasmUrl: new URL('./perspective-js.wasm', base).href,
+      serverWasmUrl: new URL('./perspective-server.wasm', base).href,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+installProviderWorker(undefined, { engineAssets: engineAssets() });
+

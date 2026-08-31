@@ -38,7 +38,10 @@
     "typecheck": "tsc --noEmit --project host-data/tsconfig.json",
     "test": "vitest run"
   },
+  "//dependencies-registry-notes": "@perspective-dev/client+server pinned to 5.3.0 (the version the Phase 0 spike validated: ingest/hosting/replica gates in docs/wasm-data-plane-plan.md §5b). They ship the Perspective engine for dataPlane 'engine' inside the provider sub-worker bundle only — nothing on the page path. Move both together; re-run the spike gates on any bump.",
   "dependencies": {
+    "@perspective-dev/client": "5.3.0",
+    "@perspective-dev/server": "5.3.0",
     "@stomp/stompjs": "^7.3.0",
     "@wellsfargo-starui/core": "*",
     "@wellsfargo-starui/types": "*"

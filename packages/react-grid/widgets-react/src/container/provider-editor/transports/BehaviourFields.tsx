@@ -136,19 +136,19 @@ function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(
           <div className="flex items-center gap-2">
             <Switch
               id="dataPlane"
-              checked={cfg.dataPlane === 'subworker'}
-              onCheckedChange={(v) => onChange({ dataPlane: v ? 'subworker' : undefined })}
+              checked={cfg.dataPlane !== 'hub'}
+              onCheckedChange={(v) => onChange({ dataPlane: v ? undefined : 'hub' })}
             />
             <Label htmlFor="dataPlane" className="text-xs font-medium text-muted-foreground">
               Dedicated transport worker
             </Label>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Run this provider&apos;s connection, frame parsing and conflation in its own
-            worker thread spawned by the data hub, so a busy feed cannot starve the hub&apos;s
-            fan-out to windows (or the reverse). The hub still owns the cache and replay.
-            Falls back to the hub thread where nested workers are unavailable. Requires a
-            provider Restart.
+            On by default: this provider&apos;s connection, frame parsing, conflation, row
+            cache and replay run in their own worker thread, so a busy feed cannot starve
+            the hub&apos;s fan-out to windows (or the reverse). Falls back to the hub thread
+            automatically where such workers are unavailable. Turn off to force the hub
+            thread. Requires a provider Restart.
           </p>
         </div>
         <div className="space-y-1.5">

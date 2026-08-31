@@ -145,7 +145,11 @@ async function boot(): Promise<void> {
   // `onconnect` before its first await, so no port can connect between
   // handover and the hub taking over.
   const adoptPorts = takeCapturedPorts();
-  await installSharedWorkerHub({ configManager, adoptPorts });
+  // The shipped hub defaults every provider to its own sub-worker
+  // (`dataPlane: 'subworker'`) — fail-soft drops any provider back to the
+  // hub thread when a window cannot supply one. Per-provider
+  // `cfg.dataPlane: 'hub'` opts out (editor: "Dedicated transport worker").
+  await installSharedWorkerHub({ configManager, adoptPorts, dataPlane: 'subworker' });
 
   // eslint-disable-next-line no-console
   console.info(

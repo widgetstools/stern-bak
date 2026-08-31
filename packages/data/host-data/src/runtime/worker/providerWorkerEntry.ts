@@ -55,6 +55,21 @@ export interface ProviderWorkerGlobal {
   close?(): void;
 }
 
+/** Locations of the Perspective wasm assets for `dataPlane: 'engine'`. */
+export interface ProviderEngineAssets {
+  clientWasmUrl: string;
+  serverWasmUrl: string;
+}
+
+export interface InstallProviderWorkerOpts {
+  /**
+   * Enables the `dataPlane: 'engine'` shadow. Absent (tests, hosts
+   * without the wasm assets) an 'engine' cfg runs as plain 'subworker'
+   * with a one-line warning.
+   */
+  engineAssets?: ProviderEngineAssets;
+}
+
 export interface InstalledProviderWorker {
   /** Route a request as if it arrived on `from` (tests). */
   handleRequest(req: ProviderWorkerRequest, from: ProviderWorkerPort): void;
@@ -108,6 +123,7 @@ function newWorkerSlot(cfg: ProviderConfig): ProviderSlot {
 
 export function installProviderWorker(
   selfRef: ProviderWorkerGlobal = globalThis as unknown as ProviderWorkerGlobal,
+  installOpts: InstallProviderWorkerOpts = {},
 ): InstalledProviderWorker {
   const shared = 'onconnect' in selfRef;
   const appData = new WorkerAppDataStore();
@@ -115,6 +131,10 @@ export function installProviderWorker(
   let slot: ProviderSlot | null = null;
   let providerId = '';
   let dataListenerCount = 0;
+  /** `dataPlane: 'engine'` shadow (Phase 2 measurement stage). */
+  let engine: import('./engine/providerEngine.js').ProviderEngine | null = null;
+  /** True once the transport's raw-frame tap has fired — the rows-emit feed then stands down. */
+  let engineFrameSeen = false;
   /** The port that sent the current `pw-start` — where emits go. */
   let active: ProviderWorkerPort | null = null;
 
@@ -139,6 +159,10 @@ export function installProviderWorker(
     if ('rows' in event) {
       batchEvents.length = 0;
       applyProviderEmit(workerCtx, providerId, s, event);
+      // Object-path engine feed — only until the transport's raw-frame
+      // tap takes over (STOMP; text-first), so nothing ingests twice.
+      if (engine && !engineFrameSeen) engine.ingest(event.rows, event.replace === true);
+      const engineStats = engine?.stats();
       post({
         kind: 'pw-bcast',
         events: batchEvents.slice(),
@@ -147,6 +171,8 @@ export function installProviderWorker(
           cacheSize: s.cache.size,
           cacheBytes: replayFootprintBytes(s.replay),
           keyDropCount: s.keyDropCount,
+          engineRows: engineStats?.rows,
+          engineError: engineStats?.error,
         },
       });
       return;
@@ -154,8 +180,10 @@ export function installProviderWorker(
     if ('status' in event) {
       // Mirror the two slot transitions the hub applies on status, so the
       // worker's binary/thin-delta decisions match the hub's view.
-      if (event.status === 'loading') resetProviderStats(s);
-      else if (event.status === 'ready') s.snapshotReady = true;
+      if (event.status === 'loading') {
+        resetProviderStats(s);
+        engine?.reset(); // restart — the refilling stream rebuilds the table
+      } else if (event.status === 'ready') s.snapshotReady = true;
       s.status = event.status as ProviderStatus;
     }
     post({ kind: 'pw-emit', event });
@@ -172,8 +200,54 @@ export function installProviderWorker(
     providerId = req.providerId;
     dataListenerCount = req.dataListenerCount;
     slot = newWorkerSlot(req.cfg);
+    engine?.dispose();
+    engine = null;
+    engineFrameSeen = false;
+    if ((req.cfg as { dataPlane?: string }).dataPlane === 'engine') {
+      if (!installOpts.engineAssets) {
+        // eslint-disable-next-line no-console
+        console.warn(`[provider-worker] '${req.providerId}' asked for dataPlane 'engine' but no engine assets are configured — running as plain subworker`);
+      } else {
+        const assets = installOpts.engineAssets;
+        const engineCfg = req.cfg as {
+          keyColumn?: string | readonly string[];
+          columnDefinitions?: readonly import('@wellsfargo-starui/types').ColumnDefinition[];
+        };
+        void import('./engine/providerEngine.js')
+          .then((m) => m.startProviderEngine({
+            providerId: req.providerId,
+            keyColumn: engineCfg.keyColumn,
+            columnDefinitions: engineCfg.columnDefinitions,
+            clientWasmUrl: assets.clientWasmUrl,
+            serverWasmUrl: assets.serverWasmUrl,
+          }))
+          .then((e) => {
+            // A restart may have superseded this boot.
+            if (slot && providerId === req.providerId) {
+              engine = e;
+              // One-shot catch-up: everything the stream delivered while
+              // the engine booted is in the worker's row cache. Enqueued
+              // FIRST, so tapped frames that follow apply on top.
+              const cached = [...slot.cache.values()];
+              if (cached.length > 0) e.ingest(cached, true);
+            } else e.dispose();
+          })
+          .catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn(`[provider-worker] '${req.providerId}' engine boot failed — running as plain subworker`, err);
+          });
+      }
+    }
     try {
-      handle = startProvider(req.cfg, emit, { appDataLookup });
+      handle = startProvider(req.cfg, emit, {
+        appDataLookup,
+        // Raw-frame tap (STOMP): text-first engine ingest. Frames before
+        // the engine boots are covered by the cache catch-up above.
+        frameTap: (bodyText, rows) => {
+          engineFrameSeen = true;
+          engine?.ingestFrame(bodyText, rows);
+        },
+      });
     } catch (err) {
       post({ kind: 'pw-error', error: errorMessage(err), fatal: true });
       return;
@@ -213,6 +287,8 @@ export function installProviderWorker(
     const current = handle;
     handle = null;
     slot = null;
+    engine?.dispose();
+    engine = null;
     void Promise.resolve()
       .then(() => current?.stop())
       .catch(() => undefined)
