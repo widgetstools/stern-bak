@@ -18,9 +18,11 @@ export type SsrmGridOptionsConfig = {
    */
   blockLoadDebounceMs?: number;
   /**
-   * Blocks kept in memory. High enough to hold a whole blotter, so a block
-   * loaded once is never fetched again; off-screen rows stop being patched by
-   * the live-update path but are patched again within a tick of coming back.
+   * Blocks kept in memory. Deliberately SMALL by default: the "server" is a
+   * Perspective table in this window, so a re-fetch is a millisecond view
+   * read, not a network trip — while a cache big enough for the whole book
+   * keeps every row resident as AG row nodes and defeats the windowed row
+   * model's memory point. Raise it for genuinely remote datasources.
    */
   maxBlocksInCache?: number;
 };
@@ -62,7 +64,7 @@ export function createSsrmGridOptions(
      */
     serverSidePivotResultFieldSeparator: '|',
     cacheBlockSize: config.blockSize ?? 200,
-    maxBlocksInCache: config.maxBlocksInCache ?? 100,
+    maxBlocksInCache: config.maxBlocksInCache ?? 20,
     blockLoadDebounceMillis: config.blockLoadDebounceMs ?? 40,
     maxConcurrentDatasourceRequests: 2,
     /*

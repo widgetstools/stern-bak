@@ -90,7 +90,13 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
   const plan = compileFlattenPlan(planColumns);
   const sparseTicks = opts.sparseTicks ?? false;
   const listeners = new Set<(event: FeedTableEvent) => void>();
-  /** RAW rows that ticked since the last snapshot, by index value. */
+  /**
+   * GRID-READY (flat, index-stamped) rows that ticked since the last
+   * snapshot, by index value. Flat on purpose: the raw feed rows are wide
+   * nested objects, and retaining them for a whole ticked book costs several
+   * times the memory of the schema's flat projection — this map can grow to
+   * book size under a sweeping feed, so its per-row shape IS the footprint.
+   */
   let latest = new Map<string, Record<string, unknown>>();
   /** Conflated raw ticks awaiting their engine write (last write wins). */
   let pendingTicks = new Map<string, Record<string, unknown>>();
@@ -177,8 +183,9 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
         const flatRows: Record<string, unknown>[] = [];
         for (const [id, row] of entries) {
           ids.add(id);
-          flatRows.push(toGridRow(id, row));
-          latest.set(id, row);
+          const flat = toGridRow(id, row);
+          flatRows.push(flat);
+          latest.set(id, flat);
         }
         const payload = sparseTicks ? flatRows : columnarFromFlat(flatRows);
         await (await table).update(payload as Parameters<Table['update']>[0]);
@@ -242,8 +249,11 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
     },
 
     getRow(id) {
-      const raw = pendingTicks.get(id) ?? latest.get(id);
-      return raw ? toGridRow(id, raw) : undefined;
+      // A tick still waiting to drain is the freshest value; it is raw and
+      // flattens here (visible-row cadence). Drained values are stored flat.
+      const pending = pendingTicks.get(id);
+      if (pending) return toGridRow(id, pending);
+      return latest.get(id);
     },
 
     subscribe(listener) {
