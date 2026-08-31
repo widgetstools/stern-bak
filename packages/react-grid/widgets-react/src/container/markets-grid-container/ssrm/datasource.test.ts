@@ -212,8 +212,8 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
     const params = loadParams(api, request());
     ds.getRows(params);
     await vi.advanceTimersByTimeAsync(1);
-    emit({ type: 'update', rows: new Map([['A', { pnl: 1 }]]) });
-    emit({ type: 'update', rows: new Map([['A', { pnl: 2 }]]) });
+    emit({ type: 'update', ids: new Set(['A']) });
+    emit({ type: 'update', ids: new Set(['A']) });
     expect(api.refreshServerSide).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(150);
     expect(api.refreshServerSide).toHaveBeenCalledTimes(1);
@@ -226,7 +226,7 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
       columns: { desk: [], pnl: [], [INDEX_COLUMN]: [] },
       numRows: rootCount,
     }));
-    const { feed, emit } = fakeFeed();
+    const { feed, emit, rows } = fakeFeed();
     const ds = new PerspectiveSsrmDatasource({
       table,
       feed,
@@ -244,7 +244,8 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
     await vi.advanceTimersByTimeAsync(1);
 
     const ticked = { [INDEX_COLUMN]: 'A', desk: 'Rates', pnl: 9 };
-    emit({ type: 'update', rows: new Map([['A', ticked]]) });
+    rows.set('A', ticked);
+    emit({ type: 'update', ids: new Set(['A']) });
     await vi.advanceTimersByTimeAsync(80);
     expect(updateData).toHaveBeenCalledWith(ticked);
     // Row count unchanged → no reload.
@@ -252,7 +253,7 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
 
     // When the top-level count changes, the shape is stale → one reload.
     rootCount = 6;
-    emit({ type: 'update', rows: new Map([['A', ticked]]) });
+    emit({ type: 'update', ids: new Set(['A']) });
     await vi.advanceTimersByTimeAsync(80);
     expect(api.refreshServerSide).toHaveBeenCalledWith({ purge: false });
     ds.destroy();
@@ -280,7 +281,7 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
     ]);
     ds.getRows(loadParams(api, request()));
     await vi.advanceTimersByTimeAsync(1);
-    emit({ type: 'update', rows: new Map([['other', { [INDEX_COLUMN]: 'other' }]]) });
+    emit({ type: 'update', ids: new Set(['other']) });
     await vi.advanceTimersByTimeAsync(80);
     expect(updateData).toHaveBeenCalledWith({ [INDEX_COLUMN]: 'B', pnl: 42 });
     ds.destroy();

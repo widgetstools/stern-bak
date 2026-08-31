@@ -94,7 +94,8 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   private rootCount: number | null = null;
   /** Block requests the grid is waiting on right now. */
   private inFlight = 0;
-  private pendingRows = new Map<string, Record<string, unknown>>();
+  /** Ids that ticked since the last flush; values come lazily from the feed. */
+  private pendingIds = new Set<string>();
   /** Leaf rows on screen at the last flush, so newly visible ones get caught. */
   private lastRenderedIds = new Set<string>();
   private flushHandle: ReturnType<typeof setTimeout> | null = null;
@@ -274,7 +275,7 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
       this.api?.refreshServerSide({ purge: false });
       return;
     }
-    for (const [id, row] of event.rows) this.pendingRows.set(id, row);
+    for (const id of event.ids) this.pendingIds.add(id);
     this.scheduleFlush();
   }
 
@@ -299,8 +300,8 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
     const request = this.lastRequest;
     if (this.destroyed || !api || !request || this.flushing) return;
     if (api.isDestroyed()) return;
-    const rows = this.pendingRows;
-    this.pendingRows = new Map();
+    const ids = this.pendingIds;
+    this.pendingIds = new Set();
     this.flushing = true;
     try {
       if (this.options.liveUpdates === 'refresh') {
@@ -312,7 +313,7 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
        * Leaf values cost nothing to apply: the feed already carries them, so
        * nothing is asked of the engine and this runs even mid-scroll.
        */
-      this.patchLeafRows(nodes, rows);
+      this.patchLeafRows(nodes, ids);
       /*
        * Aggregates can only come from the engine, so they wait while the grid
        * is still loading blocks — which is the whole of a fling. A row the
@@ -333,7 +334,7 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
       console.error('Perspective live update failed:', error);
     } finally {
       this.flushing = false;
-      if (this.pendingRows.size > 0) this.scheduleFlush();
+      if (this.pendingIds.size > 0) this.scheduleFlush();
     }
   }
 
@@ -348,17 +349,18 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   /**
    * Rewrites the values of leaf rows that are on screen.
    *
-   * Nothing is asked of the engine: the feed publishes the whole merged row, so
-   * the new values are already in hand. Rows are matched by the index column
-   * rather than by position — the server-side row model does not maintain
-   * `childIndex`, and identity is the only thing that stays true while the grid
-   * is scrolling underneath a pending update.
+   * Nothing is asked of the engine: the feed holds the latest row, and
+   * `feed.getRow` materialises the grid-ready values ON DEMAND — so the cost
+   * here scales with the rendered rows, never with the feed rate. Rows are
+   * matched by the index column rather than by position — the server-side row
+   * model does not maintain `childIndex`, and identity is the only thing that
+   * stays true while the grid is scrolling underneath a pending update.
    *
    * A row that ticked while it was off screen is written when it comes back,
    * which is what the "newly rendered" check is for: its block may have been
    * cached since before the tick.
    */
-  private patchLeafRows(nodes: IRowNode[], rows: Map<string, Record<string, unknown>>): void {
+  private patchLeafRows(nodes: IRowNode[], ids: ReadonlySet<string>): void {
     const renderedIds = new Set<string>();
     for (const node of nodes) {
       if (node.group || !node.data) continue;
@@ -366,7 +368,7 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
       if (typeof id !== 'string') continue;
       renderedIds.add(id);
       const row =
-        rows.get(id) ?? (this.lastRenderedIds.has(id) ? undefined : this.options.feed.getRow(id));
+        ids.has(id) || !this.lastRenderedIds.has(id) ? this.options.feed.getRow(id) : undefined;
       if (row) node.updateData(row);
     }
     this.lastRenderedIds = renderedIds;

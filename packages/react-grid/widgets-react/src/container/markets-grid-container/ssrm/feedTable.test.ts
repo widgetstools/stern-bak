@@ -89,7 +89,7 @@ describe('createSsrmFeedTable', () => {
     }
   });
 
-  it('applies ticks row-oriented (sparse-safe) and publishes grid-ready rows', async () => {
+  it('applies ticks row-oriented (sparse-safe) and names the ids that changed', async () => {
     const { client, tables } = fakeClient();
     const feed = createSsrmFeedTable({ client, schema, rowIdField: 'cusip' });
     const events: FeedTableEvent[] = [];
@@ -101,10 +101,27 @@ describe('createSsrmFeedTable', () => {
       { cusip: 'A', pnl: 7, 'rating.moody': 'Baa1', [INDEX_COLUMN]: 'A' },
     ]);
     expect(events).toHaveLength(1);
-    const event = events[0] as { type: 'update'; rows: Map<string, Record<string, unknown>> };
+    const event = events[0] as { type: 'update'; ids: ReadonlySet<string> };
     expect(event.type).toBe('update');
-    expect(event.rows.get('A')?.pnl).toBe(7);
-    expect(feed.getRow('A')?.pnl).toBe(7);
+    expect([...event.ids]).toEqual(['A']);
+    // Grid-ready values materialise lazily from the raw latest row.
+    expect(feed.getRow('A')).toEqual({
+      cusip: 'A',
+      pnl: 7,
+      'rating.moody': 'Baa1',
+      [INDEX_COLUMN]: 'A',
+    });
+  });
+
+  it('a sparse tick omits the fields it never mentioned', async () => {
+    const { client, tables } = fakeClient();
+    const feed = createSsrmFeedTable({ client, schema, rowIdField: 'cusip' });
+    feed.applyTicks([{ cusip: 'A', pnl: 9 }]);
+    await flush();
+    const update = tables[0].ops.find((op) => op.kind === 'update') as { payload: Record<string, unknown>[] };
+    // No 'rating.moody' key at all — an absent field must stay absent so the
+    // engine merge cannot erase it.
+    expect(update.payload).toEqual([{ cusip: 'A', pnl: 9, [INDEX_COLUMN]: 'A' }]);
   });
 
   it('composes composite keys the same way getRowId does', async () => {
