@@ -16,7 +16,9 @@ const mode = process.argv[2] ?? 'ssrm';
 const rate = process.argv[3] ?? '20000';
 const seconds = Number(process.argv[4] ?? 12);
 const input = process.argv[5] ?? 'keys';
-const url = `http://localhost:5213/?tag=KEYS&rate=${rate}&batch=50&gridspy${mode === 'ssrm' ? '&ssrm' : ''}`;
+/** Extra query appended raw — e.g. `thin` for field-level thin deltas. */
+const extraQuery = process.argv[6] ? `&${process.argv[6]}` : '';
+const url = `http://localhost:5213/?tag=KEYS&rate=${rate}&batch=50&gridspy${mode === 'ssrm' ? '&ssrm' : ''}${extraQuery}`;
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();

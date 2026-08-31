@@ -31,7 +31,15 @@ const DATA_PLANE =
     : undefined;
 /** True when any override is present — App re-saves the catalog rows on every load then. */
 export const STOMP_PROVIDER_OVERRIDES_ACTIVE =
-  query.has('tag') || query.has('rate') || query.has('batch') || query.has('dataPlane');
+  query.has('tag') || query.has('rate') || query.has('batch') || query.has('dataPlane') || query.has('thin');
+/**
+ * `?thin` — enable field-level thin deltas: the hub diffs each row against
+ * its cache and broadcasts only CHANGED FIELDS. Collapses the window's
+ * main-thread wire-decode cost (the dominant scroll-time load under a heavy
+ * whole-row feed) and, in SSRM mode, switches the replica table to sparse
+ * row-oriented drains (`cfg.thinDeltas` → `sparseTicks`).
+ */
+const THIN = query.has('thin');
 const ID_SUFFIX = TAG === 'TRADER001' ? '' : `:${TAG}`;
 const NAME_SUFFIX = ID_SUFFIX ? ` [${TAG}]` : '';
 
@@ -100,6 +108,7 @@ const stompLive: StompProviderConfig = {
   // `?dataPlane=subworker` → the hub runs this provider's transport in a
   // dedicated worker (undefined = hub thread, the platform default).
   dataPlane: DATA_PLANE,
+  ...(THIN ? { thinDeltas: true } : {}),
   // Snapshot flush frame size (rows per worker→client postMessage).
   // Smaller keeps each main-thread message under the long-task budget.
   snapshotChunkSize: 1000,
