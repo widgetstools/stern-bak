@@ -58,6 +58,18 @@ const GRAND_TOTAL_ROW_ID = 'rowGroupFooter_ROOT_NODE_ID';
 const GROUP_SCAN_LIMIT = 1000;
 
 /**
+ * How long the viewport must be still before a live-update flush touches the
+ * grid. Patching rendered rows mid-fling fights the scroll's own rendering
+ * for the frame budget — under a sweeping feed every row entering the
+ * viewport counts as "ticked", so an ungated flush rewrites the whole
+ * viewport every debounce while the user is trying to scroll through it.
+ * Everything stays pending; one flush catches the backlog up at rest.
+ */
+const SCROLL_QUIESCENCE_MS = 200;
+
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+/**
  * The group keys leading to a node, in the type the engine grouped by — the
  * same route its own request carried. Built with the same walk the request path
  * uses, so a null-keyed ancestor does not truncate it.
@@ -101,6 +113,16 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   private flushHandle: ReturnType<typeof setTimeout> | null = null;
   private flushing = false;
   private destroyed = false;
+  /**
+   * When the grid body last scrolled; live flushes wait for quiescence.
+   * Starts at -Infinity so a grid that has never scrolled never defers —
+   * clocks (real or faked) may start near zero.
+   */
+  private lastScrollAt = Number.NEGATIVE_INFINITY;
+  private scrollApi: GridApi | null = null;
+  private readonly onBodyScroll = (): void => {
+    this.lastScrollAt = now();
+  };
   /** Filter conditions the last request could not translate exactly. */
   lastUnsupportedFilters: string[] = [];
 
@@ -117,13 +139,24 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
   }
 
   getRows(params: IServerSideGetRowsParams): void {
-    if (this.api !== params.api) this.api = params.api;
+    if (this.api !== params.api) {
+      this.api = params.api;
+      this.watchScroll(params.api);
+    }
     void this.load(params);
+  }
+
+  private watchScroll(api: GridApi): void {
+    this.scrollApi?.removeEventListener('bodyScroll', this.onBodyScroll);
+    this.scrollApi = api;
+    api.addEventListener('bodyScroll', this.onBodyScroll);
   }
 
   destroy(): void {
     this.destroyed = true;
     this.unsubscribe();
+    this.scrollApi?.removeEventListener('bodyScroll', this.onBodyScroll);
+    this.scrollApi = null;
     if (this.flushHandle !== null) clearTimeout(this.flushHandle);
     void this.views.clear();
   }
@@ -300,6 +333,11 @@ export class PerspectiveSsrmDatasource implements IServerSideDatasource {
     const request = this.lastRequest;
     if (this.destroyed || !api || !request || this.flushing) return;
     if (api.isDestroyed()) return;
+    if (now() - this.lastScrollAt < SCROLL_QUIESCENCE_MS) {
+      // Mid-fling: leave everything pending and try again after the debounce.
+      this.scheduleFlush();
+      return;
+    }
     const ids = this.pendingIds;
     this.pendingIds = new Set();
     this.flushing = true;

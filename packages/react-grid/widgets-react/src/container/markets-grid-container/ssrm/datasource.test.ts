@@ -61,12 +61,21 @@ function fakeFeed(): {
 }
 
 function fakeApi() {
+  const listeners = new Map<string, (event: unknown) => void>();
   return {
     isDestroyed: () => false,
     getRenderedNodes: vi.fn(() => [] as unknown[]),
     refreshServerSide: vi.fn(),
     retryServerSideLoads: vi.fn(),
     getRowNode: vi.fn(() => null),
+    addEventListener: vi.fn((name: string, handler: (event: unknown) => void) => {
+      listeners.set(name, handler);
+    }),
+    removeEventListener: vi.fn((name: string) => {
+      listeners.delete(name);
+    }),
+    /** Test hook: simulate a grid body scroll. */
+    fireScroll: () => listeners.get('bodyScroll')?.({}),
   };
 }
 
@@ -179,7 +188,12 @@ describe('PerspectiveSsrmDatasource — block loads', () => {
 
 describe('PerspectiveSsrmDatasource — live updates', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    // 'performance' is NOT in vitest's default toFake set, but the scroll
+    // quiescence gate reads performance.now() — without faking it the gate
+    // would compare real time against fake-advanced timers and defer forever.
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
+    });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -256,6 +270,43 @@ describe('PerspectiveSsrmDatasource — live updates', () => {
     emit({ type: 'update', ids: new Set(['A']) });
     await vi.advanceTimersByTimeAsync(80);
     expect(api.refreshServerSide).toHaveBeenCalledWith({ purge: false });
+    ds.destroy();
+  });
+
+  it('defers the flush while the viewport is scrolling, catching up at rest', async () => {
+    const { table } = fakeTable(() => ({
+      columns: { desk: [], pnl: [], [INDEX_COLUMN]: [] },
+      numRows: 0,
+    }));
+    const { feed, emit, rows } = fakeFeed();
+    const ds = new PerspectiveSsrmDatasource({
+      table,
+      feed,
+      schema,
+      leafColumns,
+      liveUpdateDebounceMs: 50,
+    });
+    const api = fakeApi();
+    const updateData = vi.fn();
+    const ticked = { [INDEX_COLUMN]: 'A', pnl: 5 };
+    rows.set('A', ticked);
+    api.getRenderedNodes.mockReturnValue([
+      { group: false, data: { [INDEX_COLUMN]: 'A', pnl: 1 }, updateData },
+    ]);
+    ds.getRows(loadParams(api, request()));
+    await vi.advanceTimersByTimeAsync(1);
+
+    emit({ type: 'update', ids: new Set(['A']) });
+    // Keep the viewport moving: every re-armed flush finds a recent scroll.
+    for (let i = 0; i < 6; i++) {
+      api.fireScroll();
+      await vi.advanceTimersByTimeAsync(60);
+    }
+    expect(updateData).not.toHaveBeenCalled();
+
+    // Viewport settles → the next flush patches the whole backlog.
+    await vi.advanceTimersByTimeAsync(300);
+    expect(updateData).toHaveBeenCalledWith(ticked);
     ds.destroy();
   });
 
