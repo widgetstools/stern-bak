@@ -58,20 +58,7 @@ export type ProviderEmitEvent =
    * (bufferedDispatch with a conflate key) produced the batch. Lets the
    * hub skip its per-batch duplicate-key Set on the live hot path.
    */
-  | {
-      rows: readonly unknown[];
-      replace?: boolean;
-      uniqueKeys?: boolean;
-      /**
-       * Wire chunks that encode exactly `rows`, in order, at most
-       * `LATE_JOIN_CHUNK_SIZE` rows each, using the hub's own chunk codec
-       * rule — produced by a provider sub-worker that already did the
-       * encoding on its thread. A hub that broadcasts the batch unchanged
-       * (no key drops, no intra-batch duplicates) relays / replay-seeds
-       * these instead of re-encoding; otherwise it re-encodes as usual.
-       */
-      encoded?: readonly EncodedChunk[];
-    }
+  | { rows: readonly unknown[]; replace?: boolean; uniqueKeys?: boolean }
   | { status: ProviderStatus; error?: string }
   | { byteSize: number }
   | { rowsReceived: number }

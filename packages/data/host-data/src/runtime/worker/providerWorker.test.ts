@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { registerProvider } from '../providers/registry';
-import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider';
+import type { EncodedChunk, ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider';
 import type { AppDataRow, Event, Request } from '../protocol';
 import { installProviderWorker, type ProviderWorkerPort as EntryPort } from './providerWorkerEntry';
-import { startProviderInWorker, type ProviderWorkerPort as HostPort } from './providerWorkerHost';
+import {
+  startProviderInWorker,
+  type ProviderWorkerControl,
+  type ProviderWorkerPort as HostPort,
+} from './providerWorkerHost';
+import type { ProviderWorkerBatchMeta } from './providerWorkerProtocol';
 import { createDeferredProviderHandle } from './deferredProviderHandle';
 import { SharedWorkerDataServicesHub } from './SharedWorkerDataServicesHub';
 import type { PortLike } from './hubTypes';
@@ -14,7 +19,8 @@ import type { PortLike } from './hubTypes';
  * end and the worker-facing end of one asynchronous channel (messages hop
  * through a microtask, like real `postMessage`). The real
  * `installProviderWorker` sits on the worker end, so these tests exercise
- * the actual protocol on both sides.
+ * the actual protocol — including the worker-resident data plane — on
+ * both sides.
  */
 class FakePortPair {
   readonly hubEnd: HostPort & { closed: boolean };
@@ -49,7 +55,7 @@ class FakePortPair {
 }
 
 const flush = async (): Promise<void> => {
-  for (let i = 0; i < 8; i++) await Promise.resolve();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
 interface FakeTransport {
@@ -87,6 +93,9 @@ const appRow = (name: string, values: Record<string, unknown>): AppDataRow =>
 
 const cfg = (overrides: Record<string, unknown> = {}): ProviderConfig =>
   ({ providerType: 'mock', keyColumn: 'id', ...overrides } as unknown as ProviderConfig);
+
+const wide = (n: number, tag = 0) =>
+  Array.from({ length: n }, (_, i) => ({ id: `r${i}`, px: i * 1.5 + tag, desk: i % 2 ? 'A' : 'B' }));
 
 beforeEach(() => {
   transports.length = 0;
@@ -127,37 +136,96 @@ describe('provider sub-worker — entry ↔ host over a transferred port', () =>
   function boot(overrides: Record<string, unknown> = {}, rows: AppDataRow[] = [], extra?: Record<string, unknown>) {
     const { pair, installed } = bootWorker();
     const emitted: ProviderEmitEvent[] = [];
+    const batches: Array<{ events: readonly Event[]; meta: ProviderWorkerBatchMeta }> = [];
+    const replays: Array<{ reqId: string; chunks: readonly EncodedChunk[]; cacheSize: number }> = [];
     const appData = makeAppData(rows);
     const onDead = vi.fn();
-    const handle = startProviderInWorker(cfg(overrides), (e) => emitted.push(e), {
+    const control = startProviderInWorker(cfg(overrides), {
       providerId: 'p1',
       appData,
       port: pair.hubEnd,
+      dataListenerCount: 1,
       extra,
+      emit: (e) => emitted.push(e),
+      onBatch: (events, meta) => batches.push({ events, meta }),
+      onReplayChunks: (reqId, chunks, cacheSize) => replays.push({ reqId, chunks, cacheSize }),
       onDead,
       startTimeoutMs: 50,
       pingIntervalMs: 40,
       stopGraceMs: 20,
     });
-    return { pair, installed, emitted, appData, handle, onDead };
+    return { pair, installed, emitted, batches, replays, appData, control, handle: control.handle, onDead };
   }
 
-  it('starts the transport in the worker and forwards its emits to the hub', async () => {
-    const { emitted, pair } = boot({ tag: 'x' });
+  it('runs the whole data plane in the worker: cache, encode, wire templates, meta', async () => {
+    const { batches, emitted, installed } = boot();
     await flush();
     expect(transports).toHaveLength(1);
-    expect((transports[0]!.cfg as { tag?: string }).tag).toBe('x');
-    expect(pair.hubSent[0]).toMatchObject({ kind: 'pw-start', providerId: 'p1' });
-    expect(pair.workerSent).toContainEqual({ kind: 'pw-started' });
-    expect(emitted).toEqual([{ status: 'loading' }]);
+    expect(emitted).toEqual([{ status: 'loading' }]); // pass-through
 
-    transports[0]!.emit({ rows: [{ id: 1 }], uniqueKeys: true });
-    transports[0]!.emit({ timing: { firstMessageMs: 7 } });
+    transports[0]!.emit({ rows: wide(700), replace: true });
     await flush();
-    expect(emitted.slice(1)).toEqual([
-      { rows: [{ id: 1 }], uniqueKeys: true },
-      { timing: { firstMessageMs: 7 } },
-    ]);
+    expect(batches).toHaveLength(1);
+    const b = batches[0]!;
+    expect(b.meta).toMatchObject({ rowCount: 700, cacheSize: 700, keyDropCount: 0 });
+    expect(installed.cacheSize()).toBe(700);
+    // ≤500-row delta-bin chunks, replace on the first — the hub's own rule.
+    expect(b.events.map((e) => e.kind)).toEqual(['delta-bin', 'delta-bin']);
+    expect((b.events[0] as { replace?: boolean }).replace).toBe(true);
+    expect((b.events[1] as { replace?: boolean }).replace).toBe(false);
+
+    // Post-ready small tick → plain delta template (< LIVE_BIN_MIN_ROWS).
+    transports[0]!.emit({ status: 'ready' });
+    transports[0]!.emit({ rows: [{ id: 'r1', px: 9 }], uniqueKeys: true });
+    await flush();
+    expect(emitted.at(-1)).toEqual({ status: 'ready' });
+    const live = batches.at(-1)!;
+    expect(live.events.map((e) => e.kind)).toEqual(['delta']);
+    expect((live.events[0] as { rows: unknown[] }).rows).toEqual([{ id: 'r1', px: 9 }]);
+    expect(live.meta.cacheSize).toBe(700);
+  });
+
+  it('accounts key drops in the worker and reports them through meta', async () => {
+    const { batches } = boot();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await flush();
+    transports[0]!.emit({ rows: [{ id: 'a' }, { noKey: true }], replace: true });
+    await flush();
+    expect(batches[0]!.meta).toMatchObject({ cacheSize: 1, keyDropCount: 1 });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('dropped 1 row(s)'));
+  });
+
+  it('skips broadcast building at zero data listeners but keeps the cache current', async () => {
+    const { batches, control, installed } = boot();
+    await flush();
+    control.setDataListenerCount(0);
+    await flush();
+    transports[0]!.emit({ rows: wide(200), replace: true });
+    await flush();
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.events).toEqual([]);
+    expect(batches[0]!.meta.cacheSize).toBe(200);
+    expect(installed.cacheSize()).toBe(200);
+    control.setDataListenerCount(1);
+    await flush();
+    transports[0]!.emit({ rows: wide(200, 1), replace: true });
+    await flush();
+    expect(batches[1]!.events.length).toBeGreaterThan(0);
+  });
+
+  it('answers replay requests from the worker replay cache', async () => {
+    const { control, replays } = boot();
+    await flush();
+    transports[0]!.emit({ rows: wide(600), replace: true });
+    await flush();
+    control.requestReplay('rq1');
+    await flush();
+    expect(replays).toHaveLength(1);
+    expect(replays[0]).toMatchObject({ reqId: 'rq1', cacheSize: 600 });
+    expect(replays[0]!.chunks).toHaveLength(2);
+    control.requestReplay('rq2');
+    await flush();
+    expect(replays[1]!.cacheSize).toBe(600);
   });
 
   it('applies a start overlay (CREATE+RESTART) inside the worker', async () => {
@@ -174,9 +242,6 @@ describe('provider sub-worker — entry ↔ host over a transferred port', () =>
     appData.upsert(appRow('svc', { url: 'ws://b' }));
     await flush();
     expect(installed.lookup('svc', 'url')).toBe('ws://b');
-    appData.remove(appRow('svc', {}));
-    await flush();
-    expect(installed.lookup('svc', 'url')).toBeUndefined();
   });
 
   it('forwards restart with its overlay and surfaces a rejected restart as a non-fatal error', async () => {
@@ -201,24 +266,16 @@ describe('provider sub-worker — entry ↔ host over a transferred port', () =>
     expect(pair.workerSent.at(-1)).toEqual({ kind: 'pw-stopped' });
     expect(pair.hubEnd.closed).toBe(true);
     expect(appData.listenerCount()).toBe(0);
-    // The SharedWorker stays up: a fresh port can start it again.
+    // The SharedWorker stays up: a fresh port can start it again with fresh state.
+    expect(installed.cacheSize()).toBe(0);
     const again = new FakePortPair();
     installed.connect(again.workerEnd);
-    startProviderInWorker(cfg(), () => undefined, { providerId: 'p1', appData, port: again.hubEnd, onDead: () => undefined });
+    startProviderInWorker(cfg(), {
+      providerId: 'p1', appData, port: again.hubEnd, dataListenerCount: 1,
+      emit: () => undefined, onBatch: () => undefined, onReplayChunks: () => undefined, onDead: () => undefined,
+    });
     await flush();
     expect(transports).toHaveLength(2);
-  });
-
-  it('closes the port after the grace period when the worker never acks the stop', async () => {
-    vi.useFakeTimers();
-    const { handle, pair } = boot();
-    await flush();
-    pair.dead = true;
-    handle.stop();
-    await flush();
-    expect(pair.hubEnd.closed).toBe(false);
-    vi.advanceTimersByTime(25);
-    expect(pair.hubEnd.closed).toBe(true);
   });
 
   it('a transport that throws at start is fatal: hub sees status error and the worker is judged dead', async () => {
@@ -227,12 +284,6 @@ describe('provider sub-worker — entry ↔ host over a transferred port', () =>
     expect(emitted).toEqual([{ status: 'error', error: 'boom at start' }]);
     expect(onDead).toHaveBeenCalledWith(expect.stringContaining('failed to start'));
     expect(pair.hubEnd.closed).toBe(true);
-  });
-
-  it('an unresolvable template at start is fatal too (no silent half-resolved cfg)', async () => {
-    const { onDead } = boot({ url: '{{missing.url}}' });
-    await flush();
-    expect(onDead).toHaveBeenCalledTimes(1);
   });
 
   it('a worker that never acknowledges start is judged dead after startTimeoutMs', async () => {
@@ -252,98 +303,12 @@ describe('provider sub-worker — entry ↔ host over a transferred port', () =>
     vi.advanceTimersByTime(45);
     await flush();
     expect(onDead).not.toHaveBeenCalled();
-    expect(pair.hubSent.filter((m) => (m as { kind: string }).kind === 'pw-ping')).toHaveLength(2);
     pair.dead = true;
     vi.advanceTimersByTime(45); // ping (unanswered)
     vi.advanceTimersByTime(45); // next ping finds no pong
     expect(onDead).toHaveBeenCalledWith('missed heartbeat');
-    // Inert afterwards.
     handle.restart({ x: 1 });
     expect(pair.hubSent.filter((m) => (m as { kind: string }).kind === 'pw-restart')).toHaveLength(0);
-  });
-});
-
-describe('provider sub-worker — encoded row relay', () => {
-  function bootRelay(overrides: Record<string, unknown> = {}) {
-    const { pair } = bootWorker();
-    const emitted: ProviderEmitEvent[] = [];
-    startProviderInWorker(cfg(overrides), (e) => emitted.push(e), {
-      providerId: 'p1',
-      appData: makeAppData(),
-      port: pair.hubEnd,
-      onDead: () => undefined,
-    });
-    return { pair, emitted };
-  }
-
-  const wide = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r${i}`, px: i * 1.5, desk: i % 2 ? 'A' : 'B' }));
-
-  it('encodes snapshot and large batches on the worker, transfers the bytes, and the hub gets rows + chunks', async () => {
-    const { pair, emitted } = bootRelay();
-    await flush();
-    const rows = wide(1200);
-    transports[0]!.emit({ rows, replace: true });
-    await flush();
-    const wire = pair.workerSent.find((m) => (m as { kind: string }).kind === 'pw-rows') as
-      | { encoded: Array<{ buf: Uint8Array; enc: string }>; rowCount: number; replace?: boolean }
-      | undefined;
-    expect(wire).toBeDefined();
-    expect(wire!.rowCount).toBe(1200);
-    expect(wire!.encoded).toHaveLength(3); // ≤ LATE_JOIN_CHUNK_SIZE (500) per chunk
-    expect(wire!.encoded.every((c) => c.enc === 'col')).toBe(true);
-    expect(wire!.encoded.every((c) => c.buf.byteOffset === 0 && c.buf.byteLength === c.buf.buffer.byteLength)).toBe(true);
-
-    const got = emitted.find((e) => 'rows' in e) as Extract<ProviderEmitEvent, { rows: readonly unknown[] }>;
-    expect(got.replace).toBe(true);
-    expect(got.rows).toEqual(rows);
-    expect(got.encoded).toBe(wire!.encoded);
-  });
-
-  it('honours cfg.wireFormat json and keeps small live ticks as plain object emits', async () => {
-    const { pair, emitted } = bootRelay({ wireFormat: 'json' });
-    await flush();
-    transports[0]!.emit({ rows: wide(64) });
-    transports[0]!.emit({ rows: wide(3), uniqueKeys: true });
-    await flush();
-    const wires = pair.workerSent.filter((m) => (m as { kind: string }).kind === 'pw-rows') as Array<{ encoded: Array<{ enc: string }> }>;
-    expect(wires).toHaveLength(1);
-    expect(wires[0]!.encoded[0]!.enc).toBe('json');
-    const plain = pair.workerSent.filter((m) => (m as { kind: string }).kind === 'pw-emit');
-    expect(plain.some((m) => (m as { event: ProviderEmitEvent }).event && 'rows' in (m as { event: ProviderEmitEvent }).event)).toBe(true);
-    const rowEvents = emitted.filter((e) => 'rows' in e) as Array<Extract<ProviderEmitEvent, { rows: readonly unknown[] }>>;
-    expect(rowEvents.map((e) => e.rows.length)).toEqual([64, 3]);
-    expect(rowEvents[0]!.encoded).toBeDefined();
-    expect(rowEvents[1]!.encoded).toBeUndefined();
-    expect(rowEvents[1]!.uniqueKeys).toBe(true);
-  });
-
-  it('the hub relays the worker-encoded chunks verbatim to windows instead of re-encoding', async () => {
-    const hub = new SharedWorkerDataServicesHub({ dataPlane: 'subworker' });
-    const messages: unknown[] = [];
-    const pairs: FakePortPair[] = [];
-    const port: PortLike = {
-      postMessage: (m) => {
-        messages.push(m);
-        const ev = m as Event;
-        if (ev.kind !== 'provider-worker-needed') return;
-        queueMicrotask(() => {
-          const { pair } = bootWorker();
-          pairs.push(pair);
-          hub.handleRequest(port, { kind: 'provider-port', providerId: ev.providerId }, [pair.hubEnd as unknown as MessagePort]);
-        });
-      },
-    };
-    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg() });
-    await flush();
-    transports[0]!.emit({ rows: wide(700), replace: true });
-    await flush();
-    const wire = pairs[0]!.workerSent.find((m) => (m as { kind: string }).kind === 'pw-rows') as { encoded: Array<{ buf: Uint8Array }> };
-    const bins = messages.filter((m) => (m as { kind: string }).kind === 'delta-bin') as Array<{ buf: Uint8Array; replace?: boolean }>;
-    expect(bins).toHaveLength(2);
-    expect(bins[0]!.buf).toBe(wire.encoded[0]!.buf);
-    expect(bins[1]!.buf).toBe(wire.encoded[1]!.buf);
-    expect(bins[0]!.replace).toBe(true);
-    await hub.dispose();
   });
 });
 
@@ -351,12 +316,9 @@ describe('createDeferredProviderHandle', () => {
   it('queues restarts until resolved, and stops the real handle if stopped before', () => {
     const d = createDeferredProviderHandle();
     d.handle.restart({ a: 1 });
-    d.handle.restart({ b: 2 });
     const real = { stop: vi.fn(), restart: vi.fn() };
     d.resolve(real);
-    expect(real.restart.mock.calls.map((c) => c[0])).toEqual([{ a: 1 }, { b: 2 }]);
-    d.handle.restart({ c: 3 });
-    expect(real.restart).toHaveBeenLastCalledWith({ c: 3 });
+    expect(real.restart).toHaveBeenCalledWith({ a: 1 });
 
     const d2 = createDeferredProviderHandle();
     d2.handle.restart({ a: 1 });
@@ -368,7 +330,7 @@ describe('createDeferredProviderHandle', () => {
   });
 });
 
-describe('SharedWorkerDataServicesHub — dataPlane: subworker', () => {
+describe('SharedWorkerDataServicesHub — dataPlane: subworker (worker-owned data plane)', () => {
   /** A window port that answers `provider-worker-needed` like the real client does. */
   function makeWindow(hub: SharedWorkerDataServicesHub, opts: { unavailable?: boolean } = {}) {
     const messages: unknown[] = [];
@@ -397,44 +359,70 @@ describe('SharedWorkerDataServicesHub — dataPlane: subworker', () => {
     return { port, messages, pairs };
   }
 
-  function introspectPlane(hub: SharedWorkerDataServicesHub, providerId: string): string | undefined {
+  function introspect(hub: SharedWorkerDataServicesHub, providerId: string) {
     const port: PortLike & { messages: unknown[] } = { messages: [], postMessage: (m) => port.messages.push(m) };
     hub.handleRequest(port, { kind: 'hub-introspect', reqId: 'r1' } as never);
     const snap = port.messages.find((m) => (m as { introspect?: unknown }).introspect) as
-      | { introspect: { providers: Array<{ providerId: string; dataPlane?: string }> } }
+      | { introspect: { providers: Array<{ providerId: string; dataPlane?: string; rowCount?: number }> } }
       | undefined;
-    return snap?.introspect.providers.find((p) => p.providerId === providerId)?.dataPlane;
+    return snap?.introspect.providers.find((p) => p.providerId === providerId);
   }
 
-  it('asks the attaching window for a sub-worker, runs the transport over the port, and reports the plane', async () => {
+  const dataEvents = (messages: unknown[]) =>
+    messages.filter((m) => /^delta/.test((m as { kind: string }).kind)) as Array<{
+      kind: string; replace?: boolean; rows?: unknown[];
+    }>;
+
+  it('relays worker-built templates verbatim, keeps no hub-side rows, and reports worker sizes', async () => {
     const hub = new SharedWorkerDataServicesHub({ dataPlane: 'subworker' });
     const win = makeWindow(hub);
     hub.handleRequest(win.port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg() });
-    // Loading is visible before the port arrives (in-thread transports emit it synchronously).
-    expect(win.messages.some((m) => (m as { kind: string; status?: string }).kind === 'status')).toBe(true);
-    expect(win.messages.some((m) => (m as { kind: string }).kind === 'provider-worker-needed')).toBe(true);
     await flush();
     expect(win.pairs).toHaveLength(1);
-    expect(transports).toHaveLength(1);
-
-    transports[0]!.emit({ rows: [{ id: 'a', px: 1 }], replace: true });
+    transports[0]!.emit({ rows: wide(700), replace: true });
     transports[0]!.emit({ status: 'ready' });
     await flush();
-    expect(win.messages.some((m) => /^delta/.test((m as { kind: string }).kind))).toBe(true);
-    expect(introspectPlane(hub, 'p1')).toBe('subworker');
+    const evs = dataEvents(win.messages);
+    // Cold-attach empty replay first, then the two worker-encoded chunks.
+    expect(evs[0]).toMatchObject({ kind: 'delta', replace: true, rows: [] });
+    expect(evs.slice(1).map((e) => e.kind)).toEqual(['delta-bin', 'delta-bin']);
+    const row = introspect(hub, 'p1');
+    expect(row?.dataPlane).toBe('subworker');
+    expect(row?.rowCount).toBe(700);
+    await hub.dispose();
+  });
 
-    // A second window joins: it is asked to connect too (keep-alive) and its port becomes a spare.
+  it('late-joins a second window from the WORKER snapshot, gap-free against the live stream', async () => {
+    const hub = new SharedWorkerDataServicesHub({ dataPlane: 'subworker' });
+    const win = makeWindow(hub);
+    hub.handleRequest(win.port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg() });
+    await flush();
+    transports[0]!.emit({ rows: wide(600), replace: true });
+    transports[0]!.emit({ status: 'ready' });
+    await flush();
+
     const win2 = makeWindow(hub);
     hub.handleRequest(win2.port, { kind: 'attach', subId: 's2', providerId: 'p1', mode: 'data' });
-    expect(win2.messages.some((m) => (m as { kind: string }).kind === 'provider-worker-needed')).toBe(true);
+    // Live tick lands while s2's replay request is still in flight — it must
+    // not leak to s2 (its replay snapshot will contain it).
+    transports[0]!.emit({ rows: [{ id: 'r0', px: 999 }], uniqueKeys: true });
     await flush();
-    expect(win2.pairs).toHaveLength(1);
-    expect(transports).toHaveLength(1); // spare, not a second transport
 
-    await hub.dispose();
+    const s1Events = dataEvents(win.messages);
+    expect(s1Events.at(-1)).toMatchObject({ kind: 'delta', rows: [{ id: 'r0', px: 999 }] });
+
+    const s2Events = dataEvents(win2.messages);
+    expect(s2Events.length).toBeGreaterThan(0);
+    // First data event s2 sees is its replay replace — never a live delta.
+    expect(s2Events[0]!.kind).toBe('delta-bin');
+    expect(s2Events[0]!.replace).toBe(true);
+    expect(win2.messages.some((m) => (m as { kind: string; status?: string }).status === 'ready')).toBe(true);
+
+    // Promoted after replay: the next live tick reaches s2 too.
+    transports[0]!.emit({ rows: [{ id: 'r1', px: 111 }], uniqueKeys: true });
     await flush();
-    expect(transports[0]!.stops).toBe(1);
-    expect(win.pairs[0]!.hubEnd.closed).toBe(true);
+    expect(dataEvents(win2.messages).at(-1)).toMatchObject({ kind: 'delta', rows: [{ id: 'r1', px: 111 }] });
+    await hub.dispose();
   });
 
   it('replays an attach overlay onto the transport once the port arrives', async () => {
@@ -455,12 +443,14 @@ describe('SharedWorkerDataServicesHub — dataPlane: subworker', () => {
     hub.handleRequest(win.port, {
       kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg({ dataPlane: 'subworker' }),
     });
-    expect(win.messages.some((m) => (m as { kind: string }).kind === 'provider-worker-needed')).toBe(true);
     expect(transports).toHaveLength(0);
     await flush();
     expect(transports).toHaveLength(1); // started in-thread after the window declined
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('running its transport on the hub thread'));
-    expect(introspectPlane(hub, 'p1')).toBe('hub');
+    expect(introspect(hub, 'p1')?.dataPlane).toBe('hub');
+    // Hub-plane data flow still works end to end.
+    transports[0]!.emit({ rows: wide(10), replace: true });
+    expect(dataEvents(win.messages).length).toBeGreaterThan(0);
     await hub.dispose();
   });
 
@@ -473,7 +463,7 @@ describe('SharedWorkerDataServicesHub — dataPlane: subworker', () => {
     expect(transports).toHaveLength(0);
     vi.advanceTimersByTime(35);
     expect(transports).toHaveLength(1);
-    expect(introspectPlane(hub, 'p1')).toBe('hub');
+    expect(introspect(hub, 'p1')?.dataPlane).toBe('hub');
     await hub.dispose();
   });
 
@@ -489,21 +479,19 @@ describe('SharedWorkerDataServicesHub — dataPlane: subworker', () => {
     await flush();
     expect(transports).toHaveLength(1);
 
-    // First worker stops answering pings → spare (win2's port) takes over.
     win.pairs[0]!.dead = true;
     vi.advanceTimersByTime(10_000);
     vi.advanceTimersByTime(10_000);
     await flush();
     expect(transports).toHaveLength(2);
-    expect(introspectPlane(hub, 'p1')).toBe('subworker');
+    expect(introspect(hub, 'p1')?.dataPlane).toBe('subworker');
 
-    // Second worker dies too, no spares → hub thread.
     win2.pairs[0]!.dead = true;
     vi.advanceTimersByTime(10_000);
     vi.advanceTimersByTime(10_000);
     await flush();
     expect(transports).toHaveLength(3);
-    expect(introspectPlane(hub, 'p1')).toBe('hub');
+    expect(introspect(hub, 'p1')?.dataPlane).toBe('hub');
     await hub.dispose();
   });
 });

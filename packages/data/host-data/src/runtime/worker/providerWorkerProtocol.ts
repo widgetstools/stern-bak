@@ -6,12 +6,19 @@
  * SharedWorker cannot spawn workers in Chromium (`Worker` is undefined in
  * `SharedWorkerGlobalScope`), so the hub never creates them: every window
  * that subscribes to the provider constructs / joins the worker and
- * transfers its `MessagePort` to the hub (`provider-port` request). The hub
- * drives the transport over that port with the same three verbs a
- * `ProviderHandle` has (start / restart / stop) plus a heartbeat; the
- * sub-worker runs the ordinary `startProvider` and streams the transport's
- * `ProviderEmitEvent`s back unchanged, so the hub's cache / replay /
- * encode / fan-out pipeline (`applyProviderEmit`) is untouched.
+ * transfers its `MessagePort` to the hub (`provider-port` request).
+ *
+ * As of Phase 3 the sub-worker owns the provider's whole data plane —
+ * transport, row cache, replay cache, key accounting, thin-delta diffing
+ * and chunk encoding. It runs the hub's own `applyProviderEmit` pipeline
+ * against a worker-local slot and ships the finished wire-event templates
+ * (`pw-bcast`); the hub only manages subscribers, relays those templates
+ * verbatim, and asks for late-join replays (`pw-replay`). Rows never
+ * cross into the hub as objects, and the hub never decodes or re-encodes.
+ *
+ * Chunk buffers are CLONED, never transferred: the same `EncodedChunk`
+ * objects live on in the worker's replay cache, and a transfer would
+ * detach them (a clone is a flat memcpy — ~2 MB/s at 40k rows/s).
  *
  * AppData (`{{name.key}}` template resolution) is mirrored into the
  * sub-worker: a full snapshot rides on `pw-start`, and every hub-side
@@ -25,7 +32,7 @@
  */
 
 import type { ProviderConfig } from '@wellsfargo-starui/types';
-import type { AppDataRow } from '../protocol.js';
+import type { AppDataRow, Event } from '../protocol.js';
 import type { EncodedChunk, ProviderEmitEvent } from '../providers/Provider.js';
 
 export type ProviderWorkerRequest =
@@ -35,6 +42,8 @@ export type ProviderWorkerRequest =
       cfg: ProviderConfig;
       /** Current AppData rows for template resolution. */
       appData: readonly AppDataRow[];
+      /** Data-mode listener count right now (encode is skipped at 0). */
+      dataListenerCount: number;
       /**
        * Restart overlay to apply immediately after start — the hub's
        * CREATE+RESTART path (a window attaching with `extra`), and a
@@ -45,26 +54,47 @@ export type ProviderWorkerRequest =
   | { kind: 'pw-restart'; extra?: Record<string, unknown> }
   | { kind: 'pw-stop' }
   | { kind: 'pw-appdata'; op: 'upsert' | 'remove'; row: AppDataRow }
+  /** Data-listener count changed — 0 lets the worker skip encode + broadcast work. */
+  | { kind: 'pw-listeners'; data: number }
+  /**
+   * Send the current snapshot as replay chunks (`pw-replay-chunks`).
+   * Answered synchronously in the worker, so the chunk run is atomic
+   * against its own live stream: every batch emitted before the answer
+   * is inside the snapshot, every one after it follows it on the port.
+   */
+  | { kind: 'pw-replay'; reqId: string }
   | { kind: 'pw-ping' };
 
+/** Per-batch bookkeeping the hub folds into its stats / introspection. */
+export interface ProviderWorkerBatchMeta {
+  /** Rows in the upstream batch (before drops / dedupe). */
+  rowCount: number;
+  /** Worker cache size after applying the batch. */
+  cacheSize: number;
+  /** Serialized replay footprint, when every bucket is encoded. */
+  cacheBytes: number | null;
+  /** Cumulative key-drop count this (re)start cycle. */
+  keyDropCount: number;
+}
+
 export type ProviderWorkerMessage =
+  /** Pass-through transport events: status / byteSize / rowsReceived / timing. */
   | { kind: 'pw-emit'; event: ProviderEmitEvent }
   /**
-   * A `{ rows }` emit whose rows were encoded on the worker thread with
-   * the hub's own chunk codec rule (≤ `LATE_JOIN_CHUNK_SIZE` rows per
-   * chunk, columnar unless `cfg.wireFormat === 'json'`). The buffers
-   * travel in the transfer list (zero copy); the hub decodes them for
-   * its cache and relays the very same chunks to windows. Used for
-   * snapshot batches and any live batch of `LIVE_BIN_MIN_ROWS`+ rows —
-   * smaller live ticks go as plain `pw-emit` objects, like the hub's
-   * own small-delta path.
+   * One upstream rows batch, fully processed by the worker's
+   * `applyProviderEmit`: cache upserted, replay seeded, key drops
+   * accounted, and the resulting wire-event templates (`delta-bin` /
+   * `delta` / `delta-patch`, `subId: ''`) ready for the hub to fan out
+   * verbatim. `events` is empty when there were no data listeners or
+   * nothing observably changed.
    */
+  | { kind: 'pw-bcast'; events: readonly Event[]; meta: ProviderWorkerBatchMeta }
+  /** Answer to `pw-replay`: the full snapshot as pre-encoded chunks. */
   | {
-      kind: 'pw-rows';
-      encoded: readonly EncodedChunk[];
-      rowCount: number;
-      replace?: boolean;
-      uniqueKeys?: boolean;
+      kind: 'pw-replay-chunks';
+      reqId: string;
+      chunks: readonly EncodedChunk[];
+      cacheSize: number;
     }
   /** `startProvider` returned a handle. */
   | { kind: 'pw-started' }
@@ -78,8 +108,12 @@ export type ProviderWorkerMessage =
   | { kind: 'pw-stopped' }
   | { kind: 'pw-pong' };
 
-const REQUEST_KINDS = new Set(['pw-start', 'pw-restart', 'pw-stop', 'pw-appdata', 'pw-ping']);
-const MESSAGE_KINDS = new Set(['pw-emit', 'pw-rows', 'pw-started', 'pw-error', 'pw-stopped', 'pw-pong']);
+const REQUEST_KINDS = new Set([
+  'pw-start', 'pw-restart', 'pw-stop', 'pw-appdata', 'pw-listeners', 'pw-replay', 'pw-ping',
+]);
+const MESSAGE_KINDS = new Set([
+  'pw-emit', 'pw-bcast', 'pw-replay-chunks', 'pw-started', 'pw-error', 'pw-stopped', 'pw-pong',
+]);
 
 export function isProviderWorkerRequest(data: unknown): data is ProviderWorkerRequest {
   return !!data && typeof data === 'object' && REQUEST_KINDS.has((data as { kind?: string }).kind ?? '');

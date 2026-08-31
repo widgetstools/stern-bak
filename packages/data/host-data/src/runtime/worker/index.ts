@@ -14,6 +14,7 @@ export {
   startProviderInWorker,
   type ProviderWorkerPort,
   type ProviderWorkerHostOpts,
+  type ProviderWorkerControl,
 } from './providerWorkerHost.js';
 export {
   installProviderWorker,
@@ -24,6 +25,7 @@ export {
   providerWorkerName,
   type ProviderWorkerRequest,
   type ProviderWorkerMessage,
+  type ProviderWorkerBatchMeta,
 } from './providerWorkerProtocol.js';
 export {
   installSharedWorkerHub,

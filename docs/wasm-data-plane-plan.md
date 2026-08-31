@@ -565,11 +565,18 @@ only agent that can create workers is a window, so:
   AppData snapshot, `pw-restart`, `pw-stop`, `pw-appdata` mirror,
   `pw-ping`/`pw-pong` heartbeat) and receives the transport's
   `ProviderEmitEvent`s back unchanged (`applyProviderEmit` untouched);
-- **encoded relay**: snapshot batches and live batches of
-  `LIVE_BIN_MIN_ROWS`+ rows are chunk-encoded on the worker with the
-  hub's own codec rule and transferred zero-copy (`pw-rows`); the hub
-  decodes once for its cache and relays the very same chunks to windows
-  (`delta-bin`) and into the replay cache — it never re-encodes;
+- **worker-owned data plane** (Phase 3, same day): the sub-worker runs
+  the hub's own `applyProviderEmit` pipeline against a worker-local slot
+  — row cache, bucketed replay cache, dedupe / key-drop accounting,
+  thin-delta diffing, chunk encoding; one implementation, two threads.
+  It ships finished wire-event templates (`pw-bcast` + per-batch meta
+  for stats) that the hub fans out verbatim, and answers late-join
+  replays (`pw-replay` → `pw-replay-chunks`) from its replay cache —
+  answered synchronously between upstream batches, so a joining window
+  is provably gap-free (the hub holds it out of live broadcasts until
+  its replay run lands). Rows never enter the hub, which neither
+  decodes nor encodes; chunk buffers are cloned, not transferred (the
+  worker's replay cache still owns them);
 - fail-soft at every step: a window that cannot supply a worker, no
   port within `providerPortTimeoutMs` (4 s), a missed start ack or
   heartbeat → spare port from another window → hub thread, recorded on
@@ -585,16 +592,18 @@ profile windows, 16-core box):
 |---|---|---|---|
 | `hub` (today) | **86%** | `handleFrame` 28% (parse+conflate) · columnar encode 23% + `TextEncoder` 15% · GC 7% | — |
 | `subworker`, objects relayed (first cut) | 89% | structured-clone receive 30% · encode 38% | 22–26% each |
-| `subworker`, **encoded relay** | **45%** | `decodeColumnar` 24% (cache feed) · GC 7% · fan-out 5% | 36–38% each, on their own cores |
+| `subworker`, encoded relay (hub still caches) | 45% | `decodeColumnar` 24% (cache feed) · GC 7% · fan-out 5% | 36–38% each |
+| `subworker`, **worker-owned data plane (Phase 3)** | **11%** | `postMessage` fan-out 6–9% | 42–44% each, on their own cores |
 
-Both planes sustain 20k rows/s × 2 providers (each grid: 20,000 rows,
-~120 `applyTransactionAsync` per 20 s, no snapshot loss). The first cut
-proved the "relay *encoded* frames" caveat: shipping row objects across
-the port costs the hub as much to deserialize as the parse it replaced.
-With the encode moved too, the hub's remaining per-row cost is the
-decode that feeds its JS cache — exactly the cost Phase 3 (cache in the
-engine) removes. **Phase 1 exit criteria met.** Not yet run: the 1 h
-minimized + visible soak.
+All planes sustain 20k rows/s × 2 providers (each grid: 20,000 rows,
+~115 `applyTransactionAsync` per 20 s, no snapshot loss). The evolution
+is the campaign's cleanest lesson: shipping row *objects* across the
+port bought nothing (structured-clone receive = the parse it replaced);
+shipping worker-encoded chunks halved the hub; moving the *cache* out
+too left the hub with nothing but subscriber fan-out. **Phase 1 and
+Phase 3 (pure-TS form) exit criteria met** — the hub's per-provider
+data-plane cost is now ~0, so capacity scales with cores until fan-out
+itself saturates. Not yet run: the 1 h minimized + visible soak.
 
 ## 7. Delivery phases
 
@@ -603,7 +612,7 @@ minimized + visible soak.
 | **0. Bench + goldens + engine spike** (~1wk) | Captured real frame corpora (slim/wide/sparse); differential harness JS-vs-X; perf bench script with budget thresholds; **Perspective head-to-head spike (§5b)** | Corpus committed; JS baseline recorded; **engine decision made on the §5b gates** |
 | **1. Sub-worker split** (~4-5d) — **delivered 2026-08-30 (§6)** | Per-provider TS sub-worker (SharedWorker per provider, window-supplied port); hub relays encoded frames; flag `dataPlane: 'subworker'` | 20k/s sustained across ≥2 providers on a 4-core box ✓ (hub 86% → 45%); all transport tests green ✓; soak 1h minimized+visible — pending |
 | **2. WASM core: parse→conflate→encode** (~2-3wk) | Rust core (modules 1-3, 6) inside the sub-worker; cache still TS-fed from tape *only when features require it* (thinDeltas off ⇒ no materialization at all); flag `dataPlane: 'wasm'` | Differential harness: byte-identical emits vs JS on the corpus; 20k/s at ≤30% of one core |
-| **3. Cache/diff/replay in WASM** (~2wk) | Modules 4, 5, 7; JS row cache retired from the data plane; `get_rows_json` for the rare readers | thinDeltas parity on corpus; late-join replay parity; memory flat over 8h soak |
+| **3. Cache/diff/replay out of the hub** (~2wk) — **delivered 2026-08-30 in pure TS (§6)**: the sub-worker owns cache, replay, diffing and encoding via the hub's own `applyProviderEmit`; the hub relays templates and answers nothing from local state (hub thread 86% → **11%**). The engine-resident variant of this state remains Phase 2 work inside the sub-worker. | Modules 4, 5, 7; JS row cache retired from the hub's data plane ✓; `get_rows_json` for the rare readers | thinDeltas parity (same code path by construction) ✓; late-join replay parity ✓ (gap-free join proof in §6); memory flat over 8h soak — pending |
 | **4. Hardening** (~1wk) | Fail-soft fallback drills, stats/inspector wiring, docs, `wasm/BUILD.md`, size/hash CI check | Kill-switch tested live; campaign doc updated |
 
 Total: ~6-8 weeks elapsed, mostly Phase 2-3. Phase 1 ships standalone value

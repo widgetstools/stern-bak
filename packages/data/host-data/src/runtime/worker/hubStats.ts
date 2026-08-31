@@ -31,6 +31,8 @@ export function rotateStatsBuckets(slot: ProviderSlot): void {
  * must not force a cache re-encode.
  */
 export function cacheFootprintBytes(slot: ProviderSlot): number {
+  // Sub-worker slots: the cache lives in the worker; use what it reports.
+  if (slot.remote) return slot.remote.cacheBytes ?? 0;
   const exact = replayFootprintBytes(slot.replay);
   if (exact !== null) return exact;
   if (slot.cache.size === 0) return 0;
@@ -52,7 +54,7 @@ export function snapshotProviderStats(slot: ProviderSlot, subscriberCount: numbe
   const minWindow = Math.max(1, Math.min(slot.publishWindowSeconds, MIN_WINDOW));
   const publishPerMin = (rollingMinTotal / minWindow) * 60;
   return {
-    rowCount: slot.cache.size,
+    rowCount: slot.remote?.cacheSize ?? slot.cache.size,
     byteCount: slot.byteCount,
     cacheBytes: cacheFootprintBytes(slot),
     msgCount: slot.msgCount,

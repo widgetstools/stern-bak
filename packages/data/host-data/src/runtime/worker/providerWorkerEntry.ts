@@ -1,24 +1,37 @@
 /**
  * Provider sub-worker — the worker side of `dataPlane: 'subworker'`.
  *
- * Hosts exactly one provider. Runs as a SharedWorker (production: every
- * subscribing window connects, which keeps it alive; the hub drives it
- * over a port one of those windows transferred) or as a dedicated worker
- * (a runtime whose hub can spawn workers, or tests). On `pw-start` it runs
- * the ordinary `startProvider(cfg, emit)` — STOMP socket + fast frame
- * parser + conflation + projection, the whole transport, unchanged — with
- * `emit` bound to the port that sent `pw-start`, so every
- * `ProviderEmitEvent` reaches the hub as a `pw-emit` message.
+ * Hosts exactly one provider AND owns its data plane: the transport
+ * (`startProvider` — STOMP socket, fast frame parser, conflation,
+ * projection, unchanged) feeds the hub's own `applyProviderEmit`
+ * pipeline running here against a worker-local `ProviderSlot` — row
+ * cache, bucketed replay cache, dedupe / key-drop accounting, thin-delta
+ * diffing, chunk encoding. One implementation, two threads: the hub runs
+ * the very same pipeline for `dataPlane: 'hub'` providers.
  *
- * `installProviderWorker` takes the worker global so tests can drive it
- * with a fake; `providerWorkerMain.ts` is the real script entry.
+ * What leaves the worker: finished wire-event templates (`pw-bcast`)
+ * that the hub fans out verbatim, replay chunk runs (`pw-replay-chunks`)
+ * for late-joining windows, and pass-through transport events
+ * (status / byteSize / rowsReceived / timing) as `pw-emit`. Row objects
+ * cross only inside small live `delta` templates (< LIVE_BIN_MIN_ROWS),
+ * exactly as the hub's own broadcast rule ships them to windows.
+ *
+ * Runs as a SharedWorker (production: every subscribing window connects,
+ * which keeps it alive; the hub drives it over a transferred port) or as
+ * a dedicated worker (tests). `installProviderWorker` takes the worker
+ * global so tests can drive it with a fake; `providerWorkerMain.ts` is
+ * the real script entry.
  */
 
 import { startProvider } from '../providers/registry.js';
-import type { EncodedChunk, ProviderEmit, ProviderHandle } from '../providers/Provider.js';
+import type { ProviderEmit, ProviderHandle } from '../providers/Provider.js';
+import type { Event, ProviderStatus } from '../protocol.js';
+import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { WorkerAppDataStore } from './WorkerAppDataStore.js';
-import { encodeChunk } from './hubEncoding.js';
-import { LATE_JOIN_CHUNK_SIZE, LIVE_BIN_MIN_ROWS } from './hubTypes.js';
+import { applyProviderEmit, type ProviderEmitContext } from './providerEmit.js';
+import { resetProviderStats } from './hubHelpers.js';
+import { newReplayCache, ensureReplayChunks, replayFootprintBytes } from './replayCache.js';
+import { SEC_WINDOW, MIN_WINDOW, type ProviderSlot } from './hubTypes.js';
 import {
   isProviderWorkerRequest,
   type ProviderWorkerMessage,
@@ -30,21 +43,6 @@ export interface ProviderWorkerPort {
   postMessage(message: unknown, transfer?: Transferable[]): void;
   onmessage: ((ev: MessageEvent) => void) | null;
   start?(): void;
-}
-
-/**
- * A chunk's bytes as a transferable buffer: the encoder may hand back a
- * view into a larger (possibly reused) buffer, which must be copied
- * rather than detached from under it.
- */
-function transferableBuffer(chunk: EncodedChunk): ArrayBuffer {
-  const { buf } = chunk;
-  if (buf.byteOffset === 0 && buf.byteLength === buf.buffer.byteLength && buf.buffer instanceof ArrayBuffer) {
-    return buf.buffer;
-  }
-  const copy = buf.slice();
-  chunk.buf = copy;
-  return copy.buffer as ArrayBuffer;
 }
 
 /** The subset of `SharedWorkerGlobalScope` / `DedicatedWorkerGlobalScope` the entry uses. */
@@ -64,10 +62,48 @@ export interface InstalledProviderWorker {
   connect(port: ProviderWorkerPort): void;
   /** The mirrored AppData lookup the transport resolves against (diagnostics / tests). */
   lookup(name: string, key: string): unknown;
+  /** The worker-local slot's cache size (diagnostics / tests). */
+  cacheSize(): number;
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** A worker-local `ProviderSlot` — the same shape the hub builds, minus a live handle. */
+function newWorkerSlot(cfg: ProviderConfig): ProviderSlot {
+  const now = Date.now();
+  const flags = cfg as { keyColumn?: string | readonly string[]; thinDeltas?: boolean; wireFormat?: string };
+  return {
+    handle: { stop() { /* owned by the entry */ }, restart() { /* owned by the entry */ } },
+    cfg,
+    dataPlane: 'subworker',
+    cache: new Map<string, unknown>(),
+    status: 'loading',
+    byteCount: 0,
+    msgCount: 0,
+    msgsByBucket: Array.from({ length: SEC_WINDOW }, () => 0),
+    bucketIdx: 0,
+    startedAt: now,
+    lastMessageAt: null,
+    errorCount: 0,
+    snapshotFetchStartedAt: now,
+    snapshotFetchMs: null,
+    restartRequestMs: null,
+    firstMessageMs: null,
+    snapshotReady: false,
+    publishCount: 0,
+    pubsByBucket: Array.from({ length: SEC_WINDOW }, () => 0),
+    pubsByMinBucket: Array.from({ length: MIN_WINDOW }, () => 0),
+    minBucketIdx: 0,
+    publishWindowSeconds: 0,
+    keyDropCount: 0,
+    keyDropWarned: false,
+    activeRestartExtra: null,
+    replay: newReplayCache(),
+    thinDeltas: flags.thinDeltas === true && flags.keyColumn !== undefined,
+    columnar: flags.wireFormat !== 'json',
+  };
 }
 
 export function installProviderWorker(
@@ -76,49 +112,66 @@ export function installProviderWorker(
   const shared = 'onconnect' in selfRef;
   const appData = new WorkerAppDataStore();
   let handle: ProviderHandle | null = null;
+  let slot: ProviderSlot | null = null;
+  let providerId = '';
+  let dataListenerCount = 0;
   /** The port that sent the current `pw-start` — where emits go. */
   let active: ProviderWorkerPort | null = null;
-  /** `cfg.wireFormat !== 'json'` for the running provider — the hub's own chunk codec rule. */
-  let columnar = true;
 
-  const post = (message: ProviderWorkerMessage, transfer?: Transferable[]): void =>
-    active?.postMessage(message, transfer);
-
-  // Encode here what the hub would otherwise encode on its thread —
-  // snapshot batches and large live batches — and ship the bytes
-  // zero-copy. The hub decodes once for its cache and relays the chunks.
-  const emit: ProviderEmit = (event) => {
-    if ('rows' in event && (event.replace || event.rows.length >= LIVE_BIN_MIN_ROWS)) {
-      const encoded: EncodedChunk[] = [];
-      const transfer: Transferable[] = [];
-      for (let i = 0; i < event.rows.length; i += LATE_JOIN_CHUNK_SIZE) {
-        const chunk = encodeChunk(event.rows.slice(i, i + LATE_JOIN_CHUNK_SIZE), columnar);
-        encoded.push(chunk);
-        transfer.push(transferableBuffer(chunk));
-      }
-      post(
-        { kind: 'pw-rows', encoded, rowCount: event.rows.length, replace: event.replace, uniqueKeys: event.uniqueKeys },
-        transfer,
-      );
-      return;
-    }
-    post({ kind: 'pw-emit', event });
-  };
+  const post = (message: ProviderWorkerMessage): void => active?.postMessage(message);
   const appDataLookup = (name: string, key: string): unknown => appData.get(name, key);
 
-  const stopCurrent = (): Promise<void> => {
-    const current = handle;
-    handle = null;
-    return Promise.resolve()
-      .then(() => current?.stop())
-      .catch(() => undefined);
+  /** Wire-event templates collected by one `applyProviderEmit` rows call. */
+  const batchEvents: Event[] = [];
+  const workerCtx: ProviderEmitContext = {
+    dataListenerCount: () => dataListenerCount,
+    broadcast: (_providerId, _slot, eventTemplate) => {
+      batchEvents.push(eventTemplate);
+    },
+    flushStats: () => {
+      /* stats listeners live in the hub; timing/status flow via pw-emit */
+    },
+  };
+
+  const emit: ProviderEmit = (event) => {
+    const s = slot;
+    if (!s) return;
+    if ('rows' in event) {
+      batchEvents.length = 0;
+      applyProviderEmit(workerCtx, providerId, s, event);
+      post({
+        kind: 'pw-bcast',
+        events: batchEvents.slice(),
+        meta: {
+          rowCount: event.rows.length,
+          cacheSize: s.cache.size,
+          cacheBytes: replayFootprintBytes(s.replay),
+          keyDropCount: s.keyDropCount,
+        },
+      });
+      return;
+    }
+    if ('status' in event) {
+      // Mirror the two slot transitions the hub applies on status, so the
+      // worker's binary/thin-delta decisions match the hub's view.
+      if (event.status === 'loading') resetProviderStats(s);
+      else if (event.status === 'ready') s.snapshotReady = true;
+      s.status = event.status as ProviderStatus;
+    }
+    post({ kind: 'pw-emit', event });
   };
 
   const start = (req: Extract<ProviderWorkerRequest, { kind: 'pw-start' }>, from: ProviderWorkerPort): void => {
     for (const row of req.appData) appData.upsert(row);
-    if (handle) void stopCurrent();
+    if (handle) {
+      const old = handle;
+      handle = null;
+      void Promise.resolve().then(() => old.stop()).catch(() => undefined);
+    }
     active = from;
-    columnar = (req.cfg as { wireFormat?: string }).wireFormat !== 'json';
+    providerId = req.providerId;
+    dataListenerCount = req.dataListenerCount;
+    slot = newWorkerSlot(req.cfg);
     try {
       handle = startProvider(req.cfg, emit, { appDataLookup });
     } catch (err) {
@@ -140,14 +193,36 @@ export function installProviderWorker(
     }
   };
 
+  const replay = (reqId: string, from: ProviderWorkerPort): void => {
+    const s = slot;
+    if (!s) {
+      from.postMessage({ kind: 'pw-replay-chunks', reqId, chunks: [], cacheSize: 0 } satisfies ProviderWorkerMessage);
+      return;
+    }
+    // Synchronous, so the chunk run is atomic against the live stream.
+    const chunks = s.cache.size === 0 ? [] : ensureReplayChunks(s.replay, s.cache, s.columnar);
+    from.postMessage({
+      kind: 'pw-replay-chunks',
+      reqId,
+      chunks,
+      cacheSize: s.cache.size,
+    } satisfies ProviderWorkerMessage);
+  };
+
   const stop = (from: ProviderWorkerPort): void => {
-    void stopCurrent().then(() => {
-      from.postMessage({ kind: 'pw-stopped' } satisfies ProviderWorkerMessage);
-      if (active === from) active = null;
-      // A SharedWorker stays up for the next `pw-start` (other windows
-      // may still hold it); a dedicated worker has nothing left to do.
-      if (!shared) selfRef.close?.();
-    });
+    const current = handle;
+    handle = null;
+    slot = null;
+    void Promise.resolve()
+      .then(() => current?.stop())
+      .catch(() => undefined)
+      .then(() => {
+        from.postMessage({ kind: 'pw-stopped' } satisfies ProviderWorkerMessage);
+        if (active === from) active = null;
+        // A SharedWorker stays up for the next `pw-start` (other windows
+        // may still hold it); a dedicated worker has nothing left to do.
+        if (!shared) selfRef.close?.();
+      });
   };
 
   const handleRequest = (req: ProviderWorkerRequest, from: ProviderWorkerPort): void => {
@@ -161,6 +236,12 @@ export function installProviderWorker(
       case 'pw-appdata':
         if (req.op === 'upsert') appData.upsert(req.row);
         else appData.remove(req.row.configId);
+        return;
+      case 'pw-listeners':
+        dataListenerCount = req.data;
+        return;
+      case 'pw-replay':
+        replay(req.reqId, from);
         return;
       case 'pw-ping':
         from.postMessage({ kind: 'pw-pong' } satisfies ProviderWorkerMessage);
@@ -195,5 +276,5 @@ export function installProviderWorker(
     };
   }
 
-  return { handleRequest, connect, lookup: appDataLookup };
+  return { handleRequest, connect, lookup: appDataLookup, cacheSize: () => slot?.cache.size ?? 0 };
 }

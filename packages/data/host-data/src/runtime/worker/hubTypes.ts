@@ -8,6 +8,7 @@
 import type { DataPlane, ProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus, WireEncoding, AppDataEvent, SubscriberMeta } from '../protocol.js';
 import type { ProviderHandle } from '../providers/Provider.js';
+import type { ProviderWorkerControl } from './providerWorkerHost.js';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 
@@ -88,11 +89,24 @@ export interface ProviderSlot {
   handle: ProviderHandle;
   cfg: ProviderConfig;
   /**
-   * Where this slot's transport actually runs — `cfg.dataPlane` (or the
+   * Where this slot's data plane actually runs — `cfg.dataPlane` (or the
    * hub default) after the fail-soft fallback, so `'subworker'` here
-   * means a dedicated Worker really was spawned.
+   * means a provider sub-worker really is driving.
    */
   dataPlane: DataPlane;
+  /**
+   * Present while a sub-worker owns this slot's data plane: the hub-side
+   * control surface (replay requests, listener-count updates). Absent on
+   * the hub plane and after a fail-soft fallback — its presence is what
+   * routes attach-time replays to the worker.
+   */
+  remoteControl?: ProviderWorkerControl;
+  /**
+   * Worker-reported cache sizes (`pw-bcast` meta). The hub-side `cache`
+   * map stays EMPTY for sub-worker slots — rows never enter the hub —
+   * so stats / introspection read these instead.
+   */
+  remote?: { cacheSize: number; cacheBytes: number | null };
   cache: Map<string, unknown>;
   status: ProviderStatus;
   lastError?: string;
