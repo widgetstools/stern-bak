@@ -50,6 +50,11 @@ export interface UseSsrmDataParams<TData extends Record<string, unknown>> {
    */
   rowIdFieldKey: string | readonly string[] | null;
   columnDefs: ColDef<TData>[] | null;
+  /**
+   * The provider sends thin field-level deltas (`cfg.thinDeltas`) — tick rows
+   * may be sparse, so the replica table must write them row-oriented.
+   */
+  sparseTicks?: boolean;
   mode: ProviderMode;
   asOfDate: string | null;
   toolbarDate: string;
@@ -102,6 +107,7 @@ export function useSsrmData<TData extends Record<string, unknown>>(
     rowIdField,
     rowIdFieldKey,
     columnDefs,
+    sparseTicks,
     mode,
     asOfDate,
     toolbarDate,
@@ -151,7 +157,7 @@ export function useSsrmData<TData extends Record<string, unknown>>(
       const client = getSsrmEngineClient(engineAssetsFromWorkerUrl(workerUrl));
       const schema = buildSchemaFromColDefs(columnDefs);
       const leafColumns = Object.keys(schema);
-      const feed = createSsrmFeedTable({ client, schema, rowIdField });
+      const feed = createSsrmFeedTable({ client, schema, rowIdField, sparseTicks });
       const datasource = new PerspectiveSsrmDatasource({
         table: feed.table,
         feed,
@@ -175,9 +181,9 @@ export function useSsrmData<TData extends Record<string, unknown>>(
       return null;
     }
     // Reason: rowIdField (array identity churn) is keyed via rowIdFieldKey;
-    // columnDefs is memoised per activeCfg upstream.
+    // columnDefs is memoised per activeCfg upstream (as is sparseTicks).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, provider, activeId, columnDefs, rowIdFieldKey, dataHubClient]);
+  }, [enabled, provider, activeId, columnDefs, rowIdFieldKey, sparseTicks, dataHubClient]);
 
   /*
    * Disposal is deferred one macrotask so a StrictMode dev remount — cleanup

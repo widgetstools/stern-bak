@@ -10,12 +10,19 @@ import { INDEX_COLUMN, flattenRowsColumnar, type PerspectiveSchema } from './sch
  * SSRM datasource through views. The provider sub-worker stays the transport
  * authority; this table is a local, disposable projection of it.
  *
- * The tick path is the main-thread hot path — at 20k rows/s it competes with
- * keyboard navigation for the event loop — so it flattens through the
- * COMPILED plan (`compileFlattenPlan`: a trie that visits only the schema's
- * paths, ~3.6µs/row on wide nested rows vs ~20µs for a generic recursive
- * walk), and grid-ready rows for the live-patch path are materialised
- * LAZILY, per visible row, never per tick.
+ * Two disciplines keep this safe at feed rates the engine cannot match:
+ *
+ * 1. BACKPRESSURE. Ticks are never queued as writes — they conflate into one
+ *    pending map (last write per row id wins, so it can never exceed the book
+ *    size) and at most ONE tick write is in flight; each ack drains whatever
+ *    accumulated meanwhile. An unbounded write queue was the original sin
+ *    here: at 20k rows/s the engine fell behind, every queued update retained
+ *    its row arrays, and the renderer died of an "Aw, Snap!" OOM.
+ *
+ * 2. CHEAP MAIN-THREAD WORK. Arrival is a Map.set; flattening happens at
+ *    drain time through the COMPILED plan (`compileFlattenPlan`: a trie that
+ *    visits only the schema's paths, ~3.6µs/row), and grid-ready rows for the
+ *    live-patch path materialise LAZILY, per visible row, never per tick.
  */
 
 export type FeedTableEvent =
@@ -51,6 +58,14 @@ export interface SsrmFeedTableOptions {
   schema: PerspectiveSchema;
   /** The provider's key column(s) — the same shape `getRowId` composes from. */
   rowIdField: string | readonly string[];
+  /**
+   * The provider sends thin field-level deltas, so tick rows may be SPARSE.
+   * Drains then stay row-oriented (a column array would write nulls over
+   * fields an update never mentioned). Default false: tick rows are whole
+   * rows and drains go column-oriented, which is roughly an order of
+   * magnitude cheaper for the engine against an indexed table.
+   */
+  sparseTicks?: boolean;
 }
 
 /*
@@ -62,17 +77,24 @@ export interface SsrmFeedTableOptions {
  */
 const SNAPSHOT_CHUNK_ROWS = 2000;
 
+/**
+ * Conflated rows per tick drain. Caps both the flatten task on the main
+ * thread (~5k × ~3.6µs ≈ 20ms) and the engine's per-write cost; the rest of
+ * the backlog drains on the next ack.
+ */
+const TICK_DRAIN_CHUNK_ROWS = 5000;
+
 export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
   const columns = new Set(Object.keys(opts.schema));
-  /*
-   * The compiled trie visits ONLY these paths inside each nested row — the
-   * difference between the feed costing ~45% of the main thread and ~7% at
-   * 20k rows/s. The index column is synthesised, not read from the row.
-   */
-  const plan = compileFlattenPlan(Object.keys(opts.schema).filter((c) => c !== INDEX_COLUMN));
+  const planColumns = Object.keys(opts.schema).filter((c) => c !== INDEX_COLUMN);
+  const plan = compileFlattenPlan(planColumns);
+  const sparseTicks = opts.sparseTicks ?? false;
   const listeners = new Set<(event: FeedTableEvent) => void>();
   /** RAW rows that ticked since the last snapshot, by index value. */
   let latest = new Map<string, Record<string, unknown>>();
+  /** Conflated raw ticks awaiting their engine write (last write wins). */
+  let pendingTicks = new Map<string, Record<string, unknown>>();
+  let tickDrainQueued = false;
   let disposed = false;
   let warnedNullKey = false;
 
@@ -83,7 +105,8 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
   /*
    * Perspective applies writes asynchronously and a later `update` must not
    * overtake an earlier one, so every write goes through one promise chain.
-   * The feed is conflated upstream, so this queue stays shallow.
+   * The chain's depth is bounded: one snapshot load plus at most one queued
+   * tick drain (see BACKPRESSURE above).
    */
   let writeQueue: Promise<unknown> = Promise.resolve();
   function enqueue<T>(work: () => Promise<T>): void {
@@ -116,6 +139,58 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
   }
 
   /**
+   * Column arrays from already-flat rows. A column no row in the batch
+   * carries is left out entirely — emitting it would write nulls over values
+   * the batch never mentioned.
+   */
+  function columnarFromFlat(flatRows: readonly Record<string, unknown>[]): Record<string, unknown[]> {
+    const out: Record<string, unknown[]> = {};
+    for (const key of [...planColumns, INDEX_COLUMN]) {
+      let seen = false;
+      for (const row of flatRows) {
+        if (key in row) {
+          seen = true;
+          break;
+        }
+      }
+      if (!seen) continue;
+      out[key] = flatRows.map((row) => (key in row ? row[key] : null));
+    }
+    return out;
+  }
+
+  /** Drains up to one chunk of the conflated backlog; at most one in flight. */
+  function drainTicks(): void {
+    if (disposed || tickDrainQueued || pendingTicks.size === 0) return;
+    tickDrainQueued = true;
+    enqueue(async () => {
+      try {
+        if (disposed) return;
+        const entries: [string, Record<string, unknown>][] = [];
+        for (const entry of pendingTicks) {
+          pendingTicks.delete(entry[0]);
+          entries.push(entry);
+          if (entries.length >= TICK_DRAIN_CHUNK_ROWS) break;
+        }
+        if (entries.length === 0) return;
+        const ids = new Set<string>();
+        const flatRows: Record<string, unknown>[] = [];
+        for (const [id, row] of entries) {
+          ids.add(id);
+          flatRows.push(toGridRow(id, row));
+          latest.set(id, row);
+        }
+        const payload = sparseTicks ? flatRows : columnarFromFlat(flatRows);
+        await (await table).update(payload as Parameters<Table['update']>[0]);
+        emit({ type: 'update', ids });
+      } finally {
+        tickDrainQueued = false;
+        if (!disposed && pendingTicks.size > 0) drainTicks();
+      }
+    });
+  }
+
+  /**
    * Replaces the table's contents a chunk at a time, announcing each one so
    * the grid fills in as the snapshot lands instead of waiting for all of it.
    * `clear` keeps the schema, the index and every open view, so the views the
@@ -131,11 +206,6 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
     }
     for (let start = 0; start < keyed.length; start += SNAPSHOT_CHUNK_ROWS) {
       const chunk = keyed.slice(start, start + SNAPSHOT_CHUNK_ROWS);
-      /*
-       * Column-oriented on purpose: a row-oriented update against an indexed
-       * table degrades badly with batch size (see `flattenRowsColumnar`).
-       * Safe here because a snapshot's rows are whole rows by definition.
-       */
       const columnar = flattenRowsColumnar(
         chunk.map((entry) => entry.row),
         columns,
@@ -151,6 +221,10 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
 
     applySnapshot(rows) {
       if (disposed) return;
+      // Ticks conflated before this call describe the PREVIOUS table
+      // contents; the snapshot supersedes them. Ticks arriving after this
+      // call are post-snapshot by stream order and stay pending.
+      pendingTicks = new Map();
       enqueue(async () => {
         if (disposed) return;
         await loadSnapshot(await table, rows);
@@ -159,35 +233,16 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
 
     applyTicks(rows) {
       if (disposed || rows.length === 0) return;
-      /*
-       * Row-oriented on purpose: a tick batch may not carry every column
-       * (thin-delta providers), and a column array would write nulls over
-       * fields an update never mentioned. The plan flattener only emits the
-       * fields a row actually has, so sparse rows stay sparse. (One shape
-       * nuance vs the columnar snapshot path: an array-valued column arrives
-       * as JSON text here, `join(', ')` there — both render as strings.)
-       */
-      const flat: Record<string, unknown>[] = [];
-      const ids = new Set<string>();
-      const raw = new Map<string, Record<string, unknown>>();
+      // Arrival is a Map.set per row — all real work happens at drain time.
       for (const row of rows) {
         const id = indexOf(row);
-        if (id === null) continue;
-        flat.push(toGridRow(id, row));
-        ids.add(id);
-        raw.set(id, row);
+        if (id !== null) pendingTicks.set(id, row);
       }
-      if (flat.length === 0) return;
-      enqueue(async () => {
-        if (disposed) return;
-        await (await table).update(flat as Parameters<Table['update']>[0]);
-        for (const [id, row] of raw) latest.set(id, row);
-        emit({ type: 'update', ids });
-      });
+      drainTicks();
     },
 
     getRow(id) {
-      const raw = latest.get(id);
+      const raw = pendingTicks.get(id) ?? latest.get(id);
       return raw ? toGridRow(id, raw) : undefined;
     },
 
@@ -203,6 +258,7 @@ export function createSsrmFeedTable(opts: SsrmFeedTableOptions): SsrmFeedTable {
       disposed = true;
       listeners.clear();
       latest = new Map();
+      pendingTicks = new Map();
       enqueue(async () => {
         try {
           await (await table).delete();

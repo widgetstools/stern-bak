@@ -623,6 +623,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     rowIdField,
     rowIdFieldKey,
     columnDefs,
+    sparseTicks: Boolean((activeCfg as { thinDeltas?: boolean } | null)?.thinDeltas),
     mode: selection.mode,
     asOfDate,
     toolbarDate,
