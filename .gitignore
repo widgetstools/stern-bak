@@ -79,3 +79,6 @@ docs/visual-reference/
 
 # Git worktrees (local isolation)
 .worktrees/
+
+# Soak-harness output (apps/source/stomp-marketsgrid-minimal/scripts/soak.mjs)
+soak-*.csv
