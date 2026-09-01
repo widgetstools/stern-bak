@@ -25,12 +25,14 @@ export interface ToolActivity {
 }
 
 /**
- * Monochrome by design: status reads from the glyph and its weight, not from
- * hue. A failure is the one case that earns extra contrast, so it renders at
- * full foreground while success stays quiet.
+ * Status mostly reads from the glyph and its weight, not from hue: a failure
+ * is the one outcome that earns extra contrast, rendering at full foreground
+ * while success stays quiet. The one deliberate exception is `running` —
+ * coloured in the assistant's own accent so an in-flight tool call reads as
+ * "the bot is doing this right now", not a fourth generic status colour.
  */
 function StatusIcon({ status }: { status: ToolCallStatus }) {
-  if (status === 'running') return <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />;
+  if (status === 'running') return <Loader2 className="h-3 w-3 animate-spin text-[color:var(--ds-bot-accent)]" />;
   if (status === 'ok') return <Check className="h-3 w-3 text-muted-foreground" />;
   return <X className="h-3 w-3 text-foreground" />;
 }
@@ -77,7 +79,14 @@ export function ToolCallCard({ activity, onOpenAnalysis }: ToolCallCardProps) {
   }
 
   return (
-    <div className="w-full rounded-lg border border-border/60 text-xs">
+    <div
+      className={cn(
+        'w-full rounded-lg border text-xs',
+        activity.status === 'running'
+          ? 'border-[color:var(--ds-bot-accent-border)] bg-[color:var(--ds-bot-accent-soft)]'
+          : 'border-border/60',
+      )}
+    >
       <button
         type="button"
         onClick={() => hasDetail && setOpen((v) => !v)}

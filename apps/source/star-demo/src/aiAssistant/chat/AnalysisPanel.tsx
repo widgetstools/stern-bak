@@ -55,7 +55,7 @@ export function AnalysisPanel({ entries, activeId, onSelect }: AnalysisPanelProp
               className={cn(
                 'max-w-[110px] flex-shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] transition-colors',
                 entry.id === active.id
-                  ? 'border-foreground/60 bg-foreground text-background'
+                  ? 'border-[color:var(--ds-bot-accent)] bg-[color:var(--ds-bot-accent)] text-[color:var(--ds-bot-accent-foreground)]'
                   : 'border-border/60 text-muted-foreground hover:text-foreground',
               )}
             >

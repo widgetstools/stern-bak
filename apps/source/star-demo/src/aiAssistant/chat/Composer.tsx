@@ -7,7 +7,7 @@
  */
 import { useCallback, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { Paperclip, Send, Square, X, FileText } from 'lucide-react';
-import { Button, Textarea } from '@wellsfargo-starui/react';
+import { Button, Textarea, cn } from '@wellsfargo-starui/react';
 import { filesFromDataTransfer, type Attachment } from './attachments';
 
 export interface ComposerProps {
@@ -87,7 +87,17 @@ export function Composer({
   return (
     // One bordered "island" holding chips, the field and its actions — the
     // field reads as part of the surface instead of a boxed control in a row.
-    <div className="flex-shrink-0 rounded-2xl border border-border bg-card/40 focus-within:border-border-strong transition-colors">
+    // While the assistant is responding, the island picks up its accent as a
+    // quiet glow — a live cue that doesn't rely on the disabled-looking send
+    // button alone.
+    <div
+      className={cn(
+        'flex-shrink-0 rounded-2xl border bg-card/40 transition-colors',
+        isBusy
+          ? 'border-[color:var(--ds-bot-accent-border)] shadow-[0_0_0_3px_var(--ds-bot-accent-ring)]'
+          : 'border-border focus-within:border-border-strong',
+      )}
+    >
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
           {attachments.map((a) => (
@@ -170,7 +180,7 @@ export function Composer({
               onClick={send}
               disabled={!text.trim() && attachments.length === 0}
               aria-label="Send"
-              className="h-7 w-7 rounded-full bg-foreground text-background hover:bg-foreground/85 disabled:opacity-30"
+              className="h-7 w-7 rounded-full bg-[color:var(--ds-bot-accent)] text-[color:var(--ds-bot-accent-foreground)] hover:opacity-90 disabled:opacity-30"
             >
               <Send className="h-3.5 w-3.5" />
             </Button>

@@ -4,7 +4,7 @@
  * content streams in, unless the user has scrolled up to read history.
  */
 import { useEffect, useRef } from 'react';
-import { FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { FileText, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
 import { ScrollArea } from '@wellsfargo-starui/react';
 import { MarkdownMessage } from './MarkdownMessage';
 import { ToolCallCard } from './ToolCallCard';
@@ -78,7 +78,7 @@ export function ChatTranscript({ items, isBusy, error, starters, onPickStarter, 
                     type="button"
                     onClick={() => onPickStarter(s.prompt)}
                     title={s.prompt}
-                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted/50 hover:text-foreground hover:border-[color:var(--ds-chart-4)]"
+                    className="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted/50 hover:text-foreground hover:border-[color:var(--ds-bot-accent)]"
                   >
                     {s.label}
                   </button>
@@ -90,21 +90,30 @@ export function ChatTranscript({ items, isBusy, error, starters, onPickStarter, 
 
         {items.map((item) => {
           if (item.kind === 'tool') {
+            // Indented to sit under the nearest assistant avatar above/below —
+            // tool activity reads as part of that turn, not a separate voice.
             return (
-              <ToolCallCard
-                key={item.id}
-                activity={item.activity}
-                onOpenAnalysis={onOpenAnalysis && (() => onOpenAnalysis(item.id))}
-              />
+              <div key={item.id} className="ml-[34px]">
+                <ToolCallCard
+                  activity={item.activity}
+                  onOpenAnalysis={onOpenAnalysis && (() => onOpenAnalysis(item.id))}
+                />
+              </div>
             );
           }
 
           if (item.kind === 'assistant') {
-            // No bubble: the assistant's voice is the page, which reads calmer
-            // at length than a tinted block and keeps the surface monochrome.
+            // A small avatar plus a softly-tinted bubble in the bot's own
+            // accent — the conversational-UI turn-taking cue a bare-text
+            // block doesn't give, without borrowing --primary/--accent.
             return (
-              <div key={item.id} className="max-w-[68ch] text-foreground">
-                <MarkdownMessage text={item.text} />
+              <div key={item.id} className="flex items-start gap-2.5 max-w-[680px]">
+                <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[color:var(--ds-bot-accent)] to-[color:var(--ds-bot-accent-deep)] text-white">
+                  <Sparkles className="h-3 w-3" />
+                </span>
+                <div className="min-w-0 flex-1 rounded-tl-md rounded-2xl border border-[color:var(--ds-bot-accent-border)] bg-[color:var(--ds-bot-accent-soft)] px-3.5 py-2.5 text-foreground">
+                  <MarkdownMessage text={item.text} />
+                </div>
               </div>
             );
           }
@@ -139,9 +148,9 @@ export function ChatTranscript({ items, isBusy, error, starters, onPickStarter, 
             that the streaming text itself is the progress signal. */}
         {isBusy && !lastIsAssistant && (
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            {/* Same violet accent as the header sparkle — the assistant is
+            {/* Same indigo accent as the header/avatar mark — the assistant is
                 doing something, echoed in the same brand colour. */}
-            <Loader2 className="h-3 w-3 animate-spin text-[color:var(--ds-chart-4)]" />
+            <Loader2 className="h-3 w-3 animate-spin text-[color:var(--ds-bot-accent)]" />
             <span className="opacity-80">Thinking…</span>
           </div>
         )}

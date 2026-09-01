@@ -77,6 +77,15 @@ exports[`generateCompatCSS (via generateUnifiedCSS) > matches snapshot 1`] = `
     --ds-accent-highlight:      oklch(var(--info));
     --ds-accent-purple:         oklch(var(--chart-4));
 
+    /* AI assistant identity accent — see --bot-accent in starui-tokens.css.
+       Scoped to the chat assistant UI only; not a general-purpose accent. */
+    --ds-bot-accent:            oklch(var(--bot-accent));
+    --ds-bot-accent-foreground: oklch(var(--bot-accent-foreground));
+    --ds-bot-accent-deep:       color-mix(in oklch, oklch(var(--bot-accent)) 80%, oklch(var(--foreground)) 20%);
+    --ds-bot-accent-soft:       oklch(var(--bot-accent) / 0.10);
+    --ds-bot-accent-border:     oklch(var(--bot-accent) / 0.38);
+    --ds-bot-accent-ring:       oklch(var(--bot-accent) / 0.30);
+
     --ds-action-buy-bg:    oklch(var(--buy));
     --ds-action-buy-fg:    oklch(var(--buy-foreground));
     --ds-action-sell-bg:   oklch(var(--sell));

@@ -501,10 +501,12 @@ export function AiAssistantPanel({
           panel. Borderless controls, and connection state as a dot rather
           than a coloured badge. */}
       <div className={cn('flex items-center gap-1.5 flex-shrink-0 min-w-0', isDragging && 'opacity-50')}>
-        {/* Violet, not muted-foreground — a small brand mark for the assistant.
-            Deliberately not `--primary`/`--accent`, which read as interactive
-            controls elsewhere in the panel; see chartSpec.ts for the same call. */}
-        <Sparkles className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--ds-chart-4)]" />
+        {/* Indigo, not muted-foreground — a small brand mark for the assistant.
+            Deliberately its own `--ds-bot-accent` token, not `--primary`/
+            `--accent`, which read as interactive controls elsewhere in the panel. */}
+        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[color:var(--ds-bot-accent)] to-[color:var(--ds-bot-accent-deep)] text-white shadow-sm">
+          <Sparkles className="h-3 w-3" />
+        </span>
         {locked && resolvedGridId ? (
           // Scoped panels state their blotter instead of offering a choice —
           // the id is what the user needs to confirm they're in the right one.

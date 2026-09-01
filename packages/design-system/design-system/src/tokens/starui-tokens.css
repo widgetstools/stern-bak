@@ -37,6 +37,12 @@
   --destructive:           0.505 0.225 27;
   --destructive-foreground: 1 0 0;
 
+  /* AI assistant identity accent — indigo, deliberately NOT --primary/--accent
+     (those read as interactive controls). Scoped to the chat assistant UI
+     only: avatar, assistant bubble, active tool indicator. */
+  --bot-accent:             0.50 0.19 276;
+  --bot-accent-foreground:  0.99 0.01 276;
+
   --border:                0.920 0.003 256;   /* #E5E5E5 — hairline */
   --border-strong:         0.853 0.004 256;   /* #CECECE */
   --input:                 0.853 0.004 256;   /* #CECECE */
@@ -130,6 +136,11 @@
 
   --destructive:           0.70 0.215 24;
   --destructive-foreground: 0.16 0.06 26;
+
+  /* AI assistant identity accent — indigo, dark variant (lighter, per the
+     primary's own light-in-dark pattern above). */
+  --bot-accent:             0.70 0.165 274;
+  --bot-accent-foreground:  0.16 0.05 276;
 
   --border:                0.425 0.020 258;
   --border-strong:         0.525 0.022 258;
