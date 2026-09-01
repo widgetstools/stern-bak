@@ -156,4 +156,61 @@ describe('BlotterDock', () => {
     expect(screen.getByRole('tab', { name: 'Sector heatmap' })).toBeTruthy();
     expect(container.querySelector('[data-testid="ag-grid-stub"]')).toBe(before);
   });
+
+  /** Maximize is the one panel action the blotter allows — the way back to a
+   *  full-size grid once summary widgets are sharing the space. The button
+   *  lives on the blotter's own header, which is collapsed (the library sets
+   *  `display: none` on it) until a widget exists — so "is it reachable?" is
+   *  a question about that header, not about the button's DOM presence. */
+  function blotterMaximizeButton(container: HTMLElement): HTMLElement | null {
+    return container.querySelector('[data-action="maximize"][data-panel-id="blotter"]');
+  }
+
+  it("offers a reachable maximize button on the blotter's header while summary widgets are visible", () => {
+    const { container } = setup(
+      [{ sector: 'Tech', marketValue: 100 }],
+      [{ id: 'w1', title: 'Sector digest', kind: 'digest', query: { groupBy: ['sector'] } }],
+      'FI Blotter',
+    );
+
+    const button = blotterMaximizeButton(container);
+    expect(button).toBeTruthy();
+    // Reachable because the group's header isn't collapsed away.
+    expect(button!.closest('.dock-tab-group')?.hasAttribute('data-header-collapsed')).toBe(false);
+  });
+
+  it('keeps the blotter maximize button out of reach until a widget shares the space', () => {
+    const { container, platform } = setup([{ sector: 'Tech', marketValue: 100 }], []);
+    // With nothing else docked there is nothing to maximize away from, and
+    // the collapsed header hides the button along with the rest of the bar.
+    expect(blotterMaximizeButton(container)?.closest('.dock-tab-group')?.hasAttribute('data-header-collapsed')).toBe(
+      true,
+    );
+
+    act(() => {
+      platform.store.setModuleState<SummaryPanelState>(SUMMARY_PANEL_MODULE_ID, () => ({
+        widgets: [{ id: 'w1', title: 'Sector digest', kind: 'digest', query: { groupBy: ['sector'] } }],
+      }));
+    });
+
+    expect(blotterMaximizeButton(container)?.closest('.dock-tab-group')?.hasAttribute('data-header-collapsed')).toBe(
+      false,
+    );
+  });
+
+  it('maximizing the blotter from its header keeps the same grid instance mounted', () => {
+    const { container } = setup(
+      [{ sector: 'Tech', marketValue: 100 }],
+      [{ id: 'w1', title: 'Sector digest', kind: 'digest', query: { groupBy: ['sector'] } }],
+    );
+    const before = screen.getByTestId('ag-grid-stub');
+
+    const maximize = container.querySelector('[data-action="maximize"][data-panel-id="blotter"]');
+    fireEvent.mouseDown(maximize!, { button: 0 });
+
+    // The grid is the same element — maximizing must never tear AG-Grid down
+    // the way a close/re-add would. The header now offers `restore` instead.
+    expect(container.querySelector('[data-testid="ag-grid-stub"]')).toBe(before);
+    expect(container.querySelector('[data-action="restore"][data-panel-id="blotter"]')).toBeTruthy();
+  });
 });

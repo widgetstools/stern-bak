@@ -24,12 +24,20 @@
  * `SET_HEADER_COLLAPSED`. With nothing to show alongside it, a lone header
  * naming the one panel that's always there is just chrome with nothing to
  * say; once a widget is docked next to it, the header is what tells the two
- * apart.
+ * apart — and what carries the blotter's maximize button (below), which
+ * only has anything to do once something else is sharing the space.
  *
- * Widgets are fully interactive — closable, floatable, dockable, pinnable —
- * unlike the blotter panel. `SummaryPanelState.widgets` (order + existence)
- * stays the source of truth for WHICH widgets exist; where the user has
- * dragged them is the dock's own business and isn't written back.
+ * Widgets are fully interactive — closable, floatable, dockable, pinnable.
+ * The blotter panel is none of those, with ONE exception: `allowMaximize`.
+ * Maximizing is the only panel action that can't cost anything here — it
+ * can't close the panel, unmount the grid, or leave it at zero width (the
+ * three ways AG-Grid's live state gets torn down); it only makes the panel
+ * bigger. And it's the natural way back to a full-size grid once summary
+ * widgets are taking up room, which is exactly when it becomes reachable:
+ * the header carrying the button is collapsed until a widget exists.
+ * `SummaryPanelState.widgets` (order + existence) stays the source of truth
+ * for WHICH widgets exist; where the user has dragged them is the dock's own
+ * business and isn't written back.
  *
  * Because widgets ARE freely dockable, a widget CAN be dropped directly onto
  * the blotter's own tab, sharing its group — which would hide the blotter
@@ -108,7 +116,10 @@ function buildInitialState(widgets: readonly SummaryWidget[], blotterTitle: stri
     floatable: false,
     dockable: false,
     allowDocking: false,
-    allowMaximize: false,
+    // The one interaction the blotter panel DOES allow — see the module doc
+    // comment. Only reachable once a summary widget exists, since the header
+    // that carries the button is collapsed until then.
+    allowMaximize: true,
     allowPinning: false,
   });
   placements.set(BLOTTER_PANEL_ID, { type: 'docked', groupId: BLOTTER_GROUP_ID });
