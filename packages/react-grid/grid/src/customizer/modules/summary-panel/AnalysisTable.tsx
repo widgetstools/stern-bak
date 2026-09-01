@@ -19,16 +19,20 @@
 import { useMemo, useState } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@wellsfargo-starui/react';
-import { compactNumber } from './DataChart';
-import { heatmapDomain, heatmapCellColor, type HeatmapDomain } from '@wellsfargo-starui/data';
+import { heatmapDomain, heatmapCellColor, formatValue, formatCompact, type HeatmapDomain } from '@wellsfargo-starui/data';
 import { useActiveThemeMode } from '../../hooks/useActiveThemeMode';
 
-/** Blank/null/undefined → an em dash; numbers get the compact-magnitude
- *  format (12.3K, 4.5M, …) already used for stat cards. Shared with
- *  `DataResultCell`'s stat cards and category bars. */
-export function compact(value: unknown): string {
+/**
+ * Blank/null/undefined → an em dash. A number is formatted with ITS OWN
+ * column's format when `colId` is supplied — so a price keeps its 4 decimals,
+ * a DV01 gets its thousands separator and a P&L reads the way it does on the
+ * blotter. Without a colId there is nothing to key a format off, so it falls
+ * back to compact magnitude (12.3K, 4.5M). Shared with `DataResultCell`'s
+ * stat cards and category bars.
+ */
+export function compact(value: unknown, colId?: string): string {
   if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'number') return compactNumber(value);
+  if (typeof value === 'number') return colId ? formatValue(colId, value) : formatCompact(value);
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   return String(value);
 }
@@ -59,9 +63,22 @@ export interface AnalysisTableProps {
   /** Shades numeric cells by magnitude instead of plain text — see
    *  `@wellsfargo-starui/data`'s heatmap helpers. */
   heatmap?: boolean;
+  /**
+   * The measure a PIVOT's cells hold. A pivot names its columns after the
+   * pivot dimension's values ("Financials", "USD"), which say nothing about
+   * how the numbers should read — so cells are formatted by this instead.
+   * Ignored for a non-pivot table, where each column formats as itself.
+   */
+  valueColId?: string;
 }
 
-export function AnalysisTable({ columns, rows, stickyLeadingCols = 0, heatmap = false }: AnalysisTableProps) {
+export function AnalysisTable({
+  columns,
+  rows,
+  stickyLeadingCols = 0,
+  heatmap = false,
+  valueColId,
+}: AnalysisTableProps) {
   const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
   const theme = useActiveThemeMode();
 
@@ -164,7 +181,7 @@ export function AnalysisTable({ columns, rows, stickyLeadingCols = 0, heatmap = 
                       ci < stickyLeadingCols && 'bg-background border-r border-border/60 font-medium',
                     )}
                   >
-                    {compact(value)}
+                    {compact(value, valueColId && ci >= stickyLeadingCols ? valueColId : col)}
                   </TableCell>
                 );
               })}

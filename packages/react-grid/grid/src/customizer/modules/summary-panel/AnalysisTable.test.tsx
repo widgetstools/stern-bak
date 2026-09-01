@@ -23,9 +23,15 @@ describe('AnalysisTable', () => {
     expect(bodyRows()).toHaveLength(3);
   });
 
-  it('formats numbers compactly, the same as the stat cards', () => {
+  /**
+   * Cells format with the COLUMN's own format now, not a blanket compact
+   * magnitude. `marketValue` scales to millions, but 12,000 would become
+   * "0.01M" — scaled below one whole unit and harder to read than the number
+   * it replaced — so the guard falls back to a separated integer.
+   */
+  it('formats numbers with the column\'s own format', () => {
     render(<AnalysisTable columns={['sector', 'marketValue']} rows={ROWS} />);
-    expect(screen.getByText('12.0K')).toBeTruthy();
+    expect(screen.getByText('12,000')).toBeTruthy();
   });
 
   it('shows the empty-result message rather than a bare table', () => {
@@ -66,11 +72,11 @@ describe('AnalysisTable', () => {
 
   it('shades numeric cells by magnitude when heatmap is on, and leaves them plain otherwise', () => {
     const { rerender } = render(<AnalysisTable columns={['sector', 'marketValue']} rows={ROWS} />);
-    const plainCell = screen.getByText('12.0K').closest('td')!;
+    const plainCell = screen.getByText('12,000').closest('td')!;
     expect(plainCell.style.backgroundColor).toBe('');
 
     rerender(<AnalysisTable columns={['sector', 'marketValue']} rows={ROWS} heatmap />);
-    const shadedCell = screen.getByText('12.0K').closest('td')!;
+    const shadedCell = screen.getByText('12,000').closest('td')!;
     expect(shadedCell.style.backgroundColor).toContain('oklch');
   });
 

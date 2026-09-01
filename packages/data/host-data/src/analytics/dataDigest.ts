@@ -1,3 +1,4 @@
+import { formatValue } from './formatValue.js';
 /**
  * Turns a set of rows into a compact statistical digest.
  *
@@ -233,7 +234,11 @@ function buildHighlights(
     const extreme = rows.find((r) => r[stat.colId] === stat.max);
     const label = labelCol && extreme ? ` (${String(extreme[labelCol])})` : '';
     out.push(
-      `${stat.colId}: total ${stat.sum}, average ${stat.mean}, ranging ${stat.min} to ${stat.max}${label}.`,
+      // Formatted with the column's own format — these sentences are what the
+      // assistant quotes back, and a raw `487293847.22` in the middle of one
+      // is unreadable at a glance.
+      `${stat.colId}: total ${formatValue(stat.colId, stat.sum)}, average ${formatValue(stat.colId, stat.mean)}, ` +
+        `ranging ${formatValue(stat.colId, stat.min)} to ${formatValue(stat.colId, stat.max)}${label}.`,
     );
   }
 

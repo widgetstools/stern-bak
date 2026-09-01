@@ -25,7 +25,8 @@
  */
 
 import type { Module } from '@wellsfargo-starui/core';
-import type { ChartKind, DataQuery } from '@wellsfargo-starui/data';
+import { LABEL_CONTRASTS, CHART_PALETTES } from '@wellsfargo-starui/data';
+import type { ChartStyle, ChartKind, DataQuery } from '@wellsfargo-starui/data';
 import {
   SummaryPanelEditor,
   SummaryPanelList,
@@ -50,6 +51,12 @@ export interface SummaryWidget {
   query: DataQuery;
   /** Only meaningful when `kind === 'chart'`. Defaults to `'auto'`. */
   chartKind?: ChartKind;
+  /**
+   * Presentation options — label contrast, grid lines, legend, palette.
+   * Semantic rather than raw colours, so both themes stay correct; see
+   * `ChartStyle` in `@wellsfargo-starui/data`.
+   */
+  style?: ChartStyle;
 }
 
 export interface SummaryPanelState {
@@ -67,14 +74,36 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *  broken card should never crash the strip, only be silently absent. */
 function validateWidget(raw: unknown): SummaryWidget | null {
   if (!isPlainObject(raw)) return null;
-  const { id, kind, query, title, chartKind } = raw;
+  const { id, kind, query, title, chartKind, style } = raw;
   if (typeof id !== 'string' || id.length === 0) return null;
   if (!(WIDGET_KINDS as readonly string[]).includes(kind as string)) return null;
   if (!isPlainObject(query)) return null;
   const widget: SummaryWidget = { id, kind: kind as SummaryWidgetKind, query: query as DataQuery };
   if (typeof title === 'string' && title.length > 0) widget.title = title;
   if (typeof chartKind === 'string') widget.chartKind = chartKind as ChartKind;
+  const validStyle = validateStyle(style);
+  if (validStyle) widget.style = validStyle;
   return widget;
+}
+
+/**
+ * Style is validated rather than passed through: an unrecognised value would
+ * reach the renderer and either do nothing or throw, and a widget whose style
+ * silently vanishes on reload is worse than one that never took it. Unknown
+ * keys are dropped; recognised ones are kept exactly.
+ */
+function validateStyle(raw: unknown): ChartStyle | undefined {
+  if (!isPlainObject(raw)) return undefined;
+  const out: ChartStyle = {};
+  if ((LABEL_CONTRASTS as readonly string[]).includes(raw.labelContrast as string)) {
+    out.labelContrast = raw.labelContrast as ChartStyle['labelContrast'];
+  }
+  if ((CHART_PALETTES as readonly string[]).includes(raw.palette as string)) {
+    out.palette = raw.palette as ChartStyle['palette'];
+  }
+  if (typeof raw.showGrid === 'boolean') out.showGrid = raw.showGrid;
+  if (typeof raw.showLegend === 'boolean') out.showLegend = raw.showLegend;
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function validateWidgets(raw: unknown): SummaryWidget[] {

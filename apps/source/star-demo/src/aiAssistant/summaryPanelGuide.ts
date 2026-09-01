@@ -92,7 +92,37 @@ output to a widget — a widget re-runs its own \`query\` against the current
 rows on every refresh, so it needs the QUERY, not a query's RESULT. Using
 query_grid_data as a dry run to confirm a query produces something sensible
 before committing it as a widget is reasonable; passing its output as the
-widget itself is not — there's no field for that.`;
+widget itself is not — there's no field for that.
+## Styling a chart widget
+
+A chart widget takes an optional \`style\`. Use it when the user asks about
+APPEARANCE — "the axis labels are too dim", "make the legend brighter", "drop
+the grid lines", "colour those by sign".
+
+\`\`\`json
+{ "id": "w-exposure", "kind": "chart", "chartKind": "bar",
+  "query": { "groupBy": ["desk"], "aggregate": [{ "column": "marketValue", "fn": "sum" }] },
+  "style": { "labelContrast": "high", "showGrid": false } }
+\`\`\`
+
+| key | values | what it does |
+|---|---|---|
+| \`labelContrast\` | \`muted\` (default) · \`normal\` · \`high\` | Axis-tick and legend prominence. Chart chrome is quiet by default so the data marks carry the eye; raise it when a panel is large or the labels read too faint. |
+| \`showGrid\` | boolean (default true) | Background grid lines. |
+| \`showLegend\` | boolean (default true) | The legend, where the kind has one (pie). |
+| \`palette\` | \`auto\` (default) · \`single\` · \`categorical\` · \`sign\` | How colour is assigned. \`auto\` uses one hue for a single series, the ramp for a pie, and red/green when the measure crosses zero. |
+
+These are deliberately named intents, not colours. There is no hex option:
+a raw colour would break in the other theme and drift the chart off-brand.
+If a user asks for a specific colour, set the closest intent and say what you
+did rather than declining.
+
+**Numbers format themselves.** Result tables, chart tooltips, stat cards and
+the computed commentary all render a value using its own column's format —
+the same one the blotter uses — so a price keeps its decimals and a notional
+scales to millions. You do not need to pre-format numbers you quote, and you
+should not round them yourself.
+`;
 
 export const SUMMARY_PANEL_GUIDES: readonly FeatureGuide[] = [
   {

@@ -186,14 +186,14 @@ describe('highlights', () => {
     const out = run({ groupBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] });
     // Tech 300, Financials 700, Energy 500 — total 1500, Financials leads at 46.67%.
     expect(out.highlights).toEqual([
-      'Financials leads on sum_marketValue at 700 (46.67% of the 1500 total across 3 sector group(s)).',
+      'Financials leads on sum_marketValue at 700 (46.67% of the 1,500 total across 3 sector group(s)).',
     ]);
   });
 
   it('names the largest cell for a pivoted result', () => {
     const out = run({ groupBy: ['desk'], pivotBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] });
     // Cells: Credit×Tech 300, Credit×Energy 500, Rates×Financials 700 — total 1500.
-    expect(out.highlights).toEqual(['Largest cell: Rates × Financials at 700 (46.67% of the 1500 total).']);
+    expect(out.highlights).toEqual(['Largest cell: Rates × Financials at 700 (46.67% of the 1,500 total).']);
   });
 
   it('says nothing once the result is truncated — a share-of-total claim would be dishonest', () => {

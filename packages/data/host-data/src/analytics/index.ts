@@ -51,3 +51,18 @@ export {
   heatmapCellColor,
   type HeatmapDomain,
 } from './heatmap.js';
+
+export {
+  formatValue,
+  formatCompact,
+  formatNumberFallback,
+} from './formatValue.js';
+
+export {
+  LABEL_CONTRASTS,
+  CHART_PALETTES,
+  labelContrastClass,
+  type LabelContrast,
+  type ChartPalette,
+  type ChartStyle,
+} from './chartStyle.js';

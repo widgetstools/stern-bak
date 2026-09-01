@@ -44,9 +44,9 @@ function StatCard({ stat }: { stat: NumericStats }) {
   return (
     <div className="rounded-md border border-border/60 px-2 py-1.5 min-w-0">
       <div className="truncate font-mono text-[10px] text-muted-foreground">{stat.colId}</div>
-      <div className="mt-0.5 font-mono text-[13px] tabular-nums text-foreground">{compact(stat.sum)}</div>
+      <div className="mt-0.5 font-mono text-[13px] tabular-nums text-foreground">{compact(stat.sum, stat.colId)}</div>
       <div className="mt-0.5 font-mono text-[9px] tabular-nums text-muted-foreground/80">
-        x̄ {compact(stat.mean)} · {compact(stat.min)}–{compact(stat.max)}
+        x̄ {compact(stat.mean, stat.colId)} · {compact(stat.min, stat.colId)}–{compact(stat.max, stat.colId)}
       </div>
     </div>
   );
@@ -163,6 +163,7 @@ export function DataResultCell({ payload }: { payload: DataCellPayload }) {
           columns={table.columns}
           rows={table.rows}
           stickyLeadingCols={table.pivot?.rowDims.length ?? 0}
+          valueColId={table.pivot?.measures[0]}
           heatmap={isHeatmap}
         />
       )}

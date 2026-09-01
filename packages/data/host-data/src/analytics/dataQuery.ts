@@ -1,3 +1,4 @@
+import { formatValue } from './formatValue.js';
 /**
  * A small, total query language over already-fetched rows — filter, group,
  * aggregate, sort, limit.
@@ -345,7 +346,15 @@ function buildQueryHighlights(query: DataQuery, result: Pick<QueryResult, 'colum
     if (!best || total === 0) return [];
     const rowLabel = rowDims.map((d) => String(best!.row[d])).join(' / ');
     const share = round((Math.abs(best.value) / total) * 100);
-    return [`Largest cell: ${rowLabel} × ${best.col} at ${round(best.value)} (${share}% of the ${round(total)} total).`];
+    // Format by the MEASURE, not by `best.col`. A pivot's columns are named
+    // after the pivot dimension's values ("Financials", "USD"), which say
+    // nothing about how the number should read — and fuzzy-matching such a
+    // name picks a format at random. The measure is what the cells hold.
+    const measure = query.aggregate?.length ? aggName(query.aggregate[0]) : best.col;
+    return [
+      `Largest cell: ${rowLabel} × ${best.col} at ${formatValue(measure, best.value)} ` +
+        `(${share}% of the ${formatValue(measure, total)} total).`,
+    ];
   }
 
   if (!query.groupBy?.length) return [];
@@ -359,7 +368,8 @@ function buildQueryHighlights(query: DataQuery, result: Pick<QueryResult, 'colum
   const label = query.groupBy.map((g) => String(leader[g])).join(' / ');
   const share = round((Math.abs(leader[measureCol] as number) / total) * 100);
   return [
-    `${label} leads on ${measureCol} at ${round(leader[measureCol] as number)} (${share}% of the ${round(total)} total across ${numericRows.length} ${query.groupBy.join('/')} group(s)).`,
+    `${label} leads on ${measureCol} at ${formatValue(measureCol, leader[measureCol] as number)} ` +
+      `(${share}% of the ${formatValue(measureCol, total)} total across ${numericRows.length} ${query.groupBy.join('/')} group(s)).`,
   ];
 }
 

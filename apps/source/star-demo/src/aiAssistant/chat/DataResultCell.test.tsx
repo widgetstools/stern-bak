@@ -153,12 +153,12 @@ describe('DataResultCell', () => {
     render(<DataResultCell payload={payload()} />);
     // The column appears as a stat-card label and again in a highlight line.
     expect(screen.getAllByText('marketValue').length).toBeGreaterThan(0);
-    expect(screen.getByText('1000')).toBeTruthy();
+    expect(screen.getByText('1,000')).toBeTruthy();
   });
 
   it('lists the highlights', () => {
     render(<DataResultCell payload={payload()} />);
-    expect(screen.getByText(/marketValue: total 1000/)).toBeTruthy();
+    expect(screen.getByText(/marketValue: total 1,000/)).toBeTruthy();
   });
 
   it('renders a query result as a table', () => {
