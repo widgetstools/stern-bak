@@ -37,7 +37,7 @@ import {
 } from './gridProfiles';
 import type { RuleScope } from '@wellsfargo-starui/core';
 import { normalizeRuleFeatures } from './ruleFeatures';
-import { FEATURE_GUIDE_IDS, findFeatureGuide } from './featureGuides';
+import { FEATURE_GUIDE_IDS, featureGuideForModule, findFeatureGuide } from './featureGuides';
 import { collectionsForModule, GRID_MODULES } from './moduleCollections';
 import {
   listModuleItems,
@@ -59,7 +59,14 @@ import {
 } from './registryOps';
 import { withInferredColumns, describeMockFields } from './providerColumns';
 import { launchBlotter, describeLaunch } from './launchComponent';
-import { setColumnLayout, setRowGrouping } from './layoutTools';
+import {
+  setColumnLayout,
+  setRowGrouping,
+  setSort,
+  setFilterModel,
+  setQuickFilter,
+  setGroupExpansion,
+} from './layoutTools';
 import { renameColumn, setColumnVisibility } from './simpleColumnTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
@@ -110,11 +117,17 @@ function listGridModules(): ToolExecutionResult {
     data: {
       modules: GRID_MODULES.map((m) => {
         const collections = collectionsForModule(m.id);
+        const guideId = featureGuideForModule(m.id);
         return {
           ...m,
           // Advertised inline so the model doesn't have to guess which modules
           // have a worked example, or which hold individually addressable items.
-          hasFeatureGuide: FEATURE_GUIDE_IDS.includes(m.id),
+          // Names the guide rather than just asserting one exists — several
+          // modules are documented by a guide under a different id (the five
+          // editing modules all live in `editing`), and the model needs the id
+          // it should actually pass to get_feature_guide.
+          hasFeatureGuide: guideId !== undefined,
+          ...(guideId ? { featureGuide: guideId } : {}),
           ...(collections.length > 0
             ? { itemCollections: collections.map((c) => ({ collection: c.collection, idField: c.idField, readOnly: c.readOnly ?? false })) }
             : {}),
@@ -628,6 +641,14 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return setColumnLayout(ctx.configManager, ctx.configStore, args);
     case 'set_row_grouping':
       return setRowGrouping(ctx.configManager, ctx.configStore, args);
+    case 'set_sort':
+      return setSort(ctx.configManager, ctx.configStore, args);
+    case 'set_filter_model':
+      return setFilterModel(ctx.configManager, args);
+    case 'set_quick_filter':
+      return setQuickFilter(ctx.configManager, args);
+    case 'set_group_expansion':
+      return setGroupExpansion(ctx.configManager, args);
     case 'list_profiles':
       return listProfiles(ctx.configManager, args);
     case 'create_profile':

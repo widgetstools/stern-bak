@@ -17,6 +17,8 @@
 
 import { COLUMN_IMPORT_GUIDES } from './columnImportGuides';
 import { SUMMARY_PANEL_GUIDES } from './summaryPanelGuide';
+import { buildGeneralSettingsGuide } from './generalSettingsCatalog';
+import { buildFormatCatalogGuide } from './formatCatalog';
 
 export interface FeatureGuide {
   /** Matches a `GRID_MODULES` id, so the model can go straight to
@@ -26,6 +28,14 @@ export interface FeatureGuide {
   summary: string;
   /** Shapes + worked examples. Markdown, fenced JSON where it helps. */
   detail: string;
+  /**
+   * Module ids this guide documents BEYOND its own `id`. Needed because a
+   * guide can cover several modules at once (`editing` covers five), and a
+   * strict id match would then tell the model those modules have no guide —
+   * which is how they became effectively undiscoverable. Declared next to
+   * the guide so a new one can't forget to register itself.
+   */
+  covers?: readonly string[];
 }
 
 const CONDITIONAL_STYLING = `## conditional-styling
@@ -175,7 +185,14 @@ text, number, currency, boolean, date, dateString, object.`;
 
 const COLUMN_CUSTOMIZATION = `## column-customization
 
-Per-column presentation, keyed by colId under \`{ "assignments": { ... } }\`:
+Per-column presentation, keyed by colId under \`{ "assignments": { ... } }\`.
+
+**Before hand-writing a number, currency, percent, date or bond-price format,
+read get_feature_guide("value-formats").** There is a pre-canned catalogue of
+51 named formats — red/parenthesised negatives, green/red P&L, six currencies,
+32nds tick pricing, ISO and US dates — and using one means the user can then
+edit it from the formatter toolbar, which a hand-rolled format string doesn't
+guarantee.
 
 \`\`\`json
 {
@@ -386,26 +403,25 @@ Common \`filterType\` values: \`set\` (with \`values\`), \`number\` (with \`type
 equals / lessThan / greaterThan / inRange), \`text\` (contains / equals /
 startsWith), \`date\`. Exactly one pill should normally start \`active\`.`;
 
-const GENERAL_SETTINGS = `## general-settings
+/**
+ * Generated from the mirrored Grid Options catalogue rather than written by
+ * hand — 100+ keys is far too many to keep accurate in prose, and the old
+ * hand-written version covered barely a tenth of them, so the model guessed
+ * key names that write cleanly and do nothing.
+ */
+const GENERAL_SETTINGS = `${buildGeneralSettingsGuide()}
+### AG-Grid's native change flash
 
-Grid-wide AG-Grid options, shallow-merged — send only the keys you change.
-
-AG-Grid's own change flash (distinct from a conditional rule's flash: this one
-fires on ANY value change to ANY cell, with one global colour):
+Distinct from a conditional rule's flash: this one fires on ANY value change to
+ANY cell, with one global colour.
 
 \`\`\`json
 { "enableCellChangeFlash": true, "cellChangeFlashColor": "sky", "cellFlashDuration": 350, "cellFadeDuration": 800 }
 \`\`\`
 
-The lab ships three presets: fast (350/800), standard (500/1000) and heavy
-(700/1400) flash/fade pairs. Use the native flash for "something changed
-anywhere"; use a conditional-styling rule when the cue must depend on WHAT
-changed or in which direction.
-
-Other frequently-set keys: \`rowHeight\`, \`headerHeight\`, \`gridDensity\`
-("compact" | "normal" | "ultra"), \`pagination\` + \`paginationPageSize\`,
-\`animateRows\`, \`rowSelection\`, \`sideBar\`, \`statusBar\`, and row grouping /
-pivot toggles.`;
+Useful pairs: fast (350/800), standard (500/1000), heavy (700/1400). Use the
+native flash for "something changed anywhere"; use a conditional-styling rule
+when the cue must depend on WHAT changed or in which direction.`;
 
 const ALERTS = `## alerts
 
@@ -458,6 +474,9 @@ The generic tools address any of them uniformly:
 | alerts | rules (and read-only history) | id |
 | column-customization | assignments | colId |
 | column-templates | templates | id |
+| plus-minus | nudges | id |
+| shortcuts | shortcuts | id |
+| summary-panel | widgets | id |
 
 \`collection\` only needs passing when a module has more than one (alerts).
 
@@ -469,8 +488,13 @@ everything else.
 Everything NOT in this table is a settings object: read it with
 get_module_settings and change it with update_module_settings, which
 shallow-merges so you only send the keys you're changing. That covers
-general-settings, smart-edit, bulk-update, plus-minus, shortcuts,
-data-change-history, visual-excel, toolbar-visibility, toolbar-date-settings
+general-settings, smart-edit, bulk-update, data-change-history,
+visual-excel, toolbar-visibility, toolbar-date-settings.
+
+Three modules are BOTH: \`plus-minus\`, \`shortcuts\` and \`alerts\` carry a
+\`settings\` object alongside their collection. Use update_module_settings for
+the settings half and the item tools for the collection half — a settings
+write does not touch the items, and vice versa.
 and grid-state.`;
 
 const PIVOT = `## Pivot and grouped views
@@ -693,6 +717,7 @@ export const FEATURE_GUIDES: ReadonlyArray<FeatureGuide> = [
     title: 'Editing toolbar — smart edit, bulk update, history, nudges, shortcuts',
     summary: 'The five modules behind the editing toolbar and what each setting controls.',
     detail: EDITING_GUIDE,
+    covers: ['smart-edit', 'bulk-update', 'plus-minus', 'shortcuts', 'data-change-history', 'visual-excel'],
   },
   {
     id: 'pivot',
@@ -750,9 +775,15 @@ export const FEATURE_GUIDES: ReadonlyArray<FeatureGuide> = [
   },
   {
     id: 'general-settings',
-    title: 'General settings — grid-wide options and native flash',
-    summary: 'Row height, density, pagination, animations, and AG-Grid\'s built-in cell-change flash.',
+    title: 'General settings — every grid-wide option, by name',
+    summary: 'The complete Grid Options key list with labels, accepted values and defaults — including groupDefaultExpanded (expand all) and pivotMode.',
     detail: GENERAL_SETTINGS,
+  },
+  {
+    id: 'value-formats',
+    title: 'Value formats — the pre-canned format catalogue',
+    summary: 'Named number, currency, percent, negative/P&L, tick, date, text and boolean formats, plus the Excel format-string grammar behind them.',
+    detail: buildFormatCatalogGuide(),
   },
   ...COLUMN_IMPORT_GUIDES,
   ...SUMMARY_PANEL_GUIDES,
@@ -762,4 +793,15 @@ export const FEATURE_GUIDE_IDS: readonly string[] = FEATURE_GUIDES.map((g) => g.
 
 export function findFeatureGuide(id: string | undefined): FeatureGuide | undefined {
   return FEATURE_GUIDES.find((g) => g.id === id);
+}
+
+/**
+ * The guide id that documents `moduleId`, or undefined when none does.
+ * Prefers an exact id match, then falls back to a guide that declares the
+ * module in `covers` — so `smart-edit` resolves to `editing` rather than
+ * reporting no guide at all.
+ */
+export function featureGuideForModule(moduleId: string): string | undefined {
+  if (FEATURE_GUIDES.some((g) => g.id === moduleId)) return moduleId;
+  return FEATURE_GUIDES.find((g) => g.covers?.includes(moduleId))?.id;
 }

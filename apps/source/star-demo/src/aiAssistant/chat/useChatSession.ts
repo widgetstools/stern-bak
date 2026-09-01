@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamChat, parseToolArgs, toolName, contentToText, type ChatMessage } from '../llmClient';
 import { TOOL_SCHEMAS } from '../tools';
+import { DATA_CELL } from '../dataTools';
 import type { ToolExecutionResult } from '../useToolExecutor';
 import type { ToolName } from '../tools';
 import type { ToolActivity } from './ToolCallCard';
@@ -21,6 +22,48 @@ const LOG = '[aiAssistant]';
 const REQUEST_TIMEOUT_MS = 120_000;
 /** Safety valve: the model could otherwise ping-pong tool calls forever. */
 const MAX_TOOL_ROUNDS = 8;
+/**
+ * How many result rows the MODEL sees. `query_grid_data` can return up to 500
+ * (MAX_LIMIT in dataQuery.ts), and a tool result lives in `messagesRef` for
+ * the rest of the conversation — so one wide query would otherwise re-bill
+ * thousands of tokens on EVERY later turn. The panel still renders every row;
+ * this only trims the copy sent to the model.
+ *
+ * 50 is deliberately the query engine's own DEFAULT_LIMIT: an ordinary query
+ * is untouched, and only a deliberately-large one trims. The model is told
+ * exactly what was withheld so it can re-query rather than guess.
+ */
+const MAX_MODEL_RESULT_ROWS = 50;
+
+/**
+ * The model's view of a tool result. Identical to the result itself except
+ * that an over-long data-cell row set is capped — see
+ * `MAX_MODEL_RESULT_ROWS`. Returns the original object (not a copy) whenever
+ * nothing needs trimming, so the common path allocates nothing.
+ */
+export function forModel(result: ToolExecutionResult): ToolExecutionResult {
+  const data = result.data as
+    | { kind?: string; table?: { rows?: unknown[]; matched?: number } }
+    | undefined;
+  const rows = data?.kind === DATA_CELL ? data.table?.rows : undefined;
+  if (!Array.isArray(rows) || rows.length <= MAX_MODEL_RESULT_ROWS) return result;
+
+  const withheld = rows.length - MAX_MODEL_RESULT_ROWS;
+  return {
+    ...result,
+    data: {
+      ...data,
+      table: {
+        ...data!.table,
+        rows: rows.slice(0, MAX_MODEL_RESULT_ROWS),
+        // Named so the model treats this as "ask again, narrower" rather than
+        // as the complete answer. The user still sees all of them in the panel.
+        rowsWithheldFromModel: withheld,
+        note: `Showing the first ${MAX_MODEL_RESULT_ROWS} of ${rows.length} rows; ${withheld} withheld from this message. The user can see all of them in the panel. Re-query with a filter, a smaller limit, or an aggregation if you need the rest.`,
+      },
+    },
+  };
+}
 
 export type TranscriptItem =
   | { kind: 'user'; id: string; text: string; attachments: Array<{ name: string; kind: Attachment['kind'] }> }
@@ -194,7 +237,7 @@ export function useChatSession(opts: UseChatSessionOptions) {
           });
           messagesRef.current = [
             ...messagesRef.current,
-            { role: 'tool', tool_call_id: call.id, name: call.function.name, content: JSON.stringify(toolResult) },
+            { role: 'tool', tool_call_id: call.id, name: call.function.name, content: JSON.stringify(forModel(toolResult)) },
           ];
         }
 
