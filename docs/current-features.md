@@ -100,12 +100,23 @@ module or a different package provides it.
 - Color palettes: paper, ink, graphite, teal, rose, amber, brand, cyan, purple, CVD-safe variants
 - Typography: font families, sizes, weights, letter-spacing, line-heights
 - Spacing scale, border radius, opacity scale, transition tokens, elevation/shadow scale
-- **StarUI v1 OKLCH tokens** (`tokens/starui-tokens.css`) — Azure accent, teal/rose buy/sell, FT paper light + blue-graphite dark; bare OKLCH components for alpha-friendly `oklch(var(--primary) / 0.12)` usage
-- **Compat bridge** (`adapters/compatCss.ts`) — `--ds-*`, `--bn-*`, `--p-*`, and surface scale aliases mapped from OKLCH source tokens for grid chrome and legacy consumers
+- **StarUI v1 OKLCH tokens** (`tokens/starui-tokens.css`) — Azure accent, teal/rose buy/sell, FT paper light + blue-graphite dark; bare OKLCH components for alpha-friendly `oklch(var(--primary) / 0.12)` usage; `--bot-accent`/`--bot-accent-foreground` (indigo) is a dedicated identity accent for the AI chat assistant UI, deliberately separate from `--primary`/`--accent` and `--chart-4`
+- **Compat bridge** (`adapters/compatCss.ts`) — `--ds-*`, `--bn-*`, `--p-*`, and surface scale aliases mapped from OKLCH source tokens for grid chrome and legacy consumers; `--ds-bot-accent`/`-foreground`/`-deep`/`-soft`/`-border`/`-ring` derive the assistant accent's fill, gradient-depth stop, and low-alpha tint/border/ring variants
 - **PrimeNG preset** — `definePreset(Aura, …)` Azure ramp + FI buy/sell semantics (`primeng/starui-primeng-preset` parity)
 - **AG Grid theme** — Quartz `staruiGridTheme` with light/dark `withParams` modes; OKLCH CSS vars; `data-ag-theme-mode` on `<html>` synced by `applyTheme` and runtime theme writers; density presets retained
 - **Tailwind preset** — OKLCH colors use `oklch(var(--token) / <alpha-value>)`; `fontSize` maps to `--text-*`; `h-control` / `size-control` map to `--control-h*` density tokens; shadcn opacity utilities resolve correctly in dark mode
 - **Theme-aware scrollbar baseline** (`styles/scrollbar.css`) — global zero-specificity (`:where()`) thin themed scrollbars on every scrollable surface + opt-in `.ds-scrollbar` utility; **AG Grid subtrees (`.ag-root-wrapper`, `.ag-popup`) are exempt via `:not()` guards so grids keep NATIVE composited scrollbars** — any matching `::-webkit-scrollbar` rule forces Chromium's main-thread custom-scrollbar path, making thumb drags compete with streaming grid transactions (and the match can't be undone by overriding properties). Paired with `measureNativeScrollbarWidth()` in `@wellsfargo-starui/grid` (`MarketsGridSurface` passes AG `scrollbarWidth`): AG sizes its scroll gutters from a `document.body` probe that gets the STYLED scrollbar, so without the exempt-probe measurement the native thumb rendered clipped in a too-narrow gutter
+- **Cell-renderer config contracts** — each configurable renderer resolves its params
+  through a `pick<Name>Cfg` guard; when a required key is absent the guard returns
+  `undefined` and the cell falls back to plain text rather than erroring. Required keys:
+  `pill`→`rules`, `heatmap`→`colorScale`, `percent-bar`→`max`+`barColor`,
+  `trend-arrow`→`upColor`+`downColor`, `sparkline`→`variant`+`lineColor`,
+  `multi-line`→`secondaryField`, `icon-text`→`iconSvg`, `rating-delta`→`scale`+
+  `previousField`+`upColor`+`downColor`, `allocation-bar`→`segmentColorMap`.
+  `country-flag` and `time-since` are fully optional. The per-renderer settings editors
+  open on a PARTIAL stored config (an assistant write, a hand-edited profile, an older
+  schema) instead of throwing — a config missing its array field used to take down the
+  whole column-settings drawer.
 - **@wellsfargo-starui/react shadcn primitives** — aligned to StarUI v1 density (30px controls, 2px radius, semibold tracking-tight chrome, `shadow-card`/`shadow-overlay`, `bg-background` form surfaces, buy/sell badge variants)
 
 #### Semantic tokens
@@ -309,7 +320,11 @@ Per-renderer config types (`PillRendererConfig`,
   module definitions, settings-panel primitives (`SettingsPanel`, `ExpressionEditor`,
   `StyleEditor`, `FormatterPicker`, `CellRendererBand` + per-renderer config editors),
   editing helpers (`resolveEditRecording`, `journalUndo`/`journalRedo`, `withJournalApplyGuard`),
-  grid-state capture/restore (`captureGridState`, `applyGridState`),
+  grid-state capture/restore (`captureGridState`, `applyGridState`) — the module
+  replays a saved snapshot on grid-ready, on `profile:loaded`, AND on a scoped
+  `module:stateChanged` for its own id, so a single-module config write (see
+  `ProfileManager.syncModules`) reaches the live grid without a reload; a guard on
+  the applied snapshot's identity stops a full profile load applying it twice,
   toolbar-date bridge (`ToolbarDateSettingsPanel`, `applyHistoricalToolbarDateToAppData`),
   `ChromeButton` (shadcn `Button` with chrome CSS resets for legacy `.ds-*` / `.fx-*` styling)
 - `./styles.css` — widget stylesheet (barrel: `@import` of core + chrome splits)
@@ -598,6 +613,11 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   `runQuery` / `summariseRows` / `buildChartSpec`; `DataChart` (recharts) and
   `AnalysisTable` (heatmap-mode table) are shared rendering pieces, also used
   by the AI Assistant's own analysis panel via `@wellsfargo-starui/grid/customizer`.
+  `DataChart` sizes to its container (a per-kind `minHeight` floor rather than a
+  fixed height, so the same chart fills a tall dock panel and still fits a narrow
+  chat panel), takes axis type from `--ds-font-size-2xs` instead of a hardcoded
+  9px, and draws a zero reference line for a signed measure. The heatmap widget
+  fills its panel rather than being clipped at a fixed height.
 
   **Layout — `widget/BlotterDock.tsx`, one `@widgetstools/react-dock-manager`
   instance shared by the blotter and every widget** (matching the
@@ -948,6 +968,10 @@ modules).
 #### Platform runtime
 
 - `GridPlatform` — per-grid singleton (store, api, events, rows, resources, pipeline)
+- `GridPlatform.deserializeOne(moduleId, raw)` / `GridPlatform.resetOne(moduleId)` — single-module
+  counterparts to `deserializeAll`/`resetAll`. Replace just that module's state (emitting
+  `module:stateChanged`) so every other module keeps its state reference and `PipelineRunner`'s
+  per-module memo stays warm — the primitive behind `ProfileManager.syncModules`
 - `EventBus<T>` — typed pub-sub (`emit`, `on`, `off`)
 - `ApiHub` — reactive `GridApi` (`attach`, `whenReady`, event subscriptions; `on` forwards the AG event object)
 - `RowChangeBus` (`platform.rows`, type `RowChangeSignal`) — shared, timer-coalesced row-change emitter. Reads the exact changed nodes from AG `asyncTransactionsFlushed` and emits one `RowChange` (`added`/`updated`/`removed` deltas, or `full` for sort/filter/`setRowData`; explicit `sortChanged`/`filterChanged` listeners keep the `full` classification even when the sort/filter shares a coalescing window with a streaming flush) per frame, so data-reactive modules (alerts, conditional-styling, filter counts) evaluate only changed rows instead of walking the whole grid on every streaming tick. Filter pill badge counts (`useFilterCounts` in `useFilterModel`) maintain per-filter row-id sets and adjust counts incrementally on delta emits
@@ -978,6 +1002,14 @@ modules).
 #### Profile manager
 
 - `ProfileManager` — framework-agnostic profile orchestration
+- `ProfileManager.syncModules(moduleIds)` — SCOPED re-hydrate: applies only the named
+  module(s) from the active profile's persisted snapshot, leaving every other module's
+  state reference (and so `PipelineRunner`'s memoized `columnDefs`/`gridOptions` for those
+  modules) untouched. Used by `useLiveProfileSync` when an external write is known to have
+  touched only those modules, so a single-module config edit no longer forces a full
+  `resetAll()`+`deserializeAll()` and the AG Grid column rebuild that follows. Unlike
+  `load()`/`discard()` it deliberately does NOT cancel a pending auto-save — that debounce
+  may cover unrelated unsaved edits
 - `ProfileManagerState` — `activeId, profiles, isLoading, isDirty`
 - `ProfileManagerOptions` — `platform, adapter, autoSave, activeIdSource`
 - `ActiveIdSource` — pluggable active-profile pointer
@@ -1290,7 +1322,13 @@ modules).
 - Compound indexes: `[componentType+componentSubType]`, `[userId+appId]`
 - v1→v2 unified schema migration (`config→payload`, `createdAt→creationTime`, `updatedAt→updatedTime`)
 - Cross-window sync via Dexie's IndexedDB locking
-- `ChangeNotifier` — cross-tab BroadcastChannel event bus
+- `ChangeNotifier` — cross-tab BroadcastChannel event bus. `notify(configId, changedModuleIds?)`
+  carries an optional hint naming which module(s) inside a bundled profile-set row a write
+  touched, delivered to `subscribe`/`subscribeAll` callbacks and across the BroadcastChannel;
+  it flows in from `ConfigManager.saveConfig`'s `SaveConfigOptions.changedModuleIds` and
+  `ConfigManager.profiles.save(..., { changedModuleIds })`. Omitting it means "assume
+  everything changed" — the safe default every un-hinted writer (undo restore, profile
+  switch, `reload_grid`) still gets
 
 #### Error & concurrency
 
@@ -1500,10 +1538,31 @@ digests/charts/queries/heatmap shading through the same implementation.
   stats), optional single-column grouping with per-bucket totals, and a
   plain-sentence highlights array. Types: `DataDigest`, `ColumnDigest`,
   `NumericStats`, `CategoryStats`, `DateStats`, `GroupDigest`, `DigestOptions`.
-- `buildChartSpec()`, `chartColor()` — picks the chart kind that fits a result
+- `buildChartSpec()`, `chartColor()`, `fillFor()` — picks the chart kind that fits a result
   (pie / line / area / bar / hbar / scatter) unless the caller names one.
   `CHART_KINDS`, `SUMMARY_CHART_KINDS`, `CHART_COLORS` (design-system `--ds-chart-*`
-  ramp). Types: `ChartKind`, `ResolvedChartKind`, `ChartPoint`, `ChartSpec`, `ChartInput`.
+  ramp), `SERIES_COLOR`, `POSITIVE_COLOR`, `NEGATIVE_COLOR`. Types: `ChartKind`,
+  `ResolvedChartKind`, `ChartPoint`, `ChartSpec`, `ChartInput`.
+  **Colour encodes meaning, not row index**: the categorical ramp is used only where
+  colour genuinely encodes a category (pie); a single-series bar/line/area/scatter is
+  drawn in one hue (`SERIES_COLOR`); and a measure that crosses zero is coloured by
+  sign (`--ds-accent-positive`/`-negative`) with `ChartSpec.signed` set, which
+  `DataChart` uses to draw a zero reference line.
+- `formatValue()`, `formatCompact()`, `formatNumberFallback()` — display formatting for
+  analysis output. Reuses the grid's OWN column formats (`matchFieldToCatalog` →
+  `valueFormatterFromTemplate`), so a `marketValue` in a result table reads exactly as it
+  does on the blotter. Guards against the catalogue misfiring on a name: a date template is
+  refused for a numeric value (`yieldToMaturity` would otherwise render as a 1970 date), a
+  format that scales a value below one whole unit is refused (700 → `0.7K`), and one that
+  collapses a non-zero value to `0.00` is refused. Aggregate aliases (`sum_marketValue`)
+  format as the column they aggregate; `count_` stays a plain integer. `formatCompact` is
+  for axis ticks only. Used by `AnalysisTable`, `DataChart` tooltips, stat cards and the
+  computed commentary in `dataDigest`/`dataQuery`.
+- `ChartStyle`, `LABEL_CONTRASTS`, `CHART_PALETTES`, `labelContrastClass()` — semantic
+  presentation options for a chart (`labelContrast` muted/normal/high, `showGrid`,
+  `showLegend`, `palette`). Named intents rather than raw colours, so both themes stay
+  correct and charts stay within the design system; carried on `SummaryWidget.style` and
+  validated on deserialize.
 - `runQuery()`, `validateQuery()` — a total filter/group/aggregate/pivot/sort/limit
   query engine over already-fetched rows, with pivot guardrails (column-count cap,
   duplicate-name detection) and a `buildQueryHighlights()`-derived synopsis line
