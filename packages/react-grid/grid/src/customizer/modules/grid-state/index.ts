@@ -33,11 +33,41 @@ export const gridStateModule: Module<GridStateState> = {
   getInitialState: () => ({ ...INITIAL_GRID_STATE }),
 
   activate(platform: PlatformHandle<GridStateState>): () => void {
+    // The snapshot most recently handed to `applyGridState`, compared by
+    // IDENTITY. Both replay paths below can fire for the same load — a full
+    // `ProfileManager.load()` runs `deserializeAll` (which emits
+    // `module:stateChanged` per module) and then emits `profile:loaded`, so
+    // without this the state would be applied twice, and `applyGridState`
+    // restores scroll position — a visible double jump, not just wasted work.
+    // A scoped sync produces a fresh object from `deserialize`, so it never
+    // collides with this guard.
+    let lastApplied: SavedGridState | null = null;
+    const applyOnce = (api: Parameters<typeof applyGridState>[0], saved: SavedGridState): void => {
+      if (saved === lastApplied) return;
+      lastApplied = saved;
+      applyGridState(api, saved);
+    };
+
     // Replay on grid-ready for the cold-mount case (profile loaded before
     // the grid existed).
     const disposeReady = platform.api.onReady((api) => {
       const state = platform.getState();
-      if (state.saved) applyGridState(api, state.saved);
+      if (state.saved) applyOnce(api, state.saved);
+    });
+
+    // Replay on a SCOPED module sync — the assistant (or another window)
+    // writing just this module's slice. `ProfileManager.syncModules` calls
+    // `deserializeOne`, which sets module state and emits this event but
+    // never re-applies it to the live grid; without this listener a
+    // grid-state write only showed up after a full reload, which is exactly
+    // what scoped sync exists to avoid. This is what makes sort, filters,
+    // quick filter and row-group expansion applicable live.
+    const disposeSync = platform.events.on('module:stateChanged', (e) => {
+      if (e.moduleId !== GRID_STATE_MODULE_ID) return;
+      const api = platform.api.api;
+      if (!api) return;
+      const state = platform.getState();
+      if (state.saved) applyOnce(api, state.saved);
     });
 
     // Replay on profile:loaded — profile switched while the grid is live.
@@ -46,9 +76,10 @@ export const gridStateModule: Module<GridStateState> = {
       if (!api) return;
       const state = platform.getState();
       if (state.saved) {
-        applyGridState(api, state.saved);
+        applyOnce(api, state.saved);
         return;
       }
+      lastApplied = null;
       // Freshly-loaded / newly-created profile has no saved state —
       // reset the live grid so columns / sort / filters from the
       // previous profile don't leak through (AG-Grid owns native state,
@@ -63,6 +94,7 @@ export const gridStateModule: Module<GridStateState> = {
 
     return () => {
       disposeReady();
+      disposeSync();
       disposeProfile();
     };
   },

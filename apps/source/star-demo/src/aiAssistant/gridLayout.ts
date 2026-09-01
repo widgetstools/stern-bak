@@ -31,6 +31,17 @@ export interface GridStateSlices {
   aggregation?: { aggregationModel: Array<{ colId: string; aggFunc: string }> };
   /** AG-Grid's own pivot slice: the mode flag plus the column dimension. */
   pivot?: { pivotMode: boolean; pivotColIds: string[] };
+  /** Sort columns and directions. Mirrors AG-Grid's `SortState`. */
+  sort?: { sortModel: Array<{ colId: string; sort: 'asc' | 'desc' }> };
+  /** Column filters. `filterModel` is keyed by colId — the same shape a
+   *  saved-filter pill carries. */
+  filter?: { filterModel: Record<string, unknown> };
+  /**
+   * Which row groups are open. AG-Grid collapses every group by default and
+   * treats this as the list of row ids explicitly expanded — so it is a
+   * SNAPSHOT of open groups, not a diff.
+   */
+  rowGroupExpansion?: { expandedRowGroupIds: string[] };
   [slice: string]: unknown;
 }
 
@@ -188,6 +199,90 @@ export function applyColumnLayout(prev: GridStateSlices, patch: ColumnLayoutArgs
   }
 
   return next;
+}
+
+export const SORT_DIRECTIONS = ['asc', 'desc'] as const;
+export type SortDirection = (typeof SORT_DIRECTIONS)[number];
+
+export interface SortArgs {
+  /** Empty clears sorting entirely. Order is the sort precedence. */
+  sortModel: Array<{ colId: string; sort: SortDirection }>;
+}
+
+/**
+ * `sortBy` is an ordered list — first entry is the primary sort. An empty
+ * array (or an explicit `clear`) removes all sorting, which is how "stop
+ * sorting" is expressed; there is no separate clear tool.
+ */
+export function normalizeSortArgs(args: Record<string, unknown>): LayoutResult<SortArgs> {
+  if (args.clear === true) return { ok: true, value: { sortModel: [] } };
+  const raw = args.sortBy;
+  if (raw === undefined) {
+    return { ok: false, error: 'Supply sortBy (an ordered array of { column, direction }), or clear: true to remove sorting.' };
+  }
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: 'sortBy must be an array of { column, direction } objects, ordered by precedence.' };
+  }
+  const sortModel: SortArgs['sortModel'] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) {
+      return { ok: false, error: 'Each sortBy entry must be an object like { "column": "marketValue", "direction": "desc" }.' };
+    }
+    const e = entry as { column?: unknown; direction?: unknown };
+    if (typeof e.column !== 'string' || !e.column) {
+      return { ok: false, error: 'Each sortBy entry needs a "column" naming the column to sort.' };
+    }
+    const direction = e.direction ?? 'asc';
+    if (direction !== 'asc' && direction !== 'desc') {
+      return { ok: false, error: `sortBy["${e.column}"].direction must be "asc" or "desc".` };
+    }
+    if (seen.has(e.column)) {
+      return { ok: false, error: `Column "${e.column}" appears twice in sortBy — a column can only be sorted once.` };
+    }
+    seen.add(e.column);
+    sortModel.push({ colId: e.column, sort: direction });
+  }
+  return { ok: true, value: { sortModel } };
+}
+
+export interface GroupExpansionArgs {
+  /** Snapshot of the groups that should be open. */
+  expandedRowGroupIds: string[];
+  /** `-1` expands every level, `0` collapses all; undefined leaves it alone. */
+  groupDefaultExpanded?: number;
+}
+
+/**
+ * Expansion has two genuinely different mechanisms and conflating them is the
+ * mistake to prevent:
+ *   - expand/collapse ALL is `general-settings.groupDefaultExpanded`
+ *     (`-1` / `0`) — declarative, survives a reload, applies to groups that
+ *     don't exist yet.
+ *   - expanding SPECIFIC groups is `gridState.rowGroupExpansion`, a snapshot
+ *     of open row ids. AG-Grid collapses everything by default, so this list
+ *     is absolute, not a delta.
+ */
+export function normalizeGroupExpansionArgs(args: Record<string, unknown>): LayoutResult<GroupExpansionArgs> {
+  const mode = args.mode;
+  if (mode !== undefined && mode !== 'all' && mode !== 'none' && mode !== 'specific') {
+    return { ok: false, error: 'mode must be "all" (expand every group), "none" (collapse every group), or "specific".' };
+  }
+  if (mode === 'all') return { ok: true, value: { expandedRowGroupIds: [], groupDefaultExpanded: -1 } };
+  if (mode === 'none') return { ok: true, value: { expandedRowGroupIds: [], groupDefaultExpanded: 0 } };
+
+  const list = stringList(args.expandGroups, 'expandGroups');
+  if (isListError(list)) return { ok: false, error: list.error };
+  if (list.length === 0) {
+    return {
+      ok: false,
+      error:
+        'Supply mode: "all" / "none", or expandGroups with the row-group ids to open. ' +
+        'Group ids come from the grid\'s own row ids (e.g. "row-group-sector-Financials") — ' +
+        'read them from a grouped result rather than inventing them.',
+    };
+  }
+  return { ok: true, value: { expandedRowGroupIds: list } };
 }
 
 export interface RowGroupingArgs {

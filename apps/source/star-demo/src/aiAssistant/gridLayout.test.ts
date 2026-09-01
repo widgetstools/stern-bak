@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeColumnLayoutArgs,
   normalizeRowGroupingArgs,
+  normalizeSortArgs,
+  normalizeGroupExpansionArgs,
   applyColumnLayout,
   applyRowGrouping,
   withGridStateSlices,
@@ -301,5 +303,73 @@ describe('planGroupedVisibility', () => {
       { columns, previouslyHidden: ['issuerSector'], previouslyAutoHidden: ['issuerSector'] },
     );
     expect(plan.hiddenColIds).toEqual(['currency']);
+  });
+});
+
+describe('normalizeSortArgs', () => {
+  it('reads an ordered sort list, defaulting direction to asc', () => {
+    const res = normalizeSortArgs({ sortBy: [{ column: 'desk' }, { column: 'marketValue', direction: 'desc' }] });
+    expect(res.ok && res.value.sortModel).toEqual([
+      { colId: 'desk', sort: 'asc' },
+      { colId: 'marketValue', sort: 'desc' },
+    ]);
+  });
+
+  /** "stop sorting" has to be expressible without a second tool. */
+  it('treats clear:true and an empty list as "remove all sorting"', () => {
+    expect(normalizeSortArgs({ clear: true })).toEqual({ ok: true, value: { sortModel: [] } });
+    expect(normalizeSortArgs({ sortBy: [] })).toEqual({ ok: true, value: { sortModel: [] } });
+  });
+
+  it('rejects a direction that is not asc or desc', () => {
+    const res = normalizeSortArgs({ sortBy: [{ column: 'desk', direction: 'descending' }] });
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toContain('"asc" or "desc"');
+  });
+
+  /** AG-Grid would silently keep only one; better to say so. */
+  it('rejects the same column sorted twice', () => {
+    const res = normalizeSortArgs({ sortBy: [{ column: 'desk' }, { column: 'desk', direction: 'desc' }] });
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toContain('twice');
+  });
+
+  it('rejects an entry with no column, and a missing sortBy', () => {
+    expect(normalizeSortArgs({ sortBy: [{ direction: 'asc' }] }).ok).toBe(false);
+    expect(normalizeSortArgs({}).ok).toBe(false);
+  });
+});
+
+describe('normalizeGroupExpansionArgs', () => {
+  /**
+   * expand-all is a general-settings DEFAULT, not a snapshot — it has to keep
+   * applying to groups that appear later on a streaming blotter.
+   */
+  it('maps mode "all" to groupDefaultExpanded -1', () => {
+    const res = normalizeGroupExpansionArgs({ mode: 'all' });
+    expect(res.ok && res.value.groupDefaultExpanded).toBe(-1);
+  });
+
+  it('maps mode "none" to groupDefaultExpanded 0', () => {
+    const res = normalizeGroupExpansionArgs({ mode: 'none' });
+    expect(res.ok && res.value.groupDefaultExpanded).toBe(0);
+  });
+
+  it('takes an explicit list of groups to open, and leaves the default alone', () => {
+    const res = normalizeGroupExpansionArgs({ mode: 'specific', expandGroups: ['row-group-sector-Financials'] });
+    expect(res.ok && res.value.expandedRowGroupIds).toEqual(['row-group-sector-Financials']);
+    expect(res.ok && res.value.groupDefaultExpanded).toBeUndefined();
+  });
+
+  /** Without a mode or a list there is nothing to do — and guessing would
+   *  silently collapse every group, since the list is absolute. */
+  it('rejects a call that names neither a mode nor any groups', () => {
+    const res = normalizeGroupExpansionArgs({});
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toContain('mode');
+  });
+
+  it('rejects an unknown mode', () => {
+    expect(normalizeGroupExpansionArgs({ mode: 'expand-everything' }).ok).toBe(false);
   });
 });

@@ -79,3 +79,93 @@ describe('gridStateModule', () => {
     expect(setGridOption).toHaveBeenCalledWith('quickFilterText', '');
   });
 });
+
+/**
+ * A scoped module sync (`ProfileManager.syncModules` → `deserializeOne`) sets
+ * this module's state and emits `module:stateChanged`, but used to re-apply
+ * nothing — so a grid-state write from the assistant only appeared after a
+ * full reload. These cover the listener that closes that gap, and the
+ * double-apply guard it needs.
+ */
+describe('gridStateModule — live re-apply on scoped sync', () => {
+  function harness(savedSeq: Array<unknown>) {
+    const setState = vi.fn();
+    const setGridOption = vi.fn();
+    const applyColumnState = vi.fn();
+    const api = { setState, setGridOption, applyColumnState };
+    const handlers: Record<string, Array<(e?: unknown) => void>> = {};
+    let index = 0;
+    const platform = {
+      getState: () => ({ saved: savedSeq[Math.min(index, savedSeq.length - 1)] }),
+      api: { api, onReady: () => () => {} },
+      events: {
+        on: (evt: string, cb: (e?: unknown) => void) => {
+          (handlers[evt] ??= []).push(cb);
+          return () => {};
+        },
+      },
+    };
+    gridStateModule.activate!(platform as never);
+    return {
+      setState,
+      fireSync: (moduleId: string) => handlers['module:stateChanged']?.forEach((h) => h({ moduleId })),
+      fireProfileLoaded: () => handlers['profile:loaded']?.forEach((h) => h()),
+      advance: () => { index += 1; },
+    };
+  }
+
+  const snap = (colId: string) => ({
+    gridState: { version: 3, columnOrder: { orderedColIds: [colId] } },
+    viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+  });
+
+  it('applies the saved state when this module is scope-synced', () => {
+    const h = harness([snap('a')]);
+    h.fireSync(GRID_STATE_MODULE_ID);
+    expect(h.setState).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a scope-sync of a different module', () => {
+    const h = harness([snap('a')]);
+    h.fireSync('conditional-styling');
+    h.fireSync('column-customization');
+    expect(h.setState).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The guard that matters: a full `ProfileManager.load()` runs
+   * `deserializeAll` (emitting module:stateChanged) AND then emits
+   * `profile:loaded`. Applying twice would replay the scroll/viewport
+   * restore twice — a visible jump.
+   */
+  it('does not re-apply the same snapshot twice across both replay paths', () => {
+    const h = harness([snap('a')]);
+    h.fireSync(GRID_STATE_MODULE_ID);
+    h.fireProfileLoaded();
+    expect(h.setState).toHaveBeenCalledTimes(1);
+  });
+
+  it('does apply again when the snapshot is genuinely a new one', () => {
+    const h = harness([snap('a'), snap('b')]);
+    h.fireSync(GRID_STATE_MODULE_ID);
+    h.advance();
+    h.fireSync(GRID_STATE_MODULE_ID);
+    expect(h.setState).toHaveBeenCalledTimes(2);
+  });
+
+  it('no-ops when the grid is not ready yet', () => {
+    const handlers: Record<string, Array<(e?: unknown) => void>> = {};
+    const platform = {
+      getState: () => ({ saved: snap('a') }),
+      api: { api: null, onReady: () => () => {} },
+      events: {
+        on: (evt: string, cb: (e?: unknown) => void) => {
+          (handlers[evt] ??= []).push(cb);
+          return () => {};
+        },
+      },
+    };
+    gridStateModule.activate!(platform as never);
+    expect(() => handlers['module:stateChanged']?.forEach((h) => h({ moduleId: GRID_STATE_MODULE_ID }))).not.toThrow();
+  });
+});

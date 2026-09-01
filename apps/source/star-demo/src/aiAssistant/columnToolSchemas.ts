@@ -130,6 +130,106 @@ export const COLUMN_TOOL_SCHEMAS: OpenAIToolSchema[] = [
   {
     type: 'function',
     function: {
+      name: 'set_sort',
+      description:
+        'Sort the blotter. "sort by market value descending", "sort by desk then maturity", "stop sorting". Column names are resolved for you, so no get_grid_columns first. Applies live — no reload.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          sortBy: {
+            type: 'array',
+            description: 'Ordered by precedence — the first entry is the primary sort.',
+            items: {
+              type: 'object',
+              properties: {
+                column: { type: 'string', description: 'Column id, header label, or the loose form the user said.' },
+                direction: { type: 'string', enum: ['asc', 'desc'], description: 'Defaults to asc.' },
+              },
+              required: ['column'],
+            },
+          },
+          clear: { type: 'boolean', description: 'Remove all sorting. Equivalent to an empty sortBy.' },
+        },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_filter_model',
+      description:
+        'Apply column filters — "show only Rates", "filter to P&L below zero", "clear the filters". Takes an AG-Grid filter model keyed by column id: the same shape a saved-filter pill carries, so a filter set here can be saved as one. Applies live. For free-text search across all columns use set_quick_filter instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          filterModel: {
+            type: 'object',
+            description:
+              'Keyed by column id. Set filter: { "assetClass": { "filterType": "set", "values": ["Rates"] } }. Number: { "dailyPnL": { "filterType": "number", "type": "lessThan", "filter": 0 } }. Text: { "ticker": { "filterType": "text", "type": "contains", "filter": "T " } }. Replaces the whole model — include every filter you want active.',
+          },
+          clear: { type: 'boolean', description: 'Remove all column filters.' },
+        },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_quick_filter',
+      description:
+        'Free-text search across every column — the grid\'s own quick filter. "search for Ford", "find anything mentioning 2031", "clear the search". Applies live.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          text: { type: 'string', description: 'The search text. Omit or pass "" to clear it.' },
+        },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_group_expansion',
+      description:
+        'Expand or collapse row groups on an already-grouped grid — "expand all the groups", "collapse everything", "open the Financials group". Use set_row_grouping first to create the groups. Applies live.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          mode: {
+            type: 'string',
+            enum: ['all', 'none', 'specific'],
+            description:
+              '"all" expands every group at every level and keeps doing so for groups that appear later (it sets the grid\'s default). "none" collapses everything. "specific" opens exactly the groups named in expandGroups.',
+          },
+          expandGroups: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'With mode "specific": the row-group ids to open. This is an absolute snapshot — groups not listed end up collapsed. Ids are the grid\'s own row ids; read them from a grouped result rather than inventing them.',
+          },
+        },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_column_style',
       description:
         'Style existing columns: horizontal/vertical ALIGNMENT, text and background colour, bold/italic, or a number/date format preset. Merges into whatever styling the column already has. Target one column (colId), several (colIds) or every column at once (allColumns) — and choose whether it hits the cells, the headers, or both via `target`. Aligning a column\'s values does NOT move its header: pass target "cells+headers" when the user says "align the column".',

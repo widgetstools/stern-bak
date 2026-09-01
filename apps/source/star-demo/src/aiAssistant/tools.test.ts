@@ -26,6 +26,7 @@ const DECLARED: ToolName[] = [
   'add_conditional_styling_rule', 'update_conditional_styling_rule', 'remove_conditional_styling_rule',
   'rename_column', 'set_column_visibility',
   'set_column_style', 'set_column_behavior', 'set_column_layout', 'set_row_grouping',
+  'set_sort', 'set_filter_model', 'set_quick_filter', 'set_group_expansion',
   'list_profiles', 'create_profile', 'update_profile', 'delete_profile', 'switch_profile', 'reload_grid',
   'clear_column_style',
 ];

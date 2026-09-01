@@ -13,6 +13,8 @@ import { readColumnCatalogue, resolveColumns, resolveColumnKeys, isNumericColumn
 import {
   normalizeColumnLayoutArgs,
   normalizeRowGroupingArgs,
+  normalizeSortArgs,
+  normalizeGroupExpansionArgs,
   applyColumnLayout,
   applyRowGrouping,
   planGroupedVisibility,
@@ -112,6 +114,150 @@ export async function setColumnLayout(
   if (patch.unpin) parts.push(`unpinned ${patch.unpin.join(', ')}`);
   if (patch.width) parts.push(`resized ${Object.keys(patch.width).join(', ')}`);
   return { ok: true, summary: `"${entry.displayName}"${describeFanOut(fan)}: ${parts.join('; ')}.` };
+}
+
+/**
+ * Sort, filters and row-group expansion all live in the `grid-state`
+ * snapshot and reach the live grid the same way: the scoped module sync
+ * re-applies the snapshot through `api.setState` (see the grid-state
+ * module's `module:stateChanged` listener). Unlike column layout there is no
+ * second `column-customization` layer to mirror into — AG-Grid owns sort and
+ * filter state natively, and `column-customization` has nowhere to put it.
+ */
+async function writeGridStateSlice(
+  configManager: ConfigManager,
+  entry: RegistryEntry,
+  patch: Record<string, unknown>,
+): Promise<Awaited<ReturnType<typeof patchGridModule>>> {
+  const now = new Date().toISOString();
+  return patchGridModule(configManager, entry, 'grid-state', (prev) => {
+    const prevSaved = (prev as { saved?: SavedGridStateEnvelope } | undefined)?.saved ?? null;
+    return { saved: withGridStateSlices(prevSaved, patch, now) };
+  });
+}
+
+/** "Sort by market value descending", "sort by desk then maturity". */
+export async function setSort(
+  configManager: ConfigManager,
+  configStore: DataProviderConfigStore,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const targetGridId = args.targetGridId as string | undefined;
+  if (!targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  const entry = await resolveGridEntry(targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
+
+  const parsed = normalizeSortArgs(args);
+  if (!parsed.ok) return { ok: false, summary: parsed.error };
+
+  // Resolve the user's words to real colIds, same as every other column tool.
+  const catalogue = await readColumnCatalogue(configManager, configStore, entry);
+  const resolved = resolveColumns(parsed.value.sortModel.map((s) => s.colId), catalogue);
+  if (!resolved.ok) return { ok: false, summary: resolved.error };
+  const sortModel = parsed.value.sortModel.map((s, i) => ({ colId: resolved.colIds[i], sort: s.sort }));
+
+  const fan = await writeGridStateSlice(configManager, entry, { sort: { sortModel } });
+  const label = sortModel.length === 0
+    ? 'cleared sorting'
+    : `sorted by ${sortModel.map((s) => `${s.colId} ${s.sort}`).join(', then ')}`;
+  return { ok: true, summary: `"${entry.displayName}"${describeFanOut(fan)}: ${label}.` };
+}
+
+/**
+ * The column filter model — the same shape a saved-filter pill carries, so a
+ * filter authored here can be lifted straight into one.
+ */
+export async function setFilterModel(
+  configManager: ConfigManager,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const targetGridId = args.targetGridId as string | undefined;
+  if (!targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  const entry = await resolveGridEntry(targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
+
+  const raw = args.filterModel;
+  if (args.clear !== true && (typeof raw !== 'object' || raw === null || Array.isArray(raw))) {
+    return {
+      ok: false,
+      summary:
+        'filterModel must be an AG-Grid filter model keyed by column id, e.g. ' +
+        '{ "assetClass": { "filterType": "set", "values": ["Rates"] } }. Pass clear: true to remove all filters.',
+    };
+  }
+  const filterModel = args.clear === true ? {} : (raw as Record<string, unknown>);
+
+  const fan = await writeGridStateSlice(configManager, entry, { filter: { filterModel } });
+  const cols = Object.keys(filterModel);
+  const label = cols.length === 0 ? 'cleared all column filters' : `filtered on ${cols.join(', ')}`;
+  return { ok: true, summary: `"${entry.displayName}"${describeFanOut(fan)}: ${label}.` };
+}
+
+/** Free-text search across every column — the grid's own quick filter. */
+export async function setQuickFilter(
+  configManager: ConfigManager,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const targetGridId = args.targetGridId as string | undefined;
+  if (!targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  const entry = await resolveGridEntry(targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
+
+  const text = args.text;
+  if (text !== undefined && typeof text !== 'string') {
+    return { ok: false, summary: 'text must be a string; omit it (or pass "") to clear the quick filter.' };
+  }
+  const quickFilter = typeof text === 'string' ? text : '';
+
+  // quickFilter is a sibling of gridState in the envelope, not a state slice.
+  const now = new Date().toISOString();
+  const fan = await patchGridModule(configManager, entry, 'grid-state', (prev) => {
+    const prevSaved = (prev as { saved?: SavedGridStateEnvelope } | undefined)?.saved ?? null;
+    return { saved: { ...withGridStateSlices(prevSaved, {}, now), quickFilter } };
+  });
+  const label = quickFilter ? `quick filter set to "${quickFilter}"` : 'cleared the quick filter';
+  return { ok: true, summary: `"${entry.displayName}"${describeFanOut(fan)}: ${label}.` };
+}
+
+/**
+ * Expand / collapse row groups. Two mechanisms, deliberately behind one tool
+ * so the model doesn't have to know which is which — see
+ * `normalizeGroupExpansionArgs`.
+ */
+export async function setGroupExpansion(
+  configManager: ConfigManager,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const targetGridId = args.targetGridId as string | undefined;
+  if (!targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  const entry = await resolveGridEntry(targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
+
+  const parsed = normalizeGroupExpansionArgs(args);
+  if (!parsed.ok) return { ok: false, summary: parsed.error };
+  const { expandedRowGroupIds, groupDefaultExpanded } = parsed.value;
+
+  const fan = await writeGridStateSlice(configManager, entry, {
+    rowGroupExpansion: { expandedRowGroupIds },
+  });
+
+  // expand-all / collapse-all is a general-settings default, not a snapshot —
+  // it keeps applying to groups that don't exist yet, which is what "expand
+  // all" has to mean on a streaming blotter.
+  if (groupDefaultExpanded !== undefined) {
+    await patchGridModule(configManager, entry, 'general-settings', (prev) => ({
+      ...(prev as Record<string, unknown> | undefined),
+      groupDefaultExpanded,
+    }));
+  }
+
+  const label =
+    groupDefaultExpanded === -1
+      ? 'expanded every row group'
+      : groupDefaultExpanded === 0
+        ? 'collapsed every row group'
+        : `expanded ${expandedRowGroupIds.length} row group(s)`;
+  return { ok: true, summary: `"${entry.displayName}"${describeFanOut(fan)}: ${label}.` };
 }
 
 /**
