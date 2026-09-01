@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildChartSpec, chartColor, CHART_COLORS, type ChartInput } from './chartSpec.js';
+import {
+  buildChartSpec,
+  chartColor,
+  CHART_COLORS,
+  SERIES_COLOR,
+  POSITIVE_COLOR,
+  NEGATIVE_COLOR,
+  type ChartInput,
+} from './chartSpec.js';
 
 function grouped(rows: Array<Record<string, unknown>>, columns: string[], requested?: ChartInput['requested']) {
   return buildChartSpec({ columns, rows, grouped: true, requested });
@@ -176,5 +184,59 @@ describe('point limits', () => {
   it('caps the categories it plots', () => {
     const many = Array.from({ length: 90 }, (_, i) => ({ desk: `D${i}`, total: i + 1 }));
     expect(grouped(many, ['desk', 'total'])!.points.length).toBe(24);
+  });
+});
+
+/**
+ * Colour has to mean something. These lock in the rule that replaced
+ * per-point `chartColor(i)`, which painted every bar of a single series a
+ * different hue — five colours implying five categories where there is one
+ * measure.
+ */
+describe('colour encodes meaning, not row index', () => {
+  it('draws a single-series bar chart in ONE hue', () => {
+    const spec = grouped(SECTORS, ['sector', 'total'], 'bar');
+    expect(spec!.kind).toBe('bar');
+    expect(new Set(spec!.points.map((p) => p.fill))).toEqual(new Set([SERIES_COLOR]));
+  });
+
+  it('still walks the categorical ramp for a pie, where colour IS the category', () => {
+    const spec = grouped(SECTORS.slice(0, 3), ['sector', 'total'], 'pie');
+    expect(spec!.kind).toBe('pie');
+    expect(spec!.points.map((p) => p.fill)).toEqual([chartColor(0), chartColor(1), chartColor(2)]);
+  });
+
+  it('colours a signed measure by sign, so red means loss', () => {
+    const spec = grouped(
+      [
+        { desk: 'Rates', pnl: 120 },
+        { desk: 'Credit', pnl: -80 },
+        { desk: 'FX', pnl: 45 },
+      ],
+      ['desk', 'pnl'],
+    );
+    expect(spec!.signed).toBe(true);
+    expect(spec!.points.map((p) => p.fill)).toEqual([POSITIVE_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR]);
+  });
+
+  it('marks an all-positive measure unsigned and leaves it in the series hue', () => {
+    const spec = grouped(SECTORS, ['sector', 'total']);
+    expect(spec!.signed).toBe(false);
+  });
+
+  it('draws every scatter dot in one hue — they are all the same series', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => ({ name: `n${i}`, x: i, y: i * 2 }));
+    const spec = raw(rows, ['name', 'x', 'y'], 'scatter');
+    expect(spec!.kind).toBe('scatter');
+    expect(new Set(spec!.points.map((p) => p.fill))).toEqual(new Set([SERIES_COLOR]));
+  });
+
+  it('never uses the interactive primary or accent for data marks', () => {
+    const spec = grouped(SECTORS, ['sector', 'total']);
+    for (const p of spec!.points) {
+      expect(p.fill).not.toContain('--ds-primary');
+      expect(p.fill).not.toContain('--ds-accent-primary');
+    }
+    expect(CHART_COLORS.join(' ')).not.toContain('--ds-primary');
   });
 });

@@ -56,6 +56,37 @@ export function chartColor(index: number): string {
   return CHART_COLORS[index % CHART_COLORS.length];
 }
 
+/**
+ * The single hue a one-series chart is drawn in.
+ *
+ * Colour has to MEAN something. Walking the categorical ramp per data point —
+ * which is what this used to do — paints every bar of one series a different
+ * hue, implying five categories where there is one measure. It reads as
+ * decoration, and decoration is what makes a chart look garish.
+ */
+export const SERIES_COLOR = 'var(--ds-chart-1)';
+
+/**
+ * Signed measures get the desk's own semantics instead: a trader reads red and
+ * green as loss and gain, so drawing P&L in the categorical ramp throws away
+ * the one thing the colour could have told them.
+ */
+export const POSITIVE_COLOR = 'var(--ds-accent-positive)';
+export const NEGATIVE_COLOR = 'var(--ds-accent-negative)';
+
+/**
+ * Colour for one point.
+ *
+ * - pie: colour genuinely encodes the category, so the ramp is right.
+ * - signed data: colour encodes the sign.
+ * - everything else: one hue for the whole series.
+ */
+export function fillFor(kind: ResolvedChartKind, value: number, index: number, signed: boolean): string {
+  if (kind === 'pie') return chartColor(index);
+  if (signed) return value < 0 ? NEGATIVE_COLOR : POSITIVE_COLOR;
+  return SERIES_COLOR;
+}
+
 export interface ChartPoint {
   label: string;
   value: number;
@@ -71,6 +102,12 @@ export interface ChartSpec {
   valueKey: string;
   /** Set for scatter: the column on the y axis. */
   yKey?: string;
+  /**
+   * The measure crosses zero, so points are coloured by sign rather than in
+   * one series hue. The renderer uses it to draw a zero reference line —
+   * without one, a bar chart of P&L gives no visual anchor for where zero is.
+   */
+  signed: boolean;
   /** Why this chart — shown as the cell's chart caption. */
   caption: string;
 }
@@ -134,31 +171,45 @@ export function buildChartSpec(input: ChartInput): ChartSpec | undefined {
   const labelKey = categorical[0] ?? input.columns[0];
   if (!valueKey || valueKey === labelKey) return undefined;
 
-  const points = input.rows
+  // Built without a fill first: the right colour depends on the chart kind,
+  // and the kind is resolved FROM the points.
+  const bare = input.rows
     .slice(0, MAX_POINTS)
-    .map((row, i) => ({
+    .map((row) => ({
       label: String(row[labelKey] ?? ''),
       value: typeof row[valueKey] === 'number' ? (row[valueKey] as number) : 0,
-      fill: chartColor(i),
     }))
     .filter((p) => p.label);
 
-  if (points.length < 2) return undefined;
-  if (points.every((p) => p.value === 0)) return undefined;
+  if (bare.length < 2) return undefined;
+  if (bare.every((p) => p.value === 0)) return undefined;
 
-  const kind = resolveKind(input.requested, points, labelKey);
+  const kind = resolveKind(input.requested, bare as ChartPoint[], labelKey);
   if (!kind) return undefined;
-  return { kind, points, labelKey, valueKey, caption: captionFor(kind, labelKey, valueKey, points.length) };
+
+  const signed = bare.some((p) => p.value < 0);
+  const points: ChartPoint[] = bare.map((p, i) => ({ ...p, fill: fillFor(kind, p.value, i, signed) }));
+
+  return {
+    kind,
+    points,
+    labelKey,
+    valueKey,
+    signed,
+    caption: captionFor(kind, labelKey, valueKey, points.length),
+  };
 }
 
 function scatterSpec(input: ChartInput, numerics: string[]): ChartSpec {
   const [xKey, yKey] = numerics;
   const labelKey = input.columns.find((c) => !numerics.includes(c)) ?? xKey;
-  const points = input.rows.slice(0, MAX_POINTS * 4).map((row, i) => ({
+  // Every dot is the same series — one hue. Colouring them by row index
+  // implies a grouping that isn't there.
+  const points = input.rows.slice(0, MAX_POINTS * 4).map((row) => ({
     label: String(row[labelKey] ?? ''),
     value: typeof row[xKey] === 'number' ? (row[xKey] as number) : 0,
     y: typeof row[yKey] === 'number' ? (row[yKey] as number) : 0,
-    fill: chartColor(i),
+    fill: SERIES_COLOR,
   }));
   return {
     kind: 'scatter',
@@ -166,6 +217,7 @@ function scatterSpec(input: ChartInput, numerics: string[]): ChartSpec {
     labelKey: xKey,
     valueKey: xKey,
     yKey,
+    signed: false,
     caption: `${yKey} against ${xKey}, ${points.length} points`,
   };
 }

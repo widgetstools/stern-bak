@@ -145,7 +145,7 @@ export function DigestCard({ widget, rows }: { widget: SummaryWidget; rows: Reco
           {numerics.map((stat) => (
             <div key={stat.colId} className="min-w-0 rounded-sm border border-border/50 px-1.5 py-1">
               <div className="truncate font-mono text-[9px] text-muted-foreground">{stat.colId}</div>
-              <div className="font-mono text-[11px] tabular-nums text-foreground">{compact(stat.sum)}</div>
+              <div className="font-mono text-[11px] tabular-nums text-foreground">{compact(stat.sum, stat.colId)}</div>
             </div>
           ))}
         </div>
@@ -166,11 +166,16 @@ export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Recor
 
   if (widget.kind === 'heatmap') {
     return (
-      <div className="max-h-40 overflow-auto">
+      // Fills the panel it is given rather than being clipped at a fixed
+      // 160px. A cross-tab is the widget most likely to be dragged large on
+      // purpose, and the old cap meant making the panel bigger did nothing —
+      // the user still scrolled a letterbox.
+      <div className="h-full max-h-full overflow-auto">
         <AnalysisTable
           columns={result.columns}
           rows={result.rows}
           stickyLeadingCols={result.pivot?.rowDims.length ?? 0}
+          valueColId={result.pivot?.measures[0]}
           heatmap
         />
       </div>
@@ -187,7 +192,7 @@ export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Recor
 
   return (
     <div className="px-1.5 py-1">
-      <DataChart spec={spec} />
+      <DataChart spec={spec} style={widget.style} />
     </div>
   );
 }
