@@ -170,7 +170,8 @@ describe('dispatchTool — columns', () => {
     const result = await dispatchTool('set_column_style', ctx, {
       targetGridId: 'grid-test',
       colId: 'compositeRating',
-      renderer: { id: 'pill', config: { variant: 'soft' } },
+      // A pill needs `rules`; without them the renderer draws plain text.
+      renderer: { id: 'pill', config: { rules: [{ value: 'AAA', bg: { dark: '#103418' } }] } },
     });
 
     expect(result.ok).toBe(true);
@@ -179,7 +180,10 @@ describe('dispatchTool — columns', () => {
       assignments: Record<string, { cellRendererId?: string; cellRendererConfig?: unknown }>;
     }).assignments.compositeRating;
     expect(assignment.cellRendererId).toBe('pill');
-    expect(assignment.cellRendererConfig).toEqual({ kind: 'pill', config: { variant: 'soft' } });
+    expect(assignment.cellRendererConfig).toEqual({
+      kind: 'pill',
+      config: { rules: [{ value: 'AAA', bg: { dark: '#103418' } }] },
+    });
   });
 
   /**

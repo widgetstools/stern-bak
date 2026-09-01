@@ -860,3 +860,41 @@ describe('CellRendererEditors', () => {
     );
   });
 });
+
+/**
+ * A settings editor opens on whatever is actually stored, which is not always
+ * what the current schema expects: a config can arrive from an assistant
+ * write, a hand-edited profile, an import, or an older schema version.
+ *
+ * `PillEditor` crashed the entire column-settings drawer with "Cannot read
+ * properties of undefined (reading 'length')" when it was handed a config
+ * object with no `rules` — its `value ?? EMPTY` guard catches a MISSING
+ * config but not a partial one. Losing the whole drawer means the user cannot
+ * even repair the column that caused it.
+ */
+describe('editors open on a partial config instead of crashing the drawer', () => {
+  it('PillEditor renders with a config that has no rules', () => {
+    expect(() =>
+      render(<PillEditor value={{ shape: 'pill' } as never} onChange={vi.fn()} />),
+    ).not.toThrow();
+    expect(screen.getByText(/No rules/i)).toBeTruthy();
+  });
+
+  it('PillEditor renders with an entirely empty config object', () => {
+    expect(() => render(<PillEditor value={{} as never} onChange={vi.fn()} />)).not.toThrow();
+  });
+
+  it('RatingDeltaEditor renders with a config that has no scale', () => {
+    expect(() =>
+      render(<RatingDeltaEditor value={{ previousField: 'prevRating' } as never} onChange={vi.fn()} />),
+    ).not.toThrow();
+  });
+
+  it('adding a rule to a rules-less pill config still produces a valid array', () => {
+    const onChange = vi.fn();
+    render(<PillEditor value={{ shape: 'pill' } as never} onChange={onChange} testId="cfg" />);
+    fireEvent.click(screen.getByTestId('cfg-add-rule'));
+    expect(Array.isArray(onChange.mock.calls[0][0].rules)).toBe(true);
+    expect(onChange.mock.calls[0][0].rules).toHaveLength(1);
+  });
+});

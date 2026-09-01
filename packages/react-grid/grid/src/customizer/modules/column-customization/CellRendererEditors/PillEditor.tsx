@@ -25,7 +25,13 @@ const EMPTY_PILL_CONFIG: PillRendererConfig = {
 };
 
 export function PillEditor({ value, onChange, testId }: PillEditorProps) {
-  const cfg = value ?? EMPTY_PILL_CONFIG;
+  // `?? EMPTY_PILL_CONFIG` only catches a missing config, not a PARTIAL one.
+  // A config object without `rules` (an assistant write, a hand-edited
+  // profile, an older schema) crashed this whole drawer on `cfg.rules.length`.
+  // A settings editor must open on whatever is actually stored.
+  const cfg: PillRendererConfig = value
+    ? { ...EMPTY_PILL_CONFIG, ...value, rules: value.rules ?? [] }
+    : EMPTY_PILL_CONFIG;
 
   const setRule = useCallback(
     (idx: number, patch: Partial<PillRendererConfig['rules'][number]>) => {

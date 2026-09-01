@@ -30,7 +30,9 @@ export function RatingDeltaEditor({
   onChange: (next: RatingDeltaRendererConfig) => void;
   testId?: string;
 }) {
-  const cfg = value ?? DEFAULT_RATING_DELTA;
+  // Same guard as PillEditor: a stored config missing `scale` must not
+  // crash the drawer — it should open with an empty list to fill in.
+  const cfg = value ? { ...DEFAULT_RATING_DELTA, ...value, scale: value.scale ?? [] } : DEFAULT_RATING_DELTA;
 
   const setRating = useCallback(
     (idx: number, v: string) => {

@@ -22,20 +22,33 @@ export interface CellRendererEntry {
   /** True when the renderer reads per-column config from `cellRendererConfig`. */
   configurable: boolean;
   description: string;
+  /**
+   * Config keys without which the renderer draws NOTHING.
+   *
+   * Each renderer resolves its config through a `pick<Name>Cfg` guard in
+   * `cellRenderers.ts`; when a key listed here is absent that guard returns
+   * `undefined` and the cell falls back to plain text. Writing such a config
+   * is the worst of both worlds — the user is told the renderer was applied,
+   * the column looks untouched, and the settings editor then opens on a
+   * half-built object. So the write is refused instead.
+   *
+   * Empty for a renderer whose config is genuinely all-optional.
+   */
+  requiredConfig?: readonly string[];
 }
 
 export const CELL_RENDERERS: ReadonlyArray<CellRendererEntry> = [
-  { id: 'pill', label: 'Pill', category: 'visual-analytics', configurable: true, description: 'Coloured pill with per-value background & foreground rules.' },
-  { id: 'heatmap', label: 'Heatmap', category: 'visual-analytics', configurable: true, description: 'Colour-scale gradient driven by numeric value.' },
-  { id: 'percent-bar', label: 'Percent Bar', category: 'visual-analytics', configurable: true, description: 'Proportional horizontal bar inside the cell.' },
-  { id: 'trend-arrow', label: 'Trend Arrow + Delta', category: 'visual-analytics', configurable: true, description: 'Directional arrow with magnitude, configurable threshold. Reflects the SIGN of the value, not a change over time.' },
-  { id: 'sparkline', label: 'Sparkline', category: 'visual-analytics', configurable: true, description: 'Inline mini-chart from an array of numbers.' },
-  { id: 'multi-line', label: 'Multi-Line', category: 'composite', configurable: true, description: 'Two-line cell: primary value + secondary field.' },
-  { id: 'icon-text', label: 'Icon + Text', category: 'composite', configurable: true, description: 'Icon next to the value.' },
+  { id: 'pill', label: 'Pill', category: 'visual-analytics', configurable: true, description: 'Coloured pill with per-value background & foreground rules.' , requiredConfig: ['rules'] },
+  { id: 'heatmap', label: 'Heatmap', category: 'visual-analytics', configurable: true, description: 'Colour-scale gradient driven by numeric value.' , requiredConfig: ['colorScale'] },
+  { id: 'percent-bar', label: 'Percent Bar', category: 'visual-analytics', configurable: true, description: 'Proportional horizontal bar inside the cell.' , requiredConfig: ['max', 'barColor'] },
+  { id: 'trend-arrow', label: 'Trend Arrow + Delta', category: 'visual-analytics', configurable: true, description: 'Directional arrow with magnitude, configurable threshold. Reflects the SIGN of the value, not a change over time.' , requiredConfig: ['upColor', 'downColor'] },
+  { id: 'sparkline', label: 'Sparkline', category: 'visual-analytics', configurable: true, description: 'Inline mini-chart from an array of numbers.' , requiredConfig: ['variant', 'lineColor'] },
+  { id: 'multi-line', label: 'Multi-Line', category: 'composite', configurable: true, description: 'Two-line cell: primary value + secondary field.' , requiredConfig: ['secondaryField'] },
+  { id: 'icon-text', label: 'Icon + Text', category: 'composite', configurable: true, description: 'Icon next to the value.' , requiredConfig: ['iconSvg'] },
   { id: 'country-flag', label: 'Country Flag', category: 'composite', configurable: true, description: 'Flag emoji from an ISO-3166 country code OR an ISO-4217 currency code (USD -> US, EUR -> EU), plus optional label.' },
-  { id: 'rating-delta', label: 'Rating Delta', category: 'fi-specialised', configurable: true, description: 'Credit rating with up/down arrow vs. a previous-rating field.' },
+  { id: 'rating-delta', label: 'Rating Delta', category: 'fi-specialised', configurable: true, description: 'Credit rating with up/down arrow vs. a previous-rating field.' , requiredConfig: ['scale', 'previousField', 'upColor', 'downColor'] },
   { id: 'time-since', label: 'Time Since', category: 'fi-specialised', configurable: true, description: 'Auto-refreshing relative time ("5m ago").' },
-  { id: 'allocation-bar', label: 'Allocation Bar', category: 'fi-specialised', configurable: true, description: 'Stacked horizontal bar coloured by key.' },
+  { id: 'allocation-bar', label: 'Allocation Bar', category: 'fi-specialised', configurable: true, description: 'Stacked horizontal bar coloured by key.' , requiredConfig: ['segmentColorMap'] },
   { id: 'side', label: 'Buy / Sell side', category: 'existing', configurable: false, description: 'BUY / SELL badge - green / red, monospaced.' },
   { id: 'status-badge', label: 'Status Badge', category: 'existing', configurable: false, description: 'Filled / Partial / Pending / Cancelled / Working pill.' },
   { id: 'colored-value', label: 'Coloured Value', category: 'existing', configurable: false, description: 'Numeric value coloured by sign.' },
@@ -97,6 +110,21 @@ export function normalizeRenderer(raw: unknown): RendererResult {
     return {
       ok: false,
       error: `The "${id}" renderer takes no configuration — it styles itself from the cell value. Pass the id alone.`,
+    };
+  }
+
+  // A configurable renderer whose required keys are absent draws NOTHING: its
+  // `pick<Name>Cfg` guard bails and the cell renders as plain text. Writing
+  // that would report success, leave the column visibly unchanged, and store
+  // a half-built config the settings editor then has to open. Refuse it and
+  // say exactly what is missing.
+  const missing = (entry.requiredConfig ?? []).filter((key) => config[key] === undefined);
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      error:
+        `The "${id}" renderer needs ${missing.map((m) => `"${m}"`).join(', ')} in its config or it renders ` +
+        `nothing at all. Call get_feature_guide("cell-renderers") for the exact shape.`,
     };
   }
 

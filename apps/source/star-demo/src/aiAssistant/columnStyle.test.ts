@@ -75,10 +75,16 @@ describe('value formatters', () => {
 
 describe('renderers and header-only targets', () => {
   it('normalizes a renderer into the stored two-field shape', () => {
-    const style = ok({ renderer: { id: 'heatmap', config: { domain: { min: 0, max: 10 } } } });
+    // `colorScale` is included because heatmap renders nothing without it —
+    // the fixture used to encode a config that would have drawn a blank cell.
+    const config = {
+      domain: { min: 0, max: 10 },
+      colorScale: { min: { dark: '#0f2b1c' }, max: { dark: '#3a1818' } },
+    };
+    const style = ok({ renderer: { id: 'heatmap', config } });
     expect(style.renderer).toEqual({
       cellRendererId: 'heatmap',
-      cellRendererConfig: { kind: 'heatmap', config: { domain: { min: 0, max: 10 } } },
+      cellRendererConfig: { kind: 'heatmap', config },
     });
   });
 

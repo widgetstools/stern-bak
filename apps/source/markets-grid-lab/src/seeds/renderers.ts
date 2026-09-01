@@ -68,11 +68,11 @@ const A: Record<string, ColumnAssignment> = {
     headerName: 'Δ % (arrow)',
     ...cr('trend-arrow', {
       threshold: 0,
-      colorScale: {
-        up: { dark: '#7fdf9b', light: '#1f7a34' },
-        down: { dark: '#ee8e8e', light: '#a02a2a' },
-        flat: { dark: '#9aa6b2', light: '#5a6068' },
-      },
+      // upColor/downColor are what the renderer reads; a `colorScale` object
+      // is silently ignored and the arrow never draws.
+      upColor: { dark: '#7fdf9b', light: '#1f7a34' },
+      downColor: { dark: '#ee8e8e', light: '#a02a2a' },
+      neutralColor: { dark: '#9aa6b2', light: '#5a6068' },
     }),
   },
   modifiedDuration: {
@@ -88,6 +88,9 @@ const A: Record<string, ColumnAssignment> = {
     colId: 'krdSparkline',
     headerName: 'KRD (spark)',
     ...cr('sparkline', {
+      // `variant` is REQUIRED — pickSparklineCfg returns undefined without it
+      // and the cell falls back to plain text.
+      variant: 'area',
       lineColor: { dark: '#9aa6b2', light: '#3d4753' },
       fillColor: { dark: '#2a3340', light: '#e2e8ee' },
       strokeWidth: 1.25,
@@ -110,7 +113,9 @@ const A: Record<string, ColumnAssignment> = {
     colId: 'marketValue',
     headerName: 'Mkt Val (bar)',
     ...cr('percent-bar', {
-      fromField: { max: 50_000_000 },
+      // `max` carries the scale (a number, or { fromField } to read it from
+      // another column). Nesting it the other way round left max undefined.
+      max: 50_000_000,
       barColor: { dark: '#7cc7f9', light: '#1e6fb8' },
       showValue: true,
     }),

@@ -31,10 +31,13 @@ describe('normalizeRenderer', () => {
   /** Both fields are written together: the id picks the renderer, the envelope
    *  carries its params. */
   it('wraps config in the { kind, config } envelope the transform reads', () => {
-    const res = normalizeRenderer({ id: 'percent-bar', config: { max: 30, showValue: true } });
+    // `barColor` is included because percent-bar renders nothing without it —
+    // the previous fixture here was a config that would have drawn a blank cell.
+    const config = { max: 30, barColor: { dark: '#7cc7f9' }, showValue: true };
+    const res = normalizeRenderer({ id: 'percent-bar', config });
     expect(res.ok === true && res.value).toEqual({
       cellRendererId: 'percent-bar',
-      cellRendererConfig: { kind: 'percent-bar', config: { max: 30, showValue: true } },
+      cellRendererConfig: { kind: 'percent-bar', config },
     });
   });
 
@@ -59,5 +62,50 @@ describe('normalizeRenderer', () => {
   it('rejects a missing id', () => {
     expect(normalizeRenderer({ config: {} }).ok).toBe(false);
     expect(normalizeRenderer(undefined).ok).toBe(false);
+  });
+});
+
+/**
+ * A configurable renderer resolves its config through a `pick<Name>Cfg` guard
+ * in the design system; when a required key is missing that guard returns
+ * `undefined` and the cell silently renders plain text. The assistant used to
+ * write `config: {}` for a bare id, which meant "apply pills to this column"
+ * reported success, changed nothing on screen, and left a config the settings
+ * editor crashed on.
+ */
+describe('required config — refusing renderers that would draw nothing', () => {
+  it('refuses a bare id for a renderer that needs config, naming what is missing', () => {
+    const res = normalizeRenderer('pill');
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toContain('"rules"');
+    expect(res.ok === false && res.error).toContain('renders nothing');
+  });
+
+  it('names every missing key, not just the first', () => {
+    const res = normalizeRenderer({ id: 'rating-delta', config: { scale: ['AAA', 'AA'] } });
+    expect(res.ok).toBe(false);
+    const err = res.ok === false ? res.error : '';
+    expect(err).toContain('"previousField"');
+    expect(err).toContain('"upColor"');
+    expect(err).not.toContain('"scale"'); // supplied, so not reported missing
+  });
+
+  it('accepts a complete config', () => {
+    const res = normalizeRenderer({
+      id: 'pill',
+      config: { rules: [{ value: 'AAA', bg: { dark: '#103418' } }] },
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it('still accepts a bare id for a zero-config renderer', () => {
+    expect(normalizeRenderer('pnl-value').ok).toBe(true);
+  });
+
+  /** Anything listed as required must actually be a key the renderer reads. */
+  it('only requires keys on renderers that are configurable', () => {
+    for (const entry of CELL_RENDERERS) {
+      if (entry.requiredConfig?.length) expect(entry.configurable, entry.id).toBe(true);
+    }
   });
 });
