@@ -206,6 +206,24 @@ describe('ConfigManager.profiles — namespace API', () => {
     await cm.profiles.delete({ instanceId: gridA }, 'p1');
     expect(fires).toBe(1);
   });
+
+  it('save with changedModuleIds passes the hint through to subscribers', async () => {
+    const seen: (string[] | undefined)[] = [];
+    cm.profiles.subscribe({ instanceId: gridA }, (changedModuleIds) => {
+      seen.push(changedModuleIds);
+    });
+
+    await cm.profiles.save({ instanceId: gridA }, snap('p1'), {
+      changedModuleIds: ['summary-panel'],
+    });
+    expect(seen).toEqual([['summary-panel']]);
+
+    // A write with no hint (e.g. a full profile replace) must NOT carry a
+    // stale hint from the previous call — subscribers see undefined,
+    // meaning "assume everything may have changed".
+    await cm.profiles.save({ instanceId: gridA }, snap('p1', 'Renamed'));
+    expect(seen).toEqual([['summary-panel'], undefined]);
+  });
 });
 
 describe('ChangeNotifier — same-tab event bus', () => {
@@ -265,6 +283,22 @@ describe('ChangeNotifier — same-tab event bus', () => {
     n.dispose();
   });
 
+  it('notify passes changedModuleIds through to subscribe and subscribeAll, undefined when omitted', () => {
+    const n = new ChangeNotifier(`test-${Math.random()}`);
+    const scoped: (string[] | undefined)[] = [];
+    const global: (string[] | undefined)[] = [];
+    n.subscribe('cfg-1', (changedModuleIds) => scoped.push(changedModuleIds));
+    n.subscribeAll((_configId, changedModuleIds) => global.push(changedModuleIds));
+
+    n.notify('cfg-1', ['summary-panel']);
+    n.notify('cfg-1');
+
+    expect(scoped).toEqual([['summary-panel'], undefined]);
+    expect(global).toEqual([['summary-panel'], undefined]);
+
+    n.dispose();
+  });
+
   it('one listener throwing does not prevent siblings from firing', () => {
     const n = new ChangeNotifier(`test-${Math.random()}`);
     const fires: string[] = [];
@@ -320,6 +354,32 @@ describe('ConfigManager.profiles — cross-tab subscribe', () => {
         await new Promise((r) => setTimeout(r, 10));
 
         expect(fires).toBeGreaterThanOrEqual(1);
+      } finally {
+        tabA.dispose();
+        tabB.dispose();
+      }
+    },
+  );
+
+  it.skipIf(!hasBroadcastChannel)(
+    'changedModuleIds survives the BroadcastChannel round-trip to another tab',
+    async () => {
+      const sharedInstance = freshInstanceId();
+      const tabA = createConfigManager({ appId: 'TestApp', identity: { userId: 'alice' } });
+      const tabB = createConfigManager({ appId: 'TestApp', identity: { userId: 'alice' } });
+
+      try {
+        const seen: (string[] | undefined)[] = [];
+        tabA.profiles.subscribe({ instanceId: sharedInstance }, (changedModuleIds) => {
+          seen.push(changedModuleIds);
+        });
+
+        await tabB.profiles.save({ instanceId: sharedInstance }, snap('p1'), {
+          changedModuleIds: ['summary-panel'],
+        });
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(seen).toEqual([['summary-panel']]);
       } finally {
         tabA.dispose();
         tabB.dispose();

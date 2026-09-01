@@ -71,6 +71,8 @@ export interface ProfileSetScope {
 export interface ProfileSetSaveOptions {
   identity?: RegisteredComponentIdentity;
   displayTextPrefix?: string;
+  /** See `ProfilesSaveOptions.changedModuleIds`. */
+  changedModuleIds?: string[];
 }
 
 /** Scope identifying which row to read / write. `appId` and `userId`
@@ -86,6 +88,16 @@ export interface ProfilesScope {
 export interface ProfilesSaveOptions {
   identity?: RegisteredComponentIdentity;
   displayTextPrefix?: string;
+  /**
+   * Hint for subscribers — which module id(s) within the profile's bundled
+   * `state` this write is known to have touched, so a scoped-reload listener
+   * (see `useLiveProfileSync` in star-demo) can apply just those modules
+   * instead of a full profile reload. Omit for a write that isn't safely
+   * scoped to exactly these modules (e.g. restoring a whole captured
+   * snapshot) — absence always falls back to the safe "reload everything"
+   * default.
+   */
+  changedModuleIds?: string[];
 }
 
 /**
@@ -113,5 +125,5 @@ export interface ProfilesNamespace {
     data: unknown,
     options?: ProfilesSaveOptions,
   ): Promise<void>;
-  subscribe(scope: ProfilesScope, fn: () => void): () => void;
+  subscribe(scope: ProfilesScope, fn: (changedModuleIds?: string[]) => void): () => void;
 }

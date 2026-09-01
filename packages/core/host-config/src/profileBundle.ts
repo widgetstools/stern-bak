@@ -62,7 +62,7 @@ export type {
 /** Minimal ConfigManager surface used by bundled profile-set I/O. */
 export interface ProfileSetConfigAccess {
   getConfig(configId: string): Promise<AppConfigRow | null | undefined>;
-  saveConfig(row: AppConfigRow): Promise<void>;
+  saveConfig(row: AppConfigRow, options?: { changedModuleIds?: string[] }): Promise<void>;
 }
 
 /** ConfigManager surface used by the `profiles` namespace factory. */
@@ -176,7 +176,7 @@ export async function saveProfileSet(
     creationTime,
     updatedTime: now,
   };
-  await configManager.saveConfig(row);
+  await configManager.saveConfig(row, { changedModuleIds: options.changedModuleIds });
 }
 
 export function isProfileSetRow(
@@ -240,6 +240,7 @@ export function createProfilesNamespace(
     return {
       identity: options?.identity,
       displayTextPrefix: options?.displayTextPrefix,
+      changedModuleIds: options?.changedModuleIds,
     };
   }
 

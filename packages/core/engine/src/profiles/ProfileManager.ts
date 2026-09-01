@@ -367,6 +367,42 @@ export class ProfileManager {
     // import / save) still refresh.
   }
 
+  /** Scoped re-hydrate: apply only the given module ids' persisted state from
+   *  the freshest on-disk snapshot of the ACTIVE profile, leaving every other
+   *  module's live state — and the pipeline's memoized transform output for
+   *  those modules — untouched. For an external write KNOWN to have touched
+   *  only these modules (e.g. the AI assistant editing one module's config),
+   *  this avoids the full `resetAll()`+`deserializeAll()` (and the resulting
+   *  full AG Grid columnDefs/gridOptions rebuild) that `load()` always does.
+   *
+   *  Deliberately does NOT call `autoSave?.cancelScheduled()` the way
+   *  `load()`/`discard()`/etc. do: those methods invalidate the ENTIRE live
+   *  state, so any pending debounced write is necessarily stale. A scoped
+   *  sync only touches the named module(s) — a pending auto-save covering
+   *  OTHER unsaved edits must still fire, or that edit is silently lost.
+   *
+   *  Resets a module to its initial state if it isn't present in the on-disk
+   *  snapshot (mirrors what a full load would do for a never-configured
+   *  module). No-op if `moduleIds` is empty, the manager is disposed, or the
+   *  active profile has been deleted out from under this call — a caller
+   *  that needs a guaranteed-fresh result in that case should use `load()`. */
+  async syncModules(moduleIds: readonly string[]): Promise<void> {
+    if (this.disposed || moduleIds.length === 0) return;
+    const { gridId } = this.platform;
+    const snap = await this.adapter.loadProfile(gridId, this.state.activeId);
+    if (this.disposed || !snap) return;
+    this.dirtySuppressDepth++;
+    try {
+      for (const moduleId of moduleIds) {
+        const raw = snap.state[moduleId];
+        if (raw === undefined) this.platform.resetOne(moduleId);
+        else this.platform.deserializeOne(moduleId, raw);
+      }
+    } finally {
+      this.dirtySuppressDepth--;
+    }
+  }
+
   /** Create a new profile, seeded from the module's `getInitialState()` for
    *  every module (so it's a true blank slate, not a clone of the current).
    *

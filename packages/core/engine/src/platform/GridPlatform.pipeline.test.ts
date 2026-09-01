@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GridOptions } from 'ag-grid-community';
 import { GridPlatform } from './GridPlatform';
-import type { Module } from './types';
+import type { AnyColDef, Module } from './types';
 
 interface VitalsState {
   animateRows: boolean;
@@ -59,5 +59,56 @@ describe('GridPlatform transform pipeline stability', () => {
     const after = platform.transformGridOptions();
     expect(after).not.toBe(before);
     expect(after.animateRows).toBe(!before.animateRows);
+  });
+
+  it('a scoped deserializeOne on one module does not re-run a sibling module\'s transform — the fix this test exists for: a single-module config write must not force a full AG Grid columnDefs rebuild', () => {
+    const colorTransform = vi.fn((defs: AnyColDef[]) => defs.map((d) => ({ ...d, cellStyle: { color: 'red' } })));
+    const colorModule: Module<{ tint: string }> = {
+      id: 'color',
+      name: 'Color',
+      schemaVersion: 1,
+      priority: 0,
+      getInitialState: () => ({ tint: 'red' }),
+      serialize: (s) => s,
+      deserialize: (raw) => (raw && typeof raw === 'object' ? (raw as { tint: string }) : { tint: 'red' }),
+      transformColumnDefs: colorTransform,
+    };
+
+    const widthTransform = vi.fn((defs: AnyColDef[], state: { width: number }) =>
+      defs.map((d) => ({ ...d, width: state.width })),
+    );
+    const widthModule: Module<{ width: number }> = {
+      id: 'width',
+      name: 'Width',
+      schemaVersion: 1,
+      priority: 1,
+      getInitialState: () => ({ width: 100 }),
+      serialize: (s) => s,
+      deserialize: (raw) => (raw && typeof raw === 'object' ? (raw as { width: number }) : { width: 100 }),
+      transformColumnDefs: widthTransform,
+    };
+
+    const platform = new GridPlatform({
+      gridId: 'pipeline-scoped',
+      modules: [colorModule, widthModule],
+    });
+    const base = [{ colId: 'a', field: 'a' }];
+
+    const before = platform.transformColumnDefs(base);
+    expect(colorTransform).toHaveBeenCalledTimes(1);
+    expect(widthTransform).toHaveBeenCalledTimes(1);
+
+    // Simulate a scoped external write (e.g. the AI assistant editing the
+    // "width" module) applied via the new deserializeOne primitive instead
+    // of a full resetAll()+deserializeAll().
+    platform.deserializeOne('width', { v: 1, data: { width: 250 } });
+    const after = platform.transformColumnDefs(base);
+
+    expect(widthTransform).toHaveBeenCalledTimes(2);
+    // The untouched module's transform is NOT re-invoked — its state
+    // reference never changed, so PipelineRunner's memoization holds.
+    expect(colorTransform).toHaveBeenCalledTimes(1);
+    expect(after[0].width).toBe(250);
+    expect(after[0].cellStyle).toEqual(before[0].cellStyle);
   });
 });

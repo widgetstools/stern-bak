@@ -23,6 +23,12 @@ export interface UseProfileManagerResult {
    *  profile switch and page unload. */
   isDirty: boolean;
   loadProfile: (id: string) => Promise<void>;
+  /** Scoped re-hydrate of just the given module id(s) from the active
+   *  profile's persisted snapshot, leaving every other module's live state
+   *  untouched. See `ProfileManager.syncModules` — used by `useLiveProfileSync`
+   *  to avoid a full `loadProfile` when an external write is known to have
+   *  touched only these modules. */
+  syncModules: (moduleIds: readonly string[]) => Promise<void>;
   /** Re-sync the profile list from storage. Needed after any write that
    *  bypassed this manager's own list-mutating methods (e.g. a bulk
    *  `setConfig` import) — `loadProfile` alone won't pick up rows added
@@ -122,6 +128,10 @@ export function useProfileManager(opts: {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const loadProfile = useCallback((id: string) => manager.load(id), [manager]);
+  const syncModules = useCallback(
+    (moduleIds: readonly string[]) => manager.syncModules(moduleIds),
+    [manager],
+  );
   const refreshProfiles = useCallback(() => manager.refresh(), [manager]);
   const saveActiveProfile = useCallback(() => manager.save(), [manager]);
   const discardActiveProfile = useCallback(() => manager.discard(), [manager]);
@@ -151,6 +161,7 @@ export function useProfileManager(opts: {
       isLoading: state.isLoading,
       isDirty: state.isDirty,
       loadProfile,
+      syncModules,
       refreshProfiles,
       saveActiveProfile,
       discardActiveProfile,
@@ -167,6 +178,7 @@ export function useProfileManager(opts: {
       state.isLoading,
       state.isDirty,
       loadProfile,
+      syncModules,
       refreshProfiles,
       saveActiveProfile,
       discardActiveProfile,

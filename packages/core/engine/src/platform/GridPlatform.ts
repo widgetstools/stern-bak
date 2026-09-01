@@ -168,6 +168,29 @@ export class GridPlatform {
     }
   }
 
+  /** Restore ONE module's state from its persisted snapshot value, leaving
+   *  every other module's state reference — and therefore the pipeline's
+   *  memoized transform output for those modules — untouched. Companion to
+   *  `deserializeAll` for a caller that knows precisely which module changed
+   *  (see `ProfileManager.syncModules`). No-op if `moduleId` isn't registered. */
+  deserializeOne(moduleId: string, raw: unknown): void {
+    const m = this.modules.find((mod) => mod.id === moduleId);
+    if (!m) return;
+    const state = this.loadOne(m, raw);
+    this.store.replaceModuleState(m.id, state);
+    this.events.emit('module:stateChanged', { gridId: this.gridId, moduleId: m.id });
+  }
+
+  /** Reset ONE module to its initial state, leaving every other module's
+   *  state reference untouched. Companion to `resetAll` — see `deserializeOne`.
+   *  No-op if `moduleId` isn't registered. */
+  resetOne(moduleId: string): void {
+    const m = this.modules.find((mod) => mod.id === moduleId);
+    if (!m) return;
+    this.store.replaceModuleState(m.id, m.getInitialState());
+    this.events.emit('module:stateChanged', { gridId: this.gridId, moduleId: m.id });
+  }
+
   // ─── Read-only accessors ─────────────────────────────────────────────────
 
   getModules(): readonly AnyModule[] {

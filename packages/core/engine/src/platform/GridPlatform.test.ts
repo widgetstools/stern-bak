@@ -33,6 +33,61 @@ function counterModule(): Module<CounterState> {
   };
 }
 
+interface FlagState {
+  label: string;
+}
+
+function flagModule(): Module<FlagState> {
+  return {
+    id: 'flag',
+    name: 'Flag',
+    schemaVersion: 1,
+    priority: 1,
+    getInitialState: () => ({ label: 'initial' }),
+    serialize: (s) => s,
+    deserialize: (raw) =>
+      raw && typeof raw === 'object' ? { label: String((raw as FlagState).label ?? 'initial') } : { label: 'initial' },
+  };
+}
+
+describe('GridPlatform — scoped reset/deserialize (resetOne/deserializeOne)', () => {
+  it('deserializeOne updates only the named module, leaving a sibling module state reference untouched', () => {
+    const platform = new GridPlatform({ gridId: 'scoped-deserialize', modules: [counterModule(), flagModule()] });
+    const flagBefore = platform.store.getModuleState<FlagState>('flag');
+
+    platform.deserializeOne('counter', { v: 2, data: { n: 42 } });
+
+    expect(platform.store.getModuleState<CounterState>('counter').n).toBe(42);
+    expect(platform.store.getModuleState<FlagState>('flag')).toBe(flagBefore);
+  });
+
+  it('resetOne restores only the named module to its initial state, leaving a sibling module state reference untouched', () => {
+    const platform = new GridPlatform({ gridId: 'scoped-reset', modules: [counterModule(), flagModule()] });
+    platform.store.setModuleState<CounterState>('counter', () => ({ n: 7 }));
+    platform.store.setModuleState<FlagState>('flag', () => ({ label: 'touched' }));
+    const flagBefore = platform.store.getModuleState<FlagState>('flag');
+
+    platform.resetOne('counter');
+
+    expect(platform.store.getModuleState<CounterState>('counter').n).toBe(0);
+    expect(platform.store.getModuleState<FlagState>('flag')).toBe(flagBefore);
+  });
+
+  it('deserializeOne / resetOne are no-ops for an unregistered module id', () => {
+    const platform = new GridPlatform({ gridId: 'scoped-unknown', modules: [counterModule()] });
+    const before = platform.store.getModuleState<CounterState>('counter');
+    platform.deserializeOne('nonexistent', { v: 1, data: {} });
+    platform.resetOne('nonexistent');
+    expect(platform.store.getModuleState<CounterState>('counter')).toBe(before);
+  });
+
+  it('deserializeOne migrates a stored schema version the same as deserializeAll', () => {
+    const platform = new GridPlatform({ gridId: 'scoped-migrate', modules: [counterModule()] });
+    platform.deserializeOne('counter', { v: 1, data: { count: 11 } });
+    expect(platform.store.getModuleState<CounterState>('counter').n).toBe(11);
+  });
+});
+
 describe('GridPlatform lifecycle and persistence', () => {
   it('serialises and deserialises module envelopes', () => {
     const platform = new GridPlatform({ gridId: 'persist', modules: [counterModule()] });

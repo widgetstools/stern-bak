@@ -43,6 +43,34 @@ function makePlatform(adapter: MemoryAdapter, gridId = 'grid-A') {
   return { platform, adapter };
 }
 
+interface CounterState {
+  n: number;
+}
+
+function makeCounterModule(): Module<CounterState> {
+  return {
+    id: 'counter',
+    name: 'Counter',
+    schemaVersion: 1,
+    priority: 20,
+    getInitialState: () => ({ n: 0 }),
+    serialize: (s) => s,
+    deserialize: (raw) =>
+      raw && typeof raw === 'object' ? { n: Number((raw as CounterState).n) || 0 } : { n: 0 },
+  };
+}
+
+/** Two independent modules — needed to prove a scoped `syncModules` call
+ *  leaves an untouched module's state reference (and thus its pipeline
+ *  memoization) alone, which a single-module fixture can't demonstrate. */
+function makeTwoModulePlatform(adapter: MemoryAdapter, gridId = 'grid-two') {
+  const platform = new GridPlatform({
+    gridId,
+    modules: [makeStyleModule(), makeCounterModule()],
+  });
+  return { platform, adapter };
+}
+
 describe('ProfileManager — state propagation', () => {
   let adapter: MemoryAdapter;
   let platform: GridPlatform;
@@ -172,6 +200,102 @@ describe('ProfileManager — profile switch state isolation', () => {
     expect((paSnap?.state.style?.data as StyleState).rules).toEqual(['Y']);
 
     manager.dispose();
+  });
+});
+
+describe('ProfileManager — scoped module sync', () => {
+  it('syncModules updates only the named module, leaving a sibling module state reference untouched', async () => {
+    const adapter = new MemoryAdapter();
+    const { platform } = makeTwoModulePlatform(adapter);
+    const manager = new ProfileManager({ platform, adapter, disableAutoSave: true });
+    await manager.boot();
+
+    // Persist a style rule to disk, then edit counter live WITHOUT saving —
+    // syncModules('style') must pick up the disk value for style while
+    // leaving the live (unsaved) counter state's reference untouched.
+    platform.store.setModuleState<StyleState>('style', () => ({ rules: ['persisted'] }));
+    await manager.save();
+    platform.store.setModuleState<StyleState>('style', () => ({ rules: ['live-unsaved'] }));
+    platform.store.setModuleState<CounterState>('counter', () => ({ n: 5 }));
+    const counterBefore = platform.store.getModuleState<CounterState>('counter');
+
+    await manager.syncModules(['style']);
+
+    expect(platform.store.getModuleState<StyleState>('style').rules).toEqual(['persisted']);
+    expect(platform.store.getModuleState<CounterState>('counter')).toBe(counterBefore);
+
+    manager.dispose();
+  });
+
+  it('resets a module to its initial state when absent from the persisted snapshot', async () => {
+    const adapter = new MemoryAdapter();
+    const { platform } = makeTwoModulePlatform(adapter);
+    const manager = new ProfileManager({ platform, adapter, disableAutoSave: true });
+    await manager.boot();
+
+    // Default's on-disk snapshot has never included 'counter' (module added
+    // to the grid after the profile was last saved) — syncModules must fall
+    // back to the module's own initial state, matching what a full load
+    // would do for a never-configured module.
+    platform.store.setModuleState<CounterState>('counter', () => ({ n: 99 }));
+
+    await manager.syncModules(['counter']);
+
+    expect(platform.store.getModuleState<CounterState>('counter').n).toBe(0);
+    manager.dispose();
+  });
+
+  it('does not touch isDirty — an unrelated dirty module stays dirty', async () => {
+    const adapter = new MemoryAdapter();
+    const { platform } = makeTwoModulePlatform(adapter);
+    const manager = new ProfileManager({ platform, adapter, disableAutoSave: true });
+    await manager.boot();
+
+    // A genuine live edit to 'counter' (not suppressed) flips isDirty.
+    platform.store.setModuleState<CounterState>('counter', () => ({ n: 1 }));
+    expect(manager.getState().isDirty).toBe(true);
+
+    // An external write to the OTHER module ('style') must not silently
+    // clear the dirty flag for the user's real unsaved counter edit.
+    await manager.syncModules(['style']);
+
+    expect(manager.getState().isDirty).toBe(true);
+    manager.dispose();
+  });
+
+  it('does not cancel a pending auto-save that covers an unrelated dirty module', async () => {
+    const adapter = new MemoryAdapter();
+    const { platform } = makeTwoModulePlatform(adapter);
+    const manager = new ProfileManager({ platform, adapter, autoSaveDebounceMs: 15 });
+    await manager.boot();
+
+    // A genuine live edit to 'counter' schedules a debounced auto-save.
+    platform.store.setModuleState<CounterState>('counter', () => ({ n: 3 }));
+
+    // Before that debounce fires, an external write to the OTHER module
+    // ('style') arrives as a scoped sync — must NOT cancel the counter
+    // edit's pending auto-save.
+    await manager.syncModules(['style']);
+
+    await new Promise((r) => setTimeout(r, 40));
+
+    const snap = await adapter.loadProfile('grid-two', RESERVED_DEFAULT_PROFILE_ID);
+    expect((snap?.state.counter?.data as CounterState).n).toBe(3);
+    manager.dispose();
+  });
+
+  it('is a no-op with an empty module list or after dispose', async () => {
+    const adapter = new MemoryAdapter();
+    const { platform } = makeTwoModulePlatform(adapter);
+    const manager = new ProfileManager({ platform, adapter, disableAutoSave: true });
+    await manager.boot();
+
+    const counterBefore = platform.store.getModuleState<CounterState>('counter');
+    await manager.syncModules([]);
+    expect(platform.store.getModuleState<CounterState>('counter')).toBe(counterBefore);
+
+    manager.dispose();
+    await expect(manager.syncModules(['counter'])).resolves.toBeUndefined();
   });
 });
 

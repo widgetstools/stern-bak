@@ -386,6 +386,11 @@ export async function patchGridModule(
     const next = patchModuleState(profile, moduleId, update(profile.state[moduleId]?.data));
     await configManager.profiles.save({ instanceId: target.instanceId }, next, {
       identity: identityFor(entry, target.isTemplate),
+      // Lets a live window watching this row scope its reload to just this
+      // module instead of resetting every module's state (see
+      // useLiveProfileSync.ts) — patchGridModule always knows exactly which
+      // one it's touching.
+      changedModuleIds: [moduleId],
     });
     if (!target.isTemplate) instances += 1;
   }

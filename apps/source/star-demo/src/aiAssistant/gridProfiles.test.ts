@@ -280,6 +280,14 @@ describe('active profile', () => {
       ['inst-1', 'L1'],
     ]);
     expect(fan.profileId).toBe('L1');
+
+    // Every write names exactly the module it patched — lets a live window
+    // watching either row scope its reload instead of resetting every
+    // module (see useLiveProfileSync.ts).
+    const changedModuleIds = save.mock.calls.map(
+      ([, , options]) => (options as { changedModuleIds?: string[] }).changedModuleIds,
+    );
+    expect(changedModuleIds).toEqual([['grid-state'], ['grid-state']]);
   });
 
   it('names a non-default profile in the summary so the model can report it', () => {

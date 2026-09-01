@@ -20,8 +20,8 @@
  */
 export class ChangeNotifier {
   private channel: BroadcastChannel | undefined;
-  private listeners = new Map<string, Set<() => void>>();
-  private globalListeners = new Set<(configId: string) => void>();
+  private listeners = new Map<string, Set<(changedModuleIds?: string[]) => void>>();
+  private globalListeners = new Set<(configId: string, changedModuleIds?: string[]) => void>();
   private disposed = false;
 
   constructor(channelName = 'marketsui-config-changes') {
@@ -30,9 +30,12 @@ export class ChangeNotifier {
         this.channel = new BroadcastChannel(channelName);
         this.channel.onmessage = (e) => {
           if (this.disposed) return;
-          const data = e.data as { type?: string; configId?: string } | null;
+          const data = e.data as { type?: string; configId?: string; changedModuleIds?: unknown } | null;
           if (data?.type === 'configChanged' && typeof data.configId === 'string') {
-            this.dispatchLocal(data.configId);
+            this.dispatchLocal(
+              data.configId,
+              Array.isArray(data.changedModuleIds) ? (data.changedModuleIds as string[]) : undefined,
+            );
           }
         };
       } catch {
@@ -41,13 +44,19 @@ export class ChangeNotifier {
     }
   }
 
-  /** Notify subscribers (local + cross-tab) that `configId` changed. */
-  notify(configId: string): void {
+  /** Notify subscribers (local + cross-tab) that `configId` changed.
+   *  `changedModuleIds`, when supplied, hints which module(s) within the
+   *  row's bundled profile state were touched — a scoped-reload optimization
+   *  for subscribers that know how to use it (see `useLiveProfileSync`).
+   *  Omit it for any write that isn't safely scoped to those modules alone
+   *  (a full profile replace, a delete, etc.) — absence means "assume
+   *  everything may have changed", which is always safe. */
+  notify(configId: string, changedModuleIds?: string[]): void {
     if (this.disposed) return;
-    this.dispatchLocal(configId);
+    this.dispatchLocal(configId, changedModuleIds);
     if (this.channel) {
       try {
-        this.channel.postMessage({ type: 'configChanged', configId });
+        this.channel.postMessage({ type: 'configChanged', configId, changedModuleIds });
       } catch {
         /* swallow — broadcast is best-effort */
       }
@@ -58,7 +67,7 @@ export class ChangeNotifier {
    * Subscribe to every config write/delete (same-tab + cross-tab).
    * Returns unsubscribe.
    */
-  subscribeAll(fn: (configId: string) => void): () => void {
+  subscribeAll(fn: (configId: string, changedModuleIds?: string[]) => void): () => void {
     this.globalListeners.add(fn);
     return () => {
       this.globalListeners.delete(fn);
@@ -66,7 +75,7 @@ export class ChangeNotifier {
   }
 
   /** Subscribe to changes for a specific `configId`. Returns unsubscribe. */
-  subscribe(configId: string, fn: () => void): () => void {
+  subscribe(configId: string, fn: (changedModuleIds?: string[]) => void): () => void {
     let set = this.listeners.get(configId);
     if (!set) {
       set = new Set();
@@ -96,10 +105,10 @@ export class ChangeNotifier {
     }
   }
 
-  private dispatchLocal(configId: string): void {
+  private dispatchLocal(configId: string, changedModuleIds?: string[]): void {
     for (const fn of [...this.globalListeners]) {
       try {
-        fn(configId);
+        fn(configId, changedModuleIds);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn('[config-service] global change listener threw:', err);
@@ -112,7 +121,7 @@ export class ChangeNotifier {
     // doesn't skip subsequent listeners.
     for (const fn of [...set]) {
       try {
-        fn();
+        fn(changedModuleIds);
       } catch (err) {
         // A listener throwing must not break sibling listeners or the
         // write that triggered the notification.

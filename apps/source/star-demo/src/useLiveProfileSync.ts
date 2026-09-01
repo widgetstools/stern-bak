@@ -26,6 +26,13 @@ export interface LiveProfileSyncTarget {
   activeProfileId?: string;
   isDirty?: boolean;
   loadProfile: (id: string) => void | Promise<void>;
+  /**
+   * Scoped re-hydrate of just the given module id(s), leaving every other
+   * module's live state untouched — see `ProfileManager.syncModules`.
+   * Optional so a target that doesn't implement it (or an older consumer of
+   * this hook) safely falls back to `loadProfile`.
+   */
+  syncModules?: (moduleIds: readonly string[]) => void | Promise<void>;
 }
 
 /**
@@ -78,6 +85,16 @@ export function useLiveProfileSync({
   onAppliedRef.current = onApplied;
   const onSkippedRef = useRef(onSkipped);
   onSkippedRef.current = onSkipped;
+  // Which module(s) a not-yet-applied notification told us changed, and
+  // whether any notification arrived WITHOUT that hint (meaning "assume
+  // everything may have changed"). Populated synchronously on every notify,
+  // before this hook's own `await`s — so if two notifications for two
+  // different modules race (two overlapping async handleChange calls), the
+  // invocation that actually ends up applying the change drains and applies
+  // BOTH modules, not just whichever call happened to "win" the staleness
+  // check below. See handleChange's use of these.
+  const pendingModuleIdsRef = useRef<Set<string>>(new Set());
+  const pendingFullReloadRef = useRef(false);
 
   useEffect(() => {
     // Every guard here is load-bearing: this is a convenience layer, and a host
@@ -87,8 +104,14 @@ export function useLiveProfileSync({
     if (typeof configManager.profiles?.subscribe !== 'function') return;
 
     let disposed = false;
-    const handleChange = async () => {
+    const handleChange = async (changedModuleIds?: string[]) => {
       if (disposed) return;
+      if (changedModuleIds && changedModuleIds.length > 0) {
+        for (const id of changedModuleIds) pendingModuleIdsRef.current.add(id);
+      } else {
+        pendingFullReloadRef.current = true;
+      }
+
       const target = getTargetRef.current();
       if (!target || !target.activeProfileId) {
         onSkippedRef.current?.('no-grid');
@@ -149,12 +172,32 @@ export function useLiveProfileSync({
       const profileId =
         requestedProfileId && requestedAt > appliedAtRef.current ? requestedProfileId : target.activeProfileId;
       appliedAtRef.current = freshest;
-      await target.loadProfile(profileId);
+
+      // Drain whatever's accumulated so far — including hints from any
+      // sibling notification that lost the staleness race above — and reset
+      // for the next round.
+      const moduleIds = [...pendingModuleIdsRef.current];
+      const syncModules = target.syncModules;
+      const needsFullReload =
+        pendingFullReloadRef.current ||
+        !syncModules ||
+        moduleIds.length === 0 ||
+        // A genuine profile switch touches every module by definition — a
+        // scoped sync of the OLD profile's changed modules would be wrong.
+        profileId !== target.activeProfileId;
+      pendingModuleIdsRef.current.clear();
+      pendingFullReloadRef.current = false;
+
+      if (needsFullReload || !syncModules) {
+        await target.loadProfile(profileId);
+      } else {
+        await syncModules(moduleIds);
+      }
       onAppliedRef.current?.(profileId);
     };
 
-    const unsubscribe = configManager.profiles.subscribe({ instanceId }, () => {
-      void handleChange();
+    const unsubscribe = configManager.profiles.subscribe({ instanceId }, (changedModuleIds) => {
+      void handleChange(changedModuleIds);
     });
     return () => {
       disposed = true;

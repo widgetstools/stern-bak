@@ -75,6 +75,15 @@ export interface SaveConfigOptions {
    * against Dexie before persisting.
    */
   expectedUpdatedTime?: string;
+  /**
+   * Hint for `ChangeNotifier.notify` — which module id(s) within a bundled
+   * profile-set row's state this write is known to have touched. Lets a
+   * scoped-reload subscriber (see `useLiveProfileSync` in star-demo) apply
+   * only the affected module instead of a full profile reload. Omit for any
+   * write that isn't safely scoped to exactly these modules — absence
+   * always falls back to "assume everything may have changed".
+   */
+  changedModuleIds?: string[];
 }
 
 /**
@@ -739,7 +748,7 @@ export class ConfigManager {
     // `profiles.subscribe(scope, fn)` get a callback whenever a write
     // touches their `configId`. Fired AFTER Dexie's write resolves so
     // a refetch from the listener sees the new row.
-    this.changeNotifier.notify(config.configId);
+    this.changeNotifier.notify(config.configId, options?.changedModuleIds);
     // Re-warm the cache with the row we just wrote. Ordered AFTER `notify`,
     // whose invalidation listener first drops the key — so we land on the
     // fresh row, not a value the eviction would clear.
