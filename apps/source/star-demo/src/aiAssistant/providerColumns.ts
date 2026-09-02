@@ -20,6 +20,7 @@ import type {
   StompProviderConfig,
   RestProviderConfig,
 } from '@wellsfargo-starui/types';
+import { applyAutoFormattingToColumns } from './columnAutoFormatter';
 
 /** Shape of one node in `inferFields`' tree (mirrors the editor's FieldNode). */
 export interface InferredField {
@@ -200,7 +201,10 @@ export function withInferredColumns(config: ProviderConfig): ProviderConfig {
     // returns EVERY field — 256 for positions — which is a schema dump, not a
     // blotter anyone would want to open. `curatedColumns` is the set a desk
     // would actually put on screen, already ordered and sized.
-    const columnDefinitions = hasColumns ? mock.columnDefinitions! : curatedColumns(dataType);
+    let columnDefinitions = hasColumns ? mock.columnDefinitions! : curatedColumns(dataType);
+    // Apply intelligent auto-formatting: right-align numerics, fixed-income
+    // field conventions, trend arrows, sign-based coloring.
+    columnDefinitions = applyAutoFormattingToColumns(columnDefinitions);
     return {
       ...mock,
       columnDefinitions,

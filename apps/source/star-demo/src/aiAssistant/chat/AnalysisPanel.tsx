@@ -8,7 +8,7 @@
  * auto-open trigger and to reset `activeId` on a new chat), this just
  * renders whatever it's handed.
  */
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, ExternalLink } from 'lucide-react';
 import { cn } from '@wellsfargo-starui/react';
 import { DataResultCell } from './DataResultCell';
 import type { DataCellPayload } from '../dataTools';
@@ -23,9 +23,10 @@ export interface AnalysisPanelProps {
   entries: AnalysisEntry[];
   activeId: string | null;
   onSelect: (id: string) => void;
+  gridId?: string;
 }
 
-export function AnalysisPanel({ entries, activeId, onSelect }: AnalysisPanelProps) {
+export function AnalysisPanel({ entries, activeId, onSelect, gridId }: AnalysisPanelProps) {
   // Falls back to the newest entry when `activeId` doesn't (yet, or any
   // longer) match one — e.g. right after a new chat clears the transcript
   // but before the reset effect has caught up.
@@ -38,6 +39,20 @@ export function AnalysisPanel({ entries, activeId, onSelect }: AnalysisPanelProp
         <p className="text-xs text-muted-foreground">
           Analysis results open here — ask for a summary, a query, a pivot, or a chart.
         </p>
+        {gridId && (
+          <p className="text-xs text-muted-foreground/70 mt-2">
+            Closed an analysis window by accident?{' '}
+            <a
+              href={`${window.location.origin}/#/analysis?grid=${gridId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[var(--ds-bot-accent)] hover:underline"
+            >
+              Reopen it here
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </p>
+        )}
       </div>
     );
   }

@@ -168,9 +168,30 @@ export function useLiveProfileSync({
         return;
       }
 
-      // A newer switch request wins over a plain re-apply of the active one.
+      // A switch request is a ONE-SHOT, but it lives in durable grid-level
+      // data and nothing ever clears it. `appliedAtRef` alone doesn't contain
+      // it: that counter starts at 0 on every mount, so a freshly-opened
+      // window (or a second window of the same blotter, which has its own
+      // counter) saw a months-old request as "newer than nothing" and jumped
+      // to that profile the next time ANY unrelated edit came through. The
+      // symptom was the assistant changing a column and the grid silently
+      // switching profiles underneath the user.
+      //
+      // A request that predates the newest profile write has already been
+      // superseded by ordinary editing, so it is spent. Saving grid-level data
+      // deliberately does not touch profile `updatedAt`, which is what lets
+      // these two timestamps be compared: a genuine `switch_profile` /
+      // `reload_grid` stamps `requestedAt` now and so still wins, while an
+      // ordinary edit bumps `updatedAt` past a stale request and retires it.
+      //
+      // Clearing the field instead would be the other fix, but grid-level
+      // saves notify subscribers — so writing from inside this handler would
+      // feed straight back into it.
+      const switchStillPending = requestedAt > updatedAt;
       const profileId =
-        requestedProfileId && requestedAt > appliedAtRef.current ? requestedProfileId : target.activeProfileId;
+        requestedProfileId && requestedAt > appliedAtRef.current && switchStillPending
+          ? requestedProfileId
+          : target.activeProfileId;
       appliedAtRef.current = freshest;
 
       // Drain whatever's accumulated so far — including hints from any

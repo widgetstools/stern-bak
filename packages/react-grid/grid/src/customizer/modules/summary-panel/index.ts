@@ -35,20 +35,49 @@ import {
 
 export const SUMMARY_PANEL_MODULE_ID = 'summary-panel';
 
-const WIDGET_KINDS = ['digest', 'chart', 'heatmap'] as const;
+const WIDGET_KINDS = ['digest', 'chart', 'heatmap', 'table', 'text'] as const;
 export type SummaryWidgetKind = (typeof WIDGET_KINDS)[number];
 
 export interface SummaryWidget {
   id: string;
   title?: string;
   /**
-   * 'digest'  — per-column stats + a highlight line (`summariseRows`).
+   * 'digest'  — per-column stats + highlight lines (`summariseRows`).
    * 'chart'   — a rendered chart (`runQuery` + `buildChartSpec`).
-   * 'heatmap' — a shaded table (`runQuery`; a table-rendering mode, not a
-   *             chart kind — see `@wellsfargo-starui/data`'s `CHART_KINDS` doc).
+   * 'table'   — a plain result table with its computed analysis and an honest
+   *             "showing N of M" footer.
+   * 'heatmap' — the same table with cells shaded by magnitude (a table-render
+   *             MODE, not a chart kind — see `@wellsfargo-starui/data`'s
+   *             `CHART_KINDS` doc).
+   * 'text'    — narrative the author wrote, rendered as formatted TEXT.
    */
   kind: SummaryWidgetKind;
+  /**
+   * The analysis behind the widget. A `text` widget has none, and gets an
+   * empty query rather than an optional field, so nothing downstream needs a
+   * null check for the one kind that doesn't query anything.
+   */
   query: DataQuery;
+  /**
+   * `kind: 'text'` only — the narrative to show.
+   *
+   * Rendered as TEXT with a small, safe formatting subset (bold, inline code,
+   * bullets, line breaks); never as markup. It is the one field here whose
+   * content an author writes freely, which is exactly why it does not get an
+   * HTML path — same posture the report vocabulary's `commentary` block takes.
+   */
+  text?: string;
+  /**
+   * `kind: 'text'` only — what the narrative is current AS OF ("the 14:32
+   * close", "start of day").
+   *
+   * A text widget is the one card that does NOT recompute when rows tick,
+   * sitting in a sidebar where every other tab does. Numbers in it therefore
+   * go stale silently, which is the whole hazard — and a stamp is what makes
+   * them honest rather than forbidden. When it is absent the card says the
+   * note is static instead, so a reader is never left assuming it is live.
+   */
+  asOf?: string;
   /** Only meaningful when `kind === 'chart'`. Defaults to `'auto'`. */
   chartKind?: ChartKind;
   /**
@@ -74,11 +103,24 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *  broken card should never crash the strip, only be silently absent. */
 function validateWidget(raw: unknown): SummaryWidget | null {
   if (!isPlainObject(raw)) return null;
-  const { id, kind, query, title, chartKind, style } = raw;
+  const { id, kind, query, title, chartKind, style, text } = raw;
   if (typeof id !== 'string' || id.length === 0) return null;
   if (!(WIDGET_KINDS as readonly string[]).includes(kind as string)) return null;
-  if (!isPlainObject(query)) return null;
-  const widget: SummaryWidget = { id, kind: kind as SummaryWidgetKind, query: query as DataQuery };
+  // Every kind but `text` is defined by its query, so a missing one is a
+  // malformed widget. A `text` widget has nothing to query.
+  const isText = kind === 'text';
+  if (!isText && !isPlainObject(query)) return null;
+  const widget: SummaryWidget = {
+    id,
+    kind: kind as SummaryWidgetKind,
+    query: (isPlainObject(query) ? query : {}) as DataQuery,
+  };
+  if (isText) {
+    if (typeof text !== 'string' || text.trim().length === 0) return null;
+    widget.text = text;
+    const asOf = (raw as { asOf?: unknown }).asOf;
+    if (typeof asOf === 'string' && asOf.trim().length > 0) widget.asOf = asOf.trim();
+  }
   if (typeof title === 'string' && title.length > 0) widget.title = title;
   if (typeof chartKind === 'string') widget.chartKind = chartKind as ChartKind;
   const validStyle = validateStyle(style);
@@ -140,6 +182,7 @@ export const summaryPanelModule: Module<SummaryPanelState> = {
   EditorPane: SummaryPanelEditor,
 };
 
-export { useSummaryPanelData, SummaryWidgetContent, DigestCard, QueryCard } from './summaryWidgetContent.js';
+export { useSummaryPanelData, SummaryWidgetContent, DigestCard, QueryCard, TextCard } from './summaryWidgetContent.js';
 export { DataChart, compactNumber } from './DataChart.js';
+export { LaneChart, laneToneVar } from './LaneChart.js';
 export { AnalysisTable, compact } from './AnalysisTable.js';

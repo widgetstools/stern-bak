@@ -93,6 +93,9 @@ function chartFor(payload: DataCellPayload) {
       columns: table.columns,
       rows: table.rows,
       grouped: table.grouped ?? false,
+      // A pivoted result IS multi-series — passing this is what makes a
+      // cross-tab chart as a cross-tab instead of one arbitrary column.
+      pivot: table.pivot,
       requested: payload.chart,
     });
   }

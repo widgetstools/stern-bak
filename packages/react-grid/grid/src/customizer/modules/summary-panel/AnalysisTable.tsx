@@ -64,6 +64,11 @@ export interface AnalysisTableProps {
    *  `@wellsfargo-starui/data`'s heatmap helpers. */
   heatmap?: boolean;
   /**
+   * Colour numeric cells by sign: positive in green, negative in red.
+   * Ignored if `heatmap` is true (magnitude shading takes precedence).
+   */
+  signed?: boolean;
+  /**
    * The measure a PIVOT's cells hold. A pivot names its columns after the
    * pivot dimension's values ("Financials", "USD"), which say nothing about
    * how the numbers should read — so cells are formatted by this instead.
@@ -77,6 +82,7 @@ export function AnalysisTable({
   rows,
   stickyLeadingCols = 0,
   heatmap = false,
+  signed = false,
   valueColId,
 }: AnalysisTableProps) {
   const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
@@ -171,6 +177,10 @@ export function AnalysisTable({
               {columns.map((col, ci) => {
                 const value = row[col];
                 const shade = heatmap ? heatmapCellColor(value, domains.get(col), theme) : undefined;
+                // Sign-coloring: positive in green, negative in red (only when heatmap is off)
+                const signColor = signed && !heatmap && typeof value === 'number'
+                  ? value > 0 ? 'text-[var(--ds-accent-positive)]' : value < 0 ? 'text-[var(--ds-accent-negative)]' : undefined
+                  : undefined;
                 return (
                   <TableCell
                     key={col}
@@ -179,6 +189,7 @@ export function AnalysisTable({
                       'py-1 px-2 whitespace-nowrap',
                       numericCols.has(col) ? 'text-right font-mono tabular-nums' : 'text-foreground/90',
                       ci < stickyLeadingCols && 'bg-background border-r border-border/60 font-medium',
+                      signColor,
                     )}
                   >
                     {compact(value, valueColId && ci >= stickyLeadingCols ? valueColId : col)}

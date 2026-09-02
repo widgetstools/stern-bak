@@ -7,9 +7,41 @@ import type { FeatureGuide } from './featureGuides';
 
 const SUMMARY_PANEL_GUIDE = `## summary-panel
 
-A horizontal strip of widget cards above the toolbar, each showing a compact
-digest, chart, or heatmap computed from the grid's OWN CURRENT ROWS —
-refreshed automatically as the grid ticks. Configured exactly like alerts or
+A single dock panel pinned to the RIGHT of the blotter — a vertical sidebar
+with one TAB per widget, the same shape as this assistant's own analysis side
+panel. Each tab shows a digest, chart, table, heatmap, or narrative computed
+from the grid's OWN CURRENT ROWS, refreshed automatically as the grid ticks.
+
+The five kinds — the sidebar renders the same things this window's analysis
+panel does:
+
+- \`digest\` — per-column stats and plain-sentence observations.
+- \`chart\` — any of the chart kinds, captioned. Set \`chartKind\` to pick one;
+  omit it and the result's shape decides. Pivot the query for a stacked/grouped
+  chart split by category.
+- \`table\` — the result table WITH its computed analysis and an honest
+  "showing N of M matching rows" footer.
+- \`heatmap\` — the same table with cells shaded by magnitude.
+- \`text\` — narrative YOU write, in \`text\` rather than \`query\`. Supports
+  \`**bold**\`, \`\`inline code\`\`, \`- \` bullets and line breaks; it is rendered
+  as text, so do not put HTML in it. Use it to caption a group of tabs, call
+  out what to watch, or record the reading behind the other cards.
+
+  It is the ONE card that does not recompute when rows tick, so anything
+  numeric in it goes stale while the tabs around it stay live. Set \`asOf\` to
+  say what the note is current as of ("the 14:32 close", "start of day") and
+  the card stamps it "As of … · not live". With that stamp, quoting numbers is
+  fine — it is the unlabelled stale number that misleads. Without it the card
+  falls back to "Written note · does not update", so a reader is never left
+  assuming it is live.
+
+It is one panel, not one panel per widget: every widget you add becomes another
+tab in that sidebar rather than another pane competing for space, so adding a
+fifth widget costs nothing in layout and never shrinks the other four. Each
+widget gets the sidebar's full height when its tab is selected. Aim for four or
+five well-chosen tabs — a sidebar of a dozen tabs is a tab bar nobody reads.
+Give every widget a SHORT \`title\`: it is the tab label, and a long one
+crowds the others out. Configured exactly like alerts or
 saved filters: widgets live in \`{ "widgets": [...] }\`, edited with
 add_module_item / update_module_item / remove_module_item on moduleId
 "summary-panel", collection "widgets" (see get_feature_guide("module-items")).
@@ -127,7 +159,7 @@ should not round them yourself.
 export const SUMMARY_PANEL_GUIDES: readonly FeatureGuide[] = [
   {
     id: 'summary-panel',
-    title: 'Summary panel — configurable digest/chart/heatmap widgets',
+    title: 'Summary panel — digest/chart/table/heatmap/text widgets in a right-hand sidebar',
     summary: 'A strip of live widget cards above the toolbar, each running a DataQuery against the grid\'s current rows — same query shape as query_grid_data.',
     detail: SUMMARY_PANEL_GUIDE,
   },

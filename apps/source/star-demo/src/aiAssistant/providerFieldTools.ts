@@ -35,6 +35,7 @@ import {
   buildColumnDefinitions,
   type InferredField,
 } from './providerColumns';
+import { applyAutoFormattingToColumns } from './columnAutoFormatter';
 
 /** Marker the transcript keys on to render a field picker. */
 export const FIELD_CELL = 'field-cell' as const;
@@ -383,22 +384,30 @@ export async function setProviderColumns(
       ? [...keyColumnDef().map((c) => ({ ...c, hide: true })), ...next]
       : next;
 
+  // Apply intelligent auto-formatting to columns: right-align numerics,
+  // fixed-income field conventions (DV01, YTM, spread, etc.), trend arrows
+  // for changes, and sign-based coloring for P&L / signed values.
+  const formatted = applyAutoFormattingToColumns(withKey);
+
   await configStore.save(
     {
       ...provider,
-      config: { ...config, columnDefinitions: withKey, ...(keyColumn ? { keyColumn } : null) },
+      config: { ...config, columnDefinitions: formatted, ...(keyColumn ? { keyColumn } : null) },
     } as Parameters<DataProviderConfigStore['save']>[0],
     LOGGED_IN_USER_ID,
   );
 
-  const restored = withKey.length !== next.length ? ` (kept "${keyColumn}" — the feed is keyed on it)` : '';
+  const restored = formatted.length !== next.length ? ` (kept "${keyColumn}" — the feed is keyed on it)` : '';
   // A provider's columns are read when a grid's container mounts, so this is
   // one of the few changes that can't be re-applied live — reload the windows
   // already showing it rather than telling the user to reopen them.
   const reloaded = await reloadBlottersUsingProvider(configManager, providerId);
   return {
     ok: true,
-    summary: `"${provider.name}" now shows ${what}${restored}.` + describeReload(reloaded),
-    data: { columns: withKey.map((c) => c.field), keyColumn },
+    summary:
+      `"${provider.name}" now shows ${what}${restored}. Columns auto-formatted: numerics right-aligned, ` +
+      `fixed-income fields (DV01, YTM, spread) with trading conventions, P&L in red/green, changes with trend arrows.` +
+      describeReload(reloaded),
+    data: { columns: formatted.map((c) => c.field), keyColumn },
   };
 }

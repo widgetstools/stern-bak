@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { BarChart3, Gauge, Grid3x3, Plus, Trash2 } from 'lucide-react';
+import { BarChart3, FileText, Gauge, Grid3x3, Plus, Table2, Trash2 } from 'lucide-react';
 import {
   Button,
   Input,
@@ -46,13 +46,17 @@ import { SUMMARY_PANEL_MODULE_ID, type SummaryPanelState, type SummaryWidget, ty
 const KIND_ICON: Record<SummaryWidgetKind, typeof Gauge> = {
   digest: Gauge,
   chart: BarChart3,
+  table: Table2,
   heatmap: Grid3x3,
+  text: FileText,
 };
 
 export const KIND_LABEL: Record<SummaryWidgetKind, string> = {
   digest: 'Digest',
   chart: 'Chart',
+  table: 'Table',
   heatmap: 'Heatmap',
+  text: 'Notes',
 };
 
 function newWidgetId(): string {

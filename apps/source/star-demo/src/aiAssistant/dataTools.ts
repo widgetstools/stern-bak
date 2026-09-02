@@ -42,6 +42,19 @@ export interface DataCellPayload {
    * see `chartSpec.ts`. Set only when the user asked for a particular chart.
    */
   chart?: ChartKind;
+  /**
+   * The resolved query that produced `table`, kept so anything downstream can
+   * RE-RUN it rather than only redisplay the snapshot: the Analysis window
+   * re-queries instead of marshalling rows across a window boundary, and a
+   * summary-panel widget speaks this identical shape, which is what makes
+   * pin-to-blotter a possibility later.
+   *
+   * Column names here are already resolved to real colIds. It survives
+   * `trimOldAnalysisPayloads` (which empties `table.rows` but spreads the rest
+   * of the payload), so an old result stays re-runnable after its rows are
+   * dropped — the point of keeping the query rather than the data.
+   */
+  query?: DataQuery;
 }
 
 interface DataToolDeps {
@@ -205,6 +218,7 @@ export async function queryGridData(
     table,
     ran,
     chart,
+    query,
   };
 
   return {

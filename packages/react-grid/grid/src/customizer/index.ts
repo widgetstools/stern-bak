@@ -425,6 +425,8 @@ export {
   DigestCard,
   QueryCard,
   DataChart,
+  LaneChart,
+  laneToneVar,
   compactNumber,
   AnalysisTable,
   compact,

@@ -592,9 +592,36 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - **Saved filters** — named filter-model presets
 - **Toolbar visibility** — show/hide toolbar items
 - **Grid state** — serialise/restore AG Grid state
-- **Summary panel** (`summary-panel`) — configurable digest/chart/heatmap
-  widget cards computed from the grid's own current rows, docked freely
-  around the blotter itself when the host passes `showSummaryPanel`. Pure
+- **Summary panel** (`summary-panel`) — configurable
+  digest/chart/table/heatmap/text widget cards computed from the grid's own
+  current rows, shown when the host
+  passes `showSummaryPanel` as a SINGLE dock group pinned to the right of the
+  blotter with one TAB per widget (a vertical sidebar, deliberately the same
+  shape as the AI Assistant's own analysis side panel). It replaced a
+  horizontal strip of one panel per widget above the grid: that took height
+  from the blotter and split it N ways, so four widgets meant four unreadable
+  slivers and a fifth made every existing one worse. As tabs, widget count
+  costs nothing in layout and each gets the sidebar's full height when
+  selected. Widgets remain freely floatable/dockable by the user; a new one
+  joins the sidebar as a sibling tab (`ADD_PANEL` with `position: 'center'`),
+  falling back to re-creating the sidebar beside the blotter if every widget
+  has been dragged out or closed. The five kinds render what the AI Assistant's own
+  analysis panel renders: `digest` (per-column stats + observations), `chart`
+  (any `CHART_KINDS` kind, captioned, pivot-aware for multi-series), `table`
+  (the result table with the analysis `runQuery` already computes plus an
+  honest "showing N of M matching rows" footer — both were previously computed
+  and discarded), `heatmap` (that table with magnitude shading), and `text`
+  (author-written narrative). `text` supports `**bold**`, inline code, `- `
+  bullets and line breaks via a dependency-free formatter that returns React
+  nodes — deliberately not a markdown library, which every consumer of the grid
+  package would otherwise carry, and deliberately no HTML path for
+  author-written content. A `text` widget has no query and is given an empty
+  one at load, so nothing downstream needs a null check for the one kind that
+  queries nothing. It is also the only card that does NOT recompute as rows
+  tick, so it carries an optional `asOf` ("the 14:32 close") and stamps itself
+  "As of … · not live", falling back to "Written note · does not update" when
+  none was given — which is what lets a note quote numbers honestly instead of
+  having to avoid them. Pure
   config + presentation module — no `activate` — `useSummaryPanelData`
   (`summaryWidgetContent.tsx`) recomputes widgets from `useGridApi()` +
   `platform.rows`, throttled (not debounced — a pure debounce never settles
@@ -618,6 +645,16 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   chat panel), takes axis type from `--ds-font-size-2xs` instead of a hardcoded
   9px, and draws a zero reference line for a signed measure. The heatmap widget
   fills its panel rather than being clipped at a fixed height.
+  `LaneChart` (`LaneChart.tsx`, exported alongside `DataChart` with
+  `laneToneVar`) stacks several measures as separate tracks over ONE shared
+  axis — hand-drawn SVG rather than one recharts instance per lane, because
+  independent charts each compute their own plot area and their x positions
+  drift apart, which breaks the alignment the component exists for. Every lane
+  shares a `0 0 1000 h` viewBox with `preserveAspectRatio="none"` and
+  `vector-effect="non-scaling-stroke"`, so a row index lands at the same x in
+  every lane at any container width; labels live in HTML in the margin, since
+  text would distort under that scaling. Marks: `line`, `area`, `bars` and
+  `state` (runs of the same value collapse into one block).
 
   **Layout — `widget/BlotterDock.tsx`, one `@widgetstools/react-dock-manager`
   instance shared by the blotter and every widget** (matching the
@@ -1538,16 +1575,41 @@ digests/charts/queries/heatmap shading through the same implementation.
   stats), optional single-column grouping with per-bucket totals, and a
   plain-sentence highlights array. Types: `DataDigest`, `ColumnDigest`,
   `NumericStats`, `CategoryStats`, `DateStats`, `GroupDigest`, `DigestOptions`.
-- `buildChartSpec()`, `chartColor()`, `fillFor()` — picks the chart kind that fits a result
-  (pie / line / area / bar / hbar / scatter) unless the caller names one.
+- `buildChartSpec()`, `chartColor()`, `fillFor()`, `fillForStyle()` — picks the chart kind
+  that fits a result (pie / line / area / bar / hbar / scatter) unless the caller names one.
   `CHART_KINDS`, `SUMMARY_CHART_KINDS`, `CHART_COLORS` (design-system `--ds-chart-*`
-  ramp), `SERIES_COLOR`, `POSITIVE_COLOR`, `NEGATIVE_COLOR`. Types: `ChartKind`,
-  `ResolvedChartKind`, `ChartPoint`, `ChartSpec`, `ChartInput`.
+  ramp), `SERIES_COLOR`, `SERIES_COLOR_ALT`, `POSITIVE_COLOR`, `NEGATIVE_COLOR`. Types:
+  `ChartKind`, `ResolvedChartKind`, `ChartPoint`, `ChartSpec`, `ChartInput`, `SankeyLink`.
   **Colour encodes meaning, not row index**: the categorical ramp is used only where
-  colour genuinely encodes a category (pie); a single-series bar/line/area/scatter is
-  drawn in one hue (`SERIES_COLOR`); and a measure that crosses zero is coloured by
-  sign (`--ds-accent-positive`/`-negative`) with `ChartSpec.signed` set, which
-  `DataChart` uses to draw a zero reference line.
+  colour genuinely encodes a category (pie, treemap, funnel, sankey); a single-series
+  bar/line/area/scatter is drawn in one hue (`SERIES_COLOR`); and a measure that crosses
+  zero is coloured by sign (`--ds-accent-positive`/`-negative`) with `ChartSpec.signed`
+  set, which `DataChart` uses to draw a zero reference line. `fillForStyle()` applies a
+  `ChartStyle.palette` override at render time, so restyling never re-runs the query.
+- **Multi-series charts** — `stackedBar`, `groupedBar`, `stackedArea`, `multiLine`, with
+  `ChartSeries`/`ChartSpec.series`, `ChartPoint.values` and `ChartInput.pivot`. A pivot IS
+  multi-series data: `ChartInput.pivot` (a `QueryResult.pivot` / `PivotMeta`) turns each
+  pivoted column into a series. Before this the builder saw a flat column list, took the
+  last numeric and silently discarded the rest, so a day x channel cross-tab charted one
+  channel — `auto` now resolves a pivoted result to `stackedBar` instead, which fixes that
+  for every caller without an opt-in. Strictly additive: `ChartPoint.value` remains, holding
+  the measure for a single-series chart and the STACK TOTAL for a multi-series one, so
+  existing consumers are untouched. Colour is per-SERIES here (`MULTI_SERIES_KINDS`,
+  `isMultiSeries()`) rather than per-point, and the legend is not optional. Series are
+  capped at 8 — the largest are kept, in the result's own column order, and the caption
+  says it trimmed. `ChartSpec.normalize` pre-computes 100%-stacked shares (recharts has no
+  percent-stack mode). A multi-series kind over a single measure degrades to its
+  single-series equivalent rather than refusing to draw.
+- **Named chart kinds beyond the auto set** — `treemap`, `combo` (bars plus a line on its
+  own right-hand axis), `waterfall` (running-total P&L attribution; the spec computes each
+  step's `base`/`span` so the renderer stays a renderer), `sankey` (two categorical columns
+  become a two-layer flow; source and target nodes stay separate so the layout cannot
+  cycle), `funnel` (sorted largest-first), `radar` and `candlestick` (OHLC columns found by
+  name, including aggregate forms like `first_open`/`max_high`). Reached only BY NAME —
+  `auto` never resolves to one, since each answers a specific spoken question that column
+  shapes carry no signal about. A kind whose data shape a result lacks returns `undefined`
+  rather than degrading into a different question; area/segment/slice encodings
+  (pie/treemap/funnel/radar) fall back to a bar chart over signed data.
 - `formatValue()`, `formatCompact()`, `formatNumberFallback()` — display formatting for
   analysis output. Reuses the grid's OWN column formats (`matchFieldToCatalog` →
   `valueFormatterFromTemplate`), so a `marketValue` in a result table reads exactly as it
@@ -1571,6 +1633,16 @@ digests/charts/queries/heatmap shading through the same implementation.
 - `heatmapDomain()`, `heatmapCellColor()` — per-column cell-shading domain
   (diverging vs. sequential) and per-cell background colour for a heatmap-mode
   table, theme-aware (`oklch(var(--x) / alpha)` tokens). Type: `HeatmapDomain`.
+- `validateReportSpec()`, `clampRefresh()`, `reportQueries()` — the trusted-block
+  vocabulary for a composed trader report. `REPORT_BLOCK_KINDS` (`kpis`, `chart`, `table`,
+  `pivot`, `lanes`, `commentary`), `REPORT_REGIONS` (`left`/`main`/`right`), `LANE_MARKS`
+  (`line`/`area`/`bars`/`state`), `LANE_TONES`, and the `MAX_BLOCKS`/`MAX_TILES`/
+  `MAX_LANES`/`MIN_REFRESH_MS`/`MAX_REFRESH_MS` caps. Types: `ReportSpec`, `ReportBlock`,
+  `KpiBlock`, `ChartBlock`, `TableBlock`, `PivotBlock`, `LanesBlock`, `CommentaryBlock`,
+  `KpiTile`, `LaneDef`, `ReportOutcome`. Validation NORMALISES as well as checks, keeping
+  only fields the vocabulary defines — there is nowhere in a validated report to put
+  markup, script or drawing instructions, and a lane names a colour ROLE rather than a hex
+  so both themes stay correct. Errors name the offending block/tile/lane by index.
 
 ---
 

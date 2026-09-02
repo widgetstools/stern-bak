@@ -139,7 +139,16 @@ describe('BlotterDock', () => {
     expect(state.widgets).toHaveLength(0);
   });
 
-  it('two widgets both dock and render side by side, and the grid keeps its own identity throughout', () => {
+  /**
+   * The summary panel is ONE sidebar with the widgets as tabs, not a row of
+   * panels above the grid.
+   *
+   * A horizontal strip took height from the blotter — the thing people are
+   * actually reading — and every widget added shrank the others, so four
+   * widgets meant four unreadable slivers. As tabs, a fifth widget costs
+   * nothing in layout and each gets the sidebar's full height when selected.
+   */
+  it('gathers every widget into a single sidebar group rather than one panel each', () => {
     const { container, platform } = setup([{ sector: 'Tech', marketValue: 100 }], []);
     const before = screen.getByTestId('ag-grid-stub');
 
@@ -152,9 +161,53 @@ describe('BlotterDock', () => {
       }));
     });
 
-    expect(screen.getByRole('tab', { name: 'Sector digest' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: 'Sector heatmap' })).toBeTruthy();
+    const groups = [...container.querySelectorAll('.dock-tab-group')];
+    const tabsOf = (g: Element) => [...g.querySelectorAll('[role="tab"]')].map((t) => t.textContent);
+    // The blotter's own group, and the summary sidebar. Nothing else.
+    expect(groups).toHaveLength(2);
+    expect(tabsOf(groups[1])).toEqual(['Sector digest', 'Sector heatmap']);
     expect(container.querySelector('[data-testid="ag-grid-stub"]')).toBe(before);
+  });
+
+  /** Right of the blotter, not above it: in a horizontal split the sidebar is
+   *  the second child, so it follows the grid in document order. */
+  it('places the sidebar after the blotter, so it sits to its right', () => {
+    const { container } = setup(
+      [{ sector: 'Tech', marketValue: 100 }],
+      [{ id: 'w1', title: 'Sector digest', kind: 'digest', query: { groupBy: ['sector'] } }],
+      'FI Blotter',
+    );
+    const groups = [...container.querySelectorAll('.dock-tab-group')];
+    const tabsOf = (g: Element) => [...g.querySelectorAll('[role="tab"]')].map((t) => t.textContent);
+    expect(tabsOf(groups[0])).toContain('FI Blotter');
+    expect(tabsOf(groups[1])).toContain('Sector digest');
+  });
+
+  /** Adding a fifth widget must join the existing tabs, not split the layout
+   *  again — that is the whole point of the sidebar. */
+  it('adds a later widget as another tab in the same sidebar', () => {
+    const { container, platform } = setup(
+      [{ sector: 'Tech', marketValue: 100 }],
+      [{ id: 'w1', title: 'One', kind: 'digest', query: { groupBy: ['sector'] } }],
+    );
+
+    act(() => {
+      platform.store.setModuleState<SummaryPanelState>(SUMMARY_PANEL_MODULE_ID, () => ({
+        widgets: [
+          { id: 'w1', title: 'One', kind: 'digest', query: { groupBy: ['sector'] } },
+          { id: 'w2', title: 'Two', kind: 'digest', query: { groupBy: ['sector'] } },
+          { id: 'w3', title: 'Three', kind: 'digest', query: { groupBy: ['sector'] } },
+        ],
+      }));
+    });
+
+    const groups = [...container.querySelectorAll('.dock-tab-group')];
+    expect(groups).toHaveLength(2);
+    expect([...groups[1].querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual([
+      'One',
+      'Two',
+      'Three',
+    ]);
   });
 
   /** Maximize is the one panel action the blotter allows — the way back to a

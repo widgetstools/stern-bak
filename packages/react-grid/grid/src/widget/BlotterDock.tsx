@@ -5,6 +5,16 @@
  * content (`OrderBlotter.tsx` — same `ag-grid-react`, same dock library),
  * extended so the summary widgets dock, float, and pin around it freely.
  *
+ * LAYOUT: the summary panel is a single dock group pinned to the RIGHT of the
+ * blotter, with every widget as a tab inside it — a vertical sidebar, not a
+ * horizontal strip above the grid. The strip it replaced took height from the
+ * blotter (the thing people are actually reading) and split that height N ways,
+ * so four widgets meant four unreadable slivers and adding a fifth made every
+ * existing one worse. A sidebar costs width once, whatever the widget count,
+ * and each widget gets the column's full height when its tab is selected. It is
+ * deliberately the same shape as the assistant's own analysis side panel, which
+ * shows the same kinds of card.
+ *
  * The blotter panel is built ONCE, at mount, and is never closed, re-added,
  * or otherwise touched by a dispatch — only ever repositioned by the dock's
  * OWN internal drag/resize handling. That is deliberate: AG-Grid's live
@@ -23,7 +33,7 @@
  * widgets, and is uncollapsed the moment one exists, via
  * `SET_HEADER_COLLAPSED`. With nothing to show alongside it, a lone header
  * naming the one panel that's always there is just chrome with nothing to
- * say; once a widget is docked next to it, the header is what tells the two
+ * say; once the sidebar exists, the header is what tells the two
  * apart — and what carries the blotter's maximize button (below), which
  * only has anything to do once something else is sharing the space.
  *
@@ -77,11 +87,29 @@ const BLOTTER_PANEL_ID = 'blotter';
 const BLOTTER_GROUP_ID = 'blotter-group';
 const SUMMARY_WIDGET_TYPE = 'summary-widget';
 
-const KIND_LABEL: Record<SummaryWidgetKind, string> = { digest: 'Digest', chart: 'Chart', heatmap: 'Heatmap' };
+const KIND_LABEL: Record<SummaryWidgetKind, string> = {
+  digest: 'Digest',
+  chart: 'Chart',
+  table: 'Table',
+  heatmap: 'Heatmap',
+  text: 'Notes',
+};
 
-function summaryGroupId(widgetId: string): string {
-  return `summary-panel-group-${widgetId}`;
-}
+/**
+ * The summary panel is ONE dock group pinned to the right of the blotter, with
+ * every widget as a TAB inside it — not a row of separate panels above the
+ * grid.
+ *
+ * A horizontal strip of side-by-side panels took height from the blotter (the
+ * thing people are actually reading), and every widget added shrank the others,
+ * so four widgets meant four unreadable slivers. A single vertical sidebar
+ * costs width once, no matter how many widgets there are, and each gets the
+ * full height of the column when its tab is selected — the same shape, and the
+ * same reasoning, as the assistant's own analysis side panel.
+ */
+const SUMMARY_GROUP_ID = 'summary-panel-group';
+/** Share of the width the sidebar takes; the blotter keeps the rest. */
+const SUMMARY_WIDTH_PCT = 30;
 
 function widgetTitle(widget: SummaryWidget): string {
   return widget.title || KIND_LABEL[widget.kind];
@@ -135,23 +163,26 @@ function buildInitialState(widgets: readonly SummaryWidget[], blotterTitle: stri
     return { layout: blotterGroup, panels, placements, activePaneId: BLOTTER_PANEL_ID, nextZIndex: 100 };
   }
 
-  const widgetGroups: LayoutNode[] = widgets.map((widget) => {
-    const groupId = summaryGroupId(widget.id);
+  for (const widget of widgets) {
     panels.set(widget.id, widgetPanelConfig(widget));
-    placements.set(widget.id, { type: 'docked', groupId });
-    return { type: 'tabgroup', id: groupId, panels: [widget.id], activePanel: widget.id };
-  });
-  const evenSize = 100 / widgets.length;
-  const summaryRow: LayoutNode = {
-    type: 'split',
-    id: 'summary-panel-row',
-    direction: 'horizontal',
-    children: widgetGroups,
-    sizes: widgets.map(() => evenSize),
+    placements.set(widget.id, { type: 'docked', groupId: SUMMARY_GROUP_ID });
+  }
+  const summaryGroup: LayoutNode = {
+    type: 'tabgroup',
+    id: SUMMARY_GROUP_ID,
+    panels: widgets.map((w) => w.id),
+    // First tab up front, so the panel opens on something rather than blank.
+    activePanel: widgets[0].id,
   };
 
   return {
-    layout: { type: 'split', id: 'blotter-dock-root', direction: 'vertical', children: [summaryRow, blotterGroup], sizes: [30, 70] },
+    layout: {
+      type: 'split',
+      id: 'blotter-dock-root',
+      direction: 'horizontal',
+      children: [blotterGroup, summaryGroup],
+      sizes: [100 - SUMMARY_WIDTH_PCT, SUMMARY_WIDTH_PCT],
+    },
     panels,
     placements,
     activePaneId: BLOTTER_PANEL_ID,
@@ -162,11 +193,16 @@ function buildInitialState(widgets: readonly SummaryWidget[], blotterTitle: stri
 /** Brings the dock's actual widget panels in line with `widgets` — added,
  *  removed, or renamed — via the dock's own mutation API, never by rebuilding
  *  `DockManagerState` and remounting (that would take the permanent blotter
- *  panel down with it). New panels are added relative to the right-most
- *  CURRENTLY-DOCKED widget (falling back to the blotter's own group, docking
- *  above it, when none remain) — read fresh from the live API each pass
- *  rather than remembered across calls, so a widget the user has since
- *  floated, unpinned, or closed by hand never leaves a stale anchor behind. */
+ *  panel down with it).
+ *
+ *  A new widget joins the summary sidebar as another TAB (`position: 'center'`
+ *  docks INTO a group rather than beside it), so adding a fifth widget costs
+ *  nothing in layout and never shrinks the other four. The anchor is read
+ *  fresh from the live API each pass rather than remembered across calls, so a
+ *  widget the user has since floated, unpinned or closed by hand never leaves
+ *  a stale anchor behind — and if the sidebar is gone entirely (every widget
+ *  dragged out or closed), the next add re-creates it to the RIGHT of the
+ *  blotter rather than silently landing somewhere else. */
 function reconcileWidgets(handle: DockManagerCoreHandle, widgets: readonly SummaryWidget[]): void {
   const api = handle.getApi();
   if (!api) return;
@@ -179,13 +215,17 @@ function reconcileWidgets(handle: DockManagerCoreHandle, widgets: readonly Summa
     if (!desiredSet.has(id)) api.closePanel(id);
   }
 
+  // Prefer the sidebar itself; fall back to whichever group still holds a
+  // widget (the user may have dragged the whole panel elsewhere); and only if
+  // no widget is docked anywhere, re-create the sidebar beside the blotter.
   let anchorGroupId = BLOTTER_GROUP_ID;
-  let anchorPosition: DockPosition = 'top';
+  let anchorPosition: DockPosition = 'right';
   const stillDocked = widgets.filter((w) => currentSet.has(w.id));
-  const lastDocked = stillDocked[stillDocked.length - 1];
-  if (lastDocked) {
-    anchorGroupId = api.getGroupForPanel(lastDocked.id) ?? BLOTTER_GROUP_ID;
-    anchorPosition = 'right';
+  const anchorWidget = stillDocked[stillDocked.length - 1];
+  if (anchorWidget) {
+    anchorGroupId = api.getGroupForPanel(anchorWidget.id) ?? SUMMARY_GROUP_ID;
+    // Into the group, as a tab — not beside it.
+    anchorPosition = 'center';
   }
 
   for (const widget of widgets) {
@@ -202,8 +242,9 @@ function reconcileWidgets(handle: DockManagerCoreHandle, widgets: readonly Summa
       target: anchorGroupId,
       position: anchorPosition,
     });
+    // Everything after the first lands in the same group, as a sibling tab.
     anchorGroupId = api.getGroupForPanel(widget.id) ?? anchorGroupId;
-    anchorPosition = 'right';
+    anchorPosition = 'center';
   }
 
   handle.dispatch({ type: 'SET_HEADER_COLLAPSED', groupId: BLOTTER_GROUP_ID, collapsed: widgets.length === 0 });

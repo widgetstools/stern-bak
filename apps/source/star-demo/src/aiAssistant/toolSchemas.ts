@@ -10,6 +10,7 @@
 import { DIRECTION_ICON_KEYS, FLASH_COLORS } from './ruleFeatures';
 import { FEATURE_GUIDE_IDS } from './featureGuides';
 import { COLUMN_TOOL_SCHEMAS } from './columnToolSchemas';
+import { REPORT_TOOL_SCHEMAS } from './reportToolSchemas';
 import { TARGET_GRID_ID_PROPERTY, INSTANCE_ID_PROPERTY, type OpenAIToolSchema } from './toolSchemaShared';
 import { MODULE_COLLECTIONS } from './moduleCollections';
 import { FILTER_OPS, AGG_FNS, CHART_KINDS, SUMMARY_CHART_KINDS } from '@wellsfargo-starui/data';
@@ -735,7 +736,7 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
             type: 'string',
             enum: [...CHART_KINDS],
             description:
-              'Chart to draw. Omit (or "auto") and the shape of the result decides — a few positive buckets get a pie, an ordered or dated key gets a line, many or long labels get horizontal bars, two numeric columns over raw rows get a scatter. Set it only when the user asks for one by name ("show that as a pie"), or "none" to suppress the chart. "heatmap" shades the table\'s numeric cells by magnitude instead of drawing a separate chart — good for a grouped or pivoted result the user wants to scan at a glance ("show that as a heatmap").',
+              'Chart to draw. Omit (or "auto") and the shape of the result decides — a few positive buckets get a pie, an ordered or dated key gets a line, many or long labels get horizontal bars, two numeric columns over raw rows get a scatter, and a PIVOTED result gets a stacked bar with one series per pivot column. Set it only when the user asks for one by name ("show that as a pie"), or "none" to suppress the chart. "heatmap" shades the table\'s numeric cells by magnitude instead of drawing a separate chart — good for a grouped or pivoted result the user wants to scan at a glance ("show that as a heatmap"). MULTI-SERIES: pair groupBy with pivotBy and the result carries one series per pivot value — "stackedBar" for parts of a whole over time, "groupedBar" to compare series side by side, "stackedArea" for a cumulative total, "multiLine" to compare trends. These need that pivot (or several numeric columns); over a single measure they degrade to plain bar/area/line.',
           },
           allowSample: { type: 'boolean', description: 'See summarize_grid_data — generated rows, not the user\'s data.' },
         },
@@ -852,4 +853,5 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
     },
   },
   ...COLUMN_TOOL_SCHEMAS,
+  ...REPORT_TOOL_SCHEMAS,
 ];

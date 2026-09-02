@@ -659,7 +659,7 @@ export function AiAssistantPanel({
           onResize={handleAnalysisPanelResize}
         >
           <div className="h-full min-h-0 pl-2">
-            <AnalysisPanel entries={analysisEntries} activeId={activeAnalysisId} onSelect={handleSelectAnalysis} />
+            <AnalysisPanel entries={analysisEntries} activeId={activeAnalysisId} onSelect={handleSelectAnalysis} gridId={targetGridId} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

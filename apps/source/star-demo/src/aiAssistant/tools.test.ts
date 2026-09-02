@@ -16,6 +16,7 @@ const DECLARED: ToolName[] = [
   'list_grids', 'list_data_providers', 'get_grid_columns', 'list_grid_instances',
   'describe_data_fields', 'diagnose_grid', 'list_cell_renderers', 'undo_last_change',
   'summarize_grid_data', 'query_grid_data',
+  'open_analysis_window', 'create_live_report', 'reload_analysis_window',
   'list_mock_datasets', 'list_provider_fields', 'infer_provider_fields', 'set_provider_columns',
   'list_grid_customizations', 'list_grid_modules', 'get_feature_guide',
   'get_module_settings', 'update_module_settings', 'list_module_items',

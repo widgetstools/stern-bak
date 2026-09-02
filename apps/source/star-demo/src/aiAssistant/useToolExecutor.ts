@@ -59,6 +59,7 @@ import {
 } from './registryOps';
 import { withInferredColumns, describeMockFields } from './providerColumns';
 import { launchBlotter, describeLaunch } from './launchComponent';
+import { openAnalysisWindow, createLiveReport, reloadAnalysisWindow } from './reportTools';
 import {
   setColumnLayout,
   setRowGrouping,
@@ -665,6 +666,12 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return createBlotter(ctx.configManager, ctx.appId, args);
     case 'open_blotter':
       return openBlotter(args);
+    case 'open_analysis_window':
+      return openAnalysisWindow({ configManager: ctx.configManager, configStore: ctx.configStore }, args);
+    case 'create_live_report':
+      return createLiveReport({ configManager: ctx.configManager, configStore: ctx.configStore }, args);
+    case 'reload_analysis_window':
+      return reloadAnalysisWindow({ configManager: ctx.configManager, configStore: ctx.configStore }, args);
     case 'set_grid_provider':
       return setGridProvider(ctx.configManager, args);
     case 'list_grid_customizations':

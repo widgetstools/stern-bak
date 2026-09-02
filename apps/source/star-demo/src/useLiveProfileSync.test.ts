@@ -198,6 +198,77 @@ describe('useLiveProfileSync', () => {
     expect(grid.syncModules).not.toHaveBeenCalled();
   });
 
+  /**
+   * The reported bug: the assistant changes a column and the grid silently
+   * switches profiles underneath the user.
+   *
+   * `requestedActiveProfileId` is a ONE-SHOT written by switch_profile (and by
+   * reload_grid), but it lives in durable grid-level data and nothing ever
+   * clears it. `appliedAt` starts at 0 on every mount, so a freshly-opened
+   * window — or a second window of the same blotter, which has its own counter
+   * — read a long-spent request as "newer than nothing" and jumped to it on
+   * the next unrelated edit.
+   */
+  it('ignores a switch request that ordinary editing has already superseded', async () => {
+    // Switch requested at 400; a profile has been saved since, at 900.
+    const cm = fakeConfigManager(900, { requestedActiveProfileId: 'other-profile', requestedActiveProfileAt: 400 });
+    const grid = target();
+    renderHook(() =>
+      useLiveProfileSync({ configManager: cm.configManager, instanceId: 'grid-test', getTarget: () => grid }),
+    );
+
+    cm.fire(['summary-panel']);
+
+    // The edit is applied to the profile the window is ON, scoped to the one
+    // module — no switch, and no full reload.
+    await waitFor(() => expect(grid.syncModules).toHaveBeenCalledWith(['summary-panel']));
+    expect(grid.loadProfile).not.toHaveBeenCalled();
+  });
+
+  /** The mount-order half of the same bug: a brand-new window must not honour
+   *  a request that predates the config it is loading. */
+  it('does not replay a spent request just because this window mounted after it', async () => {
+    const cm = fakeConfigManager(900, { requestedActiveProfileId: 'other-profile', requestedActiveProfileAt: 400 });
+    const grid = target({ activeProfileId: 'my-profile' });
+    renderHook(() =>
+      useLiveProfileSync({ configManager: cm.configManager, instanceId: 'grid-test', getTarget: () => grid }),
+    );
+
+    cm.fire();
+
+    await waitFor(() => expect(grid.loadProfile).toHaveBeenCalled());
+    expect(grid.loadProfile).toHaveBeenCalledWith('my-profile');
+    expect(grid.loadProfile).not.toHaveBeenCalledWith('other-profile');
+  });
+
+  /** The guard must not break the real thing: a switch stamped AFTER the last
+   *  profile write is still pending and must still be honoured. */
+  it('still honours a switch requested after the newest profile write', async () => {
+    const cm = fakeConfigManager(400, { requestedActiveProfileId: 'other-profile', requestedActiveProfileAt: 900 });
+    const grid = target();
+    renderHook(() =>
+      useLiveProfileSync({ configManager: cm.configManager, instanceId: 'grid-test', getTarget: () => grid }),
+    );
+
+    cm.fire(['summary-panel']);
+
+    await waitFor(() => expect(grid.loadProfile).toHaveBeenCalledWith('other-profile'));
+  });
+
+  /** `reload_grid` uses the same mechanism against the window's OWN active
+   *  profile, so it must survive the guard too. */
+  it('still honours a reload request for the profile already showing', async () => {
+    const cm = fakeConfigManager(400, { requestedActiveProfileId: '__default__', requestedActiveProfileAt: 900 });
+    const grid = target();
+    renderHook(() =>
+      useLiveProfileSync({ configManager: cm.configManager, instanceId: 'grid-test', getTarget: () => grid }),
+    );
+
+    cm.fire();
+
+    await waitFor(() => expect(grid.loadProfile).toHaveBeenCalledWith('__default__'));
+  });
+
   /** Two edits to two different modules can fire two overlapping async
    *  handleChange calls. Whichever one loses the staleness race must not
    *  silently drop its module id — both must end up applied. */

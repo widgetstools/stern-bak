@@ -107,7 +107,7 @@ export const MODULE_COLLECTIONS: ReadonlyArray<CollectionSpec> = [
     collection: 'widgets',
     idField: 'id',
     kind: 'array',
-    describes: 'Summary-panel widgets — a digest/chart/heatmap card computed from the grid\'s current rows, rendered in a strip above the toolbar. Each widget\'s query field is the same DataQuery shape query_grid_data uses.',
+    describes: 'Summary-panel widgets — a digest/chart/table/heatmap/text card computed from the grid\'s current rows, rendered as a tab in a sidebar docked to the right of the blotter. Each widget\'s query field is the same DataQuery shape query_grid_data uses; a text widget carries `text` instead.',
   },
 ];
 
@@ -214,5 +214,5 @@ export const GRID_MODULES: ReadonlyArray<{ id: string; describes: string }> = [
   { id: 'data-change-history', describes: 'Edit-history tracking and undo depth.' },
   { id: 'alerts', describes: 'Data-driven alert rules and history.' },
   { id: 'visual-excel', describes: 'Excel-style visual formatting options.' },
-  { id: 'summary-panel', describes: 'Configurable digest/chart/heatmap widgets summarizing the grid\'s own current rows, shown in a strip above the toolbar.' },
+  { id: 'summary-panel', describes: 'Configurable digest/chart/table/heatmap/text widgets summarizing the grid\'s own current rows, shown as tabs in a sidebar docked to the right of the blotter.' },
 ];

@@ -14,7 +14,7 @@
  * busy streaming blotter doesn't re-run every widget's aggregation on every
  * one of those coalesced ticks.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { runQuery, summariseRows, buildChartSpec, type QueryResult } from '@wellsfargo-starui/data';
 import { useGridPlatform } from '../../hooks/GridProvider';
@@ -119,6 +119,95 @@ export function useSummaryPanelData(): SummaryPanelData {
   return { widgets: state?.widgets ?? [], rows, removeWidget };
 }
 
+/**
+ * A deliberately tiny formatter: `**bold**`, `` `code` ``, `- ` bullets and
+ * line breaks. Nothing else.
+ *
+ * The alternative was pulling a markdown renderer into this package, which
+ * every consumer of `@wellsfargo-starui/grid` would then carry — a real cost
+ * for bold and bullets in a narrow sidebar card. More importantly, this
+ * returns React NODES: the text is escaped by React like any other string, so
+ * there is no HTML path for author-written content to travel down. Same
+ * posture the report vocabulary's `commentary` block takes.
+ */
+function formatInline(line: string, keyPrefix: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  // Alternation order matters: bold before code, so `**a**` is not eaten by a
+  // stray backtick pairing across it.
+  const pattern = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index > last) out.push(line.slice(last, match.index));
+    if (match[1] !== undefined) {
+      out.push(<strong key={`${keyPrefix}-b${i}`} className="font-semibold text-foreground">{match[1]}</strong>);
+    } else {
+      out.push(
+        <code key={`${keyPrefix}-c${i}`} className="font-mono text-[9px] rounded-sm bg-muted/60 px-1 py-px">
+          {match[2]}
+        </code>,
+      );
+    }
+    last = pattern.lastIndex;
+    i += 1;
+  }
+  if (last < line.length) out.push(line.slice(last));
+  return out;
+}
+
+export function TextCard({ widget }: { widget: SummaryWidget }) {
+  const lines = (widget.text ?? '').split('\n');
+  return (
+    <div className="flex flex-col gap-1 px-2 py-1.5 text-[10px] leading-relaxed text-foreground/85">
+      {/* Every other tab in this sidebar recomputes as rows tick; this one
+          does not. Saying so — with the author's own "as of" when they gave
+          one — is what lets a note carry numbers honestly instead of having
+          to avoid them. */}
+      <p className="text-[9px] uppercase tracking-wide text-muted-foreground/60">
+        {widget.asOf ? `As of ${widget.asOf} · not live` : 'Written note · does not update'}
+      </p>
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <span key={i} className="block h-1" />;
+        if (/^[-*]\s+/.test(trimmed)) {
+          return (
+            <div key={i} className="flex gap-1.5">
+              <span className="text-muted-foreground/70 select-none">·</span>
+              <span className="min-w-0">{formatInline(trimmed.replace(/^[-*]\s+/, ''), `l${i}`)}</span>
+            </div>
+          );
+        }
+        return <p key={i}>{formatInline(trimmed, `l${i}`)}</p>;
+      })}
+    </div>
+  );
+}
+
+/**
+ * The analysis the query engine already computed, which the sidebar used to
+ * throw away: the plain-sentence observations about THIS result, and an honest
+ * row count. "Showing 5 of 2,000 matching rows" is the difference between a
+ * table someone trusts and one they have to go and check.
+ */
+function ResultFooter({ result }: { result: QueryResult }) {
+  const shown = result.rows.length;
+  return (
+    <div className="flex flex-col gap-1 px-2 pb-1.5 pt-1">
+      {result.highlights?.slice(0, 2).map((line) => (
+        <p key={line} className="text-[10px] leading-relaxed text-foreground/80">
+          {line}
+        </p>
+      ))}
+      <p className="text-[9px] text-muted-foreground/70">
+        {shown === result.matched
+          ? `${result.matched.toLocaleString()} matching row${result.matched === 1 ? '' : 's'}`
+          : `Showing ${shown.toLocaleString()} of ${result.matched.toLocaleString()} matching rows`}
+      </p>
+    </div>
+  );
+}
+
 export function DigestCard({ widget, rows }: { widget: SummaryWidget; rows: Record<string, unknown>[] }) {
   const { query } = widget;
   const digest = summariseRows(rows, { columns: query.columns, groupBy: query.groupBy?.[0], topN: 3 });
@@ -127,7 +216,9 @@ export function DigestCard({ widget, rows }: { widget: SummaryWidget; rows: Reco
 
   return (
     <div className="flex flex-col gap-1.5 px-2 py-1.5">
-      {highlight && <p className="text-[10px] leading-relaxed text-foreground/80">{highlight}</p>}
+      {digest.highlights.slice(0, 2).map((line) => (
+        <p key={line} className="text-[10px] leading-relaxed text-foreground/80">{line}</p>
+      ))}
       {digest.groups ? (
         <ul className="space-y-1">
           {digest.groups.buckets.slice(0, 3).map((bucket) => (
@@ -164,20 +255,25 @@ export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Recor
   }
   const result: QueryResult = outcome.value;
 
-  if (widget.kind === 'heatmap') {
+  // `table` and `heatmap` are the same table; heatmap additionally shades
+  // cells by magnitude.
+  if (widget.kind === 'table' || widget.kind === 'heatmap') {
     return (
       // Fills the panel it is given rather than being clipped at a fixed
       // 160px. A cross-tab is the widget most likely to be dragged large on
       // purpose, and the old cap meant making the panel bigger did nothing —
       // the user still scrolled a letterbox.
-      <div className="h-full max-h-full overflow-auto">
-        <AnalysisTable
-          columns={result.columns}
-          rows={result.rows}
-          stickyLeadingCols={result.pivot?.rowDims.length ?? 0}
-          valueColId={result.pivot?.measures[0]}
-          heatmap
-        />
+      <div className="flex h-full max-h-full flex-col">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <AnalysisTable
+            columns={result.columns}
+            rows={result.rows}
+            stickyLeadingCols={result.pivot?.rowDims.length ?? 0}
+            valueColId={result.pivot?.measures[0]}
+            heatmap={widget.kind === 'heatmap'}
+          />
+        </div>
+        <ResultFooter result={result} />
       </div>
     );
   }
@@ -186,19 +282,31 @@ export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Recor
     columns: result.columns,
     rows: result.rows,
     grouped: result.grouped,
+    // A pivoted widget IS multi-series. Without this the builder saw a flat
+    // column list and drew only the last pivot column.
+    pivot: result.pivot,
     requested: widget.chartKind ?? 'auto',
   });
   if (!spec) return <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Not enough data to chart yet.</p>;
 
   return (
-    <div className="px-1.5 py-1">
-      <DataChart spec={spec} style={widget.style} />
+    <div className="flex h-full max-h-full flex-col">
+      <div className="min-h-0 flex-1 px-1.5 py-1">
+        <DataChart spec={spec} style={widget.style} />
+      </div>
+      {/* What the chart is of, in words — the chat panel has always shown this
+          and the sidebar never did, which left an unlabelled chart. */}
+      <p className="px-2 pb-0.5 text-[9px] text-muted-foreground/60">{spec.caption}</p>
+      <ResultFooter result={result} />
     </div>
   );
 }
 
 /** Dispatches on `widget.kind` — the one place BlotterDock needs to know
- *  there are two rendering families (digest vs. everything else). */
+ *  there are three rendering families: narrative, digest, and everything that
+ *  runs a query. */
 export function SummaryWidgetContent({ widget, rows }: { widget: SummaryWidget; rows: Record<string, unknown>[] }) {
-  return widget.kind === 'digest' ? <DigestCard widget={widget} rows={rows} /> : <QueryCard widget={widget} rows={rows} />;
+  if (widget.kind === 'text') return <TextCard widget={widget} />;
+  if (widget.kind === 'digest') return <DigestCard widget={widget} rows={rows} />;
+  return <QueryCard widget={widget} rows={rows} />;
 }

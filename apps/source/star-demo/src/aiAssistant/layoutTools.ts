@@ -295,6 +295,21 @@ export async function setRowGrouping(
 
   const columns = catalogue.map((c) => ({ colId: c.colId, numeric: isNumericColumn(c) }));
 
+  // When grouping or pivoting, automatically include ALL numeric columns in
+  // aggregations so the user sees rolled-up values, not hidden data.
+  // Suggest appropriate aggregate functions based on field type.
+  if ((patch.groupBy.length > 0 || patch.pivotBy?.length) && patch.hideNonNumeric !== false) {
+    const autoAggregations = patch.aggregations ?? {};
+    for (const col of columns) {
+      if (col.numeric && !autoAggregations[col.colId]) {
+        // Default to SUM for most numeric fields; use AVG for rates/yields/percentages
+        const isRate = /yield|rate|spread|percent|avg|average|ytm|oas/i.test(col.colId);
+        autoAggregations[col.colId] = isRate ? 'avg' : 'sum';
+      }
+    }
+    patch.aggregations = autoAggregations;
+  }
+
   const now = new Date().toISOString();
   let plan = { hiddenColIds: [] as string[], autoHiddenColIds: [] as string[] };
   // Columns the PREVIOUS grouped view hid, across every row this call patches.
@@ -377,8 +392,13 @@ export async function setRowGrouping(
     return { ...prevState, assignments };
   });
 
-  const aggNote = Object.keys(patch.aggregations ?? {}).length
-    ? `, aggregating ${Object.entries(patch.aggregations ?? {}).map(([c, f]) => `${c}=${f}`).join(', ')}`
+  const autoAggCount = Object.keys(patch.aggregations ?? {}).length;
+  const aggNote = autoAggCount > 0
+    ? `, automatically aggregating all ${autoAggCount} numeric column(s) by ${
+        Object.values(patch.aggregations ?? {}).includes('sum') && Object.values(patch.aggregations ?? {}).includes('avg')
+          ? 'type (SUM/AVG)'
+          : Object.values(patch.aggregations ?? {})[0]
+      }`
     : '';
   const where = `"${entry.displayName}"${describeFanOut(fan)}`;
 
