@@ -21,7 +21,7 @@ import os
 import re
 import time
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional, Union
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,17 +89,17 @@ class ParseRequest(BaseModel):
 class FilterClause(BaseModel):
     column: str
     op: str
-    value: str | float | list[str]
+    value: Union[str, float, list[str]]
 
 
 class Entities(BaseModel):
     columns: list[str] = Field(default_factory=list)
     unresolved: list[str] = Field(default_factory=list)
     aggregations: dict[str, str] = Field(default_factory=dict)
-    sortDirection: str | None = None
+    sortDirection: Optional[str] = None
     filters: list[FilterClause] = Field(default_factory=list)
-    chartKind: str | None = None
-    limit: int | None = None
+    chartKind: Optional[str] = None
+    limit: Optional[int] = None
 
 
 class ParseResponse(BaseModel):
@@ -145,7 +145,7 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-def resolve_column(phrase: str, columns: list[Column]) -> str | None:
+def resolve_column(phrase: str, columns: list[Column]) -> Optional[str]:
     """Exact/prefix/substring first (cheap, precise), then embedding similarity."""
     p = _norm(phrase)
     if not p or not columns:
@@ -188,7 +188,7 @@ def candidate_phrases(text: str) -> list[str]:
     return sorted(set(out), key=lambda s: -len(s))
 
 
-def parse_value(raw: str) -> str | float:
+def parse_value(raw: str) -> Union[str, float]:
     m = re.match(r"^(-?\d+(?:\.\d+)?)\s*(k|m|mm|b|bn)?$", raw.replace(",", ""), re.I)
     if not m:
         return raw
