@@ -13,6 +13,13 @@
  * the ~29k-token preamble.
  */
 import { describe, it, expect } from 'vitest';
+import { appendFileSync } from 'node:fs';
+import { Agent, setGlobalDispatcher } from 'undici';
+
+// Node's fetch abandons a request after 300 s without response headers. A
+// cold 29k-token preamble on a 30B-class model takes longer than that on a
+// laptop, and that number is exactly what this bench exists to measure.
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 import { streamChat, type ChatMessage } from './llmClient';
 import { TOOL_SCHEMAS } from './tools';
 import { buildSystemPrompt } from './systemPrompt';
@@ -81,24 +88,34 @@ describe.skipIf(!URL)(`LLM bench · ${MODEL} @ ${URL}`, () => {
       // Cold then warm: identical prefix, so the second run measures prefix caching.
       const cold = await runOne(CASES[0].prompt);
       const warm = await runOne(CASES[0].prompt);
-      lines.push(`prefix cache: cold TTFT ${cold.ttftMs}ms → warm TTFT ${warm.ttftMs}ms`);
+      lines.push(`preamble processing: first call ${cold.totalMs}ms → same prefix again ${warm.totalMs}ms (prefix cache)`);
 
       for (const c of CASES) {
         const r = await runOne(c.prompt);
         const got = r.calls.map((x) => x.name);
         const ok = got.some((g) => c.expect.includes(g));
         correct += ok ? 1 : 0;
+        // A tool-call-only reply arrives as one final chunk on most servers,
+        // so there is no first-token moment to time — report the whole
+        // response time and skip tok/s, which would be meaningless.
+        const streamedText = r.ttftMs < r.totalMs;
         const genMs = Math.max(1, r.totalMs - r.ttftMs);
-        const tps = r.outTokens > 0 ? Math.round((r.outTokens / genMs) * 1000) : 0;
+        const timing = streamedText
+          ? `ttft ${String(r.ttftMs).padStart(5)}ms total ${String(r.totalMs).padStart(5)}ms ~${Math.round((r.outTokens / genMs) * 1000)} tok/s`
+          : `resp ${String(r.totalMs).padStart(5)}ms (${r.outTokens} tok of tool args)`;
         lines.push(
-          `${ok ? '✓' : '✗'} ${c.prompt.padEnd(58)} → ${(got.join(',') || `(text: ${r.content.slice(0, 40)}…)`).padEnd(28)} ` +
-            `ttft ${String(r.ttftMs).padStart(5)}ms total ${String(r.totalMs).padStart(5)}ms ~${tps} tok/s` +
+          `${ok ? '✓' : '✗'} ${c.prompt.padEnd(58)} → ${(got.join(',') || `(text: ${r.content.slice(0, 40)}…)`).padEnd(28)} ${timing}` +
             (ok ? '' : `  args=${r.calls.map((x) => x.args).join(' ')}`),
         );
       }
       lines.push(`score ${correct}/${CASES.length}`);
+      // vitest's reporter may swallow console output, so the report also goes
+      // to a file (LLM_BENCH_OUT, default ./llm-bench.log) — appended, so
+      // successive models can be compared side by side.
+      const report = `\n[${new Date().toISOString()}]\n${lines.join('\n')}\n`;
+      appendFileSync(process.env.LLM_BENCH_OUT ?? 'llm-bench.log', report);
       // eslint-disable-next-line no-console
-      console.log('\n' + lines.join('\n') + '\n');
+      console.log(report);
       expect(correct).toBeGreaterThan(0);
     },
     20 * 60 * 1000,
