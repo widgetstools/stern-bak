@@ -1,9 +1,13 @@
 # star-demo NLP server
 
-LLM-free natural-language parsing for the assistant. Zero-shot intent
-classification (BART-MNLI) plus embedding-based column resolution (MiniLM).
-Both models download on first run (~1.7 GB total) and are cached by
-Hugging Face under `~/.cache/huggingface`.
+LLM-free natural-language parsing for the assistant. One small
+sentence-embedding model (MiniLM, ~90 MB, downloads on first run to
+`~/.cache/huggingface`) does both jobs: intent by nearest example phrasing
+(`INTENT_EXAMPLES` in `main.py` — add a line to teach it a new wording) and
+column resolution by similarity to the grid's headers.
+
+Zero-shot NLI (BART-MNLI) was the first cut and scored 1/9 on a labelled set
+of trader phrasings — entailment is the wrong question for "put cusip back".
 
 ```bash
 cd server/nlp
@@ -29,4 +33,6 @@ or the URL box in the assistant's settings strip. When the server is down the
 browser pipeline (`src/nlpAssistant/`) runs alone — same intents, same entity
 shape, just keyword/regex instead of a model.
 
-Smaller/faster intent model: `NLP_INTENT_MODEL=MoritzLaurer/deberta-v3-base-zeroshot-v2.0`.
+Tuning: `NLP_INTENT_MIN_SIM` (default 0.45) is the similarity below which the
+intent is reported as `unknown`; `NLP_EMBED_MODEL` swaps the encoder (any
+sentence-transformers model, e.g. `BAAI/bge-small-en-v1.5`).
