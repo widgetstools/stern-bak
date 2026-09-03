@@ -47,7 +47,8 @@ vi.mock('./launchComponent', () => ({
   describeReload: (n: number) => (n > 0 ? ` Reloaded the ${n} open window(s) in place.` : ' Nothing is open to reload.'),
 }));
 
-import { createBlotter, openBlotter, setGridProvider, reloadBlottersUsingProvider } from './blotterTools';
+import { createBlotter, openBlotter, setGridProvider, reloadBlottersUsingProvider, listGrids, renameBlotter, deleteBlotter } from './blotterTools';
+import { updateRegistryEntry, removeRegistryEntry, removeDockButtons } from './registryOps';
 
 const SINGLETON = {
   id: 'grid-credit', configId: 'grid-credit', componentType: 'grid', componentSubType: 'credit',
@@ -181,5 +182,62 @@ describe('reloadBlottersUsingProvider', () => {
     mockReloadOpenComponents.mockResolvedValue(1);
 
     await expect(reloadBlottersUsingProvider(configManager, 'dp-9')).resolves.toBe(1);
+  });
+});
+
+describe('configId is the identifier the assistant hands out and takes back', () => {
+  it('list_grids reports each blotter by configId, with the display name as a label only', async () => {
+    mockLoadRegistryConfig.mockResolvedValue({
+      version: 2,
+      entries: [SINGLETON, { ...SINGLETON, id: 'legacy-id', configId: 'grid-rates', displayName: 'Rates', singleton: false }],
+    });
+    const result = await listGrids();
+    expect(result.summary).toBe('Credit (configId=grid-credit); Rates (configId=grid-rates)');
+    expect(result.data).toEqual([
+      { configId: 'grid-credit', displayName: 'Credit', singleton: true },
+      { configId: 'grid-rates', displayName: 'Rates', singleton: false },
+    ]);
+    // Never the registry `id` when it differs — nothing downstream keys on it.
+    expect(JSON.stringify(result.data)).not.toContain('legacy-id');
+  });
+
+  it('create_blotter returns the configId and tells the model to keep using it', async () => {
+    const { configManager } = fakeConfigManager();
+    const result = await createBlotter(configManager, 'Star-Demo', { displayName: 'Rates Book', openNow: false });
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({ configId: 'grid-rates-book', displayName: 'Rates Book' });
+    expect(result.summary).toContain('configId=grid-rates-book');
+    expect(result.summary).toContain('use this exact id');
+  });
+
+  it('rename_blotter resolves the target and keeps the configId stable', async () => {
+    vi.mocked(updateRegistryEntry).mockResolvedValue(true);
+    const result = await renameBlotter({ targetGridId: 'grid-credit', displayName: 'Credit Desk' });
+    expect(result.ok).toBe(true);
+    expect(updateRegistryEntry).toHaveBeenCalledWith('grid-credit', { displayName: 'Credit Desk' });
+    expect(result.summary).toContain('configId is still grid-credit');
+  });
+
+  it('rename_blotter keys registry ops on the entry\'s registry id even when it differs from the configId', async () => {
+    mockLoadRegistryConfig.mockResolvedValue({ version: 2, entries: [{ ...SINGLETON, id: 'legacy-id', configId: 'grid-credit' }] });
+    vi.mocked(updateRegistryEntry).mockResolvedValue(true);
+    const result = await renameBlotter({ targetGridId: 'grid-credit', displayName: 'Credit Desk' });
+    expect(result.ok).toBe(true);
+    expect(updateRegistryEntry).toHaveBeenCalledWith('legacy-id', { displayName: 'Credit Desk' });
+  });
+
+  it('delete_blotter refuses an unknown configId with a pointer to list_grids', async () => {
+    const result = await deleteBlotter({ targetGridId: 'grid-nope', confirm: true });
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('list_grids');
+  });
+
+  it('delete_blotter removes by the resolved entry and reports the configId', async () => {
+    vi.mocked(removeRegistryEntry).mockResolvedValue(true);
+    vi.mocked(removeDockButtons).mockResolvedValue(1);
+    const result = await deleteBlotter({ targetGridId: 'grid-credit', confirm: true });
+    expect(result.ok).toBe(true);
+    expect(removeRegistryEntry).toHaveBeenCalledWith('grid-credit');
+    expect(result.summary).toContain('configId grid-credit');
   });
 });

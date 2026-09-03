@@ -30,7 +30,11 @@ export interface OpenAssistantOpts {
    * window can only guess at.
    */
   instanceId: string;
-  /** Component Registry id, when the caller genuinely knows it. */
+  /**
+   * The blotter's template configId (the registry entry's `configId`), when
+   * the caller genuinely knows it — under OpenFin that is the launcher's
+   * `customData.templateId`. Never a display name.
+   */
   gridId?: string;
   /** Shown in the assistant header alongside the id. */
   displayName?: string;

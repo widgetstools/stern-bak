@@ -34,10 +34,17 @@ const BLOTTER_HOST_URL = '/#/blotters/marketsgrid';
 export async function listGrids(): Promise<ToolExecutionResult> {
   const registry = await loadRegistryConfig();
   const grids = (registry?.entries ?? []).filter((e) => e.componentType === BLOTTER_COMPONENT_TYPE);
+  // The configId is THE identifier — copy it exactly. The display name is
+  // shown so the model can match what the user said to a row, never so it
+  // can be passed back as an id.
   const summary =
-    grids.map((g) => `${g.displayName} (id=${g.id})`).join('; ') ||
+    grids.map((g) => `${g.displayName} (configId=${g.configId})`).join('; ') ||
     'No grids are registered on the dock yet.';
-  return { ok: true, summary, data: grids.map((g) => ({ id: g.id, displayName: g.displayName })) };
+  return {
+    ok: true,
+    summary,
+    data: grids.map((g) => ({ configId: g.configId, displayName: g.displayName, singleton: g.singleton === true })),
+  };
 }
 
 /** Slugifies a display name into a registry `componentSubType`. */
@@ -144,7 +151,7 @@ export async function createBlotter(
   return {
     ok: true,
     summary:
-      `Created blotter "${a.displayName}" (id=${id})` +
+      `Created blotter "${a.displayName}" (configId=${id} — use this exact id for every call about it)` +
       (addedToDock
         ? group
           ? ` and filed it under the "${group}" menu on the dock`
@@ -155,7 +162,7 @@ export async function createBlotter(
       (a.providerId ? `, bound to provider ${a.providerId}` : ', with no data provider bound yet') +
       '.' +
       (launch ? describeLaunch(launch, a.displayName) : ''),
-    data: { id, displayName: a.displayName, opened: launch?.ok ?? false },
+    data: { configId: id, displayName: a.displayName, opened: launch?.ok ?? false },
   };
 }
 
@@ -222,34 +229,41 @@ export async function openBlotter(args: Record<string, unknown>): Promise<ToolEx
 export async function renameBlotter(args: Record<string, unknown>): Promise<ToolExecutionResult> {
   const a = args as { targetGridId?: string; displayName?: string };
   if (!a.targetGridId || !a.displayName) return { ok: false, summary: 'Missing required field(s): targetGridId, displayName.' };
-  const ok = await updateRegistryEntry(a.targetGridId, { displayName: a.displayName });
-  if (!ok) return { ok: false, summary: `No grid registered with id "${a.targetGridId}".` };
-  await renameDockButtons(a.targetGridId, a.displayName);
-  return { ok: true, summary: `Renamed to "${a.displayName}" (its id stays ${a.targetGridId}).` };
+  const entry = await resolveGridEntry(a.targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with configId "${a.targetGridId}". Call list_grids to see valid ids.` };
+  // Registry ops key on the entry's own `id`; the caller keyed on configId.
+  const ok = await updateRegistryEntry(entry.id, { displayName: a.displayName });
+  if (!ok) return { ok: false, summary: `No grid registered with configId "${a.targetGridId}".` };
+  await renameDockButtons(entry.id, a.displayName);
+  return {
+    ok: true,
+    summary: `Renamed to "${a.displayName}" — its configId is still ${entry.configId}; keep using that, not the new name.`,
+  };
 }
 
 export async function deleteBlotter(args: Record<string, unknown>): Promise<ToolExecutionResult> {
   const a = args as { targetGridId?: string; confirm?: boolean };
   if (!a.targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  const entry = await resolveGridEntry(a.targetGridId);
   // Enforced, not merely requested of the model: deleting a blotter removes it
   // from the dock for every user of this profile.
   if (a.confirm !== true) {
-    const entry = await resolveGridEntry(a.targetGridId);
-    const label = entry ? `"${entry.displayName}" (${a.targetGridId})` : `"${a.targetGridId}"`;
+    const label = entry ? `"${entry.displayName}" (configId ${entry.configId})` : `"${a.targetGridId}"`;
     return {
       ok: false,
       summary: `Deleting ${label} removes it from the dock. Ask the user to confirm, then call again with confirm: true.`,
     };
   }
-  const removed = await removeRegistryEntry(a.targetGridId);
-  if (!removed) return { ok: false, summary: `No grid registered with id "${a.targetGridId}".` };
+  if (!entry) return { ok: false, summary: `No grid registered with configId "${a.targetGridId}". Call list_grids to see valid ids.` };
+  const removed = await removeRegistryEntry(entry.id);
+  if (!removed) return { ok: false, summary: `No grid registered with configId "${a.targetGridId}".` };
   // Always drop the buttons too — a button pointing at a deleted entry is a
   // dead dock item that warns and no-ops on click.
-  const buttons = await removeDockButtons(a.targetGridId);
+  const buttons = await removeDockButtons(entry.id);
   return {
     ok: true,
     summary:
-      `Deleted blotter "${a.targetGridId}"${buttons > 0 ? ` and removed ${buttons} dock button(s)` : ''}. ` +
+      `Deleted blotter "${entry.displayName}" (configId ${entry.configId})${buttons > 0 ? ` and removed ${buttons} dock button(s)` : ''}. ` +
       'Its saved settings row is left in place, so recreating it with the same name restores them.',
   };
 }

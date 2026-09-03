@@ -31,10 +31,34 @@ import { loadRegistryConfig, type RegistryEntry } from '@wellsfargo-starui/openf
 /** Registered MarketsGrid blotters all share this componentType. */
 export const BLOTTER_COMPONENT_TYPE = 'grid';
 
-/** Looks a blotter up by its Component Registry id. */
-export async function resolveGridEntry(targetGridId: string): Promise<RegistryEntry | undefined> {
+/**
+ * Looks a blotter up by its **configId** — the id of its template config row,
+ * which is the one identifier every layer agrees on: the registry entry
+ * carries it, the launcher keys the window's row on it, and every profile
+ * read and write goes through it. The registry's own `id` is accepted too,
+ * since for every entry this platform creates the two are the same string —
+ * but `configId` is checked first and is the one callers should hold.
+ *
+ * A display name is NOT an identifier. It can be renamed at any time, two
+ * blotters can share one, and deriving an id from it ("Credit Blotter" →
+ * "grid-credit-blotter") is a guess that stops being true the moment either
+ * changes. `findGridByDisplayName` exists only so a caller that was handed a
+ * name can be told the real configId.
+ */
+export async function resolveGridEntry(configId: string): Promise<RegistryEntry | undefined> {
   const registry = await loadRegistryConfig();
-  return registry?.entries.find((e) => e.id === targetGridId && e.componentType === BLOTTER_COMPONENT_TYPE);
+  const grids = (registry?.entries ?? []).filter((e) => e.componentType === BLOTTER_COMPONENT_TYPE);
+  return grids.find((e) => e.configId === configId) ?? grids.find((e) => e.id === configId);
+}
+
+/** Case-insensitive display-name match — for error messages, never for targeting. */
+export async function findGridByDisplayName(name: string): Promise<RegistryEntry | undefined> {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return undefined;
+  const registry = await loadRegistryConfig();
+  return (registry?.entries ?? []).find(
+    (e) => e.componentType === BLOTTER_COMPONENT_TYPE && e.displayName?.trim().toLowerCase() === wanted,
+  );
 }
 
 /**

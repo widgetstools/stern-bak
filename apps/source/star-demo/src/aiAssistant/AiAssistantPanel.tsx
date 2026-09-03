@@ -144,8 +144,10 @@ export function AiAssistantPanel({
       const entry = fromInstance ?? fromHint;
       if (cancelled) return;
       if (entry) {
-        setResolvedGridId(entry.id);
-        setTargetGridId(entry.id);
+        // configId, not the registry `id`: it is the identifier every tool
+        // call is normalised to and every profile read/write is keyed on.
+        setResolvedGridId(entry.configId);
+        setTargetGridId(entry.configId);
         setResolveFailed(false);
       } else {
         setResolvedGridId(undefined);
@@ -211,6 +213,26 @@ export function AiAssistantPanel({
   });
   const undo = useUndoStack(platform?.configManager);
 
+  // The picker's `id` is the blotter's configId — the same string the
+  // executor gets as `defaultGridId` and every tool call is keyed on.
+  const refreshGrids = useCallback(async () => {
+    const config = await loadRegistryConfig();
+    const next = (config?.entries ?? [])
+      .filter((e) => e.componentType === 'grid')
+      .map((e) => ({ id: e.configId, displayName: e.displayName }));
+    setGrids(next);
+    return next;
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void refreshGrids().then(() => {
+      if (cancelled) return;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshGrids]);
+
   // `undo_last_change` is served here rather than in the executor: the stack is
   // this panel's conversation state, not platform state.
   const executeToolWithUndo = useCallback(
@@ -225,9 +247,19 @@ export function AiAssistantPanel({
       // a switch_profile, or a reload_grid — this is a live readout, never
       // something the conversation pins to (see activeProfile's declaration).
       refreshActiveProfile();
+      // A blotter came, went, or was renamed: the registry row is persisted,
+      // but THIS panel read its grid list at mount. Re-read it, and point the
+      // default target at a blotter that was just created so the next
+      // unqualified call ("now hide cusip") lands on it — by configId.
+      if (result.ok && (name === 'create_blotter' || name === 'rename_blotter' || name === 'delete_blotter')) {
+        const next = await refreshGrids();
+        const created = name === 'create_blotter' ? (result.data as { configId?: string } | undefined)?.configId : undefined;
+        if (created && !locked) setTargetGridId(created);
+        else if (name === 'delete_blotter' && !next.some((g) => g.id === targetGridId)) setTargetGridId(next[0]?.id ?? '');
+      }
       return result;
     },
-    [executeTool, undo, refreshActiveProfile],
+    [executeTool, undo, refreshActiveProfile, refreshGrids, locked, targetGridId],
   );
 
   const session = useChatSession({
@@ -397,20 +429,6 @@ export function AiAssistantPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseUrl, apiKey]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void loadRegistryConfig().then((config) => {
-      if (cancelled) return;
-      setGrids(
-        (config?.entries ?? [])
-          .filter((e) => e.componentType === 'grid')
-          .map((e) => ({ id: e.id, displayName: e.displayName })),
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const addFiles = useCallback(
     async (files: File[]) => {

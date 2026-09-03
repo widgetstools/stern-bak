@@ -129,6 +129,50 @@ describe('resolveInstancePin', () => {
     const res = await resolveInstancePin(manager(), { targetGridId: 'nope' });
     expect(res.ok === true && res.args.targetGridId).toBe('nope');
   });
+
+  // ── configId is the identifier ──────────────────────────────────────
+
+  /** A name is what the user says, not what a tool takes: refuse, and hand
+   *  back the configId so the model can retry correctly. */
+  it('refuses a display name as targetGridId and names the real configId', async () => {
+    const res = await resolveInstancePin(manager(), { targetGridId: 'TestGrid' });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.summary).toContain('display name, not a configId');
+    expect(res.ok === false && res.summary).toContain('"grid-test"');
+  });
+
+  it('matches the display name case-insensitively when refusing', async () => {
+    const res = await resolveInstancePin(manager(), { targetGridId: 'testgrid' });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.summary).toContain('"grid-test"');
+  });
+
+  /** The registry `id` and the `configId` are the same string for everything
+   *  this platform creates — but the configId is the one every profile read
+   *  and write is keyed on, so it is what handlers must see even when an
+   *  entry's two ids differ. */
+  it('normalises to the configId, not the registry id, when the two differ', async () => {
+    mockLoadRegistryConfig.mockResolvedValue({
+      version: 2,
+      entries: [{ ...GRID_ENTRY, id: 'legacy-registry-id', configId: 'grid-test' }],
+    });
+    const byRegistryId = await resolveInstancePin(manager(), { targetGridId: 'legacy-registry-id' });
+    expect(byRegistryId.ok === true && byRegistryId.args.targetGridId).toBe('grid-test');
+    const byConfigId = await resolveInstancePin(manager(), { targetGridId: 'grid-test' });
+    expect(byConfigId.ok === true && byConfigId.args.targetGridId).toBe('grid-test');
+  });
+
+  it('prefers a configId match over a registry-id match when both could apply', async () => {
+    mockLoadRegistryConfig.mockResolvedValue({
+      version: 2,
+      entries: [
+        { ...GRID_ENTRY, id: 'grid-other', configId: 'grid-test', displayName: 'Right one' },
+        { ...GRID_ENTRY, id: 'grid-test', configId: 'grid-shadow', displayName: 'Wrong one' },
+      ],
+    });
+    const res = await resolveInstancePin(manager(), { targetGridId: 'grid-test' });
+    expect(res.ok === true && res.args.targetGridId).toBe('grid-test');
+  });
 });
 
 describe('dispatchTool with a pinned window', () => {

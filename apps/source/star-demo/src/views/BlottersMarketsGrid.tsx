@@ -56,21 +56,27 @@ function BlottersMarketsGrid(): ReactNode {
     },
     [runtime],
   );
-  // The wand opens an assistant tied to THIS blotter. Pass the instance id —
-  // the one identifier a window always knows — and let the assistant resolve it
-  // to a registry entry. Deriving a registry id here from componentType /
-  // componentSubType silently produced "star-demo-blotter" (the browser-mode
-  // fallback, not a registered grid) whenever those weren't populated.
+  // The wand opens an assistant tied to THIS blotter, and hands it the two
+  // configIds it is defined by — never a display name, never something
+  // derived from one:
+  //   • `instanceId` — this window's OWN config row. Under OpenFin the launcher
+  //     minted it (a singleton's window reuses the template row, so it is the
+  //     template configId; a multi-instance window gets its cloned row's id).
+  //   • `templateId` — the blotter's template configId, straight from the
+  //     launcher's customData. The assistant resolves the registry entry from
+  //     it exactly, so a blotter that was renamed, or created a moment ago in
+  //     another window, still targets correctly.
+  // Deriving an id here from componentType/componentSubType is only a last
+  // resort for a browser-mode window that was never launched by the platform.
   const handleOpenAssistant = useCallback(() => {
-    // Two independent signals, because either can be missing: the instance id
-    // (resolved against the config row) and, when the launcher supplied a
-    // component identity, the registry id it implies. The assistant prefers the
-    // instance and falls back to the hint.
     const identity = runtime.resolveIdentity?.();
+    const fromLauncher = identity?.customData?.templateId;
     const gridId =
-      identity?.componentType && identity?.componentSubType
-        ? `${identity.componentType}-${identity.componentSubType}`.toLowerCase()
-        : undefined;
+      typeof fromLauncher === 'string' && fromLauncher
+        ? fromLauncher
+        : identity?.componentType && identity?.componentSubType
+          ? `${identity.componentType}-${identity.componentSubType}`.toLowerCase()
+          : undefined;
     void openAssistantPopout(runtime, { instanceId, gridId });
   }, [runtime, instanceId]);
 

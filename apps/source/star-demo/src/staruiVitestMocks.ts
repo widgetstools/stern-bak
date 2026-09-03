@@ -184,6 +184,15 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
         },
         'Config browser',
       ),
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          'data-testid': 'open-assistant-btn',
+          onClick: () => (props.onOpenAssistant as (() => void) | undefined)?.(),
+        },
+        'Assistant',
+      ),
     ),
 }));
 

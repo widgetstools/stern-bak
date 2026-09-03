@@ -135,7 +135,7 @@ describe('dispatchTool', () => {
     const result = await dispatchTool('list_grids', ctx, {});
 
     expect(result.ok).toBe(true);
-    expect(result.data).toEqual([{ id: 'grid-test', displayName: 'TestGrid' }]);
+    expect(result.data).toEqual([{ configId: 'grid-test', displayName: 'TestGrid', singleton: true }]);
   });
 
   it('list_data_providers reads through the ConfigManager-backed store', async () => {

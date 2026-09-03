@@ -18,7 +18,7 @@ export const TARGET_GRID_ID_PROPERTY = {
   targetGridId: {
     type: 'string',
     description:
-      'The grid\'s registry id, from list_grids (e.g. "grid-test"). Always call list_grids first if you don\'t already know it. A window\'s instance id (from list_grid_instances) is also accepted and narrows the call to that one window.',
+      'The blotter\'s configId — the exact string list_grids (or create_blotter) returned, e.g. "grid-test". This is the ONLY identifier: never pass a display name, and never derive an id from one (names can be changed and duplicated; the configId cannot). If you don\'t already hold the configId, call list_grids first. A window\'s instance configId (from list_grid_instances) is also accepted and narrows the call to that one window.',
   },
 };
 

@@ -34,6 +34,7 @@ import {
   gridScopeId,
   withGridScope,
   resolveGridTarget,
+  findGridByDisplayName,
 } from './gridProfiles';
 import type { RuleScope } from '@wellsfargo-starui/core';
 import { normalizeRuleFeatures } from './ruleFeatures';
@@ -575,11 +576,26 @@ export async function resolveInstancePin(
 
   const target = await resolveGridTarget(configManager, targetGridId);
   if (!target) {
-    // Left alone: the handlers produce the "no grid with id X" message, and
-    // duplicating it here would make the same mistake read two different ways.
+    // The one mistake worth catching here rather than in each handler: a
+    // DISPLAY NAME where a configId belongs. Names are not identifiers —
+    // they can be renamed and duplicated — so the call is refused with the
+    // real configId, which is what the model needs to try again correctly.
+    const byName = await findGridByDisplayName(targetGridId);
+    if (byName) {
+      return {
+        ok: false,
+        summary:
+          `"${targetGridId}" is a display name, not a configId. Use targetGridId "${byName.configId}" ` +
+          '(copy it exactly from list_grids — never derive an id from a name).',
+      };
+    }
+    // Otherwise left alone: the handlers produce the "no grid with id X"
+    // message, and duplicating it here would make one mistake read two ways.
     return { ok: true, args };
   }
-  const normalised = { ...args, targetGridId: target.entry.id };
+  // Every handler downstream sees the configId — the template row's id —
+  // whatever form the caller used (registry id, instance id, configId).
+  const normalised = { ...args, targetGridId: target.entry.configId };
 
   if (!instanceId) return { ok: true, args: normalised, pinnedInstanceId: target.pinnedInstanceId };
 
