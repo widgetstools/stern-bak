@@ -79,6 +79,13 @@ function AiAssistant() {
             </span>
           )}
           <span className="font-medium">AI Assistant</span>
+          <Link
+            to={`/nlp-assistant${window.location.hash.includes('?') ? window.location.hash.slice(window.location.hash.indexOf('?')) : ''}`}
+            className="rounded border border-border/60 px-1 py-px font-mono text-[9px] text-muted-foreground transition-colors hover:text-foreground"
+            title="Open the LLM-free assistant for this blotter"
+          >
+            no-LLM
+          </Link>
         </span>
       </header>
       <div className="flex-1 min-h-0">

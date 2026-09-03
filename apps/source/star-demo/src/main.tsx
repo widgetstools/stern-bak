@@ -31,6 +31,7 @@ const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
 const AiAssistant         = React.lazy(() => import("./views/AiAssistant"));
 const Analysis            = React.lazy(() => import("./views/Analysis"));
+const NlpAssistant        = React.lazy(() => import("./views/NlpAssistant"));
 
 // The `./workspace-setup` subpath, not the bare barrel: the package's `.` export
 // is `ui/dist`, which has never carried WorkspaceSetup. Importing it from the
@@ -178,6 +179,7 @@ function AppTree() {
         <Route path="/config-browser" element={<FullGate><React.Suspense fallback={LOADING}><ConfigBrowser /></React.Suspense></FullGate>} />
         <Route path="/ai-assistant" element={<FullGate><React.Suspense fallback={LOADING}><AiAssistant /></React.Suspense></FullGate>} />
         <Route path="/analysis" element={<FullGate><React.Suspense fallback={LOADING}><Analysis /></React.Suspense></FullGate>} />
+        <Route path="/nlp-assistant" element={<FullGate><React.Suspense fallback={LOADING}><NlpAssistant /></React.Suspense></FullGate>} />
 
         <Route element={<FullGate><ViewRoutesLayout /></FullGate>}>
           <Route path="/" element={<App />} />
