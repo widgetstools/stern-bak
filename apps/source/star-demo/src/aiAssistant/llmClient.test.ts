@@ -173,6 +173,21 @@ describe('checkHealth', () => {
     await expect(checkHealth('http://127.0.0.1:3000')).resolves.toBe(true);
   });
 
+  it('falls back to /v1/models when /health is missing (Ollama, LM Studio, vLLM)', async () => {
+    const fetchMock = vi.fn(async (url: string) => ({ ok: !String(url).endsWith('/health') }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(checkHealth('http://127.0.0.1:11434')).resolves.toBe(true);
+    expect(fetchMock.mock.calls.map(([u]) => String(u))).toEqual([
+      'http://127.0.0.1:11434/health',
+      'http://127.0.0.1:11434/v1/models',
+    ]);
+  });
+
+  it('is false when neither /health nor /v1/models responds ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+    await expect(checkHealth('http://127.0.0.1:11434')).resolves.toBe(false);
+  });
+
   it('returns false when fetch rejects (server not running)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
     await expect(checkHealth('http://127.0.0.1:3000')).resolves.toBe(false);

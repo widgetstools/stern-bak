@@ -234,11 +234,17 @@ export function pickDefaultModel(available: string[]): string {
 }
 
 export async function checkHealth(baseUrl: string): Promise<boolean> {
-  const url = `${baseUrl.replace(/\/$/, '')}/health`;
+  const root = baseUrl.replace(/\/$/, '');
+  const url = `${root}/health`;
   try {
     const res = await fetch(url);
     console.debug(`${LOG} health ${url} → ${res.status}`);
-    return res.ok;
+    if (res.ok) return true;
+    // Not every OpenAI-compatible server has /health (Ollama, LM Studio,
+    // vLLM behind a bare proxy) — /v1/models is the one endpoint they all share.
+    const models = await fetch(`${root}/v1/models`);
+    console.debug(`${LOG} health fallback ${root}/v1/models → ${models.status}`);
+    return models.ok;
   } catch (err) {
     console.debug(`${LOG} health ${url} → unreachable`, err);
     return false;
