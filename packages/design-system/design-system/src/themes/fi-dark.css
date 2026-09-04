@@ -5,33 +5,33 @@
  */
 
 :root, [data-theme="dark"] {
-  --background: 215 10% 15%;
+  --background: 215 10% 10%;
   --foreground: 215 10% 94%;
-  --card: 215 9% 18%;
+  --card: 215 9% 13%;
   --card-foreground: 215 10% 94%;
-  --popover: 215 9% 21%;
+  --popover: 215 9% 16%;
   --popover-foreground: 215 10% 94%;
   --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 215 8% 23%;
+  --secondary: 215 8% 18%;
   --secondary-foreground: 215 10% 94%;
-  --muted: 215 8% 20%;
+  --muted: 215 8% 15%;
   --muted-foreground: 215 6% 60%;
   --accent: 217 91% 60%;
   --accent-foreground: 0 0% 100%;
   --destructive: 354 86% 65%;
   --destructive-foreground: 0 0% 100%;
-  --border: 215 8% 26%;
-  --input: 215 8% 26%;
+  --border: 215 8% 21%;
+  --input: 215 8% 21%;
   --ring: 217 91% 60%;
   --radius: 2px;
 
-  --bn-bg:        #212429;
-  --bn-bg-sunken: #272b31;
-  --bn-bg1:       #2a2e35;
-  --bn-bg2:       #353942;
-  --bn-bg3:       #424750;
-  --bn-bg4:       #555a62;
+  --bn-bg:        #171a1d;
+  --bn-bg-sunken: #1e2125;
+  --bn-bg1:       #212429;
+  --bn-bg2:       #2c2f34;
+  --bn-bg3:       #383c42;
+  --bn-bg4:       #4b4f57;
 
   --bn-t0:      #ebedef;
   --bn-t1:      #c1c4c9;
@@ -39,9 +39,9 @@
   --bn-t3:      #686d73;
   --bn-t4:      #494c52;
 
-  --bn-border:  #353942;
-  --bn-border2: #474d55;
-  --bn-border3: #606a73;
+  --bn-border:  #2c2f34;
+  --bn-border2: #3e4148;
+  --bn-border3: #565a61;
 
   --bn-green:   #2dd4bf;
   --bn-green2:  #5eead4;
