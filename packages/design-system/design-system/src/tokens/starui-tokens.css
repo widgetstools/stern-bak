@@ -2,7 +2,7 @@
    STARUI · Fixed-Income Design System — Core Tokens
    v1.0 · framework-agnostic single source of truth
    ----------------------------------------------------------------------------
-   • Default accent ........ Azure (neon, trading-desk)
+   • Default accent ........ Periwinkle (muted blue-violet, low chroma)
    • Positive / Negative ... Teal / Rose
    • Type .................. Inter (sans) · JetBrains Mono (numeric)
    • Themes ................ Light (FT "paper") + Dark (blue-graphite, default)
@@ -24,9 +24,10 @@
   --popover:               1 0 0;             /* #FFFFFF */
   --popover-foreground:    0.345 0.004 256;
 
-  /* ── Brand / accent — Cyan (FI brand identity, unchanged) ───────────────── */
-  --primary:               0.54 0.135 220;
-  --primary-foreground:    0.99 0.012 220;
+  /* ── Brand / accent — periwinkle, darkened for a near-white ground so white
+        text still clears AA (5.4:1 on the fill, 5.2:1 on the ground) ───────── */
+  --primary:               0.52 0.10 267;
+  --primary-foreground:    0.99 0.012 267;
   --secondary:             0.959 0.002 256;   /* #F3F3F3 — elevated chrome */
   --secondary-foreground:  0.40 0.005 256;    /* #4E4E4E */
   --muted:                 0.940 0.002 256;   /* #ECECEC */
@@ -47,7 +48,7 @@
   --border-strong:         0.853 0.004 256;   /* #CECECE */
   --input:                 0.853 0.004 256;   /* #CECECE */
   --grid-border:           0.932 0.003 256;   /* #EBEBEB — grid lines */
-  --ring:                  0.54 0.135 220;
+  --ring:                  0.52 0.10 267;
 
   /* ── Fixed-income semantics — Teal (up) / Rose (down), light ────────────── */
   --buy:                   0.52 0.105 192;
@@ -121,18 +122,18 @@
   --popover:               0.277 0.020 258;
   --popover-foreground:    0.96 0.006 258;
 
-  /* Brand / accent — single vivid accent, aligned to the canonical
-     starui-design-system source (bright cyan-blue, L≈0.72). It's light, so
-     the foreground is a deep navy for legible (AA) text on primary fills.
+  /* Brand / accent — muted periwinkle (#a3b1d2, L≈0.76 at low chroma). It's
+     light, so the foreground is a deep navy for legible (AA) text on primary
+     fills — 9.0:1 on the fill, 7.7:1 against the ground.
      This is THE accent: buttons, ring, active toggles, formatter highlights. */
-  --primary:               0.72 0.145 218;
-  --primary-foreground:    0.16 0.04 222;
+  --primary:               0.76 0.05 267;
+  --primary-foreground:    0.16 0.04 267;
   --secondary:             0.320 0.023 258;
   --secondary-foreground:  0.93 0.006 258;
   --muted:                 0.311 0.023 258;
   --muted-foreground:      0.70 0.015 258;
-  --accent:                0.34 0.05 220;
-  --accent-foreground:     0.84 0.11 218;
+  --accent:                0.34 0.05 267;
+  --accent-foreground:     0.84 0.11 267;
 
   --destructive:           0.70 0.215 24;
   --destructive-foreground: 0.16 0.06 26;
@@ -146,7 +147,7 @@
   --border-strong:         0.585 0.022 258;
   --input:                 0.415 0.019 258;
   --grid-border:           0.425 0.019 258;
-  --ring:                  0.72 0.145 218;
+  --ring:                  0.76 0.05 267;
 
   /* Teal (up) / Rose (down) — dark, AA text on fill */
   --buy:                   0.76 0.135 192;
