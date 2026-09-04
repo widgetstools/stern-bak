@@ -139,10 +139,10 @@ const STARUI_DARK_CHROME = {
   chromeBackgroundColor: 'oklch(var(--popover))',
   headerBackgroundColor: 'oklch(var(--muted))',
   headerTextColor: 'oklch(var(--secondary-foreground))',
-  columnBorder: { style: 'solid' as const, width: 1, color: 'oklch(0.34 0.016 258 / 0.55)' },
-  headerColumnBorder: { style: 'solid' as const, width: 1, color: 'oklch(0.36 0.017 258 / 0.6)' },
+  columnBorder: { style: 'solid' as const, width: 1, color: 'oklch(0.39 0.016 258 / 0.55)' },
+  headerColumnBorder: { style: 'solid' as const, width: 1, color: 'oklch(0.41 0.017 258 / 0.6)' },
   // Dark-mode selected-row tint (overrides the shared `--primary`-based value).
-  selectedRowBackgroundColor: '#73BBF626',
+  selectedRowBackgroundColor: '#7EC5FF2A',
 };
 
 function gridParams(mode: 'dark' | 'light', density: GridDensity = 'compact') {
