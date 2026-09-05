@@ -8,6 +8,7 @@
  */
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { DataProviderConfigStore } from '@wellsfargo-starui/data';
+import { readColumnCatalogue } from './columnResolver';
 import {
   validateProviderConfig,
   getDefaultProviderConfig,
@@ -43,18 +44,35 @@ export async function getGridColumns(
   const entry = await resolveGridEntry(targetGridId);
   if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
 
-  const gridLevelData = (await configManager.profiles.loadGridLevelData({ instanceId: gridScopeId(entry) })) as
-    | { provider?: { liveProviderId?: string } }
-    | null;
-  const providerId = gridLevelData?.provider?.liveProviderId;
-  if (!providerId) return { ok: false, summary: `Grid "${targetGridId}" has no data provider bound yet.` };
+  // The EFFECTIVE columns, not the provider's raw definitions.
+  //
+  // This used to read `provider.config.columnDefinitions` directly, which
+  // ignores both calculated columns and the `column-customization` assignments
+  // where `rename_column` writes its header override. So a rename could not
+  // show up here — and this is the tool the model reaches for to check its own
+  // work. Observed twice in real transcripts: rename → get_grid_columns → sees
+  // the old header → concludes the rename failed → renames again, and tells
+  // the user it did not work when it had.
+  //
+  // `readColumnCatalogue` is the one place that layers provider defs,
+  // calculated columns and renames in that order; `rename_column` already
+  // resolves against it, so using it here makes the two agree by construction.
+  const columns = await readColumnCatalogue(configManager, configStore, entry);
+  if (columns.length === 0) {
+    const gridLevelData = (await configManager.profiles.loadGridLevelData({ instanceId: gridScopeId(entry) })) as
+      | { provider?: { liveProviderId?: string } }
+      | null;
+    return {
+      ok: false,
+      summary: gridLevelData?.provider?.liveProviderId
+        ? `Grid "${targetGridId}"'s provider has no column definitions.`
+        : `Grid "${targetGridId}" has no data provider bound yet.`,
+    };
+  }
 
-  const provider = await configStore.get(providerId);
-  const columnDefs = (provider?.config as { columnDefinitions?: Array<{ field: string; headerName: string; cellDataType?: string }> } | undefined)?.columnDefinitions ?? [];
-  const columns = columnDefs.map((c) => ({ colId: c.field, headerName: c.headerName, cellDataType: c.cellDataType }));
-  const summary =
-    columns.map((c) => `${c.colId} (${c.headerName}${c.cellDataType ? `, ${c.cellDataType}` : ''})`).join(', ') ||
-    `Grid "${targetGridId}"'s provider has no column definitions.`;
+  const summary = columns
+    .map((c) => `${c.colId} (${c.headerName ?? c.colId}${c.cellDataType ? `, ${c.cellDataType}` : ''})`)
+    .join(', ');
   return { ok: true, summary, data: columns };
 }
 

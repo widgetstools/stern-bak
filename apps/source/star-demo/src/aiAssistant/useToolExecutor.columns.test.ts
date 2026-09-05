@@ -843,3 +843,65 @@ describe('dispatchTool — columns', () => {
     expect(save).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `get_grid_columns` is the tool the model reaches for to check its own work,
+ * so it has to answer with the columns as they actually render — provider
+ * definitions with calculated columns and renames layered on top.
+ *
+ * It used to read `provider.config.columnDefinitions` alone, which a rename
+ * never touches (that writes `column-customization.assignments`). Observed
+ * twice in real transcripts: rename → get_grid_columns → still the old header
+ * → the model concludes the rename failed, tells the user so, and renames
+ * again. The write had landed every time.
+ */
+describe('get_grid_columns reports the effective header', () => {
+  it('shows a renamed header rather than the provider definition', async () => {
+    const { ctx, list, loadGridLevelData, storeGet } = fakeCtx();
+    loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'dp-1' } });
+    storeGet.mockResolvedValue({
+      config: { columnDefinitions: [{ field: 'cusip', headerName: 'Cusip', cellDataType: 'text' }] },
+    });
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'column-customization': {
+            v: 1,
+            data: { assignments: { cusip: { colId: 'cusip', headerName: 'Cusip 1' } } },
+          },
+        },
+      },
+    ]);
+
+    const result = await dispatchTool('get_grid_columns', ctx, { targetGridId: 'grid-test' });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('Cusip 1');
+    expect(result.summary).not.toMatch(/\(Cusip,/);
+  });
+
+  it('keeps the declared type through a rename, so a measure stays numeric', async () => {
+    const { ctx, list, loadGridLevelData, storeGet } = fakeCtx();
+    loadGridLevelData.mockResolvedValue({ provider: { liveProviderId: 'dp-1' } });
+    storeGet.mockResolvedValue({
+      config: { columnDefinitions: [{ field: 'marketValue', headerName: 'Market Value', cellDataType: 'number' }] },
+    });
+    list.mockResolvedValue([
+      {
+        id: '__default__', gridId: 'grid-test', name: 'Default', createdAt: 1, updatedAt: 1,
+        state: {
+          'column-customization': {
+            v: 1,
+            data: { assignments: { marketValue: { colId: 'marketValue', headerName: 'Mkt Val' } } },
+          },
+        },
+      },
+    ]);
+
+    const result = await dispatchTool('get_grid_columns', ctx, { targetGridId: 'grid-test' });
+
+    expect(result.summary).toContain('Mkt Val');
+    expect(result.summary).toContain('number');
+  });
+});
