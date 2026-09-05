@@ -12,6 +12,7 @@ import {
   patchGridLevelData,
   listInstanceRows,
   describeFanOut,
+  currentPinnedInstance,
   BLOTTER_COMPONENT_TYPE,
 } from './gridProfiles';
 import {
@@ -323,12 +324,30 @@ export async function listGridInstances(
   if (!entry) return { ok: false, summary: `No grid registered with id "${targetGridId}". Call list_grids to see valid ids.` };
 
   const rows = await listInstanceRows(configManager, entry);
+  // The row THIS conversation is pinned to, when it is scoped to a window.
+  // Without it the model has no way to answer "which one am I on?" and resorts
+  // to guessing from timestamps — observed against a list of 38.
+  const pinned = currentPinnedInstance();
   const summary = entry.singleton
-    ? `"${entry.displayName}" is a singleton — its window uses the template row directly, so changes always apply to it.`
-    : `${rows.length} open/saved instance(s) of "${entry.displayName}" besides the template. Changes are applied to all of them.`;
+    ? `"${entry.configId}" is a singleton — its window uses the template row directly, so changes always apply to it.`
+    : // NOT "applied to all of them": `resolveWriteTargets` stopped fanning out.
+      // An unpinned edit writes the TEMPLATE only, so open windows keep the copy
+      // they were launched with until they are relaunched; a window-scoped
+      // conversation writes its pinned row alone.
+      `${rows.length} saved instance row(s) of "${entry.configId}" besides the template` +
+      `${pinned ? `. This conversation is pinned to "${pinned}" and writes there alone` : ''}` +
+      '. An unpinned change writes the template only — already-open windows keep their own row until relaunched. ' +
+      'These are PERSISTED rows, not live windows: a closed window\'s row stays listed.';
   return {
     ok: true,
     summary,
-    data: { templateConfigId: entry.configId, singleton: entry.singleton === true, instances: rows },
+    data: {
+      templateConfigId: entry.configId,
+      singleton: entry.singleton === true,
+      // Named so the model can answer "which instance is this?" directly
+      // rather than inferring it from the list.
+      pinnedInstanceId: pinned,
+      instances: rows.map((row) => (row.configId === pinned ? { ...row, current: true } : row)),
+    },
   };
 }

@@ -9,11 +9,19 @@
 export interface ScopedGrid {
   gridId: string;
   displayName?: string;
+  /**
+   * The config row this conversation is pinned to — the window the wand was
+   * clicked in. Named in the prompt because the model is otherwise told it is
+   * "pinned to the specific WINDOW" without ever being told which one, so
+   * asked "which instance is this?" it can only guess (observed: it picked the
+   * most recently updated row out of 38 and said so).
+   */
+  instanceId?: string;
 }
 
 export function buildSystemPrompt(scope?: ScopedGrid): string {
   const scopeBlock = scope
-    ? `\n\n## You are scoped to one blotter\n\nThis window was opened from the ${scope.displayName ? `"${scope.displayName}" ` : ''}blotter's toolbar and works on THAT blotter only: its configId is "${scope.gridId}" — pass exactly that as targetGridId (not the display name). Every grid tool call should use it — you don't need to ask which grid, and you don't need list_grids to find it. Every call in this conversation is also automatically pinned to the specific WINDOW it was opened from — you don't need to pass instanceId yourself, and unlike an unscoped session, an unpinned call here never reaches the blotter's other windows or its shared template. That supersedes the general "Blotters and their windows" guidance below, which is about the unscoped case. If the user wants a change to apply to the blotter as a whole (so it also reaches other open windows and future ones), tell them to use the general AI Assistant from the dock instead. If the user asks you to change a different blotter, say you're scoped to this one and suggest opening the assistant from that blotter's own toolbar. Requests that aren't about a specific grid (data providers, "what can you do") are still fine.\n`
+    ? `\n\n## You are scoped to one blotter\n\nThis window was opened from the ${scope.displayName ? `"${scope.displayName}" ` : ''}blotter's toolbar and works on THAT blotter only: its configId is "${scope.gridId}" — pass exactly that as targetGridId (not the display name). Every grid tool call should use it — you don't need to ask which grid, and you don't need list_grids to find it. Every call in this conversation is also automatically pinned to the specific WINDOW it was opened from${scope.instanceId ? ` — that window's configId is \"${scope.instanceId}\", which is the row every read and write in this conversation lands on. Answer with that exact string if the user asks which window or instance they are on; do NOT call list_grid_instances and guess from timestamps` : ''} — you don't need to pass instanceId yourself, and unlike an unscoped session, an unpinned call here never reaches the blotter's other windows or its shared template. That supersedes the general "Blotters and their windows" guidance below, which is about the unscoped case. If the user wants a change to apply to the blotter as a whole (so it also reaches other open windows and future ones), tell them to use the general AI Assistant from the dock instead. If the user asks you to change a different blotter, say you're scoped to this one and suggest opening the assistant from that blotter's own toolbar. Requests that aren't about a specific grid (data providers, "what can you do") are still fine.\n`
     : '';
   return `You are the MarketsGrid AI Assistant, running in your own window (opened from the OpenFin dock). You help the user do two things:${scopeBlock}
 

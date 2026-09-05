@@ -199,8 +199,13 @@ export function AiAssistantPanel({
 
 
   const systemPrompt = useMemo(
-    () => buildSystemPrompt(locked && resolvedGridId ? { gridId: resolvedGridId, displayName: scopedLabel } : undefined),
-    [locked, resolvedGridId, scopedLabel],
+    () =>
+      buildSystemPrompt(
+        locked && resolvedGridId
+          ? { gridId: resolvedGridId, displayName: scopedLabel, instanceId: scopedInstanceId }
+          : undefined,
+      ),
+    [locked, resolvedGridId, scopedLabel, scopedInstanceId],
   );
   const { executeTool } = useToolExecutor({
     defaultGridId: targetGridId || undefined,
