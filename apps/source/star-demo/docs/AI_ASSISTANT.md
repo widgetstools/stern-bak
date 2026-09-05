@@ -75,6 +75,45 @@ singleton flag, and the row would stop describing itself as the template.
 Blotters created before this, or outside the assistant, may still be
 multi-instance; the fan-out across template + instances still covers them.
 
+### One window, one instanceId — resolved in two places that must agree
+
+A blotter window resolves its instanceId **twice**, and both answers have to be
+the same row or the assistant writes somewhere the grid never reads:
+
+| Who | How |
+|---|---|
+| the grid (`HostedMarketsGrid` → `useHostedIdentity`) | `fin.me.getOptions()` customData → `?instanceId=` → `defaultInstanceId` |
+| the view (`BlottersMarketsGrid`) — live-sync subscription, `publishActiveProfile`, and the id the wand hands the assistant | `resolveBlotterInstanceId`: `?instanceId=` → `runtime.resolveIdentity()` → `defaultInstanceId` |
+
+They used to disagree. `runtime.resolveIdentity()` reads
+`fin.View.getCurrentSync()`, and an `asWindow: true` launch has no view to
+return, so `getOptions()` rejected, customData came back empty, and the chain
+fell through to the view's `identity.name` — the window name
+`registered-<entryId>-<instanceId>`, which is a *different string* from the
+instanceId. The grid meanwhile resolved the real id. The result was the exact
+symptom this section opens with: a rename **persisted correctly**, the
+subscription fired against a row nothing had touched, and the header never
+changed on screen. `get_grid_columns` then read the row the assistant had
+written and reported the new name, so the assistant insisted it had worked.
+
+Two changes make them agree by construction, and both are pinned by tests:
+
+- `resolveOpenFinIdentity` keeps the view name only **below** the URL param
+  (`packages/openfin/host-openfin/src/identity.ts`). The launcher stamps the
+  minted id into customData and the query string together
+  (`appendLaunchIdentityParams`) precisely so it resolves without a view.
+- `BlottersMarketsGrid` reads that same URL param first rather than deriving an
+  id of its own.
+
+**A row's identity is load-bearing, and a write can destroy it.** Resolving an
+instance back to its registry entry derives the template id from the row's
+`componentType` / `componentSubType`. `saveProfileSet` used to fall straight
+back to the generic `markets-grid-profile-set` / `''` shape whenever a caller
+passed no identity — and `publishActiveProfile` (which only ever knows the
+instanceId) does exactly that on every profile load. One such write left the row
+undiscoverable for good. It now preserves the identity the row already carries,
+taking the generic shape only for a genuinely new row.
+
 ### What needs a reload, and what reloads itself
 
 Almost nothing. A profile, module or column write lands in the row the open

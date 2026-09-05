@@ -23,17 +23,49 @@ const DEFAULT_COL_DEF = {
 /** Must match the `defaultInstanceId` passed to HostedMarketsGrid below. */
 const DEFAULT_INSTANCE_ID = 'star-demo-blotter';
 
+/**
+ * The instanceId this window's grid actually persists under.
+ *
+ * `HostedMarketsGrid` resolves its own id via `useHostedIdentity` (OpenFin
+ * `customData` → `?instanceId=` → the default) and EVERY profile read and write
+ * keys on that one. This view needs the same answer for three things that must
+ * all address the same row: the live-sync subscription, `publishActiveProfile`,
+ * and the id handed to the AI assistant.
+ *
+ * Deriving it independently is what let them drift. `runtime.resolveIdentity()`
+ * reads `fin.View.getCurrentSync()`, which has no view to return in an
+ * `asWindow` launch, so it fell back to the window NAME
+ * (`registered-<entryId>-<instanceId>`) — a different string from the id the
+ * grid used. The assistant then wrote a rename into one row while the grid read
+ * another: the write persisted, the subscription fired against a row nothing
+ * had touched, and the header never changed on screen.
+ *
+ * The URL param is read first because the launcher stamps it
+ * (`appendLaunchIdentityParams`) precisely so the id resolves synchronously,
+ * and because it is the one source both resolvers read identically.
+ */
+function resolveBlotterInstanceId(
+  runtime: { resolveIdentity?: () => { instanceId?: string } },
+): string {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('instanceId');
+    if (fromUrl) return fromUrl;
+  } catch {
+    /* no window (SSR) — fall through to the runtime */
+  }
+  return runtime.resolveIdentity?.().instanceId || DEFAULT_INSTANCE_ID;
+}
+
 function BlottersMarketsGrid(): ReactNode {
   const { platform: { configManager } } = usePlatformBootstrap();
   const { runtime } = useStarGridApp();
 
   // Live config sync: an edit from the AI Assistant / Workspace Setup / another
   // window lands in this grid's config row, and re-applies here without a
-  // reload. The instance id is resolved the same way HostedMarketsGrid does.
+  // reload. This MUST be the same row HostedMarketsGrid persists to — see
+  // `resolveBlotterInstanceId`.
   const gridRef = useRef<MarketsGridHandle | null>(null);
-  // Optional-call on purpose: live sync is a convenience, and a runtime that
-  // doesn't implement identity resolution must not take the grid down with it.
-  const instanceId = runtime.resolveIdentity?.().instanceId ?? DEFAULT_INSTANCE_ID;
+  const instanceId = resolveBlotterInstanceId(runtime);
   useLiveProfileSync({
     configManager,
     instanceId,

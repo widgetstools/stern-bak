@@ -161,6 +161,42 @@ describe('BlottersMarketsGrid', () => {
     });
   });
 
+  /**
+   * The grid persists under the id `useHostedIdentity` resolves, and that hook
+   * reads `?instanceId=` (the launcher stamps it via
+   * `appendLaunchIdentityParams`). This view must land on the same row, or the
+   * assistant's writes and the live-sync subscription address a row the grid
+   * never reads — which is how a rename persisted without ever appearing.
+   *
+   * `runtime.resolveIdentity()` used to win here, and in an `asWindow` launch it
+   * reports the window NAME rather than the minted id.
+   */
+  it('addresses the URL-stamped row, not a window name the runtime reports', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { origin, search: '?instanceId=dev1grid-test-1788632725282&id=dev1grid-test-1788632725282' },
+    });
+    const BlottersMarketsGrid = (await import('./BlottersMarketsGrid')).default;
+    renderWithProviders(<BlottersMarketsGrid />, {
+      instanceId: 'registered-grid-test-dev1grid-test-1788632725282',
+      componentType: 'grid',
+      componentSubType: 'test',
+      customData: {},
+    });
+
+    await user.click(getOneByTestId('open-assistant-btn'));
+
+    await waitFor(() => {
+      expect(mockOpenSurface).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: expect.stringContaining('instance=dev1grid-test-1788632725282'),
+          windowName: 'ai-assistant-dev1grid-test-1788632725282',
+        }),
+      );
+    });
+  });
+
   it('falls back to deriving the id only when the launcher supplied no templateId', async () => {
     const user = userEvent.setup();
     const BlottersMarketsGrid = (await import('./BlottersMarketsGrid')).default;

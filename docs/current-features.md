@@ -1315,6 +1315,7 @@ modules).
 - Bundling: one `AppConfigRow` per `(appId, userId, instanceId)` with all profiles in payload
 - `loadProfileSet()` / `saveProfileSet()` accept an optional pre-fetched-row box so a
   caller holding the row (the adapter cache) can skip a redundant `getConfig`
+- `saveProfileSet()` preserves the identity a row already carries when the caller passes none, falling back to the generic `markets-grid-profile-set` / `''` shape only for a genuinely new row. An instance is resolved back to its registry entry through its `componentType` / `componentSubType`, and identity-less writers exist (`publishActiveProfile`, the `gridLevelData` adapter) — so blanking those fields once left the row permanently undiscoverable
 - `MARKETS_GRID_PROFILE_SET_COMPONENT_TYPE`
 - `CONFIG_SERVICE_ADAPTER_BRAND` + `getConfigServiceAdapterBrand()` — adapter detection
 - `ProfileStorageFactory`, `ProfileStorageFactoryOpts`
@@ -1738,7 +1739,7 @@ digests/charts/queries/heatmap shading through the same implementation.
 - `resolveOpenFinIdentity()` — current window/view identity (name, uuid, instance id)
 - `isOpenFin` — environment detection boolean
 - `getCurrentView()` — current view/window reference
-- `OpenFinIdentitySources` — identity priority (localStorage → URL → window name → defaults)
+- `OpenFinIdentitySources` — identity priority (view `customData` → URL params → window/view name → defaults). The name sits **below** the URL on purpose: the launcher stamps the minted id into customData and the query string together, and names the surface `registered-<entryId>-<instanceId>` — a different string. An `asWindow` launch has no view, so customData comes back empty, and a name that outranked the URL made `resolveIdentity()` disagree with `useHostedIdentity` about which config row the window owns
 
 #### Popout lifecycle
 

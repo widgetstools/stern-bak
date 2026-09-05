@@ -82,7 +82,43 @@ describe('resolveOpenFinIdentity', () => {
       url: 'http://localhost/?appId=app-x',
     });
     expect(id.appId).toBe('app-x');
+    // No `instanceId` param here, so the view name is still the best available id.
     expect(id.instanceId).toBe('view-iid');
+  });
+
+  /**
+   * `asWindow: true` launches shaped like this: the launcher stamps the minted
+   * id into customData AND the query string, and names the window
+   * `registered-<entryId>-<instanceId>`. Inside a Window, `getOptions()`
+   * rejects, so customData arrives empty and only the URL still carries the id.
+   *
+   * The view name outranking the URL is what split the two resolvers apart:
+   * `useHostedIdentity` reads `fin.me.getOptions()`, never sees a view name,
+   * and resolved the real id — so the grid saved profiles under one configId
+   * while the host subscribed to and wrote another.
+   */
+  it('prefers the URL-stamped instanceId over a window/view name', async () => {
+    const fakeView = {
+      identity: { name: 'registered-grid-test-dev1grid-test-1788632725282' },
+      getOptions: async () => { throw new Error('not a view'); },
+    };
+    const id = await resolveOpenFinIdentity({
+      view: fakeView,
+      url: 'http://localhost/?instanceId=dev1grid-test-1788632725282&id=dev1grid-test-1788632725282#/blotters/marketsgrid',
+    });
+    expect(id.instanceId).toBe('dev1grid-test-1788632725282');
+  });
+
+  it('still lets customData outrank the URL', async () => {
+    const fakeView = {
+      identity: { name: 'window-name' },
+      getOptions: async () => ({ customData: { instanceId: 'from-custom-data' } }),
+    };
+    const id = await resolveOpenFinIdentity({
+      view: fakeView,
+      url: 'http://localhost/?instanceId=from-url',
+    });
+    expect(id.instanceId).toBe('from-custom-data');
   });
 
   it('rejects non-string/non-bool customData fields (falls through to URL/override layer)', async () => {

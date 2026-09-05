@@ -153,11 +153,24 @@ export async function saveProfileSet(
     ? (existing?.creationTime ?? now)
     : now;
 
+  // An identity-less write must not DE-IDENTIFY a row that already has one.
+  // Callers that only know the instanceId (`publishActiveProfile`, and the
+  // gridLevelData adapter) pass no identity; falling straight through to the
+  // generic constant rewrote a live blotter's `componentType` to
+  // `markets-grid-profile-set` and blanked its `componentSubType`. That is
+  // permanent damage, not a cosmetic one: resolving an instance back to its
+  // registry entry derives the template id from exactly those two fields, so
+  // one such write made the row undiscoverable and the AI assistant could no
+  // longer tell which blotter it was scoped to.
+  //
+  // Only a genuinely new row (or one that isn't ours) takes the generic shape.
   const identity = options.identity;
-  const componentType = identity?.componentType ?? MARKETS_GRID_PROFILE_SET_COMPONENT_TYPE;
-  const componentSubType = identity?.componentSubType ?? '';
-  const isTemplate = identity?.isTemplate === true;
-  const singleton = identity?.singleton === true;
+  const prior = isProfileSetRow(existing, appId, userId) ? existing : undefined;
+  const componentType =
+    identity?.componentType ?? prior?.componentType ?? MARKETS_GRID_PROFILE_SET_COMPONENT_TYPE;
+  const componentSubType = identity?.componentSubType ?? prior?.componentSubType ?? '';
+  const isTemplate = identity ? identity.isTemplate === true : prior?.isTemplate === true;
+  const singleton = identity ? identity.singleton === true : prior?.singleton === true;
   const displayTextPrefix = options.displayTextPrefix ?? 'MarketsGrid profiles';
 
   const row: AppConfigRow = {

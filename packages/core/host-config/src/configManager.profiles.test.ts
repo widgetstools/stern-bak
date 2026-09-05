@@ -387,3 +387,61 @@ describe('ConfigManager.profiles — cross-tab subscribe', () => {
     },
   );
 });
+
+/**
+ * A row's `componentType` / `componentSubType` are how an instance is resolved
+ * back to its registry entry (the template id is derived from exactly those two
+ * fields). Any write that blanks them makes the row undiscoverable — which is
+ * how a live blotter stopped being addressable by the AI assistant.
+ */
+describe('identity preservation', () => {
+  it('an identity-less write keeps the identity the row already has', async () => {
+    const instanceId = freshInstanceId();
+    const cm = createConfigManager({ appId: 'TestApp', identity: { userId: 'alice' } });
+    try {
+      await cm.profiles.save({ instanceId }, snap('p1'), {
+        identity: { componentType: 'grid', componentSubType: 'test', singleton: false },
+      });
+
+      // `publishActiveProfile` and the gridLevelData adapter both write with no
+      // identity because they only ever know the instanceId.
+      await cm.profiles.save({ instanceId }, snap('p2'));
+
+      const row = await cm.getConfig(instanceId);
+      expect(row?.componentType).toBe('grid');
+      expect(row?.componentSubType).toBe('test');
+    } finally {
+      cm.dispose();
+    }
+  });
+
+  it('a brand-new row with no identity still gets the generic profile-set shape', async () => {
+    const instanceId = freshInstanceId();
+    const cm = createConfigManager({ appId: 'TestApp', identity: { userId: 'alice' } });
+    try {
+      await cm.profiles.save({ instanceId }, snap('p1'));
+      const row = await cm.getConfig(instanceId);
+      expect(row?.componentType).toBe('markets-grid-profile-set');
+      expect(row?.componentSubType).toBe('');
+    } finally {
+      cm.dispose();
+    }
+  });
+
+  it('an explicit identity still wins over what the row carries', async () => {
+    const instanceId = freshInstanceId();
+    const cm = createConfigManager({ appId: 'TestApp', identity: { userId: 'alice' } });
+    try {
+      await cm.profiles.save({ instanceId }, snap('p1'), {
+        identity: { componentType: 'grid', componentSubType: 'old' },
+      });
+      await cm.profiles.save({ instanceId }, snap('p2'), {
+        identity: { componentType: 'grid', componentSubType: 'new' },
+      });
+      const row = await cm.getConfig(instanceId);
+      expect(row?.componentSubType).toBe('new');
+    } finally {
+      cm.dispose();
+    }
+  });
+});

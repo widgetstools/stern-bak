@@ -11,9 +11,19 @@ import { resolveBrowserIdentity, type IdentityOverrides } from '@wellsfargo-star
  *   3. Mount-prop overrides.
  *   4. Auto defaults (UUID instanceId, empty strings, empty arrays).
  *
- * `instanceId` prefers the view's `identity.name` over any other source —
- * that's the OpenFin-canonical identifier and it's stable across the view's
- * lifetime.
+ * `instanceId` additionally falls back to the view's `identity.name`, but only
+ * BELOW the URL param — never above it. The launcher stamps the minted id into
+ * customData and the query string together (`appendLaunchIdentityParams`) and
+ * names the surface `registered-<entryId>-<instanceId>`, so the name is a
+ * DIFFERENT string from the id. When it outranked the URL, an `asWindow:true`
+ * launch — where `fin.View.getCurrentSync()` yields a view whose `getOptions()`
+ * rejects, so customData arrives empty — resolved `instanceId` to that window
+ * name. `useHostedIdentity` (which reads `fin.me.getOptions()` and never sees a
+ * view name) meanwhile resolved the real id, so the grid persisted its profiles
+ * under one row while the host addressed another: live sync subscribed to a row
+ * nothing wrote, and an AI-assistant edit landed in a row the grid never read.
+ * Keeping the name strictly below the URL makes both resolvers agree by
+ * construction.
  */
 
 interface FinViewIdentity {
@@ -91,8 +101,11 @@ export async function resolveOpenFinIdentity(
   // Start from URL+overrides (which already merges customData),
   // then layer view customData on top so it wins for known keys.
   const base = resolveBrowserIdentity(search, sources.overrides);
+  // Read the param directly: `base.instanceId` cannot be used to tell "the URL
+  // carried an id" from "nothing did, so here is a fresh `browser-<uuid>`".
+  const urlInstanceId = new URLSearchParams(search).get('instanceId') || undefined;
   const merged: IdentitySnapshot = {
-    instanceId: stringFrom(customData, 'instanceId') ?? viewName ?? base.instanceId,
+    instanceId: stringFrom(customData, 'instanceId') ?? urlInstanceId ?? viewName ?? base.instanceId,
     appId: stringFrom(customData, 'appId') ?? base.appId,
     userId: stringFrom(customData, 'userId') ?? base.userId ?? LOGGED_IN_USER_ID,
     componentType: stringFrom(customData, 'componentType') ?? base.componentType,
