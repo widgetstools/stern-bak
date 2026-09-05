@@ -19,11 +19,11 @@
   /* ── Surfaces — neutral grays, mid-tone editor (10% darker than the
         original near-white "Light Modern" ramp) ───────────────────────────── */
   --background:            0.875 0.0015 256;  /* #D5D6D7 — app chrome / ground */
-  --foreground:            0.345 0.004 256;   /* #3B3B3B — primary text, 7.9:1 AAA */
+  --foreground:            0.305 0.004 256;   /* #2E2F31 — primary text, 9.2:1 AAA */
   --card:                  0.900 0 0;         /* #DEDEDE — editor / primary surface */
-  --card-foreground:       0.345 0.004 256;
+  --card-foreground:       0.305 0.004 256;
   --popover:               0.900 0 0;         /* #DEDEDE */
-  --popover-foreground:    0.345 0.004 256;
+  --popover-foreground:    0.305 0.004 256;
 
   /* ── Brand / accent — periwinkle, kept dark enough that white label text
         clears AA on the fill (5.4:1); reads 3.8:1 against the ground, which
@@ -31,12 +31,11 @@
   --primary:               0.52 0.10 267;
   --primary-foreground:    0.99 0.012 267;
   --secondary:             0.863 0.002 256;   /* #D1D2D3 — elevated chrome */
-  --secondary-foreground:  0.40 0.005 256;    /* #4E4E4E — 6.3:1 on ground */
+  --secondary-foreground:  0.36 0.005 256;    /* #3B3D40 — 7.5:1 on ground */
   --muted:                 0.846 0.002 256;   /* #CBCCCE */
-  --muted-foreground:      0.460 0.004 256;   /* #57585A — darkened with the
-                                                 surfaces to hold 4.9:1 AA */
+  --muted-foreground:      0.420 0.004 256;   /* #4C4D4F — 5.8:1 on ground */
   --accent:                0.828 0.003 256;   /* #C5C7C8 — quaternary surface */
-  --accent-foreground:     0.345 0.005 256;
+  --accent-foreground:     0.305 0.005 256;
 
   --destructive:           0.505 0.225 27;
   --destructive-foreground: 1 0 0;
@@ -47,10 +46,13 @@
   --bot-accent:             0.50 0.19 276;
   --bot-accent-foreground:  0.99 0.01 276;
 
-  --border:                0.828 0.003 256;   /* #C5C7C8 — hairline */
-  --border-strong:         0.768 0.004 256;   /* #B2B4B6 */
-  --input:                 0.768 0.004 256;   /* #B2B4B6 */
-  --grid-border:           0.839 0.003 256;   /* #C9CACC — grid lines */
+  --border:                0.775 0.003 256;   /* #B4B6B8 — hairline */
+  --border-strong:         0.710 0.004 256;   /* #A0A2A4 */
+  --input:                 0.710 0.004 256;   /* #A0A2A4 */
+  --grid-border:           0.780 0.003 256;   /* #B6B7B9 — grid lines. AG Grid
+                                                 draws column separators from
+                                                 this at 60% alpha, so the line
+                                                 that lands on screen is ~#C5C7C8 */
   --ring:                  0.52 0.10 267;
 
   /* ── Fixed-income semantics — Teal (up) / Rose (down), light ────────────── */
@@ -111,7 +113,7 @@
   --shadow-sm:      0 1px 2px rgba(16,20,24,0.05);
   --shadow-card:    0 0 0 1px rgba(16,20,24,0.015), 0 1px 2px rgba(16,20,24,0.05), 0 8px 24px -12px rgba(16,20,24,0.12);
   --shadow-overlay: 0 12px 40px -8px rgba(16,20,24,0.16), 0 2px 8px rgba(16,20,24,0.08);
-  --scrollbar:      0.720 0.004 256;
+  --scrollbar:      0.670 0.004 256;
 }
 
 /* ============================================================================
