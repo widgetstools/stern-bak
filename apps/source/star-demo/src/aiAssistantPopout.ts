@@ -54,9 +54,24 @@ export async function openAssistantPopout(runtime: RuntimePort, opts: OpenAssist
   await runtime.openSurface({
     kind: 'popout',
     url: buildAssistantUrl(opts),
-    // One assistant per blotter WINDOW — two windows of the same blotter each
-    // get their own rather than re-targeting a shared one.
-    windowName: `ai-assistant-${opts.gridId ?? opts.instanceId}`,
+    // Keyed on the INSTANCE, never the template. `gridId` is the blotter's
+    // template configId, which every window of that blotter shares — so keying
+    // on it gave two windows one assistant, the exact opposite of what this
+    // comment used to promise.
+    //
+    // That was not merely a shared window, it was a silently WRONG one:
+    // `openOpenFinPopout` wraps an existing window by name, foregrounds it, and
+    // re-navigates only when `urlsSameDocument` says the URL differs — and that
+    // check compares origin, pathname and search but NOT the hash. Every
+    // assistant URL is `${origin}/#${route}?${params}`, so the instance id is
+    // entirely in the hash and every one of them looks like the same document.
+    // The second window's wand therefore foregrounded an assistant still scoped
+    // to the first window, and edits landed on the wrong blotter.
+    //
+    // A per-instance name means the collision never happens. The hash blind
+    // spot in `urlsSameDocument` is a platform issue affecting any hash-routed
+    // popout and is left alone here.
+    windowName: `ai-assistant-${opts.instanceId}`,
     width: POPOUT_WIDTH,
     height: POPOUT_HEIGHT,
   });

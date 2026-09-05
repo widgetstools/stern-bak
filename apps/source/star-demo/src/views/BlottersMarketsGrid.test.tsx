@@ -128,7 +128,13 @@ describe('BlottersMarketsGrid', () => {
       expect(mockOpenSurface).toHaveBeenCalledWith(
         expect.objectContaining({
           url: expect.stringMatching(/scope=locked.*instance=dev1grid-rates-1700000000000.*grid=grid-rates/),
-          windowName: 'ai-assistant-grid-rates',
+          // The INSTANCE, not the template. This previously asserted
+          // 'ai-assistant-grid-rates' — the template configId every window of
+          // this blotter shares — which gave two windows one assistant, and
+          // (because openOpenFinPopout's urlsSameDocument ignores the hash
+          // where the instance id lives) left the second one scoped to the
+          // first window. The expectation encoded the bug.
+          windowName: 'ai-assistant-dev1grid-rates-1700000000000',
         }),
       );
     });
@@ -169,7 +175,7 @@ describe('BlottersMarketsGrid', () => {
 
     await waitFor(() => {
       expect(mockOpenSurface).toHaveBeenCalledWith(
-        expect.objectContaining({ url: expect.stringContaining('grid=grid-test'), windowName: 'ai-assistant-grid-test' }),
+        expect.objectContaining({ url: expect.stringContaining('grid=grid-test'), windowName: 'ai-assistant-browser-abc' }),
       );
     });
   });
