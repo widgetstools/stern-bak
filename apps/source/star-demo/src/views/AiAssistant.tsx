@@ -35,7 +35,10 @@ function AiAssistant() {
 
   useEffect(() => {
     const prev = document.title;
-    const label = scope?.displayName ?? scope?.gridId ?? scopedGridName;
+    // The configId, matching the panel's own strip. Display names can repeat,
+    // so several scoped assistants would otherwise carry identical titles —
+    // precisely when telling the windows apart matters most.
+    const label = scope?.gridId ?? scopedGridName;
     document.title = label ? `AI Assistant · ${label}` : 'AI Assistant · Markets UI';
     return () => { document.title = prev; };
   }, [scope, scopedGridName]);

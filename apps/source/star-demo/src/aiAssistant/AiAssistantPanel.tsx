@@ -531,12 +531,18 @@ export function AiAssistantPanel({
           // "this window" + the active layout make clear every unpinned tool
           // call in this conversation targets this instance alone, not the
           // blotter's template or any sibling window (see useToolExecutor.ts).
+          //
+          // The configId ALONE, never the display name. Names can be renamed
+          // and duplicated, so two blotters can read identically in this strip
+          // while addressing different rows — and the whole assistant is built
+          // on the id being the only identifier. Showing the name here invited
+          // the user to check the wrong thing. It stays in the tooltip, which
+          // is for recognition, not identification.
           <span
             className="flex items-baseline gap-1.5 flex-shrink-0 max-w-[20rem] truncate"
-            title={`Scoped to ${scopedLabel ?? resolvedGridId} (${resolvedGridId})${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}${activeProfile ? ` · layout ${activeProfile.name}` : ''}`}
+            title={`Scoped to ${resolvedGridId}${scopedLabel ? ` (${scopedLabel})` : ''}${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}${activeProfile ? ` · layout ${activeProfile.name}` : ''}`}
           >
-            {scopedLabel && <span className="text-xs font-medium text-foreground truncate">{scopedLabel}</span>}
-            <span className="font-mono text-[10px] text-muted-foreground truncate">{resolvedGridId}</span>
+            <span className="font-mono text-xs font-medium text-foreground truncate">{resolvedGridId}</span>
             {scopedInstanceId && (
               <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">· this window</span>
             )}
@@ -560,8 +566,12 @@ export function AiAssistantPanel({
             </SelectTrigger>
             <SelectContent>
               {grids.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.displayName}
+                // The configId, for the same reason as the scoped strip above:
+                // it is what every tool call carries, so it is what the user
+                // should be choosing. The display name is the hover, not the
+                // label — two blotters may share one.
+                <SelectItem key={g.id} value={g.id} title={g.displayName}>
+                  <span className="font-mono text-xs">{g.id}</span>
                 </SelectItem>
               ))}
             </SelectContent>

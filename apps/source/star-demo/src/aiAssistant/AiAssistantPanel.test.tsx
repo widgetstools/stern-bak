@@ -133,6 +133,24 @@ describe('AiAssistantPanel — scoped instance and active layout', () => {
     expect(await screen.findByText(/L1/)).toBeInTheDocument();
   });
 
+  it('identifies the blotter by configId alone, never its display name', async () => {
+    // Names can be renamed and duplicated, so two blotters can read identically
+    // in this strip while addressing different rows. The id is what every tool
+    // call carries, so it is what the user gets to check. The name survives
+    // only in the tooltip, which is for recognition rather than identification.
+    render(
+      <AiAssistantPanel
+        locked
+        scopedGridId="grid-axe-blotter"
+        scopedInstanceId="dev1grid-axe-blotter-1700000000000"
+        scopedGridName="Axe Blotter"
+      />,
+    );
+
+    expect(await screen.findByText('grid-axe-blotter')).toBeInTheDocument();
+    expect(screen.queryByText('Axe Blotter')).not.toBeInTheDocument();
+  });
+
   it('reports the instance id and active layout to onScopeResolved', async () => {
     const onScopeResolved = vi.fn();
     render(
