@@ -12,6 +12,8 @@ import {
   resolveGridTarget,
   gridScopeId,
   currentPinnedInstance,
+  resolveGridEntry,
+  isSyntheticEntry,
 } from './gridProfiles';
 
 const AXE = {
@@ -453,5 +455,111 @@ describe('a pinned window', () => {
 
   it('still names the profile it edited', () => {
     expect(describeFanOut({ instances: 1, pinnedInstanceId: 'inst-2', profileId: 'L1' })).toContain('"L1"');
+  });
+});
+
+/**
+ * A live window whose configId resolves to no registry entry.
+ *
+ * Its own configId is the id every profile read and write keys on, so it is
+ * enough to address the row on its own. Requiring a registry entry made the
+ * panel useless in exactly the case where a row had lost its identity — the
+ * assistant could name the window but do nothing to it.
+ */
+describe('unregistered windows', () => {
+  it('refuses an id nothing is scoped to — a typo must not become a target', async () => {
+    expect(await resolveGridEntry('not-a-real-grid')).toBeUndefined();
+  });
+
+  it('refuses an unknown id even while scoped to a DIFFERENT window', async () => {
+    const entry = await withGridScope({ pinnedInstanceId: 'inst-9' }, () =>
+      resolveGridEntry('some-other-id'),
+    );
+    expect(entry).toBeUndefined();
+  });
+
+  it('stands in for the pinned window itself', async () => {
+    const entry = await withGridScope({ pinnedInstanceId: 'inst-9' }, () =>
+      resolveGridEntry('inst-9'),
+    );
+    expect(entry?.configId).toBe('inst-9');
+    expect(isSyntheticEntry(entry!)).toBe(true);
+  });
+
+  it('a real registry entry is never synthetic', async () => {
+    const entry = await resolveGridEntry('grid-axe-blotter');
+    expect(entry?.displayName).toBe('Axe Blotter');
+    expect(isSyntheticEntry(entry!)).toBe(false);
+  });
+
+  it('writes to the window only, not as a template edit', async () => {
+    const { configManager } = fakeManager();
+    const entry = await withGridScope({ pinnedInstanceId: 'inst-9' }, () =>
+      resolveGridEntry('inst-9'),
+    );
+    const targets = await withGridScope({ pinnedInstanceId: 'inst-9' }, () =>
+      resolveWriteTargets(configManager, entry!),
+    );
+    expect(targets).toEqual([
+      { instanceId: 'inst-9', isTemplate: false, label: 'inst-9 (this window only)' },
+    ]);
+  });
+
+  /**
+   * The load-bearing guarantee. A synthetic entry knows nothing authoritative
+   * about the row's identity, so it must pass none — `saveProfileSet` then
+   * preserves what the row already carries. Writing the placeholder
+   * `componentType` / `componentSubType` would blank a live blotter's real ones
+   * and make it permanently undiscoverable.
+   */
+  it('never stamps an invented identity onto the row', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const configManager = {
+      profiles: {
+        list: vi.fn(async () => [
+          { id: '__default__', name: 'Default', gridId: 'inst-9', state: {}, createdAt: 1, updatedAt: 1 },
+        ]),
+        save,
+        loadGridLevelData: vi.fn(async () => ({})),
+        saveGridLevelData: vi.fn(),
+      },
+      findByComponentType: vi.fn().mockResolvedValue([]),
+      getConfig: vi.fn(),
+    } as unknown as ConfigManager;
+
+    await withGridScope({ pinnedInstanceId: 'inst-9' }, async () => {
+      const entry = await resolveGridEntry('inst-9');
+      await patchGridModule(configManager, entry!, 'column-customization', () => ({ assignments: {} }));
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    const [scope, , options] = save.mock.calls[0] as [
+      { instanceId: string }, unknown, { identity?: unknown },
+    ];
+    expect(scope.instanceId).toBe('inst-9');
+    expect(options.identity).toBeUndefined();
+  });
+
+  it('still stamps identity for a real registry entry', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const configManager = {
+      profiles: {
+        list: vi.fn(async () => [
+          { id: '__default__', name: 'Default', gridId: 'inst-1', state: {}, createdAt: 1, updatedAt: 1 },
+        ]),
+        save,
+        loadGridLevelData: vi.fn(async () => ({})),
+        saveGridLevelData: vi.fn(),
+      },
+      findByComponentType: vi.fn().mockResolvedValue([]),
+      getConfig: vi.fn(),
+    } as unknown as ConfigManager;
+
+    await withGridScope({ pinnedInstanceId: 'inst-1' }, () =>
+      patchGridModule(configManager, AXE, 'column-customization', () => ({ assignments: {} })),
+    );
+
+    const [, , options] = save.mock.calls[0] as [unknown, unknown, { identity?: { componentType?: string } }];
+    expect(options.identity?.componentType).toBe('grid');
   });
 });

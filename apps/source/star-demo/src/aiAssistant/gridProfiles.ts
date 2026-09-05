@@ -48,7 +48,63 @@ export const BLOTTER_COMPONENT_TYPE = 'grid';
 export async function resolveGridEntry(configId: string): Promise<RegistryEntry | undefined> {
   const registry = await loadRegistryConfig();
   const grids = (registry?.entries ?? []).filter((e) => e.componentType === BLOTTER_COMPONENT_TYPE);
-  return grids.find((e) => e.configId === configId) ?? grids.find((e) => e.id === configId);
+  const found = grids.find((e) => e.configId === configId) ?? grids.find((e) => e.id === configId);
+  if (found) return found;
+
+  // No registry entry — fall back to the window itself, but ONLY for the window
+  // this conversation is actually scoped to. Synthesizing one for any unknown
+  // string would turn a model's typo into a silent write to a row nobody is
+  // looking at; an unrecognised id must still be refused.
+  const scoped = currentPinnedInstance() ?? currentFocusInstance();
+  return scoped === configId ? synthesizeInstanceEntry(configId) : undefined;
+}
+
+/**
+ * Entries synthesized from a live window's own configId rather than read from
+ * the registry. Tracked by object identity so {@link identityFor} can refuse to
+ * stamp an invented `componentType` / `componentSubType` onto a real row.
+ */
+const syntheticEntries = new WeakSet<RegistryEntry>();
+
+/** True when `entry` stands in for a window with no registry entry behind it. */
+export function isSyntheticEntry(entry: RegistryEntry): boolean {
+  return syntheticEntries.has(entry);
+}
+
+/**
+ * A stand-in entry for a live window that resolves to no registry entry.
+ *
+ * The window's own configId is sufficient to address its row on its own — it is
+ * the id every profile read and write is keyed on, and `gridScopeId` returns the
+ * pinned instance ahead of `entry.configId` anyway. The registry entry only ever
+ * added a display name and template awareness, so requiring one made the panel
+ * useless in exactly the case where it had the single identifier the window is
+ * certain of. A row whose identity was stripped, or that was never cloned from
+ * its template, produced an assistant that could do nothing at all.
+ *
+ * Every field here is inert by construction: nothing is written back to the row,
+ * because `identityFor` passes NO identity for a synthetic entry and
+ * `saveProfileSet` then preserves whatever identity the row already carries.
+ */
+function synthesizeInstanceEntry(instanceId: string): RegistryEntry {
+  const entry: RegistryEntry = {
+    id: instanceId,
+    configId: instanceId,
+    displayName: instanceId,
+    componentType: BLOTTER_COMPONENT_TYPE,
+    componentSubType: '',
+    hostUrl: '',
+    iconId: '',
+    createdAt: '',
+    type: 'internal',
+    usesHostConfig: true,
+    appId: '',
+    configServiceUrl: '',
+    singleton: false,
+    asWindow: false,
+  };
+  syntheticEntries.add(entry);
+  return entry;
 }
 
 /** Case-insensitive display-name match — for error messages, never for targeting. */
@@ -323,6 +379,13 @@ export async function readDefaultProfile(
 }
 
 function identityFor(entry: RegistryEntry, isTemplate: boolean) {
+  // A synthetic entry describes a row with no registry entry behind it, so
+  // nothing here is authoritative about its identity. Passing none makes
+  // `saveProfileSet` keep what the row already carries; writing this entry's
+  // placeholder `componentType` / `componentSubType` would blank a live
+  // blotter's real ones and make it undiscoverable — the exact damage that
+  // made this fallback necessary in the first place.
+  if (isSyntheticEntry(entry)) return undefined;
   return {
     componentType: entry.componentType,
     componentSubType: entry.componentSubType,
@@ -399,7 +462,11 @@ export async function resolveWriteTargets(
     // TEMPLATE row. Stamping it `isTemplate: false` would rewrite the template's
     // own identity and strip its singleton flag — the row would stop being
     // discoverable as this component's template.
-    const isTemplate = pinned === entry.configId;
+    // A synthetic entry's configId IS the pinned window, so this test would
+    // call every such write a template edit. It isn't one: the row stands for a
+    // single window and nothing downstream should treat it as a blotter-wide
+    // change.
+    const isTemplate = !isSyntheticEntry(entry) && pinned === entry.configId;
     return [{
       instanceId: pinned,
       isTemplate,

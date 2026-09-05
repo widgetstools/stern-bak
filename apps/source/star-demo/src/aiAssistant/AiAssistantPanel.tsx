@@ -149,6 +149,16 @@ export function AiAssistantPanel({
         setResolvedGridId(entry.configId);
         setTargetGridId(entry.configId);
         setResolveFailed(false);
+      } else if (scopedInstanceId) {
+        // The window's own configId addresses its row directly — it is what
+        // every profile read and write keys on, and `resolveGridEntry`
+        // synthesizes a stand-in entry for exactly this scoped id. Failing here
+        // discarded the one identifier the window is certain of and left the
+        // user with a panel that could do nothing, which is how a blotter whose
+        // row lost its identity became unusable rather than merely unnamed.
+        setResolvedGridId(scopedInstanceId);
+        setTargetGridId(scopedInstanceId);
+        setResolveFailed(false);
       } else {
         setResolvedGridId(undefined);
         setResolveFailed(true);

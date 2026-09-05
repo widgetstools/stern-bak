@@ -105,6 +105,33 @@ Two changes make them agree by construction, and both are pinned by tests:
 - `BlottersMarketsGrid` reads that same URL param first rather than deriving an
   id of its own.
 
+### A window with no registry entry is still fully addressable
+
+The window's own configId is enough on its own — it is the id every profile read
+and write keys on, and `gridScopeId` returns the pinned instance ahead of
+`entry.configId` anyway. A registry entry only ever added a display name and
+template awareness, so requiring one meant a blotter whose row had lost its
+identity (below) got a panel that could do *nothing*, rather than one that
+merely lacked a name.
+
+So when `resolveGridForInstance` and `resolveGridEntry` both come up empty but
+the window supplied an `instanceId`, the panel scopes to that id, and
+`resolveGridEntry` synthesizes a stand-in entry for it. Two properties keep that
+safe, both pinned by tests:
+
+- **It only ever stands in for the window this conversation is scoped to**
+  (`currentPinnedInstance() ?? currentFocusInstance()`). Synthesizing for any
+  unknown string would turn a model's typo into a silent write to a row nobody
+  is looking at — an unrecognised id is still refused.
+- **It never stamps an invented identity.** `identityFor` returns `undefined`
+  for a synthetic entry, so `saveProfileSet` preserves whatever the row already
+  carries. Writing the placeholder `componentType` / `componentSubType` would
+  cause exactly the damage described next.
+
+Such a write is also reported as `(this window only)`, never as a template edit
+— the synthetic entry's configId equals the pinned window, which would otherwise
+make every write look blotter-wide.
+
 **A row's identity is load-bearing, and a write can destroy it.** Resolving an
 instance back to its registry entry derives the template id from the row's
 `componentType` / `componentSubType`. `saveProfileSet` used to fall straight

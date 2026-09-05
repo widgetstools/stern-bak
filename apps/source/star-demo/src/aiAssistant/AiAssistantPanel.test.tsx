@@ -180,3 +180,43 @@ describe('AiAssistantPanel — scoped instance and active layout', () => {
     expect(mockReadActiveProfile).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A window whose configId matches no registry entry is still fully addressable:
+ * that id is what every profile read and write keys on, and `resolveGridEntry`
+ * synthesizes a stand-in entry for it. Refusing to scope discarded the one
+ * identifier the window is certain of, so a blotter whose row had lost its
+ * identity got a panel that could do nothing at all rather than one that merely
+ * lacked a display name.
+ */
+describe('AiAssistantPanel — a window with no registry entry', () => {
+  it('scopes to the window\'s own configId instead of giving up', async () => {
+    mockResolveGridForInstance.mockResolvedValue(undefined);
+    const onScopeResolved = vi.fn();
+
+    render(
+      <AiAssistantPanel
+        locked
+        scopedInstanceId="dev1grid-test-1788632725282"
+        onScopeResolved={onScopeResolved}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onScopeResolved).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gridId: 'dev1grid-test-1788632725282',
+          instanceId: 'dev1grid-test-1788632725282',
+        }),
+      ),
+    );
+    expect(await screen.findByText('dev1grid-test-1788632725282')).toBeInTheDocument();
+  });
+
+  it('still refuses to scope when there is no instance id either', async () => {
+    mockResolveGridForInstance.mockResolvedValue(undefined);
+    render(<AiAssistantPanel locked scopedGridId="not-registered" />);
+
+    expect(await screen.findByText(/Unrecognised blotter window/i)).toBeInTheDocument();
+  });
+});
