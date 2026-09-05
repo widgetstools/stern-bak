@@ -114,7 +114,7 @@ exports[`agGrid params > matches snapshot 1`] = `
     },
     "fontSize": 10,
     "foregroundColor": "oklch(var(--foreground))",
-    "headerBackgroundColor": "color-mix(in oklch, oklch(var(--muted)) 56%, #fff)",
+    "headerBackgroundColor": "color-mix(in oklch, oklch(var(--muted)) 85%, #fff)",
     "headerColumnBorder": {
       "color": "oklch(var(--grid-border) / 0.7)",
       "style": "solid",
@@ -282,7 +282,7 @@ exports[`agGrid params > matches snapshot 1`] = `
     },
     "fontSize": 14,
     "foregroundColor": "oklch(var(--foreground))",
-    "headerBackgroundColor": "color-mix(in oklch, oklch(var(--muted)) 56%, #fff)",
+    "headerBackgroundColor": "color-mix(in oklch, oklch(var(--muted)) 85%, #fff)",
     "headerColumnBorder": {
       "color": "oklch(var(--grid-border) / 0.7)",
       "style": "solid",
@@ -450,7 +450,7 @@ exports[`agGrid params > matches snapshot 1`] = `
     },
     "fontSize": 12,
     "foregroundColor": "oklch(var(--foreground))",
-    "headerBackgroundColor": "color-mix(in oklch, oklch(var(--muted)) 56%, #fff)",
+    "headerBackgroundColor": "color-mix(in oklch, oklch(var(--muted)) 85%, #fff)",
     "headerColumnBorder": {
       "color": "oklch(var(--grid-border) / 0.7)",
       "style": "solid",

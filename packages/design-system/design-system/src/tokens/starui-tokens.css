@@ -5,7 +5,7 @@
    • Default accent ........ Periwinkle (muted blue-violet, low chroma)
    • Positive / Negative ... Teal / Rose
    • Type .................. Inter (sans) · JetBrains Mono (numeric)
-   • Themes ................ Light (FT "paper") + Dark (blue-graphite, default)
+   • Themes ................ Light (mid-tone gray) + Dark (blue-graphite, default)
 
    Colour tokens are bare OKLCH components ("L C H") — NOT wrapped in oklch() —
    so any consumer can add an alpha channel:
@@ -16,23 +16,26 @@
 
 :root,
 [data-theme="light"] {
-  /* ── Surfaces — VS Code "Light Modern": neutral grays, white editor ─────── */
-  --background:            0.972 0.0015 256;  /* #F8F8F8 — app chrome / ground */
-  --foreground:            0.345 0.004 256;   /* #3B3B3B — primary text */
-  --card:                  1 0 0;             /* #FFFFFF — editor / primary surface */
+  /* ── Surfaces — neutral grays, mid-tone editor (10% darker than the
+        original near-white "Light Modern" ramp) ───────────────────────────── */
+  --background:            0.875 0.0015 256;  /* #D5D6D7 — app chrome / ground */
+  --foreground:            0.345 0.004 256;   /* #3B3B3B — primary text, 7.9:1 AAA */
+  --card:                  0.900 0 0;         /* #DEDEDE — editor / primary surface */
   --card-foreground:       0.345 0.004 256;
-  --popover:               1 0 0;             /* #FFFFFF */
+  --popover:               0.900 0 0;         /* #DEDEDE */
   --popover-foreground:    0.345 0.004 256;
 
-  /* ── Brand / accent — periwinkle, darkened for a near-white ground so white
-        text still clears AA (5.4:1 on the fill, 5.2:1 on the ground) ───────── */
+  /* ── Brand / accent — periwinkle, kept dark enough that white label text
+        clears AA on the fill (5.4:1); reads 3.8:1 against the ground, which
+        is a graphic/edge ratio, not a body-text one ────────────────────────── */
   --primary:               0.52 0.10 267;
   --primary-foreground:    0.99 0.012 267;
-  --secondary:             0.959 0.002 256;   /* #F3F3F3 — elevated chrome */
-  --secondary-foreground:  0.40 0.005 256;    /* #4E4E4E */
-  --muted:                 0.940 0.002 256;   /* #ECECEC */
-  --muted-foreground:      0.520 0.004 256;   /* #6E6E6E — secondary text */
-  --accent:                0.920 0.003 256;   /* #E5E5E5 — quaternary surface */
+  --secondary:             0.863 0.002 256;   /* #D1D2D3 — elevated chrome */
+  --secondary-foreground:  0.40 0.005 256;    /* #4E4E4E — 6.3:1 on ground */
+  --muted:                 0.846 0.002 256;   /* #CBCCCE */
+  --muted-foreground:      0.460 0.004 256;   /* #57585A — darkened with the
+                                                 surfaces to hold 4.9:1 AA */
+  --accent:                0.828 0.003 256;   /* #C5C7C8 — quaternary surface */
   --accent-foreground:     0.345 0.005 256;
 
   --destructive:           0.505 0.225 27;
@@ -44,10 +47,10 @@
   --bot-accent:             0.50 0.19 276;
   --bot-accent-foreground:  0.99 0.01 276;
 
-  --border:                0.920 0.003 256;   /* #E5E5E5 — hairline */
-  --border-strong:         0.853 0.004 256;   /* #CECECE */
-  --input:                 0.853 0.004 256;   /* #CECECE */
-  --grid-border:           0.932 0.003 256;   /* #EBEBEB — grid lines */
+  --border:                0.828 0.003 256;   /* #C5C7C8 — hairline */
+  --border-strong:         0.768 0.004 256;   /* #B2B4B6 */
+  --input:                 0.768 0.004 256;   /* #B2B4B6 */
+  --grid-border:           0.839 0.003 256;   /* #C9CACC — grid lines */
   --ring:                  0.52 0.10 267;
 
   /* ── Fixed-income semantics — Teal (up) / Rose (down), light ────────────── */
@@ -108,7 +111,7 @@
   --shadow-sm:      0 1px 2px rgba(16,20,24,0.05);
   --shadow-card:    0 0 0 1px rgba(16,20,24,0.015), 0 1px 2px rgba(16,20,24,0.05), 0 8px 24px -12px rgba(16,20,24,0.12);
   --shadow-overlay: 0 12px 40px -8px rgba(16,20,24,0.16), 0 2px 8px rgba(16,20,24,0.08);
-  --scrollbar:      0.80 0.004 256;
+  --scrollbar:      0.720 0.004 256;
 }
 
 /* ============================================================================

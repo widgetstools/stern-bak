@@ -131,7 +131,10 @@ function staruiSharedColorParams() {
 const STARUI_LIGHT_CHROME = {
   chromeBackgroundColor:
     'color-mix(in oklch, color-mix(in oklch, oklch(var(--card)) 97%, oklch(var(--primary))) 92%, #fff)',
-  headerBackgroundColor: 'color-mix(in oklch, oklch(var(--muted)) 56%, #fff)',
+  // 85/15 rather than 56/44: the white side of this mix does not move when the
+  // light surfaces darken, so a larger white share would leave the grid header
+  // visibly lighter than the rest of the theme.
+  headerBackgroundColor: 'color-mix(in oklch, oklch(var(--muted)) 85%, #fff)',
   headerTextColor: 'oklch(var(--muted-foreground))',
 };
 
