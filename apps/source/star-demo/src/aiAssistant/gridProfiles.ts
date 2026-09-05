@@ -68,12 +68,14 @@ export async function findGridByDisplayName(name: string): Promise<RegistryEntry
  * that's the minted per-window id, in a browser it's the route's
  * `defaultInstanceId`. Neither is a registry id, which is what every tool takes.
  *
- * Three ways in, cheapest first:
+ * Four ways in, cheapest first:
  *  1. the instance IS the template (singleton components reuse the id);
  *  2. the instance's own config row carries `componentType`/`componentSubType`,
- *     stamped when `launch.ts` cloned it — that derives the template id;
- *  3. the row is missing or bare, in which case we can't tell and the caller
- *     should say so rather than guess.
+ *     inherited when `launch.ts` cloned the template — that derives the id;
+ *  3. failing that, the SHAPE of the minted id itself, which needs no row —
+ *     see `matchByMintedIdFormat` for why 1 and 2 are not enough;
+ *  4. nothing matched, in which case we can't tell and the caller should say
+ *     so rather than guess.
  */
 export async function resolveGridForInstance(
   configManager: ConfigManager,
@@ -98,7 +100,59 @@ export async function resolveGridForInstance(
     console.debug('[aiAssistant] could not read the instance config row:', err);
   }
 
-  return undefined;
+  return matchByMintedIdFormat(instanceId, entries);
+}
+
+/**
+ * Last resort: recover the template from the SHAPE of a minted instance id,
+ * with no config row involved at all.
+ *
+ * `mintRegisteredInstanceId` builds every launched instance id as
+ * `${userId}${componentType}-${componentSubType}-${Date.now()}` — so
+ * "dev1grid-test-1780967984873" contains its template's configId, "grid-test",
+ * verbatim. That makes the id self-describing, which matters because the two
+ * paths above both need a config row that may not exist:
+ *
+ *  - `cloneTemplateRowForInstance` skips the clone entirely when the template
+ *    row does not exist yet, and swallows any failure (see `launch.ts`);
+ *  - a row written without a registered identity is stored as
+ *    `markets-grid-profile-set` with an EMPTY `componentSubType`, which fails
+ *    the guard above — relaxing that guard would not help, because the derived
+ *    id would be "markets-grid-profile-set-" and match nothing.
+ *
+ * Matching on the id's own structure survives both. Longest marker wins so a
+ * subtype that is a suffix of another cannot shadow it; a genuine tie returns
+ * undefined rather than guessing, because the wrong blotter is worse than none.
+ */
+function matchByMintedIdFormat(
+  instanceId: string,
+  entries: readonly RegistryEntry[],
+): RegistryEntry | undefined {
+  const id = instanceId.toLowerCase();
+  let best: RegistryEntry | undefined;
+  let bestLength = 0;
+  let tied = false;
+
+  for (const entry of entries) {
+    if (!entry.componentType || !entry.componentSubType) continue;
+    const marker = `${entry.componentType}-${entry.componentSubType}-`.toLowerCase();
+    const at = id.indexOf(marker);
+    if (at < 0) continue;
+    // The remainder must be the Date.now() suffix and nothing else, so
+    // "dev1grid-test-notaninstance" is not mistaken for a launched window.
+    const suffix = id.slice(at + marker.length);
+    if (!/^\d+$/.test(suffix)) continue;
+
+    if (marker.length > bestLength) {
+      best = entry;
+      bestLength = marker.length;
+      tied = false;
+    } else if (marker.length === bestLength) {
+      tied = true;
+    }
+  }
+
+  return tied ? undefined : best;
 }
 
 export interface GridTarget {

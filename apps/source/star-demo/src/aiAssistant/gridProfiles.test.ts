@@ -79,6 +79,53 @@ describe('resolveGridForInstance', () => {
     expect(await resolveGridForInstance(configManager, 'star-demo-blotter')).toBeUndefined();
   });
 
+  /**
+   * The two cases the config row cannot answer. `launch.ts` skips the clone
+   * entirely when the template row does not exist yet (and swallows any
+   * failure), and a profile write with no registered identity stores the row
+   * as `markets-grid-profile-set` with an empty subtype. Both leave a live
+   * window the assistant could not name — until the id's own shape is used.
+   */
+  describe('falling back to the minted id format', () => {
+    it('resolves a launched instance with NO config row at all', async () => {
+      const { configManager, getConfig } = fakeManager({});
+      const entry = await resolveGridForInstance(configManager, 'dev1grid-axe-blotter-1756000000000');
+      expect(entry?.id).toBe('grid-axe-blotter');
+      expect(getConfig).toHaveBeenCalled(); // it tried the row first
+    });
+
+    it('resolves an instance whose row was de-identified by an identity-less write', async () => {
+      // Relaxing the componentType/componentSubType guard would NOT fix this:
+      // the derived id would be "markets-grid-profile-set-", matching nothing.
+      const { configManager } = fakeManager({
+        'dev1grid-test-1780967984873': { componentType: 'markets-grid-profile-set', componentSubType: '' },
+      });
+      const entry = await resolveGridForInstance(configManager, 'dev1grid-test-1780967984873');
+      expect(entry?.id).toBe('grid-test');
+    });
+
+    it('requires the Date.now() suffix, so a lookalike id is not accepted', async () => {
+      const { configManager } = fakeManager({});
+      expect(await resolveGridForInstance(configManager, 'dev1grid-test-notaninstance')).toBeUndefined();
+    });
+
+    it('ignores an id whose marker matches no registered blotter', async () => {
+      const { configManager } = fakeManager({});
+      expect(await resolveGridForInstance(configManager, 'dev1grid-unknown-1756000000000')).toBeUndefined();
+    });
+
+    it('refuses to choose when two entries match equally well', async () => {
+      // Degenerate registry: same type/subtype under two ids. The wrong blotter
+      // is worse than none, so this must fail closed rather than pick one.
+      mockLoadRegistryConfig.mockResolvedValue({
+        version: 2,
+        entries: [AXE, { ...AXE, id: 'grid-axe-blotter-copy', configId: 'grid-axe-blotter-copy' }],
+      });
+      const { configManager } = fakeManager({});
+      expect(await resolveGridForInstance(configManager, 'dev1grid-axe-blotter-1756000000000')).toBeUndefined();
+    });
+  });
+
   it('returns undefined when the config row carries no component identity', async () => {
     const { configManager } = fakeManager({ 'inst-2': {} });
     expect(await resolveGridForInstance(configManager, 'inst-2')).toBeUndefined();
