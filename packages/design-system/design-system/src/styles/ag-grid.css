@@ -21,10 +21,13 @@
     line-height: 1.2;
   }
 
-  /* Floating filter row — match card surface, not washed-out light chrome */
+  /* Floating filter row — match card surface, not washed-out light chrome.
+     Scoped to the `input` itself. `.ag-floating-filter-input` is the wrapper
+     div AG Grid sizes for height/padding, not a field: painting it drew a
+     square-cornered card-coloured block ~3px taller and wider than the input,
+     reading as a dark halo around every floating filter. */
   .ag-floating-filter-body .ag-input-field-input,
-  .ag-floating-filter-body .ag-text-field-input,
-  .ag-floating-filter-input {
+  .ag-floating-filter-body .ag-text-field-input {
     background-color: oklch(var(--card));
     color: oklch(var(--foreground));
     border-color: oklch(var(--border));
