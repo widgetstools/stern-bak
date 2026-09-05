@@ -547,7 +547,13 @@ export function AiAssistantPanel({
               <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">· this window</span>
             )}
             {activeProfile && (
-              <span className="text-[10px] text-muted-foreground/70 truncate">· {activeProfile.name}</span>
+              // Labelled "layout", because a profile can be named anything —
+              // "Positions Blotter" is a real example — and an unlabelled name
+              // sitting next to the configId reads as a second identity for the
+              // blotter. It is the active layout, not what this grid IS.
+              <span className="text-[10px] text-muted-foreground/70 truncate">
+                · layout {activeProfile.name}
+              </span>
             )}
           </span>
         ) : locked && resolveFailed ? (

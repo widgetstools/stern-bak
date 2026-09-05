@@ -74,11 +74,13 @@ function AiAssistant() {
           {locked && scope && (
             <span
               className="font-mono text-[10px] text-foreground/70"
-              title={`Scoped to ${scope.displayName ?? scope.gridId}${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}${scope.profileName ? ` · layout ${scope.profileName}` : ''}`}
+              title={`Scoped to ${scope.gridId}${scope.displayName ? ` (${scope.displayName})` : ''}${scopedInstanceId ? ` · window ${scopedInstanceId}` : ''}${scope.profileName ? ` · layout ${scope.profileName}` : ''}`}
             >
               {scope.gridId}
               {scope.instanceId && ' · this window'}
-              {scope.profileName && ` · ${scope.profileName}`}
+              {/* "layout", for the same reason as the panel strip: an unlabelled
+                  profile name next to the id reads as a second identity. */}
+              {scope.profileName && ` · layout ${scope.profileName}`}
             </span>
           )}
           <span className="font-medium">AI Assistant</span>
