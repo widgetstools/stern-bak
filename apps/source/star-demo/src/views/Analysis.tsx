@@ -37,6 +37,7 @@ import { createLiveRowSource, type LiveRowSource } from '@wellsfargo-starui/grid
 import { composeRowId, normalizeKeyColumns } from '@wellsfargo-starui/types';
 import { gridScopeId } from '../aiAssistant/gridProfiles';
 import { ReportCanvas } from '../analysis/ReportCanvas';
+import { hasNothingToShow } from './analysisGate';
 
 /**
  * A bare query becomes a two-block report — the chart above the table, which
@@ -415,7 +416,7 @@ function Analysis() {
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div className="flex-1 min-h-0 overflow-auto">
-        {!handoffId || (!spec && !error) ? (
+        {hasNothingToShow({ handoffId, dashboardId, spec, error }) ? (
           <p className="p-8 text-sm text-muted-foreground">
             Nothing to show. Open this window from an analysis result or ask the assistant for a report.
           </p>

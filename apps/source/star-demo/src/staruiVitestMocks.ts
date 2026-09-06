@@ -67,7 +67,12 @@ export function resetStaruiMocks(): void {
   runtimeMock.onThemeChanged.mockClear().mockReturnValue(() => {});
 }
 
-vi.mock('@wellsfargo-starui/design-system', () => ({
+// Partial: a full replacement breaks the moment a test renders something
+// that reaches another export of this module (design-system's
+// `cellRendererComponents`, openfin/host's window subscriptions) — a
+// failure that points at the mock rather than the code under test.
+vi.mock('@wellsfargo-starui/design-system', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   applyTheme: mockApplyTheme,
   getTheme: () => mockGetTheme(),
   ThemeProvider: ({ children }: { children: React.ReactNode }) =>
@@ -83,7 +88,12 @@ vi.mock('@wellsfargo-starui/types', async (importOriginal) => ({
   LOGGED_IN_USER_ID: 'dev1',
 }));
 
-vi.mock('@wellsfargo-starui/openfin/host', () => ({
+// Partial: a full replacement breaks the moment a test renders something
+// that reaches another export of this module (design-system's
+// `cellRendererComponents`, openfin/host's window subscriptions) — a
+// failure that points at the mock rather than the code under test.
+vi.mock('@wellsfargo-starui/openfin/host', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   OpenFinRuntime: { create: () => mockOpenFinRuntimeCreate() },
   isOpenFin: () => mockIsOpenFin(),
   subscribeThemeBroadcast: mockSubscribeThemeBroadcast,
