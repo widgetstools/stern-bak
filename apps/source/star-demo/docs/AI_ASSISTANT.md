@@ -414,10 +414,15 @@ top-level entry per dashboard stops being navigable.
 ### Rearranging a dashboard
 
 Blocks can be dragged between and within regions and resized by their bottom
-edge, on a **saved** dashboard only — an ephemeral analysis window has nowhere
-to write a layout back to, and a handle that saves nothing is worse than none.
-`ReportCanvas` grows the affordances only when given `onSaveLayout`; without
-it the canvas renders exactly as it always did.
+edge. Rearranging works on **any** report, saved or not — seeing the layout you
+want is most of the value, and a report with no handles reads as a missing
+feature rather than a deliberate limit. Only SAVING needs somewhere to write
+to: an ephemeral report's save control is disabled and says why ("Keep this as
+a dashboard to save its layout") rather than silently doing nothing. Undo still
+works there, because the rearranging was real.
+
+`ReportCanvas` grows the affordances when given `onSaveLayout` **or**
+`saveDisabledReason`; with neither, it renders exactly as it always did.
 
 The affordances are deliberately quiet. Nothing shows until the pointer is
 over a block, and what appears then is a grip and a hairline — not a toolbar,

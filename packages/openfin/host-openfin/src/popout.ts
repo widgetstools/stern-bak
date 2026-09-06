@@ -42,11 +42,32 @@ export interface OpenFinPopoutOpts {
   readonly customData?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Whether an open window is already showing what the caller is asking for.
+ *
+ * The HASH counts. In browser terms two URLs differing only after `#` are the
+ * same document — but every route in this app lives in the hash, so
+ * `#/analysis?handoff=A` and `#/analysis?handoff=B` are different VIEWS of it.
+ * Ignoring the hash meant a reused window was focused and never navigated: the
+ * second report opened the first one's window and showed the first one's
+ * content, or nothing at all. (The AI-assistant popout hit the identical
+ * problem from the other direction — there the fix was a unique window name,
+ * because two windows of one blotter genuinely need two assistants.)
+ *
+ * Comparing the hash only ever makes this MORE willing to navigate. A window
+ * already on the exact URL still short-circuits, so nothing reloads that did
+ * not before.
+ */
 function urlsSameDocument(a: string, b: string): boolean {
   try {
     const ua = new URL(a);
     const ub = new URL(b);
-    return ua.origin === ub.origin && ua.pathname === ub.pathname && ua.search === ub.search;
+    return (
+      ua.origin === ub.origin &&
+      ua.pathname === ub.pathname &&
+      ua.search === ub.search &&
+      ua.hash === ub.hash
+    );
   } catch {
     return false;
   }

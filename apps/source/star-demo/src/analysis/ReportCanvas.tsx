@@ -74,6 +74,13 @@ export interface ReportCanvasProps {
    * business growing handles.
    */
   onSaveLayout?: (blocks: ReportBlock[]) => void | Promise<void>;
+  /**
+   * Why the layout cannot be saved, when it cannot. Set for an ephemeral
+   * report: blocks still move and resize — rearranging is useful whether or
+   * not it can be kept — but the save control explains itself instead of
+   * silently doing nothing.
+   */
+  saveDisabledReason?: string;
 }
 
 /**
@@ -531,8 +538,20 @@ function Region({
   );
 }
 
-export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, liveness, onSaveLayout }: ReportCanvasProps) {
-  const editable = Boolean(onSaveLayout);
+export function ReportCanvas({
+  spec,
+  rows,
+  rowsVersion = 0,
+  provenance,
+  ranAt,
+  liveness,
+  onSaveLayout,
+  saveDisabledReason,
+}: ReportCanvasProps) {
+  // Rearranging is useful even when it cannot be kept — seeing the layout you
+  // want is most of the value, and a report with no handles at all reads as a
+  // missing feature rather than a deliberate limit.
+  const editable = Boolean(onSaveLayout) || Boolean(saveDisabledReason);
   // The draft lives here so the canvas stays a function of the blocks it is
   // handed; `useLayoutEditing` owns the rules and the dirty comparison.
   const layout = useLayoutEditing(spec);
@@ -640,10 +659,10 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, l
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving}
-                title="Save this layout"
-                aria-label="Save this layout"
-                className="rounded-sm px-1.5 py-0.5 text-[11px] text-[var(--ds-primary)] hover:bg-muted/50 disabled:opacity-50"
+                disabled={saving || !onSaveLayout}
+                title={saveDisabledReason ?? 'Save this layout'}
+                aria-label={saveDisabledReason ?? 'Save this layout'}
+                className="rounded-sm px-1.5 py-0.5 text-[11px] text-[var(--ds-primary)] hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {saving ? '…' : '⌸'}
               </button>

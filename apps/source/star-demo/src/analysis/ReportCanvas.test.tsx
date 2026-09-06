@@ -390,3 +390,36 @@ describe('layout editing', () => {
     expect(screen.queryByLabelText('Save this layout')).toBeNull();
   });
 });
+
+/**
+ * A report that cannot be SAVED can still be rearranged. Hiding the handles
+ * read as a missing feature rather than a deliberate limit — and seeing the
+ * layout you want is most of the value even when it is not kept.
+ */
+describe('an ephemeral report', () => {
+  const BLOCKS = [
+    { kind: 'commentary', text: 'One', title: 'A' },
+    { kind: 'commentary', text: 'Two', title: 'B' },
+  ];
+  const REASON = 'Keep this as a dashboard to save its layout';
+
+  it('still offers drag and resize handles', () => {
+    const { container } = draw(BLOCKS, {}, { saveDisabledReason: REASON });
+    expect(container.querySelectorAll('[draggable="true"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[aria-label="Drag to resize this block"]')).toHaveLength(2);
+  });
+
+  it('explains why the layout cannot be kept instead of silently doing nothing', () => {
+    const { container } = draw(BLOCKS, {}, { saveDisabledReason: REASON });
+    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '0' } });
+    const save = screen.getByLabelText(REASON);
+    expect(save).toBeDisabled();
+    // Undo still works — the rearranging was real, so putting it back must be.
+    expect(screen.getByLabelText('Discard layout changes')).toBeEnabled();
+  });
+
+  it('leaves a plain read-only render with no handles at all', () => {
+    const { container } = draw(BLOCKS);
+    expect(container.querySelector('[draggable="true"]')).toBeNull();
+  });
+});

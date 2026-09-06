@@ -429,9 +429,14 @@ function Analysis() {
             provenance={effectiveProvenance}
             ranAt={ranAt}
             liveness={liveSource ? 'streaming' : spec?.refreshMs ? 'polled' : 'static'}
-            // Editing is offered only where the result can be KEPT. An
-            // ephemeral analysis window has nowhere to write a layout back to,
-            // and handles that save nothing are worse than none.
+            // Blocks always move and resize; only SAVING needs somewhere to
+            // write to. An ephemeral report says so on the control rather than
+            // hiding the handles, which read as a missing feature.
+            saveDisabledReason={
+              dashboardId
+                ? undefined
+                : 'Keep this as a dashboard (Assets → Dashboards) to save its layout'
+            }
             onSaveLayout={
               dashboardId && configManager
                 ? async (blocks) => {

@@ -325,3 +325,41 @@ describe('popout', () => {
     expect(mockWindow.navigate).toHaveBeenCalled();
   });
 });
+
+/**
+ * Every route in this app lives in the hash, so a hash-only difference is a
+ * different VIEW. Ignoring it meant a reused analysis window was focused and
+ * never navigated — the second report opened the first one's window and showed
+ * the first one's content, or an empty "nothing to show" page.
+ */
+describe('reusing a window for a different view', () => {
+  const win = {
+    getInfo: vi.fn(),
+    setAsForeground: vi.fn().mockResolvedValue(undefined),
+    navigate: vi.fn().mockResolvedValue(undefined),
+    addListener: vi.fn(),
+    once: vi.fn(),
+  };
+
+  beforeEach(() => {
+    win.getInfo.mockReset();
+    win.navigate.mockReset().mockResolvedValue(undefined);
+    (globalThis as unknown as { fin: unknown }).fin = {
+      me: { identity: { uuid: 'u' } },
+      Window: { wrapSync: () => win },
+      Platform: { getCurrentSync: () => ({ createWindow: vi.fn() }) },
+    };
+  });
+
+  it('navigates when only the hash differs', async () => {
+    win.getInfo.mockResolvedValue({ url: 'http://h/#/analysis?handoff=A' });
+    await openOpenFinPopout('popout', { name: 'analysis-x', url: 'http://h/#/analysis?handoff=B' });
+    expect(win.navigate).toHaveBeenCalledWith('http://h/#/analysis?handoff=B');
+  });
+
+  it('does not navigate a window already on the exact URL', async () => {
+    win.getInfo.mockResolvedValue({ url: 'http://h/#/analysis?handoff=A' });
+    await openOpenFinPopout('popout', { name: 'analysis-x', url: 'http://h/#/analysis?handoff=A' });
+    expect(win.navigate).not.toHaveBeenCalled();
+  });
+});
