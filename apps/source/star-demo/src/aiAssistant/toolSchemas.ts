@@ -995,6 +995,82 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'set_desk_context',
+      description:
+        "Remember what this desk IS — its mandate and its benchmark — so future answers are framed against it instead of being generic. Call it when the user describes their book (\"I run US IG credit, duration 4-6\", \"benchmark is the Agg\"). It persists across conversations and is injected into every future one, so the user never repeats it. Use add_limit for numeric rules; this is free text.",
+      parameters: {
+        type: 'object',
+        properties: {
+          mandate: { type: 'string', description: 'What the desk runs, in the user\'s own words.' },
+          benchmark: { type: 'string', description: 'What performance is measured against.' },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_limit',
+      description:
+        "Record a numeric rule the book is supposed to stay inside — \"no issuer above 5%\", \"cash at least 2%\", \"sector cap 20%\" — so it can be CHECKED against real data rather than remembered. Advisory only: it records the desk's own rule and never blocks anything, so do not describe it as a compliance control. Re-using a name replaces that limit.",
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'What to call it, e.g. "Single issuer cap".' },
+          metric: { type: 'string', description: 'The column being limited, named however the user did, e.g. "marketValue".' },
+          aggregate: { type: 'string', enum: ['sum', 'avg', 'min', 'max', 'count', 'countDistinct'], description: 'How the metric rolls up. Default "sum".' },
+          groupBy: { type: 'string', description: 'Makes it a per-group limit — "issuer" for a per-issuer cap, "sector" for a sector cap. Omit to limit the book as a whole.' },
+          unit: { type: 'string', enum: ['absolute', 'percentOfTotal'], description: '"percentOfTotal" for a share (a 5% cap); "absolute" for a raw number. Default absolute. percentOfTotal requires aggregate "sum".' },
+          max: { type: 'number', description: 'Upper bound. In percent when unit is percentOfTotal — 5 means 5%.' },
+          min: { type: 'number', description: 'Lower bound.' },
+          gridIds: { type: 'array', items: { type: 'string' }, description: 'Restrict to these blotters. Omit to cover every one.' },
+        },
+        required: ['name', 'metric'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_limits',
+      description:
+        "Evaluate the desk's limits against live data and report what is breaching, by how much. Use it when the user asks whether they are onside/within limits, after a change that could move an exposure, and as part of any portfolio review. Every number is computed by the query engine, not estimated. A limit that could NOT be evaluated is reported separately — never report it as passing.",
+      parameters: {
+        type: 'object',
+        properties: { name: { type: 'string', description: 'Check just this one limit. Omit for all of them.' } },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_limits',
+      description: "The desk's recorded limits and what each one measures. Use it before adding one (to avoid duplicating) or when the user asks what rules are set.",
+      parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'remove_limit',
+      description:
+        "Delete one of the desk's recorded limits by name. Use list_limits first if the user's wording doesn't match a name exactly — removing the wrong limit silently stops it being checked.",
+      parameters: {
+        type: 'object',
+        properties: { name: { type: 'string', description: 'The limit to remove.' } },
+        required: ['name'],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];

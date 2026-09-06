@@ -33,6 +33,7 @@ const DECLARED: ToolName[] = [
   'create_alert',
   'capture_baseline', 'compare_to_baseline', 'list_baselines',
   'query_across_blotters',
+  'set_desk_context', 'add_limit', 'check_limits', 'list_limits', 'remove_limit',
 ];
 
 describe('the tool vocabulary and the wire schemas agree', () => {

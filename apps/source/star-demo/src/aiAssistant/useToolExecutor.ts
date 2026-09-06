@@ -73,6 +73,7 @@ import { renameColumn, setColumnVisibility } from './simpleColumnTools';
 import { createAlert } from './alertTools';
 import { captureBaseline, compareToBaseline, listBaselines } from './baselineTools';
 import { queryAcrossBlotters } from './portfolioTools';
+import { setDeskContext, addLimit, checkLimits, listLimits, removeLimit } from './deskTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import type { DataHubClient } from './dataAccess';
@@ -655,6 +656,16 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return describeDataFields(ctx.configStore, args);
     case 'create_alert':
       return createAlert(ctx.configManager, ctx.configStore, args);
+    case 'set_desk_context':
+      return setDeskContext(ctx.configManager, args);
+    case 'add_limit':
+      return addLimit(ctx.configManager, args);
+    case 'check_limits':
+      return checkLimits({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
+    case 'list_limits':
+      return listLimits(ctx.configManager);
+    case 'remove_limit':
+      return removeLimit(ctx.configManager, args);
     case 'query_across_blotters':
       return queryAcrossBlotters({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'capture_baseline':

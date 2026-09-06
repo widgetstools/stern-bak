@@ -318,6 +318,47 @@ since nothing about a probe's result is persisted beyond the columns actually
 chosen. `websocket`/`socketio` feeds still have no probe transport — that gap
 predates this and isn't something either tool builds.
 
+### Desk context and limits — answers framed against the book
+
+Every conversation started cold. The assistant knew the shape of the data but
+nothing about the person reading it, so it could report "IG Credit is 4.2% of
+the book" without knowing that 4.2% is 20bp through a cap. Arithmetically right,
+professionally useless.
+
+Two halves, deliberately different in kind:
+
+- **Context** (`set_desk_context`) is free text — mandate, benchmark. Stored
+  once and injected into the system prompt, so it changes the character of every
+  later answer with no tool call. The prompt block says explicitly that this is
+  the user's description of their book, treated as background rather than as an
+  instruction to act on.
+- **Limits** (`add_limit`, `list_limits`, `remove_limit`, `check_limits`) are
+  structured, because a limit has to be *checked*, not described. Each is
+  evaluated by `runQuery` over real rows — the same engine every other number
+  goes through — so a breach is a computed fact, never the model's estimate.
+
+A limit is `aggregate(metric)`, optionally per `groupBy`, against a `max`/`min`,
+in either absolute terms or `percentOfTotal`. `groupBy: "issuer"` with
+`unit: "percentOfTotal", max: 5` is a 5% single-issuer cap.
+
+Four rules keep the output honest, all pinned by tests:
+
+- **An unevaluatable limit is never reported as passing.** A bad column, an
+  unreadable blotter or a zero denominator lands in `unevaluated` and the
+  summary labels it "treat as unknown, not as passing" — the worst failure this
+  feature could have is silent false comfort.
+- **`percentOfTotal` requires `sum`.** A share is a sum over a sum; any other
+  aggregate makes the ratio meaningless, so it is refused at write time.
+- **An ungrouped limit is about the book as a whole**, so per-blotter rows are
+  summed back into one number rather than each book being tested separately.
+- **Breaches are ranked by how far through they are**, because the point of the
+  answer is what to look at first.
+
+**These are advisory.** Nothing here blocks a trade or edits data — it is a
+desk's own note of its rules, and a breach is a finding to show someone. The
+tool description says so, so the model does not present it as a compliance
+control.
+
 ### Portfolio-level questions — `query_across_blotters`
 
 Every other data tool takes a single `targetGridId`, which is right for a trader

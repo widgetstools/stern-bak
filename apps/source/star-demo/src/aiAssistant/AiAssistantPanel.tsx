@@ -27,7 +27,8 @@ import { useUndoStack } from './useUndoStack';
 import { sessionKey, saveSession, loadSession, clearSession } from './chat/sessionStore';
 import { startersFor } from './chat/starters';
 import type { ToolName } from './tools';
-import { buildSystemPrompt } from './systemPrompt';
+import { buildSystemPrompt, type DeskBrief } from './systemPrompt';
+import { readDeskContext } from './deskTools';
 import { useToolExecutor } from './useToolExecutor';
 import { ChatTranscript } from './chat/ChatTranscript';
 import { Composer } from './chat/Composer';
@@ -208,14 +209,35 @@ export function AiAssistantPanel({
   }, [locked, resolvedGridId, scopedLabel, scopedInstanceId, activeProfile]);
 
 
+  // The desk's mandate, benchmark and limit names travel in the system prompt,
+  // so the user states them once and every later conversation is framed against
+  // them without a tool call.
+  const [desk, setDesk] = useState<DeskBrief | undefined>(undefined);
+  useEffect(() => {
+    if (!platform?.configManager) return;
+    let cancelled = false;
+    void readDeskContext(platform.configManager).then((ctx) => {
+      if (cancelled) return;
+      setDesk(
+        ctx.mandate || ctx.benchmark || ctx.limits.length
+          ? { mandate: ctx.mandate, benchmark: ctx.benchmark, limitNames: ctx.limits.map((l) => l.name) }
+          : undefined,
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [platform]);
+
   const systemPrompt = useMemo(
     () =>
       buildSystemPrompt(
         locked && resolvedGridId
           ? { gridId: resolvedGridId, displayName: scopedLabel, instanceId: scopedInstanceId }
           : undefined,
+        desk,
       ),
-    [locked, resolvedGridId, scopedLabel, scopedInstanceId],
+    [locked, resolvedGridId, scopedLabel, scopedInstanceId, desk],
   );
   const { executeTool } = useToolExecutor({
     defaultGridId: targetGridId || undefined,

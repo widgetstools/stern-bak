@@ -59,7 +59,7 @@ export interface PortfolioDeps {
  * because summing two different columns into one total is a wrong answer that
  * looks right.
  */
-function resolveAcross(
+export function resolveAcross(
   input: string,
   catalogues: Array<{ name: string; catalogue: CatalogColumn[] }>,
 ): { ok: true; colId: string } | { ok: false; error: string } {
@@ -115,6 +115,65 @@ function rewriteQuery(query: DataQuery, map: Map<string, string>): DataQuery {
   };
 }
 
+export interface Gathered {
+  rows: Array<Record<string, unknown>>;
+  contributed: Contribution[];
+  skipped: Skip[];
+  catalogues: Array<{ name: string; catalogue: CatalogColumn[] }>;
+}
+
+/**
+ * Fetch every named blotter and union its rows, tagging each with its origin.
+ *
+ * Shared with limit checking so both obey the same rule about a book that
+ * cannot be read: it lands in `skipped` with a reason, and the caller is
+ * responsible for saying so. Silently dropping one produces a total — or a
+ * limit check — that looks complete and is not.
+ */
+export async function gatherRows(
+  deps: PortfolioDeps,
+  entries: readonly RegistryEntry[],
+  allowSample: boolean,
+): Promise<Gathered> {
+  const rows: Array<Record<string, unknown>> = [];
+  const contributed: Contribution[] = [];
+  const skipped: Skip[] = [];
+  const catalogues: Array<{ name: string; catalogue: CatalogColumn[] }> = [];
+
+  for (const entry of entries) {
+    const fetched = await fetchGridRows(deps.configManager, deps.configStore, entry, deps.client, { allowSample });
+    if (!fetched.ok) {
+      skipped.push({ displayName: entry.displayName, reason: fetched.error });
+      continue;
+    }
+    const catalogue = await readColumnCatalogue(deps.configManager, deps.configStore, entry);
+    catalogues.push({ name: entry.displayName, catalogue });
+    for (const row of fetched.value.rows) rows.push({ ...row, [SOURCE_COLUMN]: entry.displayName });
+    contributed.push({ displayName: entry.displayName, configId: entry.configId, rows: fetched.value.rows.length });
+  }
+  return { rows, contributed, skipped, catalogues };
+}
+
+/** Blotter entries for the given configIds, or every registered blotter. */
+export async function blotterEntries(gridIds?: string[]): Promise<{ ok: true; entries: RegistryEntry[] } | { ok: false; error: string }> {
+  const registry = await loadRegistryConfig();
+  const all = (registry?.entries ?? []).filter((e) => e.componentType === BLOTTER_COMPONENT_TYPE);
+  if (!gridIds?.length) {
+    return all.length ? { ok: true, entries: all } : { ok: false, error: 'No blotters are registered, so there is nothing to query across.' };
+  }
+  const entries: RegistryEntry[] = [];
+  const missing: string[] = [];
+  for (const id of gridIds) {
+    const hit = all.find((e) => e.configId === id) ?? all.find((e) => e.id === id);
+    if (hit) entries.push(hit);
+    else missing.push(id);
+  }
+  if (missing.length) {
+    return { ok: false, error: `No grid registered with id ${missing.map((m) => `"${m}"`).join(', ')}. Call list_grids to see valid ids.` };
+  }
+  return { ok: true, entries };
+}
+
 export async function queryAcrossBlotters(
   deps: PortfolioDeps,
   args: Record<string, unknown>,
@@ -132,45 +191,11 @@ export async function queryAcrossBlotters(
     limit: typeof args.limit === 'number' ? args.limit : undefined,
   };
 
-  const registry = await loadRegistryConfig();
-  const all = (registry?.entries ?? []).filter((e) => e.componentType === BLOTTER_COMPONENT_TYPE);
-  let entries: RegistryEntry[] = all;
-  if (a.gridIds?.length) {
-    const missing: string[] = [];
-    entries = [];
-    for (const id of a.gridIds) {
-      const hit = all.find((e) => e.configId === id) ?? all.find((e) => e.id === id);
-      if (hit) entries.push(hit);
-      else missing.push(id);
-    }
-    if (missing.length) {
-      return { ok: false, summary: `No grid registered with id ${missing.map((m) => `"${m}"`).join(', ')}. Call list_grids to see valid ids.` };
-    }
-  }
-  if (entries.length === 0) {
-    return { ok: false, summary: 'No blotters are registered, so there is nothing to query across.' };
-  }
+  const resolvedEntries = await blotterEntries(a.gridIds);
+  if (!resolvedEntries.ok) return { ok: false, summary: resolvedEntries.error };
+  const entries = resolvedEntries.entries;
 
-  const rows: Array<Record<string, unknown>> = [];
-  const contributed: Contribution[] = [];
-  const skipped: Skip[] = [];
-  const catalogues: Array<{ name: string; catalogue: CatalogColumn[] }> = [];
-
-  for (const entry of entries) {
-    const fetched = await fetchGridRows(deps.configManager, deps.configStore, entry, deps.client, {
-      allowSample: a.allowSample === true,
-    });
-    if (!fetched.ok) {
-      skipped.push({ displayName: entry.displayName, reason: fetched.error });
-      continue;
-    }
-    const catalogue = await readColumnCatalogue(deps.configManager, deps.configStore, entry);
-    catalogues.push({ name: entry.displayName, catalogue });
-    for (const row of fetched.value.rows) {
-      rows.push({ ...row, [SOURCE_COLUMN]: entry.displayName });
-    }
-    contributed.push({ displayName: entry.displayName, configId: entry.configId, rows: fetched.value.rows.length });
-  }
+  const { rows, contributed, skipped, catalogues } = await gatherRows(deps, entries, a.allowSample === true);
 
   if (contributed.length === 0) {
     return {
