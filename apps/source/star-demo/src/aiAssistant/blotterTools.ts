@@ -6,6 +6,7 @@
  * which is why none of them are undoable by a profile snapshot (see `undo.ts`).
  */
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
+import type { DataProviderConfigStore } from '@wellsfargo-starui/data';
 import { loadRegistryConfig, deriveTemplateConfigId } from '@wellsfargo-starui/openfin/config';
 import {
   resolveGridEntry,
@@ -13,8 +14,16 @@ import {
   listInstanceRows,
   describeFanOut,
   currentPinnedInstance,
+  readActiveProfile,
+  patchModuleState,
   BLOTTER_COMPONENT_TYPE,
 } from './gridProfiles';
+import {
+  buildBlotterBlueprint,
+  blueprintAssignments,
+  blueprintGroups,
+  describeBlueprint,
+} from './blotterBlueprint';
 import {
   addRegistryEntry,
   addDockButton,
@@ -55,6 +64,7 @@ function toSubType(displayName: string): string {
 
 export async function createBlotter(
   configManager: ConfigManager,
+  configStore: DataProviderConfigStore,
   appId: string,
   args: Record<string, unknown>,
 ): Promise<ToolExecutionResult> {
@@ -63,7 +73,6 @@ export async function createBlotter(
     providerId?: string;
     addToDock?: boolean;
     dockGroup?: string;
-    asWindow?: boolean;
     openNow?: boolean;
   };
   if (!a.displayName) return { ok: false, summary: 'Missing required field: displayName.' };
@@ -75,7 +84,13 @@ export async function createBlotter(
     return { ok: false, summary: `A blotter with id "${id}" already exists — pick a different name.` };
   }
 
-  const asWindow = a.asWindow ?? true;
+  // ALWAYS a standalone workspace window, never a docked view. A blotter is
+  // the thing the user works in: it wants its own window they can size, move
+  // to a second monitor and save into a workspace. A view docked into the
+  // browser window also has no stable window name, which is what
+  // `reloadOpenComponents` matches on — so a provider change could not reach
+  // it. Not an argument, so a model cannot talk itself out of it.
+  const asWindow = true;
   // Registered SINGLETON, which is what makes this a template-backed
   // component rather than a factory for throwaway copies:
   //
@@ -130,6 +145,41 @@ export async function createBlotter(
     { identity },
   );
 
+  // Open it as a fixed-income blotter rather than a schema dump: sections in
+  // reading order, identity frozen left, every numeric right-aligned in
+  // tabular figures, dates as dd-mmm-yy, spreads in bp, P&L coloured by sign.
+  // See `blotterBlueprint.ts` for why each of those is not a preference.
+  //
+  // Written as ordinary column-customization / column-groups state, so the
+  // user can change any of it afterwards with the normal tools and none of it
+  // re-asserts itself later.
+  let blueprintNote = '';
+  if (a.providerId) {
+    try {
+      const provider = await configStore.get(a.providerId);
+      const defs =
+        ((provider?.config as { columnDefinitions?: Array<{ field?: string; cellDataType?: string }> } | undefined)
+          ?.columnDefinitions ?? []).filter((d): d is { field: string; cellDataType?: string } => Boolean(d.field));
+      if (defs.length > 0) {
+        const blueprint = buildBlotterBlueprint(defs);
+        const profile = await readActiveProfile(configManager, id);
+        let next = patchModuleState(profile, 'column-customization', {
+          assignments: blueprintAssignments(blueprint),
+        });
+        next = patchModuleState(next, 'column-groups', { groups: blueprintGroups(blueprint) });
+        await configManager.profiles.save({ instanceId: id }, next, {
+          identity,
+          changedModuleIds: ['column-customization', 'column-groups'],
+        });
+        blueprintNote = ` ${describeBlueprint(blueprint)}`;
+      }
+    } catch (err) {
+      // A layout is an improvement, never a precondition — a blotter that
+      // opens plain is far better than one that fails to be created.
+      console.warn('[aiAssistant] blotter layout blueprint failed; created without it:', err);
+    }
+  }
+
   // Blotters are filed under one dropdown ("Assets") rather than each taking a
   // top-level slot — a dock that grows a button per blotter stops being
   // navigable fast. `dockGroup: ''` opts back out to a top-level button.
@@ -162,6 +212,7 @@ export async function createBlotter(
           : '') +
       (a.providerId ? `, bound to provider ${a.providerId}` : ', with no data provider bound yet') +
       '.' +
+      blueprintNote +
       (launch ? describeLaunch(launch, a.displayName) : ''),
     data: { configId: id, displayName: a.displayName, opened: launch?.ok ?? false },
   };

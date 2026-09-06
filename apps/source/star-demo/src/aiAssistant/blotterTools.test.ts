@@ -60,13 +60,15 @@ const SINGLETON = {
 function fakeConfigManager(gridLevelData: unknown = null) {
   const loadGridLevelData = vi.fn().mockResolvedValue(gridLevelData);
   const saveGridLevelData = vi.fn().mockResolvedValue(undefined);
+  const saveProfile = vi.fn().mockResolvedValue(undefined);
   return {
     configManager: {
-      profiles: { loadGridLevelData, saveGridLevelData, list: vi.fn().mockResolvedValue([]), save: vi.fn().mockResolvedValue(undefined) },
+      profiles: { loadGridLevelData, saveGridLevelData, list: vi.fn().mockResolvedValue([]), save: saveProfile },
       findByComponentType: vi.fn().mockResolvedValue([]),
     } as unknown as ConfigManager,
     loadGridLevelData,
     saveGridLevelData,
+    saveProfile,
   };
 }
 
@@ -79,11 +81,17 @@ beforeEach(() => {
   mockReloadOpenComponents.mockReset().mockResolvedValue(0);
 });
 
+/** createBlotter only reads a provider's columnDefinitions for the layout
+ *  blueprint; these tests bind no provider, so nothing is asked of it. */
+function fakeConfigStore() {
+  return { get: vi.fn(async () => undefined) } as unknown as Parameters<typeof createBlotter>[1];
+}
+
 describe('create_blotter — template-backed', () => {
   it('registers the component as a singleton whose row is its template', async () => {
     const { configManager, saveGridLevelData } = fakeConfigManager();
 
-    const result = await createBlotter(configManager, 'Star-Demo', { displayName: 'Credit', openNow: false });
+    const result = await createBlotter(configManager, fakeConfigStore(), 'Star-Demo', { displayName: 'Credit', openNow: false });
 
     expect(result.ok).toBe(true);
     expect(mockAddRegistryEntry).toHaveBeenCalledWith(expect.objectContaining({ singleton: true }));
@@ -203,7 +211,7 @@ describe('configId is the identifier the assistant hands out and takes back', ()
 
   it('create_blotter returns the configId and tells the model to keep using it', async () => {
     const { configManager } = fakeConfigManager();
-    const result = await createBlotter(configManager, 'Star-Demo', { displayName: 'Rates Book', openNow: false });
+    const result = await createBlotter(configManager, fakeConfigStore(), 'Star-Demo', { displayName: 'Rates Book', openNow: false });
     expect(result.ok).toBe(true);
     expect(result.data).toMatchObject({ configId: 'grid-rates-book', displayName: 'Rates Book' });
     expect(result.summary).toContain('configId=grid-rates-book');
@@ -239,5 +247,89 @@ describe('configId is the identifier the assistant hands out and takes back', ()
     expect(result.ok).toBe(true);
     expect(removeRegistryEntry).toHaveBeenCalledWith('grid-credit');
     expect(result.summary).toContain('configId grid-credit');
+  });
+});
+
+/**
+ * A new blotter opens laid out, not as a schema dump. The conventions
+ * themselves are pinned in `blotterBlueprint.test.ts`; these assert the
+ * blueprint actually REACHES a blotter the assistant creates.
+ */
+describe('create_blotter — fixed-income layout', () => {
+  function storeWith(fields: string[]) {
+    return {
+      get: vi.fn(async () => ({
+        name: 'Feed',
+        config: { columnDefinitions: fields.map((field) => ({ field })) },
+      })),
+    } as unknown as Parameters<typeof createBlotter>[1];
+  }
+
+  it('seeds column customization and header bands from the provider columns', async () => {
+    const { configManager, saveProfile } = fakeConfigManager();
+    const res = await createBlotter(
+      configManager,
+      storeWith(['dailyPnL', 'cusip', 'maturityDate', 'marketValue', 'ticker']),
+      'Star-Demo',
+      { displayName: 'Credit', providerId: 'p-1', openNow: false },
+    );
+    expect(res.ok).toBe(true);
+    expect(saveProfile).toHaveBeenCalledTimes(1);
+
+    const [, snapshot, options] = saveProfile.mock.calls[0] as [
+      unknown,
+      { state: Record<string, { data: Record<string, unknown> }> },
+      { changedModuleIds: string[] },
+    ];
+    const assignments = snapshot.state['column-customization'].data.assignments as Record<string, Record<string, unknown>>;
+    // Numerics right-aligned, identity pinned — the two conventions that make
+    // a blotter readable at a glance.
+    expect(assignments.marketValue).toMatchObject({ initialWidth: 140 });
+    expect(assignments.cusip).toMatchObject({ initialPinned: 'left' });
+    expect(snapshot.state['column-groups'].data.groups).toBeInstanceOf(Array);
+    expect(options.changedModuleIds).toEqual(['column-customization', 'column-groups']);
+  });
+
+  it('says in the summary what layout it applied', async () => {
+    const { configManager } = fakeConfigManager();
+    const res = await createBlotter(configManager, storeWith(['cusip', 'ticker', 'dailyPnL']), 'Star-Demo', {
+      displayName: 'Credit', providerId: 'p-1', openNow: false,
+    });
+    expect(res.summary).toContain('right-aligned');
+    expect(res.summary).toContain('dd-mmm-yy');
+  });
+
+  it('creates the blotter anyway when there is no provider to lay out', async () => {
+    const { configManager, saveProfile } = fakeConfigManager();
+    const res = await createBlotter(configManager, fakeConfigStore(), 'Star-Demo', {
+      displayName: 'Empty', openNow: false,
+    });
+    expect(res.ok).toBe(true);
+    expect(saveProfile).not.toHaveBeenCalled();
+  });
+
+  /** A layout is an improvement, never a precondition. */
+  it('creates the blotter even if laying it out throws', async () => {
+    const { configManager } = fakeConfigManager();
+    const exploding = { get: vi.fn(async () => { throw new Error('boom'); }) } as unknown as Parameters<typeof createBlotter>[1];
+    const res = await createBlotter(configManager, exploding, 'Star-Demo', {
+      displayName: 'Resilient', providerId: 'p-1', openNow: false,
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  /**
+   * A blotter is the thing the user works in: its own window they can size,
+   * move to a second monitor and save into a workspace. Not negotiable, and
+   * not an argument the model can pass.
+   */
+  it('always registers as a standalone workspace window', async () => {
+    const { configManager } = fakeConfigManager();
+    await createBlotter(configManager, fakeConfigStore(), 'Star-Demo', {
+      displayName: 'Win', openNow: false,
+      // Even if a caller tries to force a docked view.
+      asWindow: false,
+    } as Record<string, unknown>);
+    expect(mockAddRegistryEntry).toHaveBeenCalledWith(expect.objectContaining({ asWindow: true }));
   });
 });

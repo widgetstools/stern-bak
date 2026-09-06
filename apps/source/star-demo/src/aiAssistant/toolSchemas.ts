@@ -140,7 +140,7 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
     type: 'function',
     function: {
       name: 'create_blotter',
-      description: 'Create a new MarketsGrid blotter: registers it as a launchable, TEMPLATE-BACKED component (hosted at the /#/blotters/marketsgrid route) and files it under the "Assets" dropdown menu on the dock. Optionally binds a data provider so it shows data immediately. The component has one config row — its template — which the open window reads and writes, so later edits persist to the template, apply live, and re-opening focuses the existing window instead of making a copy.',
+      description: 'Create a new MarketsGrid blotter: registers it as a launchable, TEMPLATE-BACKED component (hosted at the /#/blotters/marketsgrid route) and files it under the "Assets" dropdown menu on the dock. Optionally binds a data provider so it shows data immediately. The component has one config row — its template (isTemplate: true) — which the open window reads and writes, so later edits persist to the template, apply live, and re-opening focuses the existing window instead of making a copy. It ALWAYS opens as its own standalone workspace window, and when a provider is bound it ALWAYS opens with a fixed-income layout already applied: sections in reading order (identity → instrument → pricing → yield & spread → risk → credit → position → P&L), identity columns frozen left, every numeric right-aligned in tabular figures, dates as dd-mmm-yy, spreads in bp, prices to 3dp and P&L coloured by sign. Do NOT follow this with a run of set_column_layout / set_column_style calls to "tidy it up" — it is already laid out; change only what the user actually asks for.',
       parameters: {
         type: 'object',
         properties: {
@@ -151,7 +151,6 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
             type: 'string',
             description: 'Dock dropdown menu to file it under. Defaults to "Assets" — leave it unset unless the user names a different menu. The menu is created if it does not exist yet. Pass "" to give it its own top-level dock button instead.',
           },
-          asWindow: { type: 'boolean', description: 'true (default) opens it as its own OpenFin window; false docks it as a view in the workspace window.' },
           openNow: {
             type: 'boolean',
             description: 'Open the blotter on screen as soon as it is created. Defaults to TRUE — the user should see the thing they asked for, not have to hunt for it on the dock. Pass false only when they explicitly asked you to just set it up for later.',

@@ -711,7 +711,7 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
     case 'reload_grid':
       return reloadGrid(ctx.configManager, args);
     case 'create_blotter':
-      return createBlotter(ctx.configManager, ctx.appId, args);
+      return createBlotter(ctx.configManager, ctx.configStore, ctx.appId, args);
     case 'open_blotter':
       return openBlotter(args);
     case 'open_analysis_window':

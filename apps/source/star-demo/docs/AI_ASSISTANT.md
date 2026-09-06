@@ -537,6 +537,51 @@ Defaults lean toward being heard and not being a firehose: all three channels
 5s debounce rather than the module's 1s, because a threshold stays true for as
 long as the price does and would otherwise re-fire on every tick.
 
+### A new blotter opens laid out, not as a schema dump
+
+`create_blotter` seeds a fixed-income layout into the template's profile
+(`blotterBlueprint.ts`). Without it a blotter opened in whatever order the feed
+listed its fields, every number left-aligned at whatever precision arrived,
+dates in the browser locale, nothing pinned.
+
+Each column is classified by name into a **role** (identifier, price, yield,
+spreadBps, duration, quantity, money, pnl, date, …) and a **section**; sections
+order the columns and become nested header bands. The conventions are not
+preferences — two of them make a screen wrong rather than merely plain:
+
+| | Convention | Why |
+|---|---|---|
+| Numerics | **right-aligned**, tabular figures | puts units/tens/hundreds in one screen column, so magnitude reads by eye |
+| Identity | **frozen left** (max 3) | 40+ columns is normal; scroll right and the row loses its identity |
+| Dates | **`dd-mmm-yy`**, never numeric | `04/05/26` is two different days depending on the reader — and bonds settle on specific days |
+| Spreads | **basis points**, 1dp | `0.0142` is unreadable to someone whose day is expressed in bp |
+| Yields / coupons | percent, 3dp | |
+| Prices | 3dp per 100 par | 2dp loses information a trader uses on size (tick formats exist for 32nds) |
+| Quantities | thousands separators, 0dp | `25000000` vs `25,000,000` |
+| P&L | green/red by sign | the first question is which way, not how much |
+| MBS factor | 8dp | |
+
+Ordering traps the patterns handle explicitly, each with a test:
+`spreadDuration` is a **duration**, not a spread; `priceChangePct` a
+**percent**, not a price; `issuerSector` and `securityType` are **categories**,
+not names; and `tradeId` is an **identifier** while `bid` is a price — which is
+why the id pattern requires a camelCase boundary rather than matching `id$`.
+
+Alignment is written to **both** theme slots, because it does not vary by theme
+and writing one means a theme flip drops it.
+
+It is a starting layout, not a house style: everything is an ordinary
+`column-customization` / `column-groups` assignment, so the user can change any
+of it afterwards and nothing re-asserts itself. A provider that cannot be read
+is not fatal — the blotter is created without a layout rather than not at all.
+
+**Two guarantees, not arguments.** Every blotter the assistant creates is a
+TEMPLATE component (`isTemplate: true`, `singleton: true`) and ALWAYS opens as
+its own standalone workspace window. `asWindow` was removed from the tool
+schema rather than left as an option a model could talk itself out of — a
+docked view also has no stable window name, which is what
+`reloadOpenComponents` matches on, so a provider change could never reach it.
+
 ### Nested JSON feeds
 
 A feed whose rows are nested — `{ tradeId, issuer: { name, sector }, risk: { pv01 } }`
