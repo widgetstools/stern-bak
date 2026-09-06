@@ -287,6 +287,16 @@ export async function addDockButton(opts: {
    */
   group?: string;
   /**
+   * Label of a sub-menu INSIDE `group` to file this under (matched
+   * case-insensitively, created if absent). Requires `group`.
+   *
+   * `DockMenuItemConfig.options` nests, so "Assets → Dashboards → Trader
+   * Dashboard" is one dropdown holding one menu item holding the launcher.
+   * Without this every dashboard sat directly under Assets alongside the
+   * blotters, which is where a dock stops being navigable.
+   */
+  subGroup?: string;
+  /**
    * Allow writing a dock config when none exists yet. Defaults to FALSE and
    * should stay that way for background/bootstrap callers.
    *
@@ -339,8 +349,27 @@ export async function addDockButton(opts: {
     const target = existing.find(
       (b): b is DockDropdownButtonConfig => b.type === 'DropdownButton' && sameLabel(b.tooltip, group),
     );
+    // A sub-menu is a menu ITEM that carries `options` instead of an action —
+    // the same shape one level down, so nesting needs no new config type.
+    const place = (options: DockMenuItemConfig[]): DockMenuItemConfig[] => {
+      if (!opts.subGroup) return [...options, item];
+      const sub = options.find((o) => sameLabel(o.tooltip, opts.subGroup!));
+      return sub
+        ? options.map((o) =>
+            o === sub ? { ...sub, options: [...(sub.options ?? []), item] } : o,
+          )
+        : [
+            ...options,
+            {
+              id: crypto.randomUUID(),
+              tooltip: opts.subGroup,
+              iconId: 'lucide:layout-dashboard',
+              options: [item],
+            },
+          ];
+    };
     buttons = target
-      ? existing.map((b) => (b === target ? { ...target, options: [...target.options, item] } : b))
+      ? existing.map((b) => (b === target ? { ...target, options: place(target.options) } : b))
       : [
           ...existing,
           {
@@ -350,7 +379,7 @@ export async function addDockButton(opts: {
             iconUrl: '',
             iconId: 'lucide:folder',
             iconColor: '',
-            options: [item],
+            options: place([]),
           },
         ];
   } else {

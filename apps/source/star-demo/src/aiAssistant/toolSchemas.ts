@@ -1135,6 +1135,46 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'save_dashboard',
+      description:
+        "KEEP a dashboard: persist the report spec, register it as a launchable component, and file it on the dock under Assets → Dashboards → <name>, so the user reopens it from there any time. Use it whenever a dashboard is worth coming back to — create_live_report alone opens a window from a ten-minute handoff, so closing that window loses it. Takes the same `spec` create_live_report takes.",
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'What to call it on the dock, e.g. "Trader Dashboard".' },
+          spec: { type: 'object', description: 'The report spec — same shape as create_live_report.' },
+          addToDock: { type: 'boolean', description: 'File it under Assets → Dashboards. Defaults to true.' },
+          openNow: { type: 'boolean', description: 'Open it as soon as it is saved. Defaults to true.' },
+        },
+        required: ['name', 'spec'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_dashboards',
+      description: 'The dashboards saved on the dock, with the id each one is addressed by. Use it before saving (to avoid a duplicate name) or when the user asks what dashboards exist.',
+      parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_dashboard',
+      description: 'Remove a saved dashboard: its dock entry, its registry entry and its stored spec. Call list_dashboards first if the id is not already known — deleting the wrong one cannot be undone.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'The dashboard id from list_dashboards.' } },
+        required: ['id'],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];

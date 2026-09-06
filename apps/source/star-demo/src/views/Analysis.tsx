@@ -30,6 +30,7 @@ import { useDataServices, useDataProvider } from '@wellsfargo-starui/react/data/
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 import { readHandoff, type AnalysisHandoff, listAnalysisWindows, reopenAnalysisWindow } from '../analysisPopout';
+import { readDashboardSpec } from '../aiAssistant/dashboardTools';
 import { resolveGridEntry, resolveGridForInstance } from '../aiAssistant/gridProfiles';
 import { fetchGridRows, type DataHubClient, type RowSet } from '../aiAssistant/dataAccess';
 import { createLiveRowSource, type LiveRowSource } from '@wellsfargo-starui/grid';
@@ -66,6 +67,10 @@ function specFrom(payload: AnalysisHandoff): { spec: ReportSpec | null; error?: 
 function Analysis() {
   const [params] = useSearchParams();
   const handoffId = params.get('handoff') ?? undefined;
+  // A SAVED dashboard, opened from its dock button. Unlike a handoff — which
+  // lives in localStorage for ten minutes — this is a config row, so the
+  // window can be closed and reopened days later.
+  const dashboardId = params.get('dashboard') ?? undefined;
   const gridParam = params.get('grid') ?? undefined;
   const instanceParam = params.get('instance') ?? undefined;
   const nameParam = params.get('name') ?? undefined;
@@ -79,10 +84,25 @@ function Analysis() {
   const configManager = platform?.configManager;
 
   const handoff = useMemo(() => (handoffId ? readHandoff(handoffId) : null), [handoffId]);
-  const { spec, error: specError } = useMemo(
-    () => (handoff ? specFrom(handoff.payload) : { spec: null, error: undefined }),
-    [handoff],
-  );
+  const [savedSpec, setSavedSpec] = useState<ReportSpec | null>(null);
+  const [savedError, setSavedError] = useState<string | undefined>();
+  useEffect(() => {
+    if (!dashboardId || !configManager) return;
+    let cancelled = false;
+    void readDashboardSpec(configManager, dashboardId).then((found) => {
+      if (cancelled) return;
+      if (found) setSavedSpec(found);
+      else setSavedError(`No saved dashboard "${dashboardId}" — it may have been deleted.`);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardId, configManager]);
+
+  const { spec, error: specError } = useMemo(() => {
+    if (dashboardId) return { spec: savedSpec, error: savedError };
+    return handoff ? specFrom(handoff.payload) : { spec: null, error: undefined };
+  }, [dashboardId, savedSpec, savedError, handoff]);
 
   const [rowSet, setRowSet] = useState<RowSet | null>(null);
   const [error, setError] = useState<string | undefined>(specError);

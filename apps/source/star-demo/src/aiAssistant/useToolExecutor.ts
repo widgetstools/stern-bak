@@ -75,6 +75,7 @@ import { captureBaseline, compareToBaseline, listBaselines, explainChange } from
 import { queryAcrossBlotters } from './portfolioTools';
 import { setDeskContext, addLimit, checkLimits, listLimits, removeLimit } from './deskTools';
 import { morningBrief } from './briefTools';
+import { saveDashboard, listDashboards, deleteDashboard } from './dashboardTools';
 import { simulateChange } from './simulateTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
@@ -660,6 +661,12 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return createAlert(ctx.configManager, ctx.configStore, args);
     case 'simulate_change':
       return simulateChange({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
+    case 'save_dashboard':
+      return saveDashboard(ctx.configManager, ctx.appId, args);
+    case 'list_dashboards':
+      return listDashboards(ctx.configManager);
+    case 'delete_dashboard':
+      return deleteDashboard(ctx.configManager, args);
     case 'morning_brief':
       return morningBrief({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'set_desk_context':

@@ -372,3 +372,81 @@ describe('removeDockButtons / renameDockButtons reach into menus', () => {
     expect(mockSaveDockConfig).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `Assets → Dashboards → <name>`. `DockMenuItemConfig.options` nests, so a
+ * sub-menu is a menu item carrying options instead of an action — no new
+ * config type is needed, and a dock that grew a top-level entry per dashboard
+ * would stop being navigable.
+ */
+describe('addDockButton — nested sub-menus', () => {
+  interface Menu { tooltip: string; options?: Menu[]; customData?: unknown }
+
+  function savedButtons(): Menu[] {
+    return (mockSaveDockConfig.mock.calls.at(-1)![0] as { buttons: Menu[] }).buttons;
+  }
+
+  it('creates the group and the sub-menu when neither exists', async () => {
+    mockLoadDockConfig.mockResolvedValue({ version: 1, buttons: [] });
+    await addDockButton({
+      registryEntryId: 'dashboard-trader', tooltip: 'Trader Dashboard',
+      group: 'Assets', subGroup: 'Dashboards',
+    });
+
+    const assets = savedButtons()[0];
+    expect(assets.tooltip).toBe('Assets');
+    const dashboards = assets.options![0];
+    expect(dashboards.tooltip).toBe('Dashboards');
+    expect(dashboards.options![0]).toMatchObject({
+      tooltip: 'Trader Dashboard',
+      customData: { registryEntryId: 'dashboard-trader' },
+    });
+  });
+
+  it('files a second dashboard into the SAME sub-menu rather than a second one', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [
+        {
+          type: 'DropdownButton', id: 'a', tooltip: 'Assets', iconUrl: '',
+          options: [{ id: 'd', tooltip: 'Dashboards', options: [{ id: 'x', tooltip: 'Dashboard-1' }] }],
+        },
+      ],
+    });
+    await addDockButton({
+      registryEntryId: 'dashboard-2', tooltip: 'Dashboard-2',
+      group: 'Assets', subGroup: 'Dashboards',
+    });
+
+    const dashboards = savedButtons()[0].options!;
+    expect(dashboards).toHaveLength(1);
+    expect(dashboards[0].options!.map((o) => o.tooltip)).toEqual(['Dashboard-1', 'Dashboard-2']);
+  });
+
+  /** Blotters go directly under Assets; dashboards go one level deeper. */
+  it('leaves a group without a subGroup flat, as blotters are', async () => {
+    mockLoadDockConfig.mockResolvedValue({ version: 1, buttons: [] });
+    await addDockButton({ registryEntryId: 'grid-credit', tooltip: 'Credit', group: 'Assets' });
+
+    const assets = savedButtons()[0];
+    expect(assets.options![0]).toMatchObject({ tooltip: 'Credit' });
+    expect(assets.options![0].options).toBeUndefined();
+  });
+
+  it('adds a dashboard alongside blotters already filed under Assets', async () => {
+    mockLoadDockConfig.mockResolvedValue({
+      version: 1,
+      buttons: [
+        { type: 'DropdownButton', id: 'a', tooltip: 'Assets', iconUrl: '', options: [{ id: 'b', tooltip: 'Credit Blotter' }] },
+      ],
+    });
+    await addDockButton({
+      registryEntryId: 'dashboard-1', tooltip: 'Dashboard-1',
+      group: 'Assets', subGroup: 'Dashboards',
+    });
+
+    const options = savedButtons()[0].options!;
+    expect(options.map((o) => o.tooltip)).toEqual(['Credit Blotter', 'Dashboards']);
+    expect(options[1].options![0].tooltip).toBe('Dashboard-1');
+  });
+});

@@ -383,6 +383,44 @@ Shares can exceed 100%: when contributions offset, one group's `+30` against a
 net `+20` is genuinely 150% of the move. That is real and worth seeing, so it is
 not clamped.
 
+### Saved dashboards — Assets → Dashboards → <name>
+
+`create_live_report` opens a window from a handoff written to `localStorage`
+with a **ten-minute TTL**. That is right for "show me this now" and useless for
+"keep this": close the window and the dashboard is gone with no link back.
+
+`save_dashboard` makes it three ordinary things the platform already does:
+
+1. the `ReportSpec` persisted as its own config row (`dashboard-spec::<id>`),
+2. a Component Registry entry whose `hostUrl` carries `?dashboard=<id>`, so the
+   existing launcher opens it like any other component — no new launch path,
+3. a dock button under **Assets → Dashboards → \<name\>**.
+
+Nothing here is a new mechanism, which is the point: a dashboard becomes a
+component, and everything that already works for components works for it.
+`delete_dashboard` removes all three — leaving any one behind gives a menu
+entry that opens an empty window.
+
+The nesting uses `DockMenuItemConfig.options`, which has always supported it: a
+sub-menu is a menu ITEM carrying options instead of an action. Blotters stay
+flat under Assets; dashboards go one level deeper, because a dock that grows a
+top-level entry per dashboard stops being navigable.
+
+### Blocks size themselves
+
+- **Tables bound their height and scroll inside the block** (`maxHeight`,
+  default 320px, clamped 120–900). A hundred-row result used to grow to its
+  row count, push everything below it off the page and stretch its whole
+  region — taking the charts beside it with it.
+- **Side rails are sized by what they hold.** A fixed 220–300px is right for
+  commentary and stacked stats and far too narrow for a table, which then
+  showed its first column and clipped the rest; a rail holding a table gets
+  320–420px.
+- **KPI figures compact rather than truncate.** A headline number set at
+  19–26px in a fraction of a rail rendered `12,547,64…` — an ellipsis where the
+  answer should be. Anything long enough to clip becomes `12.55M`, with the
+  exact value on the element's title.
+
 ### The analysis window is pushed, not polled
 
 `open_analysis_window` and `create_live_report` open a standalone window that

@@ -127,6 +127,13 @@ export interface ChartBlock extends BlockBase {
 export interface TableBlock extends BlockBase {
   kind: 'table';
   query: DataQuery;
+  /**
+   * Visible height in px before the rows scroll inside the block. Defaults to
+   * a bounded height: a table that grows to its row count pushes everything
+   * below it off the page and stretches its whole region, taking the charts
+   * beside it with it.
+   */
+  maxHeight?: number;
   /** Shade cells by magnitude, the way the summary panel's heatmap widget does. */
   heatmap?: boolean;
   /**
@@ -140,6 +147,8 @@ export interface TableBlock extends BlockBase {
 export interface PivotBlock extends BlockBase {
   kind: 'pivot';
   query: DataQuery;
+  /** Visible height in px before the rows scroll inside the block. */
+  maxHeight?: number;
   heatmap?: boolean;
   /**
    * Colour numeric cells by sign: positive numbers in green, negative in red.
@@ -392,7 +401,17 @@ function validateBlock(raw: unknown, index: number): BlockOutcome {
 
   return {
     ok: true,
-    value: { kind, ...common, query: query as DataQuery, heatmap: block.heatmap === true },
+    value: {
+      kind,
+      ...common,
+      query: query as DataQuery,
+      heatmap: block.heatmap === true,
+      // Clamped: a table tall enough to push the rest of the dashboard off the
+      // page is the thing this exists to prevent, and a 40px one shows nothing.
+      ...(typeof block.maxHeight === 'number' && Number.isFinite(block.maxHeight)
+        ? { maxHeight: Math.max(120, Math.min(900, Math.round(block.maxHeight))) }
+        : {}),
+    },
   };
 }
 

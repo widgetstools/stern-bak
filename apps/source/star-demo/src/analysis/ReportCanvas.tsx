@@ -25,6 +25,7 @@ import { cn } from '@wellsfargo-starui/react';
 import {
   buildChartSpec,
   formatValue,
+  formatCompact,
   runQuery,
   type ChartKind,
   type CommentaryBlock,
@@ -61,6 +62,19 @@ export interface ReportCanvasProps {
    * Omitted means "infer it from the spec" — the pre-existing behaviour.
    */
   liveness?: 'streaming' | 'polled' | 'static';
+}
+
+/**
+ * How much width a side rail gets, from what is in it.
+ *
+ * A fixed 220-300px is fine for commentary and stacked stats and far too
+ * narrow for a table, which then shows its first column and clips the rest.
+ * Tables and pivots are the wide case; everything else keeps the tighter
+ * track so the main region is not starved for a rail of prose.
+ */
+function railTrack(blocks: Array<{ block: ReportBlock; index: number }>): string {
+  const hasTable = blocks.some(({ block }) => block.kind === 'table' || block.kind === 'pivot');
+  return hasTable ? 'minmax(320px, 420px)' : 'minmax(220px, 300px)';
 }
 
 /**
@@ -101,6 +115,7 @@ function BlockTitle({ children }: { children: React.ReactNode }) {
 function Stat({
   label,
   value,
+  exact,
   tone,
   size = 'md',
   barFill,
@@ -108,6 +123,8 @@ function Stat({
 }: {
   label: string;
   value: string;
+  /** The unrounded figure, kept on the title so a compacted number is one hover from exact. */
+  exact?: string;
   tone?: 'positive' | 'negative';
   size?: 'sm' | 'md' | 'lg';
   /** Bar fill as a fraction 0-1, when a bar should render. */
@@ -124,8 +141,9 @@ function Stat({
 
   return (
     <div className="min-w-0">
-      <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground truncate">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground truncate" title={label}>{label}</div>
       <div
+        title={exact ?? value}
         className={cn(
           'font-mono tabular-nums leading-none mt-1 truncate',
           size === 'lg' && 'text-[26px]',
@@ -177,6 +195,26 @@ function readTile(row: Record<string, unknown> | undefined, tile: KpiTile): { ra
 }
 
 /**
+ * The figure a KPI tile shows.
+ *
+ * A headline number is set at 19-26px in a tile that may be a fraction of a
+ * side rail, so an exact `12,547,648.32` does not fit and renders as
+ * `12,547,64…` — an ellipsis where the answer should be, which is worse than a
+ * rounded number. Anything long enough to clip is compacted to `12.55M`
+ * instead, and the exact value is kept on the element's title so it is one
+ * hover away rather than gone.
+ */
+const MAX_STAT_CHARS = 9;
+
+function statValue(colId: string, raw: unknown): string {
+  if (raw === undefined || raw === null) return '—';
+  const exact = formatValue(colId, raw);
+  if (exact.length <= MAX_STAT_CHARS) return exact;
+  const compact = formatCompact(raw);
+  return compact.length < exact.length ? compact : exact;
+}
+
+/**
  * Reads each tile's number off the block's own query result.
  *
  * A KPI is never a number the model typed — it is a number the engine
@@ -218,7 +256,8 @@ function Kpis({ block, result }: { block: KpiBlock; result: QueryResult | null }
           <Stat
             key={`${tile.label}-${tile.column}`}
             label={tile.label}
-            value={raw === undefined || raw === null ? '—' : formatValue(colId, raw)}
+            value={statValue(colId, raw)}
+            exact={raw === undefined || raw === null ? undefined : formatValue(colId, raw)}
             tone={tile.signed && numeric !== undefined ? (numeric < 0 ? 'negative' : 'positive') : undefined}
             size="lg"
             barFill={barFill}
@@ -293,6 +332,15 @@ function BlockBody({
       // stay frozen while the pivoted ones scroll.
       const pivot = result.pivot;
       return (
+        // A table BOUNDS itself rather than growing to its row count. A
+        // hundred-row result used to push everything below it off the page and
+        // stretch its whole region, so the charts beside it went with it. The
+        // scroll is inside the block; the dashboard's own height stays the
+        // dashboard's.
+        <div
+          className="overflow-auto rounded-sm border border-border/40"
+          style={{ maxHeight: block.maxHeight ?? 320 }}
+        >
         <AnalysisTable
           columns={result.columns}
           rows={result.rows}
@@ -301,6 +349,7 @@ function BlockBody({
           stickyLeadingCols={pivot?.rowDims.length}
           valueColId={pivot?.measures[0]}
         />
+        </div>
       );
     }
     default:
@@ -426,11 +475,14 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, l
         className="grid gap-x-10 gap-y-8 items-start"
         style={{
           // The rails only take space when they hold something, so a
-          // main-only report is not three columns with two empty.
+          // main-only report is not three columns with two empty. They are
+          // also sized by WHAT they hold: a table needs room for its columns,
+          // and a 220px rail clipped every one after the first — the cure for
+          // which is width, not a smaller font.
           gridTemplateColumns: [
-            byRegion.left.length ? 'minmax(220px, 300px)' : '',
+            byRegion.left.length ? railTrack(byRegion.left) : '',
             'minmax(0, 1fr)',
-            byRegion.right.length ? 'minmax(200px, 280px)' : '',
+            byRegion.right.length ? railTrack(byRegion.right) : '',
           ]
             .filter(Boolean)
             .join(' '),
