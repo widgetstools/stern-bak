@@ -409,6 +409,19 @@ Two details:
   live array is stable by reference, so an identity-keyed memo would never
   invalidate and the report would freeze at its first render. A test pins this
   by counting real calls into the query engine.
+- **Every block is live; commentary is not.** `kpis`, `lanes`, `chart`, `table`
+  and `pivot` all read the memoised per-block result, so they update together
+  on each version bump. `commentary` is authored prose and is deliberately
+  skipped by the query pass — it is the one block that does not move.
+- **The "ran at" stamp moves with the data.** Left at the value the initial
+  fetch set, a pushed dashboard showed the time the WINDOW opened beside
+  numbers from an hour later; a stale timestamp next to live figures is worse
+  than none. A model-supplied `asOf` is pegged to a moment on purpose and is
+  never overwritten.
+- **The badge says how the numbers actually arrive** — `live · streaming` when
+  pushed, `live · every Ns` only when genuinely polling, nothing when static.
+  It used to key off `spec.refreshMs`, which stopped meaning anything once the
+  window subscribed: a genuinely live report showed no indicator at all.
 - **A backgrounded window does no work.** It is its own OpenFin window, so
   `document.visibilityState` is the whole story: minimised or behind another
   window means nobody is reading it, and it syncs to the current version the

@@ -233,7 +233,15 @@ function Analysis() {
     // OpenFin window, so `document.visibilityState` is the whole story —
     // minimised or behind another window means nobody is reading it, and the
     // moment it comes back it syncs to the current version.
-    const sync = () => setLiveVersion(liveSource.getVersion());
+    const sync = () => {
+      setLiveVersion(liveSource.getVersion());
+      // The "ran at" stamp has to move with the data. Left at the value
+      // `load()` set on mount, a pushed dashboard showed the time the WINDOW
+      // opened next to numbers from an hour later — a stale timestamp beside
+      // live figures is worse than no timestamp. A model-supplied `asOf` is
+      // deliberately pegged to a moment, so it is never overwritten.
+      if (!modelSuppliedAsOf) setRanAt(new Date());
+    };
     const onVisible = () => {
       if (document.visibilityState === 'visible') sync();
     };
@@ -246,7 +254,7 @@ function Analysis() {
       unsubscribe();
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [liveSource]);
+  }, [liveSource, modelSuppliedAsOf]);
 
   // The polling fallback, for a blotter with no bound live provider — which
   // still renders (fetchGridRows allows sample rows). Disabled entirely once a
@@ -393,6 +401,7 @@ function Analysis() {
             rowsVersion={effectiveVersion}
             provenance={effectiveProvenance}
             ranAt={ranAt}
+            liveness={liveSource ? 'streaming' : spec?.refreshMs ? 'polled' : 'static'}
           />
         ) : (
           <p className="p-8 text-sm text-muted-foreground">Loading…</p>

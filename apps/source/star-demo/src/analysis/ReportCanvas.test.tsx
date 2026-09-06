@@ -256,3 +256,37 @@ describe('live rows', () => {
     expect(runQuerySpy).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * The badge has to describe how the numbers actually arrive. It used to key
+ * off `spec.refreshMs`, which stopped meaning anything once the window
+ * subscribed to the provider: a genuinely live report showed NO indicator (it
+ * has no refreshMs), and a polled one claimed a cadence whether or not that
+ * was what was happening.
+ */
+describe('liveness badge', () => {
+  const SPEC = { title: 'R', blocks: [] } as unknown as Parameters<typeof ReportCanvas>[0]['spec'];
+  const POLLED = { title: 'R', refreshMs: 5000, blocks: [] } as unknown as Parameters<typeof ReportCanvas>[0]['spec'];
+
+  it('says streaming when rows are pushed', () => {
+    render(<ReportCanvas spec={SPEC} rows={[]} liveness="streaming" />);
+    expect(screen.getByText(/live · streaming/i)).toBeInTheDocument();
+  });
+
+  it('says the cadence when it really is polling', () => {
+    render(<ReportCanvas spec={POLLED} rows={[]} liveness="polled" />);
+    expect(screen.getByText(/live · every 5s/i)).toBeInTheDocument();
+  });
+
+  it('claims nothing when the report is static', () => {
+    render(<ReportCanvas spec={SPEC} rows={[]} liveness="static" />);
+    expect(screen.queryByText(/live ·/i)).not.toBeInTheDocument();
+  });
+
+  /** A streaming report has no refreshMs, and must not fall back to silence. */
+  it('does not need refreshMs to show that it is live', () => {
+    render(<ReportCanvas spec={SPEC} rows={[]} liveness="streaming" />);
+    expect(screen.queryByText(/every/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/streaming/i)).toBeInTheDocument();
+  });
+});

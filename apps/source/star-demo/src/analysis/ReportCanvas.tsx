@@ -50,6 +50,17 @@ export interface ReportCanvasProps {
   /** Shown under the title — what these numbers are and when they ran. */
   provenance?: string;
   ranAt?: Date;
+  /**
+   * How the numbers arrive, so the badge tells the truth.
+   *
+   * The badge used to key off `spec.refreshMs`, which stopped meaning anything
+   * once the window subscribed to the provider: a genuinely live report showed
+   * NO live indicator (it has no refreshMs), and a report that still polled
+   * showed "live · every 5s" whether or not that was what was happening.
+   *
+   * Omitted means "infer it from the spec" — the pre-existing behaviour.
+   */
+  liveness?: 'streaming' | 'polled' | 'static';
 }
 
 /**
@@ -334,7 +345,12 @@ function Region({
   );
 }
 
-export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt }: ReportCanvasProps) {
+export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, liveness }: ReportCanvasProps) {
+  // Unspecified means "read it off the spec", which is what every caller did
+  // before this prop existed — so a caller that doesn't pass it keeps the old
+  // behaviour instead of silently losing its badge.
+  const howLive = liveness ?? (spec.refreshMs ? 'polled' : 'static');
+
   // Every non-commentary block runs its own query against the one row set —
   // up to 16 full-row queries, so this is the expensive part of a report.
   //
@@ -387,11 +403,15 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt }:
               ran {ranAt.toLocaleTimeString()}
             </span>
           )}
-          {spec.refreshMs && (
+          {howLive === 'streaming' ? (
+            <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60">
+              live · streaming
+            </span>
+          ) : howLive === 'polled' && spec.refreshMs ? (
             <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60">
               live · every {Math.round(spec.refreshMs / 1000)}s
             </span>
-          )}
+          ) : null}
         </div>
       </header>
 
