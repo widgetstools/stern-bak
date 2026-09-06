@@ -960,6 +960,41 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'query_across_blotters',
+      description:
+        "Run ONE analysis over every blotter at once and get a single result table — for portfolio-level questions a single blotter cannot answer: \"my total exposure across all my books\", \"which desk carries the most risk\", \"my biggest positions anywhere\". Same query shape as query_grid_data, but no targetGridId: it unions the rows first. Each row gains a `blotter` column naming where it came from, so groupBy: [\"blotter\"] breaks any total down by book. Use this instead of querying each blotter and adding the numbers up yourself — the arithmetic must happen in code. Blotters that cannot be read are reported and EXCLUDED, so read the summary before calling a total complete.",
+      parameters: {
+        type: 'object',
+        properties: {
+          gridIds: {
+            type: 'array', items: { type: 'string' },
+            description: 'Restrict to these blotter configIds. Omit for every registered blotter.',
+          },
+          columns: { type: 'array', items: { type: 'string' }, description: 'Columns to return. Ignored when groupBy is set.' },
+          groupBy: { type: 'array', items: { type: 'string' }, description: 'Group rows by these columns. Use "blotter" to break a total down by book.' },
+          pivotBy: { type: 'array', items: { type: 'string' }, description: 'Column dimension for a cross-tab. Needs groupBy and aggregate.' },
+          filter: {
+            type: 'array',
+            description: 'Filter clauses: [{ "column": "sector", "op": "eq", "value": "Tech" }]. Ops: eq, ne, gt, gte, lt, lte, contains, startsWith, in, between, isEmpty, notEmpty.',
+            items: { type: 'object' },
+          },
+          aggregate: {
+            type: 'array',
+            description: 'Aggregates: [{ "column": "marketValue", "fn": "sum", "as": "total" }]. Fns: sum, avg, min, max, count, countDistinct. Needs groupBy.',
+            items: { type: 'object' },
+          },
+          sortBy: { type: 'object', description: '{ "column": "...", "direction": "asc" | "desc" }.' },
+          limit: { type: 'number', description: 'Max rows returned. Default 50, max 500.' },
+          allowSample: { type: 'boolean', description: 'Permit generated sample rows for a blotter with no live feed. Off by default — sample rows are not the user\'s data.' },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];

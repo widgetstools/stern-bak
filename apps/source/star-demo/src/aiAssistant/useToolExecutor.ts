@@ -72,6 +72,7 @@ import {
 import { renameColumn, setColumnVisibility } from './simpleColumnTools';
 import { createAlert } from './alertTools';
 import { captureBaseline, compareToBaseline, listBaselines } from './baselineTools';
+import { queryAcrossBlotters } from './portfolioTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import type { DataHubClient } from './dataAccess';
@@ -654,6 +655,8 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return describeDataFields(ctx.configStore, args);
     case 'create_alert':
       return createAlert(ctx.configManager, ctx.configStore, args);
+    case 'query_across_blotters':
+      return queryAcrossBlotters({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'capture_baseline':
       return captureBaseline({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'compare_to_baseline':

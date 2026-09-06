@@ -318,6 +318,30 @@ since nothing about a probe's result is persisted beyond the columns actually
 chosen. `websocket`/`socketio` feeds still have no probe transport — that gap
 predates this and isn't something either tool builds.
 
+### Portfolio-level questions — `query_across_blotters`
+
+Every other data tool takes a single `targetGridId`, which is right for a trader
+on one book and wrong for whoever owns several. "What's my total exposure?",
+"which desk carries the risk?" could not be asked at all — the model's only
+option was to query each blotter in turn and add the numbers up in prose, which
+is exactly the arithmetic this codebase keeps out of the model.
+
+`runQuery` is pure and total, so the composition is easy: fetch each blotter,
+tag every row with a `blotter` column naming where it came from, union, and run
+one query. `groupBy: ["blotter"]` then breaks any total down by book. The
+argument shape is `query_grid_data`'s, minus `targetGridId`, so the model writes
+one kind of query and only changes which tool it calls.
+
+The care is all in being honest about the union:
+
+- **A blotter that cannot be read is named and EXCLUDED**, in the summary the
+  model reads as well as in the payload's provenance. A total that silently
+  omits a whole book still looks like a total.
+- **A name that means different columns on different blotters is refused.**
+  "Market Value" being `marketValue` on one and `mv` on another is the trap:
+  summing them into one number is wrong in a way that looks right, so it fails
+  with both candidates named rather than taking whichever came first.
+
 ### "What's changed since…" — baselines
 
 `query_grid_data` and `summarize_grid_data` both see exactly one snapshot: the

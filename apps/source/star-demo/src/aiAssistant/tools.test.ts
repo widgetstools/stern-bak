@@ -32,6 +32,7 @@ const DECLARED: ToolName[] = [
   'clear_column_style',
   'create_alert',
   'capture_baseline', 'compare_to_baseline', 'list_baselines',
+  'query_across_blotters',
 ];
 
 describe('the tool vocabulary and the wire schemas agree', () => {

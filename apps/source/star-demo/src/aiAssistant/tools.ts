@@ -49,6 +49,7 @@ export type ToolName =
   | 'update_conditional_styling_rule'
   | 'remove_conditional_styling_rule'
   | 'create_alert'
+  | 'query_across_blotters'
   | 'capture_baseline'
   | 'compare_to_baseline'
   | 'list_baselines'
