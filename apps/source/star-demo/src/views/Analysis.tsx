@@ -30,7 +30,7 @@ import { useDataServices, useDataProvider } from '@wellsfargo-starui/react/data/
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 import { readHandoff, type AnalysisHandoff, listAnalysisWindows, reopenAnalysisWindow } from '../analysisPopout';
-import { readDashboardSpec } from '../aiAssistant/dashboardTools';
+import { readDashboardSpec, saveDashboardLayout } from '../aiAssistant/dashboardTools';
 import { resolveGridEntry, resolveGridForInstance } from '../aiAssistant/gridProfiles';
 import { fetchGridRows, type DataHubClient, type RowSet } from '../aiAssistant/dataAccess';
 import { createLiveRowSource, type LiveRowSource } from '@wellsfargo-starui/grid';
@@ -422,6 +422,17 @@ function Analysis() {
             provenance={effectiveProvenance}
             ranAt={ranAt}
             liveness={liveSource ? 'streaming' : spec?.refreshMs ? 'polled' : 'static'}
+            // Editing is offered only where the result can be KEPT. An
+            // ephemeral analysis window has nowhere to write a layout back to,
+            // and handles that save nothing are worse than none.
+            onSaveLayout={
+              dashboardId && configManager
+                ? async (blocks) => {
+                    const saved = await saveDashboardLayout(configManager, dashboardId, blocks);
+                    if (saved) setSavedSpec((prev) => (prev ? { ...prev, blocks } : prev));
+                  }
+                : undefined
+            }
           />
         ) : (
           <p className="p-8 text-sm text-muted-foreground">Loading…</p>

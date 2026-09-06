@@ -90,6 +90,12 @@ interface BlockBase {
    * in "everything below here is risk" without reading a single number.
    */
   band?: string;
+  /**
+   * Rendered height in px, set by dragging the block's bottom edge. Clamped on
+   * read: below the floor a block shows nothing, above the ceiling it is
+   * taller than any screen and pushes the rest of the dashboard out of view.
+   */
+  height?: number;
 }
 
 export interface KpiBlock extends BlockBase {
@@ -297,7 +303,13 @@ function validateBlock(raw: unknown, index: number): BlockOutcome {
   const region = (REPORT_REGIONS as readonly string[]).includes(block.region as string)
     ? (block.region as ReportRegion)
     : 'main';
-  const common = { title, band, region } as const;
+  // Clamped on the way in, so a saved layout can never carry a height that
+  // hides the block or pushes the rest of the dashboard off the screen.
+  const height =
+    typeof block.height === 'number' && Number.isFinite(block.height)
+      ? Math.max(120, Math.min(900, Math.round(block.height)))
+      : undefined;
+  const common = { title, band, region, ...(height !== undefined ? { height } : {}) } as const;
 
   if (kind === 'commentary') {
     const text = typeof block.text === 'string' ? block.text.trim() : '';

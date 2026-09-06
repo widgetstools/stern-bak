@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { validateReportSpec, type ReportSpec } from '@wellsfargo-starui/data';
 
@@ -327,5 +327,66 @@ describe('legibility', () => {
   it('does not render label text below 10px', () => {
     const { container } = draw(TILES);
     expect(container.querySelectorAll('.text-\\[9px\\]')).toHaveLength(0);
+  });
+});
+
+/**
+ * Editing affordances. A dashboard is read far more often than it is
+ * rearranged, so nothing appears until it is asked for — and the save/undo
+ * pair appears only once there is a change to keep or discard.
+ */
+describe('layout editing', () => {
+  const BLOCKS = [
+    { kind: 'commentary', text: 'One', title: 'A' },
+    { kind: 'commentary', text: 'Two', title: 'B' },
+  ];
+
+  it('renders no handles at all when the report is read-only', () => {
+    const { container } = draw(BLOCKS);
+    expect(container.querySelector('[draggable="true"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Drag to resize this block"]')).toBeNull();
+  });
+
+  it('offers a drag handle and a resize edge per block when editable', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    expect(container.querySelectorAll('[draggable="true"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[aria-label="Drag to resize this block"]')).toHaveLength(2);
+  });
+
+  it('shows nothing to save until something moves', () => {
+    draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    expect(screen.queryByLabelText('Save this layout')).toBeNull();
+    expect(screen.queryByLabelText('Discard layout changes')).toBeNull();
+  });
+
+  it('offers save and undo after a block is dropped somewhere new', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    const target = container.querySelectorAll('section')[1];
+    fireEvent.drop(target, { dataTransfer: { getData: () => '0' } });
+    expect(screen.getByLabelText('Save this layout')).toBeTruthy();
+    expect(screen.getByLabelText('Discard layout changes')).toBeTruthy();
+  });
+
+  it('hands the rearranged blocks to the caller on save', async () => {
+    const onSaveLayout = vi.fn();
+    const { container } = draw(BLOCKS, {}, { onSaveLayout });
+    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '0' } });
+    fireEvent.click(screen.getByLabelText('Save this layout'));
+    await waitFor(() => expect(onSaveLayout).toHaveBeenCalledTimes(1));
+    expect(onSaveLayout.mock.calls[0][0].map((b: { title: string }) => b.title)).toEqual(['B', 'A']);
+  });
+
+  it('puts the layout back, and hides the controls, on undo', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '0' } });
+    fireEvent.click(screen.getByLabelText('Discard layout changes'));
+    expect(screen.queryByLabelText('Save this layout')).toBeNull();
+  });
+
+  /** A card dropped on itself is not a change. */
+  it('ignores a drop onto the same block', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    fireEvent.drop(container.querySelectorAll('section')[0], { dataTransfer: { getData: () => '0' } });
+    expect(screen.queryByLabelText('Save this layout')).toBeNull();
   });
 });

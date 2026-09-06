@@ -406,6 +406,39 @@ sub-menu is a menu ITEM carrying options instead of an action. Blotters stay
 flat under Assets; dashboards go one level deeper, because a dock that grows a
 top-level entry per dashboard stops being navigable.
 
+### Rearranging a dashboard
+
+Blocks can be dragged between and within regions and resized by their bottom
+edge, on a **saved** dashboard only — an ephemeral analysis window has nowhere
+to write a layout back to, and a handle that saves nothing is worse than none.
+`ReportCanvas` grows the affordances only when given `onSaveLayout`; without
+it the canvas renders exactly as it always did.
+
+The affordances are deliberately quiet. Nothing shows until the pointer is
+over a block, and what appears then is a grip and a hairline — not a toolbar,
+which would be present all the time to say nothing most of the time. A
+dashboard is read far more often than it is rearranged.
+
+Four rules, in `useLayoutEditing`:
+
+- **Dragging is on the HANDLE, not the block.** A card that moves when you try
+  to select text in it is worse than one that cannot move.
+- **A layout change is a PROPOSAL.** The draft is never written on its own —
+  dragging a card by accident must not silently rewrite a dashboard other
+  people open. Save and undo appear only once something has moved.
+- **Dirty compares layout only** (kind, region, height, title). A live
+  dashboard's data changes constantly; "unsaved" must mean someone moved
+  something, not that a number ticked.
+- **Heights are clamped 120–900px**, on write and again on read. Below the
+  floor a block shows nothing; above the ceiling it pushes the rest of the
+  dashboard out of view.
+
+Saving writes only `blocks` back to the dashboard's config row — moving a card
+is not a licence to rewrite the report's title, cadence or queries. Native
+HTML5 drag and pointer events rather than a drag-and-drop dependency: pointer
+capture is also what keeps a resize working once the cursor leaves the 6px
+strip, which it does immediately.
+
 ### Blocks size themselves
 
 - **Tables bound their height and scroll inside the block** (`maxHeight`,

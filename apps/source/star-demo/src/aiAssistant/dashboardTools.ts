@@ -63,6 +63,35 @@ export async function readDashboardSpec(
   return outcome.ok ? outcome.value : null;
 }
 
+/**
+ * Write a rearranged layout back to a saved dashboard.
+ *
+ * Only the blocks change: everything else about the dashboard — its title,
+ * cadence, the queries each block runs — is left exactly as it was, because
+ * moving a card is not a licence to rewrite the report.
+ */
+export async function saveDashboardLayout(
+  configManager: ConfigManager,
+  id: string,
+  blocks: ReportSpec['blocks'],
+): Promise<boolean> {
+  const row = await configManager.getConfig(dashboardConfigId(id));
+  if (!row) return false;
+  const current = row.payload as unknown as ReportSpec;
+  const outcome = validateReportSpec({ ...current, blocks });
+  if (!outcome.ok) {
+    console.warn('[dashboard] rearranged layout failed validation, not saved:', outcome.error);
+    return false;
+  }
+  await configManager.saveConfig({
+    ...row,
+    payload: outcome.value as unknown as Record<string, unknown>,
+    updatedBy: LOGGED_IN_USER_ID,
+    updatedTime: new Date().toISOString(),
+  });
+  return true;
+}
+
 export async function saveDashboard(
   configManager: ConfigManager,
   appId: string,

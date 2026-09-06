@@ -20,7 +20,7 @@
  * Every block is trusted code chosen by name. The model composes the spec; it
  * never supplies markup, script or drawing instructions.
  */
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { cn } from '@wellsfargo-starui/react';
 import {
   buildChartSpec,
@@ -37,6 +37,11 @@ import {
   type ReportSpec,
 } from '@wellsfargo-starui/data';
 import { AnalysisTable, DataChart, LaneChart } from '@wellsfargo-starui/grid/customizer';
+import {
+  useLayoutEditing,
+  MIN_BLOCK_HEIGHT,
+  type BlockRegion,
+} from './useLayoutEditing';
 
 export interface ReportCanvasProps {
   spec: ReportSpec;
@@ -62,6 +67,115 @@ export interface ReportCanvasProps {
    * Omitted means "infer it from the spec" — the pre-existing behaviour.
    */
   liveness?: 'streaming' | 'polled' | 'static';
+  /**
+   * Supplying this makes the dashboard EDITABLE: blocks gain a drag handle and
+   * a resize edge, and the header gains save/undo once something moves.
+   * Omitted, the canvas renders exactly as before — a read-only report has no
+   * business growing handles.
+   */
+  onSaveLayout?: (blocks: ReportBlock[]) => void | Promise<void>;
+}
+
+/**
+ * One block, with the affordances to move and size it.
+ *
+ * Deliberately quiet: nothing shows until the pointer is over the block, and
+ * what appears then is a grip and a hairline, not a toolbar. A dashboard is
+ * read far more often than it is rearranged, so the editing surface must not
+ * compete with the numbers.
+ *
+ * Dragging is on the HANDLE, not the block — a card that moves when you try to
+ * select text in it is worse than one that cannot move at all.
+ */
+function EditableBlock({
+  index,
+  region,
+  height,
+  editable,
+  onDropBefore,
+  onResize,
+  children,
+}: {
+  index: number;
+  region: BlockRegion;
+  height?: number;
+  editable: boolean;
+  onDropBefore: (from: number, to: number, region: BlockRegion) => void;
+  onResize: (index: number, height: number) => void;
+  children: React.ReactNode;
+}) {
+  const [over, setOver] = useState(false);
+  const ref = useRef<HTMLElement | null>(null);
+
+  if (!editable) {
+    return (
+      <section className="min-w-0" style={height ? { height } : undefined}>
+        {children}
+      </section>
+    );
+  }
+
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = ref.current?.getBoundingClientRect().height ?? MIN_BLOCK_HEIGHT;
+    // Pointer capture, so the drag survives the cursor leaving the 6px strip —
+    // which it does immediately, since the strip moves with the block.
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const onMove = (ev: PointerEvent) => onResize(index, startH + (ev.clientY - startY));
+    const onUp = () => {
+      target.releasePointerCapture(e.pointerId);
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', onUp);
+    };
+    target.addEventListener('pointermove', onMove);
+    target.addEventListener('pointerup', onUp);
+  };
+
+  return (
+    <section
+      ref={ref}
+      className={cn(
+        'group/blk relative min-w-0 rounded-sm transition-colors',
+        over && 'outline outline-1 outline-dashed outline-[var(--ds-primary)]',
+      )}
+      style={height ? { height } : undefined}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const from = Number(e.dataTransfer.getData('text/block-index'));
+        if (Number.isInteger(from) && from !== index) onDropBefore(from, index, region);
+      }}
+    >
+      <div
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData('text/block-index', String(index));
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        title="Drag to move this block"
+        aria-label="Drag to move this block"
+        className="absolute -left-4 top-0 z-10 cursor-grab select-none px-1 text-[13px] leading-none text-muted-foreground/0 transition-colors group-hover/blk:text-muted-foreground/50 hover:!text-muted-foreground active:cursor-grabbing"
+      >
+        ⠿
+      </div>
+      <div className="h-full min-h-0 overflow-hidden">{children}</div>
+      <div
+        onPointerDown={startResize}
+        title="Drag to resize"
+        aria-label="Drag to resize this block"
+        className="absolute inset-x-0 -bottom-1 h-2 cursor-ns-resize"
+      >
+        <div className="mx-auto mt-[3px] h-px w-10 rounded bg-muted-foreground/0 transition-colors group-hover/blk:bg-muted-foreground/40" />
+      </div>
+    </section>
+  );
 }
 
 /**
@@ -362,10 +476,18 @@ function Region({
   blocks,
   results,
   className,
+  region,
+  editable,
+  onMove,
+  onResize,
 }: {
   blocks: Array<{ block: ReportBlock; index: number }>;
   results: Map<number, { result: QueryResult | null; error?: string }>;
   className?: string;
+  region: BlockRegion;
+  editable: boolean;
+  onMove: (from: number, to: number, region: BlockRegion) => void;
+  onResize: (index: number, height: number) => void;
 }) {
   if (blocks.length === 0) return null;
 
@@ -385,14 +507,22 @@ function Region({
           {run.band && <BandLabel label={run.band} />}
           <div className="flex flex-col gap-7 min-w-0 flex-1">
             {run.items.map(({ block, index }) => (
-              <section key={index} className="min-w-0">
+              <EditableBlock
+                key={index}
+                index={index}
+                region={region}
+                height={(block as { height?: number }).height}
+                editable={editable}
+                onDropBefore={onMove}
+                onResize={onResize}
+              >
                 {block.title && <BlockTitle>{block.title}</BlockTitle>}
                 <BlockBody
                   block={block}
                   result={results.get(index)?.result ?? null}
                   error={results.get(index)?.error}
                 />
-              </section>
+              </EditableBlock>
             ))}
           </div>
         </div>
@@ -401,7 +531,25 @@ function Region({
   );
 }
 
-export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, liveness }: ReportCanvasProps) {
+export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, liveness, onSaveLayout }: ReportCanvasProps) {
+  const editable = Boolean(onSaveLayout);
+  // The draft lives here so the canvas stays a function of the blocks it is
+  // handed; `useLayoutEditing` owns the rules and the dirty comparison.
+  const layout = useLayoutEditing(spec);
+  const [saving, setSaving] = useState(false);
+  const handleMove = layout.move;
+  const handleResize = layout.resize;
+
+  const handleSave = async () => {
+    if (!onSaveLayout || !layout.pending) return;
+    setSaving(true);
+    try {
+      await onSaveLayout(layout.pending);
+      layout.commit();
+    } finally {
+      setSaving(false);
+    }
+  };
   // Unspecified means "read it off the spec", which is what every caller did
   // before this prop existed — so a caller that doesn't pass it keeps the old
   // behaviour instead of silently losing its badge.
@@ -414,27 +562,30 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, l
   // place, so an identity-keyed memo would never invalidate and the report
   // would freeze at its first render. It also means a re-render that isn't
   // about data — a resize, a theme flip, a context-menu open — costs nothing.
+  // The draft while editing, the spec's own blocks otherwise.
+  const activeBlocks = layout.blocks;
+
   const results = useMemo(() => {
     const out = new Map<number, { result: QueryResult | null; error?: string }>();
-    spec.blocks.forEach((block, index) => {
+    activeBlocks.forEach((block, index) => {
       if (block.kind === 'commentary') return;
       const outcome = runQuery(rows, block.query);
       out.set(index, outcome.ok ? { result: outcome.value } : { result: null, error: outcome.error });
     });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows may be stable by reference; rowsVersion is the change signal
-  }, [spec, rowsVersion]);
+  }, [activeBlocks, rowsVersion]);
 
   const byRegion = useMemo(() => {
     const left: Array<{ block: ReportBlock; index: number }> = [];
     const main: Array<{ block: ReportBlock; index: number }> = [];
     const right: Array<{ block: ReportBlock; index: number }> = [];
-    spec.blocks.forEach((block, index) => {
+    activeBlocks.forEach((block, index) => {
       const bucket = block.region === 'left' ? left : block.region === 'right' ? right : main;
       bucket.push({ block, index });
     });
     return { left, main, right };
-  }, [spec]);
+  }, [activeBlocks]);
 
   return (
     <div className="w-full min-h-full bg-background text-foreground px-8 py-7">
@@ -468,6 +619,36 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, l
               live · every {Math.round(spec.refreshMs / 1000)}s
             </span>
           ) : null}
+          {/*
+            Nothing until something moves. A dashboard is read far more often
+            than it is rearranged, so the controls appear only once there is a
+            change to keep or discard — and they sit in the meta line rather
+            than as a toolbar, which would be present all the time to say
+            nothing most of the time.
+          */}
+          {layout.dirty && (
+            <span className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={layout.reset}
+                title="Discard layout changes"
+                aria-label="Discard layout changes"
+                className="rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground/85 hover:bg-muted/50 hover:text-foreground"
+              >
+                ↺
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                title="Save this layout"
+                aria-label="Save this layout"
+                className="rounded-sm px-1.5 py-0.5 text-[11px] text-[var(--ds-primary)] hover:bg-muted/50 disabled:opacity-50"
+              >
+                {saving ? '…' : '⌸'}
+              </button>
+            </span>
+          )}
         </div>
       </header>
 
@@ -488,9 +669,9 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, l
             .join(' '),
         }}
       >
-        <Region blocks={byRegion.left} results={results} />
-        <Region blocks={byRegion.main} results={results} />
-        <Region blocks={byRegion.right} results={results} />
+        <Region blocks={byRegion.left} results={results} region="left" editable={editable} onMove={handleMove} onResize={handleResize} />
+        <Region blocks={byRegion.main} results={results} region="main" editable={editable} onMove={handleMove} onResize={handleResize} />
+        <Region blocks={byRegion.right} results={results} region="right" editable={editable} onMove={handleMove} onResize={handleResize} />
       </div>
     </div>
   );
