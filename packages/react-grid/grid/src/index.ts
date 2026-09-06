@@ -65,3 +65,12 @@ export {
 export { useMarketsGridEventBridge } from './events/useMarketsGridEventBridge.js';
 
 export { isOpenFin, openFinWindowOpener } from './runtime/openFin.js';
+
+// The summary panel's data feed. Exported so `MarketsGridContainer` — which
+// owns the IDataProvider — can build the source and hand it down, keeping the
+// widgets off the grid's own event bus. See `widget/liveRowSource.ts`.
+export { createLiveRowSource, type LiveRowSource } from './widget/liveRowSource.js';
+export {
+  LiveRowSourceProvider,
+  useLiveRowSource,
+} from './customizer/modules/summary-panel/LiveRowSourceContext.js';

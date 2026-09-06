@@ -13,7 +13,12 @@ const refreshMock = vi.fn().mockResolvedValue(undefined);
 const restartMock = vi.fn().mockResolvedValue(undefined);
 const refreshProviderMock = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+// Partial: keep every real export and override only what this test stubs.
+// A full replacement broke whenever the container started importing
+// something else from the package (e.g. `createLiveRowSource`), which is a
+// failure that points at the mock rather than at the change.
+vi.mock('@wellsfargo-starui/grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   MarketsGrid: (props: any) => {
     lastMarketsGridProps.current = props;
     React.useEffect(() => {

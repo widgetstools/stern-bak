@@ -24,7 +24,7 @@ function widget(over: Partial<SummaryWidget>): SummaryWidget {
 }
 
 function draw(w: SummaryWidget, rows = ROWS) {
-  return render(<SummaryWidgetContent widget={w} rows={rows} />);
+  return render(<SummaryWidgetContent widget={w} rows={rows} rowsVersion={1} />);
 }
 
 describe('the table kind', () => {

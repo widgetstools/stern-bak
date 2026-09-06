@@ -20,7 +20,12 @@ const liveProviderRow = {
 
 const lastMarketsGridProps: { current: unknown } = { current: null };
 
-vi.mock('@wellsfargo-starui/grid', () => ({
+// Partial: keep every real export and override only what this test stubs.
+// A full replacement broke whenever the container started importing
+// something else from the package (e.g. `createLiveRowSource`), which is a
+// failure that points at the mock rather than at the change.
+vi.mock('@wellsfargo-starui/grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   MarketsGrid: (props: unknown) => {
     lastMarketsGridProps.current = props;
     return <div data-testid="markets-grid-stub" />;

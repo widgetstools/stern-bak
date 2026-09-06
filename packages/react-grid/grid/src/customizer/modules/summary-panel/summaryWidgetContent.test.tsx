@@ -59,14 +59,14 @@ const ROWS = [
 describe('SummaryWidgetContent', () => {
   it('renders a digest widget grouped by the configured column', () => {
     const widget: SummaryWidget = { id: 'w1', kind: 'digest', query: { groupBy: ['sector'] } };
-    render(<SummaryWidgetContent widget={widget} rows={ROWS} />);
+    render(<SummaryWidgetContent widget={widget} rows={ROWS} rowsVersion={1} />);
     expect(screen.getByText('Financials')).toBeTruthy();
     expect(screen.getByText('Tech')).toBeTruthy();
   });
 
   it('surfaces a query validation error rather than crashing', () => {
     const widget: SummaryWidget = { id: 'w1', kind: 'chart', query: { aggregate: [{ column: 'marketValue', fn: 'sum' }] } };
-    render(<SummaryWidgetContent widget={widget} rows={ROWS} />);
+    render(<SummaryWidgetContent widget={widget} rows={ROWS} rowsVersion={1} />);
     expect(screen.getByText(/aggregate needs groupBy/)).toBeTruthy();
   });
 
@@ -76,7 +76,7 @@ describe('SummaryWidgetContent', () => {
       kind: 'chart',
       query: { groupBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum' }] },
     };
-    render(<SummaryWidgetContent widget={widget} rows={ROWS} />);
+    render(<SummaryWidgetContent widget={widget} rows={ROWS} rowsVersion={1} />);
     expect(screen.getByTestId('ChartContainer')).toBeTruthy();
   });
 
@@ -88,7 +88,7 @@ describe('SummaryWidgetContent', () => {
 
   it('renders a heatmap widget as a shaded table', () => {
     const widget: SummaryWidget = { id: 'w1', kind: 'heatmap', query: { columns: ['sector', 'marketValue'] } };
-    render(<SummaryWidgetContent widget={widget} rows={ROWS} />);
+    render(<SummaryWidgetContent widget={widget} rows={ROWS} rowsVersion={1} />);
     expect(screen.getByRole('table')).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'marketValue' })).toBeTruthy();
   });

@@ -254,18 +254,56 @@ function reconcileWidgets(handle: DockManagerCoreHandle, widgets: readonly Summa
 
 interface SummaryWidgetDataContextValue {
   rows: Record<string, unknown>[];
+  rowsVersion: number;
   widgetsById: Map<string, SummaryWidget>;
 }
 
-const SummaryWidgetDataContext = createContext<SummaryWidgetDataContextValue>({ rows: [], widgetsById: new Map() });
+const SummaryWidgetDataContext = createContext<SummaryWidgetDataContextValue>({
+  rows: [],
+  rowsVersion: 0,
+  widgetsById: new Map(),
+});
+
+/**
+ * Aggregating for a widget nobody can see is pure waste, and on a blotter with
+ * several tabbed widgets it is most of the work: dockview keeps inactive tabs
+ * mounted, so every one of them was recomputing on every tick.
+ *
+ * IntersectionObserver rather than a dockview visibility API on purpose — it
+ * catches every way a widget can be invisible (inactive tab, collapsed group,
+ * scrolled out, zero-sized panel) with no coupling to the dock's internals.
+ *
+ * The LAST computed result stays on screen while hidden; only recomputation
+ * stops. Becoming visible again picks up the current version immediately.
+ */
+function useIsVisible(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => setVisible(entries.some((e) => e.isIntersecting)),
+      { root: null, threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return visible;
+}
 
 function SummaryWidgetPanel({ panelId }: WidgetProps) {
-  const { rows, widgetsById } = useContext(SummaryWidgetDataContext);
+  const { rows, rowsVersion, widgetsById } = useContext(SummaryWidgetDataContext);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const visible = useIsVisible(hostRef);
+  // Freeze the version while hidden so the memo inside the card doesn't
+  // invalidate; the card keeps rendering its last result at zero cost.
+  const frozenRef = useRef(rowsVersion);
+  if (visible) frozenRef.current = rowsVersion;
+
   const widget = widgetsById.get(panelId);
-  if (!widget) return null;
   return (
-    <div className="h-full overflow-auto">
-      <SummaryWidgetContent widget={widget} rows={rows} />
+    <div ref={hostRef} className="h-full overflow-auto">
+      {widget ? <SummaryWidgetContent widget={widget} rows={rows} rowsVersion={frozenRef.current} /> : null}
     </div>
   );
 }
@@ -280,7 +318,7 @@ export interface BlotterDockProps<TData> extends MarketsGridSurfaceProps<TData> 
 }
 
 export function BlotterDock<TData>({ title, ...surfaceProps }: BlotterDockProps<TData>) {
-  const { widgets, rows, removeWidget } = useSummaryPanelData();
+  const { widgets, rows, rowsVersion, removeWidget } = useSummaryPanelData();
   const dockRef = useRef<DockManagerCoreHandle>(null);
   const [api, setApi] = useState<DockviewApi | null>(null);
 
@@ -296,8 +334,8 @@ export function BlotterDock<TData>({ title, ...surfaceProps }: BlotterDockProps<
   }, [api, widgets]);
 
   const contextValue = useMemo<SummaryWidgetDataContextValue>(
-    () => ({ rows, widgetsById: new Map(widgets.map((w) => [w.id, w])) }),
-    [rows, widgets],
+    () => ({ rows, rowsVersion, widgetsById: new Map(widgets.map((w) => [w.id, w])) }),
+    [rows, rowsVersion, widgets],
   );
 
   // `MarketsGridSurfaceProps` carries a ref, callbacks, and a `gridOptions`

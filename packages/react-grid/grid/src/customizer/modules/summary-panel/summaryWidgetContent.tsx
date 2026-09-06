@@ -4,29 +4,50 @@
  * `../../../widget/BlotterDock.tsx`, which owns the one unified dock
  * instance the blotter and every widget panel share).
  *
- * `useSummaryPanelData` recomputes widgets from the grid's own current rows
- * as they change. Unlike Alerts, which evaluates cell deltas incrementally, a
- * widget's query aggregates over the WHOLE current row set (groupBy /
- * pivotBy / sum), so there is no meaningful "only the changed rows"
- * shortcut — every recompute reads every row via `api.forEachNode`.
- * `platform.rows` already coalesces a burst of flushes into one emit per
- * task; this throttles further on top (see REFRESH_INTERVAL_MS below) so a
- * busy streaming blotter doesn't re-run every widget's aggregation on every
- * one of those coalesced ticks.
+ * ## Where the rows come from, and why it changed
+ *
+ * These widgets used to read the GRID: `api.forEachNode` into a fresh array on
+ * every `platform.rows` tick, pushed through React state. On a large blotter
+ * under Windows that made the dock sluggish to drag, for three compounding
+ * reasons:
+ *
+ *  1. `platform.rows` is a GRID-event bus — `modelUpdated`, `sortChanged` and
+ *     `filterChanged` are among its sources. Sorting or filtering changes no
+ *     data, yet re-ran every widget's aggregation over every row.
+ *  2. Each tick produced a NEW array identity, so every widget re-rendered
+ *     even when its own numbers had not moved.
+ *  3. Worst of all, `runQuery` / `summariseRows` / `buildChartSpec` ran in the
+ *     card render bodies, unmemoized. Dockview re-renders its panels while a
+ *     drag is in progress, so every frame of a drag re-aggregated the whole
+ *     row set, synchronously, on the main thread. That is the sluggishness.
+ *
+ * Now: a `LiveRowSource` fed by the data provider supplies one array that is
+ * mutated in place, and change is reported by a VERSION counter. A re-render
+ * caused by anything other than data — a drag, a resize, a theme flip — costs
+ * nothing, because every aggregation is memoized on `[version, widget]`.
+ *
+ * When no provider source is present (a consumer mounting `MarketsGrid`
+ * directly), it falls back to the old grid read, so nothing regresses for
+ * them.
+ *
+ * A widget's query aggregates over the WHOLE row set (groupBy / pivotBy /
+ * sum), so there is no meaningful "only the changed rows" shortcut for the
+ * aggregation itself — which is exactly why it must not run when nothing
+ * changed, and must not run for a widget nobody is looking at.
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import { runQuery, summariseRows, buildChartSpec, type QueryResult } from '@wellsfargo-starui/data';
 import { useGridPlatform } from '../../hooks/GridProvider';
 import { useGridApi } from '../../hooks/useGridApi';
 import { useModuleState } from '../../hooks/useModuleState';
+import { useLiveRowSource } from './LiveRowSourceContext.js';
 import { DataChart } from './DataChart.js';
 import { AnalysisTable, compact } from './AnalysisTable.js';
 import { SUMMARY_PANEL_MODULE_ID, type SummaryPanelState, type SummaryWidget } from './index.js';
 
-// A widget's query re-scans every row on every recompute (see below), which
-// is real work on a large blotter — 750ms keeps widgets reasonably live
-// without turning every busy tick into extra main-thread contention.
+// The grid-read fallback re-scans every row, which is real work on a large
+// blotter. The provider path does not scan at all, but still coalesces bursts.
 const REFRESH_INTERVAL_MS = 750;
 
 function readAllRows(api: GridApi): Record<string, unknown>[] {
@@ -39,12 +60,20 @@ function readAllRows(api: GridApi): Record<string, unknown>[] {
 
 export interface SummaryPanelData {
   widgets: SummaryWidget[];
+  /**
+   * The current rows. STABLE BY REFERENCE when a provider source is supplying
+   * them — pair it with `rowsVersion`, never with its identity.
+   */
   rows: Record<string, unknown>[];
+  /** Bumps only when the row CONTENT changed. The memo key for every widget. */
+  rowsVersion: number;
   /** Removes one widget from module state — the settings panel's delete
    *  button, a chatbot `remove_module_item` call, and BlotterDock's own
    *  dock-header close button all end up here. */
   removeWidget: (widgetId: string) => void;
 }
+
+const EMPTY_ROWS: Record<string, unknown>[] = [];
 
 /** `widgets` is `[]` (not `undefined`) when the module isn't registered on
  *  this grid, so callers can treat "no module" and "module, no widgets" the
@@ -52,28 +81,47 @@ export interface SummaryPanelData {
 export function useSummaryPanelData(): SummaryPanelData {
   const platform = useGridPlatform();
   const api = useGridApi();
+  const liveSource = useLiveRowSource();
   const [state, setState] = useModuleState<SummaryPanelState | undefined>(SUMMARY_PANEL_MODULE_ID);
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
 
-  // Zero widgets → zero cost. A blotter with the summary panel enabled but
-  // no widgets configured (the common steady state) must not pay a full
-  // 20k-row forEachNode read + React state set every refresh interval for
-  // data nothing renders. The row snapshot is also released so the previous
-  // array doesn't pin row objects across a widgets-removed session.
+  // Zero widgets → zero cost. A blotter with the summary panel enabled but no
+  // widgets configured (the common steady state) must not pay a row read, a
+  // subscription or a timer for data nothing renders.
   const widgetCount = state?.widgets.length ?? 0;
+
+  // Provider path: mirror the source's own version. It already owns the array
+  // and only bumps when content moved, so there is nothing to copy or diff.
+  const [liveVersion, setLiveVersion] = useState(0);
+  useEffect(() => {
+    if (!liveSource || widgetCount === 0) return;
+    setLiveVersion(liveSource.getVersion());
+    return liveSource.subscribe(() => setLiveVersion(liveSource.getVersion()));
+  }, [liveSource, widgetCount]);
+
+  // Grid fallback, only for consumers with no provider source. Keeps the array
+  // in a ref and publishes a version, so the memo contract below is identical
+  // on both paths.
+  const fallbackRowsRef = useRef<Record<string, unknown>[]>(EMPTY_ROWS);
+  const [fallbackVersion, setFallbackVersion] = useState(0);
 
   const refresh = useCallback(() => {
     if (!api) return;
-    setRows(readAllRows(api));
+    fallbackRowsRef.current = readAllRows(api);
+    setFallbackVersion((v) => v + 1);
   }, [api]);
 
   useEffect(() => {
+    if (liveSource) return;
     if (widgetCount === 0) {
-      setRows((prev) => (prev.length === 0 ? prev : []));
+      // Release the snapshot so a widgets-removed session stops pinning rows.
+      if (fallbackRowsRef.current.length > 0) {
+        fallbackRowsRef.current = EMPTY_ROWS;
+        setFallbackVersion((v) => v + 1);
+      }
       return;
     }
     refresh();
-  }, [widgetCount, refresh]);
+  }, [liveSource, widgetCount, refresh]);
 
   // Throttled, not debounced: a busy blotter never has a >REFRESH_INTERVAL_MS
   // gap between ticks, and a pure debounce (reset-on-every-tick) would then
@@ -85,7 +133,7 @@ export function useSummaryPanelData(): SummaryPanelData {
   // more round afterward — bounded, predictable cost instead of a
   // stale-then-burst pattern.
   useEffect(() => {
-    if (widgetCount === 0) return; // no widgets → no subscription, no timers, no row reads
+    if (liveSource || widgetCount === 0) return; // provider path, or nothing to feed
     let timer: ReturnType<typeof setTimeout> | null = null;
     let pending = false;
     const schedule = () => {
@@ -107,7 +155,7 @@ export function useSummaryPanelData(): SummaryPanelData {
       unsubscribe();
       if (timer !== null) clearTimeout(timer);
     };
-  }, [platform, refresh, widgetCount]);
+  }, [liveSource, platform, refresh, widgetCount]);
 
   const removeWidget = useCallback(
     (widgetId: string) => {
@@ -116,7 +164,29 @@ export function useSummaryPanelData(): SummaryPanelData {
     [setState],
   );
 
-  return { widgets: state?.widgets ?? [], rows, removeWidget };
+  const rows = widgetCount === 0
+    ? EMPTY_ROWS
+    : liveSource
+      ? liveSource.getRows()
+      : fallbackRowsRef.current;
+
+  return {
+    widgets: state?.widgets ?? [],
+    rows,
+    rowsVersion: liveSource ? liveVersion : fallbackVersion,
+    removeWidget,
+  };
+}
+
+/**
+ * `rows` is stable by reference and mutated in place; `rowsVersion` is the
+ * change signal. Every aggregation below keys on the version, so a re-render
+ * that isn't about data does no work.
+ */
+export interface WidgetCardProps {
+  widget: SummaryWidget;
+  rows: Record<string, unknown>[];
+  rowsVersion: number;
 }
 
 /**
@@ -208,9 +278,15 @@ function ResultFooter({ result }: { result: QueryResult }) {
   );
 }
 
-export function DigestCard({ widget, rows }: { widget: SummaryWidget; rows: Record<string, unknown>[] }) {
+export function DigestCard({ widget, rows, rowsVersion }: WidgetCardProps) {
   const { query } = widget;
-  const digest = summariseRows(rows, { columns: query.columns, groupBy: query.groupBy?.[0], topN: 3 });
+  // Keyed on the VERSION, never on `rows` identity: the array is mutated in
+  // place, and a re-render from a dock drag must not re-aggregate.
+  const digest = useMemo(
+    () => summariseRows(rows, { columns: query.columns, groupBy: query.groupBy?.[0], topN: 3 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows is stable by reference; rowsVersion is the change signal
+    [rowsVersion, query.columns, query.groupBy],
+  );
   const highlight = digest.highlights[0];
   const numerics = digest.columns.filter((c) => c.kind === 'number').slice(0, 2);
 
@@ -248,12 +324,38 @@ export function DigestCard({ widget, rows }: { widget: SummaryWidget; rows: Reco
   );
 }
 
-export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Record<string, unknown>[] }) {
-  const outcome = runQuery(rows, widget.query);
+export function QueryCard({ widget, rows, rowsVersion }: WidgetCardProps) {
+  // The single most expensive thing the panel does, and it used to run in the
+  // render body — so every frame of a dock drag re-ran it over every row.
+  const outcome = useMemo(
+    () => runQuery(rows, widget.query),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows is stable by reference; rowsVersion is the change signal
+    [rowsVersion, widget.query],
+  );
+  const result: QueryResult | null = outcome.ok ? outcome.value : null;
+
+  // Hooks must run unconditionally, so the chart spec is computed before the
+  // early return rather than after it.
+  const spec = useMemo(
+    () =>
+      result
+        ? buildChartSpec({
+            columns: result.columns,
+            rows: result.rows,
+            grouped: result.grouped,
+            // A pivoted widget IS multi-series. Without this the builder saw a
+            // flat column list and drew only the last pivot column.
+            pivot: result.pivot,
+            requested: widget.chartKind ?? 'auto',
+          })
+        : null,
+    [result, widget.chartKind],
+  );
+
   if (!outcome.ok) {
     return <p className="px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">{outcome.error}</p>;
   }
-  const result: QueryResult = outcome.value;
+  if (!result) return null;
 
   // `table` and `heatmap` are the same table; heatmap additionally shades
   // cells by magnitude.
@@ -278,15 +380,6 @@ export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Recor
     );
   }
 
-  const spec = buildChartSpec({
-    columns: result.columns,
-    rows: result.rows,
-    grouped: result.grouped,
-    // A pivoted widget IS multi-series. Without this the builder saw a flat
-    // column list and drew only the last pivot column.
-    pivot: result.pivot,
-    requested: widget.chartKind ?? 'auto',
-  });
   if (!spec) return <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Not enough data to chart yet.</p>;
 
   return (
@@ -305,8 +398,8 @@ export function QueryCard({ widget, rows }: { widget: SummaryWidget; rows: Recor
 /** Dispatches on `widget.kind` — the one place BlotterDock needs to know
  *  there are three rendering families: narrative, digest, and everything that
  *  runs a query. */
-export function SummaryWidgetContent({ widget, rows }: { widget: SummaryWidget; rows: Record<string, unknown>[] }) {
+export function SummaryWidgetContent({ widget, rows, rowsVersion }: WidgetCardProps) {
   if (widget.kind === 'text') return <TextCard widget={widget} />;
-  if (widget.kind === 'digest') return <DigestCard widget={widget} rows={rows} />;
-  return <QueryCard widget={widget} rows={rows} />;
+  if (widget.kind === 'digest') return <DigestCard widget={widget} rows={rows} rowsVersion={rowsVersion} />;
+  return <QueryCard widget={widget} rows={rows} rowsVersion={rowsVersion} />;
 }

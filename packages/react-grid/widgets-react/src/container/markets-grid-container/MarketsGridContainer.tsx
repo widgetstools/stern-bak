@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef, GridApi } from 'ag-grid-community';
-import { MarketsGrid } from '@wellsfargo-starui/grid';
+import { MarketsGrid, createLiveRowSource, LiveRowSourceProvider } from '@wellsfargo-starui/grid';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import type { MarketsGridProps, MarketsGridHandle, StorageAdapterFactory, ProviderGridHostApi, GridEventBindingsHostApi, MarketsGridEventHandlerRegistry, MarketsGridHandlerMeta } from '@wellsfargo-starui/grid';
 import {
@@ -46,7 +46,7 @@ import {
 import { buildColumnDefs } from './buildColumnDefs.js';
 import { useProviderDataWiring } from './useProviderDataWiring.js';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';
-import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
+import { LOGGED_IN_USER_ID, composeRowId, normalizeKeyColumns } from '@wellsfargo-starui/types';
 import {
   createConfigBrowserAction,
 } from '@wellsfargo-starui/grid/config-browser';
@@ -793,6 +793,40 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     setEventHandler,
   ]);
 
+  /**
+   * The summary panel's widgets read THIS, not the grid.
+   *
+   * They used to `forEachNode` the grid on every `platform.rows` tick, a bus
+   * that also carries `modelUpdated` / `sortChanged` / `filterChanged` — so
+   * sorting a blotter re-aggregated every widget over every row, on the main
+   * thread, while the user was interacting. Feeding them the provider's own
+   * snapshot + ticks decouples them from grid interaction entirely.
+   *
+   * Recreated only when the provider or its key changes; a tick never
+   * reallocates. Disposed on teardown so a closed blotter doesn't leave a
+   * subscription attached or pin a snapshot.
+   */
+  const liveRowSource = useMemo(() => {
+    if (!provider) return null;
+    const keyCols = normalizeKeyColumns(rowIdField as string | readonly string[] | null | undefined);
+    return createLiveRowSource({
+      onSnapshot: (handler) =>
+        provider.onSnapshotData((rows) => handler(rows as readonly Record<string, unknown>[])),
+      onTick: (handler) => provider.onTick((rows) => handler(rows as readonly Record<string, unknown>[])),
+      keyOf: keyCols ? (row) => composeRowId(row, keyCols) : undefined,
+      // Seed only: whatever the provider already holds, so a widget mounted
+      // mid-session paints before the next snapshot. Optional by design — a
+      // provider that cannot replay yet simply starts empty and fills on the
+      // first snapshot, so this must not be a hard requirement.
+      initial:
+        typeof provider.getData === 'function'
+          ? (provider.getData() as readonly Record<string, unknown>[])
+          : undefined,
+    });
+  }, [provider, rowIdFieldKey]); // eslint-disable-line react-hooks/exhaustive-deps -- rowIdFieldKey is rowIdField's stable string form
+
+  useEffect(() => () => liveRowSource?.dispose(), [liveRowSource]);
+
   const providerGridHost = useMemo<ProviderGridHostApi>(() => ({
     available: true,
     liveProviders: liveList.configs,
@@ -912,7 +946,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // Provider selected and cfg loaded → full data-attached grid.
   if (activeId && !activeRow.loading && rowIdField && columnDefs) {
     return (
-      <>
+      <LiveRowSourceProvider source={liveRowSource}>
         <div style={{ position: 'relative', height: '100%', minHeight: 0 }}>
           <MarketsGrid<TData>
             {...(marketsGridProps as MarketsGridProps<TData>)}
@@ -961,7 +995,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
           )}
         </div>
         {dataDialogs}
-      </>
+      </LiveRowSourceProvider>
     );
   }
 
