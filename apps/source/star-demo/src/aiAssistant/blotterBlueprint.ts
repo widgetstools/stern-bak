@@ -49,6 +49,17 @@
  * nothing here re-asserts itself later.
  */
 import type { ColumnDefinition } from '@wellsfargo-starui/types';
+// The engine's OWN types, so TypeScript rejects a shape the grid cannot read.
+// Every field below was verified against these rather than assumed: an earlier
+// version invented `font: { family: 'mono' }` (no such field) and wrote
+// `{ kind: 'preset', preset: 'date-eu' }` (a catalogue id, not a PresetId),
+// which put an uninterpretable formatter on every date column of every new
+// blotter. Importing the types turns that class of mistake into a build error.
+import type {
+  CellStyleOverrides,
+  ThemedCellStyleOverrides,
+  ValueFormatterTemplate,
+} from '@wellsfargo-starui/core';
 
 /**
  * The sections of a fixed-income blotter, in reading order.
@@ -108,12 +119,15 @@ export interface BlueprintColumn {
   pin?: 'left';
   width?: number;
   align: 'left' | 'center' | 'right';
-  /** A catalogue preset id, when one says exactly the right thing. */
-  formatPreset?: string;
-  /** An Excel format string, for the cases no preset covers. */
+  /**
+   * An Excel format string. Always this rather than a catalogue preset id:
+   * `ValueFormatterTemplate`'s `preset` kind takes a `PresetId`
+   * (currency|percent|number|date|datetime|duration), NOT a catalogue id like
+   * `date-eu` — and the catalogue's own `date-eu` entry is simply the
+   * excelFormat `dd-mmm-yy`, so writing the format directly is both correct
+   * and exactly equivalent.
+   */
   excelFormat?: string;
-  /** Fixed-width figures so digits line up down the column. */
-  mono?: boolean;
 }
 
 /**
@@ -231,36 +245,37 @@ export function classifySection(field: string, role: Role): Section {
 /**
  * Presentation per role — the conventions in the header comment, as data.
  *
- * `mono` is set for anything a reader scans down a column: identifiers so
- * character positions line up for comparison, and every number so the digits
- * do. Alignment is `right` for every numeric without exception.
+ * Alignment is `right` for every numeric without exception. Tabular figures
+ * are NOT set here: `CellStyleOverrides` has no font-family slot, so a
+ * monospace column is a grid-theme concern rather than something a per-column
+ * assignment can express. Right alignment carries most of the benefit.
  */
 const ROLE_PRESENTATION: Record<Role, Omit<BlueprintColumn, 'colId' | 'section' | 'role' | 'rank'>> = {
-  identifier: { align: 'left', mono: true, width: 120 },
+  identifier: { align: 'left', width: 120 },
   name: { align: 'left', width: 170 },
   category: { align: 'left', width: 110 },
-  rating: { align: 'center', width: 90, mono: true },
+  rating: { align: 'center', width: 90 },
   side: { align: 'center', width: 80 },
   status: { align: 'center', width: 110 },
   // Alphabetic month: `04/05/26` is two different days depending on who reads it.
-  date: { align: 'right', width: 110, mono: true, formatPreset: 'date-eu' },
-  timestamp: { align: 'right', width: 140, mono: true, formatPreset: 'dt-iso' },
+  date: { align: 'right', width: 110, excelFormat: 'dd-mmm-yy' },
+  timestamp: { align: 'right', width: 140, excelFormat: 'yyyy-mm-dd hh:mm:ss' },
   // Per 100 par, 3dp — 2dp loses information a trader uses on size.
-  price: { align: 'right', width: 100, mono: true, excelFormat: '#,##0.000' },
-  yield: { align: 'right', width: 90, mono: true, excelFormat: '#,##0.000"%"' },
+  price: { align: 'right', width: 100, excelFormat: '#,##0.000' },
+  yield: { align: 'right', width: 90, excelFormat: '#,##0.000"%"' },
   // Basis points, signed. A spread rendered as 0.0142 is unreadable.
-  spreadBps: { align: 'right', width: 100, mono: true, excelFormat: '#,##0.0" bp"' },
-  coupon: { align: 'right', width: 90, mono: true, excelFormat: '#,##0.000"%"' },
-  percent: { align: 'right', width: 90, mono: true, excelFormat: '#,##0.00"%"' },
-  duration: { align: 'right', width: 100, mono: true, excelFormat: '#,##0.00' },
-  sensitivity: { align: 'right', width: 100, mono: true, excelFormat: '#,##0.00' },
+  spreadBps: { align: 'right', width: 100, excelFormat: '#,##0.0" bp"' },
+  coupon: { align: 'right', width: 90, excelFormat: '#,##0.000"%"' },
+  percent: { align: 'right', width: 90, excelFormat: '#,##0.00"%"' },
+  duration: { align: 'right', width: 100, excelFormat: '#,##0.00' },
+  sensitivity: { align: 'right', width: 100, excelFormat: '#,##0.00' },
   // Whole units with separators: 25000000 is unreadable, 25,000,000 is not.
-  quantity: { align: 'right', width: 130, mono: true, excelFormat: '#,##0' },
-  money: { align: 'right', width: 140, mono: true, excelFormat: '#,##0.00' },
+  quantity: { align: 'right', width: 130, excelFormat: '#,##0' },
+  money: { align: 'right', width: 140, excelFormat: '#,##0.00' },
   // The first question about P&L is which way, not how much.
-  pnl: { align: 'right', width: 130, mono: true, excelFormat: '[Green]#,##0.00;[Red]-#,##0.00' },
-  factor: { align: 'right', width: 110, mono: true, excelFormat: '#,##0.00000000' },
-  count: { align: 'right', width: 80, mono: true, excelFormat: '#,##0' },
+  pnl: { align: 'right', width: 130, excelFormat: '[Green]#,##0.00;[Red]-#,##0.00' },
+  factor: { align: 'right', width: 110, excelFormat: '#,##0.00000000' },
+  count: { align: 'right', width: 80, excelFormat: '#,##0' },
   flag: { align: 'center', width: 80 },
   unknown: { align: 'left', width: 120 },
 };
@@ -356,24 +371,19 @@ export function buildBlotterBlueprint(
 export function blueprintAssignments(blueprint: Blueprint): Record<string, Record<string, unknown>> {
   const out: Record<string, Record<string, unknown>> = {};
   for (const col of blueprint.columns) {
-    const style = {
-      alignment: { horizontal: col.align },
-      ...(col.mono ? { font: { family: 'mono' as const } } : {}),
-    };
-    const formatter = col.excelFormat
-      ? { kind: 'excelFormat' as const, format: col.excelFormat }
-      : col.formatPreset
-        ? { kind: 'preset' as const, preset: col.formatPreset }
-        : undefined;
+    // Typed against the engine's own shapes so an invented field or an
+    // out-of-vocabulary preset is a build error, not a broken blotter.
+    const style: CellStyleOverrides = { alignment: { horizontal: col.align } };
+    const themed: ThemedCellStyleOverrides = { dark: style, light: style };
+    const formatter: ValueFormatterTemplate | undefined = col.excelFormat
+      ? { kind: 'excelFormat', format: col.excelFormat }
+      : undefined;
     out[col.colId] = {
       colId: col.colId,
-      cellStyleOverrides: { dark: style, light: style },
+      cellStyleOverrides: themed,
       // Headers follow their column so a right-aligned number sits under a
       // right-aligned label rather than floating away from it.
-      headerStyleOverrides: {
-        dark: { alignment: { horizontal: col.align } },
-        light: { alignment: { horizontal: col.align } },
-      },
+      headerStyleOverrides: themed,
       ...(formatter ? { valueFormatterTemplate: formatter } : {}),
       ...(col.width ? { initialWidth: col.width } : {}),
       ...(col.pin ? { initialPinned: col.pin } : {}),
@@ -382,9 +392,19 @@ export function blueprintAssignments(blueprint: Blueprint): Record<string, Recor
   return out;
 }
 
-/** The blueprint as `column-groups` state — nested header bands per section. */
-export function blueprintGroups(blueprint: Blueprint): Array<Record<string, unknown>> {
-  return blueprint.groups.map((g) => ({
+/**
+ * The blueprint as `column-groups` module state.
+ *
+ * Returns the WHOLE state, not just `groups`: the module's `deserialize` runs
+ * `isColumnGroupsState`, which requires `openGroupIds` to be an object — a
+ * bare `{ groups }` fails that check and the module silently falls back to no
+ * groups at all, so the bands never appeared and nothing said why.
+ */
+export function blueprintGroupsState(blueprint: Blueprint): {
+  groups: Array<Record<string, unknown>>;
+  openGroupIds: Record<string, boolean>;
+} {
+  const groups = blueprint.groups.map((g) => ({
     groupId: `g_${g.section}`,
     headerName: g.label,
     // Sections stay contiguous: a user dragging a column out of "Risk" should
@@ -393,6 +413,7 @@ export function blueprintGroups(blueprint: Blueprint): Array<Record<string, unkn
     openByDefault: true,
     children: g.colIds.map((colId) => ({ kind: 'col', colId, show: 'always' })),
   }));
+  return { groups, openGroupIds: {} };
 }
 
 /** One sentence for the tool summary, so the user knows what was applied. */

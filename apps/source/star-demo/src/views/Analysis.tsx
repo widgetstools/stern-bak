@@ -32,7 +32,7 @@ import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 import { readHandoff, type AnalysisHandoff, listAnalysisWindows, reopenAnalysisWindow } from '../analysisPopout';
 import { resolveGridEntry, resolveGridForInstance } from '../aiAssistant/gridProfiles';
 import { fetchGridRows, type DataHubClient, type RowSet } from '../aiAssistant/dataAccess';
-import { createLiveRowSource } from '@wellsfargo-starui/grid';
+import { createLiveRowSource, type LiveRowSource } from '@wellsfargo-starui/grid';
 import { composeRowId, normalizeKeyColumns } from '@wellsfargo-starui/types';
 import { gridScopeId } from '../aiAssistant/gridProfiles';
 import { ReportCanvas } from '../analysis/ReportCanvas';
@@ -194,22 +194,37 @@ function Analysis() {
   // status churn would re-render the whole canvas for nothing.
   const { provider } = useDataProvider(binding?.providerId ?? null, { trackStatus: false });
 
-  const liveSource = useMemo(() => {
-    if (!provider) return null;
+  // In an EFFECT, never in render: `createLiveRowSource` ATTACHES to the
+  // provider as it is constructed, and a provider that throws while connecting
+  // would then throw during render and take the whole window down. A failure
+  // degrades to the one-shot fetch below rather than to a blank report.
+  const [liveSource, setLiveSource] = useState<LiveRowSource | null>(null);
+  useEffect(() => {
+    if (!provider) {
+      setLiveSource(null);
+      return;
+    }
     const keyCols = normalizeKeyColumns(binding?.keyColumn);
-    return createLiveRowSource({
-      onSnapshot: (handler) =>
-        provider.onSnapshotData((rows) => handler(rows as readonly Record<string, unknown>[])),
-      onTick: (handler) => provider.onTick((rows) => handler(rows as readonly Record<string, unknown>[])),
-      keyOf: keyCols ? (row) => composeRowId(row, keyCols) : undefined,
-      initial:
-        typeof provider.getData === 'function'
-          ? (provider.getData() as readonly Record<string, unknown>[])
-          : undefined,
-    });
+    let source: ReturnType<typeof createLiveRowSource>;
+    try {
+      source = createLiveRowSource({
+        onSnapshot: (handler) =>
+          provider.onSnapshotData((rows) => handler(rows as readonly Record<string, unknown>[])),
+        onTick: (handler) => provider.onTick((rows) => handler(rows as readonly Record<string, unknown>[])),
+        keyOf: keyCols ? (row) => composeRowId(row, keyCols) : undefined,
+        initial:
+          typeof provider.getData === 'function'
+            ? (provider.getData() as readonly Record<string, unknown>[])
+            : undefined,
+      });
+    } catch (err) {
+      console.warn('[Analysis] live rows unavailable; falling back to a one-shot fetch:', err);
+      setLiveSource(null);
+      return;
+    }
+    setLiveSource(source);
+    return () => source.dispose();
   }, [provider, binding?.keyColumn]);
-
-  useEffect(() => () => liveSource?.dispose(), [liveSource]);
 
   const [liveVersion, setLiveVersion] = useState(0);
   useEffect(() => {

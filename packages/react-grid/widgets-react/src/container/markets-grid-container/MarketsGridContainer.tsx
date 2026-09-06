@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColDef, GridApi } from 'ag-grid-community';
-import { MarketsGrid, createLiveRowSource, LiveRowSourceProvider } from '@wellsfargo-starui/grid';
+import { MarketsGrid, createLiveRowSource, LiveRowSourceProvider, type LiveRowSource } from '@wellsfargo-starui/grid';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import type { MarketsGridProps, MarketsGridHandle, StorageAdapterFactory, ProviderGridHostApi, GridEventBindingsHostApi, MarketsGridEventHandlerRegistry, MarketsGridHandlerMeta } from '@wellsfargo-starui/grid';
 import {
@@ -806,26 +806,48 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
    * reallocates. Disposed on teardown so a closed blotter doesn't leave a
    * subscription attached or pin a snapshot.
    */
-  const liveRowSource = useMemo(() => {
-    if (!provider) return null;
+  //
+  // Built in an EFFECT, never in render. `createLiveRowSource` attaches to the
+  // provider as it is constructed, and attaching is a side effect: doing it
+  // inside `useMemo` meant a provider that threw while connecting threw during
+  // render, which unmounts the whole subtree and leaves an empty window with no
+  // grid in it. It also double-subscribed under StrictMode and leaked the first
+  // source. Neither showed up in tests, because a stubbed provider never
+  // throws and never reconnects.
+  //
+  // A failure here degrades to `null`, and the summary panel falls back to
+  // reading the grid — the widgets get slower, the blotter still works.
+  const [liveRowSource, setLiveRowSource] = useState<LiveRowSource | null>(null);
+  useEffect(() => {
+    if (!provider) {
+      setLiveRowSource(null);
+      return;
+    }
     const keyCols = normalizeKeyColumns(rowIdField as string | readonly string[] | null | undefined);
-    return createLiveRowSource({
-      onSnapshot: (handler) =>
-        provider.onSnapshotData((rows) => handler(rows as readonly Record<string, unknown>[])),
-      onTick: (handler) => provider.onTick((rows) => handler(rows as readonly Record<string, unknown>[])),
-      keyOf: keyCols ? (row) => composeRowId(row, keyCols) : undefined,
-      // Seed only: whatever the provider already holds, so a widget mounted
-      // mid-session paints before the next snapshot. Optional by design — a
-      // provider that cannot replay yet simply starts empty and fills on the
-      // first snapshot, so this must not be a hard requirement.
-      initial:
-        typeof provider.getData === 'function'
-          ? (provider.getData() as readonly Record<string, unknown>[])
-          : undefined,
-    });
+    let source: ReturnType<typeof createLiveRowSource>;
+    try {
+      source = createLiveRowSource({
+        onSnapshot: (handler) =>
+          provider.onSnapshotData((rows) => handler(rows as readonly Record<string, unknown>[])),
+        onTick: (handler) => provider.onTick((rows) => handler(rows as readonly Record<string, unknown>[])),
+        keyOf: keyCols ? (row) => composeRowId(row, keyCols) : undefined,
+        // Seed only: whatever the provider already holds, so a widget mounted
+        // mid-session paints before the next snapshot. Optional by design — a
+        // provider that cannot replay yet starts empty and fills on the first
+        // snapshot, so this must never be a hard requirement.
+        initial:
+          typeof provider.getData === 'function'
+            ? (provider.getData() as readonly Record<string, unknown>[])
+            : undefined,
+      });
+    } catch (err) {
+      console.warn('[MarketsGridContainer] live row source unavailable; summary widgets will read the grid:', err);
+      setLiveRowSource(null);
+      return;
+    }
+    setLiveRowSource(source);
+    return () => source.dispose();
   }, [provider, rowIdFieldKey]); // eslint-disable-line react-hooks/exhaustive-deps -- rowIdFieldKey is rowIdField's stable string form
-
-  useEffect(() => () => liveRowSource?.dispose(), [liveRowSource]);
 
   const providerGridHost = useMemo<ProviderGridHostApi>(() => ({
     available: true,

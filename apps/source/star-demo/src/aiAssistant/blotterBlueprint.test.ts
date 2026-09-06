@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBlotterBlueprint,
   blueprintAssignments,
-  blueprintGroups,
+  blueprintGroupsState,
   classifyRole,
   classifySection,
   describeBlueprint,
@@ -150,14 +150,9 @@ describe('fixed-income conventions', () => {
     expect(numerics.every((c) => c.align === 'right')).toBe(true);
   });
 
-  it('gives every numeric tabular figures so digits line up down the column', () => {
-    const cols = byId(['marketValue', 'dv01', 'bidPrice']);
-    expect(Object.values(cols).every((c) => c.mono)).toBe(true);
-  });
-
   /** `04/05/26` is two different days depending on who reads it. */
   it('formats dates as dd-mmm-yy, never numerically', () => {
-    expect(byId(['maturityDate']).maturityDate.formatPreset).toBe('date-eu');
+    expect(byId(['maturityDate']).maturityDate.excelFormat).toBe('dd-mmm-yy');
   });
 
   it('shows spreads in basis points', () => {
@@ -214,10 +209,31 @@ describe('what gets written', () => {
     expect((a.dailyPnL as { valueFormatterTemplate: { kind: string } }).valueFormatterTemplate.kind).toBe('excelFormat');
   });
 
-  it('writes a catalogue preset as a preset template', () => {
-    const a = blueprintAssignments(buildBlotterBlueprint(f('maturityDate')));
-    expect((a.maturityDate as { valueFormatterTemplate: { kind: string; preset: string } }).valueFormatterTemplate)
-      .toEqual({ kind: 'preset', preset: 'date-eu' });
+  /**
+   * `ValueFormatterTemplate`'s `preset` kind takes a PresetId
+   * (currency|percent|number|date|datetime|duration), NOT a catalogue id. An
+   * earlier version wrote `{ kind: 'preset', preset: 'date-eu' }`, which the
+   * engine cannot interpret — so every date column of every new blotter
+   * carried a broken formatter.
+   */
+  it('never emits a preset template — the catalogue id is not a PresetId', () => {
+    const a = blueprintAssignments(buildBlotterBlueprint(f('maturityDate', 'executedTime', 'marketValue')));
+    for (const entry of Object.values(a)) {
+      const t = (entry as { valueFormatterTemplate?: { kind: string } }).valueFormatterTemplate;
+      if (t) expect(t.kind).toBe('excelFormat');
+    }
+  });
+
+  /**
+   * `isColumnGroupsState` requires `openGroupIds` to be an object. Without it
+   * the module's deserialize discards the WHOLE state and no bands appear,
+   * silently.
+   */
+  it('emits column-groups state the module will actually accept', () => {
+    const state = blueprintGroupsState(buildBlotterBlueprint(POSITIONS));
+    expect(Array.isArray(state.groups)).toBe(true);
+    expect(state.openGroupIds).toEqual({});
+    expect(typeof state.openGroupIds).toBe('object');
   });
 
   it('carries pinning and width into the assignment', () => {
@@ -227,7 +243,7 @@ describe('what gets written', () => {
   });
 
   it('keeps a section contiguous so a band cannot be split apart', () => {
-    const groups = blueprintGroups(buildBlotterBlueprint(POSITIONS));
+    const { groups } = blueprintGroupsState(buildBlotterBlueprint(POSITIONS));
     expect(groups.every((g) => g.marryChildren === true)).toBe(true);
   });
 

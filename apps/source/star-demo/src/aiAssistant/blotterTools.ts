@@ -21,7 +21,7 @@ import {
 import {
   buildBlotterBlueprint,
   blueprintAssignments,
-  blueprintGroups,
+  blueprintGroupsState,
   describeBlueprint,
 } from './blotterBlueprint';
 import {
@@ -166,7 +166,7 @@ export async function createBlotter(
         let next = patchModuleState(profile, 'column-customization', {
           assignments: blueprintAssignments(blueprint),
         });
-        next = patchModuleState(next, 'column-groups', { groups: blueprintGroups(blueprint) });
+        next = patchModuleState(next, 'column-groups', blueprintGroupsState(blueprint));
         await configManager.profiles.save({ instanceId: id }, next, {
           identity,
           changedModuleIds: ['column-customization', 'column-groups'],

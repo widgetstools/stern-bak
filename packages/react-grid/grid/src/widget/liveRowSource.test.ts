@@ -163,3 +163,42 @@ describe('createLiveRowSource', () => {
     expect(typeof source.subscribe).toBe('function');
   });
 });
+
+/**
+ * The failure that produced an empty blotter window.
+ *
+ * `createLiveRowSource` ATTACHES to the provider as it is constructed. That
+ * made construction a side effect, and it was originally called from a
+ * `useMemo` — so a provider that threw while connecting threw during render,
+ * unmounting the whole subtree and leaving a window with no grid in it. Both
+ * call sites now build it in an effect and catch.
+ *
+ * A stubbed provider never throws, which is exactly why the tests above missed
+ * it; this one makes the throwing case explicit.
+ */
+describe('a provider that throws while attaching', () => {
+  it('propagates, so the caller can catch it instead of rendering nothing', () => {
+    expect(() =>
+      createLiveRowSource({
+        onSnapshot: () => { throw new Error('not connected'); },
+        onTick: () => () => {},
+      }),
+    ).toThrow(/not connected/);
+  });
+
+  it('does not leave a tick subscription attached when the snapshot attach fails', () => {
+    const offTick = vi.fn();
+    let attached = false;
+    try {
+      createLiveRowSource({
+        // Attach order matters: snapshot first, so a throw here means tick was
+        // never attached and there is nothing to leak.
+        onSnapshot: () => { throw new Error('boom'); },
+        onTick: () => { attached = true; return offTick; },
+      });
+    } catch {
+      /* expected */
+    }
+    expect(attached).toBe(false);
+  });
+});
