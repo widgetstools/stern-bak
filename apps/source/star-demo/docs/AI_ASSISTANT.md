@@ -318,6 +318,46 @@ since nothing about a probe's result is persisted beyond the columns actually
 chosen. `websocket`/`socketio` feeds still have no probe transport — that gap
 predates this and isn't something either tool builds.
 
+### "What's changed since…" — baselines
+
+`query_grid_data` and `summarize_grid_data` both see exactly one snapshot: the
+rows on screen now. Nothing remembered what they looked like earlier, so the
+question a desk asks all day had no source to read.
+
+Three plausible-looking sources do NOT work, recorded so they aren't retried:
+
+- **`data-change-history`** is settings for an *undo journal of user edits*
+  (`stream: false` by default). It is not a market-data log, and the journal is
+  in-memory, never persisted.
+- **`alerts` history** is explicitly never persisted (`serialize` writes
+  `history: []`) and lives in the grid's window, not the assistant's.
+- **The grid's `historical` provider mode** is real, but `fetchGridRows` takes a
+  live snapshot with no as-of parameter, and whether a given feed can serve a
+  prior date is provider-specific.
+
+So `capture_baseline` marks a snapshot explicitly and stores it as its own
+config row (`baseline::<instanceId>::<name>`, componentType
+`markets-grid-baseline` so it never shows up in blotter-instance discovery).
+`compare_to_baseline` diffs the live rows against it and returns a ranked table
+of movers — absolute and percent deltas, plus rows that appeared or dropped out.
+`list_baselines` says what marks exist.
+
+This is deliberately honest about what it is: **a mark the user set**, not a
+claim about market history. It works on any provider, mock included, with no
+feed support at all.
+
+Three properties worth knowing:
+
+- **A `keyColumn` is required.** Without a stable row identity there is no way
+  to distinguish "this row moved" from "one left and another arrived" — row
+  order is not stable on a live feed — so it refuses rather than matching by
+  position.
+- **Only captured columns can be compared.** Comparing one the baseline never
+  held is refused by name, not silently skipped.
+- **Baselines are capped at 5000 rows** and the cap is reported, in the capture
+  summary and again on every comparison — because rows beyond it would
+  otherwise read as "added" and quietly overstate what happened.
+
 ### Alerts — the assistant watching a book nobody is looking at
 
 `create_alert` (`alertTools.ts`) is the one tool that outlives the conversation.

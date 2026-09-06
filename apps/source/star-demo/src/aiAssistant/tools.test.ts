@@ -31,6 +31,7 @@ const DECLARED: ToolName[] = [
   'list_profiles', 'create_profile', 'update_profile', 'delete_profile', 'switch_profile', 'reload_grid',
   'clear_column_style',
   'create_alert',
+  'capture_baseline', 'compare_to_baseline', 'list_baselines',
 ];
 
 describe('the tool vocabulary and the wire schemas agree', () => {

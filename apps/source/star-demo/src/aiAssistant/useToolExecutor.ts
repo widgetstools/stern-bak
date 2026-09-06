@@ -71,6 +71,7 @@ import {
 } from './layoutTools';
 import { renameColumn, setColumnVisibility } from './simpleColumnTools';
 import { createAlert } from './alertTools';
+import { captureBaseline, compareToBaseline, listBaselines } from './baselineTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import type { DataHubClient } from './dataAccess';
@@ -653,6 +654,12 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return describeDataFields(ctx.configStore, args);
     case 'create_alert':
       return createAlert(ctx.configManager, ctx.configStore, args);
+    case 'capture_baseline':
+      return captureBaseline({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
+    case 'compare_to_baseline':
+      return compareToBaseline({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
+    case 'list_baselines':
+      return listBaselines(ctx.configManager, args);
     case 'rename_column':
       return renameColumn(ctx.configManager, ctx.configStore, args);
     case 'set_column_visibility':

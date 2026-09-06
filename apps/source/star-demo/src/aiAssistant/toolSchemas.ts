@@ -903,6 +903,63 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'capture_baseline',
+      description:
+        'Mark where the data stands right now, so "what has changed since?" can be answered later. Use it when the user says "remember this", "mark the open", "snapshot this" — and proactively before a change they may want to measure. Captures the numeric columns by default. Nothing else in the assistant remembers previous values: without a baseline there is no source for a comparison, so do not claim to know what moved without one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          name: { type: 'string', description: 'What to call it, e.g. "open" or "before rebalance". Default "baseline". Re-using a name overwrites it.' },
+          columns: {
+            type: 'array', items: { type: 'string' },
+            description: 'Columns to capture, named however the user did. Defaults to every declared numeric column — only captured columns can be compared later.',
+          },
+        },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'compare_to_baseline',
+      description:
+        'Answer "what has changed / what has moved / what is different since…" by diffing the live rows against a baseline captured earlier. Returns a ranked table of movers with absolute and percent deltas, plus rows that appeared or disappeared. Requires capture_baseline to have run first — if none exists, say so and offer to start one rather than guessing at movement.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          name: { type: 'string', description: 'Which baseline to compare against. Default "baseline".' },
+          columns: { type: 'array', items: { type: 'string' }, description: 'Restrict the comparison to these columns. Must be ones the baseline captured.' },
+          minChangePercent: { type: 'number', description: 'Only report rows that moved at least this much on some column — use it to cut noise on a live feed.' },
+          limit: { type: 'number', description: 'Max rows in the table. Default 50, max 500. Ranked by biggest absolute move.' },
+          includeUnchanged: { type: 'boolean', description: 'Include rows that did not move at all. Default false.' },
+        },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_baselines',
+      description: 'The baselines captured on a blotter, with when each was taken and what it holds. Use it when the user asks what marks exist, or to pick the right one before comparing.',
+      parameters: {
+        type: 'object',
+        properties: { ...TARGET_GRID_ID_PROPERTY, ...INSTANCE_ID_PROPERTY },
+        required: ['targetGridId'],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];
