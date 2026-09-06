@@ -27,7 +27,7 @@ import { getValueByPath, LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import type { QueryResult } from '@wellsfargo-starui/data';
 import type { RegistryEntry } from '@wellsfargo-starui/openfin/config';
 import { resolveGridEntry, gridScopeId } from './gridProfiles';
-import { readColumnCatalogue, resolveColumns, isNumericColumn, type CatalogColumn } from './columnResolver';
+import { readColumnCatalogue, resolveColumn, resolveColumns, isNumericColumn, type CatalogColumn } from './columnResolver';
 import { fetchGridRows, type DataHubClient } from './dataAccess';
 import { DATA_CELL, type DataCellPayload } from './dataTools';
 import type { ToolExecutionResult } from './toolResult';
@@ -390,5 +390,171 @@ export async function listBaselines(
       .map((b) => `"${b.name}" — ${b.rowCount} rows, captured ${b.capturedAt}`)
       .join('; '),
     data: listed,
+  };
+}
+
+interface Contribution {
+  group: string;
+  delta: number;
+  share: number;
+  rows: number;
+  note?: string;
+}
+
+/**
+ * "Why did it move?" — decompose a total change into who caused it.
+ *
+ * The natural follow-up to `compare_to_baseline`, and the question a PM
+ * actually asks. It is a deterministic calculation over two snapshots, not a
+ * judgement: each row's delta on one metric is bucketed by a dimension
+ * (sector, issuer, desk), summed, and ranked by contribution to the total move.
+ * The model narrates the result; it never estimates it.
+ *
+ * Rows that appeared or disappeared are part of the answer, not noise: a
+ * position closing is one of the most common reasons a total moved, and
+ * dropping it would make the parts fail to add up to the whole.
+ */
+export async function explainChange(
+  deps: BaselineDeps,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const a = args as { targetGridId?: string; metric?: string; by?: string; name?: string; limit?: number };
+  if (!a.targetGridId) return { ok: false, summary: 'Missing required field: targetGridId.' };
+  if (!a.metric) return { ok: false, summary: 'Missing required field: metric — the number whose move you want explained, e.g. "marketValue".' };
+  if (!a.by) return { ok: false, summary: 'Missing required field: by — the dimension to attribute the move to, e.g. "sector" or "issuer".' };
+  const entry = await resolveGridEntry(a.targetGridId);
+  if (!entry) return { ok: false, summary: `No grid registered with id "${a.targetGridId}". Call list_grids to see valid ids.` };
+
+  const name = a.name ?? 'baseline';
+  const instanceId = gridScopeId(entry);
+  const row = await deps.configManager.getConfig(baselineConfigId(instanceId, name));
+  if (!row) {
+    const available = await listBaselineNames(deps.configManager, instanceId);
+    return {
+      ok: false,
+      summary:
+        `No baseline called "${name}" on "${entry.displayName}", so there is no earlier state to explain a move against. ` +
+        (available.length ? `Available: ${available.join(', ')}.` : 'Capture one first with capture_baseline.'),
+    };
+  }
+  const baseline = row.payload as unknown as Baseline;
+
+  const catalogue = await readColumnCatalogue(deps.configManager, deps.configStore, entry);
+  const metricMatch = resolveColumn(a.metric, catalogue);
+  if (!metricMatch.ok) return { ok: false, summary: metricMatch.error };
+  const byMatch = resolveColumn(a.by, catalogue);
+  if (!byMatch.ok) return { ok: false, summary: byMatch.error };
+  const metric = metricMatch.colId;
+  const by = byMatch.colId;
+
+  if (!baseline.columns.includes(metric)) {
+    return {
+      ok: false,
+      summary:
+        `Baseline "${name}" didn't capture ${metric}, so its move can't be measured. ` +
+        `It holds ${baseline.columns.join(', ')}. Re-capture naming ${metric}.`,
+    };
+  }
+
+  const fetched = await fetchGridRows(deps.configManager, deps.configStore, entry, deps.client, {});
+  if (!fetched.ok) return { ok: false, summary: fetched.error };
+  const rowSet = fetched.value;
+
+  // A removed row can only be attributed if the baseline captured the grouping
+  // column. When it didn't, those rows are bucketed honestly rather than
+  // dropped — dropping them would break the reconciliation below.
+  const groupCaptured = baseline.columns.includes(by);
+  const buckets = new Map<string, { delta: number; rows: number }>();
+  const add = (group: string, delta: number) => {
+    const b = buckets.get(group) ?? { delta: 0, rows: 0 };
+    b.delta += delta;
+    b.rows += 1;
+    buckets.set(group, b);
+  };
+
+  const seen = new Set<string>();
+  for (const current of rowSet.rows) {
+    const key = getValueByPath(current, baseline.keyColumn);
+    if (key === null || key === undefined) continue;
+    const k = String(key);
+    seen.add(k);
+    const now = getValueByPath(current, metric);
+    if (typeof now !== 'number') continue;
+    const group = String(getValueByPath(current, by) ?? '(blank)');
+    const before = baseline.rows[k];
+    if (!before) {
+      // Appeared since the baseline: its whole value is new.
+      add(group, now);
+      continue;
+    }
+    const then = before[metric];
+    if (typeof then !== 'number') continue;
+    add(group, now - then);
+  }
+
+  let unattributedRemoved = 0;
+  for (const [k, before] of Object.entries(baseline.rows)) {
+    if (seen.has(k)) continue;
+    const then = before[metric];
+    if (typeof then !== 'number') continue;
+    if (groupCaptured) add(String(before[by] ?? '(blank)'), -then);
+    else {
+      unattributedRemoved += 1;
+      add('(rows that disappeared)', -then);
+    }
+  }
+
+  const total = [...buckets.values()].reduce((s, b) => s + b.delta, 0);
+  const contributions: Contribution[] = [...buckets.entries()]
+    .map(([group, b]) => ({
+      group,
+      delta: Math.round(b.delta * 10000) / 10000,
+      // Share of the NET move. Offsetting moves can make a single contributor
+      // exceed 100% — that is real and worth seeing, not a bug to clamp.
+      share: total === 0 ? 0 : Math.round((b.delta / total) * 1000) / 10,
+      rows: b.rows,
+    }))
+    .filter((c) => c.delta !== 0)
+    .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+
+  const limit = Math.min(a.limit ?? 20, 200);
+  const shown = contributions.slice(0, limit);
+
+  const table: QueryResult = {
+    columns: [by, `${metric} Δ`, 'share %', 'rows'],
+    rows: shown.map((c) => ({ [by]: c.group, [`${metric} Δ`]: c.delta, 'share %': c.share, rows: c.rows })),
+    grouped: true,
+    matched: contributions.length,
+    scanned: rowSet.rows.length,
+    truncated: contributions.length > shown.length,
+  };
+
+  const payload: DataCellPayload = {
+    kind: DATA_CELL,
+    gridName: entry.displayName,
+    source: rowSet.source,
+    provenance: `${rowSet.provenance}; attributed against baseline "${name}" captured ${baseline.capturedAt}`,
+    rowCount: contributions.length,
+    table,
+    ran: `${metric} move since "${name}", by ${by}`,
+  };
+
+  const lead = shown
+    .slice(0, 3)
+    .map((c) => `${c.group} ${c.delta >= 0 ? '+' : ''}${c.delta} (${c.share}%)`)
+    .join(', ');
+
+  return {
+    ok: true,
+    summary:
+      `${metric} moved ${total >= 0 ? '+' : ''}${Math.round(total * 10000) / 10000} on "${entry.displayName}" ` +
+      `since baseline "${name}" (${baseline.capturedAt}), across ${contributions.length} ${by} value(s). ` +
+      (lead ? `Biggest contributors: ${lead}.` : 'Nothing moved.') +
+      // The parts sum to the whole by construction; say when a part is vague.
+      (unattributedRemoved
+        ? ` ${unattributedRemoved} row(s) disappeared and the baseline didn't capture ${by}, so they are grouped together rather than attributed.`
+        : '') +
+      (baseline.truncated ? ' NOTE: the baseline was capped, so rows beyond that cap count as new arrivals.' : ''),
+    data: payload,
   };
 }

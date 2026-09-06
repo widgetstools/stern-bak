@@ -1071,6 +1071,27 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'explain_change',
+      description:
+        "Answer \"why did it move?\" — decompose the change in one number since a baseline into who caused it. \"Why is my P&L down?\" → explain_change with metric \"dailyPnL\", by \"sector\". Returns each group's contribution, ranked, with its share of the net move; rows that appeared or disappeared are included, because a position closing is a common reason a total moved. The decomposition is computed, not estimated — narrate the result, never guess at attribution. Needs a baseline captured earlier.",
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          metric: { type: 'string', description: 'The number whose move to explain, named however the user did, e.g. "marketValue". Must be a column the baseline captured.' },
+          by: { type: 'string', description: 'The dimension to attribute the move to — "sector", "issuer", "desk".' },
+          name: { type: 'string', description: 'Which baseline to measure from. Default "baseline".' },
+          limit: { type: 'number', description: 'Max contributors returned. Default 20, max 200.' },
+        },
+        required: ['targetGridId', 'metric', 'by'],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];

@@ -18,6 +18,7 @@ const CATALOGUE = [
   { colId: 'cusip', headerName: 'Cusip' },
   { colId: 'marketValue', headerName: 'Market Value', cellDataType: 'number' },
   { colId: 'pv01', headerName: 'PV01', cellDataType: 'number' },
+  { colId: 'sector', headerName: 'Sector' },
 ];
 vi.mock('./columnResolver', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -32,7 +33,7 @@ vi.mock('./dataAccess', () => ({
   }),
 }));
 
-import { captureBaseline, compareToBaseline, listBaselines } from './baselineTools';
+import { captureBaseline, compareToBaseline, listBaselines, explainChange } from './baselineTools';
 
 /** In-memory ConfigManager: enough of the row API for baselines. */
 function fakeManager(keyColumn: string | null = 'cusip') {
@@ -225,5 +226,79 @@ describe('list_baselines', () => {
     const listed = res.data as Array<{ name: string; rowCount: number }>;
     expect(listed[0].name).toBe('open');
     expect(listed[0].rowCount).toBe(1);
+  });
+});
+
+/**
+ * Attribution is a calculation, not a judgement: each row's delta on one metric
+ * is bucketed by a dimension and ranked. The parts must reconcile to the whole,
+ * which is why appeared/disappeared rows are part of the answer.
+ */
+describe('explain_change', () => {
+  async function withBaseline(before: Array<Record<string, unknown>>, columns?: string[]) {
+    const deps = fakeManager();
+    liveRows = before;
+    await captureBaseline(deps, { targetGridId: 'grid-pos', name: 'open', columns });
+    return deps;
+  }
+
+  it('attributes a move to the dimension that caused it, ranked', async () => {
+    const deps = await withBaseline([
+      { cusip: 'A', marketValue: 100, pv01: 1, sector: 'Tech' },
+      { cusip: 'B', marketValue: 100, pv01: 1, sector: 'Energy' },
+    ]);
+    liveRows = [
+      { cusip: 'A', marketValue: 130, pv01: 1, sector: 'Tech' },
+      { cusip: 'B', marketValue: 90, pv01: 1, sector: 'Energy' },
+    ];
+    const res = await explainChange(deps, { targetGridId: 'grid-pos', metric: 'marketValue', by: 'sector', name: 'open' });
+    expect(res.ok).toBe(true);
+    const rows = (res.data as { table: { rows: Array<Record<string, unknown>> } }).table.rows;
+    expect(rows[0].sector).toBe('Tech');
+    expect(rows[0]['marketValue Δ']).toBe(30);
+    expect(rows[1]['marketValue Δ']).toBe(-10);
+    // Net move is +20, so Tech's +30 is 150% of it and Energy's -10 is -50%.
+    expect(rows[0]['share %']).toBe(150);
+    expect(res.summary).toContain('moved +20');
+  });
+
+  /** A position closing is one of the commonest reasons a total moved. */
+  it('counts rows that appeared and disappeared in the decomposition', async () => {
+    const deps = await withBaseline([{ cusip: 'A', marketValue: 100, pv01: 1, sector: 'Tech' }], ['Market Value', 'sector']);
+    liveRows = [{ cusip: 'B', marketValue: 40, pv01: 1, sector: 'Energy' }];
+    const res = await explainChange(deps, { targetGridId: 'grid-pos', metric: 'marketValue', by: 'sector', name: 'open' });
+    const rows = (res.data as { table: { rows: Array<Record<string, unknown>> } }).table.rows;
+    const bySector = Object.fromEntries(rows.map((r) => [r.sector, r['marketValue Δ']]));
+    expect(bySector).toEqual({ Tech: -100, Energy: 40 });
+    expect(res.summary).toContain('moved -60');
+  });
+
+  it('buckets disappeared rows honestly when the baseline lacks the grouping column', async () => {
+    const deps = await withBaseline([{ cusip: 'A', marketValue: 100, pv01: 1, sector: 'Tech' }], ['Market Value']);
+    liveRows = [];
+    const res = await explainChange(deps, { targetGridId: 'grid-pos', metric: 'marketValue', by: 'sector', name: 'open' });
+    const rows = (res.data as { table: { rows: Array<Record<string, unknown>> } }).table.rows;
+    expect(rows[0].sector).toBe('(rows that disappeared)');
+    expect(res.summary).toMatch(/didn't capture sector/);
+  });
+
+  it('refuses a metric the baseline never captured', async () => {
+    const deps = await withBaseline([{ cusip: 'A', marketValue: 1, pv01: 1, sector: 'Tech' }], ['Market Value']);
+    const res = await explainChange(deps, { targetGridId: 'grid-pos', metric: 'PV01', by: 'sector', name: 'open' });
+    expect(res.ok).toBe(false);
+    expect(res.summary).toMatch(/didn't capture pv01/);
+  });
+
+  it('needs a baseline before it can explain anything', async () => {
+    const res = await explainChange(fakeManager(), { targetGridId: 'grid-pos', metric: 'marketValue', by: 'sector' });
+    expect(res.ok).toBe(false);
+    expect(res.summary).toMatch(/no earlier state/);
+  });
+
+  it('reports nothing moved rather than inventing a cause', async () => {
+    const deps = await withBaseline([{ cusip: 'A', marketValue: 100, pv01: 1, sector: 'Tech' }]);
+    liveRows = [{ cusip: 'A', marketValue: 100, pv01: 1, sector: 'Tech' }];
+    const res = await explainChange(deps, { targetGridId: 'grid-pos', metric: 'marketValue', by: 'sector', name: 'open' });
+    expect(res.summary).toContain('Nothing moved');
   });
 });

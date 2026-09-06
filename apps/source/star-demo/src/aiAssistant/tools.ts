@@ -57,6 +57,7 @@ export type ToolName =
   | 'remove_limit'
   | 'capture_baseline'
   | 'compare_to_baseline'
+  | 'explain_change'
   | 'list_baselines'
   | 'rename_column'
   | 'set_column_visibility'

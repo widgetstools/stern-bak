@@ -31,7 +31,7 @@ const DECLARED: ToolName[] = [
   'list_profiles', 'create_profile', 'update_profile', 'delete_profile', 'switch_profile', 'reload_grid',
   'clear_column_style',
   'create_alert',
-  'capture_baseline', 'compare_to_baseline', 'list_baselines',
+  'capture_baseline', 'compare_to_baseline', 'list_baselines', 'explain_change',
   'query_across_blotters',
   'set_desk_context', 'add_limit', 'check_limits', 'list_limits', 'remove_limit',
 ];

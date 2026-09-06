@@ -71,7 +71,7 @@ import {
 } from './layoutTools';
 import { renameColumn, setColumnVisibility } from './simpleColumnTools';
 import { createAlert } from './alertTools';
-import { captureBaseline, compareToBaseline, listBaselines } from './baselineTools';
+import { captureBaseline, compareToBaseline, listBaselines, explainChange } from './baselineTools';
 import { queryAcrossBlotters } from './portfolioTools';
 import { setDeskContext, addLimit, checkLimits, listLimits, removeLimit } from './deskTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
@@ -672,6 +672,8 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return captureBaseline({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'compare_to_baseline':
       return compareToBaseline({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
+    case 'explain_change':
+      return explainChange({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'list_baselines':
       return listBaselines(ctx.configManager, args);
     case 'rename_column':

@@ -359,6 +359,30 @@ desk's own note of its rules, and a breach is a finding to show someone. The
 tool description says so, so the model does not present it as a compliance
 control.
 
+### "Why did it move?" — attribution
+
+`explain_change` is the natural follow-up to a comparison and the question a PM
+actually asks. It decomposes the change in ONE metric since a baseline into who
+caused it: each row's delta is bucketed by a dimension (sector, issuer, desk),
+summed, and ranked by contribution with its share of the net move.
+
+It is a calculation, not a judgement — the model narrates the table and never
+estimates attribution itself.
+
+Two details that keep the parts adding up to the whole:
+
+- **Rows that appeared or disappeared are part of the decomposition.** A
+  position closing is one of the commonest reasons a total moved; dropping it
+  would leave the contributions failing to reconcile to the total.
+- **A disappeared row can only be attributed if the baseline captured the
+  grouping column.** When it didn't, those rows are bucketed under
+  `(rows that disappeared)` and the summary says so, rather than being silently
+  dropped or guessed at.
+
+Shares can exceed 100%: when contributions offset, one group's `+30` against a
+net `+20` is genuinely 150% of the move. That is real and worth seeing, so it is
+not clamped.
+
 ### Portfolio-level questions — `query_across_blotters`
 
 Every other data tool takes a single `targetGridId`, which is right for a trader
