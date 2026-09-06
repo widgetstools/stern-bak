@@ -121,3 +121,38 @@ describe('lists and records', () => {
     expect(resolveColumnKeys({ nope: 1 }, CATALOGUE).ok).toBe(false);
   });
 });
+
+/** Nested feeds key columns on a dotted leaf path. Nothing here splits on the
+ *  dot — `normalizeKey` strips it, so the spoken form still lands. */
+describe('nested field paths', () => {
+  const NESTED: CatalogColumn[] = [
+    { colId: 'issuer.name', headerName: 'Issuer Name' },
+    { colId: 'issuer.sector', headerName: 'Issuer Sector' },
+    { colId: 'trade.counterparty.id', headerName: 'Trade Counterparty Id' },
+    { colId: 'marketValue', headerName: 'Market Value' },
+  ];
+
+  it('takes the exact dotted colId', () => {
+    expect(resolveColumn('issuer.name', NESTED)).toEqual({ ok: true, colId: 'issuer.name' });
+  });
+
+  it('takes an arbitrarily deep path', () => {
+    expect(resolveColumn('trade.counterparty.id', NESTED)).toEqual({
+      ok: true, colId: 'trade.counterparty.id',
+    });
+  });
+
+  it('takes the spoken form, dots and all', () => {
+    expect(resolveColumn('issuer name', NESTED)).toEqual({ ok: true, colId: 'issuer.name' });
+  });
+
+  /** A nested `issuer.name` and a flat `issuerName` normalize identically.
+   *  Refusing is correct — acting on the wrong column is worse than asking —
+   *  and the exact colId is always still accepted. */
+  it('refuses a nested/flat collision by name, but honours the exact id', () => {
+    const withTwin = [...NESTED, { colId: 'issuerName', headerName: 'Issuer' }];
+    const res = resolveColumn('issuer name', withTwin);
+    expect(res.ok).toBe(false);
+    expect(resolveColumn('issuer.name', withTwin)).toEqual({ ok: true, colId: 'issuer.name' });
+  });
+});

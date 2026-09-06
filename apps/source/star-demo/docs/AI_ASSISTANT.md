@@ -318,6 +318,34 @@ since nothing about a probe's result is persisted beyond the columns actually
 chosen. `websocket`/`socketio` feeds still have no probe transport — that gap
 predates this and isn't something either tool builds.
 
+### Nested JSON feeds
+
+A feed whose rows are nested — `{ tradeId, issuer: { name, sector }, risk: { pv01 } }`
+— becomes columns addressed by the **dotted leaf path**: `issuer.name`,
+`risk.pv01`. That one id is used everywhere: the provider's
+`columnDefinitions.field`, the catalogue `readColumnCatalogue` builds, the
+`assignments` key a rename writes, and AG-Grid's own `field` (which resolves
+dots natively). Containers are not columns — `leafFields` walks past them.
+
+Three things make that work end to end, each pinned by tests:
+
+- **Naming.** A nested field is labelled by its whole path (`issuer.name` →
+  "Issuer Name"). The leaf alone made `issuer.name` and `counterparty.name`
+  both read "Name", and `resolveColumn` refuses an ambiguous label — so
+  "rename Name" matched two columns and was rejected, leaving the dotted id as
+  the only way in. Flat fields are unaffected.
+- **Resolution.** `normalizeKey` strips the dot, so "issuer name", "Issuer
+  Name" and `issuer.name` all land on the same column, and nothing splits a
+  colId on `.`. A nested `issuer.name` and a flat `issuerName` do collide by
+  name; that is refused rather than guessed, and the exact colId still works.
+- **Reading values.** `runQuery` and `summariseRows` resolve every column
+  through `getValueByPath` (the same helper the expression engine, alerts and
+  conditional styling already use). They used to do flat `row[colId]` access,
+  which is `undefined` on a nested row: filters matched nothing, groups all
+  collapsed into `(blank)`, and aggregates saw no numbers — with no error to
+  explain any of it. `summarize_grid_data` also discovers nested leaves when
+  the caller names no columns, instead of reporting one opaque `issuer` column.
+
 ### Authoring `columnDefinitions` directly
 
 `set_provider_columns` covers *choosing* among fields the model already knows

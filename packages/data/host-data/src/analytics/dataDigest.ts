@@ -1,3 +1,4 @@
+import { getValueByPath } from '@wellsfargo-starui/types';
 import { formatValue } from './formatValue.js';
 /**
  * Turns a set of rows into a compact statistical digest.
@@ -164,12 +165,22 @@ function digestColumn(colId: string, values: readonly unknown[], topN: number): 
 /** Columns to describe when the caller names none: the ones most rows carry. */
 function inferColumns(rows: ReadonlyArray<Record<string, unknown>>, max: number): string[] {
   const seen = new Map<string, number>();
-  for (const row of rows) {
-    for (const [key, value] of Object.entries(row)) {
-      if (isBlank(value)) continue;
-      seen.set(key, (seen.get(key) ?? 0) + 1);
+  // Walks into nested objects so a feed shaped `{ issuer: { name } }` is
+  // described by its LEAF paths (`issuer.name`) — the same dotted ids the
+  // provider's columnDefinitions and every column tool use. Counting the
+  // container instead reported one opaque `issuer` column and left every real
+  // field invisible. Arrays stay leaves: they are values, not sub-columns.
+  const walk = (value: unknown, prefix: string): void => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [key, child] of Object.entries(value)) {
+        walk(child, prefix ? `${prefix}.${key}` : key);
+      }
+      return;
     }
-  }
+    if (isBlank(value) || !prefix) return;
+    seen.set(prefix, (seen.get(prefix) ?? 0) + 1);
+  };
+  for (const row of rows) walk(row, '');
   return [...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([key]) => key);
 }
 
@@ -181,7 +192,8 @@ function groupRows(
 ): GroupDigest[] {
   const buckets = new Map<string, Record<string, unknown>[]>();
   for (const row of rows) {
-    const key = isBlank(row[by]) ? '(blank)' : String(row[by]);
+    const cell = getValueByPath(row, by);
+    const key = isBlank(cell) ? '(blank)' : String(cell);
     const bucket = buckets.get(key);
     if (bucket) bucket.push(row);
     else buckets.set(key, [row]);
@@ -220,19 +232,25 @@ function buildHighlights(
   const headline = [...numerics].sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum))[0];
   if (headline && rows.length >= 5 && headline.sum !== 0) {
     const top5 = [...rows]
-      .filter((r) => typeof r[headline.colId] === 'number')
-      .sort((a, b) => Math.abs(b[headline.colId] as number) - Math.abs(a[headline.colId] as number))
+      .filter((r) => typeof getValueByPath(r, headline.colId) === 'number')
+      .sort(
+        (a, b) =>
+          Math.abs(getValueByPath(b, headline.colId) as number)
+          - Math.abs(getValueByPath(a, headline.colId) as number),
+      )
       .slice(0, 5);
-    const top5Sum = top5.reduce((acc, r) => acc + (r[headline.colId] as number), 0);
+    const top5Sum = top5.reduce((acc, r) => acc + (getValueByPath(r, headline.colId) as number), 0);
     const share = round((Math.abs(top5Sum) / Math.abs(headline.sum)) * 100);
-    const names = labelCol ? top5.map((r) => String(r[labelCol])).join(', ') : `${top5.length} rows`;
+    const names = labelCol
+      ? top5.map((r) => String(getValueByPath(r, labelCol))).join(', ')
+      : `${top5.length} rows`;
     out.push(`Top 5 by ${headline.colId} account for ${share}% of the total (${names}).`);
   }
 
   for (const stat of numerics.slice(0, 3)) {
     if (stat.max === stat.min) continue;
-    const extreme = rows.find((r) => r[stat.colId] === stat.max);
-    const label = labelCol && extreme ? ` (${String(extreme[labelCol])})` : '';
+    const extreme = rows.find((r) => getValueByPath(r, stat.colId) === stat.max);
+    const label = labelCol && extreme ? ` (${String(getValueByPath(extreme, labelCol))})` : '';
     out.push(
       // Formatted with the column's own format — these sentences are what the
       // assistant quotes back, and a raw `487293847.22` in the middle of one
@@ -282,7 +300,9 @@ export function summariseRows(
   const colIds = options.columns?.length
     ? options.columns
     : inferColumns(rows, options.maxColumns ?? DEFAULT_MAX_COLUMNS);
-  const columns = colIds.map((colId) => digestColumn(colId, rows.map((r) => r[colId]), topN));
+  const columns = colIds.map((colId) =>
+    digestColumn(colId, rows.map((r) => getValueByPath(r, colId)), topN),
+  );
   const labelCol = pickLabelColumn(columns);
 
   const digest: DataDigest = {
@@ -291,7 +311,9 @@ export function summariseRows(
     highlights: buildHighlights(rows, columns, labelCol),
     // Three rows is enough for the model to describe shape without the result
     // becoming the rows themselves.
-    sample: rows.slice(0, 3).map((row) => Object.fromEntries(colIds.map((c) => [c, row[c]]))),
+    sample: rows
+      .slice(0, 3)
+      .map((row) => Object.fromEntries(colIds.map((c) => [c, getValueByPath(row, c)]))),
   };
 
   if (options.groupBy) {

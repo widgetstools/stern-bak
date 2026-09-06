@@ -8,7 +8,7 @@ vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
   return { ...actual, probeStomp: (...args: unknown[]) => mockProbeStomp(...args), probeRest: (...args: unknown[]) => mockProbeRest(...args) };
 });
 
-import { probeAndInferFields, suggestedColumns, columnsForPaths, type InferredField } from './providerColumns';
+import { probeAndInferFields, suggestedColumns, columnsForPaths, buildColumnDefinitions, type InferredField } from './providerColumns';
 
 beforeEach(() => {
   mockProbeStomp.mockReset();
@@ -126,5 +126,59 @@ describe('columnsForPaths', () => {
     const { columns, unknown } = columnsForPaths(TREE, ['nope', 'also-nope']);
     expect(columns).toEqual([]);
     expect(unknown).toEqual(['nope', 'also-nope']);
+  });
+});
+
+/**
+ * Feeds that stream nested JSON (`{ issuer: { name, sector } }`) become columns
+ * addressed by their dotted leaf path. `leafFields` already flattened the tree;
+ * what was missing was a label that survives the flattening.
+ */
+describe('nested JSON feeds', () => {
+  const TREE: InferredField[] = [
+    { path: 'tradeId', name: 'tradeId', type: 'string' },
+    {
+      path: 'issuer', name: 'issuer', type: 'object',
+      children: [
+        { path: 'issuer.name', name: 'name', type: 'string' },
+        { path: 'issuer.rating', name: 'rating', type: 'number' },
+      ],
+    },
+    {
+      path: 'counterparty', name: 'counterparty', type: 'object',
+      children: [{ path: 'counterparty.name', name: 'name', type: 'string' }],
+    },
+  ];
+
+  it('turns nested leaves into dotted-path columns and skips the containers', () => {
+    expect(buildColumnDefinitions(TREE).map((c) => c.field)).toEqual([
+      'tradeId', 'issuer.name', 'issuer.rating', 'counterparty.name',
+    ]);
+  });
+
+  /**
+   * Two nested objects each with a `name` both produced the header "Name".
+   * `resolveColumn` refuses an ambiguous label, so "rename Name" matched both
+   * and was rejected — the dotted colId was the only way in.
+   */
+  it('keeps same-leaf headers distinct by qualifying with the path', () => {
+    const headers = buildColumnDefinitions(TREE).map((c) => c.headerName);
+    expect(headers).toEqual(['Trade Id', 'Issuer Name', 'Issuer Rating', 'Counterparty Name']);
+    expect(new Set(headers).size).toBe(headers.length);
+  });
+
+  it('carries the nested leaf type through', () => {
+    const rating = buildColumnDefinitions(TREE).find((c) => c.field === 'issuer.rating');
+    expect(rating?.cellDataType).toBe('number');
+  });
+
+  it('resolves explicit nested paths and reports unknown ones', () => {
+    const { columns, unknown } = columnsForPaths(TREE, ['issuer.name', 'issuer.nope']);
+    expect(columns.map((c) => c.field)).toEqual(['issuer.name']);
+    expect(unknown).toEqual(['issuer.nope']);
+  });
+
+  it('offers shallow fields before nested ones', () => {
+    expect(suggestedColumns(TREE).map((c) => c.field)[0]).toBe('tradeId');
   });
 });

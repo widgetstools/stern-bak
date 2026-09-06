@@ -126,3 +126,40 @@ describe('column selection', () => {
     expect(digest.sample).toEqual([{ ticker: 'AAPL' }, { ticker: 'MSFT' }, { ticker: 'JPM' }]);
   });
 });
+
+/** See the matching block in `dataQuery.test.ts` — nested feeds are addressed
+ *  by dotted leaf path, and the digest has to read and discover them the same
+ *  way or `summarize_grid_data` describes an empty grid. */
+describe('nested rows', () => {
+  const NESTED = [
+    { tradeId: 't1', issuer: { name: 'Apple', sector: 'Tech' }, risk: { pv01: 10 } },
+    { tradeId: 't2', issuer: { name: 'Microsoft', sector: 'Tech' }, risk: { pv01: 20 } },
+    { tradeId: 't3', issuer: { name: 'JPMorgan', sector: 'Financials' }, risk: { pv01: 30 } },
+  ];
+
+  it('describes a named nested column instead of reporting it empty', () => {
+    const digest = summariseRows(NESTED, { columns: ['risk.pv01'] });
+    const stats = digest.columns.find((c) => c.colId === 'risk.pv01') as NumericStats;
+    expect(stats.kind).toBe('number');
+    expect(stats.sum).toBe(60);
+  });
+
+  it('discovers nested leaf paths when no columns are named', () => {
+    const digest = summariseRows(NESTED, {});
+    const ids = digest.columns.map((c) => c.colId);
+    expect(ids).toContain('issuer.name');
+    expect(ids).toContain('risk.pv01');
+    // The container is not a column — it has no values of its own.
+    expect(ids).not.toContain('issuer');
+  });
+
+  it('samples nested values rather than undefined', () => {
+    const digest = summariseRows(NESTED, { columns: ['issuer.name'] });
+    expect(digest.sample[0]).toEqual({ 'issuer.name': 'Apple' });
+  });
+
+  it('groups by a nested column', () => {
+    const digest = summariseRows(NESTED, { columns: ['risk.pv01'], groupBy: 'issuer.sector' });
+    expect(digest.groups?.buckets.map((g) => g.value).sort()).toEqual(['Financials', 'Tech']);
+  });
+});

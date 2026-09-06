@@ -291,3 +291,54 @@ describe('projection', () => {
     expect(Object.keys(out.rows[0])).toEqual(['ticker', 'sector']);
   });
 });
+
+/**
+ * Feeds whose rows are nested JSON (`{ issuer: { name, sector } }`) are
+ * addressed by the dotted leaf path — the same id the provider's
+ * `columnDefinitions`, `readColumnCatalogue` and every column tool use.
+ *
+ * These read `row['issuer.name']` before, which is `undefined` on a nested
+ * object: filters matched nothing, groups all collapsed into "(blank)", and
+ * aggregates saw no numbers — silently, with no error to explain it.
+ */
+describe('nested rows', () => {
+  const NESTED = [
+    { tradeId: 't1', issuer: { name: 'Apple', sector: 'Tech' }, risk: { pv01: 10 } },
+    { tradeId: 't2', issuer: { name: 'Microsoft', sector: 'Tech' }, risk: { pv01: 20 } },
+    { tradeId: 't3', issuer: { name: 'JPMorgan', sector: 'Financials' }, risk: { pv01: 30 } },
+  ];
+
+  it('filters on a nested column', () => {
+    const out = runQuery(NESTED, { filter: [{ column: 'issuer.sector', op: 'eq', value: 'Tech' }] });
+    expect(out.ok && out.value.matched).toBe(2);
+  });
+
+  it('groups and aggregates by nested columns', () => {
+    const out = runQuery(NESTED, {
+      groupBy: ['issuer.sector'],
+      aggregate: [{ column: 'risk.pv01', fn: 'sum', as: 'pv01' }],
+    });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const bySector = Object.fromEntries(
+      out.value.rows.map((r) => [r['issuer.sector'], r.pv01]),
+    );
+    expect(bySector).toEqual({ Tech: 30, Financials: 30 });
+  });
+
+  it('projects nested values into the result table', () => {
+    const out = runQuery(NESTED, { columns: ['tradeId', 'issuer.name'] });
+    expect(out.ok && out.value.rows[0]).toEqual({ tradeId: 't1', 'issuer.name': 'Apple' });
+  });
+
+  it('sorts by a nested column', () => {
+    const out = runQuery(NESTED, { columns: ['issuer.name'], sortBy: { column: 'risk.pv01', direction: 'desc' } });
+    expect(out.ok && out.value.rows.map((r) => r['issuer.name'])).toEqual(['JPMorgan', 'Microsoft', 'Apple']);
+  });
+
+  it('a flat column literally named "a.b" still wins over a path walk', () => {
+    const rows = [{ 'issuer.name': 'literal', issuer: { name: 'nested' } }];
+    const out = runQuery(rows, { columns: ['issuer.name'] });
+    expect(out.ok && out.value.rows[0]['issuer.name']).toBe('literal');
+  });
+});

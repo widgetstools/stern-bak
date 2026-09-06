@@ -290,7 +290,7 @@ export function buildColumns(fields: FieldNode[], selectedPaths: string[]): Colu
     if (!node) continue;
     out.push({
       field: path,
-      headerName: humanize(node.name),
+      headerName: humanizePath(path),
       cellDataType: mapType(node.type),
       filter: true,
       sortable: true,
@@ -302,6 +302,17 @@ export function buildColumns(fields: FieldNode[], selectedPaths: string[]): Colu
 
 function humanize(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1').trim();
+}
+
+/**
+ * Nested fields are labelled by their PATH, not their leaf: `issuer.name` and
+ * `counterparty.name` both humanize to "Name" on their own, so selecting both
+ * produced two columns with one header and no way to tell them apart. Flat
+ * fields are unchanged. Mirrored in the AI assistant's `providerColumns.ts`,
+ * which builds the same columns without a human ticking boxes.
+ */
+function humanizePath(path: string): string {
+  return path.split('.').map(humanize).join(' ');
 }
 
 function mapType(t: FieldNode['type']): ColumnDefinition['cellDataType'] {

@@ -74,7 +74,12 @@ vi.mock('@wellsfargo-starui/design-system', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('@wellsfargo-starui/types', () => ({
+// Partial: keep every real export and override only what a test needs.
+// A full replacement broke whenever production code imported another
+// helper from this module (e.g. `getValueByPath`, used to read nested
+// row paths) — a failure that points at the mock, not the change.
+vi.mock('@wellsfargo-starui/types', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   LOGGED_IN_USER_ID: 'dev1',
 }));
 

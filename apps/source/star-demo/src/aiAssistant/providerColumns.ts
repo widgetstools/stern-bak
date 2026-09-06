@@ -38,6 +38,22 @@ function humanize(name: string): string {
 }
 
 /**
+ * Nested fields are labelled by their PATH, not their leaf.
+ *
+ * `issuer.name` and `counterparty.name` both humanize to "Name" from the leaf
+ * alone, so a nested feed produced several columns with the same header. That
+ * is not only unreadable on screen: `resolveColumn` refuses an ambiguous label,
+ * so "rename Name" matched two columns and was rejected, leaving the dotted
+ * colId as the only way to address any of them. A path is unique by
+ * construction, and "Issuer Name" is also what someone says out loud.
+ *
+ * Flat fields are unaffected — `humanizePath('tradeId') === humanize('tradeId')`.
+ */
+function humanizePath(path: string): string {
+  return path.split('.').map(humanize).join(' ');
+}
+
+/**
  * Inferred "date" fields come from ISO date-ish STRINGS, so they map to
  * AG-Grid's `dateString` — `date` expects real Date objects and would
  * mis-sort/mis-filter the string value. Same rule as the editor's `mapType`.
@@ -64,7 +80,7 @@ function leafFields(nodes: InferredField[]): InferredField[] {
 function toColumn(n: InferredField): ColumnDefinition {
   return {
     field: n.path,
-    headerName: humanize(n.name),
+    headerName: humanizePath(n.path),
     cellDataType: mapType(n.type),
     filter: true,
     sortable: true,

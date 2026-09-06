@@ -68,6 +68,30 @@ describe('buildColumns — inferred type → cellDataType', () => {
     const cols = buildColumns(TREE, ['qty', 'active', 'name']);
     expect(cols.map((c) => c.cellDataType)).toEqual(['number', 'boolean', 'text']);
   });
+
+  /**
+   * Leaf names collide across nested objects: `issuer.name` and
+   * `counterparty.name` both read "Name" on their own, so selecting both gave
+   * two columns with one header and no way to tell them apart.
+   */
+  it('labels nested fields by their path, keeping same-leaf columns distinct', () => {
+    const nested: FieldNode[] = [
+      {
+        path: 'issuer', name: 'issuer', type: 'object', nullable: false,
+        children: [{ path: 'issuer.name', name: 'name', type: 'string', nullable: false }],
+      },
+      {
+        path: 'counterparty', name: 'counterparty', type: 'object', nullable: false,
+        children: [{ path: 'counterparty.name', name: 'name', type: 'string', nullable: false }],
+      },
+    ];
+    const cols = buildColumns(nested, ['issuer.name', 'counterparty.name']);
+    expect(cols.map((c) => c.headerName)).toEqual(['Issuer Name', 'Counterparty Name']);
+  });
+
+  it('leaves a flat field\'s label unchanged', () => {
+    expect(buildColumns(TREE, ['asOfDate'])[0].headerName).toBe('As Of Date');
+  });
 });
 
 describe('FieldsTab — checkbox selection persists', () => {

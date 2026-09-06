@@ -782,7 +782,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 #### Provider editor tabs (internal to `DataProviderEditor`; not separately importable)
 
 - `ConnectionTab` — connection string, auth, transport selection; "Test Connection" button (STOMP/REST) drives `useProviderProbe.test()`. STOMP runs a pure socket connect (`connectStomp` — handshake only, no subscribe/trigger/rows) and shows "Connected"; row-fetching transports (REST/mock) show "Connected — received N rows"
-- `FieldsTab` — discover provider fields, map to columns, infer types; `buildColumns` maps each inferred `FieldNode.type` to a `cellDataType` (number/boolean/object pass through, everything else → `text`), and **inferred date fields → `dateString`** (not `date`) because `inferFields` detects ISO date *strings*, which AG-Grid's `date` type — expecting native `Date` objects — would mis-sort/filter
+- `FieldsTab` — discover provider fields, map to columns, infer types; `buildColumns` maps each inferred `FieldNode.type` to a `cellDataType` (number/boolean/object pass through, everything else → `text`), and **inferred date fields → `dateString`** (not `date`) because `inferFields` detects ISO date *strings*, which AG-Grid's `date` type — expecting native `Date` objects — would mis-sort/filter. Nested fields are labelled by their full path (`issuer.name` → "Issuer Name"): the leaf alone made `issuer.name` and `counterparty.name` both read "Name"
 - `ColumnsTab` — derive AG Grid column defs from schema; collapsible Key Column + Add Custom Column panels and a scrollable body keep the columns table at a usable minimum height in short containers. **Export JSON / Import JSON** buttons (header cluster, plus an Import button in the empty state) round-trip the full `ColumnDefinition[]` via `columnDefsIo` — export preserves `valueGetter`; import replaces the columns and prunes the key column to surviving fields, surfacing parse errors inline. A "Clear all columns" button (confirm dialog) wipes the column list and the now-stale key column in one action. Per-row ƒx button opens a Monaco `ExpressionEditor` (from `@wellsfargo-starui/grid/customizer`) to author a column `valueGetter` DSL expression (column refs `[field]`, nested optional-chaining paths `[a.b.c]`, live-validated); persists onto `ColumnDefinition.valueGetter`, applied at runtime by `buildColumnDefs`
 - `DiagnosticsTab` — probe, request/response logging, debug; Snapshot card shows "Cache size (serialized)" (`stats.cacheBytes`, the worker-cache footprint that `projectFields` shrinks) alongside fetch time and row count; Connection latency card shows "Restart → request sent" (`stats.restartRequestMs`, click-to-upstream-request including dial + handshake) and "Request → first message" (`stats.firstMessageMs`, request-sent to first upstream frame); Throughput card's byte stat is labelled "Bytes received" (upstream wire traffic, unaffected by projection)
 
@@ -1576,6 +1576,10 @@ digests/charts/queries/heatmap shading through the same implementation.
   stats), optional single-column grouping with per-bucket totals, and a
   plain-sentence highlights array. Types: `DataDigest`, `ColumnDigest`,
   `NumericStats`, `CategoryStats`, `DateStats`, `GroupDigest`, `DigestOptions`.
+  Reads every column value through `getValueByPath`, so a nested feed
+  (`{ issuer: { name } }`) is described by its dotted leaf path; when no columns
+  are named, discovery walks into nested objects and reports the leaves rather
+  than one opaque container column.
 - `buildChartSpec()`, `chartColor()`, `fillFor()`, `fillForStyle()` — picks the chart kind
   that fits a result (pie / line / area / bar / hbar / scatter) unless the caller names one.
   `CHART_KINDS`, `SUMMARY_CHART_KINDS`, `CHART_COLORS` (design-system `--ds-chart-*`
@@ -1630,7 +1634,12 @@ digests/charts/queries/heatmap shading through the same implementation.
   query engine over already-fetched rows, with pivot guardrails (column-count cap,
   duplicate-name detection) and a `buildQueryHighlights()`-derived synopsis line
   on the result. `FILTER_OPS`, `AGG_FNS`. Types: `DataQuery`, `QueryResult`,
-  `PivotMeta`, `FilterClause`, `Aggregation`, `FilterOp`, `AggFn`.
+  `PivotMeta`, `FilterClause`, `Aggregation`, `FilterOp`, `AggFn`. Filtering,
+  grouping, aggregating, sorting and projection all resolve column ids through
+  `getValueByPath`, so a dotted path addresses a nested field — flat bracket
+  access silently matched nothing, grouped everything under `(blank)` and left
+  aggregates with no numbers. A column literally named `"a.b"` still wins over
+  the path walk.
 - `heatmapDomain()`, `heatmapCellColor()` — per-column cell-shading domain
   (diverging vs. sequential) and per-cell background colour for a heatmap-mode
   table, theme-aware (`oklch(var(--x) / alpha)` tokens). Type: `HeatmapDomain`.

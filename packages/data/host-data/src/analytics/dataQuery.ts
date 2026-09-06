@@ -1,3 +1,4 @@
+import { getValueByPath } from '@wellsfargo-starui/types';
 import { formatValue } from './formatValue.js';
 /**
  * A small, total query language over already-fetched rows — filter, group,
@@ -95,7 +96,7 @@ function compare(a: unknown, b: unknown): number {
 }
 
 function matches(row: Record<string, unknown>, clause: FilterClause): boolean {
-  const cell = row[clause.column];
+  const cell = getValueByPath(row, clause.column);
   const { op, value } = clause;
   switch (op) {
     case 'isEmpty':
@@ -176,7 +177,7 @@ export function validateQuery(query: DataQuery): string | null {
 }
 
 function applyAgg(rows: ReadonlyArray<Record<string, unknown>>, agg: Aggregation): number {
-  const values = rows.map((r) => r[agg.column]);
+  const values = rows.map((r) => getValueByPath(r, agg.column));
   const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
   switch (agg.fn) {
     case 'count':
@@ -212,7 +213,9 @@ function runGrouped(
   const aggregates = query.aggregate?.length ? query.aggregate : [{ column: groupBy[0], fn: 'count' as AggFn, as: 'count' }];
   const buckets = new Map<string, Record<string, unknown>[]>();
   for (const row of rows) {
-    const key = groupBy.map((c) => (isBlank(row[c]) ? '(blank)' : String(row[c]))).join(' › ');
+    const key = groupBy
+      .map((c) => { const v = getValueByPath(row, c); return isBlank(v) ? '(blank)' : String(v); })
+      .join(' › ');
     const bucket = buckets.get(key);
     if (bucket) bucket.push(row);
     else buckets.set(key, [row]);
@@ -232,7 +235,9 @@ function runGrouped(
  *  scheme `runGrouped` uses for its row dimension, reused here for both the
  *  row AND column dimensions of a pivot. */
 function tupleKey(row: Record<string, unknown>, cols: readonly string[]): string {
-  return cols.map((c) => (isBlank(row[c]) ? '(blank)' : String(row[c]))).join(' › ');
+  return cols
+    .map((c) => { const v = getValueByPath(row, c); return isBlank(v) ? '(blank)' : String(v); })
+    .join(' › ');
 }
 
 type PivotOutcome =
@@ -422,14 +427,18 @@ export function runQuery(rows: ReadonlyArray<Record<string, unknown>>, query: Da
   if (query.sortBy?.column) {
     const { column, direction } = query.sortBy;
     const dir = direction === 'asc' ? 1 : -1;
-    result = [...result].sort((a, b) => compare(a[column], b[column]) * dir);
+    result = [...result].sort(
+      (a, b) => compare(getValueByPath(a, column), getValueByPath(b, column)) * dir,
+    );
   }
 
   const matched = grouped ? grouped.rows.length : filtered.length;
   const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
   const value: QueryResult = {
     columns,
-    rows: result.slice(0, limit).map((row) => Object.fromEntries(columns.map((c) => [c, row[c]]))),
+    rows: result
+      .slice(0, limit)
+      .map((row) => Object.fromEntries(columns.map((c) => [c, getValueByPath(row, c)]))),
     grouped: Boolean(grouped),
     matched,
     scanned: rows.length,
