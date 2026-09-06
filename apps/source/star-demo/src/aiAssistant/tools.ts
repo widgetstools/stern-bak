@@ -58,6 +58,8 @@ export type ToolName =
   | 'capture_baseline'
   | 'compare_to_baseline'
   | 'explain_change'
+  | 'morning_brief'
+  | 'simulate_change'
   | 'list_baselines'
   | 'rename_column'
   | 'set_column_visibility'

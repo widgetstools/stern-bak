@@ -24,6 +24,7 @@ import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import { runQuery, type AggFn } from '@wellsfargo-starui/data';
 import { blotterEntries, gatherRows, resolveAcross, SOURCE_COLUMN, type PortfolioDeps } from './portfolioTools';
+import type { CatalogColumn } from './columnResolver';
 import type { ToolExecutionResult } from './toolResult';
 
 const DESK_COMPONENT_TYPE = 'markets-desk-context';
@@ -214,33 +215,37 @@ interface Breach {
  * whose column cannot be resolved is reported as unevaluated — never quietly
  * treated as passing, which would be the worst possible failure here.
  */
-export async function checkLimits(
-  deps: PortfolioDeps,
-  args: Record<string, unknown>,
-): Promise<ToolExecutionResult> {
-  const context = await readDeskContext(deps.configManager);
-  if (context.limits.length === 0) {
-    return { ok: true, summary: 'No limits are set. Add one with add_limit, e.g. a 5% single-issuer cap.', data: { breaches: [] } };
-  }
-  const only = args.name as string | undefined;
-  const limits = only ? context.limits.filter((l) => l.id === slug(only)) : context.limits;
-  if (limits.length === 0) {
-    return { ok: false, summary: `No limit called "${only}". Current: ${context.limits.map((l) => l.name).join(', ')}.` };
-  }
+export interface LimitVerdict {
+  breaches: Breach[];
+  passed: string[];
+  unevaluated: string[];
+  skippedBooks: Set<string>;
+}
 
+/**
+ * Rows and catalogues for one limit. Injected rather than gathered inline so a
+ * simulation can evaluate the SAME limits against hypothetical rows without a
+ * second copy of the evaluation rules — the "what if" answer and the real one
+ * are then computed identically by construction.
+ */
+export type LimitRowSource = (
+  limit: DeskLimit,
+) => Promise<{ ok: true; rows: Array<Record<string, unknown>>; catalogues: Array<{ name: string; catalogue: CatalogColumn[] }>; skipped: Array<{ displayName: string; reason: string }> } | { ok: false; error: string }>;
+
+export async function evaluateLimits(limits: readonly DeskLimit[], source: LimitRowSource): Promise<LimitVerdict> {
   const breaches: Breach[] = [];
   const passed: string[] = [];
   const unevaluated: string[] = [];
   const skippedBooks = new Set<string>();
 
   for (const limit of limits) {
-    const resolvedEntries = await blotterEntries(limit.gridIds);
-    if (!resolvedEntries.ok) {
-      unevaluated.push(`${limit.name} — ${resolvedEntries.error}`);
+    const got = await source(limit);
+    if (!got.ok) {
+      unevaluated.push(`${limit.name} — ${got.error}`);
       continue;
     }
-    const gathered = await gatherRows(deps, resolvedEntries.entries, false);
-    for (const s of gathered.skipped) skippedBooks.add(`${s.displayName} (${s.reason})`);
+    const gathered = { rows: got.rows, catalogues: got.catalogues };
+    for (const s of got.skipped) skippedBooks.add(`${s.displayName} (${s.reason})`);
     if (gathered.rows.length === 0) {
       unevaluated.push(`${limit.name} — no rows could be read`);
       continue;
@@ -313,6 +318,34 @@ export async function checkLimits(
 
   // Biggest breach first — the point of the answer is what to look at.
   breaches.sort((a, b) => b.by - a.by);
+  return { breaches, passed, unevaluated, skippedBooks };
+}
+
+/** The live row source: what a limit is actually measured against. */
+export function liveLimitRows(deps: PortfolioDeps): LimitRowSource {
+  return async (limit) => {
+    const resolvedEntries = await blotterEntries(limit.gridIds);
+    if (!resolvedEntries.ok) return { ok: false as const, error: resolvedEntries.error };
+    const gathered = await gatherRows(deps, resolvedEntries.entries, false);
+    return { ok: true as const, rows: gathered.rows, catalogues: gathered.catalogues, skipped: gathered.skipped };
+  };
+}
+
+export async function checkLimits(
+  deps: PortfolioDeps,
+  args: Record<string, unknown>,
+): Promise<ToolExecutionResult> {
+  const context = await readDeskContext(deps.configManager);
+  if (context.limits.length === 0) {
+    return { ok: true, summary: 'No limits are set. Add one with add_limit, e.g. a 5% single-issuer cap.', data: { breaches: [] } };
+  }
+  const only = args.name as string | undefined;
+  const limits = only ? context.limits.filter((l) => l.id === slug(only)) : context.limits;
+  if (limits.length === 0) {
+    return { ok: false, summary: `No limit called "${only}". Current: ${context.limits.map((l) => l.name).join(', ')}.` };
+  }
+
+  const { breaches, passed, unevaluated, skippedBooks } = await evaluateLimits(limits, liveLimitRows(deps));
 
   const unit = (name: string) => (limits.find((l) => l.name === name)?.unit === 'percentOfTotal' ? '%' : '');
   const lines = breaches.map(

@@ -74,6 +74,8 @@ import { createAlert } from './alertTools';
 import { captureBaseline, compareToBaseline, listBaselines, explainChange } from './baselineTools';
 import { queryAcrossBlotters } from './portfolioTools';
 import { setDeskContext, addLimit, checkLimits, listLimits, removeLimit } from './deskTools';
+import { morningBrief } from './briefTools';
+import { simulateChange } from './simulateTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import type { DataHubClient } from './dataAccess';
@@ -656,6 +658,10 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return describeDataFields(ctx.configStore, args);
     case 'create_alert':
       return createAlert(ctx.configManager, ctx.configStore, args);
+    case 'simulate_change':
+      return simulateChange({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
+    case 'morning_brief':
+      return morningBrief({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'set_desk_context':
       return setDeskContext(ctx.configManager, args);
     case 'add_limit':

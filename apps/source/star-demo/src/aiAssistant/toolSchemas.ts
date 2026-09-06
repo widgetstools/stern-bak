@@ -1092,6 +1092,50 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'morning_brief',
+      description:
+        "One call for \"what do I need to know?\", \"brief me\", \"how do things look this morning\". Runs across every blotter: what is on each book, what has moved since its baseline, and which desk limits are breaching — in one structured answer. Prefer it over asking for each piece separately at the start of a session. Blotters that could not be read, and limits that could not be evaluated, are named rather than omitted: read those out too, because a brief that quietly skips a book still sounds complete.",
+      parameters: {
+        type: 'object',
+        properties: {
+          gridIds: { type: 'array', items: { type: 'string' }, description: 'Restrict to these blotters. Omit for every registered one.' },
+          baselineName: { type: 'string', description: 'Which baseline to measure movers from. Defaults to whichever each blotter has.' },
+          topMovers: { type: 'number', description: 'Movers to show per blotter. Default 5, max 50.' },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'simulate_change',
+      description:
+        "Pre-trade \"what if\": apply a hypothetical change and report which desk limits would break. \"If I add 50mm of ACME, do I breach?\", \"what if Tech drops 10%?\". Adjust existing rows (changeBy / changePercent / setTo, optionally scoped with `where`) and/or add hypothetical rows. NOTHING IS WRITTEN — no grid, no feed, no config is touched, and no trade is staged anywhere. Say that when reporting the result: this answers a question, it does not place or record an order. Needs limits set with add_limit to have anything to check against.",
+      parameters: {
+        type: 'object',
+        properties: {
+          gridIds: { type: 'array', items: { type: 'string' }, description: 'Restrict to these blotters. Omit for every registered one.' },
+          adjustments: {
+            type: 'array',
+            description: 'Changes to existing rows. Each needs a column and exactly one of changeBy (add), changePercent (scale, -10 = down 10%) or setTo (replace), plus an optional `where` of filter clauses to scope it.',
+            items: { type: 'object' },
+          },
+          addRows: {
+            type: 'array',
+            description: 'Hypothetical new positions, as objects using real column ids, e.g. [{ "issuer": "ACME", "marketValue": 50000000 }]. Use for "if I buy…".',
+            items: { type: 'object' },
+          },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];

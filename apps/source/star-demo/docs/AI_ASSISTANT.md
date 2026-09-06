@@ -5,9 +5,9 @@ calling tools, not by generating code. It lives entirely in
 [`src/aiAssistant/`](../src/aiAssistant/) — one `packages/` change aside (the
 toolbar wand button, see [Toolbar entry point](#toolbar-entry-point)).
 
-- **55 source modules** + 37 test files under `src/aiAssistant/`
-- **49 tools** — 18 read-only, 31 mutating
-- App-wide suite: **657 tests across 59 files** (`npx vitest run` in `apps/source/star-demo`)
+- **49 source modules** + 37 test files under `src/aiAssistant/`
+- **69 tools**
+- App-wide suite: **859 tests across 73 files** (`npx vitest run` in `apps/source/star-demo`)
 
 ---
 
@@ -382,6 +382,32 @@ Two details that keep the parts adding up to the whole:
 Shares can exceed 100%: when contributions offset, one group's `+30` against a
 net `+20` is genuinely 150% of the move. That is real and worth seeing, so it is
 not clamped.
+
+### The brief, and "what if" — composition over new machinery
+
+Two tools compute nothing of their own; both are compositions, which is the
+point rather than a shortcut.
+
+**`morning_brief`** answers "what do I need to know?" in one call: what is on
+each book, what has moved since its baseline, which limits are breaching. Each
+part already refuses honestly when it cannot answer, and those refusals are
+carried through verbatim rather than flattened into a cheerful summary — an
+unreadable blotter is named, and a blotter with no baseline is reported as
+having no mark rather than as having not moved.
+
+**`simulate_change`** is the pre-trade question: add 50mm of ACME, mark a sector
+down 10%, and see which limits would break. It builds an adjusted COPY in
+memory and never touches the grid, the feed or a config row.
+
+Two things make it trustworthy:
+
+- **The "before" and "after" go through one code path.** `evaluateLimits` takes
+  its rows from an injected source (`LimitRowSource`), so the real and
+  hypothetical numbers are computed identically by construction rather than by
+  two implementations that would have to be kept in agreement.
+- **Nothing is written, and the summary leads with saying so.** A model that
+  concluded it had staged a trade would be dangerous in a way none of the other
+  tools are, so the disclaimer is the first sentence, not a footnote.
 
 ### Portfolio-level questions — `query_across_blotters`
 

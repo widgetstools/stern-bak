@@ -353,7 +353,7 @@ export async function compareToBaseline(
   };
 }
 
-async function listBaselineNames(configManager: ConfigManager, instanceId: string): Promise<string[]> {
+export async function listBaselineNames(configManager: ConfigManager, instanceId: string): Promise<string[]> {
   const rows = await configManager.findByComponentType(BASELINE_COMPONENT_TYPE, instanceId);
   return rows
     .map((r) => r.configId.slice(`baseline::${instanceId}::`.length))
