@@ -399,6 +399,10 @@ function plottedValues(spec: ChartSpecDraft): number[] {
  *  differences. Lines and points carry no such promise. */
 const MAGNITUDE_KINDS = new Set<ResolvedChartKind>(['bar', 'hbar', 'stackedBar', 'groupedBar', 'waterfall']);
 
+/** Above this min/max ratio the bars are visually indistinguishable at any
+ *  sensible chart height — 0.9 means the smallest is within 10% of the largest. */
+const CLUSTERED_RATIO = 0.9;
+
 /**
  * Decide the value axis, and never let the request produce a blank chart.
  *
@@ -407,7 +411,12 @@ const MAGNITUDE_KINDS = new Set<ResolvedChartKind>(['bar', 'hbar', 'stackedBar',
  * downgraded here and the reason goes in the caption, where the reader sees it.
  */
 function resolveAxis(spec: ChartSpecDraft, input: ChartInput): ChartSpec {
-  const baseline = input.baseline ?? 'zero';
+  const isMagnitude = MAGNITUDE_KINDS.has(spec.kind);
+  // Lines, areas and points make no promise about zero — a line chart of bond
+  // prices anchored at zero is a flat line near the top of an empty plot, and
+  // every charting convention zooms it. Bars DO promise it (length from zero
+  // is the encoding), so they keep it unless asked.
+  const baseline = input.baseline ?? (isMagnitude ? 'zero' : 'auto');
   let scale: 'linear' | 'log' = input.scale ?? 'linear';
   let caption = spec.caption;
 
@@ -425,8 +434,24 @@ function resolveAxis(spec: ChartSpecDraft, input: ChartInput): ChartSpec {
   }
 
   // Say it, because a truncated bar axis makes small differences look large.
-  if (baseline === 'auto' && scale === 'linear' && MAGNITUDE_KINDS.has(spec.kind)) {
+  if (baseline === 'auto' && scale === 'linear' && isMagnitude) {
     caption += ' · axis zoomed to range, not zero';
+  }
+
+  // A bar chart whose values are all within a few percent of each other draws
+  // as identical bars: technically honest, and it answers nothing. Rather than
+  // truncate the axis silently — which would overstate the differences — say
+  // that the spread is narrow, so the reader knows the bars really are alike
+  // and the model knows a zoomed baseline or a line would show more.
+  if (isMagnitude && baseline === 'zero' && scale === 'linear') {
+    const values = plottedValues(spec).filter((v) => v > 0);
+    if (values.length >= 3) {
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      if (max > 0 && min / max > CLUSTERED_RATIO) {
+        caption += ' · values within ' + Math.round((1 - min / max) * 100) + '% of each other';
+      }
+    }
   }
 
   return { ...spec, scale, baseline, caption };

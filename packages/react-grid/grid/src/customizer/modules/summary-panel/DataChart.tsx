@@ -69,10 +69,30 @@ import {
 } from '@wellsfargo-starui/data';
 
 /** Named so recharts' `var(--color-<key>)` indirection resolves to the ramp. */
-const CHART_CONFIG = {
-  value: { label: 'Value', color: CHART_COLORS[0] },
-  y: { label: 'Y', color: CHART_COLORS[1] },
-} satisfies ChartConfig;
+/**
+ * Legend labels, built from the spec rather than fixed.
+ *
+ * `ChartLegendContent` resolves a label as `config[dataKey].label`, and the
+ * config used to be a module constant mapping `value → "Value"` and
+ * `y → "Y"` — so a combo of `pnl` bars against a `dailyPnl` line drew a legend
+ * reading "Value" and "Y", naming neither measure. Worse for a multi-series
+ * chart, whose dataKeys are the series keys: absent from the constant
+ * entirely, they resolved to `undefined` and the legend rendered a swatch with
+ * no text beside it.
+ *
+ * The raw colId is used as-is, matching the caption underneath, because it is
+ * the name the user's own data uses.
+ */
+export function chartConfigFor(spec: ChartSpec): ChartConfig {
+  const config: ChartConfig = {
+    value: { label: spec.valueKey || 'Value', color: CHART_COLORS[0] },
+    y: { label: spec.yKey || 'Y', color: CHART_COLORS[1] },
+  };
+  (spec.series ?? []).forEach((s, i) => {
+    config[s.key] = { label: s.label, color: chartColor(i) };
+  });
+  return config;
+}
 
 /**
  * Axis ticks only — there is room for about six characters, so a rounded
@@ -95,6 +115,22 @@ const AXIS = {
   tick: { fontSize: 'var(--ds-font-size-2xs, 11px)', fill: 'var(--ds-text-secondary)' },
 } as const;
 const MARGIN = { top: 4, right: 8, bottom: 4, left: 8 } as const;
+
+/**
+ * Category-axis ticks that thin themselves instead of overprinting.
+ *
+ * `interval={0}` forces every label to render whatever the width, so eight
+ * desks — or six traders — in a narrow panel drew on top of each other into an
+ * illegible smear. That is worse than showing fewer labels, because none of
+ * them could be read at all. `preserveStartEnd` plus a minimum gap lets
+ * recharts drop what will not fit: the first and last always survive, and the
+ * tooltip still names every point exactly on hover.
+ *
+ * Shared rather than repeated, because it drifted apart once already — the
+ * plain bar chart was fixed while the combo and horizontal-bar charts kept
+ * overprinting.
+ */
+const CATEGORY_TICKS = { interval: 'preserveStartEnd' as const, minTickGap: 8 };
 
 /**
  * Value-axis props for the scale the spec asked for.
@@ -156,7 +192,7 @@ export function DataChart({ spec, style }: { spec: ChartSpec; style?: ChartStyle
 
   return (
     <ChartContainer
-      config={CHART_CONFIG}
+      config={chartConfigFor(spec)}
       // Label contrast overrides the container's own `fill-muted-foreground`
       // on tick text, so it has to be applied here rather than on the axes.
       className={`w-full h-full ${labelContrastClass(style?.labelContrast)}`}
@@ -239,7 +275,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       return (
         <Chart data={data} margin={MARGIN}>
           {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-          <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" tickFormatter={truncate} />
+          <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
           <YAxis {...AXIS} {...valueAxisProps(spec)} width={44} tickFormatter={yTick} />
           <ChartTooltip content={<ChartTooltipContent formatter={value} />} />
           {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
@@ -267,15 +303,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
     return (
       <BarChart data={data} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-        {/*
-          `interval={0}` forced every category label to render whatever the
-          width, so eight desks in a narrow side panel overprinted into an
-          illegible smear — worse than showing fewer labels, because none of
-          them could be read. `preserveStartEnd` + a minimum gap lets recharts
-          drop the ones that will not fit; the first and last always survive,
-          and the tooltip still names every bar exactly on hover.
-        */}
-        <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" minTickGap={8} tickFormatter={truncate} />
+        <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
         <YAxis {...AXIS} {...valueAxisProps(spec)} width={44} tickFormatter={yTick} />
         <ChartTooltip content={<ChartTooltipContent formatter={value} />} />
         {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
@@ -382,7 +410,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       // running total had got to, and the step itself drawn on top of it.
       <BarChart data={points} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-        <XAxis dataKey="label" {...AXIS} interval={0} tickFormatter={truncate} />
+        <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
         <YAxis {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
         <ChartTooltip
           content={
@@ -412,7 +440,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       // notional in millions draws as a flat line along the floor.
       <ComposedChart data={points} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-        <XAxis dataKey="label" {...AXIS} interval={0} tickFormatter={truncate} />
+        <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
         <YAxis yAxisId="left" {...AXIS} width={40} tickFormatter={compactNumber} />
         <YAxis yAxisId="right" orientation="right" {...AXIS} width={40} tickFormatter={compactNumber} />
         <ChartTooltip
@@ -453,7 +481,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
         margin={MARGIN}
       >
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-        <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" tickFormatter={truncate} />
+        <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
         <YAxis {...AXIS} width={44} {...{ domain: ['dataMin', 'dataMax'] as [string, string], ...valueAxisProps(spec) }} tickFormatter={compactNumber} />
         <ChartTooltip
           content={
@@ -482,7 +510,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
     return (
       <Chart data={points} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-        <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" tickFormatter={truncate} />
+        <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
         <YAxis {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
         <ChartTooltip content={<ChartTooltipContent formatter={money} />} />
         {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
@@ -530,7 +558,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
   return (
     <BarChart data={points} margin={MARGIN}>
       {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-      <XAxis dataKey="label" {...AXIS} interval={0} tickFormatter={truncate} />
+      <XAxis dataKey="label" {...AXIS} {...CATEGORY_TICKS} tickFormatter={truncate} />
       <YAxis {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
       <ChartTooltip content={<ChartTooltipContent formatter={money} />} />
       {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}

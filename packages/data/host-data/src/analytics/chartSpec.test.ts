@@ -257,10 +257,13 @@ describe('value axis', () => {
     grouped: true,
   };
 
-  it('is linear and anchored at zero unless asked otherwise', () => {
-    const spec = buildChartSpec(positive)!;
-    expect(spec.scale).toBe('linear');
-    expect(spec.baseline).toBe('zero');
+  it('is linear unless asked otherwise', () => {
+    expect(buildChartSpec(positive)!.scale).toBe('linear');
+  });
+
+  /** The baseline default depends on the kind — see `baseline defaults`. */
+  it('anchors a bar chart at zero unless asked otherwise', () => {
+    expect(buildChartSpec({ ...positive, requested: 'bar' })!.baseline).toBe('zero');
   });
 
   it('honours a log scale when every value is positive', () => {
@@ -307,5 +310,67 @@ describe('value axis', () => {
   it('says nothing about truncation for a line, where it carries no such promise', () => {
     const spec = buildChartSpec({ ...positive, baseline: 'auto', requested: 'line' })!;
     expect(spec.caption).not.toMatch(/not zero/);
+  });
+});
+
+/**
+ * Defaults, and the one case where the honest chart is still unreadable.
+ */
+describe('baseline defaults', () => {
+  const clustered = {
+    columns: ['desk', 'notional'],
+    rows: [
+      { desk: 'Rates', notional: 62_400_000_000 },
+      { desk: 'Credit', notional: 62_800_000_000 },
+      { desk: 'Govies', notional: 62_600_000_000 },
+    ],
+    grouped: true,
+  };
+
+  /** Bar length encodes magnitude FROM zero — that promise is kept. */
+  it('anchors a bar chart at zero by default', () => {
+    expect(buildChartSpec({ ...clustered, requested: 'bar' })!.baseline).toBe('zero');
+  });
+
+  /**
+   * A line makes no such promise, and anchored at zero a line of bond prices
+   * is a flat trace near the top of an empty plot.
+   */
+  it('zooms a line chart by default', () => {
+    expect(buildChartSpec({ ...clustered, requested: 'line' })!.baseline).toBe('auto');
+  });
+
+  it('still honours an explicit request either way', () => {
+    expect(buildChartSpec({ ...clustered, requested: 'bar', baseline: 'auto' })!.baseline).toBe('auto');
+    expect(buildChartSpec({ ...clustered, requested: 'line', baseline: 'zero' })!.baseline).toBe('zero');
+  });
+
+  /**
+   * Identical bars are technically honest and answer nothing. Rather than
+   * truncate the axis silently — which would overstate the differences — the
+   * caption says the spread is narrow, so the reader knows the bars really
+   * are alike and the model knows what would show more.
+   */
+  it('says when bars are too close together to tell apart', () => {
+    const spec = buildChartSpec({ ...clustered, requested: 'bar' })!;
+    expect(spec.caption).toMatch(/within \d+% of each other/);
+  });
+
+  it('says nothing of the sort when the bars genuinely differ', () => {
+    const spread = {
+      ...clustered,
+      rows: [
+        { desk: 'Rates', notional: 1_000 },
+        { desk: 'Credit', notional: 90_000 },
+        { desk: 'Govies', notional: 50_000 },
+      ],
+    };
+    expect(buildChartSpec({ ...spread, requested: 'bar' })!.caption).not.toMatch(/of each other/);
+  });
+
+  it('does not warn about a zoomed bar chart, which already shows the spread', () => {
+    const spec = buildChartSpec({ ...clustered, requested: 'bar', baseline: 'auto' })!;
+    expect(spec.caption).not.toMatch(/of each other/);
+    expect(spec.caption).toMatch(/not zero/);
   });
 });

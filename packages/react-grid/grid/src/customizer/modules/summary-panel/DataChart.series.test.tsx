@@ -4,7 +4,7 @@
 import { render } from '@testing-library/react';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { buildChartSpec, type ChartSpec } from '@wellsfargo-starui/data';
-import { DataChart } from './DataChart.js';
+import { DataChart, chartConfigFor } from './DataChart.js';
 
 /**
  * What is and is not testable here, so the next person doesn't rediscover it:
@@ -118,5 +118,42 @@ describe('single-series charts are unaffected', () => {
     );
     expect(built.series).toBeUndefined();
     expect(container.querySelector('.recharts-responsive-container')).toBeTruthy();
+  });
+});
+
+/**
+ * `ChartLegendContent` resolves a label as `config[dataKey].label`. That config
+ * used to be a module constant mapping `value → "Value"` and `y → "Y"`, so a
+ * combo of `pnl` bars against a `dailyPnl` line drew a legend naming neither
+ * measure — and a multi-series chart, whose dataKeys ARE the series keys, was
+ * absent from the constant entirely and rendered swatches with no text.
+ */
+describe('legend labels name the real measures', () => {
+  it('names the two measures of a combo rather than "Value" and "Y"', () => {
+    const config = chartConfigFor({
+      kind: 'combo', valueKey: 'pnl', yKey: 'dailyPnl',
+      points: [], labelKey: 'trader', signed: true,
+      scale: 'linear', baseline: 'zero', caption: '',
+    } as unknown as Parameters<typeof chartConfigFor>[0]);
+    expect(config.value.label).toBe('pnl');
+    expect(config.y.label).toBe('dailyPnl');
+  });
+
+  it('gives every series of a multi-series chart a label', () => {
+    const config = chartConfigFor({
+      kind: 'stackedBar', valueKey: 'v', points: [], labelKey: 'desk', signed: false,
+      series: [{ key: 's0', label: 'Financials', fill: '#000' }, { key: 's1', label: 'Energy', fill: '#111' }],
+      scale: 'linear', baseline: 'zero', caption: '',
+    } as unknown as Parameters<typeof chartConfigFor>[0]);
+    expect(config.s0.label).toBe('Financials');
+    expect(config.s1.label).toBe('Energy');
+  });
+
+  it('falls back to the generic names only when the spec has none', () => {
+    const config = chartConfigFor({
+      kind: 'bar', valueKey: '', points: [], labelKey: 'x', signed: false,
+      scale: 'linear', baseline: 'zero', caption: '',
+    } as unknown as Parameters<typeof chartConfigFor>[0]);
+    expect(config.value.label).toBe('Value');
   });
 });
