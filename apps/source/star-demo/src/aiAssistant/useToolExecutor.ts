@@ -70,6 +70,7 @@ import {
   setGroupExpansion,
 } from './layoutTools';
 import { renameColumn, setColumnVisibility } from './simpleColumnTools';
+import { createAlert } from './alertTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import type { DataHubClient } from './dataAccess';
@@ -650,6 +651,8 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return setProviderColumns(ctx.configManager, ctx.configStore, args);
     case 'describe_data_fields':
       return describeDataFields(ctx.configStore, args);
+    case 'create_alert':
+      return createAlert(ctx.configManager, ctx.configStore, args);
     case 'rename_column':
       return renameColumn(ctx.configManager, ctx.configStore, args);
     case 'set_column_visibility':

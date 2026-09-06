@@ -48,6 +48,7 @@ export type ToolName =
   | 'add_conditional_styling_rule'
   | 'update_conditional_styling_rule'
   | 'remove_conditional_styling_rule'
+  | 'create_alert'
   | 'rename_column'
   | 'set_column_visibility'
   | 'set_column_style'

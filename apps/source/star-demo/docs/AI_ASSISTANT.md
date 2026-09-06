@@ -318,6 +318,39 @@ since nothing about a probe's result is persisted beyond the columns actually
 chosen. `websocket`/`socketio` feeds still have no probe transport — that gap
 predates this and isn't something either tool builds.
 
+### Alerts — the assistant watching a book nobody is looking at
+
+`create_alert` (`alertTools.ts`) is the one tool that outlives the conversation.
+A rule keeps evaluating on every tick after the window is closed and reaches the
+user through toast, the toolbar bell and — under OpenFin — the Notification
+Center, via bridges the alerts module already ships.
+
+It takes the trigger the way a person states it and compiles it:
+
+| The user says | Arguments | Compiled trigger |
+|---|---|---|
+| "tell me if spread goes above 50" | `column`, `operator`, `value` | `dataChange` + `expression: "value > 50"` |
+| "alert me on a 5% drop" | `column`, `movesBy`, `mode`, `direction` | `relativeChange` |
+| "tell me when a new axe appears" | `rowEvent` | `rowChange` |
+| anything else | `expression` | `dataChange`, passed through |
+
+**Why it is a dedicated tool rather than `add_module_item`.** Two reasons, and
+the second is the real one. A model asked to "let me know if…" does not reach
+for a tool called *add module item* — the same argument that put `rename_column`
+next to `set_column_style`. And the shape it would have copied was wrong: this
+guide documented a `dataChange` trigger as `{ operator, value }`, but the type
+is `{ expression, column? }` and `evaluateDataChangeRule` calls
+`parseAndEvaluate(trigger.expression, …)` inside a `try`. An `operator`/`value`
+rule leaves `expression` undefined, the parse throws, the evaluator swallows it,
+and the alert **saves cleanly, lists normally and never fires** — with nothing
+anywhere to say so. The guide is corrected and a test now runs a compiled
+expression through the real engine, so a rule that cannot fire fails the suite.
+
+Defaults lean toward being heard and not being a firehose: all three channels
+(`openfin` is a no-op outside OpenFin, so it costs nothing to leave on) and a
+5s debounce rather than the module's 1s, because a threshold stays true for as
+long as the price does and would otherwise re-fire on every tick.
+
 ### Nested JSON feeds
 
 A feed whose rows are nested — `{ tradeId, issuer: { name, sector }, risk: { pv01 } }`

@@ -437,22 +437,33 @@ A rule:
   "enabled": true,
   "priority": 10,
   "severity": "warning",
-  "trigger": { "kind": "dataChange", "column": "bidAskWidthBps", "operator": "greaterThan", "value": 50 },
+  "trigger": { "kind": "dataChange", "column": "bidAskWidthBps", "expression": "value > 50" },
   "message": "{column} on {rowId} hit {value} (was {prev})",
   "channels": ["toast"],
   "debounceMs": 5000
 }
 \`\`\`
 
-- \`trigger.kind\` is \`dataChange\` (a column crossing a threshold), \`relativeChange\`
-  (a move relative to the previous value) or \`rowChange\` (any change on a row).
+- \`trigger.kind\` is \`dataChange\` (a boolean EXPRESSION over the row),
+  \`relativeChange\` (a move vs. the previous value) or \`rowChange\` (row added/removed).
+- A \`dataChange\` trigger carries \`expression\`, NOT \`operator\`/\`value\`. The
+  evaluator hands it to the expression engine and swallows parse errors, so a
+  rule written with \`operator\`/\`value\` saves cleanly, appears in the rule list
+  and never fires. Expression syntax is conditional-styling's: \`value\` is the
+  changed cell, \`[colId]\` another column, \`data.a.b\` a nested raw field.
+- \`relativeChange\` takes \`column\`, \`mode\` (\`PERCENT_CHANGE\` / \`ABSOLUTE_CHANGE\` /
+  \`ANY_CHANGE\`), \`threshold\` and \`direction\`; \`rowChange\` takes \`event\`
+  (\`ROW_ADDED\` / \`ROW_REMOVED\`).
 - \`message\` supports the \`{value}\`, \`{prev}\`, \`{rowId}\` and \`{column}\`
   placeholders, substituted when the alert fires.
 - \`debounceMs\` is per-rule; without it the module's \`settings.defaultDebounceMs\`
   applies. On a fast feed, an undebounced rule is a firehose — set one.
 
-Add and edit rules with add_module_item / update_module_item / remove_module_item
-on moduleId "alerts", collection "rules"; module-wide options live in
+**Prefer create_alert** to make one: it takes the trigger the way a person
+states it, resolves the column name, compiles a valid trigger and picks a
+sane debounce. Use add_module_item / update_module_item / remove_module_item
+on moduleId "alerts", collection "rules" to edit or delete an existing rule;
+module-wide options live in
 \`settings\` and go through update_module_settings.`;
 
 const MODULE_ITEMS = `## Working with module items

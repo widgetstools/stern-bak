@@ -852,6 +852,57 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_alert',
+      description:
+        'Watch the data and tell the user when something happens — "let me know if any spread blows out", "alert me when a position moves more than 5%", "tell me if a row disappears". Alerts keep running after the conversation ends and reach the user through toast, the toolbar bell and (under OpenFin) the Notification Center, so this is how the assistant watches a book nobody is looking at. Name the column however the user did; it is resolved for you. Pass exactly ONE trigger: operator+value for a threshold, movesBy+mode for a relative move, rowEvent for rows appearing/disappearing, or expression for anything else. Do NOT hand-write alert rules through add_module_item — the trigger shape is easy to get wrong in a way that saves cleanly and never fires.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ...TARGET_GRID_ID_PROPERTY,
+          ...INSTANCE_ID_PROPERTY,
+          name: { type: 'string', description: 'What to call this alert, e.g. "Spread blew out". Also derives its id.' },
+          column: {
+            type: 'string',
+            description:
+              'The column to watch — its id ("bidAskWidthBps"), its header ("Spread"), or a loose form ("spread"). Required for a threshold or a relative move; optional with expression (scopes it to changes on that column); unused with rowEvent.',
+          },
+          operator: {
+            type: 'string',
+            enum: ['gt', 'gte', 'lt', 'lte', 'eq', 'ne'],
+            description: 'Threshold comparison against `value`. Pair with `value`.',
+          },
+          value: { description: 'The threshold to compare against. Numbers stay numeric; anything else is quoted for you.' },
+          movesBy: { type: 'number', description: 'Size of the move that fires a relative alert — 5 with mode "percent" means a 5% move. Omit with mode "any".' },
+          mode: { type: 'string', enum: ['percent', 'absolute', 'any'], description: 'How movesBy is measured. Default "percent".' },
+          direction: { type: 'string', enum: ['up', 'down', 'both'], description: 'Which way the move has to go. Default "both".' },
+          rowEvent: { type: 'string', enum: ['added', 'removed'], description: 'Fire when a row appears in or drops out of the grid.' },
+          expression: {
+            type: 'string',
+            description:
+              'Escape hatch for anything the shorthands cannot say — a boolean expression like "value > 50" or "[bid] > [ask]". `value`/`x` is the changed cell, `[colId]` another column, `data.a.b` a nested raw field. See get_feature_guide("expression-dsl").',
+          },
+          message: {
+            type: 'string',
+            description: 'What the notification says. Supports {value}, {prev}, {rowId}, {column}. A readable default is written for you.',
+          },
+          severity: { type: 'string', enum: ['info', 'success', 'warning', 'critical'], description: 'Default "warning".' },
+          channels: {
+            type: 'array',
+            items: { type: 'string', enum: ['toast', 'badge', 'openfin'] },
+            description: 'Where it lands. Default all three — "openfin" is a no-op outside OpenFin, so leaving it on costs nothing.',
+          },
+          debounceMs: { type: 'number', description: 'Minimum gap between firings for this rule. Default 5000. On a fast feed a low value is a firehose.' },
+          priority: { type: 'number', description: 'Lower fires first when several rules match. Default 10.' },
+          enabled: { type: 'boolean', description: 'Default true.' },
+        },
+        required: ['targetGridId', 'name'],
+        additionalProperties: false,
+      },
+    },
+  },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
 ];
