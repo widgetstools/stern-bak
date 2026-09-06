@@ -290,3 +290,42 @@ describe('liveness badge', () => {
     expect(screen.getByText(/streaming/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * Legibility, reported from a screenshot: "the legends and texts are barely
+ * visible". The worst of it was not faintness but TRUNCATION — a fixed
+ * `repeat(4, 1fr)` gave each KPI tile about 45px in the narrow side rails, so
+ * the headline figure rendered as "6…" and the tile said nothing at all.
+ */
+describe('legibility', () => {
+  const TILES = [
+    {
+      kind: 'kpis',
+      query: { aggregate: [{ column: 'marketValue', fn: 'sum' }], groupBy: ['sector'] },
+      tiles: [
+        { label: 'Gross exposure', column: 'marketValue', fn: 'sum' },
+        { label: 'Daily P&L', column: 'marketValue', fn: 'sum' },
+        { label: 'Total P&L', column: 'marketValue', fn: 'sum' },
+        { label: 'DV01', column: 'marketValue', fn: 'sum' },
+      ],
+    },
+  ];
+
+  it('lets KPI tiles wrap instead of forcing four into whatever width there is', () => {
+    const { container } = draw(TILES);
+    // Several grids render here (the region layout is one), so look across
+    // them rather than assuming which comes first.
+    const tracks = [...container.querySelectorAll<HTMLElement>('[style*="grid-template-columns"]')]
+      .map((el) => el.style.gridTemplateColumns);
+    // auto-fit with a floor, so a narrow rail wraps to one or two columns
+    // rather than squeezing four unreadable ones.
+    expect(tracks.some((t) => t.includes('auto-fit') && t.includes('minmax'))).toBe(true);
+    expect(tracks.some((t) => t.includes('repeat(4'))).toBe(false);
+  });
+
+  /** A 9px label at 70% opacity on a dark ground is not quiet, it is gone. */
+  it('does not render label text below 10px', () => {
+    const { container } = draw(TILES);
+    expect(container.querySelectorAll('.text-\\[9px\\]')).toHaveLength(0);
+  });
+});

@@ -90,7 +90,9 @@ export const compactNumber = formatCompact;
 const AXIS = {
   tickLine: false,
   axisLine: false,
-  tick: { fontSize: 'var(--ds-font-size-2xs, 10px)' },
+  // Ticks inherit the chart's muted colour; at 10px on a dark ground they
+  // need the full token rather than a faded one to stay readable.
+  tick: { fontSize: 'var(--ds-font-size-2xs, 11px)', fill: 'var(--ds-text-secondary)' },
 } as const;
 const MARGIN = { top: 4, right: 8, bottom: 4, left: 8 } as const;
 
@@ -243,7 +245,15 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
     return (
       <BarChart data={data} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
-        <XAxis dataKey="label" {...AXIS} interval={0} tickFormatter={truncate} />
+        {/*
+          `interval={0}` forced every category label to render whatever the
+          width, so eight desks in a narrow side panel overprinted into an
+          illegible smear — worse than showing fewer labels, because none of
+          them could be read. `preserveStartEnd` + a minimum gap lets recharts
+          drop the ones that will not fit; the first and last always survive,
+          and the tooltip still names every bar exactly on hover.
+        */}
+        <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" minTickGap={8} tickFormatter={truncate} />
         <YAxis {...AXIS} width={44} tickFormatter={yTick} />
         <ChartTooltip content={<ChartTooltipContent formatter={value} />} />
         {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}

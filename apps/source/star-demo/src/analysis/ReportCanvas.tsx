@@ -71,7 +71,7 @@ function BandLabel({ label }: { label: string }) {
   return (
     <div className="flex-shrink-0 flex items-center justify-center w-7 select-none">
       <span
-        className="text-[13px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/25 whitespace-nowrap"
+        className="text-[13px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/55 whitespace-nowrap"
         style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
       >
         {label}
@@ -83,7 +83,7 @@ function BandLabel({ label }: { label: string }) {
 /** A section heading with the reference's full-width rule under it. */
 function BlockTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/80 pb-1 mb-2 border-b border-border/50">
+    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground pb-1 mb-2 border-b border-border/60">
       {children}
     </h3>
   );
@@ -124,7 +124,7 @@ function Stat({
 
   return (
     <div className="min-w-0">
-      <div className="text-[9px] uppercase tracking-[0.1em] text-muted-foreground/70 truncate">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground truncate">{label}</div>
       <div
         className={cn(
           'font-mono tabular-nums leading-none mt-1 truncate',
@@ -184,9 +184,14 @@ function readTile(row: Record<string, unknown> | undefined, tile: KpiTile): { ra
  */
 function Kpis({ block, result }: { block: KpiBlock; result: QueryResult | null }) {
   const row = result?.rows[0];
-  // 4-column layout: tiles flow left-to-right, wrapping at 4 per row.
+  // Tiles fit themselves to the region they are in. A fixed `repeat(4, 1fr)`
+  // gave each tile a quarter of whatever width it had — about 45px in the
+  // narrow side rails — so the headline number truncated to "6…" and the tile
+  // conveyed nothing. `auto-fit` + a min track width wraps instead: four
+  // across the main region, one or two down a rail, always wide enough to
+  // read the figure it exists to show.
   return (
-    <div className="grid gap-x-5 gap-y-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+    <div className="grid gap-x-5 gap-y-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))' }}>
       {block.tiles.map((tile) => {
         const { raw, colId } = readTile(row, tile);
         const numeric = typeof raw === 'number' ? raw : undefined;
@@ -239,7 +244,7 @@ function Lanes({ block, result }: { block: LanesBlock; result: QueryResult | nul
 }
 
 function Empty({ reason }: { reason?: string } = {}) {
-  return <p className="text-[11px] text-muted-foreground/70 py-2">{reason ?? 'No data for this block.'}</p>;
+  return <p className="text-[11px] text-muted-foreground py-2">{reason ?? 'No data for this block.'}</p>;
 }
 
 function BlockBody({
@@ -273,7 +278,7 @@ function BlockBody({
       return (
         <div className="min-h-[180px]">
           <DataChart spec={chartSpec} style={block.style} />
-          <p className="mt-1 text-[9px] text-muted-foreground/60">{chartSpec.caption}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground/85">{chartSpec.caption}</p>
         </div>
       );
     }
@@ -392,23 +397,23 @@ export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt, l
           )}
           {/* A refresh is FRESH data, not the snapshot the transcript quoted.
               Saying which and when is the honest half of a live report. */}
-          {provenance && <span className="text-[10px] text-muted-foreground/70">{provenance}</span>}
+          {provenance && <span className="text-[11px] text-muted-foreground/85">{provenance}</span>}
           {spec.asOf && (
-            <span className="text-[10px] text-muted-foreground/70">
+            <span className="text-[11px] text-muted-foreground/85">
               as of {new Date(spec.asOf).toLocaleTimeString()}
             </span>
           )}
           {ranAt && !spec.asOf && (
-            <span className="text-[10px] font-mono text-muted-foreground/60">
+            <span className="text-[11px] font-mono text-muted-foreground/85">
               ran {ranAt.toLocaleTimeString()}
             </span>
           )}
           {howLive === 'streaming' ? (
-            <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60">
+            <span className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground/85">
               live · streaming
             </span>
           ) : howLive === 'polled' && spec.refreshMs ? (
-            <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60">
+            <span className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground/85">
               live · every {Math.round(spec.refreshMs / 1000)}s
             </span>
           ) : null}
