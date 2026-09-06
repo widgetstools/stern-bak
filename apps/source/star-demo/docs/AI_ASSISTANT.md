@@ -391,7 +391,12 @@ with a **ten-minute TTL**. That is right for "show me this now" and useless for
 
 `save_dashboard` makes it three ordinary things the platform already does:
 
-1. the `ReportSpec` persisted as its own config row (`dashboard-spec::<id>`),
+1. the `ReportSpec` **and the blotter it reads** persisted as its own config
+   row (`dashboard-spec::<id>`). Both, because a dashboard opened from the dock
+   arrives with no blotter in context — saving the spec alone left the window
+   unable to resolve which grid to read, so it fetched no rows and rendered
+   empty. `targetGridId` is therefore required by `save_dashboard`, and checked
+   against the registry rather than taken on trust,
 2. a Component Registry entry whose `hostUrl` carries `?dashboard=<id>`, so the
    existing launcher opens it like any other component — no new launch path,
 3. a dock button under **Assets → Dashboards → \<name\>**.

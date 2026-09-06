@@ -1146,10 +1146,15 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
         properties: {
           name: { type: 'string', description: 'What to call it on the dock, e.g. "Trader Dashboard".' },
           spec: { type: 'object', description: 'The report spec — same shape as create_live_report.' },
+          targetGridId: {
+            type: 'string',
+            description:
+              'REQUIRED — the blotter this dashboard reads, as a configId. A saved dashboard is opened from the dock with no blotter in context, so without this it has no rows and renders empty.',
+          },
           addToDock: { type: 'boolean', description: 'File it under Assets → Dashboards. Defaults to true.' },
           openNow: { type: 'boolean', description: 'Open it as soon as it is saved. Defaults to true.' },
         },
-        required: ['name', 'spec'],
+        required: ['name', 'spec', 'targetGridId'],
         additionalProperties: false,
       },
     },

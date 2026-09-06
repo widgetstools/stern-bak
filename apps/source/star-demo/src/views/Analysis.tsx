@@ -30,7 +30,7 @@ import { useDataServices, useDataProvider } from '@wellsfargo-starui/react/data/
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 import { readHandoff, type AnalysisHandoff, listAnalysisWindows, reopenAnalysisWindow } from '../analysisPopout';
-import { readDashboardSpec, saveDashboardLayout } from '../aiAssistant/dashboardTools';
+import { readDashboard, saveDashboardLayout } from '../aiAssistant/dashboardTools';
 import { resolveGridEntry, resolveGridForInstance } from '../aiAssistant/gridProfiles';
 import { fetchGridRows, type DataHubClient, type RowSet } from '../aiAssistant/dataAccess';
 import { createLiveRowSource, type LiveRowSource } from '@wellsfargo-starui/grid';
@@ -85,14 +85,21 @@ function Analysis() {
 
   const handoff = useMemo(() => (handoffId ? readHandoff(handoffId) : null), [handoffId]);
   const [savedSpec, setSavedSpec] = useState<ReportSpec | null>(null);
+  const [savedGridId, setSavedGridId] = useState<string | undefined>();
   const [savedError, setSavedError] = useState<string | undefined>();
   useEffect(() => {
     if (!dashboardId || !configManager) return;
     let cancelled = false;
-    void readDashboardSpec(configManager, dashboardId).then((found) => {
+    void readDashboard(configManager, dashboardId).then((found) => {
       if (cancelled) return;
-      if (found) setSavedSpec(found);
-      else setSavedError(`No saved dashboard "${dashboardId}" — it may have been deleted.`);
+      if (found) {
+        setSavedSpec(found.spec);
+        // The blotter it reads. Normally also in the URL; kept here so a
+        // dashboard still resolves its source if the link ever loses it.
+        setSavedGridId(found.gridId);
+      } else {
+        setSavedError(`No saved dashboard "${dashboardId}" — it may have been deleted.`);
+      }
     });
     return () => {
       cancelled = true;
@@ -125,7 +132,7 @@ function Analysis() {
     return undefined;
   }, [handoff?.payload]);
 
-  const gridId = handoff?.gridId ?? gridParam;
+  const gridId = handoff?.gridId ?? gridParam ?? savedGridId;
   const instanceId = handoff?.instanceId ?? instanceParam;
   const displayName = handoff?.displayName ?? nameParam;
 

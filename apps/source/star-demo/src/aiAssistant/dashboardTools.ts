@@ -32,6 +32,7 @@ import {
   BLOTTER_DOCK_GROUP,
 } from './registryOps';
 import { launchBlotter, describeLaunch } from './launchComponent';
+import { resolveGridEntry } from './gridProfiles';
 import type { ToolExecutionResult } from './toolResult';
 
 /** Its own componentType, so a dashboard never appears in a blotter listing. */
@@ -50,17 +51,48 @@ function dashboardConfigId(id: string): string {
   return `dashboard-spec::${id}`;
 }
 
+/**
+ * What a saved dashboard stores.
+ *
+ * The spec alone was not enough: a dashboard opened from the dock arrives with
+ * no blotter in its URL, so the window could not resolve WHICH grid to read
+ * and rendered nothing at all. The source is part of the dashboard, so it is
+ * saved with it.
+ */
+interface StoredDashboard {
+  v: 1;
+  /** The blotter configId whose rows this dashboard reads. */
+  gridId: string;
+  spec: ReportSpec;
+}
+
+export interface LoadedDashboard {
+  gridId: string;
+  spec: ReportSpec;
+}
+
+export async function readDashboard(
+  configManager: ConfigManager,
+  id: string,
+): Promise<LoadedDashboard | null> {
+  const row = await configManager.getConfig(dashboardConfigId(id));
+  if (!row) return null;
+  const stored = row.payload as unknown as Partial<StoredDashboard> | null;
+  // Revalidated rather than trusted: it was written by another window and may
+  // be from an older build — the same posture `Analysis.tsx` takes for a
+  // spec arriving through storage.
+  const outcome = validateReportSpec(stored?.spec);
+  if (!outcome.ok || !stored?.gridId) return null;
+  return { gridId: stored.gridId, spec: outcome.value };
+}
+
+/** @deprecated Prefer {@link readDashboard} — the spec alone cannot say which
+ *  blotter it reads, which is what left a dock-opened dashboard empty. */
 export async function readDashboardSpec(
   configManager: ConfigManager,
   id: string,
 ): Promise<ReportSpec | null> {
-  const row = await configManager.getConfig(dashboardConfigId(id));
-  if (!row) return null;
-  // Revalidated rather than trusted: it was written by another window and may
-  // be from an older build — the same posture `Analysis.tsx` takes for a
-  // spec arriving through storage.
-  const outcome = validateReportSpec(row.payload);
-  return outcome.ok ? outcome.value : null;
+  return (await readDashboard(configManager, id))?.spec ?? null;
 }
 
 /**
@@ -77,15 +109,15 @@ export async function saveDashboardLayout(
 ): Promise<boolean> {
   const row = await configManager.getConfig(dashboardConfigId(id));
   if (!row) return false;
-  const current = row.payload as unknown as ReportSpec;
-  const outcome = validateReportSpec({ ...current, blocks });
+  const stored = row.payload as unknown as StoredDashboard;
+  const outcome = validateReportSpec({ ...stored.spec, blocks });
   if (!outcome.ok) {
     console.warn('[dashboard] rearranged layout failed validation, not saved:', outcome.error);
     return false;
   }
   await configManager.saveConfig({
     ...row,
-    payload: outcome.value as unknown as Record<string, unknown>,
+    payload: { ...stored, spec: outcome.value } as unknown as Record<string, unknown>,
     updatedBy: LOGGED_IN_USER_ID,
     updatedTime: new Date().toISOString(),
   });
@@ -97,9 +129,18 @@ export async function saveDashboard(
   appId: string,
   args: Record<string, unknown>,
 ): Promise<ToolExecutionResult> {
-  const a = args as { name?: string; spec?: unknown; addToDock?: boolean; openNow?: boolean };
+  const a = args as { name?: string; spec?: unknown; targetGridId?: string; addToDock?: boolean; openNow?: boolean };
   if (!a.name) return { ok: false, summary: 'Missing required field: name — what to call the dashboard, e.g. "Trader Dashboard".' };
   if (!a.spec) return { ok: false, summary: 'Missing required field: spec — the same report spec create_live_report takes.' };
+  // Required, and checked: a dashboard opened from the dock carries no blotter
+  // in its URL, so without this it has no rows to draw and renders empty.
+  if (!a.targetGridId) {
+    return { ok: false, summary: 'Missing required field: targetGridId — the blotter this dashboard reads. Without it the saved dashboard opens with no data.' };
+  }
+  const sourceGrid = await resolveGridEntry(a.targetGridId);
+  if (!sourceGrid) {
+    return { ok: false, summary: `No grid registered with id "${a.targetGridId}". Call list_grids to see valid ids.` };
+  }
 
   const outcome = validateReportSpec(a.spec);
   if (!outcome.ok) return { ok: false, summary: outcome.error };
@@ -121,7 +162,7 @@ export async function saveDashboard(
     componentSubType,
     isTemplate: true,
     singleton: true,
-    payload: outcome.value as unknown as Record<string, unknown>,
+    payload: { v: 1, gridId: sourceGrid.configId, spec: outcome.value } as unknown as Record<string, unknown>,
     createdBy: LOGGED_IN_USER_ID,
     updatedBy: LOGGED_IN_USER_ID,
     creationTime: now,
@@ -134,7 +175,7 @@ export async function saveDashboard(
   await addRegistryEntry(
     buildRegistryEntry({
       id,
-      hostUrl: `${DASHBOARD_ROUTE}?dashboard=${encodeURIComponent(id)}`,
+      hostUrl: `${DASHBOARD_ROUTE}?dashboard=${encodeURIComponent(id)}&grid=${encodeURIComponent(sourceGrid.configId)}`,
       displayName: a.name,
       componentType: DASHBOARD_COMPONENT_TYPE,
       componentSubType,
@@ -187,7 +228,7 @@ export async function listDashboards(configManager: ConfigManager): Promise<Tool
   }
   const listed = saved.map((r) => ({
     id: r.configId.slice('dashboard-spec::'.length),
-    name: (r.payload as { title?: string } | null)?.title ?? r.displayText,
+    name: (r.payload as { spec?: { title?: string } } | null)?.spec?.title ?? r.displayText,
     updatedTime: r.updatedTime,
   }));
   return {
