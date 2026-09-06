@@ -26,12 +26,15 @@ import {
 } from '@wellsfargo-starui/react';
 import type { DataQuery, ReportSpec } from '@wellsfargo-starui/data';
 import { validateReportSpec } from '@wellsfargo-starui/data';
-import { useDataServices } from '@wellsfargo-starui/react/data/runtime';
+import { useDataServices, useDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { useOpenFinThemeSync } from '../useOpenFinThemeSync';
 import { readHandoff, type AnalysisHandoff, listAnalysisWindows, reopenAnalysisWindow } from '../analysisPopout';
 import { resolveGridEntry, resolveGridForInstance } from '../aiAssistant/gridProfiles';
 import { fetchGridRows, type DataHubClient, type RowSet } from '../aiAssistant/dataAccess';
+import { createLiveRowSource } from '@wellsfargo-starui/grid';
+import { composeRowId, normalizeKeyColumns } from '@wellsfargo-starui/types';
+import { gridScopeId } from '../aiAssistant/gridProfiles';
 import { ReportCanvas } from '../analysis/ReportCanvas';
 
 /**
@@ -146,13 +149,108 @@ function Analysis() {
     void load();
   }, [load]);
 
-  // The cadence. `refreshMs` is already clamped by `validateReportSpec`, so a
-  // report cannot ask to re-query faster than anyone could read it.
+  // ── Live rows ────────────────────────────────────────────────────────────
+  //
+  // The report used to be a POLL: `setInterval` → `fetchGridRows`, which
+  // subscribes to the provider, awaits a full snapshot and unsubscribes — that
+  // whole cycle every `refreshMs`, re-running every block's query over every
+  // row. A 16-block report did sixteen full-row queries per tick, and a
+  // report with no `refreshMs` never updated at all.
+  //
+  // Now it subscribes to the provider once and lets it push. Same
+  // `LiveRowSource` the summary panel uses: one array, mutated in place,
+  // change reported by a version counter. `refreshMs` becomes unnecessary —
+  // and is ignored — whenever a live source is available.
+  const [binding, setBinding] = useState<{ providerId: string; keyColumn?: string | readonly string[] } | null>(null);
+
   useEffect(() => {
-    if (!spec?.refreshMs) return;
+    if (!configManager || !configStore) return;
+    let cancelled = false;
+    void (async () => {
+      const entry = gridId
+        ? await resolveGridEntry(gridId)
+        : instanceId
+          ? await resolveGridForInstance(configManager, instanceId)
+          : undefined;
+      if (!entry || cancelled) return;
+      const gridLevelData = (await configManager.profiles.loadGridLevelData({
+        instanceId: gridScopeId(entry),
+      })) as { provider?: { liveProviderId?: string } } | null;
+      const providerId = gridLevelData?.provider?.liveProviderId;
+      if (cancelled || !providerId) return;
+      const cfg = await configStore.get(providerId);
+      if (cancelled) return;
+      setBinding({
+        providerId,
+        keyColumn: (cfg?.config as { keyColumn?: string | readonly string[] } | undefined)?.keyColumn,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [configManager, configStore, gridId, instanceId]);
+
+  // `trackStatus: false` — this window renders rows, not connection state, and
+  // status churn would re-render the whole canvas for nothing.
+  const { provider } = useDataProvider(binding?.providerId ?? null, { trackStatus: false });
+
+  const liveSource = useMemo(() => {
+    if (!provider) return null;
+    const keyCols = normalizeKeyColumns(binding?.keyColumn);
+    return createLiveRowSource({
+      onSnapshot: (handler) =>
+        provider.onSnapshotData((rows) => handler(rows as readonly Record<string, unknown>[])),
+      onTick: (handler) => provider.onTick((rows) => handler(rows as readonly Record<string, unknown>[])),
+      keyOf: keyCols ? (row) => composeRowId(row, keyCols) : undefined,
+      initial:
+        typeof provider.getData === 'function'
+          ? (provider.getData() as readonly Record<string, unknown>[])
+          : undefined,
+    });
+  }, [provider, binding?.keyColumn]);
+
+  useEffect(() => () => liveSource?.dispose(), [liveSource]);
+
+  const [liveVersion, setLiveVersion] = useState(0);
+  useEffect(() => {
+    if (!liveSource) return;
+    // A backgrounded report window does no work at all. This is its own
+    // OpenFin window, so `document.visibilityState` is the whole story —
+    // minimised or behind another window means nobody is reading it, and the
+    // moment it comes back it syncs to the current version.
+    const sync = () => setLiveVersion(liveSource.getVersion());
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') sync();
+    };
+    sync();
+    const unsubscribe = liveSource.subscribe(() => {
+      if (document.visibilityState === 'visible') sync();
+    });
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [liveSource]);
+
+  // The polling fallback, for a blotter with no bound live provider — which
+  // still renders (fetchGridRows allows sample rows). Disabled entirely once a
+  // live source exists, so the two never both drive the canvas.
+  useEffect(() => {
+    if (liveSource || !spec?.refreshMs) return;
     const timer = window.setInterval(() => void load(), spec.refreshMs);
     return () => window.clearInterval(timer);
-  }, [spec?.refreshMs, load]);
+  }, [liveSource, spec?.refreshMs, load]);
+
+  // Live source wins; the one-shot fetch is the fallback for a blotter with no
+  // bound live provider (which still renders — `fetchGridRows` allows sample
+  // rows). `rowsVersion` is what every block's query memoises on, because a
+  // live array is stable by reference and its identity never changes.
+  const effectiveRows = liveSource ? liveSource.getRows() : (rowSet?.rows ?? null);
+  const effectiveVersion = liveSource ? liveVersion : (rowSet ? 1 : 0);
+  const effectiveProvenance = liveSource
+    ? `live from the blotter's data provider — pushed, not polled`
+    : (rowSet?.provenance ?? '');
 
   useEffect(() => {
     const prev = document.title;
@@ -271,10 +369,16 @@ function Analysis() {
           <p className="p-8 text-sm text-muted-foreground">
             Nothing to show. Open this window from an analysis result or ask the assistant for a report.
           </p>
-        ) : error && !rowSet ? (
+        ) : error && !effectiveRows ? (
           <p className="p-8 text-sm text-[var(--ds-accent-negative)]">{error}</p>
-        ) : spec && rowSet ? (
-          <ReportCanvas spec={spec} rows={rowSet.rows} provenance={rowSet.provenance} ranAt={ranAt} />
+        ) : spec && effectiveRows ? (
+          <ReportCanvas
+            spec={spec}
+            rows={effectiveRows}
+            rowsVersion={effectiveVersion}
+            provenance={effectiveProvenance}
+            ranAt={ranAt}
+          />
         ) : (
           <p className="p-8 text-sm text-muted-foreground">Loading…</p>
         )}

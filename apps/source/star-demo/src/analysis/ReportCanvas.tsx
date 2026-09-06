@@ -39,7 +39,14 @@ import { AnalysisTable, DataChart, LaneChart } from '@wellsfargo-starui/grid/cus
 
 export interface ReportCanvasProps {
   spec: ReportSpec;
+  /**
+   * The rows to draw. When these come from a `LiveRowSource` the array is
+   * STABLE BY REFERENCE and mutated in place, so its identity is not a change
+   * signal — {@link rowsVersion} is.
+   */
   rows: Array<Record<string, unknown>>;
+  /** Bumps only when row CONTENT changed. The memo key for every block. */
+  rowsVersion?: number;
   /** Shown under the title — what these numbers are and when they ran. */
   provenance?: string;
   ranAt?: Date;
@@ -327,11 +334,14 @@ function Region({
   );
 }
 
-export function ReportCanvas({ spec, rows, provenance, ranAt }: ReportCanvasProps) {
-  // Every non-commentary block runs its own query against the one row set.
-  // Memoised on the spec and the rows so a re-render that changes neither
-  // costs nothing — the report window can tick on a cadence without paying
-  // for the whole composition each time React re-enters it.
+export function ReportCanvas({ spec, rows, rowsVersion = 0, provenance, ranAt }: ReportCanvasProps) {
+  // Every non-commentary block runs its own query against the one row set —
+  // up to 16 full-row queries, so this is the expensive part of a report.
+  //
+  // Keyed on the VERSION, not on `rows`: a live source mutates one array in
+  // place, so an identity-keyed memo would never invalidate and the report
+  // would freeze at its first render. It also means a re-render that isn't
+  // about data — a resize, a theme flip, a context-menu open — costs nothing.
   const results = useMemo(() => {
     const out = new Map<number, { result: QueryResult | null; error?: string }>();
     spec.blocks.forEach((block, index) => {
@@ -340,7 +350,8 @@ export function ReportCanvas({ spec, rows, provenance, ranAt }: ReportCanvasProp
       out.set(index, outcome.ok ? { result: outcome.value } : { result: null, error: outcome.error });
     });
     return out;
-  }, [spec, rows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows may be stable by reference; rowsVersion is the change signal
+  }, [spec, rowsVersion]);
 
   const byRegion = useMemo(() => {
     const left: Array<{ block: ReportBlock; index: number }> = [];

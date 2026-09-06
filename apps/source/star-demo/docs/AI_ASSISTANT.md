@@ -383,6 +383,37 @@ Shares can exceed 100%: when contributions offset, one group's `+30` against a
 net `+20` is genuinely 150% of the move. That is real and worth seeing, so it is
 not clamped.
 
+### The analysis window is pushed, not polled
+
+`open_analysis_window` and `create_live_report` open a standalone window that
+draws a `ReportSpec`. It used to be a **poll**: `setInterval` → `fetchGridRows`
+→ re-run every block. Three problems with that:
+
+- `fetchGridRows` subscribes to the provider, awaits a full snapshot and
+  unsubscribes — that whole cycle every `refreshMs`.
+- Every tick re-ran EVERY block's query over every row. A 16-block report (the
+  cap) did sixteen full-row queries per tick.
+- `refreshMs` is optional, so the default was **not live at all** — the window
+  loaded once and never updated. "Live report" meant "re-queried on a timer",
+  and only if the model remembered to ask for one.
+
+It now subscribes to the blotter's provider through the same `LiveRowSource`
+the summary panel uses: one array, mutated in place, change reported by a
+version counter. `refreshMs` becomes unnecessary and is ignored whenever a live
+source is available; the polling path survives only for a blotter with no bound
+live provider, which still renders (`fetchGridRows` allows sample rows).
+
+Two details:
+
+- **`ReportCanvas` memoises every block on `rowsVersion`, not on `rows`.** A
+  live array is stable by reference, so an identity-keyed memo would never
+  invalidate and the report would freeze at its first render. A test pins this
+  by counting real calls into the query engine.
+- **A backgrounded window does no work.** It is its own OpenFin window, so
+  `document.visibilityState` is the whole story: minimised or behind another
+  window means nobody is reading it, and it syncs to the current version the
+  moment it comes back.
+
 ### The brief, and "what if" — composition over new machinery
 
 Two tools compute nothing of their own; both are compositions, which is the

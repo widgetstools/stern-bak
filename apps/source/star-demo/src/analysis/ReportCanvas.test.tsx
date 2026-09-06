@@ -3,8 +3,21 @@
  */
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { validateReportSpec, type ReportSpec } from '@wellsfargo-starui/data';
+
+// Counts real calls into the query engine so the memo below is testable.
+const runQuerySpy = vi.fn();
+vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wellsfargo-starui/data')>();
+  return {
+    ...actual,
+    runQuery: (...args: Parameters<typeof actual.runQuery>) => {
+      runQuerySpy();
+      return actual.runQuery(...args);
+    },
+  };
+});
 
 /**
  * The renderers are stubbed on purpose. `DataChart`, `AnalysisTable` and
@@ -200,5 +213,46 @@ describe('the composition', () => {
   it('draws no gutter label for blocks that name no band', () => {
     draw([{ kind: 'commentary', text: 'Plain.' }]);
     expect(screen.queryByText('RISK')).toBeNull();
+  });
+});
+
+/**
+ * The report window used to POLL: `setInterval` → `fetchGridRows` → re-run
+ * every block. It now subscribes to the provider and is driven by a version
+ * counter, because a live source mutates ONE array in place — so an
+ * identity-keyed memo would never invalidate and the report would freeze at
+ * its first render.
+ *
+ * These count real calls into the query engine, so they fail if the memo key
+ * is widened back to `rows` or dropped.
+ */
+describe('live rows', () => {
+  const ROWS = [
+    { sector: 'Tech', marketValue: 100 },
+    { sector: 'Energy', marketValue: 50 },
+  ];
+  const SPEC = {
+    title: 'R',
+    blocks: [
+      { kind: 'table', region: 'main', query: { columns: ['sector', 'marketValue'] } },
+      { kind: 'table', region: 'main', query: { groupBy: ['sector'], aggregate: [{ column: 'marketValue', fn: 'sum', as: 't' }] } },
+    ],
+  } as unknown as Parameters<typeof ReportCanvas>[0]['spec'];
+
+  beforeEach(() => runQuerySpy.mockClear());
+
+  it('re-runs every block when the version moves, though the array is the same object', () => {
+    const { rerender } = render(<ReportCanvas spec={SPEC} rows={ROWS} rowsVersion={1} />);
+    expect(runQuerySpy).toHaveBeenCalledTimes(2); // one per block
+    rerender(<ReportCanvas spec={SPEC} rows={ROWS} rowsVersion={2} />);
+    expect(runQuerySpy).toHaveBeenCalledTimes(4);
+  });
+
+  it('does no work on a re-render that is not about data', () => {
+    const { rerender } = render(<ReportCanvas spec={SPEC} rows={ROWS} rowsVersion={1} />);
+    expect(runQuerySpy).toHaveBeenCalledTimes(2);
+    rerender(<ReportCanvas spec={SPEC} rows={ROWS} rowsVersion={1} />);
+    rerender(<ReportCanvas spec={SPEC} rows={ROWS} rowsVersion={1} />);
+    expect(runQuerySpy).toHaveBeenCalledTimes(2);
   });
 });
