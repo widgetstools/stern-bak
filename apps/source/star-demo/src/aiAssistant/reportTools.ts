@@ -27,6 +27,7 @@ import {
 } from '../analysisPopout';
 import { resolveGridEntry } from './gridProfiles';
 import { readColumnCatalogue, resolveColumns, resolveColumn } from './columnResolver';
+import { preflightReport, describeBroken, describeEmpty } from './reportPreflight';
 import type { ToolExecutionResult } from './toolResult';
 
 interface ReportToolDeps {
@@ -215,6 +216,28 @@ export async function createLiveReport(
   }
   const spec: ReportSpec = { ...validated.value, blocks };
 
+  // Run it against the real rows BEFORE anyone sees it. A block that can never
+  // draw is a composition mistake with a knowable fix, and shipping it turns
+  // one tool call into a conversation: the user opens a window full of
+  // "nothing chartable" and has to come back and ask why, block by block.
+  const flight = await preflightReport(deps, target.entry, spec);
+  if (flight.ok && flight.value.broken.length > 0) {
+    return {
+      ok: false,
+      summary:
+        `Not opened — ${flight.value.broken.length} of ${spec.blocks.length} block(s) would render nothing: ` +
+        `${describeBroken(flight.value.broken)}. ` +
+        'Fix those blocks and call again; call get_grid_columns if you need the real column names.',
+    };
+  }
+  // A preflight that cannot run (no provider bound, feed unreachable) must not
+  // block the report — that is the same "no data yet" the window itself
+  // handles, and refusing here would be worse than showing it.
+  const emptyNote =
+    flight.ok && flight.value.empty.length > 0
+      ? ` ${flight.value.empty.length} block(s) match no rows right now (${describeEmpty(flight.value.empty)}) — the queries are valid, the data is not there yet.`
+      : '';
+
   const win = windowFor(args, target.entry.id);
   const opened = await openAnalysisSurface({
     gridId: target.entry.id,
@@ -232,6 +255,7 @@ export async function createLiveReport(
     summary:
       `Opened "${spec.title}" over "${target.entry.displayName}" — ${spec.blocks.length} block(s), ${cadence}. ` +
       `Every number in it is computed from the blotter's rows.` +
+      emptyNote +
       describeWindow(win, target.entry.id),
   };
 }

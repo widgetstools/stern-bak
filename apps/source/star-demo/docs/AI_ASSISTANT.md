@@ -383,6 +383,39 @@ Shares can exceed 100%: when contributions offset, one group's `+30` against a
 net `+20` is genuinely 150% of the move. That is real and worth seeing, so it is
 not clamped.
 
+### A dashboard is verified before anyone sees it
+
+A dashboard used to be composed hopefully: the model picked blocks, the window
+opened, and whichever ones could not draw said "nothing chartable" on screen.
+The user then went back to the chat to find out why, block by block. All of
+that is avoidable — the queries are pure and the rows are already there, so the
+answer is knowable at compose time.
+
+`preflightReport` (`reportPreflight.ts`) executes every block against real rows
+and classifies it:
+
+| | Meaning | What happens |
+|---|---|---|
+| **broken** | can never draw — a column that does not exist, no numeric to plot, a chart kind the shape cannot satisfy, a KPI tile whose value is absent from its own result | creation is **refused**, naming each block by index and reason |
+| **empty** | the query is valid and matched nothing right now | created, and the fact is reported |
+| **ok** | it draws | — |
+
+Refusing the first and allowing the second is what makes this deterministic:
+a dashboard that gets created renders, and one that would not is rejected with
+the specific reason instead of shipped to be discovered. Both
+`create_live_report` and `save_dashboard` run it — a saved dashboard is worse
+to get wrong, since it goes on the dock and is opened again tomorrow.
+
+A preflight that cannot RUN (no provider bound, feed unreachable) never blocks
+the report: that is the window's own "no data yet" case, and refusing there
+would be worse than showing it.
+
+Rows are fetched once and shared across all sixteen blocks, not once per block.
+
+`whyNotChartable` supplies the same reasons to the canvas, so a block that does
+slip through says "No numeric column to plot — this result has desk, sector"
+rather than "Nothing chartable in this result".
+
 ### Saved dashboards — Assets → Dashboards → <name>
 
 `create_live_report` opens a window from a handoff written to `localStorage`

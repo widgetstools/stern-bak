@@ -33,6 +33,7 @@ import {
 } from './registryOps';
 import { launchBlotter, describeLaunch } from './launchComponent';
 import { resolveGridEntry } from './gridProfiles';
+import { preflightReport, describeBroken, describeEmpty, type PreflightDeps } from './reportPreflight';
 import type { ToolExecutionResult } from './toolResult';
 
 /** Its own componentType, so a dashboard never appears in a blotter listing. */
@@ -125,10 +126,11 @@ export async function saveDashboardLayout(
 }
 
 export async function saveDashboard(
-  configManager: ConfigManager,
+  deps: PreflightDeps,
   appId: string,
   args: Record<string, unknown>,
 ): Promise<ToolExecutionResult> {
+  const configManager = deps.configManager;
   const a = args as { name?: string; spec?: unknown; targetGridId?: string; addToDock?: boolean; openNow?: boolean };
   if (!a.name) return { ok: false, summary: 'Missing required field: name — what to call the dashboard, e.g. "Trader Dashboard".' };
   if (!a.spec) return { ok: false, summary: 'Missing required field: spec — the same report spec create_live_report takes.' };
@@ -144,6 +146,25 @@ export async function saveDashboard(
 
   const outcome = validateReportSpec(a.spec);
   if (!outcome.ok) return { ok: false, summary: outcome.error };
+
+  // A SAVED dashboard is worse to get wrong than an ad-hoc report: it goes on
+  // the dock and is opened again tomorrow. So the same preflight applies, and
+  // a block that can never draw stops the save rather than being discovered
+  // later by whoever opens it.
+  const flight = await preflightReport(deps, sourceGrid, outcome.value);
+  if (flight.ok && flight.value.broken.length > 0) {
+    return {
+      ok: false,
+      summary:
+        `Not saved — ${flight.value.broken.length} of ${outcome.value.blocks.length} block(s) would render nothing: ` +
+        `${describeBroken(flight.value.broken)}. ` +
+        'Fix those blocks and call again; call get_grid_columns if you need the real column names.',
+    };
+  }
+  const emptyNote =
+    flight.ok && flight.value.empty.length > 0
+      ? ` ${flight.value.empty.length} block(s) match no rows right now (${describeEmpty(flight.value.empty)}).`
+      : '';
 
   const componentSubType = toSubType(a.name);
   const id = deriveTemplateConfigId(DASHBOARD_COMPONENT_TYPE, componentSubType);
@@ -205,6 +226,7 @@ export async function saveDashboard(
     ok: true,
     summary:
       `Saved dashboard "${a.name}" (id=${id}).` +
+      emptyNote +
       (addedToDock
         ? ` Filed on the dock under ${BLOTTER_DOCK_GROUP} → ${DASHBOARD_DOCK_SUBGROUP} → ${a.name}, so it reopens from there.`
         : wantDock

@@ -367,6 +367,45 @@ function numericColumns(input: ChartInput): string[] {
  * too, rather than degrading into a chart that answers a different question
  * than the one asked.
  */
+/**
+ * Why `buildChartSpec` refused, in words a person can act on.
+ *
+ * "Nothing chartable in this result" told the reader nothing and the model
+ * less — so a dashboard block that could never draw looked the same as one
+ * waiting for data, and the only way to find out which was to ask the
+ * assistant again. This names the missing ingredient instead.
+ *
+ * Returns `null` when the input IS chartable, so a caller can use it as the
+ * explanation for a failure it already has.
+ */
+export function whyNotChartable(input: ChartInput): string | null {
+  if (input.requested === 'none') return 'Charting was turned off for this block.';
+  if (input.requested === 'heatmap') return 'Heatmap shades the table itself rather than drawing a chart.';
+  if (input.rows.length === 0) return 'The query matched no rows.';
+
+  const numerics = numericColumns(input);
+  const categorical = input.columns.filter((c) => !numerics.includes(c));
+
+  if (numerics.length === 0) {
+    return input.columns.length
+      ? `No numeric column to plot — this result has ${input.columns.join(', ')}. Aggregate a measure, or pick a column that holds numbers.`
+      : 'The query returned no columns.';
+  }
+  if (input.rows.length === 1) {
+    return 'Only one row, so there is nothing to compare — a chart of one bar is noise. Group by something, or use a KPI tile.';
+  }
+  if (categorical.length === 0 && numerics.length < 2) {
+    return 'Needs a category to plot against — group by a column, or add a second numeric for a scatter.';
+  }
+  if (input.requested === 'scatter' && input.grouped) {
+    return 'Scatter needs raw rows; this result is already grouped.';
+  }
+  if (buildChartSpec(input)) return null;
+  return input.requested && input.requested !== 'auto'
+    ? `This result does not have the shape a ${input.requested} needs — try leaving the kind on auto.`
+    : 'No chart kind fits this result\'s shape.';
+}
+
 export function buildChartSpec(input: ChartInput): ChartSpec | undefined {
   const spec = buildChartSpecInner(input);
   return spec ? resolveAxis(spec, input) : undefined;

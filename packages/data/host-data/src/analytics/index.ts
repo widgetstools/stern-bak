@@ -20,6 +20,7 @@ export {
 
 export {
   buildChartSpec,
+  whyNotChartable,
   chartColor,
   fillFor,
   fillForStyle,

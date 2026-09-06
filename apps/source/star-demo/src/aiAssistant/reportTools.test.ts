@@ -18,6 +18,16 @@ vi.mock('@wellsfargo-starui/openfin/config', () => ({
  *  asked to show. */
 const mockOpen = vi.fn();
 const mockReopen = vi.fn();
+// These tests are about spec validation, column resolution and window
+// opening. The preflight has its own suite (`reportPreflight.test.ts`); here
+// it is stubbed to "everything draws" so a fixture's columns don't have to
+// satisfy a real query engine as well.
+const mockPreflight = vi.fn();
+vi.mock('./reportPreflight', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  preflightReport: (...a: unknown[]) => mockPreflight(...a),
+}));
+
 vi.mock('../analysisPopout', () => ({
   openAnalysisSurface: (...args: unknown[]) => mockOpen(...args),
   // A module mock replaces the module WHOLE, so every export reportTools
@@ -71,6 +81,10 @@ function shownSpec() {
 }
 
 beforeEach(() => {
+  mockPreflight.mockReset().mockResolvedValue({
+    ok: true,
+    value: { verdicts: [], broken: [], empty: [], rowCount: 10 },
+  });
   mockOpen.mockReset();
   mockOpen.mockResolvedValue({ ok: true });
   mockReopen.mockReset();
@@ -309,5 +323,73 @@ describe('reload_analysis_window', () => {
     const result = await dispatchTool('reload_analysis_window', ctx(), { targetGridId: 'nope' });
     expect(result.ok).toBe(false);
     expect(result.summary).toContain('list_grids');
+  });
+});
+
+/**
+ * The point of the preflight: a dashboard that would render nothing is
+ * refused with the reason, rather than opened for the user to discover
+ * block by block and come back to the chat about.
+ */
+describe('create_live_report — preflight', () => {
+  it('refuses to open a report whose blocks cannot draw, naming each one', async () => {
+    mockPreflight.mockResolvedValue({
+      ok: true,
+      value: {
+        verdicts: [],
+        broken: [
+          { index: 1, kind: 'chart', title: 'Market value by desk', status: 'broken', reason: 'no numeric column to plot' },
+        ],
+        empty: [],
+        rowCount: 10,
+      },
+    });
+
+    const res = await dispatchTool('create_live_report', ctx(), {
+      targetGridId: 'grid-test',
+      title: 'R',
+      blocks: [{ kind: 'commentary', text: 'hi' }],
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.summary).toContain('would render nothing');
+    expect(res.summary).toContain('Market value by desk');
+    expect(res.summary).toContain('no numeric column to plot');
+    expect(mockOpen).not.toHaveBeenCalled();
+  });
+
+  /** A valid query that matches nothing is DATA, not a mistake. */
+  it('opens a report whose queries are valid but currently empty, and says so', async () => {
+    mockPreflight.mockResolvedValue({
+      ok: true,
+      value: {
+        verdicts: [],
+        broken: [],
+        empty: [{ index: 0, kind: 'table', title: 'Near maturities', status: 'empty' }],
+        rowCount: 10,
+      },
+    });
+
+    const res = await dispatchTool('create_live_report', ctx(), {
+      targetGridId: 'grid-test',
+      title: 'R',
+      blocks: [{ kind: 'commentary', text: 'hi' }],
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.summary).toContain('match no rows right now');
+    expect(res.summary).toContain('Near maturities');
+  });
+
+  /** No provider bound is the window's own "no data yet" case, not a reason
+   *  to refuse the report. */
+  it('opens the report when the preflight itself could not run', async () => {
+    mockPreflight.mockResolvedValue({ ok: false, error: 'no data provider bound' });
+    const res = await dispatchTool('create_live_report', ctx(), {
+      targetGridId: 'grid-test',
+      title: 'R',
+      blocks: [{ kind: 'commentary', text: 'hi' }],
+    });
+    expect(res.ok).toBe(true);
   });
 });

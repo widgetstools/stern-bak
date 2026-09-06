@@ -662,7 +662,7 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
     case 'simulate_change':
       return simulateChange({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, args);
     case 'save_dashboard':
-      return saveDashboard(ctx.configManager, ctx.appId, args);
+      return saveDashboard({ configManager: ctx.configManager, configStore: ctx.configStore, client: ctx.client }, ctx.appId, args);
     case 'list_dashboards':
       return listDashboards(ctx.configManager);
     case 'delete_dashboard':

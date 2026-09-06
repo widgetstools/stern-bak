@@ -27,6 +27,7 @@ import {
   formatValue,
   formatCompact,
   runQuery,
+  whyNotChartable,
   type ChartKind,
   type CommentaryBlock,
   type KpiBlock,
@@ -436,7 +437,24 @@ function BlockBody({
         baseline: block.baseline,
         requested: (block.chart as ChartKind | undefined) ?? 'auto',
       });
-      if (!chartSpec) return <Empty reason="Nothing chartable in this result." />;
+      if (!chartSpec) {
+        // Name the missing ingredient. "Nothing chartable" told the reader
+        // nothing and the model less, so a block that could never draw looked
+        // the same as one waiting for data.
+        return (
+          <Empty
+            reason={
+              whyNotChartable({
+                columns: result.columns,
+                rows: result.rows,
+                grouped: result.grouped,
+                pivot: result.pivot,
+                requested: (block.chart as ChartKind | undefined) ?? 'auto',
+              }) ?? 'Nothing chartable in this result.'
+            }
+          />
+        );
+      }
       return (
         <div className="min-h-[180px]">
           <DataChart spec={chartSpec} style={block.style} />
