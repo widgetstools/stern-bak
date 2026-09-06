@@ -268,12 +268,41 @@ export interface ChartSpec {
   /** Sankey only: the node list `links` indexes into. */
   nodes?: Array<{ name: string }>;
   links?: SankeyLink[];
+  /**
+   * Value-axis scale. `log` is only ever set when every plotted value is
+   * strictly positive — see `resolveAxis`.
+   */
+  scale: 'linear' | 'log';
+  /**
+   * Where the value axis starts. `zero` anchors it at 0; `auto` zooms to the
+   * data's own range so small differences become visible.
+   */
+  baseline: 'zero' | 'auto';
   /** Why this chart — shown as the cell's chart caption. */
   caption: string;
 }
 
 export interface ChartInput {
   columns: string[];
+  /**
+   * Ask for a logarithmic value axis. Honoured only when every plotted value
+   * is strictly positive — a log axis cannot represent zero or a negative
+   * number, so a P&L chart can never have one. An impossible request is
+   * downgraded to linear and SAID in the caption rather than silently
+   * rendering an empty plot.
+   */
+  scale?: 'linear' | 'log';
+  /**
+   * Where the value axis starts. Defaults to `zero`.
+   *
+   * `auto` zooms to the data's range, which is what makes a set of tightly
+   * clustered values (bond prices between 98 and 103, say) readable at all —
+   * anchored at zero they are eight identical bars. It is also how a bar chart
+   * lies: bar length encodes magnitude FROM zero, so truncating the axis
+   * exaggerates differences. Honoured either way, and the caption says when a
+   * bar chart's axis has been truncated.
+   */
+  baseline?: 'zero' | 'auto';
   rows: Array<Record<string, unknown>>;
   /** True when the rows are already rolled up, which rules a scatter out. */
   grouped: boolean;
@@ -339,6 +368,71 @@ function numericColumns(input: ChartInput): string[] {
  * than the one asked.
  */
 export function buildChartSpec(input: ChartInput): ChartSpec | undefined {
+  const spec = buildChartSpecInner(input);
+  return spec ? resolveAxis(spec, input) : undefined;
+}
+
+/**
+ * A spec before its value axis is decided. The inner builders produce these;
+ * `resolveAxis` is the single place that turns one into a `ChartSpec`, so no
+ * chart kind can forget to declare its scale.
+ */
+type ChartSpecDraft = Omit<ChartSpec, 'scale' | 'baseline'>;
+
+/** Every number this spec will plot, across each kind's own value slots. */
+function plottedValues(spec: ChartSpecDraft): number[] {
+  const out: number[] = [];
+  for (const p of spec.points) {
+    for (const v of [p.value, p.y, p.open, p.high, p.low, p.close]) {
+      if (typeof v === 'number' && Number.isFinite(v)) out.push(v);
+    }
+    if (p.values) {
+      for (const v of Object.values(p.values)) {
+        if (typeof v === 'number' && Number.isFinite(v)) out.push(v);
+      }
+    }
+  }
+  return out;
+}
+
+/** Bar length encodes magnitude from zero, so truncating a bar axis overstates
+ *  differences. Lines and points carry no such promise. */
+const MAGNITUDE_KINDS = new Set<ResolvedChartKind>(['bar', 'hbar', 'stackedBar', 'groupedBar', 'waterfall']);
+
+/**
+ * Decide the value axis, and never let the request produce a blank chart.
+ *
+ * A log axis is undefined at zero and for negatives. Recharts does not refuse
+ * such a request — it renders an empty plot — so an impossible `log` is
+ * downgraded here and the reason goes in the caption, where the reader sees it.
+ */
+function resolveAxis(spec: ChartSpecDraft, input: ChartInput): ChartSpec {
+  const baseline = input.baseline ?? 'zero';
+  let scale: 'linear' | 'log' = input.scale ?? 'linear';
+  let caption = spec.caption;
+
+  if (scale === 'log') {
+    const values = plottedValues(spec);
+    const lowest = values.length ? Math.min(...values) : 0;
+    if (values.length === 0 || lowest <= 0) {
+      scale = 'linear';
+      caption += lowest < 0
+        ? ' — log scale not possible here (values go negative), shown linear'
+        : ' — log scale not possible here (values reach zero), shown linear';
+    } else {
+      caption += ' · log scale';
+    }
+  }
+
+  // Say it, because a truncated bar axis makes small differences look large.
+  if (baseline === 'auto' && scale === 'linear' && MAGNITUDE_KINDS.has(spec.kind)) {
+    caption += ' · axis zoomed to range, not zero';
+  }
+
+  return { ...spec, scale, baseline, caption };
+}
+
+function buildChartSpecInner(input: ChartInput): ChartSpecDraft | undefined {
   if (input.requested === 'none') return undefined;
   // A table-shading mode, not a recharts kind — the caller renders the table
   // directly instead of calling this at all once it sees the request. Bailing
@@ -450,7 +544,7 @@ function seriesSpec(
   numerics: string[],
   categorical: string[],
   kind: ResolvedChartKind,
-): ChartSpec | undefined {
+): ChartSpecDraft | undefined {
   const labelKey = input.pivot?.rowDims[0] ?? categorical[0] ?? input.columns[0];
   const keys = numerics.filter((c) => c !== labelKey);
   // One measure is not a stack. The caller degrades to the single-series
@@ -519,7 +613,7 @@ function seriesSpec(
   };
 }
 
-function scatterSpec(input: ChartInput, numerics: string[]): ChartSpec {
+function scatterSpec(input: ChartInput, numerics: string[]): ChartSpecDraft {
   const [xKey, yKey] = numerics;
   const labelKey = input.columns.find((c) => !numerics.includes(c)) ?? xKey;
   // Every dot is the same series — one hue. Colouring them by row index
@@ -546,7 +640,7 @@ function scatterSpec(input: ChartInput, numerics: string[]): ChartSpec {
  * shape, where the two measures are on wildly different scales and a second
  * bar series would just make one of them invisible.
  */
-function comboSpec(input: ChartInput, numerics: string[], categorical: string[]): ChartSpec | undefined {
+function comboSpec(input: ChartInput, numerics: string[], categorical: string[]): ChartSpecDraft | undefined {
   if (numerics.length < 2) return undefined;
   const labelKey = categorical[0] ?? input.columns[0];
   const [valueKey, yKey] = numerics;
@@ -583,7 +677,7 @@ function comboSpec(input: ChartInput, numerics: string[], categorical: string[])
  * both sides (the Rates desk trading with the Rates desk) would otherwise close
  * a loop the layout cannot resolve.
  */
-function sankeySpec(input: ChartInput, numerics: string[], categorical: string[]): ChartSpec | undefined {
+function sankeySpec(input: ChartInput, numerics: string[], categorical: string[]): ChartSpecDraft | undefined {
   if (categorical.length < 2 || numerics.length < 1) return undefined;
   const [sourceKey, targetKey] = categorical;
   const valueKey = numerics[numerics.length - 1];
@@ -655,7 +749,7 @@ function ohlcColumn(numerics: string[], role: string): string | undefined {
  * there is no other way to tell them apart — four numerics in a row carry no
  * signal about which one is the high.
  */
-function candlestickSpec(input: ChartInput, numerics: string[], categorical: string[]): ChartSpec | undefined {
+function candlestickSpec(input: ChartInput, numerics: string[], categorical: string[]): ChartSpecDraft | undefined {
   const openKey = ohlcColumn(numerics, 'open');
   const highKey = ohlcColumn(numerics, 'high');
   const lowKey = ohlcColumn(numerics, 'low');

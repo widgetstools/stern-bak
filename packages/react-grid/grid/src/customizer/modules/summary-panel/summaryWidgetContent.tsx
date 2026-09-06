@@ -347,9 +347,11 @@ export function QueryCard({ widget, rows, rowsVersion }: WidgetCardProps) {
             // flat column list and drew only the last pivot column.
             pivot: result.pivot,
             requested: widget.chartKind ?? 'auto',
+            scale: widget.scale,
+            baseline: widget.baseline,
           })
         : null,
-    [result, widget.chartKind],
+    [result, widget.chartKind, widget.scale, widget.baseline],
   );
 
   if (!outcome.ok) {

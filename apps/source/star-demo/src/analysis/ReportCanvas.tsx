@@ -272,6 +272,8 @@ function BlockBody({
         grouped: result.grouped,
         pivot: result.pivot,
         normalize: block.normalize,
+        scale: block.scale,
+        baseline: block.baseline,
         requested: (block.chart as ChartKind | undefined) ?? 'auto',
       });
       if (!chartSpec) return <Empty reason="Nothing chartable in this result." />;

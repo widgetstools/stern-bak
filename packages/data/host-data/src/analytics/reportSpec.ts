@@ -108,6 +108,20 @@ export interface ChartBlock extends BlockBase {
    * category rather than absolute size.
    */
   normalize?: boolean;
+  /**
+   * Logarithmic value axis. Use it when the measures span orders of magnitude
+   * and the small ones vanish against the large. Impossible for a measure that
+   * reaches zero or goes negative (P&L), and downgraded to linear with the
+   * reason in the caption rather than drawn empty.
+   */
+  scale?: 'linear' | 'log';
+  /**
+   * Where the value axis starts. `auto` zooms to the data's own range, which
+   * is what makes tightly clustered values readable — prices between 98 and
+   * 103 are eight identical bars when anchored at zero. On a bar chart this
+   * also exaggerates differences, so the caption says when it is in effect.
+   */
+  baseline?: 'zero' | 'auto';
 }
 
 export interface TableBlock extends BlockBase {
@@ -328,6 +342,8 @@ function validateBlock(raw: unknown, index: number): BlockOutcome {
         chart: block.chart as ChartKind | undefined,
         style: block.style as ChartStyle | undefined,
         normalize: block.normalize === true,
+        scale: block.scale === 'log' ? 'log' : 'linear',
+        baseline: block.baseline === 'auto' ? 'auto' : 'zero',
       },
     };
   }

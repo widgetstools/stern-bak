@@ -1581,6 +1581,7 @@ digests/charts/queries/heatmap shading through the same implementation.
   (`{ issuer: { name } }`) is described by its dotted leaf path; when no columns
   are named, discovery walks into nested objects and reports the leaves rather
   than one opaque container column.
+- `ChartSpec.scale` / `ChartSpec.baseline` — value-axis control, resolved in one place (`resolveAxis`) so every chart kind honours it identically. `scale: 'log'` is granted only when every plotted value is strictly positive: a log axis is undefined at zero and negatives, and recharts renders an EMPTY plot rather than refusing, so an impossible request is downgraded to linear with the reason appended to the caption. `baseline: 'auto'` zooms the axis to the data's range instead of anchoring at zero — the fix for tightly clustered values, which are otherwise identical bars — and on a magnitude chart (bar/hbar/stacked/grouped/waterfall) the caption says the axis is truncated, because bar length encodes magnitude from zero
 - `buildChartSpec()`, `chartColor()`, `fillFor()`, `fillForStyle()` — picks the chart kind
   that fits a result (pie / line / area / bar / hbar / scatter) unless the caller names one.
   `CHART_KINDS`, `SUMMARY_CHART_KINDS`, `CHART_COLORS` (design-system `--ds-chart-*`

@@ -80,6 +80,10 @@ export interface SummaryWidget {
   asOf?: string;
   /** Only meaningful when `kind === 'chart'`. Defaults to `'auto'`. */
   chartKind?: ChartKind;
+  /** Logarithmic value axis — only honoured when every value is positive. */
+  scale?: 'linear' | 'log';
+  /** `auto` zooms the value axis to the data's range instead of anchoring at zero. */
+  baseline?: 'zero' | 'auto';
   /**
    * Presentation options — label contrast, grid lines, legend, palette.
    * Semantic rather than raw colours, so both themes stay correct; see
@@ -103,7 +107,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *  broken card should never crash the strip, only be silently absent. */
 function validateWidget(raw: unknown): SummaryWidget | null {
   if (!isPlainObject(raw)) return null;
-  const { id, kind, query, title, chartKind, style, text } = raw;
+  const { id, kind, query, title, chartKind, style, text, scale, baseline } = raw;
   if (typeof id !== 'string' || id.length === 0) return null;
   if (!(WIDGET_KINDS as readonly string[]).includes(kind as string)) return null;
   // Every kind but `text` is defined by its query, so a missing one is a
@@ -123,6 +127,8 @@ function validateWidget(raw: unknown): SummaryWidget | null {
   }
   if (typeof title === 'string' && title.length > 0) widget.title = title;
   if (typeof chartKind === 'string') widget.chartKind = chartKind as ChartKind;
+  if (scale === 'log' || scale === 'linear') widget.scale = scale;
+  if (baseline === 'auto' || baseline === 'zero') widget.baseline = baseline;
   const validStyle = validateStyle(style);
   if (validStyle) widget.style = validStyle;
   return widget;

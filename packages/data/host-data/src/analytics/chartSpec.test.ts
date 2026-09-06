@@ -240,3 +240,72 @@ describe('colour encodes meaning, not row index', () => {
     expect(CHART_COLORS.join(' ')).not.toContain('--ds-primary');
   });
 });
+
+/**
+ * A log axis is undefined at zero and for negatives, and recharts does not
+ * refuse such a request — it renders an EMPTY plot. So an impossible request
+ * has to be caught here, downgraded, and explained where the reader will see
+ * it: the caption.
+ */
+describe('value axis', () => {
+  const positive = {
+    columns: ['desk', 'notional'],
+    rows: [
+      { desk: 'Rates', notional: 1_000 },
+      { desk: 'Credit', notional: 5_000_000 },
+    ],
+    grouped: true,
+  };
+
+  it('is linear and anchored at zero unless asked otherwise', () => {
+    const spec = buildChartSpec(positive)!;
+    expect(spec.scale).toBe('linear');
+    expect(spec.baseline).toBe('zero');
+  });
+
+  it('honours a log scale when every value is positive', () => {
+    const spec = buildChartSpec({ ...positive, scale: 'log' })!;
+    expect(spec.scale).toBe('log');
+    expect(spec.caption).toContain('log scale');
+  });
+
+  it('refuses a log scale on values that go negative, and says why', () => {
+    const spec = buildChartSpec({
+      ...positive,
+      rows: [{ desk: 'Rates', notional: -100 }, { desk: 'Credit', notional: 500 }],
+      scale: 'log',
+    })!;
+    expect(spec.scale).toBe('linear');
+    expect(spec.caption).toMatch(/values go negative/);
+  });
+
+  it('refuses a log scale on values that reach zero', () => {
+    const spec = buildChartSpec({
+      ...positive,
+      rows: [{ desk: 'Rates', notional: 0 }, { desk: 'Credit', notional: 500 }],
+      scale: 'log',
+    })!;
+    expect(spec.scale).toBe('linear');
+    expect(spec.caption).toMatch(/values reach zero/);
+  });
+
+  it('carries a zoomed baseline through', () => {
+    const spec = buildChartSpec({ ...positive, baseline: 'auto' })!;
+    expect(spec.baseline).toBe('auto');
+  });
+
+  /**
+   * Bar length encodes magnitude FROM zero, so a truncated bar axis overstates
+   * differences. It is allowed — eight identical bars inform nobody — but the
+   * reader is told.
+   */
+  it('says when a bar chart axis has been truncated', () => {
+    const spec = buildChartSpec({ ...positive, baseline: 'auto', requested: 'bar' })!;
+    expect(spec.caption).toMatch(/not zero/);
+  });
+
+  it('says nothing about truncation for a line, where it carries no such promise', () => {
+    const spec = buildChartSpec({ ...positive, baseline: 'auto', requested: 'line' })!;
+    expect(spec.caption).not.toMatch(/not zero/);
+  });
+});

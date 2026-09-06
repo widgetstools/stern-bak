@@ -96,6 +96,28 @@ const AXIS = {
 } as const;
 const MARGIN = { top: 4, right: 8, bottom: 4, left: 8 } as const;
 
+/**
+ * Value-axis props for the scale the spec asked for.
+ *
+ * Two things force an explicit domain. A log axis cannot include zero, and
+ * recharts defaults a numeric YAxis to `[0, dataMax]` — so `scale="log"` alone
+ * renders an empty plot. And a zoomed baseline IS a domain change: anchored at
+ * zero, eight bond prices between 98 and 103 are eight identical bars, which
+ * is the whole reason this exists.
+ *
+ * `buildChartSpec` has already refused a log scale that the data cannot carry,
+ * so by here `scale === 'log'` means every plotted value is positive.
+ */
+function valueAxisProps(spec: ChartSpec) {
+  if (spec.scale === 'log') {
+    return { scale: 'log' as const, domain: ['auto', 'auto'] as [string, string], allowDataOverflow: true };
+  }
+  if (spec.baseline === 'auto') {
+    return { domain: ['auto', 'auto'] as [string, string] };
+  }
+  return {};
+}
+
 function truncate(v: string): string {
   return v.length > 10 ? `${v.slice(0, 9)}…` : v;
 }
@@ -218,7 +240,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
         <Chart data={data} margin={MARGIN}>
           {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
           <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" tickFormatter={truncate} />
-          <YAxis {...AXIS} width={44} tickFormatter={yTick} />
+          <YAxis {...AXIS} {...valueAxisProps(spec)} width={44} tickFormatter={yTick} />
           <ChartTooltip content={<ChartTooltipContent formatter={value} />} />
           {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
           {series.map((s, i) =>
@@ -254,7 +276,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
           and the tooltip still names every bar exactly on hover.
         */}
         <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" minTickGap={8} tickFormatter={truncate} />
-        <YAxis {...AXIS} width={44} tickFormatter={yTick} />
+        <YAxis {...AXIS} {...valueAxisProps(spec)} width={44} tickFormatter={yTick} />
         <ChartTooltip content={<ChartTooltipContent formatter={value} />} />
         {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
         {series.map((s, i) => (
@@ -361,7 +383,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       <BarChart data={points} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
         <XAxis dataKey="label" {...AXIS} interval={0} tickFormatter={truncate} />
-        <YAxis {...AXIS} width={40} tickFormatter={compactNumber} />
+        <YAxis {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -432,7 +454,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       >
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
         <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" tickFormatter={truncate} />
-        <YAxis {...AXIS} width={44} domain={['dataMin', 'dataMax']} tickFormatter={compactNumber} />
+        <YAxis {...AXIS} width={44} {...{ domain: ['dataMin', 'dataMax'] as [string, string], ...valueAxisProps(spec) }} tickFormatter={compactNumber} />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -461,7 +483,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       <Chart data={points} margin={MARGIN}>
         {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
         <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" tickFormatter={truncate} />
-        <YAxis {...AXIS} width={40} tickFormatter={compactNumber} />
+        <YAxis {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
         <ChartTooltip content={<ChartTooltipContent formatter={money} />} />
         {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
         {kind === 'line' ? (
@@ -478,7 +500,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
       <ScatterChart margin={{ ...MARGIN, left: 12 }}>
         {showGrid && <CartesianGrid strokeDasharray="3 3" />}
         <XAxis type="number" dataKey="value" name={spec.labelKey} {...AXIS} tickFormatter={compactNumber} />
-        <YAxis type="number" dataKey="y" name={spec.yKey} {...AXIS} width={40} tickFormatter={compactNumber} />
+        <YAxis type="number" dataKey="y" name={spec.yKey} {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
         <ZAxis range={[24, 24]} />
         <ChartTooltip content={<ChartTooltipContent nameKey="label" formatter={money} />} />
         <Scatter data={points}>
@@ -509,7 +531,7 @@ function renderChart(spec: ChartSpec, style?: ChartStyle) {
     <BarChart data={points} margin={MARGIN}>
       {showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" />}
       <XAxis dataKey="label" {...AXIS} interval={0} tickFormatter={truncate} />
-      <YAxis {...AXIS} width={40} tickFormatter={compactNumber} />
+      <YAxis {...AXIS} {...valueAxisProps(spec)} width={40} tickFormatter={compactNumber} />
       <ChartTooltip content={<ChartTooltipContent formatter={money} />} />
       {spec.signed && <ReferenceLine y={0} stroke="var(--ds-border-secondary)" strokeWidth={1} />}
       <Bar dataKey="value" radius={[2, 2, 0, 0]}>
