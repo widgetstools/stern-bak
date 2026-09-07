@@ -772,6 +772,16 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 7):** SPG deal structures — conduit CMBS capital stacks whose
+credit support is DERIVED rather than stamped on (and checked by
+`stackProblems` for every deal), CLOs with WARF computed from the pool, real
+overcollateralisation tests, the Caa market-value haircut and ~9.5x equity
+leverage, and ABS across auto/card/FFELP/esoteric with the structural
+differences that actually distinguish them. Plus a Hull-White trinomial lattice
+for callable OAS: it reprices the initial curve to 7e-16, prices an
+investment-grade make-whole at ~1 bp of option cost and a high-yield 8NC3 step-
+down at 66 bp.
+
 **Landed (phase 6):** muni serial deals with sequential CUSIPs by maturity and
 the 5% premium-coupon convention (so the book prices at 108-125 and quotes a
 YTW well below YTM), and the mortgage prepayment model — refi S-curve, lock-in,
@@ -828,9 +838,8 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 7–14):** SPG deal structures and OAS, CDS, the columnar hot
-store, the DuckDB corpus, order entry with lot accounting, the simulators, and
-the realism validation suite. Phases 7–8 are pure domain code with no I/O.
+**Open (phases 8–14):** CDS, the columnar hot store, the DuckDB corpus, order
+entry with lot accounting, the simulators, and the realism validation suite.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
