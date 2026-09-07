@@ -271,6 +271,36 @@ describe('live updates', () => {
   });
 });
 
+describe('protocol guards', () => {
+  it('rejects any frame that arrives before the handshake', () => {
+    for (const raw of [
+      'SUBSCRIBE\nid:sub-0\ndestination:/snapshot/positions/trd1\n\n\u0000',
+      'SEND\ndestination:/snapshot/positions/trd1/100\n\nSTART\u0000',
+      'UNSUBSCRIBE\nid:sub-0\n\n\u0000',
+    ]) {
+      const h = setup(10);
+      h.socket.feed(raw);
+      const [error] = h.client.pump().byCommand('ERROR');
+      expect(error?.headers['message']).toBe('Not connected');
+      expect(h.session.subscriptionIds).toEqual([]);
+    }
+  });
+
+  it('gives every message a session-unique id, even across subscriptions', async () => {
+    const h = setup(600);
+    h.client.connect();
+    h.client.subscribe('/snapshot/positions/trd1', 'sub-a');
+    h.client.trigger('/snapshot/positions/trd1/0');
+    await settle();
+    h.client.pump();
+    const ids = h.client.frames
+      .map((f) => f.headers['message-id'])
+      .filter((id): id is string => id !== undefined);
+    expect(ids.length).toBeGreaterThan(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
 describe('errors and teardown', () => {
   let harness: ReturnType<typeof setup>;
   beforeEach(() => {

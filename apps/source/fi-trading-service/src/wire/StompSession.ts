@@ -63,7 +63,6 @@ interface Subscription {
   /** Bumped on every trigger; an in-flight pump with a stale value stops. */
   generation: number;
   snapshotComplete: boolean;
-  messageSeq: number;
   updateSeq: number;
   /** Budget granted but not yet spent, carried into the next tick. */
   carry: number;
@@ -77,6 +76,12 @@ export class StompSession {
   private readonly clearIntervalFn: (handle: unknown) => void;
   private readonly now: () => number;
   private readonly yieldToEventLoop: (() => Promise<void>) | undefined;
+  /**
+   * message-id must identify a message within the SESSION, not within one
+   * subscription — two subscriptions sharing a counter would hand out
+   * duplicate ids for different messages.
+   */
+  private messageSeq = 0;
   private heartbeatTimer: unknown = null;
   private liveTimer: unknown = null;
   private connected = false;
@@ -126,6 +131,13 @@ export class StompSession {
   }
 
   private dispatch(frame: StompFrame): void {
+    if (frame.command !== 'CONNECT' && frame.command !== 'STOMP' && !this.connected) {
+      // The spec requires the handshake first. Accepting frames before it
+      // would let a half-configured client appear to work until something
+      // depended on the negotiated heartbeat.
+      this.sendError('Not connected', `Received ${frame.command} before CONNECT`);
+      return;
+    }
     switch (frame.command) {
       case 'CONNECT':
       case 'STOMP':
@@ -193,7 +205,6 @@ export class StompSession {
       batcher: new LiveBatcher(0),
       generation: 0,
       snapshotComplete: false,
-      messageSeq: 0,
       updateSeq: 0,
       carry: 0,
     });
@@ -275,7 +286,7 @@ export class StompSession {
               'MESSAGE',
               {
                 [HEADER.subscription]: sub.id,
-                [HEADER.messageId]: `m-${sub.messageSeq++}`,
+                [HEADER.messageId]: `m-${this.messageSeq++}`,
                 [HEADER.destination]: sub.destination,
                 [HEADER.messageType]: MESSAGE_TYPE.snapshotComplete,
                 [HEADER.clientId]: sub.target.clientId,
@@ -364,7 +375,7 @@ export class StompSession {
         'MESSAGE',
         {
           [HEADER.subscription]: sub.id,
-          [HEADER.messageId]: `m-${sub.messageSeq++}`,
+          [HEADER.messageId]: `m-${this.messageSeq++}`,
           [HEADER.destination]: sub.destination,
           [HEADER.contentType]: CONTENT_TYPE_JSON,
           [HEADER.messageType]: messageType,

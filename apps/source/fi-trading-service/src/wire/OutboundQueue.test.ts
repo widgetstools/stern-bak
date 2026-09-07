@@ -27,6 +27,14 @@ describe('OutboundQueue', () => {
     expect(queue.stats).toMatchObject({ framesSent: 1, bytesSent: 3 });
   });
 
+  it('counts bytes rather than characters for a multibyte frame', () => {
+    const { queue } = makeQueue();
+    const frame = 'euro \u20ac';
+    queue.write(frame);
+    expect(queue.stats.bytesSent).toBe(Buffer.byteLength(frame, 'utf8'));
+    expect(queue.stats.bytesSent).toBeGreaterThan(frame.length);
+  });
+
   it('reports backed up above high water and drained below low water', () => {
     const { socket, queue } = makeQueue();
     expect(queue.backedUp()).toBe(false);

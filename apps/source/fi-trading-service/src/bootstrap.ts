@@ -9,6 +9,7 @@ import { DatasetRegistry } from './datasets/registry.js';
 import { SyntheticBook } from './datasets/SyntheticBook.js';
 import type { AppConfig } from './config.js';
 import { createLogger, type Logger } from './logger.js';
+import { LIVE_TICK_MS } from './wire/contract.js';
 import { StompServer } from './wire/StompServer.js';
 
 export interface RunningService {
@@ -40,7 +41,7 @@ export async function bootstrap(config: AppConfig): Promise<RunningService> {
     config.tickRows > 0
       ? setInterval(() => book.tick(config.tickRows), config.tickIntervalMs)
       : null;
-  const publisher = setInterval(() => server.sessions.tickAll(), 40);
+  const publisher = setInterval(() => server.sessions.tickAll(), LIVE_TICK_MS);
 
   return {
     port,

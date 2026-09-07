@@ -37,6 +37,7 @@ export class OutboundQueue {
   private closed = false;
   private bytesSent = 0;
   private framesSent = 0;
+  private timer: unknown = null;
 
   constructor(
     private readonly socket: WireSocket,
@@ -71,7 +72,9 @@ export class OutboundQueue {
     if (this.closed) return;
     this.socket.send(frame);
     this.framesSent += 1;
-    this.bytesSent += frame.length;
+    // Byte length, not string length: the counter is reported as bytes and a
+    // multibyte frame would otherwise under-report what actually went out.
+    this.bytesSent += Buffer.byteLength(frame, 'utf8');
   }
 
   /**
@@ -92,8 +95,6 @@ export class OutboundQueue {
       this.timer = this.setTimer(poll, this.retryMs);
     });
   }
-
-  private timer: unknown = null;
 
   close(): void {
     this.closed = true;
