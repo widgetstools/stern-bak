@@ -772,6 +772,15 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 6):** muni serial deals with sequential CUSIPs by maturity and
+the 5% premium-coupon convention (so the book prices at 108-125 and quotes a
+YTW well below YTM), and the mortgage prepayment model — refi S-curve, lock-in,
+seasoning, seasonality, burnout and collateral multipliers — feeding cashflow
+projection and pricing. The rate bump flows through rate to primary mortgage
+rate to incentive to CPR to cashflows, which is what makes premium pools come
+out NEGATIVELY convex; a control test pins that holding CPR fixed leaves the
+same pool positively convex.
+
 **Landed (phase 5):** `domain/instruments` for rates and credit — a Treasury
 auction calendar producing a real on-the-run/off-the-run ladder with coupons
 rounded down to the nearest eighth of the auction yield, principal STRIPS,
@@ -819,10 +828,9 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 6–14):** muni deals and the prepayment model, SPG deal
-structures and OAS, CDS, the columnar hot store, the DuckDB corpus, order entry
-with lot accounting, the simulators, and the realism validation suite. Phases
-6–8 are pure domain code with no I/O and parallelise.
+**Open (phases 7–14):** SPG deal structures and OAS, CDS, the columnar hot
+store, the DuckDB corpus, order entry with lot accounting, the simulators, and
+the realism validation suite. Phases 7–8 are pure domain code with no I/O.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
