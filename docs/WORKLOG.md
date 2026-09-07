@@ -772,6 +772,18 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 4):** `domain/analytics` — schedules generated backwards from
+maturity with accrual dates unadjusted and payment dates adjusted, accrued
+interest as a sawtooth (with the mortgage and CDS variants), cashflow
+projection timed in coupon periods, price/yield conversion on the street
+convention, analytic duration/convexity/DV01 derived from the SAME cashflows as
+the price, key-rate durations on a tent basis, yield-to-worst across call and
+put schedules, effective duration/convexity taking a repricing closure so a
+mortgage can flow the bump through its prepayment model, and the bill
+discount-rate/BEY conventions. Goldens: a 5% ten-year at 4% prices to
+108.110896 annual and 108.175717 semiannual, and `sum(KRD) == effective
+duration` holds for every security tested.
+
 **Landed (phase 3):** `domain/curves` — the factor model. Nelson-Siegel-Svensson
 with the decay parameters frozen (which makes the curve linear in beta, so a
 whole-book revaluation is a 4-element dot product and is exact, not an
@@ -798,10 +810,9 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 4–14):** cashflow analytics, instruments per asset class, the
-columnar hot store, the DuckDB corpus, order entry with lot accounting, the
-simulators, and the realism validation suite. Phases 4–8 are pure domain code
-with no I/O and parallelise.
+**Open (phases 5–14):** instruments per asset class, the columnar hot store, the
+DuckDB corpus, order entry with lot accounting, the simulators, and the realism
+validation suite. Phases 5–8 are pure domain code with no I/O and parallelise.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
