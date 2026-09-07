@@ -772,6 +772,16 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 3):** `domain/curves` — the factor model. Nelson-Siegel-Svensson
+with the decay parameters frozen (which makes the curve linear in beta, so a
+whole-book revaluation is a 4-element dot product and is exact, not an
+approximation), Ornstein-Uhlenbeck factors on the exact transition density,
+credit spreads decomposed into systematic/sector/idiosyncratic in log space with
+single-name jumps, the sticky MMD muni scale, the mortgage rate chain, a
+generator-based rating-migration model with Merton thresholds, and the engine
+that steps all of it one day at a time. Calibration is pinned to observable
+quantities: key-rate vols 5-8 bp/day, corr(2s,10s) 0.803.
+
 **Landed (phase 2):** `domain/core` — dates as `YYYYMMDD` ints with serial
 arithmetic (no `Date`, so no timezone can reach an accrual), the rules-based
 SIFMA bond calendar (Columbus Day and Veterans Day closed, Good Friday off
@@ -788,10 +798,10 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 3–14):** curves and the factor model, cashflow analytics,
-instruments per asset class, the columnar hot store, the DuckDB corpus, order
-entry with lot accounting, the simulators, and the realism validation suite.
-Phases 3–8 are pure domain code with no I/O and parallelise.
+**Open (phases 4–14):** cashflow analytics, instruments per asset class, the
+columnar hot store, the DuckDB corpus, order entry with lot accounting, the
+simulators, and the realism validation suite. Phases 4–8 are pure domain code
+with no I/O and parallelise.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:

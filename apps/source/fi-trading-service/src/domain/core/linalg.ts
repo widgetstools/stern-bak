@@ -163,6 +163,53 @@ export function applyCholesky(
   return out;
 }
 
+/**
+ * Solve `A x = b` by Gaussian elimination with partial pivoting.
+ *
+ * Only ever called on the 4x4 normal equations of a curve fit, so a dense
+ * direct solve is the right tool and a pivoting strategy is enough to keep it
+ * stable. Throws on a singular system rather than returning infinities.
+ */
+export function solveLinear(a: readonly (readonly number[])[], b: readonly number[]): number[] {
+  const n = a.length;
+  const m: number[][] = a.map((row, i) => [...row, b[i] as number]);
+
+  for (let col = 0; col < n; col++) {
+    let pivot = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs((m[row] as number[])[col] as number) > Math.abs((m[pivot] as number[])[col] as number)) {
+        pivot = row;
+      }
+    }
+    const pivotValue = (m[pivot] as number[])[col] as number;
+    if (Math.abs(pivotValue) < 1e-14) {
+      throw new Error(`Singular system: no pivot in column ${col}`);
+    }
+    if (pivot !== col) {
+      const swap = m[pivot] as number[];
+      m[pivot] = m[col] as number[];
+      m[col] = swap;
+    }
+    for (let row = col + 1; row < n; row++) {
+      const factor = ((m[row] as number[])[col] as number) / pivotValue;
+      if (factor === 0) continue;
+      for (let k = col; k <= n; k++) {
+        (m[row] as number[])[k] = ((m[row] as number[])[k] as number) - factor * ((m[col] as number[])[k] as number);
+      }
+    }
+  }
+
+  const x = new Array<number>(n).fill(0);
+  for (let row = n - 1; row >= 0; row--) {
+    let sum = (m[row] as number[])[n] as number;
+    for (let col = row + 1; col < n; col++) {
+      sum -= ((m[row] as number[])[col] as number) * (x[col] as number);
+    }
+    x[row] = sum / ((m[row] as number[])[row] as number);
+  }
+  return x;
+}
+
 export function clamp(value: number, lo: number, hi: number): number {
   return value < lo ? lo : value > hi ? hi : value;
 }
