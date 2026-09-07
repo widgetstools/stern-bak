@@ -772,6 +772,15 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 5):** `domain/instruments` for rates and credit — a Treasury
+auction calendar producing a real on-the-run/off-the-run ladder with coupons
+rounded down to the nearest eighth of the auction yield, principal STRIPS,
+agency debentures with a callable segment, 650 corporate issuers each with a
+unique six-character CUSIP prefix, and capital structures of three to eight
+bonds per issuer sharing that prefix and one credit curve. Coupons are set from
+the curve AT ISSUE, so a seasoned book holds 2% bonds alongside 7% bonds rather
+than everything near par.
+
 **Landed (phase 4):** `domain/analytics` — schedules generated backwards from
 maturity with accrual dates unadjusted and payment dates adjusted, accrued
 interest as a sawtooth (with the mortgage and CDS variants), cashflow
@@ -810,9 +819,10 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 5–14):** instruments per asset class, the columnar hot store, the
-DuckDB corpus, order entry with lot accounting, the simulators, and the realism
-validation suite. Phases 5–8 are pure domain code with no I/O and parallelise.
+**Open (phases 6–14):** muni deals and the prepayment model, SPG deal
+structures and OAS, CDS, the columnar hot store, the DuckDB corpus, order entry
+with lot accounting, the simulators, and the realism validation suite. Phases
+6–8 are pure domain code with no I/O and parallelise.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
