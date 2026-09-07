@@ -379,11 +379,31 @@ describe('layout editing', () => {
    */
   it('renders the grip visibly at rest, not only on hover', () => {
     const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    const grip = container.querySelector('.rgl-grip') as HTMLElement;
-    expect(grip.className).not.toMatch(/text-muted-foreground\/0(?!\.|\d)/);
+    const glyph = container.querySelector('.rgl-grip [aria-hidden]') as HTMLElement;
+    expect(glyph.className).not.toMatch(/text-muted-foreground\/0(?!\.|\d)/);
     // And it still strengthens under the pointer, so resting quiet is a
     // choice rather than the only state.
-    expect(grip.className).toMatch(/group-hover\/blk:/);
+    expect(glyph.className).toMatch(/group-hover\/blk:/);
+  });
+
+  /**
+   * A 17px grip in the margin was one small target you had to find first. The
+   * whole header — band, title and grip — is the drag surface now, the way a
+   * window title bar is, while the body stays free for selecting a number or
+   * scrolling a table.
+   */
+  it('makes the whole block header the drag handle, not just the grip glyph', () => {
+    const { container } = draw(
+      [{ kind: 'commentary', title: 'Narrative', band: 'RISK', text: 'x' }],
+      {},
+      { onSaveLayout: vi.fn() },
+    );
+    const handle = container.querySelector('.rgl-grip') as HTMLElement;
+    expect(handle.textContent).toContain('Narrative');
+    expect(handle.textContent).toContain('RISK');
+    expect(handle.getAttribute('aria-label')).toBe('Drag to move this block');
+    // The body is NOT part of it.
+    expect(handle.textContent).not.toContain('x');
   });
 
   /** Dragging must be on the grip, not the card: a block that moves when you
