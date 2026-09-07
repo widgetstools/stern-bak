@@ -772,6 +772,14 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 8):** CDS — the ISDA flat-hazard model with ACT/360 quarterly
+accrual, SNAC upfront/points conversion in both directions, CS01, jump-to-
+default, recovery01 and carry, plus reference entities keyed by `issuerId` into
+the corporate issuer set and indices whose constituents are a strict subset of
+that set. Goldens: a 78 bp five-year investment grade name against a 100 bp
+coupon gives a hazard of 0.0131, a risky PV01 of 4.375, points upfront of
+-0.962 and CS01 of about $4,375 per $10mm.
+
 **Landed (phase 7):** SPG deal structures — conduit CMBS capital stacks whose
 credit support is DERIVED rather than stamped on (and checked by
 `stackProblems` for every deal), CLOs with WARF computed from the pool, real
@@ -838,8 +846,9 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 8–14):** CDS, the columnar hot store, the DuckDB corpus, order
-entry with lot accounting, the simulators, and the realism validation suite.
+**Open (phases 9–14):** the columnar hot store, the DuckDB corpus, order entry
+with lot accounting, the simulators, and the realism validation suite. The pure
+domain layer (phases 2-8) is complete.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
