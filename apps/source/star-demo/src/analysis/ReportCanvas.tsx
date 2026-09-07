@@ -21,6 +21,7 @@
  * never supplies markup, script or drawing instructions.
  */
 import { useMemo, useRef, useState } from 'react';
+import { Save, Undo2 } from 'lucide-react';
 import { cn } from '@wellsfargo-starui/react';
 import {
   buildChartSpec,
@@ -87,10 +88,14 @@ export interface ReportCanvasProps {
 /**
  * One block, with the affordances to move and size it.
  *
- * Deliberately quiet: nothing shows until the pointer is over the block, and
- * what appears then is a grip and a hairline, not a toolbar. A dashboard is
- * read far more often than it is rearranged, so the editing surface must not
- * compete with the numbers.
+ * Quiet, but never absent. These first rendered at zero opacity and came up
+ * only on hover, which is not a subtle affordance — it is an invisible one:
+ * with no pixel anywhere saying a block can move, there is nothing to hover
+ * TOWARDS, and the feature reads as missing. So both rest at a low but real
+ * opacity and strengthen under the pointer. A dashboard is read far more often
+ * than it is rearranged and the editing surface still must not compete with the
+ * numbers — that is what the low resting value buys, and it buys it without
+ * costing discoverability.
  *
  * Dragging is on the HANDLE, not the block — a card that moves when you try to
  * select text in it is worse than one that cannot move at all.
@@ -157,7 +162,11 @@ function EditableBlock({
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        const from = Number(e.dataTransfer.getData('text/block-index'));
+        // An empty payload — dragged text, a file, anything not one of our
+        // grips — reads as `Number('') === 0`, which would silently move
+        // block 0. The drop must come from a grip or not happen at all.
+        const raw = e.dataTransfer.getData('text/block-index');
+        const from = raw === '' ? Number.NaN : Number(raw);
         if (Number.isInteger(from) && from !== index) onDropBefore(from, index, region);
       }}
     >
@@ -169,7 +178,7 @@ function EditableBlock({
         }}
         title="Drag to move this block"
         aria-label="Drag to move this block"
-        className="absolute -left-4 top-0 z-10 cursor-grab select-none px-1 text-[13px] leading-none text-muted-foreground/0 transition-colors group-hover/blk:text-muted-foreground/50 hover:!text-muted-foreground active:cursor-grabbing"
+        className="absolute -left-5 top-0 z-10 cursor-grab select-none rounded-sm px-1 py-0.5 text-[15px] leading-none text-muted-foreground/35 transition-colors group-hover/blk:text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground active:cursor-grabbing"
       >
         ⠿
       </div>
@@ -178,9 +187,12 @@ function EditableBlock({
         onPointerDown={startResize}
         title="Drag to resize"
         aria-label="Drag to resize this block"
-        className="absolute inset-x-0 -bottom-1 h-2 cursor-ns-resize"
+        className="absolute inset-x-0 -bottom-1.5 z-10 h-3 cursor-ns-resize"
       >
-        <div className="mx-auto mt-[3px] h-px w-10 rounded bg-muted-foreground/0 transition-colors group-hover/blk:bg-muted-foreground/40" />
+        {/* A 1px hairline 40px wide was invisible even at full strength. A
+            short rounded bar is the conventional resize grip and reads as one
+            at a glance. */}
+        <div className="mx-auto mt-[5px] h-0.5 w-16 rounded-full bg-muted-foreground/30 transition-colors group-hover/blk:bg-muted-foreground/70" />
       </div>
     </section>
   );
@@ -670,9 +682,10 @@ export function ReportCanvas({
                 onClick={layout.reset}
                 title="Discard layout changes"
                 aria-label="Discard layout changes"
-                className="rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground/85 hover:bg-muted/50 hover:text-foreground"
+                className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground/85 hover:bg-muted/50 hover:text-foreground"
               >
-                ↺
+                <Undo2 className="h-3 w-3" aria-hidden />
+                Undo
               </button>
               <button
                 type="button"
@@ -680,9 +693,10 @@ export function ReportCanvas({
                 disabled={saving || !onSaveLayout}
                 title={saveDisabledReason ?? 'Save this layout'}
                 aria-label={saveDisabledReason ?? 'Save this layout'}
-                className="rounded-sm px-1.5 py-0.5 text-[11px] text-[var(--ds-primary)] hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] text-[var(--ds-primary)] hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {saving ? '…' : '⌸'}
+                <Save className="h-3 w-3" aria-hidden />
+                {saving ? 'Saving…' : 'Save layout'}
               </button>
             </span>
           )}

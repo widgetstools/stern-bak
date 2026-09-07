@@ -353,6 +353,36 @@ describe('layout editing', () => {
     expect(container.querySelectorAll('[aria-label="Drag to resize this block"]')).toHaveLength(2);
   });
 
+  /**
+   * The bug this pins. Both handles rendered at ZERO opacity and came up only
+   * on hover, so a dashboard showed no pixel anywhere suggesting a block could
+   * move — there was nothing to hover towards, and the feature read as
+   * missing. Verified in the running app: at rest both computed to
+   * `oklch(… / 0)`, on hover to 0.5 and 0.4.
+   *
+   * jsdom applies no stylesheet, so this pins the CLASS that decides the
+   * resting opacity rather than the computed colour.
+   */
+  it('renders both handles visibly at rest, not only on hover', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    const grip = container.querySelector('[draggable="true"]') as HTMLElement;
+    const bar = container.querySelector('[aria-label="Drag to resize this block"] > div') as HTMLElement;
+
+    expect(grip.className).not.toMatch(/text-muted-foreground\/0(?!\.|\d)/);
+    expect(bar.className).not.toMatch(/bg-muted-foreground\/0(?!\.|\d)/);
+    // And they still strengthen under the pointer, so resting quiet is a
+    // choice rather than the only state.
+    expect(grip.className).toMatch(/group-hover\/blk:/);
+    expect(bar.className).toMatch(/group-hover\/blk:/);
+  });
+
+  /** `Number('')` is 0, so an empty payload used to read as "block 0". */
+  it('ignores a drop that did not come from a grip', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '' } });
+    expect(screen.queryByLabelText('Save this layout')).toBeNull();
+  });
+
   it('shows nothing to save until something moves', () => {
     draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
     expect(screen.queryByLabelText('Save this layout')).toBeNull();
