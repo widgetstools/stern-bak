@@ -772,6 +772,15 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (phase 2):** `domain/core` — dates as `YYYYMMDD` ints with serial
+arithmetic (no `Date`, so no timezone can reach an accrual), the rules-based
+SIFMA bond calendar (Columbus Day and Veterans Day closed, Good Friday off
+Easter, Saturday holidays observed on the preceding Friday), business-day
+conventions, seven day-count conventions including the 30/360 February rule,
+32nds/eighths price quotation, CUSIP/ISIN/SEDOL check digits, xoshiro128** and
+AS241/Cholesky. Goldens verified against independent computation and published
+identifiers.
+
 **Landed (phase 1):** the STOMP-on-WebSocket wire — framing, sessions,
 destination grammar for all six datasets, 500-row snapshot chunking,
 backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
@@ -779,10 +788,10 @@ backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
 decode every frame with the *real* browser parser (`fastStompParser`, imported
 from the platform source tree), and one test drives a real socket end to end.
 
-**Open (phases 2–14):** the domain core (calendars, curves, cashflow analytics,
-instruments per asset class), the columnar hot store, the DuckDB corpus, order
+**Open (phases 3–14):** curves and the factor model, cashflow analytics,
+instruments per asset class, the columnar hot store, the DuckDB corpus, order
 entry with lot accounting, the simulators, and the realism validation suite.
-Phases 2–8 are pure domain code with no I/O and parallelise.
+Phases 3–8 are pure domain code with no I/O and parallelise.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
