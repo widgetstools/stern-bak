@@ -757,6 +757,45 @@ deadline error ever surfaces in the wild (`"catalog read did not settle"`),
 capture the worker console via chrome://inspect at that moment — the
 backstop now makes the event visible instead of silent.
 
+## 15. `fi-trading-service` is in progress — phase 1 of 14 landed
+
+`apps/source/fi-trading-service/` is a new standalone Node service that will
+serve a realistic fixed-income dataset: 70,000 positions across SPG / credit /
+muni / rates / CDS, each derived from its own tax lots, ticking off a shared
+factor model, with a security master, market data, an order/RFQ pipeline and a
+year of history, persisted as Parquet and queried with DuckDB.
+
+It exists because `startMock`
+(`packages/data/host-data/src/runtime/providers/transports/mock.ts`) is wide but
+not a trading dataset: every row random-walks independently, no analytic derives
+from a cashflow, and trades don't reconcile to the positions they name. **That
+generator is untouched and still in use** — this is additive, and retiring it is
+a separate decision.
+
+**Landed (phase 1):** the STOMP-on-WebSocket wire — framing, sessions,
+destination grammar for all six datasets, 500-row snapshot chunking,
+backpressure, heartbeats, live rate batching. 135 tests, 97% statements /
+92% branches. Compatibility is checked rather than asserted: the session tests
+decode every frame with the *real* browser parser (`fastStompParser`, imported
+from the platform source tree), and one test drives a real socket end to end.
+
+**Open (phases 2–14):** the domain core (calendars, curves, cashflow analytics,
+instruments per asset class), the columnar hot store, the DuckDB corpus, order
+entry with lot accounting, the simulators, and the realism validation suite.
+Phases 2–8 are pure domain code with no I/O and parallelise.
+
+Three wire constraints discovered while building it, each now pinned by a test
+and documented in the app README — they bite anything that speaks to this hub:
+
+1. **Full rows on the wire, never partials.** `providerEmit.ts` does a
+   whole-row `cache.set(key, row)` on every branch, so a partial row wipes the
+   fields it omits. `cfg.thinDeltas` thins the hub→window hop only.
+2. **The snapshot end token is a case-insensitive substring test run on every
+   frame body before `JSON.parse`.** A data row containing "success" truncates
+   the snapshot silently.
+3. **`parseAsOfDateSegment` accepts bare `YYYYMMDD`,** so an 8-digit rate
+   segment is read as a date.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

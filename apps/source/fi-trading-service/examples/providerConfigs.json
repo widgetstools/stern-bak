@@ -1,0 +1,23 @@
+{
+  "//": "Paste one of these into the MarketsGrid provider editor, or seed it as a data-provider row. No client changes are needed - the browser STOMP transport is entirely config-driven.",
+  "positions-live": {
+    "providerType": "stomp",
+    "websocketUrl": "ws://localhost:8081",
+    "listenerTopic": "/snapshot/positions/trd1",
+    "requestMessage": "/snapshot/positions/trd1/5000/500",
+    "requestBody": "START",
+    "snapshotEndToken": "__SNAPSHOT_COMPLETE__",
+    "keyColumn": "positionId",
+    "snapshotChunkSize": 500,
+    "thinDeltas": true
+  },
+  "positions-snapshot-only": {
+    "providerType": "stomp",
+    "websocketUrl": "ws://localhost:8081",
+    "listenerTopic": "/snapshot/positions/trd1",
+    "requestMessage": "/snapshot/positions/trd1/0",
+    "requestBody": "START",
+    "snapshotEndToken": "__SNAPSHOT_COMPLETE__",
+    "keyColumn": "positionId"
+  }
+}
