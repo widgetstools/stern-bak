@@ -1,20 +1,11 @@
 /**
  * Renders a `ReportSpec` as one composition rather than a column of cards.
  *
- * The arrangement follows the editorial reference this was modelled on:
- * standing context down the left, the thing that moves across the middle,
- * aggregate totals down the right. What that buys over a wall of widgets is
- * that the reader takes in the shape of the whole before reading a single
- * number.
- *
- * The composition is now held by `@widgetstools/react-dock-manager` — the same
- * dock that runs the blotter's summary panel, so a dashboard is dragged,
- * split and resized by exactly the gestures the blotter already taught. One
- * difference, and it is deliberate: panels here never STACK into tabs
- * (`preventsStacking`). Summary widgets are alternatives, so tabbing them is
- * right; dashboard blocks are read together, and one hidden behind a tab is
- * one nobody reads. The regions above are the opening arrangement only — see
- * `dockLayout` — and a saved layout wins over them for good.
+ * The layout follows the editorial reference this was modelled on: standing
+ * context down the left, the thing that moves across the middle, aggregate
+ * totals down the right, and rotated band labels in the gutter grouping
+ * consecutive blocks. What that buys over a dashboard is that the reader takes
+ * in the shape of the whole before reading a single number.
  *
  * Two things the reference does that are load-bearing and easy to lose:
  *
@@ -29,10 +20,11 @@
  * Every block is trusted code chosen by name. The model composes the spec; it
  * never supplies markup, script or drawing instructions.
  */
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Save, Undo2 } from 'lucide-react';
-import { DockManagerCore, type WidgetProps } from '@widgetstools/react-dock-manager';
-import '@widgetstools/react-dock-manager/styles.css';
+import GridLayout, { useContainerWidth, verticalCompactor } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import './reportGrid.css';
 import { cn } from '@wellsfargo-starui/react';
 import {
   buildChartSpec,
@@ -49,9 +41,10 @@ import {
   type ReportBlock,
   type ReportSpec,
 } from '@wellsfargo-starui/data';
-import { AnalysisTable, DataChart, LaneChart, useActiveThemeMode } from '@wellsfargo-starui/grid/customizer';
+import { AnalysisTable, DataChart, LaneChart } from '@wellsfargo-starui/grid/customizer';
+import { REPORT_GRID_COLUMNS } from '@wellsfargo-starui/data';
 import { useLayoutEditing } from './useLayoutEditing';
-import { BLOCK_WIDGET_TYPE, preventsStacking } from './dockLayout';
+import { GRID_MARGIN, ROW_HEIGHT } from './autoLayout';
 
 export interface ReportCanvasProps {
   spec: ReportSpec;
@@ -78,12 +71,12 @@ export interface ReportCanvasProps {
    */
   liveness?: 'streaming' | 'polled' | 'static';
   /**
-   * Supplying this makes the dashboard EDITABLE: panels can be dragged and
-   * split apart, and the header gains save/undo once something moves. It
-   * receives the dock's own serialized layout, which is opaque here on purpose
-   * — the dock manager owns that schema.
+   * Supplying this makes the dashboard EDITABLE: blocks gain a drag handle and
+   * a resize edge, and the header gains save/undo once something moves.
+   * Omitted, the canvas renders exactly as before — a read-only report has no
+   * business growing handles.
    */
-  onSaveLayout?: (dock: string) => void | Promise<void>;
+  onSaveLayout?: (blocks: ReportBlock[]) => void | Promise<void>;
   /**
    * Why the layout cannot be saved, when it cannot. Set for an ephemeral
    * report: blocks still move and resize — rearranging is useful whether or
@@ -98,17 +91,25 @@ export interface ReportCanvasProps {
  *
  * This used to be a rotated label in the gutter, spanning a run of consecutive
  * blocks that named the same band. A run is a property of a single ordered
- * column, and once panels can be dragged anywhere there is no run to span: two
- * blocks in the same band can sit at opposite corners. So the band travels
- * WITH its block, as a small eyebrow at the top of the panel — it still
- * answers "what is this part of" without depending on an ordering that no
- * longer exists, and it is the one label the dock's tab does not already show.
+ * column, and once blocks are placed freely on a grid there is no run to span:
+ * two blocks in the same band can sit at opposite corners. So the band travels
+ * WITH its block, as a small eyebrow above the title — it still answers "what
+ * is this part of" without depending on an ordering that no longer exists.
  */
 function BandLabel({ label }: { label: string }) {
   return (
     <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 select-none truncate">
       {label}
     </div>
+  );
+}
+
+/** A section heading with the reference's full-width rule under it. */
+function BlockTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground pb-1 mb-2 border-b border-border/60">
+      {children}
+    </h3>
   );
 }
 
@@ -384,62 +385,47 @@ function BlockBody({
 }
 
 /**
- * What each dock panel renders.
+ * One block as a grid item.
  *
- * The dock creates panels from a serialized layout, so a panel knows only its
- * own index — it cannot be handed props. This context is how it reaches the
- * blocks and their results, and it is the same shape the blotter's summary
- * panel uses for the same reason.
- */
-interface BlockPanelData {
-  blocks: readonly ReportBlock[];
-  results: Map<number, { result: QueryResult | null; error?: string }>;
-}
-const BlockPanelContext = createContext<BlockPanelData>({ blocks: [], results: new Map() });
-
-/**
- * One block, filling the panel the dock sized for it.
- *
- * A dock panel has a height the layout chose, so the card is a column: the
+ * A grid item has a height the engine chose, so the card is a column: the
  * heading takes what it needs and the body takes the rest and scrolls inside
  * itself. That is what stops a forty-row table from deciding how tall its
  * neighbours are — the constraint the old flow layout could never enforce.
  *
- * Dragging is the dock's own title bar. There is no grip of ours here: two
- * drag affordances on one card, doing the same thing by different rules, is
- * worse than one that is part of the panel chrome people already know from
- * the blotter.
+ * Dragging is on the GRIP, not the card (`draggableHandle` below): a block
+ * that moves when you try to select a number in it is worse than one that
+ * cannot move at all.
  */
-function BlockPanel({ panel }: WidgetProps) {
-  const { blocks, results } = useContext(BlockPanelContext);
-  const index = Number((panel.widgetProps as { index?: number } | undefined)?.index ?? Number.NaN);
-  const block = Number.isInteger(index) ? blocks[index] : undefined;
-
-  if (!block) {
-    // A layout saved against a different set of blocks. Say so rather than
-    // rendering an empty panel that looks like a bug in the data.
-    return (
-      <p className="p-3 text-[11px] text-muted-foreground">
-        This panel’s block is no longer part of the report.
-      </p>
-    );
-  }
-
-  const outcome = results.get(index);
+function BlockCard({
+  block,
+  result,
+  error,
+  editable,
+}: {
+  block: ReportBlock;
+  result: QueryResult | null;
+  error?: string;
+  editable: boolean;
+}) {
   return (
-    // The block's TITLE is the dock panel's own tab label — see `panelConfig`
-    // — so repeating it here would print every heading twice. The band is not
-    // in the tab, and is what answers "what is this part of", so it stays.
-    <div className="flex h-full min-h-0 flex-col bg-background px-3 pb-2 pt-1.5">
+    <div className="group/blk relative flex h-full min-h-0 flex-col">
+      {editable && (
+        <div
+          title="Drag to move this block"
+          aria-label="Drag to move this block"
+          className="rgl-grip absolute -left-4 top-0 z-10 cursor-grab select-none rounded-sm px-1 py-0.5 text-[15px] leading-none text-muted-foreground/35 transition-colors group-hover/blk:text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground active:cursor-grabbing"
+        >
+          ⠿
+        </div>
+      )}
       {block.band && <BandLabel label={block.band} />}
-      <div className={cn('min-h-0 flex-1 overflow-auto', block.band && 'mt-1.5')}>
-        <BlockBody block={block} result={outcome?.result ?? null} error={outcome?.error} />
+      {block.title && <BlockTitle>{block.title}</BlockTitle>}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <BlockBody block={block} result={result} error={error} />
       </div>
     </div>
   );
 }
-
-const BLOCK_WIDGETS = { [BLOCK_WIDGET_TYPE]: BlockPanel };
 
 export function ReportCanvas({
   spec,
@@ -457,11 +443,10 @@ export function ReportCanvas({
   const editable = Boolean(onSaveLayout) || Boolean(saveDisabledReason);
   // The draft lives here so the canvas stays a function of the blocks it is
   // handed; `useLayoutEditing` owns the rules and the dirty comparison.
-  const layout = useLayoutEditing(spec, editable);
+  const layout = useLayoutEditing(spec);
   const [saving, setSaving] = useState(false);
-  // The dock paints its own chrome, so it has to follow `<html data-theme>`
-  // the way every other surface in the app does.
-  const themeMode = useActiveThemeMode();
+  // The grid needs a pixel width; the window's is not known until it mounts.
+  const { width, mounted, containerRef } = useContainerWidth();
 
   const handleSave = async () => {
     if (!onSaveLayout || !layout.pending) return;
@@ -486,8 +471,11 @@ export function ReportCanvas({
   // would freeze at its first render. It also means a re-render that isn't
   // about data — a resize, a theme flip, a context-menu open — costs nothing.
   //
-  // Rearranging never touches the blocks — the arrangement lives entirely in
-  // the dock's own layout — so a drag cannot invalidate this at all.
+  // Keyed on the SPEC's blocks, not the draft's. Dragging rewrites a block's
+  // coordinates and so replaces the draft array on every frame of the gesture;
+  // keying on that would re-run all sixteen queries per frame for a change
+  // that cannot affect a single result. Only the position moves — the queries
+  // and their order do not — so the two arrays stay index-aligned.
   const specBlocks = spec.blocks;
 
   const results = useMemo(() => {
@@ -501,11 +489,9 @@ export function ReportCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows may be stable by reference; rowsVersion is the change signal
   }, [specBlocks, rowsVersion]);
 
-  const panelData = useMemo<BlockPanelData>(() => ({ blocks: specBlocks, results }), [specBlocks, results]);
-
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-background text-foreground px-8 py-7">
-      <header className="mb-6 flex-shrink-0">
+    <div className="w-full min-h-full bg-background text-foreground px-8 py-7">
+      <header className="mb-8">
         <h1 className="text-[34px] font-bold uppercase tracking-[-0.01em] leading-[0.95] max-w-[16ch]">
           {spec.title}
         </h1>
@@ -570,29 +556,48 @@ export function ReportCanvas({
         </div>
       </header>
 
-      {/* The dock positions its panels absolutely, so it needs a definite
-          height to divide up — not a block that grows to its content. */}
-      <div className="min-h-0 flex-1">
-        <BlockPanelContext.Provider value={panelData}>
-          <DockManagerCore
-            // A dock manager cannot be driven back to a previous layout by
-            // props — the arrangement lives inside it. Remounting on a new key
-            // is what makes undo possible.
-            key={layout.mountKey}
-            initialState={layout.initialState}
-            widgets={BLOCK_WIDGETS}
-            theme={themeMode}
-            onStateChange={layout.applyState}
-            // Panels split; they never stack. A chart hidden behind a tab is a
-            // chart nobody reads — see `preventsStacking`.
-            onWillDrop={(event, _source, _target, position) => preventsStacking(event, position)}
-            // Dropping a panel onto the window edge is another way to stack
-            // the whole dashboard into one column, and it is not needed when
-            // every panel already has a home.
-            allowRootDock={false}
-            className="h-full"
-          />
-        </BlockPanelContext.Provider>
+      {/* The grid measures itself off this element, so it must be the thing
+          that spans the content width — not the padded page wrapper. */}
+      <div ref={containerRef} className="min-w-0">
+        {mounted && (
+          <GridLayout
+            layout={layout.layout}
+            width={width}
+            gridConfig={{
+              cols: REPORT_GRID_COLUMNS,
+              rowHeight: ROW_HEIGHT,
+              margin: GRID_MARGIN,
+              containerPadding: [0, 0],
+            }}
+            dragConfig={{
+              enabled: editable,
+              // Only the grip drags. Without this the whole card is a drag
+              // surface and selecting a number inside one moves it instead.
+              handle: '.rgl-grip',
+            }}
+            resizeConfig={{
+              enabled: editable,
+              // The corner does both axes; the edges are for changing one
+              // without disturbing the other.
+              handles: ['se', 's', 'e'],
+            }}
+            // Blocks settle upward into the space above them, so shrinking one
+            // does not leave a hole in the middle of the report.
+            compactor={verticalCompactor}
+            onLayoutChange={layout.applyLayout}
+          >
+            {layout.blocks.map((block, index) => (
+              <div key={String(index)} className="min-w-0">
+                <BlockCard
+                  block={block}
+                  result={results.get(index)?.result ?? null}
+                  error={results.get(index)?.error}
+                  editable={editable}
+                />
+              </div>
+            ))}
+          </GridLayout>
+        )}
       </div>
     </div>
   );

@@ -1657,17 +1657,15 @@ digests/charts/queries/heatmap shading through the same implementation.
   only fields the vocabulary defines — there is nowhere in a validated report to put
   markup, script or drawing instructions, and a lane names a colour ROLE rather than a hex
   so both themes stay correct. Errors name the offending block/tile/lane by index.
-- `ReportSpec.dock` + `MAX_DOCK_LAYOUT_CHARS` — the dashboard's arrangement once someone has
-  moved something: the dock manager's OWN serialized layout, kept opaque on purpose (the
-  library owns that schema, and restating it here would mean two definitions drifting apart
-  at the first upgrade). Deliberately not what a model composes — an author names a `region`
-  per block and the window builds an opening arrangement from that; this appears only after a
-  drag and from then on wins, so a saved arrangement survives re-opening. Validated only as
-  far as "could plausibly be one": JSON of an object, under the size cap, so a corrupt or
-  hostile payload cannot reach the dock or bloat a config row. A layout that fails is dropped
-  and the dashboard falls back to the derived arrangement, which is always openable. Panels
-  are addressed by block INDEX, so a layout only means anything alongside the blocks it was
-  saved with.
+- `BlockLayout` + `REPORT_GRID_COLUMNS` / `MIN_BLOCK_ROWS` / `MAX_BLOCK_ROWS` — a block's
+  `{x, y, w, h}` on the 12-column dashboard grid, persisted once someone has ARRANGED the
+  dashboard by hand. Deliberately not what a model composes: an author names a `region` and
+  the renderer derives an opening position from it; coordinates appear only after a drag and
+  from then on win, so a saved arrangement survives re-opening. Validation coerces rather
+  than refuses (this arrives from storage): `w`/`h` are clamped, `x` is pulled back so a
+  block cannot hang off the right edge, and a PARTIAL position is discarded whole — half a
+  position would place the block somewhere nobody chose, so the block returns to
+  auto-placement instead.
 - `ReportSpec.asOf` is now carried through validation. It was declared on the type and
   rendered by the report canvas, but the validator never emitted it — so the moment a model
   said its data was for was dropped by the very validation every spec passes, and the window

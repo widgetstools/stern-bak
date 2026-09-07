@@ -28,7 +28,6 @@ vi.mock('@wellsfargo-starui/data', async (importOriginal) => {
  * so it has to be re-declared here in any case.)
  */
 vi.mock('@wellsfargo-starui/grid/customizer', () => ({
-  useActiveThemeMode: () => 'dark',
   DataChart: ({ spec }: { spec: { kind: string } }) =>
     React.createElement('div', { 'data-testid': 'chart', 'data-kind': spec.kind }),
   AnalysisTable: ({ columns }: { columns: string[] }) =>
@@ -162,12 +161,9 @@ describe('blocks', () => {
     expect(lanes.dataset.lanes).toBe('PNL,MV');
   });
 
-  /** A block's title is its dock panel's tab label — printing it inside the
-   *  panel as well would show every heading twice. */
-  it('shows a block heading once, as the panel it lives in', () => {
-    const { container } = draw([{ kind: 'commentary', title: 'Narrative', text: 'x' }]);
-    expect(screen.getAllByText('Narrative')).toHaveLength(1);
-    expect(container.querySelector('.dock-tab')?.textContent).toContain('Narrative');
+  it('shows a block heading when one is given', () => {
+    draw([{ kind: 'commentary', title: 'Narrative', text: 'x' }]);
+    expect(screen.getByRole('heading', { level: 3, name: 'Narrative' })).toBeTruthy();
   });
 
   /** One bad block must not take the report down with it. */
@@ -189,19 +185,19 @@ describe('blocks', () => {
  */
 describe('the composition', () => {
   /**
-   * WHICH column a block opens in is asserted against `buildDockState` in
-   * `dockLayout.test.ts`, where the tree is exact and deterministic. Pixel
-   * positions are the dock's arithmetic against a measured container, and
-   * jsdom measures nothing. What belongs here is that every block reaches the
-   * dock as its own panel.
+   * Pixel positions are the engine's arithmetic against a measured container,
+   * and jsdom measures nothing — it falls back to a default width, and not
+   * consistently. So WHERE a block lands is asserted against `deriveLayout` in
+   * `autoLayout.test.ts`, where it is exact and deterministic. What belongs
+   * here is that every block reaches the grid as its own item.
    */
-  it('gives every block its own panel, never a shared tab strip', () => {
+  it('gives every block its own grid item', () => {
     const { container } = draw([
       { kind: 'commentary', region: 'left', text: 'Context here.' },
       { kind: 'commentary', region: 'main', text: 'The main event.' },
       { kind: 'commentary', region: 'right', text: 'Totals.' },
     ]);
-    expect(container.querySelectorAll('.dock-tab-group')).toHaveLength(3);
+    expect(container.querySelectorAll('.react-grid-item')).toHaveLength(3);
     expect(screen.getByText('Context here.')).toBeTruthy();
     expect(screen.getByText('Totals.')).toBeTruthy();
   });
@@ -214,9 +210,9 @@ describe('the composition', () => {
    */
   it('labels every block with the band it belongs to', () => {
     draw([
-      { kind: 'commentary', title: 'A', band: 'RISK', text: 'One.' },
-      { kind: 'commentary', title: 'B', band: 'RISK', text: 'Two.' },
-      { kind: 'commentary', title: 'C', band: 'FLOW', text: 'Three.' },
+      { kind: 'commentary', band: 'RISK', text: 'One.' },
+      { kind: 'commentary', band: 'RISK', text: 'Two.' },
+      { kind: 'commentary', band: 'FLOW', text: 'Three.' },
     ]);
     expect(screen.getAllByText('RISK')).toHaveLength(2);
     expect(screen.getAllByText('FLOW')).toHaveLength(1);
@@ -353,32 +349,50 @@ describe('layout editing', () => {
     { kind: 'commentary', text: 'Two', title: 'B' },
   ];
 
-  /**
-   * Every block still RENDERS in a read-only report — it just cannot be
-   * rearranged. Which panel flags carry that is asserted in
-   * `dockLayout.test.ts`; here it is only that nothing disappears.
-   */
-  it('draws every block when the report is read-only', () => {
+  it('renders no handles at all when the report is read-only', () => {
     const { container } = draw(BLOCKS);
-    expect(container.querySelectorAll('.dock-tab-group')).toHaveLength(2);
-    expect(screen.getByText('One')).toBeTruthy();
+    expect(container.querySelector('.rgl-grip')).toBeNull();
+    // The engine still emits its handle nodes; not being resizable is the
+    // class that hides them.
+    expect(container.querySelectorAll('.react-grid-item.react-resizable-hide')).toHaveLength(2);
   });
 
-  it('draws the same blocks when the report is editable', () => {
+  it('offers a drag grip and resize handles per block when editable', () => {
     const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    expect(container.querySelectorAll('.dock-tab-group')).toHaveLength(2);
+    expect(container.querySelectorAll('.rgl-grip')).toHaveLength(2);
+    // Corner plus two edges, from the engine, on each block.
+    expect(container.querySelectorAll('.react-grid-item .react-resizable-handle-se')).toHaveLength(2);
+    expect(container.querySelectorAll('.react-grid-item .react-resizable-handle-e')).toHaveLength(2);
   });
 
   /**
-   * Dragging is the dock's own panel header — the same gesture the blotter's
-   * summary panel already taught. There is deliberately no grip of ours: two
-   * drag affordances on one card, doing the same thing by different rules, is
-   * worse than one that is part of the chrome people know.
+   * The bug this pins. The grip rendered at ZERO opacity and came up only on
+   * hover, so a dashboard showed no pixel anywhere suggesting a block could
+   * move — there was nothing to hover towards, and the feature read as
+   * missing. Verified in the running app: at rest it computed to
+   * `oklch(… / 0)`, on hover to 0.5.
+   *
+   * jsdom applies no stylesheet, so this pins the CLASS that decides the
+   * resting opacity rather than the computed colour. The engine's own resize
+   * handles have the same default (`opacity: 0` until `:hover`) and are
+   * re-stated in `reportGrid.css`.
    */
-  it('drags by the dock panel header, with no second affordance of its own', () => {
+  it('renders the grip visibly at rest, not only on hover', () => {
     const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    expect(container.querySelectorAll('.dock-panel-header').length).toBeGreaterThan(0);
-    expect(container.querySelector('.rgl-grip')).toBeNull();
+    const grip = container.querySelector('.rgl-grip') as HTMLElement;
+    expect(grip.className).not.toMatch(/text-muted-foreground\/0(?!\.|\d)/);
+    // And it still strengthens under the pointer, so resting quiet is a
+    // choice rather than the only state.
+    expect(grip.className).toMatch(/group-hover\/blk:/);
+  });
+
+  /** Dragging must be on the grip, not the card: a block that moves when you
+   *  try to select a number in it is worse than one that cannot move. */
+  it('makes only the grip a drag surface', () => {
+    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    const grip = container.querySelector('.rgl-grip') as HTMLElement;
+    expect(grip.getAttribute('aria-label')).toBe('Drag to move this block');
+    // The card itself carries no drag affordance of its own.
     expect(container.querySelector('[draggable="true"]')).toBeNull();
   });
 
@@ -389,10 +403,10 @@ describe('layout editing', () => {
   });
 
   /**
-   * The dock reports state on mount and on every re-measure. If any of those
-   * counted as an edit, the save control would appear on a dashboard nobody
-   * touched — and a save prompt that appears on its own teaches people to
-   * ignore it.
+   * The engine fires `onLayoutChange` on mount and on every re-measure. If any
+   * of those counted as an edit, the save control would appear on a dashboard
+   * nobody touched — and a save prompt that appears on its own teaches people
+   * to ignore it.
    */
   it('stays clean through mount and re-render, which the engine reports as changes', () => {
     const { rerender } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
@@ -415,9 +429,15 @@ describe('an ephemeral report', () => {
   ];
   const REASON = 'Keep this as a dashboard to save its layout';
 
-  it('still renders every block as its own movable panel', () => {
+  it('still offers drag and resize handles', () => {
     const { container } = draw(BLOCKS, {}, { saveDisabledReason: REASON });
-    expect(container.querySelectorAll('.dock-tab-group')).toHaveLength(2);
-    expect(container.querySelectorAll('.dock-panel-header').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.rgl-grip')).toHaveLength(2);
+    expect(container.querySelectorAll('.react-grid-item .react-resizable-handle-se')).toHaveLength(2);
+  });
+
+  it('leaves a plain read-only render with no handles at all', () => {
+    const { container } = draw(BLOCKS);
+    expect(container.querySelector('.rgl-grip')).toBeNull();
+    expect(container.querySelectorAll('.react-grid-item.react-resizable-hide')).toHaveLength(2);
   });
 });

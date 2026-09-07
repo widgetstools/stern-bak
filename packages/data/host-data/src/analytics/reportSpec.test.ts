@@ -100,47 +100,11 @@ describe('regions and bands', () => {
 });
 
 /**
- * The saved arrangement is the dock manager's own serialized layout, kept
- * opaque on purpose — the library owns that schema. What this validates is
- * only that it could plausibly BE one, so a corrupt payload cannot reach the
- * dock or bloat a config row. A layout that fails goes back to being derived
- * from the blocks' regions, which is always a usable dashboard.
+ * Coordinates are what a real layout engine persists, and they arrive from
+ * storage — written by an older build, or by a drag that ended somewhere odd.
+ * So they are coerced into something renderable rather than trusted or refused:
+ * a bad position is a rendering problem, never a reason to fail the dashboard.
  */
-describe('a hand-arranged dock layout', () => {
-  const withDock = (dock: unknown) => ok(report({ dock } as never)).dock;
-  const LAYOUT = JSON.stringify({ layout: { type: 'split', children: [] }, panels: [] });
-
-  it('keeps an arrangement someone dragged into place', () => {
-    expect(withDock(LAYOUT)).toBe(LAYOUT);
-  });
-
-  /** Absent is the normal case: a freshly composed report is auto-arranged. */
-  it('leaves a freshly composed report unarranged', () => {
-    expect(withDock(undefined)).toBeUndefined();
-    expect(withDock('')).toBeUndefined();
-  });
-
-  it('drops anything that is not JSON of an object', () => {
-    expect(withDock('not json at all')).toBeUndefined();
-    expect(withDock('"a string"')).toBeUndefined();
-    expect(withDock('42')).toBeUndefined();
-    expect(withDock('null')).toBeUndefined();
-    expect(withDock({ layout: 'not serialized' })).toBeUndefined();
-  });
-
-  /** A corrupt or hostile payload must not bloat the config row it rides in. */
-  it('drops a layout too large to be a real one', () => {
-    expect(withDock(`{"pad":"${'x'.repeat(70_000)}"}`)).toBeUndefined();
-  });
-
-  /** The round trip that matters: a saved arrangement must come back
-   *  unchanged, or dragging a dashboard is pointless. */
-  it('survives a JSON round trip, which is how it reaches storage', () => {
-    const once = ok(report({ dock: LAYOUT } as never));
-    expect(ok(JSON.parse(JSON.stringify(once))).dock).toBe(LAYOUT);
-  });
-});
-
 /**
  * `asOf` was declared on the type and rendered by the canvas, but the
  * validator never carried it through — so the moment a model said the data was
@@ -163,6 +127,53 @@ describe('the as-of time', () => {
     expect(withAsOf(undefined)).toBeUndefined();
     expect(withAsOf('   ')).toBeUndefined();
     expect(withAsOf(1_756_000_000)).toBeUndefined();
+  });
+});
+
+describe('a hand-arranged block position', () => {
+  const withLayout = (layout: unknown) =>
+    ok(report({ blocks: [{ kind: 'commentary', text: 'x', layout } as never] })).blocks[0].layout;
+
+  it('keeps a position a person dragged into place', () => {
+    expect(withLayout({ x: 3, y: 2, w: 6, h: 8 })).toEqual({ x: 3, y: 2, w: 6, h: 8 });
+  });
+
+  /** Absent is the normal case: a freshly composed report is auto-placed. */
+  it('leaves a freshly composed block unplaced', () => {
+    expect(withLayout(undefined)).toBeUndefined();
+  });
+
+  /** Half a position is worse than none — it would place the block somewhere
+   *  nobody chose. Dropping it whole sends the block back to auto-placement. */
+  it('discards a partial position rather than inventing the rest', () => {
+    expect(withLayout({ x: 3, y: 2, w: 6 })).toBeUndefined();
+    expect(withLayout({ x: 'left', y: 2, w: 6, h: 8 })).toBeUndefined();
+    expect(withLayout({ x: 3, y: 2, w: 6, h: Number.NaN })).toBeUndefined();
+  });
+
+  it('never lets a block hang off the right edge of the grid', () => {
+    expect(withLayout({ x: 11, y: 0, w: 6, h: 8 })).toMatchObject({ x: 6, w: 6 });
+    expect(withLayout({ x: 40, y: 0, w: 12, h: 8 })).toMatchObject({ x: 0, w: 12 });
+  });
+
+  it('clamps a width and a height that would break the render', () => {
+    expect(withLayout({ x: 0, y: 0, w: 99, h: 8 })).toMatchObject({ w: 12 });
+    expect(withLayout({ x: 0, y: 0, w: 0, h: 8 })).toMatchObject({ w: 1 });
+    expect(withLayout({ x: 0, y: 0, w: 4, h: 1 })).toMatchObject({ h: 3 });
+    expect(withLayout({ x: 0, y: 0, w: 4, h: 5000 })).toMatchObject({ h: 40 });
+  });
+
+  it('pulls a negative row back onto the grid and rounds fractions', () => {
+    expect(withLayout({ x: 0, y: -5, w: 4, h: 8 })).toMatchObject({ y: 0 });
+    expect(withLayout({ x: 2.6, y: 1.4, w: 4.5, h: 8.2 })).toMatchObject({ x: 3, y: 1, w: 5, h: 8 });
+  });
+
+  /** The round trip that matters: a saved arrangement must come back
+   *  unchanged, or dragging a dashboard is pointless. */
+  it('survives a JSON round trip, which is how it reaches storage', () => {
+    const arranged = { x: 4, y: 7, w: 5, h: 12 };
+    const once = ok(report({ blocks: [{ kind: 'commentary', text: 'x', layout: arranged } as never] }));
+    expect(ok(JSON.parse(JSON.stringify(once))).blocks[0].layout).toEqual(arranged);
   });
 });
 

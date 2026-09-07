@@ -18,14 +18,12 @@
     "preview": "vite preview",
     "client": "node launch.mjs http://localhost:5175/platform/manifest.fin.json"
   },
-  "//dependencies-registry-notes": "@widgetstools/react-dock-manager + dock-manager-core are the house layout engine, already used by @wellsfargo-starui/grid for the blotter's summary panel (packages/react-grid/grid/src/widget/BlotterDock.tsx) and by the dataprovider-editor and design-system apps. Pinned to the same ^1.0.x line as those, deliberately: one dock manager, one interaction model, one theme path (useActiveThemeMode -> the `theme` prop) across the blotter and its dashboards. A dashboard uses it in TILE mode — every panel in its own group, centre drops refused — because dashboard blocks are read together, unlike the summary panel's widgets, which are alternatives and so stack as tabs. react-grid-layout was evaluated and removed in favour of this: a second layout library for the same job would have meant two drag idioms in one window.",
+  "//dependencies-registry-notes": "react-grid-layout pinned to the ^2.2.x stable line. 2.x is the React-19-safe major: 1.x reached react-draggable/react-resizable through the removed ReactDOM.findDOMNode, while 2.2.4 passes nodeRef throughout (verified rendering under react 19.2 with zero console errors). It also replaces the WidthProvider HOC with the useContainerWidth hook, so there is no HOC to fight StrictMode. Chosen over gridstack (framework-agnostic and imperative — it owns the DOM nodes React is meant to own, and is 2.07MB unpacked to RGL's 448KB) and over react-mosaic (binary-tree tiling, no free 2D placement). @types are bundled; do not add @types/react-grid-layout, which only describes 1.x.",
   "dependencies": {
     "@openfin/core": "43.104.2",
     "@openfin/workspace": "23.2.25",
     "@openfin/workspace-platform": "23.2.25",
     "@tanstack/react-query": "^5.80.7",
-    "@widgetstools/dock-manager-core": "^1.0.0",
-    "@widgetstools/react-dock-manager": "^1.0.0",
     "ag-grid-community": "36.1.0",
     "ag-grid-enterprise": "36.1.0",
     "ag-grid-react": "36.1.0",
@@ -34,6 +32,7 @@
     "lucide-react": "^0.554.0",
     "react": "~19.2.5",
     "react-dom": "~19.2.5",
+    "react-grid-layout": "^2.2.4",
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.30.3",
     "recharts": "^3.10.1",
