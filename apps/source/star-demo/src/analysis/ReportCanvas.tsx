@@ -345,9 +345,15 @@ function BlockBody({
         );
       }
       return (
-        <div className="min-h-[180px]">
-          <DataChart spec={chartSpec} style={block.style} />
-          <p className="mt-1 text-[10px] text-muted-foreground/85">{chartSpec.caption}</p>
+        // The chart takes the room the block was given and the caption takes
+        // what it needs. `DataChart` already treats its height as a FLOOR and
+        // grows into its container, so all it needed was a container with a
+        // real height.
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="min-h-0 flex-1">
+            <DataChart spec={chartSpec} style={block.style} />
+          </div>
+          <p className="mt-1 flex-shrink-0 text-[10px] text-muted-foreground/85">{chartSpec.caption}</p>
         </div>
       );
     }
@@ -360,23 +366,25 @@ function BlockBody({
       // stay frozen while the pivoted ones scroll.
       const pivot = result.pivot;
       return (
-        // A table BOUNDS itself rather than growing to its row count. A
-        // hundred-row result used to push everything below it off the page and
-        // stretch its whole region, so the charts beside it went with it. The
-        // scroll is inside the block; the dashboard's own height stays the
-        // dashboard's.
-        <div
-          className="overflow-auto rounded-sm border border-border/40"
-          style={{ maxHeight: block.maxHeight ?? 320 }}
-        >
-        <AnalysisTable
-          columns={result.columns}
-          rows={result.rows}
-          heatmap={block.heatmap}
-          signed={block.signed}
-          stickyLeadingCols={pivot?.rowDims.length}
-          valueColId={pivot?.measures[0]}
-        />
+        // The table fills the block and scrolls inside it, so a hundred-row
+        // result cannot stretch its neighbours.
+        //
+        // The scroll box is the TABLE'S OWN element, not a wrapper around it.
+        // Wrapping produced two nested scroll containers — the outer one
+        // scrolled, the inner one bound `position: sticky`, and so the header
+        // never stuck to anything. A block that names an explicit `maxHeight`
+        // still gets it; otherwise the block's own height is the bound.
+        <div className="h-full min-h-0 overflow-hidden rounded-sm border border-border/40">
+          <AnalysisTable
+            className={block.maxHeight ? undefined : 'h-full'}
+            style={block.maxHeight ? { maxHeight: block.maxHeight } : undefined}
+            columns={result.columns}
+            rows={result.rows}
+            heatmap={block.heatmap}
+            signed={block.signed}
+            stickyLeadingCols={pivot?.rowDims.length}
+            valueColId={pivot?.measures[0]}
+          />
         </div>
       );
     }
@@ -647,7 +655,7 @@ export function ReportCanvas({
             onResizeStop={endGesture}
           >
             {layout.blocks.map((block, index) => (
-              <div key={String(index)} className="min-w-0">
+              <div key={String(index)} className="h-full min-w-0">
                 <BlockCardMemo
                   block={block}
                   result={results.get(index)?.result ?? null}

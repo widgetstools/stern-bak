@@ -32,12 +32,12 @@ describe('the columns each region occupies', () => {
 });
 
 describe('placing blocks that have never been arranged', () => {
-  it('stacks each region down its own column', () => {
+  it('pairs blocks that will share a row, then wraps to the next', () => {
     const layout = deriveLayout([block(), block(), block()]);
-    expect(layout.map((l) => l.x)).toEqual([0, 0, 0]);
-    // Each one starts below the last, with no overlap.
-    expect(layout[1].y).toBe(layout[0].y + layout[0].h);
-    expect(layout[2].y).toBe(layout[1].y + layout[1].h);
+    // Two across, then wrap — not three full-width bands down one column.
+    expect(layout.map((l) => l.x)).toEqual([0, 6, 0]);
+    expect(layout[0].y).toBe(layout[1].y);
+    expect(layout[2].y).toBeGreaterThan(layout[0].y);
   });
 
   it('starts every region at the top, independently of the others', () => {
@@ -144,5 +144,133 @@ describe('the change signature', () => {
     for (const change of [{ x: 1 }, { y: 1 }, { w: 7 }, { h: 5 }]) {
       expect(layoutSignature([{ ...base[0], ...change }])).not.toBe(layoutSignature(base));
     }
+  });
+});
+
+/**
+ * The intelligence the auto-layout is supposed to carry. Before this, every
+ * block took its whole region's width, so a six-block dashboard was six
+ * full-width bands down one very tall column, and every rail was three
+ * columns wide whether it held a sentence or a twelve-column table.
+ */
+describe('how much room each block asks for', () => {
+  const q = (over: Record<string, unknown>) => ({ query: over }) as Partial<ReportBlock>;
+
+  /** A headline row of figures reads across; halving it puts four numbers in
+   *  a corner. Same for a stack of time-aligned tracks. */
+  it('gives a headline row and a lane stack the full width', () => {
+    const [kpis, lanes] = deriveLayout([
+      block({ kind: 'kpis', ...q({}) } as Partial<ReportBlock>),
+      block({ kind: 'lanes', ...q({}) } as Partial<ReportBlock>),
+    ]);
+    expect(kpis.w).toBe(12);
+    expect(lanes.w).toBe(12);
+    expect(lanes.y).toBeGreaterThan(kpis.y);
+  });
+
+  /** Two charts side by side is the shape people read a dashboard in. */
+  it('pairs two charts across one row', () => {
+    const layout = deriveLayout([
+      block({ kind: 'chart', ...q({ groupBy: ['a'], aggregate: [{}] }) } as Partial<ReportBlock>),
+      block({ kind: 'chart', ...q({ groupBy: ['b'], aggregate: [{}] }) } as Partial<ReportBlock>),
+    ]);
+    expect(layout.map((l) => l.w)).toEqual([6, 6]);
+    expect(layout[0].y).toBe(layout[1].y);
+    expect(layout.map((l) => l.x)).toEqual([0, 6]);
+  });
+
+  /**
+   * The one that cannot be guessed from the kind. A two-column summary pairs
+   * happily; a twelve-column detail table in half the width shows its first
+   * three and clips the rest.
+   */
+  /** Naming nothing is not asking for nothing: a query with no projection
+   *  returns the provider's raw rows, every column of them. Counting that as
+   *  zero put a full position blotter in half the width. */
+  it('treats a raw row dump as the widest case, not the narrowest', () => {
+    const [only] = deriveLayout([block({ kind: 'table', ...q({ limit: 500 }) } as Partial<ReportBlock>)]);
+    expect(only.w).toBe(12);
+  });
+
+  it('sizes a table by its column count, not its kind', () => {
+    const narrow = deriveLayout([block({ kind: 'table', ...q({ groupBy: ['desk'], aggregate: [{}] }) } as Partial<ReportBlock>)]);
+    const wide = deriveLayout([
+      block({ kind: 'table', ...q({ columns: ['a','b','c','d','e','f','g','h','i'] }) } as Partial<ReportBlock>),
+    ]);
+    expect(narrow[0].w).toBe(6);
+    expect(wide[0].w).toBe(12);
+  });
+
+  /** A pivot fans out one column per value of its pivot dimension, and the
+   *  count is not knowable at layout time — so it is treated as wide. */
+  it('treats a pivot as wide on principle', () => {
+    const [only] = deriveLayout([block({ kind: 'pivot', ...q({ pivotBy: ['ccy'], aggregate: [{}] }) } as Partial<ReportBlock>)]);
+    expect(only.w).toBe(12);
+  });
+
+  /** Reading order is the author's; a prettier layout that no longer reads
+   *  top-to-bottom is a worse dashboard. */
+  it('keeps blocks in the order they were written', () => {
+    const layout = deriveLayout([
+      block({ kind: 'chart', ...q({ groupBy: ['a'], aggregate: [{}] }) } as Partial<ReportBlock>),
+      block({ kind: 'kpis', ...q({}) } as Partial<ReportBlock>),
+      block({ kind: 'chart', ...q({ groupBy: ['b'], aggregate: [{}] }) } as Partial<ReportBlock>),
+    ]);
+    // The full-width KPI row closes the chart's row rather than jumping it.
+    expect(layout[1].y).toBeGreaterThan(layout[0].y);
+    expect(layout[2].y).toBeGreaterThan(layout[1].y);
+  });
+});
+
+describe('how wide a rail gets', () => {
+  it('stays narrow for prose and stacked figures', () => {
+    expect(regionColumns([block({ region: 'left' }), block()]).left.w).toBe(3);
+  });
+
+  /** At three columns a table shows its first column and clips every other;
+   *  the cure is width, not a smaller font. */
+  it('widens for a rail holding a table', () => {
+    const cols = regionColumns([block({ region: 'left', kind: 'table', query: {} } as Partial<ReportBlock>), block()]);
+    expect(cols.left.w).toBe(4);
+    expect(cols.main.x).toBe(4);
+  });
+
+  /** A rail is too narrow to split in two, whatever is in it. */
+  it('never pairs blocks inside a rail', () => {
+    const layout = deriveLayout([block({ region: 'right' }), block({ region: 'right' }), block()]);
+    expect(layout[0].w).toBe(layout[1].w);
+    expect(layout[1].y).toBeGreaterThan(layout[0].y);
+  });
+});
+
+/**
+ * The regression this pins was visible on screen: with a left rail of prose
+ * and a right rail holding a table, both rails took their preferred width and
+ * the middle was left five of twelve columns — narrower than the gutters
+ * around it, and below the threshold at which two charts will pair, so a
+ * six-block dashboard collapsed into one tall stack down the middle.
+ */
+describe('the middle keeps its share', () => {
+  const left = block({ region: 'left' });
+  const rightTable = block({ region: 'right', kind: 'table', query: {} } as Partial<ReportBlock>);
+
+  it('never lets two rails squeeze main below half the grid', () => {
+    const cols = regionColumns([left, block(), rightTable]);
+    expect(cols.main.w).toBeGreaterThanOrEqual(6);
+    expect(cols.left.w + cols.main.w + cols.right.w).toBe(12);
+  });
+
+  it('still pairs charts in the middle when both rails are open', () => {
+    const chart = (k: string) =>
+      block({ kind: 'chart', query: { groupBy: [k], aggregate: [{}] } } as Partial<ReportBlock>);
+    const layout = deriveLayout([left, chart('a'), chart('b'), rightTable]);
+    expect(layout[1].y).toBe(layout[2].y);
+    expect(layout[1].x).toBeLessThan(layout[2].x);
+  });
+
+  /** A single rail is under the budget, so it keeps the extra width it asked
+   *  for — the constraint only bites when both are open. */
+  it('leaves a lone table rail at its full width', () => {
+    expect(regionColumns([rightTable, block()]).right.w).toBe(4);
   });
 });

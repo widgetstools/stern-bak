@@ -50,9 +50,11 @@ describe('useLayoutEditing', () => {
 
   it('records a block dragged somewhere new', () => {
     const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(moved(result.current.layout, '1', { x: 6, y: 0 })));
+    // Two main blocks open side by side now, so "somewhere new" has to be a
+    // row down rather than the column it is already in.
+    act(() => result.current.applyLayout(moved(result.current.layout, '1', { x: 0, y: 9 })));
     expect(result.current.dirty).toBe(true);
-    expect(result.current.blocks[1].layout).toMatchObject({ x: 6, y: 0 });
+    expect(result.current.blocks[1].layout).toMatchObject({ x: 0, y: 9 });
     // The block that did not move keeps whatever it had.
     expect(result.current.blocks[0].layout?.x).toBe(0);
   });

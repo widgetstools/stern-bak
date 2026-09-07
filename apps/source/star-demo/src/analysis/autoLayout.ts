@@ -64,17 +64,139 @@ function defaultRows(block: ReportBlock): number {
   return DEFAULT_ROWS[block.kind] ?? 6;
 }
 
-/** The column band each region occupies, given which rails are in use. */
+/**
+ * How many columns a block would LIKE, as a fraction of the width available.
+ *
+ * A dashboard that gives every block the full width is a single tall column of
+ * bands, and one that halves everything squeezes a headline row into a corner.
+ * What each block actually needs is different, and knowable:
+ *
+ *  - **KPIs and lanes read across.** A headline row of figures, or a stack of
+ *    time-aligned tracks, both want the full width and very little height.
+ *  - **Charts pair.** Two charts side by side is the shape people read a
+ *    dashboard in; one chart alone across twelve columns is mostly whitespace.
+ *  - **Tables are sized by their COLUMNS.** This is the one that cannot be
+ *    guessed from the kind — a two-column summary pairs happily, and a
+ *    twelve-column detail table put in half the width shows its first three
+ *    and clips the rest.
+ */
+function estimatedColumns(block: ReportBlock): number {
+  const q = (block as { query?: Record<string, unknown> }).query;
+  if (!q) return 0;
+  const listed = (q.columns as string[] | undefined)?.length;
+  if (listed) return listed;
+  const groupBy = (q.groupBy as string[] | undefined)?.length ?? 0;
+  const pivotBy = (q.pivotBy as string[] | undefined)?.length ?? 0;
+  const aggs = (q.aggregate as unknown[] | undefined)?.length ?? 0;
+  // A pivot fans out one column per value of its pivot dimension; the count is
+  // not knowable here, so it is treated as wide on principle.
+  if (pivotBy > 0) return WIDE_COLUMN_COUNT;
+  // Naming nothing is not asking for nothing — a query with no projection at
+  // all returns the provider's raw rows, every column of them, which is the
+  // widest case there is. Counting that as zero put a full position blotter
+  // in half the width.
+  if (groupBy + aggs === 0) return WIDE_COLUMN_COUNT;
+  return groupBy + aggs;
+}
+
+/** Past this many columns a table needs the whole width to be readable. */
+const WIDE_COLUMN_COUNT = 7;
+
+/** Whether a block wants all of its region's width, or will share a row. */
+function wantsFullWidth(block: ReportBlock): boolean {
+  if (block.kind === 'kpis' || block.kind === 'lanes') return true;
+  if (block.kind === 'table' || block.kind === 'pivot') {
+    return estimatedColumns(block) >= WIDE_COLUMN_COUNT;
+  }
+  return false;
+}
+
+/**
+ * The column band each region occupies.
+ *
+ * A rail is 3 columns of prose or stacked figures, and 4 when it holds a
+ * table — at 3 columns a table shows its first column and clips every other,
+ * and the cure for that is width, not a smaller font.
+ */
 export function regionColumns(blocks: readonly ReportBlock[]): Record<string, { x: number; w: number }> {
-  const has = (region: string) => blocks.some((b) => (b.region ?? 'main') === region);
-  const left = has('left') ? RAIL_COLUMNS : 0;
-  const right = has('right') ? RAIL_COLUMNS : 0;
+  const inRegion = (region: string) => blocks.filter((b) => (b.region ?? 'main') === region);
+  const railWidth = (region: string): number => {
+    const entries = inRegion(region);
+    if (entries.length === 0) return 0;
+    return entries.some((b) => b.kind === 'table' || b.kind === 'pivot')
+      ? RAIL_COLUMNS_WIDE
+      : RAIL_COLUMNS;
+  };
+  let left = railWidth('left');
+  let right = railWidth('right');
+
+  // The main region is the main region. Two rails at their preferred widths
+  // left it five of twelve columns — narrower than the gutters it sat between,
+  // and too narrow to put two charts side by side, so a dashboard with both
+  // rails open became a single tall stack down the middle. Rails give width
+  // back, widest first, until the middle has at least half the grid.
+  const railBudget = REPORT_GRID_COLUMNS - MAIN_MIN_COLUMNS;
+  while (left + right > railBudget) {
+    if (left >= right && left > RAIL_COLUMNS) left -= 1;
+    else if (right > RAIL_COLUMNS) right -= 1;
+    else break;
+  }
+
   return {
-    left: { x: 0, w: RAIL_COLUMNS },
+    left: { x: 0, w: left || RAIL_COLUMNS },
     main: { x: left, w: Math.max(1, REPORT_GRID_COLUMNS - left - right) },
-    right: { x: REPORT_GRID_COLUMNS - RAIL_COLUMNS, w: RAIL_COLUMNS },
+    right: { x: REPORT_GRID_COLUMNS - (right || RAIL_COLUMNS), w: right || RAIL_COLUMNS },
   };
 }
+
+/** The middle keeps at least half the grid, whatever the rails would like. */
+const MAIN_MIN_COLUMNS = 6;
+
+/**
+ * Packs a region's blocks into rows, pairing the ones that will share.
+ *
+ * Greedy and order-preserving: blocks stay in the order the author wrote them,
+ * and a block that wants the full width closes whatever row is open. That
+ * keeps the reading order intact — a dashboard rearranged into a prettier
+ * layout that no longer reads top-to-bottom is a worse dashboard.
+ */
+function packRegion(
+  entries: ReadonlyArray<{ block: ReportBlock; index: number }>,
+  band: { x: number; w: number },
+  startRow: number,
+): Array<BlockLayout & { i: string }> {
+  const out: Array<BlockLayout & { i: string }> = [];
+  let y = startRow;
+  let cursor = 0; // columns used in the row being filled
+  let rowHeight = 0;
+
+  const closeRow = () => {
+    if (cursor === 0) return;
+    y += rowHeight;
+    cursor = 0;
+    rowHeight = 0;
+  };
+
+  for (const { block, index } of entries) {
+    const h = defaultRows(block);
+    // A rail is too narrow to share; only the main region pairs.
+    const full = wantsFullWidth(block) || band.w < PAIRABLE_MIN_COLUMNS;
+    const want = full ? band.w : Math.floor(band.w / 2);
+
+    if (full || cursor + want > band.w) closeRow();
+
+    out.push({ i: String(index), x: band.x + cursor, y, w: want, h });
+    cursor += want;
+    rowHeight = Math.max(rowHeight, h);
+    // A full-width block, or one that exactly filled the row, ends it.
+    if (cursor >= band.w) closeRow();
+  }
+  return out;
+}
+
+/** Narrower than this and two blocks side by side are both unreadable. */
+const PAIRABLE_MIN_COLUMNS = 6;
+const RAIL_COLUMNS_WIDE = 4;
 
 /**
  * A grid position for every block, in spec order.
@@ -86,24 +208,36 @@ export function regionColumns(blocks: readonly ReportBlock[]): Record<string, { 
  */
 export function deriveLayout(blocks: readonly ReportBlock[]): Array<BlockLayout & { i: string }> {
   const columns = regionColumns(blocks);
-  const nextRow: Record<string, number> = { left: 0, main: 0, right: 0 };
+  const placed = new Map<string, BlockLayout & { i: string }>();
 
-  return blocks.map((block, index) => {
-    const i = String(index);
+  // Hand-placed blocks are kept verbatim and take their region's cursor with
+  // them, so the blocks still being auto-placed do not open underneath one.
+  const startRow: Record<string, number> = { left: 0, main: 0, right: 0 };
+  const toPack: Record<string, Array<{ block: ReportBlock; index: number }>> = {
+    left: [],
+    main: [],
+    right: [],
+  };
+
+  blocks.forEach((block, index) => {
+    const named = block.region ?? 'main';
+    const region = named in columns ? named : 'main';
     if (block.layout) {
-      // Keep the region's cursor below a hand-placed block, so the blocks
-      // still being auto-placed do not open underneath it.
-      const region = block.region ?? 'main';
-      nextRow[region] = Math.max(nextRow[region] ?? 0, block.layout.y + block.layout.h);
-      return { ...block.layout, i };
+      placed.set(String(index), { ...block.layout, i: String(index) });
+      startRow[region] = Math.max(startRow[region], block.layout.y + block.layout.h);
+      return;
     }
-    const region = (block.region ?? 'main') in columns ? (block.region ?? 'main') : 'main';
-    const { x, w } = columns[region];
-    const h = defaultRows(block);
-    const y = nextRow[region];
-    nextRow[region] = y + h;
-    return { i, x, y, w, h };
+    toPack[region].push({ block, index });
   });
+
+  for (const region of ['left', 'main', 'right'] as const) {
+    for (const item of packRegion(toPack[region], columns[region], startRow[region])) {
+      placed.set(item.i, item);
+    }
+  }
+
+  // Returned in spec order, which is the order the caller's children are in.
+  return blocks.map((_, index) => placed.get(String(index)) as BlockLayout & { i: string });
 }
 
 /**

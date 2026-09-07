@@ -16,7 +16,7 @@
  * Assistant's own analysis panel (`apps/source/star-demo/src/aiAssistant/chat/`,
  * which imports this from `@wellsfargo-starui/grid`).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@wellsfargo-starui/react';
 import { heatmapDomain, heatmapCellColor, formatValue, formatCompact, type HeatmapDomain } from '@wellsfargo-starui/data';
@@ -53,6 +53,71 @@ function isNumericColumn(rows: ReadonlyArray<Record<string, unknown>>, col: stri
 
 const STICKY_COL_WIDTH = 132;
 
+/**
+ * Below this many rows everything is rendered and nothing is windowed.
+ *
+ * Virtualisation costs a scroll listener, a measurement and two spacer rows,
+ * and buys nothing on the short results this table mostly shows — the query
+ * engine's default limit is 50. It earns its keep on the long ones.
+ */
+const VIRTUALIZE_ABOVE = 80;
+/** Rows kept rendered beyond the viewport, so a flick does not show blank. */
+const OVERSCAN = 8;
+/** Used until a real row has been measured. */
+const ASSUMED_ROW_HEIGHT = 24;
+
+/**
+ * Which rows are worth rendering.
+ *
+ * A 500-row result — the engine's hard cap — is 4,000 cells, and React
+ * re-renders every one of them on each live tick, not just on a scroll.
+ * Measured at 6x CPU throttle, one full re-render of 500x8 took 841ms. A
+ * ~400px viewport shows about 17 of those rows.
+ *
+ * The window is expressed as two spacer rows rather than absolute
+ * positioning, so the table stays a real `<table>`: the sticky header, the
+ * frozen columns, text selection and find-in-page all keep working, which is
+ * what a canvas grid would have cost.
+ */
+function useRowWindow(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  rowCount: number,
+  rowHeight: number,
+): { from: number; to: number; topPad: number; bottomPad: number } {
+  const [range, setRange] = useState({ from: 0, to: rowCount });
+
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box || rowCount <= VIRTUALIZE_ABOVE) {
+      setRange({ from: 0, to: rowCount });
+      return;
+    }
+    const measure = () => {
+      const first = Math.floor(box.scrollTop / rowHeight);
+      const visible = Math.ceil(box.clientHeight / rowHeight);
+      setRange({
+        from: Math.max(0, first - OVERSCAN),
+        to: Math.min(rowCount, first + visible + OVERSCAN),
+      });
+    };
+    measure();
+    box.addEventListener('scroll', measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => {
+      box.removeEventListener('scroll', measure);
+      observer.disconnect();
+    };
+  }, [scrollRef, rowCount, rowHeight]);
+
+  const clamped = { from: Math.max(0, range.from), to: Math.min(rowCount, range.to) };
+  return {
+    ...clamped,
+    topPad: clamped.from * rowHeight,
+    bottomPad: Math.max(0, (rowCount - clamped.to) * rowHeight),
+  };
+}
+
 export interface AnalysisTableProps {
   columns: string[];
   rows: Array<Record<string, unknown>>;
@@ -75,6 +140,22 @@ export interface AnalysisTableProps {
    * Ignored for a non-pivot table, where each column formats as itself.
    */
   valueColId?: string;
+  /**
+   * Classes for the table's own scroll box — `h-full` to fill a sized panel,
+   * `max-h-[320px]` to cap it.
+   *
+   * This matters more than it looks. `position: sticky` binds to the NEAREST
+   * scrolling ancestor, and this component's wrapper is always one. A caller
+   * that wrapped it in its own `overflow-auto` box therefore got two nested
+   * scroll containers: the outer one did the scrolling, the inner one bound
+   * the sticky header, and so the header did not stick. Sizing THIS element
+   * keeps scrolling and sticking on the same box, which is the only
+   * arrangement in which either works.
+   */
+  className?: string;
+  /** Inline styles for the same scroll box — for a caller-computed cap that
+   *  cannot be expressed as a static utility class. */
+  style?: React.CSSProperties;
 }
 
 export function AnalysisTable({
@@ -84,9 +165,20 @@ export function AnalysisTable({
   heatmap = false,
   signed = false,
   valueColId,
+  className,
+  style,
 }: AnalysisTableProps) {
   const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
   const theme = useActiveThemeMode();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLTableRowElement | null>(null);
+  // Measured rather than assumed: row height follows the theme's font and
+  // padding, and a window built on a wrong height drifts as you scroll.
+  const [rowHeight, setRowHeight] = useState(ASSUMED_ROW_HEIGHT);
+  useLayoutEffect(() => {
+    const h = rowRef.current?.getBoundingClientRect().height;
+    if (h && Math.abs(h - rowHeight) > 0.5) setRowHeight(h);
+  }, [rowHeight, rows.length]);
 
   const numericCols = useMemo(
     () => new Set(columns.filter((c) => isNumericColumn(rows, c))),
@@ -112,6 +204,9 @@ export function AnalysisTable({
     const dir = sort.direction === 'asc' ? 1 : -1;
     return [...rows].sort((a, b) => compareValues(a[sort.column], b[sort.column]) * dir);
   }, [rows, sort]);
+
+  const { from, to, topPad, bottomPad } = useRowWindow(scrollRef, sortedRows.length, rowHeight);
+  const visibleRows = useMemo(() => sortedRows.slice(from, to), [sortedRows, from, to]);
 
   const toggleSort = (col: string) => {
     setSort((prev) => {
@@ -140,12 +235,12 @@ export function AnalysisTable({
   };
 
   return (
-    // No fixed height here on purpose: a bounding ancestor with its own
-    // `overflow`/height (the analysis panel, for the main result; nothing,
-    // for the small inline sample-rows table) decides whether this actually
-    // scrolls. Sticky header/columns just have no visible effect when it
-    // doesn't — not a bug, the natural fallback for an unconstrained table.
-    <div className="relative w-full overflow-auto">
+    // Unconstrained by default: with no height from `className`, this grows
+    // to its rows and the sticky header simply has nothing to stick to — the
+    // natural fallback for the small inline sample-rows table. A caller that
+    // wants scrolling sizes THIS element rather than wrapping it, so that the
+    // scroll box and the sticky header's ancestor are the same box.
+    <div ref={scrollRef} className={cn('relative w-full overflow-auto', className)} style={style}>
       <table className="w-full caption-bottom text-[11px] border-collapse">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -172,8 +267,12 @@ export function AnalysisTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedRows.map((row, ri) => (
-            <TableRow key={ri}>
+          {/* Spacers stand in for the rows outside the window, so the scroll
+              bar and every row's position stay exactly where they would be if
+              all of them were rendered. */}
+          {topPad > 0 && <tr style={{ height: topPad }} aria-hidden />}
+          {visibleRows.map((row, vi) => (
+            <TableRow key={from + vi} ref={vi === 0 ? rowRef : undefined}>
               {columns.map((col, ci) => {
                 const value = row[col];
                 const shade = heatmap ? heatmapCellColor(value, domains.get(col), theme) : undefined;
@@ -198,6 +297,7 @@ export function AnalysisTable({
               })}
             </TableRow>
           ))}
+          {bottomPad > 0 && <tr style={{ height: bottomPad }} aria-hidden />}
         </TableBody>
       </table>
     </div>

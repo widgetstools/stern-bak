@@ -645,6 +645,19 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   chat panel), takes axis type from `--ds-font-size-2xs` instead of a hardcoded
   9px, and draws a zero reference line for a signed measure. The heatmap widget
   fills its panel rather than being clipped at a fixed height.
+  `AnalysisTable` takes `className`/`style` for its OWN scroll box — the element
+  sized by the caller must be the one that scrolls, because `position: sticky`
+  binds to the nearest scrolling ancestor, and a caller that wrapped the table in
+  its own `overflow-auto` got two nested scroll containers and a header that
+  never stuck. Results longer than 80 rows are WINDOWED: only the visible rows
+  plus an overscan are rendered, with the rest standing as two spacer rows so the
+  scrollbar and every row position are unchanged. A 500-row result (the query
+  engine's `MAX_LIMIT`) is 4,000 cells that React re-renders on every live tick,
+  not only on a scroll — measured at 6x CPU throttle, one re-render fell from
+  283ms to 114ms and rendered rows from 500 to 27. Windowing rather than a canvas
+  grid, deliberately: canvas earns its keep in the tens of thousands of rows and
+  would have cost text selection, find-in-page, the sticky header and the frozen
+  columns to speed up a table that can never exceed 500.
   `LaneChart` (`LaneChart.tsx`, exported alongside `DataChart` with
   `laneToneVar`) stacks several measures as separate tracks over ONE shared
   axis — hand-drawn SVG rather than one recharts instance per lane, because

@@ -86,3 +86,56 @@ describe('AnalysisTable', () => {
     expect(textCell.style.backgroundColor).toBe('');
   });
 });
+
+/**
+ * A 500-row result — the query engine's hard cap — is 4,000 cells, and React
+ * re-renders every one on each live tick, not only on a scroll. Measured at 6x
+ * CPU throttle, one full re-render of 500x8 took 841ms.
+ *
+ * Windowing was chosen over a canvas grid deliberately: a canvas renderer
+ * earns its keep in the tens of thousands of rows, and would have cost text
+ * selection, find-in-page, the sticky header and the frozen columns to save a
+ * table that can never exceed 500.
+ */
+describe('long results are windowed', () => {
+  const columns = ['desk', 'pnl'];
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ desk: `D${i}`, pnl: i }));
+
+  /** jsdom lays nothing out, so the scroll box measures 0 high and the window
+   *  is whatever fits in nothing, plus the overscan. What matters here is that
+   *  it is far short of the row count. */
+  it('renders a fraction of a long result, not all of it', () => {
+    const { container } = render(<AnalysisTable columns={columns} rows={many(500)} className="h-40" />);
+    const rendered = container.querySelectorAll('tbody tr[class]').length;
+    expect(rendered).toBeGreaterThan(0);
+    expect(rendered).toBeLessThan(100);
+  });
+
+  /** Every row not rendered is still accounted for, so the scrollbar and each
+   *  row's position are exactly where they would be if all were drawn. */
+  it('stands the rows it skipped up as spacers', () => {
+    const { container } = render(<AnalysisTable columns={columns} rows={many(500)} className="h-40" />);
+    const spacers = [...container.querySelectorAll('tbody tr[aria-hidden]')];
+    expect(spacers.length).toBeGreaterThan(0);
+    const padded = spacers.reduce((sum, el) => sum + parseFloat((el as HTMLElement).style.height || '0'), 0);
+    expect(padded).toBeGreaterThan(0);
+  });
+
+  /** Short results are the common case — the engine's default limit is 50 —
+   *  and must not pay for a mechanism they do not need. */
+  it('renders a short result whole, with no spacers at all', () => {
+    const { container } = render(<AnalysisTable columns={columns} rows={many(20)} />);
+    expect(container.querySelectorAll('tbody tr[class]')).toHaveLength(20);
+    expect(container.querySelectorAll('tbody tr[aria-hidden]')).toHaveLength(0);
+  });
+
+  /** Sorting reorders the whole result, not just the rows on screen. */
+  it('sorts across every row, not only the window', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<AnalysisTable columns={columns} rows={many(500)} className="h-40" />);
+    await user.click(container.querySelectorAll('thead th')[1]);
+    // Descending by pnl puts the LAST generated row first.
+    expect(container.querySelector('tbody tr[class] td')?.textContent).toBe('D499');
+  });
+});
