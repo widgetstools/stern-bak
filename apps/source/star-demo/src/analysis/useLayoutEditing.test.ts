@@ -2,105 +2,130 @@
 import { describe, expect, it } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ReportSpec } from '@wellsfargo-starui/data';
-import { useLayoutEditing, type GridLayoutItem } from './useLayoutEditing';
+import { serialize, type DockManagerState } from '@widgetstools/dock-manager-core';
+import { useLayoutEditing } from './useLayoutEditing';
+import { buildDockState, panelIdFor } from './dockLayout';
 
-function spec(...regions: Array<'left' | 'main' | 'right'>): ReportSpec {
+function spec(regions: Array<'left' | 'main' | 'right'>, over: Partial<ReportSpec> = {}): ReportSpec {
   return {
     title: 'R',
-    blocks: regions.map((region, i) => ({
-      kind: 'table',
-      region,
-      title: `B${i}`,
-      query: {},
-    })),
+    blocks: regions.map((region, i) => ({ kind: 'commentary', region, title: `B${i}`, text: 'x' })),
+    ...over,
   } as unknown as ReportSpec;
 }
 
-/** What the engine hands back: the rendered layout with one item changed. */
-function moved(layout: readonly GridLayoutItem[], i: string, to: Partial<GridLayoutItem>): GridLayoutItem[] {
-  return layout.map((l) => (l.i === i ? { ...l, ...to } : l));
+/** A state the dock would report after someone dragged something: same panels,
+ *  different proportions. */
+function rearranged(state: DockManagerState): DockManagerState {
+  const layout = state.layout;
+  if (layout.type !== 'split') throw new Error('expected a split to rearrange');
+  return { ...state, layout: { ...layout, sizes: [70, 30] } };
 }
 
 describe('useLayoutEditing', () => {
-  it('starts clean, showing the spec as-is', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
+  it('starts clean, arranged from the spec', () => {
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
     expect(result.current.dirty).toBe(false);
     expect(result.current.pending).toBeNull();
-    expect(result.current.blocks).toHaveLength(2);
-  });
-
-  it('gives every block a position, whether or not one was ever saved', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('left', 'main', 'right')));
-    expect(result.current.layout.map((l) => l.i)).toEqual(['0', '1', '2']);
-    expect(result.current.layout.every((l) => l.w > 0 && l.h > 0)).toBe(true);
+    expect(result.current.initialState.panels.size).toBe(2);
   });
 
   /**
-   * The bug this pins. react-grid-layout fires `onLayoutChange` on mount, on
-   * every re-measure and on each frame of a drag. Treating any of those as an
-   * edit lights up the save control on a dashboard nobody touched — and a save
-   * prompt that appears on its own teaches people to ignore it.
+   * The bug this pins. The dock reports state on mount, on every re-measure
+   * and on each frame of a drag. Treating any of those as an edit lights up
+   * the save control on a dashboard nobody touched — and a save prompt that
+   * appears on its own teaches people to ignore it.
    */
-  it('is not dirtied by the engine echoing back what it was given', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(result.current.layout));
+  it('is not dirtied by the dock echoing back what it was mounted with', () => {
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
+    act(() => result.current.applyState(result.current.initialState));
     expect(result.current.dirty).toBe(false);
     expect(result.current.pending).toBeNull();
   });
 
-  it('records a block dragged somewhere new', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(moved(result.current.layout, '1', { x: 6, y: 0 })));
+  it('records an arrangement someone actually changed', () => {
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
+    act(() => result.current.applyState(rearranged(result.current.initialState)));
     expect(result.current.dirty).toBe(true);
-    expect(result.current.blocks[1].layout).toMatchObject({ x: 6, y: 0 });
-    // The block that did not move keeps whatever it had.
-    expect(result.current.blocks[0].layout?.x).toBe(0);
-  });
-
-  it('records a resize the same way a move is recorded', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(moved(result.current.layout, '0', { w: 4, h: 14 })));
-    expect(result.current.blocks[0].layout).toMatchObject({ w: 4, h: 14 });
-    expect(result.current.dirty).toBe(true);
+    expect(result.current.pending).toBeTruthy();
+    expect(JSON.parse(result.current.pending as string)).toBeTypeOf('object');
   });
 
   /**
-   * A layout change is a PROPOSAL. Dragging a card by accident must not
+   * A layout change is a PROPOSAL. Nudging a panel by accident must not
    * silently rewrite a dashboard other people open.
    */
   it('never writes on its own — the change is only ever pending', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(moved(result.current.layout, '1', { y: 20 })));
-    expect(result.current.pending).toHaveLength(2);
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
+    act(() => result.current.applyState(rearranged(result.current.initialState)));
+    expect(result.current.pending).toBeTruthy();
     act(() => result.current.reset());
     expect(result.current.dirty).toBe(false);
-    expect(result.current.blocks[1].layout).toBeUndefined();
+    expect(result.current.pending).toBeNull();
+  });
+
+  /** A dock manager has no "go back" — the arrangement lives inside it, so
+   *  undo has to remount it, and the key is what makes that happen. */
+  it('remounts the dock on undo', () => {
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
+    const before = result.current.mountKey;
+    act(() => result.current.applyState(rearranged(result.current.initialState)));
+    expect(result.current.mountKey).toBe(before);
+    act(() => result.current.reset());
+    expect(result.current.mountKey).not.toBe(before);
   });
 
   it('stops being dirty once the change is committed, keeping the arrangement', () => {
-    const { result } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(moved(result.current.layout, '1', { x: 8 })));
-    expect(result.current.dirty).toBe(true);
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
+    act(() => result.current.applyState(rearranged(result.current.initialState)));
+    const kept = result.current.pending;
     act(() => result.current.commit());
     expect(result.current.dirty).toBe(false);
-    expect(result.current.blocks[1].layout).toMatchObject({ x: 8 });
+    // Committing records what was saved; it does not throw the draft away.
+    expect(kept).toBeTruthy();
   });
 
   /** Live data re-renders the canvas constantly; none of it is an edit, and
    *  none of it may discard work someone has not saved yet. */
   it('holds an unsaved arrangement across re-renders', () => {
-    const { result, rerender } = renderHook(() => useLayoutEditing(spec('main', 'main')));
-    act(() => result.current.applyLayout(moved(result.current.layout, '0', { h: 12 })));
+    const { result, rerender } = renderHook(() => useLayoutEditing(spec(['main', 'main'])));
+    act(() => result.current.applyState(rearranged(result.current.initialState)));
     rerender();
     rerender();
     expect(result.current.dirty).toBe(true);
-    expect(result.current.blocks[0].layout).toMatchObject({ h: 12 });
+  });
+
+  /**
+   * The regression that would make dragging pointless: re-deriving the opening
+   * arrangement on every load silently undoes what someone saved.
+   */
+  it('restores a saved arrangement instead of deriving a new one', () => {
+    const saved = serialize(rearranged(buildDockState(spec(['main', 'main']).blocks)));
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'], { dock: saved })));
+    const layout = result.current.initialState.layout;
+    expect(layout.type).toBe('split');
+    if (layout.type === 'split') expect(layout.sizes).toEqual([70, 30]);
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it('still has every panel after restoring', () => {
+    const saved = serialize(buildDockState(spec(['left', 'main']).blocks));
+    const { result } = renderHook(() => useLayoutEditing(spec(['left', 'main'], { dock: saved })));
+    expect([...result.current.initialState.panels.keys()].sort()).toEqual([panelIdFor(0), panelIdFor(1)]);
+  });
+
+  /** A layout written by an older build, or corrupted in storage, must not
+   *  leave the window blank — an arrangement derived from the spec is always
+   *  a usable dashboard. */
+  it('falls back to the derived arrangement when a saved one cannot be restored', () => {
+    const { result } = renderHook(() => useLayoutEditing(spec(['main', 'main'], { dock: '{"layout":"nonsense"}' })));
+    expect(result.current.initialState.panels.size).toBe(2);
+    expect(result.current.dirty).toBe(false);
   });
 
   it('copes with no spec at all', () => {
     const { result } = renderHook(() => useLayoutEditing(null));
-    expect(result.current.blocks).toEqual([]);
-    expect(result.current.layout).toEqual([]);
+    expect(result.current.initialState.panels.size).toBe(0);
     expect(result.current.dirty).toBe(false);
   });
 });

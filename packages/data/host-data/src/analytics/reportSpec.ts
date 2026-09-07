@@ -79,45 +79,16 @@ export interface KpiTile {
 }
 
 /**
- * A block's place on the 12-column dashboard grid, in grid units.
- *
- * This is what a real layout engine persists, and it is deliberately NOT what
- * the model composes: an author says "this belongs on the right, under risk"
- * and the renderer derives an opening position from that. Coordinates appear
- * only once a person has dragged something, and from then on they win — a
- * saved arrangement must survive re-opening, and it cannot if every load
- * re-derives it from the semantic hints.
- *
- * `w`/`h` are clamped rather than rejected: a layout is user input arriving
- * through storage, and a block one column wide is a rendering problem, not a
- * reason to refuse the whole dashboard.
+ * Longest serialized dock layout accepted. Generous for a sixteen-panel
+ * dashboard, and small enough that a corrupt or hostile payload cannot bloat a
+ * config row.
  */
-export interface BlockLayout {
-  /** Column, 0-11. */
-  x: number;
-  /** Row, in grid units from the top. */
-  y: number;
-  /** Width in columns, 1-12. */
-  w: number;
-  /** Height in row units. */
-  h: number;
-}
-
-/** The grid every dashboard is placed on. */
-export const REPORT_GRID_COLUMNS = 12;
-/** Bounds on a block's height in row units — the grid-unit form of the old px clamp. */
-export const MIN_BLOCK_ROWS = 3;
-export const MAX_BLOCK_ROWS = 40;
+export const MAX_DOCK_LAYOUT_CHARS = 64_000;
 
 interface BlockBase {
   kind: ReportBlockKind;
   /** Optional heading above the block. */
   title?: string;
-  /**
-   * Where the block sits once someone has arranged the dashboard by hand.
-   * Absent on a freshly composed report — see {@link BlockLayout}.
-   */
-  layout?: BlockLayout;
   /** Which region of the composition. Default `main`. */
   region?: ReportRegion;
   /**
@@ -268,6 +239,24 @@ export interface ReportSpec {
    */
   refreshMs?: number;
   blocks: ReportBlock[];
+  /**
+   * The dashboard's arrangement, once someone has moved something.
+   *
+   * This is the dock manager's OWN serialized layout — a tree of splits and
+   * panel groups with their proportions — kept opaque on purpose. The library
+   * owns that schema, and restating it here would mean two definitions of the
+   * same thing drifting apart at the first upgrade.
+   *
+   * Deliberately not what a model composes: an author names a `region` per
+   * block and the window builds an opening arrangement from that. This appears
+   * only after a drag, and from then on it wins — a saved arrangement has to
+   * survive re-opening, and it cannot if every load re-derives it from the
+   * semantic hints.
+   *
+   * Panels are addressed by block INDEX, so a layout only means anything
+   * alongside the blocks it was saved with.
+   */
+  dock?: string;
 }
 
 export const MIN_REFRESH_MS = 5_000;
@@ -311,43 +300,43 @@ export function validateReportSpec(raw: unknown): ReportOutcome {
     value: {
       title,
       period: typeof spec.period === 'string' && spec.period.trim() ? spec.period.trim() : undefined,
+      // Was declared on the type and rendered by the canvas, but never carried
+      // through here — so a model-supplied `asOf` was dropped by the very
+      // validation every spec passes, and the window fell back to stamping
+      // "whenever it happened to open" instead of the moment the data is for.
+      asOf: typeof spec.asOf === 'string' && spec.asOf.trim() ? spec.asOf.trim() : undefined,
       refreshMs: clampRefresh(spec.refreshMs),
       blocks,
+      dock: validateDock(spec.dock),
     },
   };
+}
+
+/**
+ * The saved arrangement, kept if it could plausibly be one and dropped if not.
+ *
+ * The content is the dock manager's own schema and is not second-guessed here
+ * — restating it would mean two definitions of the same thing drifting apart
+ * at the first upgrade. What IS checked is that it is JSON of a bounded size,
+ * so a corrupt or hostile payload cannot reach the dock manager or bloat a
+ * config row. A layout that fails goes back to being derived from the blocks'
+ * regions, which is always a usable dashboard.
+ */
+function validateDock(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || raw.length === 0) return undefined;
+  if (raw.length > MAX_DOCK_LAYOUT_CHARS) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? raw : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** `undefined` (static) unless a usable number was given. */
 export function clampRefresh(ms: unknown): number | undefined {
   if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return undefined;
   return Math.min(MAX_REFRESH_MS, Math.max(MIN_REFRESH_MS, Math.round(ms)));
-}
-
-/**
- * A block's grid position, coerced into something renderable or dropped.
- *
- * Every field must be a finite number for the layout to mean anything, so a
- * partial one is discarded whole and the block falls back to being auto-placed
- * — half a position is worse than none. What IS present is clamped rather than
- * refused: this arrives from storage written by an older build or by a drag
- * that ended off-screen, and neither is a reason to fail the dashboard.
- */
-function validateLayout(raw: unknown): BlockLayout | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const l = raw as Record<string, unknown>;
-  const num = (v: unknown): number | undefined =>
-    typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : undefined;
-  const [x, y, w, h] = [num(l.x), num(l.y), num(l.w), num(l.h)];
-  if (x === undefined || y === undefined || w === undefined || h === undefined) return undefined;
-
-  const width = Math.max(1, Math.min(REPORT_GRID_COLUMNS, w));
-  return {
-    // A block cannot start so far right that it hangs off the grid.
-    x: Math.max(0, Math.min(REPORT_GRID_COLUMNS - width, x)),
-    y: Math.max(0, y),
-    w: width,
-    h: Math.max(MIN_BLOCK_ROWS, Math.min(MAX_BLOCK_ROWS, h)),
-  };
 }
 
 type BlockOutcome = { ok: true; value: ReportBlock } | { ok: false; error: string };
@@ -372,14 +361,7 @@ function validateBlock(raw: unknown, index: number): BlockOutcome {
     typeof block.height === 'number' && Number.isFinite(block.height)
       ? Math.max(120, Math.min(900, Math.round(block.height)))
       : undefined;
-  const layout = validateLayout(block.layout);
-  const common = {
-    title,
-    band,
-    region,
-    ...(height !== undefined ? { height } : {}),
-    ...(layout ? { layout } : {}),
-  } as const;
+  const common = { title, band, region, ...(height !== undefined ? { height } : {}) } as const;
 
   if (kind === 'commentary') {
     const text = typeof block.text === 'string' ? block.text.trim() : '';

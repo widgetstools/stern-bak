@@ -440,9 +440,9 @@ function Analysis() {
             }
             onSaveLayout={
               dashboardId && configManager
-                ? async (blocks) => {
-                    const saved = await saveDashboardLayout(configManager, dashboardId, blocks);
-                    if (saved) setSavedSpec((prev) => (prev ? { ...prev, blocks } : prev));
+                ? async (dock) => {
+                    const saved = await saveDashboardLayout(configManager, dashboardId, dock);
+                    if (saved) setSavedSpec((prev) => (prev ? { ...prev, dock } : prev));
                   }
                 : undefined
             }

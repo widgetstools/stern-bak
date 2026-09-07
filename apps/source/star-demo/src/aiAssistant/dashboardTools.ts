@@ -106,12 +106,12 @@ export async function readDashboardSpec(
 export async function saveDashboardLayout(
   configManager: ConfigManager,
   id: string,
-  blocks: ReportSpec['blocks'],
+  dock: ReportSpec['dock'],
 ): Promise<boolean> {
   const row = await configManager.getConfig(dashboardConfigId(id));
   if (!row) return false;
   const stored = row.payload as unknown as StoredDashboard;
-  const outcome = validateReportSpec({ ...stored.spec, blocks });
+  const outcome = validateReportSpec({ ...stored.spec, dock });
   if (!outcome.ok) {
     console.warn('[dashboard] rearranged layout failed validation, not saved:', outcome.error);
     return false;

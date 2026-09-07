@@ -139,24 +139,32 @@ describe('saveDashboardLayout', () => {
     return cm;
   }
 
-  it('rewrites only the blocks, keeping the binding and the title', async () => {
+  const ARRANGED = JSON.stringify({ layout: { type: 'tabgroup', id: 'g', panels: [] }, panels: [] });
+
+  /** Rearranging is a layout change, never a content change: the blocks, the
+   *  title and the blotter it reads must all come back untouched. */
+  it('rewrites only the arrangement, keeping the blocks, the binding and the title', async () => {
     const cm = await saved();
-    const ok = await saveDashboardLayout(cm, 'dashboard-d', [
-      { kind: 'commentary', text: 'Moved', region: 'right' },
-    ] as never);
-    expect(ok).toBe(true);
+    expect(await saveDashboardLayout(cm, 'dashboard-d', ARRANGED)).toBe(true);
 
     const loaded = await readDashboard(cm, 'dashboard-d');
     expect(loaded?.gridId).toBe('grid-pos');
     expect(loaded?.spec.title).toBe('Trader Dashboard');
-    expect(loaded?.spec.blocks[0]).toMatchObject({ region: 'right' });
+    expect(loaded?.spec.blocks[0]).toMatchObject({ kind: 'commentary' });
+    expect(loaded?.spec.dock).toBe(ARRANGED);
   });
 
-  it('does not write a layout that fails validation', async () => {
+  /**
+   * A layout that fails validation is dropped rather than stored, so the
+   * dashboard falls back to the arrangement derived from its regions — which
+   * is always openable. The save still reports success: the spec was written,
+   * and refusing the whole thing over a layout would lose nothing but confuse.
+   */
+  it('does not store an arrangement that fails validation', async () => {
     const cm = await saved();
-    const ok = await saveDashboardLayout(cm, 'dashboard-d', [{ kind: 'nonsense' }] as never);
-    expect(ok).toBe(false);
+    await saveDashboardLayout(cm, 'dashboard-d', 'not json at all');
     const loaded = await readDashboard(cm, 'dashboard-d');
+    expect(loaded?.spec.dock).toBeUndefined();
     expect(loaded?.spec.blocks[0]).toMatchObject({ kind: 'commentary' });
   });
 
