@@ -1657,6 +1657,15 @@ digests/charts/queries/heatmap shading through the same implementation.
   only fields the vocabulary defines — there is nowhere in a validated report to put
   markup, script or drawing instructions, and a lane names a colour ROLE rather than a hex
   so both themes stay correct. Errors name the offending block/tile/lane by index.
+- `BlockLayout` + `REPORT_GRID_COLUMNS` / `MIN_BLOCK_ROWS` / `MAX_BLOCK_ROWS` — a block's
+  `{x, y, w, h}` on the 12-column dashboard grid, persisted once someone has ARRANGED the
+  dashboard by hand. Deliberately not what a model composes: an author names a `region` and
+  the renderer derives an opening position from it; coordinates appear only after a drag and
+  from then on win, so a saved arrangement survives re-opening. Validation coerces rather
+  than refuses (this arrives from storage): `w`/`h` are clamped, `x` is pulled back so a
+  block cannot hang off the right edge, and a PARTIAL position is discarded whole — half a
+  position would place the block somewhere nobody chose, so the block returns to
+  auto-placement instead.
 
 ---
 

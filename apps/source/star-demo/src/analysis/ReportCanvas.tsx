@@ -20,8 +20,11 @@
  * Every block is trusted code chosen by name. The model composes the spec; it
  * never supplies markup, script or drawing instructions.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Save, Undo2 } from 'lucide-react';
+import GridLayout, { useContainerWidth, verticalCompactor } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import './reportGrid.css';
 import { cn } from '@wellsfargo-starui/react';
 import {
   buildChartSpec,
@@ -39,11 +42,9 @@ import {
   type ReportSpec,
 } from '@wellsfargo-starui/data';
 import { AnalysisTable, DataChart, LaneChart } from '@wellsfargo-starui/grid/customizer';
-import {
-  useLayoutEditing,
-  MIN_BLOCK_HEIGHT,
-  type BlockRegion,
-} from './useLayoutEditing';
+import { REPORT_GRID_COLUMNS } from '@wellsfargo-starui/data';
+import { useLayoutEditing } from './useLayoutEditing';
+import { GRID_MARGIN, ROW_HEIGHT } from './autoLayout';
 
 export interface ReportCanvasProps {
   spec: ReportSpec;
@@ -86,144 +87,19 @@ export interface ReportCanvasProps {
 }
 
 /**
- * One block, with the affordances to move and size it.
+ * The band a block belongs to.
  *
- * Quiet, but never absent. These first rendered at zero opacity and came up
- * only on hover, which is not a subtle affordance — it is an invisible one:
- * with no pixel anywhere saying a block can move, there is nothing to hover
- * TOWARDS, and the feature reads as missing. So both rest at a low but real
- * opacity and strengthen under the pointer. A dashboard is read far more often
- * than it is rearranged and the editing surface still must not compete with the
- * numbers — that is what the low resting value buys, and it buys it without
- * costing discoverability.
- *
- * Dragging is on the HANDLE, not the block — a card that moves when you try to
- * select text in it is worse than one that cannot move at all.
- */
-function EditableBlock({
-  index,
-  region,
-  height,
-  editable,
-  onDropBefore,
-  onResize,
-  children,
-}: {
-  index: number;
-  region: BlockRegion;
-  height?: number;
-  editable: boolean;
-  onDropBefore: (from: number, to: number, region: BlockRegion) => void;
-  onResize: (index: number, height: number) => void;
-  children: React.ReactNode;
-}) {
-  const [over, setOver] = useState(false);
-  const ref = useRef<HTMLElement | null>(null);
-
-  if (!editable) {
-    return (
-      <section className="min-w-0" style={height ? { height } : undefined}>
-        {children}
-      </section>
-    );
-  }
-
-  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = ref.current?.getBoundingClientRect().height ?? MIN_BLOCK_HEIGHT;
-    // Pointer capture, so the drag survives the cursor leaving the 6px strip —
-    // which it does immediately, since the strip moves with the block.
-    const target = e.currentTarget;
-    target.setPointerCapture(e.pointerId);
-    const onMove = (ev: PointerEvent) => onResize(index, startH + (ev.clientY - startY));
-    const onUp = () => {
-      target.releasePointerCapture(e.pointerId);
-      target.removeEventListener('pointermove', onMove);
-      target.removeEventListener('pointerup', onUp);
-    };
-    target.addEventListener('pointermove', onMove);
-    target.addEventListener('pointerup', onUp);
-  };
-
-  return (
-    <section
-      ref={ref}
-      className={cn(
-        'group/blk relative min-w-0 rounded-sm transition-colors',
-        over && 'outline outline-1 outline-dashed outline-[var(--ds-primary)]',
-      )}
-      style={height ? { height } : undefined}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setOver(false);
-        // An empty payload — dragged text, a file, anything not one of our
-        // grips — reads as `Number('') === 0`, which would silently move
-        // block 0. The drop must come from a grip or not happen at all.
-        const raw = e.dataTransfer.getData('text/block-index');
-        const from = raw === '' ? Number.NaN : Number(raw);
-        if (Number.isInteger(from) && from !== index) onDropBefore(from, index, region);
-      }}
-    >
-      <div
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData('text/block-index', String(index));
-          e.dataTransfer.effectAllowed = 'move';
-        }}
-        title="Drag to move this block"
-        aria-label="Drag to move this block"
-        className="absolute -left-5 top-0 z-10 cursor-grab select-none rounded-sm px-1 py-0.5 text-[15px] leading-none text-muted-foreground/35 transition-colors group-hover/blk:text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground active:cursor-grabbing"
-      >
-        ⠿
-      </div>
-      <div className="h-full min-h-0 overflow-hidden">{children}</div>
-      <div
-        onPointerDown={startResize}
-        title="Drag to resize"
-        aria-label="Drag to resize this block"
-        className="absolute inset-x-0 -bottom-1.5 z-10 h-3 cursor-ns-resize"
-      >
-        {/* A 1px hairline 40px wide was invisible even at full strength. A
-            short rounded bar is the conventional resize grip and reads as one
-            at a glance. */}
-        <div className="mx-auto mt-[5px] h-0.5 w-16 rounded-full bg-muted-foreground/30 transition-colors group-hover/blk:bg-muted-foreground/70" />
-      </div>
-    </section>
-  );
-}
-
-/**
- * How much width a side rail gets, from what is in it.
- *
- * A fixed 220-300px is fine for commentary and stacked stats and far too
- * narrow for a table, which then shows its first column and clips the rest.
- * Tables and pivots are the wide case; everything else keeps the tighter
- * track so the main region is not starved for a rail of prose.
- */
-function railTrack(blocks: Array<{ block: ReportBlock; index: number }>): string {
-  const hasTable = blocks.some(({ block }) => block.kind === 'table' || block.kind === 'pivot');
-  return hasTable ? 'minmax(320px, 420px)' : 'minmax(220px, 300px)';
-}
-
-/**
- * The rotated label in the gutter. Set in the reference's own idiom: large,
- * low-contrast, and read bottom-to-top so it never competes with the data.
+ * This used to be a rotated label in the gutter, spanning a run of consecutive
+ * blocks that named the same band. A run is a property of a single ordered
+ * column, and once blocks are placed freely on a grid there is no run to span:
+ * two blocks in the same band can sit at opposite corners. So the band travels
+ * WITH its block, as a small eyebrow above the title — it still answers "what
+ * is this part of" without depending on an ordering that no longer exists.
  */
 function BandLabel({ label }: { label: string }) {
   return (
-    <div className="flex-shrink-0 flex items-center justify-center w-7 select-none">
-      <span
-        className="text-[13px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/55 whitespace-nowrap"
-        style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-      >
-        {label}
-      </span>
+    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 select-none truncate">
+      {label}
     </div>
   );
 }
@@ -508,62 +384,45 @@ function BlockBody({
   }
 }
 
-/** Blocks in one region, with consecutive same-band blocks sharing a gutter. */
-function Region({
-  blocks,
-  results,
-  className,
-  region,
+/**
+ * One block as a grid item.
+ *
+ * A grid item has a height the engine chose, so the card is a column: the
+ * heading takes what it needs and the body takes the rest and scrolls inside
+ * itself. That is what stops a forty-row table from deciding how tall its
+ * neighbours are — the constraint the old flow layout could never enforce.
+ *
+ * Dragging is on the GRIP, not the card (`draggableHandle` below): a block
+ * that moves when you try to select a number in it is worse than one that
+ * cannot move at all.
+ */
+function BlockCard({
+  block,
+  result,
+  error,
   editable,
-  onMove,
-  onResize,
 }: {
-  blocks: Array<{ block: ReportBlock; index: number }>;
-  results: Map<number, { result: QueryResult | null; error?: string }>;
-  className?: string;
-  region: BlockRegion;
+  block: ReportBlock;
+  result: QueryResult | null;
+  error?: string;
   editable: boolean;
-  onMove: (from: number, to: number, region: BlockRegion) => void;
-  onResize: (index: number, height: number) => void;
 }) {
-  if (blocks.length === 0) return null;
-
-  // Consecutive blocks naming the same band are grouped so the rotated label
-  // spans the run rather than repeating beside each one.
-  const runs: Array<{ band?: string; items: typeof blocks }> = [];
-  for (const item of blocks) {
-    const last = runs[runs.length - 1];
-    if (last && last.band === item.block.band) last.items.push(item);
-    else runs.push({ band: item.block.band, items: [item] });
-  }
-
   return (
-    <div className={cn('flex flex-col gap-7 min-w-0', className)}>
-      {runs.map((run, ri) => (
-        <div key={ri} className="flex gap-2 min-w-0">
-          {run.band && <BandLabel label={run.band} />}
-          <div className="flex flex-col gap-7 min-w-0 flex-1">
-            {run.items.map(({ block, index }) => (
-              <EditableBlock
-                key={index}
-                index={index}
-                region={region}
-                height={(block as { height?: number }).height}
-                editable={editable}
-                onDropBefore={onMove}
-                onResize={onResize}
-              >
-                {block.title && <BlockTitle>{block.title}</BlockTitle>}
-                <BlockBody
-                  block={block}
-                  result={results.get(index)?.result ?? null}
-                  error={results.get(index)?.error}
-                />
-              </EditableBlock>
-            ))}
-          </div>
+    <div className="group/blk relative flex h-full min-h-0 flex-col">
+      {editable && (
+        <div
+          title="Drag to move this block"
+          aria-label="Drag to move this block"
+          className="rgl-grip absolute -left-4 top-0 z-10 cursor-grab select-none rounded-sm px-1 py-0.5 text-[15px] leading-none text-muted-foreground/35 transition-colors group-hover/blk:text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground active:cursor-grabbing"
+        >
+          ⠿
         </div>
-      ))}
+      )}
+      {block.band && <BandLabel label={block.band} />}
+      {block.title && <BlockTitle>{block.title}</BlockTitle>}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <BlockBody block={block} result={result} error={error} />
+      </div>
     </div>
   );
 }
@@ -586,8 +445,8 @@ export function ReportCanvas({
   // handed; `useLayoutEditing` owns the rules and the dirty comparison.
   const layout = useLayoutEditing(spec);
   const [saving, setSaving] = useState(false);
-  const handleMove = layout.move;
-  const handleResize = layout.resize;
+  // The grid needs a pixel width; the window's is not known until it mounts.
+  const { width, mounted, containerRef } = useContainerWidth();
 
   const handleSave = async () => {
     if (!onSaveLayout || !layout.pending) return;
@@ -611,30 +470,24 @@ export function ReportCanvas({
   // place, so an identity-keyed memo would never invalidate and the report
   // would freeze at its first render. It also means a re-render that isn't
   // about data — a resize, a theme flip, a context-menu open — costs nothing.
-  // The draft while editing, the spec's own blocks otherwise.
-  const activeBlocks = layout.blocks;
+  //
+  // Keyed on the SPEC's blocks, not the draft's. Dragging rewrites a block's
+  // coordinates and so replaces the draft array on every frame of the gesture;
+  // keying on that would re-run all sixteen queries per frame for a change
+  // that cannot affect a single result. Only the position moves — the queries
+  // and their order do not — so the two arrays stay index-aligned.
+  const specBlocks = spec.blocks;
 
   const results = useMemo(() => {
     const out = new Map<number, { result: QueryResult | null; error?: string }>();
-    activeBlocks.forEach((block, index) => {
+    specBlocks.forEach((block, index) => {
       if (block.kind === 'commentary') return;
       const outcome = runQuery(rows, block.query);
       out.set(index, outcome.ok ? { result: outcome.value } : { result: null, error: outcome.error });
     });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows may be stable by reference; rowsVersion is the change signal
-  }, [activeBlocks, rowsVersion]);
-
-  const byRegion = useMemo(() => {
-    const left: Array<{ block: ReportBlock; index: number }> = [];
-    const main: Array<{ block: ReportBlock; index: number }> = [];
-    const right: Array<{ block: ReportBlock; index: number }> = [];
-    activeBlocks.forEach((block, index) => {
-      const bucket = block.region === 'left' ? left : block.region === 'right' ? right : main;
-      bucket.push({ block, index });
-    });
-    return { left, main, right };
-  }, [activeBlocks]);
+  }, [specBlocks, rowsVersion]);
 
   return (
     <div className="w-full min-h-full bg-background text-foreground px-8 py-7">
@@ -703,26 +556,48 @@ export function ReportCanvas({
         </div>
       </header>
 
-      <div
-        className="grid gap-x-10 gap-y-8 items-start"
-        style={{
-          // The rails only take space when they hold something, so a
-          // main-only report is not three columns with two empty. They are
-          // also sized by WHAT they hold: a table needs room for its columns,
-          // and a 220px rail clipped every one after the first — the cure for
-          // which is width, not a smaller font.
-          gridTemplateColumns: [
-            byRegion.left.length ? railTrack(byRegion.left) : '',
-            'minmax(0, 1fr)',
-            byRegion.right.length ? railTrack(byRegion.right) : '',
-          ]
-            .filter(Boolean)
-            .join(' '),
-        }}
-      >
-        <Region blocks={byRegion.left} results={results} region="left" editable={editable} onMove={handleMove} onResize={handleResize} />
-        <Region blocks={byRegion.main} results={results} region="main" editable={editable} onMove={handleMove} onResize={handleResize} />
-        <Region blocks={byRegion.right} results={results} region="right" editable={editable} onMove={handleMove} onResize={handleResize} />
+      {/* The grid measures itself off this element, so it must be the thing
+          that spans the content width — not the padded page wrapper. */}
+      <div ref={containerRef} className="min-w-0">
+        {mounted && (
+          <GridLayout
+            layout={layout.layout}
+            width={width}
+            gridConfig={{
+              cols: REPORT_GRID_COLUMNS,
+              rowHeight: ROW_HEIGHT,
+              margin: GRID_MARGIN,
+              containerPadding: [0, 0],
+            }}
+            dragConfig={{
+              enabled: editable,
+              // Only the grip drags. Without this the whole card is a drag
+              // surface and selecting a number inside one moves it instead.
+              handle: '.rgl-grip',
+            }}
+            resizeConfig={{
+              enabled: editable,
+              // The corner does both axes; the edges are for changing one
+              // without disturbing the other.
+              handles: ['se', 's', 'e'],
+            }}
+            // Blocks settle upward into the space above them, so shrinking one
+            // does not leave a hole in the middle of the report.
+            compactor={verticalCompactor}
+            onLayoutChange={layout.applyLayout}
+          >
+            {layout.blocks.map((block, index) => (
+              <div key={String(index)} className="min-w-0">
+                <BlockCard
+                  block={block}
+                  result={results.get(index)?.result ?? null}
+                  error={results.get(index)?.error}
+                  editable={editable}
+                />
+              </div>
+            ))}
+          </GridLayout>
+        )}
       </div>
     </div>
   );

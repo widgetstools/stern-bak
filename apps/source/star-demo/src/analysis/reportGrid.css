@@ -1,0 +1,55 @@
+/**
+ * react-grid-layout, themed.
+ *
+ * The library's own stylesheet is written for a light page and ships two
+ * things this app cannot take as they are:
+ *
+ *  - `.react-grid-placeholder { background: red }` — the drop target, in a
+ *    literal red that belongs to no palette and fails `check:ds-tokens`.
+ *  - resize handles at `opacity: 0` until the item is hovered, marked with
+ *    `rgba(0, 0, 0, 0.4)` — invisible on a dark surface even once revealed.
+ *
+ * Both are re-stated here through `--ds-*` so they resolve under either
+ * `[data-theme]`. The handles rest at a low but real opacity for the same
+ * reason the drag grip does: an affordance nobody can see is a missing
+ * feature, and there is nothing to hover towards.
+ */
+
+/* The drop target: where the block will land if you let go now. */
+.react-grid-item.react-grid-placeholder {
+  background: var(--ds-primary);
+  opacity: 0.14;
+  border-radius: 0.25rem;
+}
+
+/* Lift the block being dragged off the page rather than sliding it under. */
+.react-grid-item.react-draggable-dragging {
+  cursor: grabbing;
+  box-shadow: var(--ds-elevation-overlay);
+}
+
+.react-grid-item.resizing {
+  opacity: 0.92;
+}
+
+/* Visible at rest, definite under the pointer. */
+.react-grid-item > .react-resizable-handle {
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.react-grid-item:hover > .react-resizable-handle {
+  opacity: 0.9;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  border-right-color: var(--ds-text-secondary, currentColor);
+  border-bottom-color: var(--ds-text-secondary, currentColor);
+}
+
+/* The corner grip earns a larger mark than the edges — it is the one that
+   resizes in both directions, and the one people reach for first. */
+.react-grid-item > .react-resizable-handle-se::after {
+  width: 7px;
+  height: 7px;
+}

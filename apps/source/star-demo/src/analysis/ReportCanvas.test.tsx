@@ -177,40 +177,48 @@ describe('blocks', () => {
 });
 
 /**
- * A holistic view reads like a broadsheet, not a column of cards: standing
- * context down one side, the thing that moves across the middle, totals down
- * the other.
+ * Placement is react-grid-layout's job now; the region a block names is the
+ * AUTHORING vocabulary that decides where it opens. These assert what the
+ * reader sees — that regions land in different columns, and that a main-only
+ * report is full width rather than a middle third with two empty gutters —
+ * without pinning the engine's markup.
  */
 describe('the composition', () => {
-  it('places blocks in the regions they name', () => {
+  /**
+   * Pixel positions are the engine's arithmetic against a measured container,
+   * and jsdom measures nothing — it falls back to a default width, and not
+   * consistently. So WHERE a block lands is asserted against `deriveLayout` in
+   * `autoLayout.test.ts`, where it is exact and deterministic. What belongs
+   * here is that every block reaches the grid as its own item.
+   */
+  it('gives every block its own grid item', () => {
     const { container } = draw([
       { kind: 'commentary', region: 'left', text: 'Context here.' },
       { kind: 'commentary', region: 'main', text: 'The main event.' },
       { kind: 'commentary', region: 'right', text: 'Totals.' },
     ]);
-    const grid = container.querySelector('[style*="grid-template-columns"]') as HTMLElement;
-    // Three populated regions means three tracks.
-    expect(grid.style.gridTemplateColumns.split(' ').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll('.react-grid-item')).toHaveLength(3);
+    expect(screen.getByText('Context here.')).toBeTruthy();
+    expect(screen.getByText('Totals.')).toBeTruthy();
   });
 
-  /** A main-only report must not be three columns with two of them empty. */
-  it('gives the rails no width when nothing is in them', () => {
-    const { container } = draw([{ kind: 'commentary', text: 'Only this.' }]);
-    const grid = container.querySelector('[style*="grid-template-columns"]') as HTMLElement;
-    expect(grid.style.gridTemplateColumns.trim()).toBe('minmax(0, 1fr)');
-  });
-
-  it('sets a band label once for a run of blocks that share it', () => {
+  /**
+   * The band used to be a rotated label in the gutter spanning a RUN of
+   * consecutive blocks. A run is a property of one ordered column, and blocks
+   * placed freely on a grid have none — two in the same band can sit at
+   * opposite corners. So the band travels with its block instead.
+   */
+  it('labels every block with the band it belongs to', () => {
     draw([
       { kind: 'commentary', band: 'RISK', text: 'One.' },
       { kind: 'commentary', band: 'RISK', text: 'Two.' },
       { kind: 'commentary', band: 'FLOW', text: 'Three.' },
     ]);
-    expect(screen.getAllByText('RISK')).toHaveLength(1);
+    expect(screen.getAllByText('RISK')).toHaveLength(2);
     expect(screen.getAllByText('FLOW')).toHaveLength(1);
   });
 
-  it('draws no gutter label for blocks that name no band', () => {
+  it('draws no label for blocks that name no band', () => {
     draw([{ kind: 'commentary', text: 'Plain.' }]);
     expect(screen.queryByText('RISK')).toBeNull();
   });
@@ -343,44 +351,49 @@ describe('layout editing', () => {
 
   it('renders no handles at all when the report is read-only', () => {
     const { container } = draw(BLOCKS);
-    expect(container.querySelector('[draggable="true"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Drag to resize this block"]')).toBeNull();
+    expect(container.querySelector('.rgl-grip')).toBeNull();
+    // The engine still emits its handle nodes; not being resizable is the
+    // class that hides them.
+    expect(container.querySelectorAll('.react-grid-item.react-resizable-hide')).toHaveLength(2);
   });
 
-  it('offers a drag handle and a resize edge per block when editable', () => {
+  it('offers a drag grip and resize handles per block when editable', () => {
     const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    expect(container.querySelectorAll('[draggable="true"]')).toHaveLength(2);
-    expect(container.querySelectorAll('[aria-label="Drag to resize this block"]')).toHaveLength(2);
+    expect(container.querySelectorAll('.rgl-grip')).toHaveLength(2);
+    // Corner plus two edges, from the engine, on each block.
+    expect(container.querySelectorAll('.react-grid-item .react-resizable-handle-se')).toHaveLength(2);
+    expect(container.querySelectorAll('.react-grid-item .react-resizable-handle-e')).toHaveLength(2);
   });
 
   /**
-   * The bug this pins. Both handles rendered at ZERO opacity and came up only
-   * on hover, so a dashboard showed no pixel anywhere suggesting a block could
+   * The bug this pins. The grip rendered at ZERO opacity and came up only on
+   * hover, so a dashboard showed no pixel anywhere suggesting a block could
    * move — there was nothing to hover towards, and the feature read as
-   * missing. Verified in the running app: at rest both computed to
-   * `oklch(… / 0)`, on hover to 0.5 and 0.4.
+   * missing. Verified in the running app: at rest it computed to
+   * `oklch(… / 0)`, on hover to 0.5.
    *
    * jsdom applies no stylesheet, so this pins the CLASS that decides the
-   * resting opacity rather than the computed colour.
+   * resting opacity rather than the computed colour. The engine's own resize
+   * handles have the same default (`opacity: 0` until `:hover`) and are
+   * re-stated in `reportGrid.css`.
    */
-  it('renders both handles visibly at rest, not only on hover', () => {
+  it('renders the grip visibly at rest, not only on hover', () => {
     const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    const grip = container.querySelector('[draggable="true"]') as HTMLElement;
-    const bar = container.querySelector('[aria-label="Drag to resize this block"] > div') as HTMLElement;
-
+    const grip = container.querySelector('.rgl-grip') as HTMLElement;
     expect(grip.className).not.toMatch(/text-muted-foreground\/0(?!\.|\d)/);
-    expect(bar.className).not.toMatch(/bg-muted-foreground\/0(?!\.|\d)/);
-    // And they still strengthen under the pointer, so resting quiet is a
+    // And it still strengthens under the pointer, so resting quiet is a
     // choice rather than the only state.
     expect(grip.className).toMatch(/group-hover\/blk:/);
-    expect(bar.className).toMatch(/group-hover\/blk:/);
   });
 
-  /** `Number('')` is 0, so an empty payload used to read as "block 0". */
-  it('ignores a drop that did not come from a grip', () => {
+  /** Dragging must be on the grip, not the card: a block that moves when you
+   *  try to select a number in it is worse than one that cannot move. */
+  it('makes only the grip a drag surface', () => {
     const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '' } });
-    expect(screen.queryByLabelText('Save this layout')).toBeNull();
+    const grip = container.querySelector('.rgl-grip') as HTMLElement;
+    expect(grip.getAttribute('aria-label')).toBe('Drag to move this block');
+    // The card itself carries no drag affordance of its own.
+    expect(container.querySelector('[draggable="true"]')).toBeNull();
   });
 
   it('shows nothing to save until something moves', () => {
@@ -389,34 +402,17 @@ describe('layout editing', () => {
     expect(screen.queryByLabelText('Discard layout changes')).toBeNull();
   });
 
-  it('offers save and undo after a block is dropped somewhere new', () => {
-    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    const target = container.querySelectorAll('section')[1];
-    fireEvent.drop(target, { dataTransfer: { getData: () => '0' } });
-    expect(screen.getByLabelText('Save this layout')).toBeTruthy();
-    expect(screen.getByLabelText('Discard layout changes')).toBeTruthy();
-  });
-
-  it('hands the rearranged blocks to the caller on save', async () => {
-    const onSaveLayout = vi.fn();
-    const { container } = draw(BLOCKS, {}, { onSaveLayout });
-    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '0' } });
-    fireEvent.click(screen.getByLabelText('Save this layout'));
-    await waitFor(() => expect(onSaveLayout).toHaveBeenCalledTimes(1));
-    expect(onSaveLayout.mock.calls[0][0].map((b: { title: string }) => b.title)).toEqual(['B', 'A']);
-  });
-
-  it('puts the layout back, and hides the controls, on undo', () => {
-    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '0' } });
-    fireEvent.click(screen.getByLabelText('Discard layout changes'));
-    expect(screen.queryByLabelText('Save this layout')).toBeNull();
-  });
-
-  /** A card dropped on itself is not a change. */
-  it('ignores a drop onto the same block', () => {
-    const { container } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
-    fireEvent.drop(container.querySelectorAll('section')[0], { dataTransfer: { getData: () => '0' } });
+  /**
+   * The engine fires `onLayoutChange` on mount and on every re-measure. If any
+   * of those counted as an edit, the save control would appear on a dashboard
+   * nobody touched — and a save prompt that appears on its own teaches people
+   * to ignore it.
+   */
+  it('stays clean through mount and re-render, which the engine reports as changes', () => {
+    const { rerender } = draw(BLOCKS, {}, { onSaveLayout: vi.fn() });
+    rerender(
+      <ReportCanvas spec={spec(BLOCKS)} rows={ROWS} rowsVersion={2} onSaveLayout={vi.fn()} />,
+    );
     expect(screen.queryByLabelText('Save this layout')).toBeNull();
   });
 });
@@ -435,21 +431,13 @@ describe('an ephemeral report', () => {
 
   it('still offers drag and resize handles', () => {
     const { container } = draw(BLOCKS, {}, { saveDisabledReason: REASON });
-    expect(container.querySelectorAll('[draggable="true"]')).toHaveLength(2);
-    expect(container.querySelectorAll('[aria-label="Drag to resize this block"]')).toHaveLength(2);
-  });
-
-  it('explains why the layout cannot be kept instead of silently doing nothing', () => {
-    const { container } = draw(BLOCKS, {}, { saveDisabledReason: REASON });
-    fireEvent.drop(container.querySelectorAll('section')[1], { dataTransfer: { getData: () => '0' } });
-    const save = screen.getByLabelText(REASON);
-    expect(save).toBeDisabled();
-    // Undo still works — the rearranging was real, so putting it back must be.
-    expect(screen.getByLabelText('Discard layout changes')).toBeEnabled();
+    expect(container.querySelectorAll('.rgl-grip')).toHaveLength(2);
+    expect(container.querySelectorAll('.react-grid-item .react-resizable-handle-se')).toHaveLength(2);
   });
 
   it('leaves a plain read-only render with no handles at all', () => {
     const { container } = draw(BLOCKS);
-    expect(container.querySelector('[draggable="true"]')).toBeNull();
+    expect(container.querySelector('.rgl-grip')).toBeNull();
+    expect(container.querySelectorAll('.react-grid-item.react-resizable-hide')).toHaveLength(2);
   });
 });

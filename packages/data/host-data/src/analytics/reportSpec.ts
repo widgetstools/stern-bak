@@ -78,10 +78,46 @@ export interface KpiTile {
   };
 }
 
+/**
+ * A block's place on the 12-column dashboard grid, in grid units.
+ *
+ * This is what a real layout engine persists, and it is deliberately NOT what
+ * the model composes: an author says "this belongs on the right, under risk"
+ * and the renderer derives an opening position from that. Coordinates appear
+ * only once a person has dragged something, and from then on they win — a
+ * saved arrangement must survive re-opening, and it cannot if every load
+ * re-derives it from the semantic hints.
+ *
+ * `w`/`h` are clamped rather than rejected: a layout is user input arriving
+ * through storage, and a block one column wide is a rendering problem, not a
+ * reason to refuse the whole dashboard.
+ */
+export interface BlockLayout {
+  /** Column, 0-11. */
+  x: number;
+  /** Row, in grid units from the top. */
+  y: number;
+  /** Width in columns, 1-12. */
+  w: number;
+  /** Height in row units. */
+  h: number;
+}
+
+/** The grid every dashboard is placed on. */
+export const REPORT_GRID_COLUMNS = 12;
+/** Bounds on a block's height in row units — the grid-unit form of the old px clamp. */
+export const MIN_BLOCK_ROWS = 3;
+export const MAX_BLOCK_ROWS = 40;
+
 interface BlockBase {
   kind: ReportBlockKind;
   /** Optional heading above the block. */
   title?: string;
+  /**
+   * Where the block sits once someone has arranged the dashboard by hand.
+   * Absent on a freshly composed report — see {@link BlockLayout}.
+   */
+  layout?: BlockLayout;
   /** Which region of the composition. Default `main`. */
   region?: ReportRegion;
   /**
@@ -287,6 +323,33 @@ export function clampRefresh(ms: unknown): number | undefined {
   return Math.min(MAX_REFRESH_MS, Math.max(MIN_REFRESH_MS, Math.round(ms)));
 }
 
+/**
+ * A block's grid position, coerced into something renderable or dropped.
+ *
+ * Every field must be a finite number for the layout to mean anything, so a
+ * partial one is discarded whole and the block falls back to being auto-placed
+ * — half a position is worse than none. What IS present is clamped rather than
+ * refused: this arrives from storage written by an older build or by a drag
+ * that ended off-screen, and neither is a reason to fail the dashboard.
+ */
+function validateLayout(raw: unknown): BlockLayout | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const l = raw as Record<string, unknown>;
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : undefined;
+  const [x, y, w, h] = [num(l.x), num(l.y), num(l.w), num(l.h)];
+  if (x === undefined || y === undefined || w === undefined || h === undefined) return undefined;
+
+  const width = Math.max(1, Math.min(REPORT_GRID_COLUMNS, w));
+  return {
+    // A block cannot start so far right that it hangs off the grid.
+    x: Math.max(0, Math.min(REPORT_GRID_COLUMNS - width, x)),
+    y: Math.max(0, y),
+    w: width,
+    h: Math.max(MIN_BLOCK_ROWS, Math.min(MAX_BLOCK_ROWS, h)),
+  };
+}
+
 type BlockOutcome = { ok: true; value: ReportBlock } | { ok: false; error: string };
 
 function validateBlock(raw: unknown, index: number): BlockOutcome {
@@ -309,7 +372,14 @@ function validateBlock(raw: unknown, index: number): BlockOutcome {
     typeof block.height === 'number' && Number.isFinite(block.height)
       ? Math.max(120, Math.min(900, Math.round(block.height)))
       : undefined;
-  const common = { title, band, region, ...(height !== undefined ? { height } : {}) } as const;
+  const layout = validateLayout(block.layout);
+  const common = {
+    title,
+    band,
+    region,
+    ...(height !== undefined ? { height } : {}),
+    ...(layout ? { layout } : {}),
+  } as const;
 
   if (kind === 'commentary') {
     const text = typeof block.text === 'string' ? block.text.trim() : '';

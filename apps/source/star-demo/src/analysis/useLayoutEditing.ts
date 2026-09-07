@@ -1,47 +1,38 @@
 /**
- * Dragging and resizing dashboard blocks, kept out of the renderer.
+ * The DRAFT of a dashboard's arrangement while someone rearranges it.
  *
- * `ReportCanvas` draws a spec. This owns the DRAFT of that spec while someone
- * rearranges it, so the canvas stays a function of whatever blocks it is
- * handed and the editing rules live in one testable place.
+ * `ReportCanvas` draws a spec; react-grid-layout owns the dragging, resizing,
+ * collision and compaction. What is left — and what belongs here — is the
+ * question neither of them answers: when has the arrangement actually CHANGED,
+ * and what should be written when it is saved.
  *
- * Two deliberate choices:
+ * That question is the whole reason this file still exists after the engine
+ * arrived. RGL emits `onLayoutChange` constantly: on mount, on every
+ * breakpoint switch, on each frame of a drag. Treating any of those as an edit
+ * would light up the save control on a dashboard nobody touched, and a save
+ * prompt that appears on its own teaches people to ignore it.
  *
- * **Native HTML5 drag, not a library.** Reordering a dozen cards needs
- * `draggable` + three handlers; a drag-and-drop dependency would ship to every
- * consumer of this app for that. Resizing uses pointer events for the same
- * reason — and because pointer capture keeps a drag working when the cursor
- * leaves the element, which mouse events do not.
- *
- * **The draft is never written back on its own.** A layout change is a
- * proposal until someone saves it: dragging a card by accident must not
- * silently rewrite a dashboard other people open. `dirty` drives the save and
- * undo affordances, and `reset` throws the draft away.
+ * **The draft is never written back on its own.** An arrangement is a proposal
+ * until someone saves it: a block nudged by accident must not silently rewrite
+ * a dashboard other people open. `dirty` drives the save and undo affordances,
+ * and `reset` throws the draft away.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ReportBlock, ReportSpec } from '@wellsfargo-starui/data';
+import { applyLayoutToBlocks, deriveLayout, layoutSignature } from './autoLayout';
 
-export type BlockRegion = 'left' | 'main' | 'right';
-
-/** Bounds a resize. Below the floor a block shows nothing; above the ceiling
- *  it is taller than any screen and pushes everything else out of view. */
-export const MIN_BLOCK_HEIGHT = 120;
-export const MAX_BLOCK_HEIGHT = 900;
-
-export function clampHeight(px: number): number {
-  return Math.max(MIN_BLOCK_HEIGHT, Math.min(MAX_BLOCK_HEIGHT, Math.round(px)));
-}
+export type GridLayoutItem = { i: string; x: number; y: number; w: number; h: number };
 
 export interface LayoutEditing {
   /** The blocks as currently arranged — the spec's, or the draft's. */
   blocks: ReportBlock[];
-  /** True when the draft differs from the spec it started from. */
+  /** Their grid positions, derived for any block never placed by hand. */
+  layout: GridLayoutItem[];
+  /** True when the arrangement differs from the one that was last saved. */
   dirty: boolean;
-  /** Move the block at `from` to sit at `to`, optionally changing its region. */
-  move: (from: number, to: number, region?: BlockRegion) => void;
-  /** Set one block's height in px, clamped. */
-  resize: (index: number, height: number) => void;
-  /** Throw the draft away and go back to the saved layout. */
+  /** Hand back what the engine produced. A no-op change stays a no-op. */
+  applyLayout: (next: readonly GridLayoutItem[]) => void;
+  /** Throw the draft away and go back to the saved arrangement. */
   reset: () => void;
   /** The blocks to persist, or `null` when nothing has changed. */
   pending: ReportBlock[] | null;
@@ -49,68 +40,46 @@ export interface LayoutEditing {
   commit: () => void;
 }
 
-/**
- * Only layout fields are compared. A live dashboard's DATA changes constantly;
- * `dirty` must mean "someone moved something", not "a number ticked".
- */
-function layoutSignature(blocks: readonly ReportBlock[]): string {
-  return blocks
-    .map((b) => `${b.kind}:${b.region ?? 'main'}:${(b as { height?: number }).height ?? ''}:${b.title ?? ''}`)
-    .join('|');
-}
-
 export function useLayoutEditing(spec: ReportSpec | null): LayoutEditing {
   const [draft, setDraft] = useState<ReportBlock[] | null>(null);
-  // The layout the draft is measured against. It moves on save, not on every
-  // spec change, so a re-render from live data does not silently clear dirty.
+  // The arrangement the draft is measured against. It moves on SAVE, not on
+  // every spec change, so a re-render from live data cannot silently clear
+  // dirty and lose someone's unsaved work.
   const [baseline, setBaseline] = useState<string | null>(null);
 
   const specBlocks = useMemo(() => spec?.blocks ?? [], [spec]);
   const blocks = draft ?? specBlocks;
+  const layout = useMemo(() => deriveLayout(blocks), [blocks]);
+
+  // What the engine was last given. An `onLayoutChange` echoing this back —
+  // which is exactly what mounting and re-measuring produce — is not an edit.
+  const rendered = useRef<string>('');
+  rendered.current = layoutSignature(layout);
+
+  const savedSignature = useMemo(() => layoutSignature(deriveLayout(specBlocks)), [specBlocks]);
+
+  const applyLayout = useCallback(
+    (next: readonly GridLayoutItem[]) => {
+      const incoming = layoutSignature(next);
+      if (incoming === rendered.current) return;
+      setDraft((prev) => applyLayoutToBlocks(prev ?? specBlocks, next));
+    },
+    [specBlocks],
+  );
 
   const dirty = useMemo(() => {
     if (!draft) return false;
-    return layoutSignature(draft) !== (baseline ?? layoutSignature(specBlocks));
-  }, [draft, baseline, specBlocks]);
-
-  const move = useCallback(
-    (from: number, to: number, region?: BlockRegion) => {
-      setDraft((prev) => {
-        const current = prev ?? specBlocks;
-        if (from < 0 || from >= current.length) return prev;
-        const next = [...current];
-        const [moved] = next.splice(from, 1);
-        // Dropping a card into a different rail is a region change as well as
-        // a reorder — the two are one gesture, so they are one operation.
-        const placed = region && region !== (moved.region ?? 'main') ? { ...moved, region } : moved;
-        next.splice(Math.max(0, Math.min(next.length, to)), 0, placed);
-        return next;
-      });
-    },
-    [specBlocks],
-  );
-
-  const resize = useCallback(
-    (index: number, height: number) => {
-      setDraft((prev) => {
-        const current = prev ?? specBlocks;
-        if (index < 0 || index >= current.length) return prev;
-        const next = [...current];
-        next[index] = { ...next[index], height: clampHeight(height) } as ReportBlock;
-        return next;
-      });
-    },
-    [specBlocks],
-  );
+    return layoutSignature(deriveLayout(draft)) !== (baseline ?? savedSignature);
+  }, [draft, baseline, savedSignature]);
 
   const reset = useCallback(() => setDraft(null), []);
 
   const commit = useCallback(() => {
     setDraft((current) => {
-      if (current) setBaseline(layoutSignature(current));
+      if (current) setBaseline(layoutSignature(deriveLayout(current)));
       return current;
     });
   }, []);
 
-  return { blocks, dirty, move, resize, reset, pending: dirty ? blocks : null, commit };
+  return { blocks, layout, dirty, applyLayout, reset, pending: dirty ? blocks : null, commit };
 }
