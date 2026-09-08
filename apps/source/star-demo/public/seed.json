@@ -1107,7 +1107,7 @@
             "componentType": "grid",
             "componentSubType": "test",
             "configId": "grid-test",
-            "displayName": "TestGrid",
+            "displayName": "FI Book",
             "createdAt": "2026-06-09T00:31:17.689Z",
             "type": "internal",
             "usesHostConfig": true,
@@ -5271,9 +5271,9 @@
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
-      "displayText": "MarketsGrid profiles: grid-test",
+      "displayText": "MarketsGrid profiles: FI Book",
       "componentType": "grid",
-      "componentSubType": "test",
+      "componentSubType": "fixed-income",
       "isTemplate": true,
       "singleton": false,
       "payload": {
@@ -5287,8 +5287,8 @@
               "general-settings": {
                 "v": 4,
                 "data": {
-                  "rowHeight": 30,
-                  "headerHeight": 32,
+                  "rowHeight": 26,
+                  "headerHeight": 30,
                   "pagination": false,
                   "paginationPageSize": 100,
                   "paginationAutoPageSize": false,
@@ -5302,7 +5302,7 @@
                   "cellChangeFlashColor": "amber",
                   "quickFilterText": "",
                   "groupDefaultExpanded": 0,
-                  "rowGroupPanelShow": "never",
+                  "rowGroupPanelShow": "always",
                   "pivotMode": false,
                   "pivotPanelShow": "never",
                   "groupHideOpenParents": false,
@@ -5391,12 +5391,23 @@
                 "v": 10,
                 "data": {
                   "assignments": {
-                    "trader": {
-                      "colId": "trader",
+                    "description": {
+                      "colId": "description",
                       "cellStyleOverrides": {
                         "dark": {
+                          "typography": {
+                            "bold": true
+                          },
                           "colors": {
-                            "text": "#eab308"
+                            "text": "#68ccc8"
+                          }
+                        },
+                        "light": {
+                          "typography": {
+                            "bold": true
+                          },
+                          "colors": {
+                            "text": "#0f766e"
                           }
                         }
                       }
@@ -5408,18 +5419,25 @@
                           "colors": {
                             "text": "#eab308"
                           }
+                        },
+                        "light": {
+                          "colors": {
+                            "text": "#a16207"
+                          }
                         }
                       }
                     },
-                    "ticker": {
-                      "colId": "ticker",
+                    "trader": {
+                      "colId": "trader",
                       "cellStyleOverrides": {
                         "dark": {
-                          "typography": {
-                            "bold": true
-                          },
                           "colors": {
-                            "text": "#68ccc8"
+                            "text": "#eab308"
+                          }
+                        },
+                        "light": {
+                          "colors": {
+                            "text": "#a16207"
                           }
                         }
                       }
@@ -5443,7 +5461,178 @@
               "conditional-styling": {
                 "v": 1,
                 "data": {
-                  "rules": []
+                  "rules": [
+                    {
+                      "id": "fi-tick-up",
+                      "name": "Price ticked up",
+                      "enabled": true,
+                      "priority": 5,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "quotedPrice",
+                          "midPrice",
+                          "marketValue"
+                        ]
+                      },
+                      "expression": "[midPrice] > [midPrice.old]",
+                      "activeDurationMs": 700,
+                      "style": {
+                        "dark": {
+                          "color": "#4ade80"
+                        },
+                        "light": {
+                          "color": "#15803d"
+                        }
+                      },
+                      "flash": {
+                        "enabled": true,
+                        "target": "cells",
+                        "mode": "oneShot",
+                        "color": "emerald",
+                        "durationMs": 600
+                      },
+                      "indicator": {
+                        "icon": "arrow-up",
+                        "position": "right-middle",
+                        "target": "cells",
+                        "color": "#4ade80"
+                      }
+                    },
+                    {
+                      "id": "fi-tick-down",
+                      "name": "Price ticked down",
+                      "enabled": true,
+                      "priority": 5,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "quotedPrice",
+                          "midPrice",
+                          "marketValue"
+                        ]
+                      },
+                      "expression": "[midPrice] < [midPrice.old]",
+                      "activeDurationMs": 700,
+                      "style": {
+                        "dark": {
+                          "color": "#f87171"
+                        },
+                        "light": {
+                          "color": "#b91c1c"
+                        }
+                      },
+                      "flash": {
+                        "enabled": true,
+                        "target": "cells",
+                        "mode": "oneShot",
+                        "color": "rose",
+                        "durationMs": 600
+                      },
+                      "indicator": {
+                        "icon": "arrow-down",
+                        "position": "right-middle",
+                        "target": "cells",
+                        "color": "#f87171"
+                      }
+                    },
+                    {
+                      "id": "fi-losers",
+                      "name": "Unrealised loss",
+                      "enabled": true,
+                      "priority": 10,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "unrealizedPnL",
+                          "dailyPnL"
+                        ]
+                      },
+                      "expression": "value < 0",
+                      "style": {
+                        "dark": {
+                          "color": "#ee8e8e",
+                          "fontWeight": "600"
+                        },
+                        "light": {
+                          "color": "#a02a2a",
+                          "fontWeight": "600"
+                        }
+                      }
+                    },
+                    {
+                      "id": "fi-negative-convexity",
+                      "name": "Negatively convex",
+                      "enabled": true,
+                      "priority": 20,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "convexity",
+                          "effectiveConvexity"
+                        ]
+                      },
+                      "expression": "value < 0",
+                      "style": {
+                        "dark": {
+                          "backgroundColor": "rgba(217,119,6,0.22)",
+                          "color": "#fbbf24"
+                        },
+                        "light": {
+                          "backgroundColor": "rgba(217,119,6,0.14)",
+                          "color": "#92400e"
+                        }
+                      }
+                    },
+                    {
+                      "id": "fi-high-yield",
+                      "name": "Below investment grade",
+                      "enabled": true,
+                      "priority": 30,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "rating",
+                          "ratingBucket"
+                        ]
+                      },
+                      "expression": "[ratingBucket] == \"HY\"",
+                      "style": {
+                        "dark": {
+                          "color": "#fbbf24",
+                          "fontWeight": "600"
+                        },
+                        "light": {
+                          "color": "#b45309",
+                          "fontWeight": "600"
+                        }
+                      }
+                    },
+                    {
+                      "id": "fi-wide-spread",
+                      "name": "Spread over 400bp",
+                      "enabled": true,
+                      "priority": 40,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "zSpread",
+                          "oas"
+                        ]
+                      },
+                      "expression": "[zSpread] > 400",
+                      "style": {
+                        "dark": {
+                          "backgroundColor": "rgba(190,24,93,0.20)",
+                          "color": "#f9a8d4"
+                        },
+                        "light": {
+                          "backgroundColor": "rgba(190,24,93,0.12)",
+                          "color": "#9d174d"
+                        }
+                      }
+                    }
+                  ]
                 }
               },
               "visual-excel": {
@@ -5551,97 +5740,122 @@
                 "v": 3,
                 "data": {
                   "schemaVersion": 3,
-                  "savedAt": "2026-06-09T01:19:37.954Z",
+                  "savedAt": "2026-09-08T02:30:00.000Z",
                   "gridState": {
                     "version": "35.1.0",
-                    "cellSelection": {
-                      "cellRanges": [
-                        {
-                          "startRow": {
-                            "rowIndex": 0,
-                            "rowPinned": null
-                          },
-                          "endRow": {
-                            "rowIndex": 0,
-                            "rowPinned": null
-                          },
-                          "colIds": [
-                            "ticker"
-                          ],
-                          "startColId": "ticker"
-                        }
-                      ]
-                    },
-                    "sideBar": {
-                      "visible": false,
-                      "openToolPanel": null,
-                      "toolPanels": {}
-                    },
                     "columnSizing": {
                       "columnSizingModel": [
                         {
-                          "colId": "positionId",
-                          "width": 80
-                        },
-                        {
                           "colId": "cusip",
+                          "width": 100
+                        },
+                        {
+                          "colId": "description",
+                          "width": 280
+                        },
+                        {
+                          "colId": "assetClass",
+                          "width": 105
+                        },
+                        {
+                          "colId": "sector",
+                          "width": 110
+                        },
+                        {
+                          "colId": "rating",
                           "width": 80
                         },
                         {
-                          "colId": "ticker",
+                          "colId": "couponRate",
                           "width": 80
                         },
                         {
-                          "colId": "asOfDate",
+                          "colId": "maturityDate",
+                          "width": 105
+                        },
+                        {
+                          "colId": "yearsToMaturity",
+                          "width": 60
+                        },
+                        {
+                          "colId": "quotedPrice",
+                          "width": 90
+                        },
+                        {
+                          "colId": "priceChange",
+                          "width": 75
+                        },
+                        {
+                          "colId": "bidAskPoints",
+                          "width": 75
+                        },
+                        {
+                          "colId": "yieldToMaturity",
+                          "width": 75
+                        },
+                        {
+                          "colId": "yieldToWorst",
+                          "width": 75
+                        },
+                        {
+                          "colId": "zSpread",
+                          "width": 90
+                        },
+                        {
+                          "colId": "oas",
                           "width": 80
                         },
                         {
-                          "colId": "trader",
-                          "width": 131.5
+                          "colId": "effectiveDuration",
+                          "width": 80
+                        },
+                        {
+                          "colId": "convexity",
+                          "width": 90
+                        },
+                        {
+                          "colId": "effectiveDv01",
+                          "width": 90
+                        },
+                        {
+                          "colId": "cs01",
+                          "width": 90
+                        },
+                        {
+                          "colId": "currentFace",
+                          "width": 120
+                        },
+                        {
+                          "colId": "marketValue",
+                          "width": 130
+                        },
+                        {
+                          "colId": "unrealizedPnL",
+                          "width": 120
+                        },
+                        {
+                          "colId": "dailyPnL",
+                          "width": 110
+                        },
+                        {
+                          "colId": "avgCost",
+                          "width": 90
                         },
                         {
                           "colId": "desk",
-                          "width": 132.5
+                          "width": 110
                         },
                         {
-                          "colId": "notionalAmount",
-                          "width": 80
+                          "colId": "trader",
+                          "width": 110
                         },
                         {
-                          "colId": "currentPrice",
-                          "width": 80
+                          "colId": "book",
+                          "width": 95
                         },
                         {
-                          "colId": "pnl",
-                          "width": 80
-                        },
-                        {
-                          "colId": "unrealizedPnl",
-                          "width": 80
-                        },
-                        {
-                          "colId": "realizedPnl",
-                          "width": 80
-                        },
-                        {
-                          "colId": "dailyPnl",
-                          "width": 80
-                        },
-                        {
-                          "colId": "mtdPnl",
-                          "width": 80
-                        },
-                        {
-                          "colId": "ytdPnl",
-                          "width": 80
-                        },
-                        {
-                          "colId": "dv01",
-                          "width": 80
-                        },
-                        {
-                          "colId": "pv01",
-                          "width": 80
+                          "colId": "strategy",
+                          "width": 110
                         }
                       ]
                     },
@@ -5649,61 +5863,112 @@
                       "orderedColIds": [
                         "positionId",
                         "cusip",
-                        "ticker",
-                        "asOfDate",
-                        "trader",
+                        "description",
+                        "assetClass",
+                        "sector",
+                        "rating",
+                        "couponRate",
+                        "maturityDate",
+                        "yearsToMaturity",
+                        "quotedPrice",
+                        "priceChange",
+                        "bidAskPoints",
+                        "yieldToMaturity",
+                        "yieldToWorst",
+                        "zSpread",
+                        "oas",
+                        "effectiveDuration",
+                        "convexity",
+                        "effectiveDv01",
+                        "cs01",
+                        "currentFace",
+                        "marketValue",
+                        "unrealizedPnL",
+                        "dailyPnL",
+                        "avgCost",
                         "desk",
-                        "notionalAmount",
-                        "currentPrice",
-                        "pnl",
-                        "unrealizedPnl",
-                        "realizedPnl",
-                        "dailyPnl",
-                        "mtdPnl",
-                        "ytdPnl",
-                        "dv01",
-                        "pv01"
+                        "trader",
+                        "book",
+                        "strategy"
                       ]
                     },
-                    "filter": {
-                      "selectableFilters": {}
+                    "columnVisibility": {
+                      "hiddenColIds": [
+                        "positionId",
+                        "securityId",
+                        "isin",
+                        "issuerId",
+                        "issuerName",
+                        "securityType",
+                        "seniority",
+                        "currency",
+                        "couponType",
+                        "issueDate",
+                        "originalTermYears",
+                        "dayCount",
+                        "frequency",
+                        "callable",
+                        "nextCallDate",
+                        "amountOutstanding",
+                        "ratingIndex",
+                        "ratingBucket",
+                        "liquidityTier",
+                        "bidPrice",
+                        "askPrice",
+                        "midPrice",
+                        "cleanPrice",
+                        "dirtyPrice",
+                        "quotationBasis",
+                        "priceChangePct",
+                        "workoutDate",
+                        "workoutType",
+                        "currentYield",
+                        "issueSpreadBp",
+                        "discountRate",
+                        "bondEquivalentYield",
+                        "modifiedDuration",
+                        "effectiveConvexity",
+                        "spreadDuration",
+                        "weightedAverageLife",
+                        "dv01",
+                        "quantityFace",
+                        "factor",
+                        "accruedInterest",
+                        "purchasePrice",
+                        "bookYield",
+                        "realizedPnL",
+                        "openLots",
+                        "daysHeld",
+                        "openDate",
+                        "portfolio",
+                        "accountId",
+                        "asOf",
+                        "lastUpdate",
+                        "krd3M",
+                        "krd6M",
+                        "krd1Y",
+                        "krd2Y",
+                        "krd3Y",
+                        "krd5Y",
+                        "krd7Y",
+                        "krd10Y",
+                        "krd20Y",
+                        "krd30Y"
+                      ]
                     },
-                    "rowGroupExpansion": {
-                      "expandedRowGroupIds": [],
-                      "collapsedRowGroupIds": []
-                    },
-                    "pagination": {
-                      "page": 0,
-                      "pageSize": 100
-                    },
-                    "focusedCell": {
-                      "colId": "ticker",
-                      "rowIndex": 0,
-                      "rowPinned": null
-                    },
-                    "rangeSelection": {
-                      "cellRanges": [
+                    "sort": {
+                      "sortModel": [
                         {
-                          "startRow": {
-                            "rowIndex": 0,
-                            "rowPinned": null
-                          },
-                          "endRow": {
-                            "rowIndex": 0,
-                            "rowPinned": null
-                          },
-                          "colIds": [
-                            "ticker"
-                          ],
-                          "startColId": "ticker"
+                          "colId": "marketValue",
+                          "sort": "desc"
                         }
                       ]
+                    },
+                    "sideBar": {
+                      "visible": false,
+                      "openToolPanel": null,
+                      "toolPanels": {}
                     }
-                  },
-                  "viewportAnchor": {
-                    "firstRowIndex": 0,
-                    "leftColId": "positionId",
-                    "horizontalPixel": 0
                   }
                 }
               },
@@ -5738,17 +6003,916 @@
         "gridLevelData": {
           "v": 1,
           "provider": {
-            "liveProviderId": "dp-121e4569-5100-4f6b-b946-c3423d8aff7c",
+            "liveProviderId": "dp-fi-book",
             "historicalProviderId": null,
             "mode": "live"
           },
-          "caption": "Testgrid"
+          "caption": "FI Book"
         }
       },
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-06-09T00:33:14.095Z",
-      "updatedTime": "2026-06-09T01:19:38.026Z"
+      "updatedTime": "2026-09-08T02:30:00.000Z"
+    },
+    {
+      "configId": "dp-fi-book",
+      "appId": "StarDemo",
+      "userId": "k151344",
+      "componentType": "data-provider",
+      "componentSubType": "stomp",
+      "isTemplate": false,
+      "displayText": "FI Trading Service \u2014 positions",
+      "createdBy": "k151344",
+      "updatedBy": "k151344",
+      "creationTime": "2026-09-08T02:30:00.000Z",
+      "updatedTime": "2026-09-08T02:30:00.000Z",
+      "payload": {
+        "providerType": "stomp",
+        "websocketUrl": "ws://localhost:8081",
+        "listenerTopic": "/snapshot/positions/fi-book",
+        "requestMessage": "/snapshot/positions/fi-book/5000/500",
+        "snapshotEndToken": "__SNAPSHOT_COMPLETE__",
+        "columnDefinitions": [
+          {
+            "field": "positionId",
+            "headerName": "Position Id",
+            "cellDataType": "text",
+            "width": 120,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "cusip",
+            "headerName": "CUSIP",
+            "cellDataType": "text",
+            "width": 100,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "description",
+            "headerName": "Security",
+            "cellDataType": "text",
+            "width": 280,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "assetClass",
+            "headerName": "Asset Class",
+            "cellDataType": "text",
+            "width": 105,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "sector",
+            "headerName": "Sector",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "rating",
+            "headerName": "Rating",
+            "cellDataType": "text",
+            "width": 80,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "rating-badge"
+          },
+          {
+            "field": "couponRate",
+            "headerName": "Coupon",
+            "cellDataType": "number",
+            "width": 80,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "maturityDate",
+            "headerName": "Maturity",
+            "cellDataType": "dateString",
+            "width": 105,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "yearsToMaturity",
+            "headerName": "Yrs",
+            "cellDataType": "number",
+            "width": 60,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "quotedPrice",
+            "headerName": "Price",
+            "cellDataType": "text",
+            "width": 90,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "priceChange",
+            "headerName": "Chg",
+            "cellDataType": "number",
+            "width": 75,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "change-value"
+          },
+          {
+            "field": "bidAskPoints",
+            "headerName": "Bid/Ask",
+            "cellDataType": "number",
+            "width": 75,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "yieldToMaturity",
+            "headerName": "YTM",
+            "cellDataType": "number",
+            "width": 75,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "yieldToWorst",
+            "headerName": "YTW",
+            "cellDataType": "number",
+            "width": 75,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "zSpread",
+            "headerName": "Z-Spread",
+            "cellDataType": "number",
+            "width": 90,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "oas-value"
+          },
+          {
+            "field": "oas",
+            "headerName": "OAS",
+            "cellDataType": "number",
+            "width": 80,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "oas-value"
+          },
+          {
+            "field": "effectiveDuration",
+            "headerName": "Eff Dur",
+            "cellDataType": "number",
+            "width": 80,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "convexity",
+            "headerName": "Convexity",
+            "cellDataType": "number",
+            "width": 90,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "effectiveDv01",
+            "headerName": "DV01",
+            "cellDataType": "number",
+            "width": 90,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "cs01",
+            "headerName": "CS01",
+            "cellDataType": "number",
+            "width": 90,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "currentFace",
+            "headerName": "Face",
+            "cellDataType": "number",
+            "width": 120,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "marketValue",
+            "headerName": "Market Value",
+            "cellDataType": "number",
+            "width": 130,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "unrealizedPnL",
+            "headerName": "Unreal P&L",
+            "cellDataType": "number",
+            "width": 120,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "pnl-value"
+          },
+          {
+            "field": "dailyPnL",
+            "headerName": "Daily P&L",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "pnl-value"
+          },
+          {
+            "field": "avgCost",
+            "headerName": "Avg Cost",
+            "cellDataType": "number",
+            "width": 90,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "desk",
+            "headerName": "Desk",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "trader",
+            "headerName": "Trader",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "book",
+            "headerName": "Book",
+            "cellDataType": "text",
+            "width": 95,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "cellRenderer": "book-name"
+          },
+          {
+            "field": "strategy",
+            "headerName": "Strategy",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "securityId",
+            "headerName": "Security Id",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "isin",
+            "headerName": "Isin",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "issuerId",
+            "headerName": "Issuer Id",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "issuerName",
+            "headerName": "Issuer Name",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "securityType",
+            "headerName": "Security Type",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "seniority",
+            "headerName": "Seniority",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "currency",
+            "headerName": "Currency",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "couponType",
+            "headerName": "Coupon Type",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "issueDate",
+            "headerName": "Issue Date",
+            "cellDataType": "dateString",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "originalTermYears",
+            "headerName": "Original Term Years",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "dayCount",
+            "headerName": "Day Count",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "frequency",
+            "headerName": "Frequency",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "callable",
+            "headerName": "Callable",
+            "cellDataType": "boolean",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "nextCallDate",
+            "headerName": "Next Call Date",
+            "cellDataType": "dateString",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "amountOutstanding",
+            "headerName": "Amount Outstanding",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "ratingIndex",
+            "headerName": "Rating Index",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "ratingBucket",
+            "headerName": "Rating Bucket",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "liquidityTier",
+            "headerName": "Liquidity Tier",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "bidPrice",
+            "headerName": "Bid Price",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "askPrice",
+            "headerName": "Ask Price",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "midPrice",
+            "headerName": "Mid Price",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "cleanPrice",
+            "headerName": "Clean Price",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "dirtyPrice",
+            "headerName": "Dirty Price",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "quotationBasis",
+            "headerName": "Quotation Basis",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "priceChangePct",
+            "headerName": "Price Change Pct",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "workoutDate",
+            "headerName": "Workout Date",
+            "cellDataType": "dateString",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "workoutType",
+            "headerName": "Workout Type",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "currentYield",
+            "headerName": "Current Yield",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "issueSpreadBp",
+            "headerName": "Issue Spread Bp",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "discountRate",
+            "headerName": "Discount Rate",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "bondEquivalentYield",
+            "headerName": "Bond Equivalent Yield",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "modifiedDuration",
+            "headerName": "Modified Duration",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "effectiveConvexity",
+            "headerName": "Effective Convexity",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "spreadDuration",
+            "headerName": "Spread Duration",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "weightedAverageLife",
+            "headerName": "Weighted Average Life",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "dv01",
+            "headerName": "Dv01",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "quantityFace",
+            "headerName": "Quantity Face",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "factor",
+            "headerName": "Factor",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "accruedInterest",
+            "headerName": "Accrued Interest",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "purchasePrice",
+            "headerName": "Purchase Price",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "bookYield",
+            "headerName": "Book Yield",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "realizedPnL",
+            "headerName": "Realized Pn L",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "openLots",
+            "headerName": "Open Lots",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "daysHeld",
+            "headerName": "Days Held",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "openDate",
+            "headerName": "Open Date",
+            "cellDataType": "dateString",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "portfolio",
+            "headerName": "Portfolio",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "accountId",
+            "headerName": "Account Id",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "asOf",
+            "headerName": "As Of",
+            "cellDataType": "dateString",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "lastUpdate",
+            "headerName": "Last Update",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd3M",
+            "headerName": "Krd3 M",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd6M",
+            "headerName": "Krd6 M",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd1Y",
+            "headerName": "Krd1 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd2Y",
+            "headerName": "Krd2 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd3Y",
+            "headerName": "Krd3 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd5Y",
+            "headerName": "Krd5 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd7Y",
+            "headerName": "Krd7 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd10Y",
+            "headerName": "Krd10 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd20Y",
+            "headerName": "Krd20 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "krd30Y",
+            "headerName": "Krd30 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          }
+        ],
+        "keyColumn": "positionId",
+        "throttleEnabled": true,
+        "throttleMs": 200,
+        "conflateEnabled": true,
+        "conflateByKey": "positionId",
+        "projectFields": true,
+        "wireFormat": "columnar",
+        "reconnect": {
+          "initialDelayMs": 500
+        },
+        "__providerMeta": {
+          "tags": [
+            "fixed-income",
+            "live"
+          ],
+          "isDefault": true,
+          "public": true
+        }
+      }
     }
   ],
   "appRegistry": [
