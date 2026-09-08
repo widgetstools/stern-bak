@@ -71,6 +71,34 @@ describe('tick', () => {
     expect(after).not.toEqual(before);
   });
 
+  it('reaches the whole book, not just the front of it', () => {
+    // Starting the scan at index 0 every tick and stopping at the budget meant
+    // the first few hundred positions were quoted over and over while the tail
+    // never ticked: 24,000 updates carrying 229 distinct keys.
+    const source = new LiveBook({ seed: 31, scaleMultiplier: 0.3, ticksPerSession: 400 });
+    const seen = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      source.tick(50);
+      for (const row of source.drainLive(100_000)) seen.add(row.positionId as string);
+    }
+    // A 50-row budget over 60 ticks cannot touch everything, but it must reach
+    // far more than the 50 nearest the front.
+    expect(seen.size).toBeGreaterThan(source.size() * 0.5);
+  });
+
+  it('reaches almost every position given enough ticks', () => {
+    // Not ALL of them: the least liquid tail sits at the 0.04 quote floor, so
+    // over 400 ticks a handful legitimately never print. That is the point of
+    // the floor — an off-the-run CLO tranche does not trade every minute.
+    const source = new LiveBook({ seed: 33, scaleMultiplier: 0.15, ticksPerSession: 2000 });
+    const seen = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      source.tick(100);
+      for (const row of source.drainLive(100_000)) seen.add(row.positionId as string);
+    }
+    expect(seen.size).toBeGreaterThan(source.size() * 0.97);
+  });
+
   it('quotes a Treasury more often than a high yield bond over many ticks', () => {
     const source = new LiveBook({ seed: 12, scaleMultiplier: 0.3, ticksPerSession: 400 });
     const counts = new Map<string, number>();

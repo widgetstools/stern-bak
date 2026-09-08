@@ -81,6 +81,8 @@ export class LiveBook implements RowSource {
   private closeState: FactorState;
   private tickInSession = 0;
   private tickSeq = 0;
+  /** Where the next quote scan starts, so the whole book gets a turn. */
+  private scanCursor = 0;
 
   constructor(options: LiveBookOptions = {}) {
     this.dataset = options.dataset ?? 'positions';
@@ -206,14 +208,23 @@ export class LiveBook implements RowSource {
       });
     }
 
+    // Rotate where the scan starts. Beginning at index 0 every tick and
+    // stopping at `max` meant the first few hundred positions were quoted over
+    // and over while the rest of the book never ticked at all: 24,000 row
+    // updates carrying only 229 distinct keys. The cursor makes the budget a
+    // rate limit rather than a permanent bias.
     const rng = createRng(0x85ebca6b ^ this.tickSeq);
+    const count = this.quoteOdds.length;
     let quoted = 0;
-    for (let i = 0; i < this.quoteOdds.length && quoted < max; i++) {
-      if (rng() < (this.quoteOdds[i] as number)) {
-        this.dirty.add(i);
+    let index = this.scanCursor;
+    for (let step = 0; step < count && quoted < max; step++) {
+      if (rng() < (this.quoteOdds[index] as number)) {
+        this.dirty.add(index);
         quoted += 1;
       }
+      index = index + 1 === count ? 0 : index + 1;
     }
+    this.scanCursor = index;
     return quoted;
   }
 
