@@ -772,6 +772,47 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (forked markets):** the capability nothing else has. `FactorEngine.step`
+is a pure function of `(state, date, seed)`, so a state can be forked and run
+forward again under a different draw — and what comes back is not a shocked
+book but a different, internally consistent history: prepayments burn out
+differently, ratings migrate in different weeks, spreads decompose differently.
+
+`scenario/` holds the engine. `forkEngine` replays worlds off the live factor
+state; `bookSnapshot` flattens the book into typed arrays; `fastReval` is the
+same expansion as the live row path with the row writes removed; `scanScenarios`
+runs the worlds and describes the distribution. It reaches the assistant over
+HTTP through `http/router` (with the CORS and `OPTIONS` handling a browser on
+another origin needs) on the `httpHandler` hook `StompServer` already had and
+nothing was passing.
+
+Measured: **250 worlds x 20 business days over 1,758 positions in 236 ms**, or
+97 us per world-day. A quarter-long 500-world scan is about 9 s, which is why
+the loop yields to the event loop every 8 worlds — the publisher flushes every
+40 ms against an 8 ms budget and holds a 10 s heartbeat, so a scan that never
+gave up control would stall the feed and trip client watchdogs.
+
+Two properties make the answers trustworthy, and both are tested:
+
+- **A null fork reproduces the actual path bit for bit** — same seed, no shock,
+  zero drift over 20 days. Without that check every scenario built on the fork
+  could be quietly wrong and nothing downstream would notice.
+- **A world depends on its index alone.** Running 40 worlds or 120 gives the
+  same answer for world 7, so a scan can be cut short without biasing what it
+  has already found.
+
+The output is a distribution with a causal story rather than a number. A typical
+20-day scan puts the median at -22mm, VaR95 at -779mm and the worst world at
+-1,534mm on a $22.8bn book — and that world can say why: the ten-year at 5.16%
+going to 6.04% *and* the systematic credit factor going from -0.16 to +0.25,
+with three downgrades, led by high yield at 31% of the loss, down to the
+individual positions. `plausibility` states the bound, because a tail drawn from
+the model's own dynamics is a different claim from a corner someone dialled in.
+
+`/api/scenario/fork` answers the counterfactual directly: replaying the same
+world with and without "CPI 30 bp hotter" holds every other draw identical, so
+the difference — -545mm — is the shock's effect and nothing else.
+
 **Landed (the book):** `domain/book` — the layer that turns the instrument and
 analytics work into an actual position book, and `LiveBook`, which serves it
 over the wire in place of the phase-1 `SyntheticBook` stand-in (deleted; its

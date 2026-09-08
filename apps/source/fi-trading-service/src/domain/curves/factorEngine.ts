@@ -84,6 +84,19 @@ export class FactorEngine {
     this.systematicSd = stationarySd(SYSTEMATIC_SPEC);
   }
 
+  /**
+   * The same model under a different random seed — one forked world.
+   *
+   * Everything but the seed is carried over, so two worlds differ in their
+   * draws and in nothing else. Construction rebuilds the migration thresholds
+   * (a matrix logarithm) at about 0.09 ms, which is worth an order of
+   * magnitude less than a single world's replay; sharing them would buy
+   * nothing and would mean reaching past the constructor.
+   */
+  withSeed(seed: number): FactorEngine {
+    return new FactorEngine({ ...this.options, seed });
+  }
+
   /** The starting state, at long-run levels. */
   seedState(asOf: DateInt): FactorState {
     const issuerCount = this.options.initialRatings.length;
@@ -118,12 +131,17 @@ export class FactorEngine {
    * The random stream is derived from `(seed, date)` rather than carried
    * across calls, so a day can be recomputed on its own and eight workers
    * produce byte-identical output to one.
+   *
+   * `volScale` widens or narrows every draw for this step — a forked world run
+   * under a more volatile regime, not a different model. It multiplies the
+   * scheduled-event multiplier rather than replacing it, so a CPI print in a
+   * turbulent world is still more volatile than a quiet day in it.
    */
-  step(previous: FactorState, date: DateInt): DayStep {
+  step(previous: FactorState, date: DateInt, volScale?: number): DayStep {
     const rng: Rng = createRng(deriveSeed(this.options.seed, 'factors', date));
     const normalDraw = createNormalDraw(rng);
     const event = this.events.eventOn(date);
-    const eventMultiplier = event === null ? 1 : event.volMultiplier;
+    const eventMultiplier = (event === null ? 1 : event.volMultiplier) * (volScale ?? 1);
 
     const rateStep = evolveBetas(previous.betas, DAILY_DT, rng, normalDraw, eventMultiplier);
     const curve = nssDiscountCurve(rateStep.betas);

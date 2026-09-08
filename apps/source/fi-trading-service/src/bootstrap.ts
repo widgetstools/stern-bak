@@ -9,6 +9,9 @@ import { DatasetRegistry } from './datasets/registry.js';
 import { LiveBook } from './datasets/LiveBook.js';
 import type { AppConfig } from './config.js';
 import { createLogger, type Logger } from './logger.js';
+import { createRouter } from './http/router.js';
+import { scenarioRoutes } from './http/scenarioRoutes.js';
+import { SifmaCalendar } from './domain/core/sifmaCalendar.js';
 import { LIVE_TICK_MS } from './wire/contract.js';
 import { StompServer } from './wire/StompServer.js';
 
@@ -24,15 +27,25 @@ export async function bootstrap(config: AppConfig): Promise<RunningService> {
   const logger = createLogger(config.logLevel);
   const registry = new DatasetRegistry();
 
-  const book = new LiveBook({ seed: config.seed, scaleMultiplier: config.bookScale });
+  const calendar = new SifmaCalendar();
+  const book = new LiveBook({ seed: config.seed, scaleMultiplier: config.bookScale, calendar });
   registry.register(book);
   logger.info(`position book: ${book.size()} rows priced off the factor model`);
+
+  // The scenario surface is request/response and compute-heavy, so it goes over
+  // HTTP on the same port rather than through STOMP, which is a transport for
+  // streaming subscriptions. `StompServer` already hosts both.
+  const router = createRouter({
+    routes: scenarioRoutes({ book, calendar, asOf: book.asOf(), seed: config.seed }),
+    onError: (error, path) => logger.warn(`${path}: ${String(error)}`),
+  });
 
   const server = new StompServer({
     port: config.port,
     host: config.host,
     resolver: registry,
     logger,
+    httpHandler: router,
   });
   const port = await server.listen();
 

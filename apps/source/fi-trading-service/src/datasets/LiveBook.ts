@@ -30,10 +30,10 @@ import { addDays, type DateInt } from '../domain/core/dateInt.js';
 import { createRng, createNormalDraw, type Rng } from '../domain/core/rng.js';
 import type { Calendar } from '../domain/core/sifmaCalendar.js';
 import { SifmaCalendar } from '../domain/core/sifmaCalendar.js';
-import { bridgeBetas, type FactorState } from '../domain/curves/factorEngine.js';
+import { bridgeBetas, type FactorEngine, type FactorState } from '../domain/curves/factorEngine.js';
 import { betaDailySigma } from '../domain/curves/rateFactors.js';
 import {
-  buildBook, DEMO_SCALE, scaleBook, type BookScale, type BuiltBook,
+  buildBook, DEMO_SCALE, scaleBook, type BookScale, type BuiltBook, type RiskVector,
 } from '../domain/book/bookBuilder.js';
 import type { PositionRow } from '../domain/book/positions.js';
 import type { DatasetId } from '../wire/destinations.js';
@@ -122,6 +122,21 @@ export class LiveBook implements RowSource {
 
   positions(): readonly PositionRow[] {
     return this.book.positions;
+  }
+
+  /** The per-position sensitivities a scenario scan runs against. */
+  riskVectors(): readonly RiskVector[] {
+    return this.book.riskVectors;
+  }
+
+  /** The factor model itself, for forking counterfactual worlds off it. */
+  engine(): FactorEngine {
+    return this.book.engine;
+  }
+
+  /** The date the book was built and priced at. */
+  asOf(): DateInt {
+    return this.book.asOf;
   }
 
   async *snapshot(batchSize: number): AsyncIterable<readonly PositionRow[]> {
