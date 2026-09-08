@@ -772,6 +772,39 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (the assistant reaches it):** four read-only tools in star-demo —
+`describe_book`, `run_scenarios`, `find_worst_case` and `fork_market` — with
+`scenarioClient.ts` following `llmClient.ts`'s shape (an editable base URL, a
+health probe, a connection affordance in the settings strip) because the service
+is a separate origin and the assistant already talks to one.
+
+Results come back as a `SCENARIO_CELL` payload with a trusted renderer, the same
+pattern as `DATA_CELL` and `FIELD_CELL`: the assistant cannot render
+model-authored markup, so the block vocabulary IS the vocabulary.
+`ScenarioResultCell` draws the distribution with the losing tail shaded and the
+fifth percentile marked, then the worst world's factor path, then attribution by
+asset class and down to positions.
+
+Three things were worth getting right:
+
+- **The prompt says what this is NOT.** A model that has only seen risk systems
+  will call a forked world a stress test and describe the output as "if rates
+  rose 50bp". The system prompt and every schema description say "re-simulated
+  worlds" and explain why the distinction is real.
+- **Units are spelled out**, because `credit` is in LOG space and therefore
+  relative — 0.2 is a 20% widening of each spread's own level, which is 30 bp on
+  a 150 bp bond and 120 bp on a 600 bp one. A model passing an absolute basis
+  point number there would be wrong for one of IG or HY whichever it had in mind.
+- **`forModel` strips the distribution.** A scan carries one number per world,
+  up to a thousand, and a tool result lives in the message list for the rest of
+  the conversation, so leaving it in would re-bill the whole distribution every
+  later turn. The model keeps the statistics and the attribution and is told
+  what was withheld.
+
+A service that is not running is an ordinary outcome, not an exception: the
+tools return a sentence naming the URL and how to start it, which the model can
+relay, rather than a thrown stack.
+
 **Landed (forked markets):** the capability nothing else has. `FactorEngine.step`
 is a pure function of `(state, date, seed)`, so a state can be forked and run
 forward again under a different draw — and what comes back is not a shocked

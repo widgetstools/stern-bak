@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamChat, parseToolArgs, toolName, contentToText, type ChatMessage } from '../llmClient';
 import { TOOL_SCHEMAS } from '../tools';
+import { SCENARIO_CELL, type ScenarioCellPayload } from '../scenarioTools';
 import { DATA_CELL } from '../dataTools';
 import type { ToolExecutionResult } from '../useToolExecutor';
 import type { ToolName } from '../tools';
@@ -45,6 +46,7 @@ export function forModel(result: ToolExecutionResult): ToolExecutionResult {
   const data = result.data as
     | { kind?: string; table?: { rows?: unknown[]; matched?: number } }
     | undefined;
+  if (data?.kind === SCENARIO_CELL) return scenarioForModel(result, data as ScenarioCellPayload);
   const rows = data?.kind === DATA_CELL ? data.table?.rows : undefined;
   if (!Array.isArray(rows) || rows.length <= MAX_MODEL_RESULT_ROWS) return result;
 
@@ -60,6 +62,37 @@ export function forModel(result: ToolExecutionResult): ToolExecutionResult {
         // as the complete answer. The user still sees all of them in the panel.
         rowsWithheldFromModel: withheld,
         note: `Showing the first ${MAX_MODEL_RESULT_ROWS} of ${rows.length} rows; ${withheld} withheld from this message. The user can see all of them in the panel. Re-query with a filter, a smaller limit, or an aggregation if you need the rest.`,
+      },
+    },
+  };
+}
+
+/**
+ * A scenario result, minus the arrays the model has no use for.
+ *
+ * A scan carries one terminal P&L per world — up to a thousand numbers — plus
+ * a histogram, and a tool result lives in `messagesRef` for the rest of the
+ * conversation, so leaving them in would re-bill the whole distribution on
+ * every later turn. The model needs the summary statistics and the worst
+ * worlds' attribution to explain what happened; the panel keeps everything and
+ * draws the distribution from it.
+ */
+function scenarioForModel(
+  result: ToolExecutionResult, payload: ScenarioCellPayload,
+): ToolExecutionResult {
+  if (payload.scan === undefined) return result;
+  const { terminalPnl, distribution, ...rest } = payload.scan;
+  return {
+    ...result,
+    data: {
+      ...payload,
+      scan: {
+        ...rest,
+        worldsSummarised: terminalPnl.length,
+        note:
+          `The ${terminalPnl.length} individual world outcomes and the ${distribution.length}-bin ` +
+          'histogram are shown in the panel and withheld here. The summary statistics above ' +
+          'describe them; re-run with different arguments rather than asking for the raw values.',
       },
     },
   };

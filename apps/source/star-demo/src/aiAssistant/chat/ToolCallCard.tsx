@@ -10,6 +10,8 @@ import { AnalysisResultCard } from './AnalysisResultCard';
 import { FieldPickerCell } from './FieldPickerCell';
 import { DATA_CELL, type DataCellPayload } from '../dataTools';
 import { FIELD_CELL, type FieldCellPayload } from '../providerFieldTools';
+import { SCENARIO_CELL, type ScenarioCellPayload } from '../scenarioTools';
+import { ScenarioResultCell } from './ScenarioResultCell';
 
 export type ToolCallStatus = 'running' | 'ok' | 'error';
 
@@ -41,6 +43,13 @@ function StatusIcon({ status }: { status: ToolCallStatus }) {
 function asDataCell(result: unknown): DataCellPayload | undefined {
   return typeof result === 'object' && result !== null && (result as { kind?: string }).kind === DATA_CELL
     ? (result as DataCellPayload)
+    : undefined;
+}
+
+function asScenarioCell(result: unknown): ScenarioCellPayload | undefined {
+  return typeof result === 'object' && result !== null
+    && (result as { kind?: string }).kind === SCENARIO_CELL
+    ? (result as ScenarioCellPayload)
     : undefined;
 }
 
@@ -76,6 +85,11 @@ export function ToolCallCard({ activity, onOpenAnalysis }: ToolCallCardProps) {
     if (dataCell) return <AnalysisResultCard payload={dataCell} onOpen={onOpenAnalysis} />;
     const fieldCell = asFieldCell(activity.result);
     if (fieldCell) return <FieldPickerCell payload={fieldCell} />;
+    // A scenario result renders in full rather than behind a click: the
+    // distribution and the attribution ARE the answer, and hiding them behind
+    // a disclosure would make the assistant's reply the only thing on screen.
+    const scenarioCell = asScenarioCell(activity.result);
+    if (scenarioCell) return <ScenarioResultCell payload={scenarioCell} />;
   }
 
   return (

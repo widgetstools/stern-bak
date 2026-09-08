@@ -80,7 +80,11 @@ export type ToolName =
   | 'delete_profile'
   | 'switch_profile'
   | 'reload_grid'
-  | 'clear_column_style';
+  | 'clear_column_style'
+  | 'describe_book'
+  | 'run_scenarios'
+  | 'find_worst_case'
+  | 'fork_market';
 
 /** Tools that only read state — safe to auto-execute without user confirmation. */
 export const READ_ONLY_TOOLS: readonly ToolName[] = [
@@ -104,6 +108,13 @@ export const READ_ONLY_TOOLS: readonly ToolName[] = [
   'get_feature_guide',
   'get_module_settings',
   'list_module_items',
+  // The scenario surface computes and returns; it writes nothing to the book,
+  // to the grid or to the service. Safe to run without confirmation, which is
+  // what makes the analytical loop conversational.
+  'describe_book',
+  'run_scenarios',
+  'find_worst_case',
+  'fork_market',
 ];
 
 export function isReadOnlyTool(name: string): name is (typeof READ_ONLY_TOOLS)[number] {

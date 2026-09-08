@@ -35,6 +35,7 @@ const DECLARED: ToolName[] = [
   'save_dashboard', 'list_dashboards', 'delete_dashboard',
   'query_across_blotters',
   'set_desk_context', 'add_limit', 'check_limits', 'list_limits', 'remove_limit',
+  'describe_book', 'run_scenarios', 'find_worst_case', 'fork_market',
 ];
 
 describe('the tool vocabulary and the wire schemas agree', () => {

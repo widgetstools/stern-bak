@@ -21,6 +21,9 @@ import {
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { loadRegistryConfig } from '@wellsfargo-starui/openfin/config';
 import { checkHealth, fetchModels, pickDefaultModel } from './llmClient';
+import {
+  checkScenarioHealth, defaultScenarioBaseUrl, SCENARIO_BASE_URL_KEY,
+} from './scenarioClient';
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { resolveGridForInstance, resolveGridEntry, readActiveProfile } from './gridProfiles';
 import { useUndoStack } from './useUndoStack';
@@ -239,7 +242,28 @@ export function AiAssistantPanel({
       ),
     [locked, resolvedGridId, scopedLabel, scopedInstanceId, desk],
   );
+  // The trading service that owns the book and the factor model. Read through
+  // a ref so an edit takes effect on the next tool call rather than at the next
+  // remount — the executor holds this function for the life of the session.
+  const [scenarioUrl, setScenarioUrl] = useLocalStorageState(
+    SCENARIO_BASE_URL_KEY, defaultScenarioBaseUrl(),
+  );
+  const [scenarioUp, setScenarioUp] = useState<boolean | null>(null);
+  const scenarioUrlRef = useRef(scenarioUrl);
+  scenarioUrlRef.current = scenarioUrl;
+
+  useEffect(() => {
+    let cancelled = false;
+    void checkScenarioHealth(scenarioUrl).then((ok) => {
+      if (!cancelled) setScenarioUp(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [scenarioUrl]);
+
   const { executeTool } = useToolExecutor({
+    scenarioBaseUrl: useCallback(() => scenarioUrlRef.current, []),
     defaultGridId: targetGridId || undefined,
     lockedGridId: locked ? resolvedGridId : undefined,
     // The window the wand was clicked in. dispatchTool (useToolExecutor.ts)
@@ -625,6 +649,23 @@ export function AiAssistantPanel({
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="Server URL"
           className={QUIET_CONTROL + ' flex-1 min-w-0'}
+        />
+        <Input
+          value={scenarioUrl}
+          onChange={(e) => setScenarioUrl(e.target.value)}
+          placeholder="Trading service"
+          title={
+            scenarioUp === null
+              ? 'Checking the fixed-income trading service…'
+              : scenarioUp
+                ? `Trading service reachable at ${scenarioUrl}`
+                : `Trading service not reachable at ${scenarioUrl} — scenario tools will say so`
+          }
+          className={cn(
+            QUIET_CONTROL,
+            'flex-1 min-w-0',
+            scenarioUp === false && 'text-muted-foreground',
+          )}
         />
         <Input
           value={apiKey}

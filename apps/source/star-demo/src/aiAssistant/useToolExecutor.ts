@@ -79,6 +79,8 @@ import { saveDashboard, listDashboards, deleteDashboard } from './dashboardTools
 import { simulateChange } from './simulateTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
+import { createScenarioTools, type ScenarioShockArgs } from './scenarioTools';
+import { defaultScenarioBaseUrl } from './scenarioClient';
 import type { DataHubClient } from './dataAccess';
 import { setColumnStyle, setColumnBehavior } from './columnStyleTools';
 import {
@@ -513,6 +515,13 @@ export interface ToolExecutionContext {
   /** Deployment app id — stamped onto registry entries created here. */
   appId: string;
   /**
+   * Base URL of the fixed-income trading service, which owns the book and the
+   * factor model the scenario tools run against. A function rather than a
+   * value so an edit in settings takes effect on the next call instead of at
+   * the next remount, the same way the model's own base URL behaves.
+   */
+  scenarioBaseUrl?: () => string;
+  /**
    * Grid the user has selected in the panel. Filled in when a call omits
    * `targetGridId`, so "hide the ISIN column" works without naming a grid.
    * Never overrides an explicit argument.
@@ -625,6 +634,11 @@ export async function resolveInstancePin(
   return { ok: true, args: normalised, pinnedInstanceId: owner.pinnedInstanceId ?? undefined };
 }
 
+/** Scenario tools bound to whatever service URL the context currently names. */
+function scenarioToolsFor(ctx: ToolExecutionContext) {
+  return createScenarioTools({ baseUrl: ctx.scenarioBaseUrl ?? defaultScenarioBaseUrl });
+}
+
 async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<string, unknown>): Promise<ToolExecutionResult> {
   switch (name) {
     case 'list_grids':
@@ -649,6 +663,18 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return diagnoseGrid(ctx.configManager, ctx.configStore, args);
     case 'list_mock_datasets':
       return listMockDatasets();
+    case 'describe_book':
+      return scenarioToolsFor(ctx).describeBook();
+    case 'run_scenarios':
+      return scenarioToolsFor(ctx).runScenarios(args as {
+        worlds?: number; horizonDays?: number; reportWorst?: number; shock?: ScenarioShockArgs;
+      });
+    case 'find_worst_case':
+      return scenarioToolsFor(ctx).findWorstCase(args as { horizonDays?: number; radius?: number });
+    case 'fork_market':
+      return scenarioToolsFor(ctx).forkMarket(args as {
+        name?: string; horizonDays?: number; worlds?: number; shock: ScenarioShockArgs;
+      });
     case 'list_provider_fields':
       return listProviderFields(ctx.configStore, args);
     case 'infer_provider_fields':

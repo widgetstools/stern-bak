@@ -11,6 +11,7 @@ import { DIRECTION_ICON_KEYS, FLASH_COLORS } from './ruleFeatures';
 import { FEATURE_GUIDE_IDS } from './featureGuides';
 import { COLUMN_TOOL_SCHEMAS } from './columnToolSchemas';
 import { REPORT_TOOL_SCHEMAS } from './reportToolSchemas';
+import { SCENARIO_TOOL_SCHEMAS } from './scenarioToolSchemas';
 import { TARGET_GRID_ID_PROPERTY, INSTANCE_ID_PROPERTY, type OpenAIToolSchema } from './toolSchemaShared';
 import { MODULE_COLLECTIONS } from './moduleCollections';
 import { FILTER_OPS, AGG_FNS, CHART_KINDS, SUMMARY_CHART_KINDS } from '@wellsfargo-starui/data';
@@ -1182,4 +1183,5 @@ export const TOOL_SCHEMAS: OpenAIToolSchema[] = [
   },
   ...COLUMN_TOOL_SCHEMAS,
   ...REPORT_TOOL_SCHEMAS,
+  ...SCENARIO_TOOL_SCHEMAS,
 ];
