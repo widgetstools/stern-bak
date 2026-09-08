@@ -1116,58 +1116,148 @@
             "singleton": false
           },
           {
+            "id": "fi-rates",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-rates",
             "displayName": "Rates",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-ig-credit",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-ig-credit",
             "displayName": "IG Credit",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-hy-credit",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-hy-credit",
             "displayName": "HY Credit",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-munis",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-munis",
             "displayName": "Munis",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-securitized",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-securitized",
             "displayName": "Securitized",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-cds",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-cds",
             "displayName": "Credit Derivatives",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-core-plus",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-core-plus",
             "displayName": "Core Plus Bond",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-tax-exempt",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-tax-exempt",
             "displayName": "Tax-Exempt Income",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           },
           {
+            "id": "fi-credit-opps",
+            "hostUrl": "/#/blotters/marketsgrid",
+            "iconId": "",
             "componentType": "grid",
+            "componentSubType": "fixed-income",
             "configId": "fi-credit-opps",
             "displayName": "Credit Opportunities",
-            "appId": "StarDemo"
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": true,
+            "asWindow": true
           }
         ]
       },
@@ -2757,7 +2847,7 @@
       "componentType": "data-provider",
       "componentSubType": "stomp",
       "isTemplate": false,
-      "displayText": "FI Trading Service \u2014 positions",
+      "displayText": "FI Trading Service — positions",
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T02:30:00.000Z",
@@ -4527,7 +4617,7 @@
             "historicalProviderId": null,
             "mode": "live"
           },
-          "caption": "Rates \u2014 Govt & Agency"
+          "caption": "Rates — Govt & Agency"
         }
       }
     },

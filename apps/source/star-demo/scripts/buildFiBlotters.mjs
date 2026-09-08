@@ -282,7 +282,7 @@ const registry = seed.appConfig.find((c) => String(c.configId).startsWith('compo
 // Idempotent: drop anything a previous run created, then rebuild.
 const ids = new Set(BLOTTERS.map((b) => b.id));
 seed.appConfig = seed.appConfig.filter((c) => !ids.has(c.configId));
-registry.payload.entries = registry.payload.entries.filter((e) => !ids.has(e.configId));
+registry.payload.entries = registry.payload.entries.filter((e) => !ids.has(e.configId) && !ids.has(e.id));
 
 for (const spec of BLOTTERS) {
   seed.appConfig.push({
@@ -295,8 +295,30 @@ for (const spec of BLOTTERS) {
       provider: { liveProviderId: PROVIDER_ID, historicalProviderId: null, mode: 'live' },
       caption: spec.caption } },
   });
+  // The FULL launchable shape. A registry entry carrying only componentType /
+  // configId / displayName sits in the store and can never be opened: the
+  // OpenFin launcher needs `id` and `hostUrl` to create a window at all.
+  //
+  // `singleton: true` is what makes the launcher reuse THIS config row —
+  // `instanceId = singletonId ?? mint(...)`, and singletonId is the configId —
+  // so the window opens on the seeded profile instead of cloning a fresh
+  // template row. It also means launching Rates twice focuses one window
+  // rather than opening a second, which is what a desk blotter should do.
   registry.payload.entries.push({
-    componentType: 'grid', configId: spec.id, displayName: spec.name, appId: 'StarDemo',
+    id: spec.id,
+    hostUrl: '/#/blotters/marketsgrid',
+    iconId: '',
+    componentType: 'grid',
+    componentSubType: 'fixed-income',
+    configId: spec.id,
+    displayName: spec.name,
+    createdAt: NOW,
+    type: 'internal',
+    usesHostConfig: true,
+    appId: 'StarDemo',
+    configServiceUrl: '',
+    singleton: true,
+    asWindow: true,
   });
 }
 
