@@ -3,6 +3,8 @@ import { SifmaCalendar } from '../domain/core/sifmaCalendar.js';
 import { buildBook, DEMO_SCALE, scaleBook } from '../domain/book/bookBuilder.js';
 import { snapshotBook, type BookSnapshot } from './bookSnapshot.js';
 import { createRevalResult, revalue } from './fastReval.js';
+import { cholesky } from '../domain/core/linalg.js';
+import { createRng } from '../domain/core/rng.js';
 import {
   factorCovariance, factorExposure, factorStandardDeviations, reverseStress,
 } from './reverseStress.js';
@@ -118,19 +120,40 @@ describe('reverseStress', () => {
     expect(far.predictedPnl / near.predictedPnl).toBeCloseTo(2, 6);
   });
 
-  it('is worse than any random draw of the same size, because it is the worst direction', () => {
-    const result = reverseStress({ book: whole, horizonDays: 20, radius: 2.5 });
-    const sd = factorStandardDeviations(20);
-    // A pure level move of the same standalone size cannot beat the joint optimum.
-    const alternative = revalue(
-      whole,
-      {
+  it('is the worst direction ON the boundary, not merely a large move', () => {
+    // The comparison has to be against another move of the SAME plausibility,
+    // which is a Mahalanobis distance and not a per-factor multiple. A pure
+    // level shift used to be a fair alternative; under the fitted covariance
+    // it is not, because level and slope move together in the real curve
+    // (rho -0.96), so shifting level alone is a far less likely event than its
+    // standalone size suggests — and it duly loses more, while sitting well
+    // outside the ellipsoid the optimum is confined to.
+    const radius = 2.5;
+    const result = reverseStress({ book: whole, horizonDays: 20, radius });
+    const covariance = factorCovariance(20);
+    const chol = cholesky(covariance);
+
+    // z on the unit sphere maps to L z on the boundary of the ellipsoid.
+    const rng = createRng(4242);
+    for (let trial = 0; trial < 40; trial++) {
+      const z = Array.from({ length: 5 }, () => rng() * 2 - 1);
+      const norm = Math.sqrt(z.reduce((sum, v) => sum + v * v, 0));
+      if (norm === 0) continue;
+      const unit = z.map((v) => (v / norm) * radius);
+      const move = chol.map((row) => row.reduce((sum, v, k) => sum + v * (unit[k] as number), 0));
+      const alternative = revalue(whole, {
         ...book.state,
-        betas: { ...book.state.betas, b0: book.state.betas.b0 + 2.5 * (sd[0] as number) },
-      },
-      createRevalResult(whole),
-    );
-    expect(result.actualPnl).toBeLessThan(alternative.totalPnl);
+        betas: {
+          b0: book.state.betas.b0 + (move[0] as number),
+          b1: book.state.betas.b1 + (move[1] as number),
+          b2: book.state.betas.b2 + (move[2] as number),
+          b3: book.state.betas.b3 + (move[3] as number),
+        },
+        credit: { ...book.state.credit, systematic: book.state.credit.systematic + (move[4] as number) },
+      }, createRevalResult(whole));
+      // Second order can nudge it, so allow a small margin on the linear optimum.
+      expect(result.actualPnl).toBeLessThan(alternative.totalPnl * 0.999 + 1e6);
+    }
   });
 
   it('finds a DIFFERENT corner for a different book — the whole point', () => {

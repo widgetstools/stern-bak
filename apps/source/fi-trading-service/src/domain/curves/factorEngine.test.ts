@@ -27,7 +27,10 @@ const SESSIONS = businessDaysInRange(calendar, 20260101, 20261231);
 describe('seeding', () => {
   it('starts at long-run levels', () => {
     const state = engine().seedState(20260102);
-    expect(state.betas.b0).toBeCloseTo(4.95, 10);
+    // The seed is the market's CURRENT curve (the last sixty sessions' fitted
+    // mean), not the long-run mean the factors revert toward — a book should
+    // open where the market is, then drift.
+    expect(state.betas.b0).toBeCloseTo(6.05, 10);
     expect(state.credit.systematic).toBe(0);
     expect(state.ratings).toHaveLength(ISSUERS);
     expect(state.mmdScale).toHaveLength(MMD_KNOTS.length);

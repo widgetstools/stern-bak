@@ -37,25 +37,57 @@ export const DAILY_DT = 1 / TRADING_DAYS_PER_YEAR;
  * curvature terms a few months. That ordering is what stops the curve from
  * holding an implausible shape for months at a time.
  */
+/**
+ * Fitted to the real Treasury curve, not chosen.
+ *
+ * `scripts/calibrateCurve.mjs` fits NSS betas to 2,669 daily H.15 curves
+ * (2016-2026, from `reference/curveHistory.json`) and estimates each factor's
+ * Ornstein-Uhlenbeck parameters by regressing on the EXACT transition rather
+ * than the Euler approximation, which biases kappa upward at daily frequency.
+ *
+ * Because the decay parameters are frozen, fitting beta is ordinary least
+ * squares; the fit reproduces the published curve to 9.4 bp RMS across eleven
+ * tenors.
+ *
+ * Re-run the script to check these; it prints and does not overwrite, because
+ * a calibration that silently rewrote the model would make every scenario
+ * number already reported irreproducible.
+ */
 export const BETA_SPECS: readonly OuSpec[] = [
-  { kappa: 0.15, theta: 4.95, sigma: 0.9 },
-  { kappa: 0.6, theta: -0.85, sigma: 1.1 },
-  { kappa: 1.2, theta: -1.6, sigma: 1.8 },
-  { kappa: 1.6, theta: 1.4, sigma: 2.2 },
+  { kappa: 1.31, theta: 4.13, sigma: 1.60 },
+  { kappa: 0.55, theta: -1.21, sigma: 1.72 },
+  { kappa: 1.40, theta: -1.77, sigma: 2.71 },
+  { kappa: 1.40, theta: -2.00, sigma: 4.84 },
 ];
 
+/**
+ * The measured correlation of the daily beta innovations.
+ *
+ * Level and slope come out at -0.96 because with the decay parameters frozen
+ * they are not separately identifiable from eleven tenors — but that near
+ * collinearity is exactly what makes the front end behave. A hand-set -0.25
+ * left the three-month correlating 0.77 with the ten-year where the real
+ * figure is 0.25, because nothing cancelled the level factor at the short end.
+ *
+ * It stays comfortably decomposable: the Cholesky's smallest diagonal is 0.28.
+ */
 export const BETA_CORRELATION: readonly (readonly number[])[] = [
-  [1.0, -0.25, -0.2, -0.1],
-  [-0.25, 1.0, 0.55, 0.15],
-  [-0.2, 0.55, 1.0, -0.35],
-  [-0.1, 0.15, -0.35, 1.0],
+  [1.0, -0.96, -0.035, -0.857],
+  [-0.96, 1.0, -0.066, 0.837],
+  [-0.035, -0.066, 1.0, 0.051],
+  [-0.857, 0.837, 0.051, 1.0],
 ];
 
 /** Cholesky factor, computed once. Throws at load if the matrix is invalid. */
 export const BETA_CHOLESKY: readonly (readonly number[])[] = cholesky(BETA_CORRELATION);
 
 /** Starting curve: a mildly dipped front end and a normal upward slope. */
-export const SEED_BETAS: NssParams = { b0: 4.95, b1: -0.85, b2: -1.6, b3: 1.4 };
+/**
+ * Where the model starts: the mean of the last sixty sessions' fitted betas,
+ * so the book opens on the curve the market is actually on rather than on one
+ * day's noise. At these values the ten-year prices near 4.9%.
+ */
+export const SEED_BETAS: NssParams = { b0: 6.05, b1: -2.19, b2: -1.60, b3: -2.60 };
 
 /** Daily volatility of each beta, in percent. */
 export function betaDailySigma(index: number): number {

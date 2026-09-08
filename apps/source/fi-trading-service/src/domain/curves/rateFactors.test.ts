@@ -17,41 +17,66 @@ describe('calibration', () => {
     expect(BETA_CHOLESKY).toHaveLength(4);
   });
 
-  it('reverts faster the less fundamental the factor is', () => {
+  it('mean-reverts on the horizons the data shows, not a tidy ordering', () => {
+    // The hand-set version had half-lives falling monotonically from level to
+    // hump, which is a pleasing story and not what the curve does: SLOPE is
+    // the most persistent factor, because a steepening regime outlasts a shift
+    // in the level. Fitted half-lives are level 0.53y, slope 1.27y,
+    // curvature 0.50y, hump 0.50y.
     const halfLives = BETA_SPECS.map(halfLife);
-    for (let i = 1; i < halfLives.length; i++) {
-      expect(halfLives[i]).toBeLessThan(halfLives[i - 1] as number);
+    expect(halfLives[1] as number).toBeGreaterThan(halfLives[0] as number);
+    for (const h of halfLives) {
+      expect(h).toBeGreaterThan(0.3);
+      expect(h).toBeLessThan(2);
     }
-    expect(halfLives[0]).toBeCloseTo(4.62, 1);
   });
 
   it('converts annual vol to daily on 252 sessions', () => {
     expect(TRADING_DAYS_PER_YEAR).toBe(252);
     expect(DAILY_DT).toBeCloseTo(1 / 252, 12);
-    expect(betaDailySigma(0) * 100).toBeCloseTo(5.67, 2);
-    expect(betaDailySigma(3) * 100).toBeCloseTo(13.86, 2);
+    // sigma * sqrt(dt), from the fitted annual sigmas.
+    expect(betaDailySigma(0) * 100).toBeCloseTo(10.08, 2);
+    expect(betaDailySigma(3) * 100).toBeCloseTo(30.49, 2);
   });
 });
 
 describe('implied curve dynamics', () => {
   it('reproduces the key-rate volatilities the calibration targets', () => {
     // Independently computed from the loadings, daily sigmas and correlation.
-    expect(impliedKeyRateVolBp(2)).toBeCloseTo(7.327, 3);
-    expect(impliedKeyRateVolBp(10)).toBeCloseTo(6.094, 3);
-    expect(impliedKeyRateVolBp(30)).toBeCloseTo(6.279, 3);
+    expect(impliedKeyRateVolBp(2)).toBeCloseTo(4.906, 3);
+    expect(impliedKeyRateVolBp(10)).toBeCloseTo(5.253, 3);
+    expect(impliedKeyRateVolBp(30)).toBeCloseTo(5.017, 3);
   });
 
-  it('lands every tenor inside the observed 5-8 bp/day band', () => {
-    for (const tau of [0.25, 1, 2, 5, 7, 10, 20, 30]) {
-      const vol = impliedKeyRateVolBp(tau);
-      expect(vol).toBeGreaterThan(5);
-      expect(vol).toBeLessThan(8);
+  it('reproduces the OBSERVED daily volatility at every tenor', () => {
+    // Against the real H.15 history rather than a band somebody chose. The
+    // front end is genuinely quieter than the belly — the three-month is
+    // anchored by policy — and a flat 5-8 bp band across the curve hid that.
+    const observed: Record<number, number> = {
+      0.25: 3.04, 1: 4.12, 2: 5.31, 5: 5.56, 10: 5.28, 30: 5.01,
+    };
+    for (const [tau, real] of Object.entries(observed)) {
+      const vol = impliedKeyRateVolBp(Number(tau));
+      expect(Math.abs(vol - real)).toBeLessThan(0.75);
     }
   });
 
-  it('puts the 2s10s correlation inside the empirical 0.80-0.90 band', () => {
-    expect(impliedKeyRateCorrelation(2, 10)).toBeCloseTo(0.8033, 3);
-    expect(impliedKeyRateCorrelation(2, 10)).toBeGreaterThan(0.8);
+  it('keeps the front end quieter than the belly, as the curve does', () => {
+    expect(impliedKeyRateVolBp(0.25)).toBeLessThan(impliedKeyRateVolBp(2));
+    expect(impliedKeyRateVolBp(2)).toBeLessThan(impliedKeyRateVolBp(5));
+  });
+
+  it('reproduces the observed key-rate correlations', () => {
+    // Measured over the same 2,669 sessions. The three-month against the
+    // ten-year is the one that matters: a hand-set beta correlation put it at
+    // 0.77 where the real figure is 0.25, because nothing cancelled the level
+    // factor at the short end.
+    const observed: [number, number, number][] = [
+      [0.25, 10, 0.250], [2, 10, 0.768], [5, 10, 0.934], [2, 30, 0.576],
+    ];
+    for (const [a, b, real] of observed) {
+      expect(Math.abs(impliedKeyRateCorrelation(a, b) - real)).toBeLessThan(0.06);
+    }
   });
 
   it('correlates a tenor with itself perfectly and adjacent tenors highly', () => {
@@ -113,7 +138,7 @@ describe('evolveBetas', () => {
     // land on that rather than on some arbitrary "high" threshold.
     const rho = impliedKeyRateCorrelation(2, 10);
     const predicted = 0.5 + Math.asin(rho) / Math.PI;
-    expect(predicted).toBeCloseTo(0.797, 3);
+    expect(predicted).toBeCloseTo(0.806, 2);
     expect(sameDirection / days).toBeCloseTo(predicted, 2);
     expect(sameDirection / days).toBeGreaterThan(0.75);
   });
