@@ -1,5 +1,6 @@
 
 import { describe, expect, it } from 'vitest';
+import { RATING_BUCKETS } from '../curves/ratingMigration.js';
 
 import { isValidCusip, isValidIsin } from '../core/identifiers.js';
 import { nssDiscountCurve } from '../curves/discount.js';
@@ -215,7 +216,14 @@ describe('terms and market shape', () => {
     for (const bond of bonds) {
       const issuer = byId.get(bond.issuerId);
       if (issuer === undefined) continue;
-      if (bond.seniority === 'Subordinated') expect(bond.ratingIndex).toBeGreaterThan(issuer.ratingIndex);
+      // Subordinated notches DOWN, except at the bottom of the scale: there is
+      // nothing below D, so a defaulted issuer's sub debt is also D.
+      if (bond.seniority === 'Subordinated') {
+        expect(bond.ratingIndex).toBeGreaterThanOrEqual(issuer.ratingIndex);
+        if (issuer.ratingIndex < RATING_BUCKETS.length - 1) {
+          expect(bond.ratingIndex).toBeGreaterThan(issuer.ratingIndex);
+        }
+      }
       if (bond.seniority === 'SeniorSecured' && issuer.ratingIndex > 0) {
         expect(bond.ratingIndex).toBeLessThan(issuer.ratingIndex);
       }

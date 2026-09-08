@@ -5,9 +5,10 @@ import { CREDIT_SECTORS } from '../curves/creditFactors.js';
 import { isValidCusip } from '../core/identifiers.js';
 import { RATING_BUCKETS } from '../curves/ratingMigration.js';
 import {
-  BASE_SPREAD_BY_RATING, buildIssuers, HY_ARCHETYPES, IG_ARCHETYPES, prefixProducesValidCusips,
+  BASE_SPREAD_BY_RATING, buildIssuers, prefixProducesValidCusips,
   ratingVector, sectorVector,
 } from './creditIssuers.js';
+import { issuerReference } from './issuerReference.js';
 
 const issuers = buildIssuers({ seed: 501 });
 
@@ -24,11 +25,35 @@ describe('the universe', () => {
     expect(small.filter((i) => i.isHighYield)).toHaveLength(8);
   });
 
-  it('always includes the archetype names, whatever the size', () => {
-    const names = new Set(buildIssuers({ seed: 501, investmentGrade: 90, highYield: 45 }).map((i) => i.name));
-    expect(names.has('JPMorgan Chase & Co')).toBe(true);
-    expect(names.has('Apple Inc')).toBe(true);
-    expect(names.has('Carnival Corp')).toBe(true);
+  it('names real legal entities, spelled as the register spells them', () => {
+    const built = buildIssuers({ seed: 501, investmentGrade: 90, highYield: 45 });
+    const register = new Set(issuerReference().issuers.map((i) => i.legalName));
+    const parents = built.filter((i) => i.parentIssuerId === null);
+    expect(parents.length).toBeGreaterThan(50);
+    // Every parent is a real entity under its registered name — no
+    // approximation, no title-casing, no invented suffix.
+    for (const issuer of parents) expect(register.has(issuer.name)).toBe(true);
+  });
+
+  it('spreads a small book across every sector rather than filling one', () => {
+    // The register is stored grouped by sector, so taking a prefix of it gave
+    // a 90-issuer book every bank and no technology at all.
+    const parents = buildIssuers({ seed: 501, investmentGrade: 90, highYield: 45 })
+      .filter((i) => i.parentIssuerId === null);
+    const sectors = new Set(parents.map((i) => i.sectorIndex));
+    expect(sectors.size).toBeGreaterThanOrEqual(12);
+  });
+
+  it('carries the real LEI on every parent issuer', () => {
+    const parents = buildIssuers({ seed: 7, investmentGrade: 40, highYield: 20 })
+      .filter((i) => i.parentIssuerId === null);
+    expect(parents.length).toBeGreaterThan(0);
+    for (const issuer of parents) {
+      // A real LEI is 20 alphanumerics. The synthetic ones were `LEI000123...`,
+      // which looked fine until something tried to join on it.
+      expect(issuer.lei).toMatch(/^[0-9A-Z]{20}$/);
+    }
+    expect(new Set(parents.map((i) => i.lei)).size).toBe(parents.length);
   });
 
   it('classifies every issuer into a real sector and rating bucket', () => {
@@ -156,8 +181,11 @@ describe('determinism', () => {
     );
   });
 
-  it('keeps the archetype tables non-trivial', () => {
-    expect(IG_ARCHETYPES.length).toBeGreaterThan(70);
-    expect(HY_ARCHETYPES.length).toBeGreaterThan(35);
+  it('draws on a register big enough to fill both books', () => {
+    const reference = issuerReference();
+    expect(reference.issuers.length).toBeGreaterThan(180);
+    expect(reference.issuers.filter((i) => !i.hy).length).toBeGreaterThan(150);
+    expect(reference.issuers.filter((i) => i.hy).length).toBeGreaterThan(25);
+    expect(reference.licence).toContain('CC0');
   });
 });

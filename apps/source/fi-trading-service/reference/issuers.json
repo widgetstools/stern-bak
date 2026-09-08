@@ -1,0 +1,2006 @@
+{
+ "source": "https://www.gleif.org/en/lei-data/gleif-api",
+ "licence": "GLEIF LEI data, CC0 1.0",
+ "fetchedAt": "2026-09-08T15:20:39.987Z",
+ "requested": 230,
+ "issuers": [
+  {
+   "sector": "Banking",
+   "hy": true,
+   "name": "Ally Financial Inc.",
+   "lei": "549300JBN1OSM8YNAI90",
+   "legalName": "ALLY FINANCIAL INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "American Express Company",
+   "hy": false,
+   "lei": "R4PP93JZOLY261QX3811",
+   "legalName": "AMERICAN EXPRESS COMPANY",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Bank of America Corporation",
+   "hy": false,
+   "lei": "9DJT3UXIJIZJI4WXO774",
+   "legalName": "BANK OF AMERICA CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Capital One Financial Corporation",
+   "hy": false,
+   "lei": "ZUE8T73ROZOF6FLBAR73",
+   "legalName": "CAPITAL ONE FINANCIAL CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Citigroup Inc.",
+   "hy": false,
+   "lei": "6SHGI4ZSSLCXXQSBB395",
+   "legalName": "CITIGROUP INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Citizens Financial Group",
+   "hy": false,
+   "lei": "2138004JDDA4ZQUPFW65",
+   "legalName": "CITIZENS FINANCIAL GROUP, INC.",
+   "jurisdiction": "US-RI",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Fifth Third Bancorp",
+   "hy": false,
+   "lei": "THRNG6BD57P9QWTQLG42",
+   "legalName": "FIFTH THIRD BANCORP",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Goldman Sachs Group",
+   "hy": false,
+   "lei": "549300RQT6K4WXZL3083",
+   "legalName": "GOLDMAN SACHS GROUP UK LIMITED",
+   "jurisdiction": "GB",
+   "country": "GB"
+  },
+  {
+   "sector": "Banking",
+   "name": "Huntington Bancshares",
+   "hy": false,
+   "lei": "549300XTVCVV9I7B5T19",
+   "legalName": "HUNTINGTON BANCSHARES INCORPORATED",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "JPMorgan Chase",
+   "hy": false,
+   "lei": "8I5DZWZKVSZI1NUHU748",
+   "legalName": "JPMORGAN CHASE & CO.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "KeyCorp",
+   "hy": false,
+   "lei": "RKPI3RZGV1V1FJTH5T61",
+   "legalName": "KEYCORP",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "M&T Bank Corporation",
+   "hy": false,
+   "lei": "549300WYXDDBYRASEG81",
+   "legalName": "M&T BANK CORPORATION",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Morgan Stanley",
+   "hy": false,
+   "lei": "IGJSJL3JD5P30I6NJZ34",
+   "legalName": "MORGAN STANLEY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "hy": true,
+   "name": "Navient Corporation",
+   "lei": "54930067J0ZNOEBRW338",
+   "legalName": "NAVIENT CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "hy": true,
+   "name": "OneMain Finance Corporation",
+   "lei": "5493008I795YYBFWFU90",
+   "legalName": "ONEMAIN FINANCE CORPORATION",
+   "jurisdiction": "US-IN",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Regions Financial Corporation",
+   "hy": false,
+   "lei": "CW05CS5KW59QTC0DG824",
+   "legalName": "REGIONS FINANCIAL CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "State Street Corporation",
+   "hy": false,
+   "lei": "549300ZFEEJ2IP5VME73",
+   "legalName": "STATE STREET CORPORATION",
+   "jurisdiction": "US-MA",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Bank of New York Mellon Corporation",
+   "hy": false,
+   "lei": "WFLLPEPC7FZXENRZV188",
+   "legalName": "THE BANK OF NEW YORK MELLON CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Charles Schwab Corporation",
+   "hy": false,
+   "lei": "549300VSGCJ7E698NM85",
+   "legalName": "THE CHARLES SCHWAB CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "PNC Financial Services Group",
+   "hy": false,
+   "lei": "CFGNEKW0P8842LEUIA51",
+   "legalName": "THE PNC FINANCIAL SERVICES GROUP, INC.",
+   "jurisdiction": "US-PA",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Truist Financial Corporation",
+   "hy": false,
+   "lei": "549300DRQQI75D2JP341",
+   "legalName": "Truist Financial Corporation",
+   "jurisdiction": "US-NC",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "U.S. Bancorp",
+   "hy": false,
+   "lei": "N1GZ7BBF3NP8GI976H15",
+   "legalName": "U.S. BANCORP",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Banking",
+   "name": "Wells Fargo & Company",
+   "hy": false,
+   "lei": "PBLD0EJDB5FWOLXP3B76",
+   "legalName": "WELLS FARGO & COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Air Products and Chemicals, Inc.",
+   "hy": false,
+   "lei": "7QEON6Y1RL5XR3R1W237",
+   "legalName": "AIR PRODUCTS AND CHEMICALS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "hy": true,
+   "name": "Alcoa Corporation",
+   "lei": "549300T12EZ1F6PWWU29",
+   "legalName": "ALCOA CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Celanese Corporation",
+   "hy": false,
+   "lei": "549300FHJQTDPPN41627",
+   "legalName": "CELANESE CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "hy": true,
+   "name": "Cleveland-Cliffs Inc.",
+   "lei": "549300TM2WLI2BJMDD86",
+   "legalName": "CLEVELAND-CLIFFS INC.",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Corteva, Inc.",
+   "hy": false,
+   "lei": "549300WZN9I2QKLS0O94",
+   "legalName": "CORTEVA, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Dow Inc.",
+   "hy": false,
+   "lei": "5493003S21INSLK2IP73",
+   "legalName": "DOW INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "DuPont de Nemours, Inc.",
+   "hy": false,
+   "lei": "5493004JF0SDFLM8GD76",
+   "legalName": "DUPONT DE NEMOURS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Ecolab Inc.",
+   "hy": false,
+   "lei": "82DYEISM090VG8LTLS26",
+   "legalName": "ECOLAB INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "hy": true,
+   "name": "Freeport-McMoRan Inc.",
+   "lei": "549300IRDTHJQ1PVET45",
+   "legalName": "FREEPORT-MCMORAN INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "International Paper Company",
+   "hy": false,
+   "lei": "824LMFJDH41EY779Q875",
+   "legalName": "INTERNATIONAL PAPER COMPANY",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "LyondellBasell Industries N.V.",
+   "hy": false,
+   "lei": "BN6WCCZ8OVP3ITUUVN49",
+   "legalName": "LyondellBasell Industries N.V.",
+   "jurisdiction": "NL",
+   "country": "GB"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Nucor Corporation",
+   "hy": false,
+   "lei": "549300GGJCRSI2TIEJ46",
+   "legalName": "NUCOR CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "PPG Industries, Inc.",
+   "hy": false,
+   "lei": "549300BKPEP01R3V6C59",
+   "legalName": "PPG INDUSTRIES, INC.",
+   "jurisdiction": "US-PA",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "name": "Sherwin-Williams Company",
+   "hy": false,
+   "lei": "Z15BMIOX8DDH0X2OBP21",
+   "legalName": "THE SHERWIN-WILLIAMS COMPANY",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Basic Industry",
+   "hy": true,
+   "name": "United States Steel Corporation",
+   "lei": "JNLUVFYJT1OZSIQ24U47",
+   "legalName": "UNITED STATES STEEL CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "3M Company",
+   "hy": false,
+   "lei": "LUZQVYP4VS22CLWDAR65",
+   "legalName": "3M COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "hy": true,
+   "name": "Bombardier Inc.",
+   "lei": "W7L3VLU8EHQY34Z36697",
+   "legalName": "BOMBARDIER INC.",
+   "jurisdiction": "CA-QC",
+   "country": "CA"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Caterpillar Inc.",
+   "hy": false,
+   "lei": "WRJR7GS4GTRECRRTVX92",
+   "legalName": "CATERPILLAR INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Cummins Inc.",
+   "hy": false,
+   "lei": "ZUNI8PYC725B6H8JU438",
+   "legalName": "CUMMINS INC.",
+   "jurisdiction": "US-IN",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Deere & Company",
+   "hy": false,
+   "lei": "PWFTNG3EI0Y73OXWDH08",
+   "legalName": "DEERE & COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Emerson Electric Co.",
+   "hy": false,
+   "lei": "FGLT0EWZSUIRRITFOA30",
+   "legalName": "EMERSON ELECTRIC CO.",
+   "jurisdiction": "US-MO",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "General Dynamics Corporation",
+   "hy": false,
+   "lei": "9C1X8XOOTYY2FNYTVH06",
+   "legalName": "GENERAL DYNAMICS CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "General Electric Company",
+   "hy": false,
+   "lei": "3C7474T6CDKPR9K6YT90",
+   "legalName": "GENERAL ELECTRIC COMPANY",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Honeywell International Inc.",
+   "hy": false,
+   "lei": "ISRPG12PN4EIEOEMW547",
+   "legalName": "HONEYWELL INTERNATIONAL INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "hy": true,
+   "name": "Howmet Aerospace Inc.",
+   "lei": "549300HO5WFZUT5N2T22",
+   "legalName": "HOWMET AEROSPACE INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Illinois Tool Works Inc.",
+   "hy": false,
+   "lei": "76NA4I14SZCFAYMNSV04",
+   "legalName": "ILLINOIS TOOL WORKS INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Lockheed Martin Corporation",
+   "hy": false,
+   "lei": "DPRBOZP0K5RM2YE8UU08",
+   "legalName": "LOCKHEED MARTIN CORPORATION",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Northrop Grumman Corporation",
+   "hy": false,
+   "lei": "RIMU48P07456QXSO0R61",
+   "legalName": "NORTHROP GRUMMAN CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Parker-Hannifin Corporation",
+   "hy": false,
+   "lei": "5493002CONDB4N2HKI23",
+   "legalName": "PARKER-HANNIFIN CORPORATION",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Republic Services, Inc.",
+   "hy": false,
+   "lei": "NKNQHM6BLECKVOQP7O46",
+   "legalName": "REPUBLIC SERVICES, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "RTX Corporation",
+   "hy": false,
+   "lei": "I07WOS4YJ0N7YRFE7309",
+   "legalName": "RTX CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Boeing Company",
+   "hy": false,
+   "lei": "RVHJWBXLJ1RFUBSY1F30",
+   "legalName": "THE BOEING COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Capital Goods",
+   "name": "Waste Management, Inc.",
+   "hy": false,
+   "lei": "549300YX8JIID70NFS41",
+   "legalName": "WASTE MANAGEMENT, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "Alphabet Inc.",
+   "hy": false,
+   "lei": "5493006MHB84DD0ZWV18",
+   "legalName": "ALPHABET INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "AT&T Inc.",
+   "hy": false,
+   "lei": "549300Z40J86GGSTL398",
+   "legalName": "AT&T INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "hy": true,
+   "name": "Charter Communications, Inc.",
+   "lei": "0J0XRGZE3PBRFEZ7MV65",
+   "legalName": "CHARTER COMMUNICATIONS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "Comcast Corporation",
+   "hy": false,
+   "lei": "51M0QTTNCGUN7KFCFZ59",
+   "legalName": "COMCAST CORPORATION",
+   "jurisdiction": "US-PA",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "hy": true,
+   "name": "DISH Network Corporation",
+   "lei": "529900U350CWHH15G169",
+   "legalName": "DISH NETWORK CORPORATION",
+   "jurisdiction": "US",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "hy": true,
+   "name": "Altice USA, Inc.",
+   "lei": "549300I1AHR8KMMFIS52",
+   "legalName": "INC Group Inc.",
+   "jurisdiction": "CA",
+   "country": "CA"
+  },
+  {
+   "sector": "Communications",
+   "hy": true,
+   "name": "Lumen Technologies, Inc.",
+   "lei": "8M3THTGWLTYZVE6BBY25",
+   "legalName": "LUMEN TECHNOLOGIES, INC.",
+   "jurisdiction": "US-LA",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "Meta Platforms, Inc.",
+   "hy": false,
+   "lei": "BQ4BKCS1HXDV9HN80Z93",
+   "legalName": "META PLATFORMS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "hy": false,
+   "name": "Netflix, Inc.",
+   "lei": "549300Y7VHGU0I7CE873",
+   "legalName": "NETFLIX, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "hy": true,
+   "name": "Paramount Global",
+   "lei": "5KYC8KF17ROCY24M3H09",
+   "legalName": "PARAMOUNT GLOBAL",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "T-Mobile US, Inc.",
+   "hy": false,
+   "lei": "549300QHIJYOHPACPG31",
+   "legalName": "T-MOBILE US, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "Walt Disney Company",
+   "hy": false,
+   "lei": "549300GZKULIZ0WOW665",
+   "legalName": "THE WALT DISNEY COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "name": "Verizon Communications Inc.",
+   "hy": false,
+   "lei": "2S72QS2UO2OESLG6Y829",
+   "legalName": "VERIZON COMMUNICATIONS INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Communications",
+   "hy": true,
+   "name": "Warner Bros. Discovery, Inc.",
+   "lei": "5493006ZCRFWKF6B1K26",
+   "legalName": "WARNER BROS. DISCOVERY, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Amazon.com, Inc.",
+   "hy": false,
+   "lei": "ZXTILKJKG63JELOEG630",
+   "legalName": "AMAZON.COM, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "Caesars Entertainment, Inc.",
+   "lei": "549300FA4CTCW903Y781",
+   "legalName": "CAESARS ENTERTAINMENT, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "Carnival Corporation",
+   "lei": "F1OF2ZSX47CR0BCWA982",
+   "legalName": "CARNIVAL CORPORATION LTD.",
+   "jurisdiction": "BM",
+   "country": "BM"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "Carvana Co.",
+   "lei": "5493003WEAK2PJ5WS063",
+   "legalName": "CARVANA CO.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Ford Motor Company",
+   "hy": false,
+   "lei": "20S05OYHG0MQM4VUIC57",
+   "legalName": "FORD MOTOR COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "General Motors Company",
+   "hy": false,
+   "lei": "54930070NSV60J38I987",
+   "legalName": "GENERAL MOTORS COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Genuine Parts Company",
+   "hy": false,
+   "lei": "549300D46DQVEU651W04",
+   "legalName": "GENUINE PARTS COMPANY",
+   "jurisdiction": "US-GA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Hilton Worldwide Holdings Inc.",
+   "hy": false,
+   "lei": "549300HVGPK36ICB0B89",
+   "legalName": "HILTON WORLDWIDE HOLDINGS INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Home Depot, Inc.",
+   "hy": false,
+   "lei": "549300FEMQDH6Q0NT330",
+   "legalName": "HOME DEPOT U.S.A., INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Lowe's Companies, Inc.",
+   "hy": false,
+   "lei": "WAFCR4OKGSC504WU3E95",
+   "legalName": "Lowe's Companies, Inc.",
+   "jurisdiction": "US-NC",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Marriott International, Inc.",
+   "hy": false,
+   "lei": "225YDZ14ZO8E1TXUSU86",
+   "legalName": "MARRIOTT INTERNATIONAL, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "McDonald's Corporation",
+   "hy": false,
+   "lei": "UE2136O97NLB5BYP9H04",
+   "legalName": "MCDONALD'S CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "MGM Resorts International",
+   "lei": "54930066VBP7DZEGGJ87",
+   "legalName": "MGM RESORTS INTERNATIONAL",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "NIKE, Inc.",
+   "hy": false,
+   "lei": "787RXPR0UX0O0XUXPZ81",
+   "legalName": "NIKE, INC.",
+   "jurisdiction": "US-OR",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "Rite Aid Corporation",
+   "lei": "529900W353T1JY1DKT44",
+   "legalName": "Rite Aid Corporation",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "Royal Caribbean Cruises Ltd.",
+   "lei": "K2NEH8QNVW44JIWK7Z55",
+   "legalName": "ROYAL CARIBBEAN CRUISES LTD.",
+   "jurisdiction": "LR",
+   "country": "LR"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Starbucks Corporation",
+   "hy": false,
+   "lei": "OQSJ1DU9TAOC51A47K68",
+   "legalName": "STARBUCKS CORPORATION",
+   "jurisdiction": "US-WA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "Target Corporation",
+   "hy": false,
+   "lei": "8WDDFXB5T1Z6J0XC1L66",
+   "legalName": "Target Corporation",
+   "jurisdiction": "US-MN",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "name": "TJX Companies, Inc.",
+   "hy": false,
+   "lei": "V167QI9I69W364E2DY52",
+   "legalName": "THE TJX COMPANIES, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Cyclical",
+   "hy": true,
+   "name": "Wynn Resorts, Limited",
+   "lei": "254900CEKKWIHTEAB172",
+   "legalName": "WYNN RESORTS, LIMITED",
+   "jurisdiction": "US-NV",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Abbott Laboratories",
+   "hy": false,
+   "lei": "549300I73MX1K4BJJV80",
+   "legalName": "ABBOTT LABORATORIES",
+   "jurisdiction": "RU",
+   "country": "RU"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "AbbVie Inc.",
+   "hy": false,
+   "lei": "FR5LCKFTG8054YNNRU85",
+   "legalName": "ABBVIE INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Altria Group, Inc.",
+   "hy": false,
+   "lei": "XSGZFLO9YTNO9VCQV219",
+   "legalName": "ALTRIA GROUP, INC.",
+   "jurisdiction": "US-VA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Amgen Inc.",
+   "hy": false,
+   "lei": "62QBXGPJ34PQ72Z12S66",
+   "legalName": "AMGEN INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "hy": true,
+   "name": "Bausch Health Companies Inc.",
+   "lei": "B3BS7ACMDUWISF18KY76",
+   "legalName": "BAUSCH HEALTH COMPANIES INC.",
+   "jurisdiction": "CA-BC",
+   "country": "CA"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Bristol-Myers Squibb Company",
+   "hy": false,
+   "lei": "HLYYNH7UQUORYSJQCN42",
+   "legalName": "BRISTOL-MYERS SQUIBB COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Colgate-Palmolive Company",
+   "hy": false,
+   "lei": "YMEGZFW4SBUSS5BQXF88",
+   "legalName": "COLGATE-PALMOLIVE COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "hy": true,
+   "name": "Community Health Systems, Inc.",
+   "lei": "549300BQWM4WENQ3YW73",
+   "legalName": "Community Health Systems, Inc.",
+   "jurisdiction": "US-MA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Costco Wholesale Corporation",
+   "hy": false,
+   "lei": "29DX7H14B9S6O3FD6V18",
+   "legalName": "COSTCO WHOLESALE CORPORATION",
+   "jurisdiction": "US-WA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "CVS Health Corporation",
+   "hy": false,
+   "lei": "549300EJG376EN5NQE29",
+   "legalName": "CVS HEALTH CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Eli Lilly and Company",
+   "hy": false,
+   "lei": "FRDRIPF3EKNDJ2CQJL29",
+   "legalName": "ELI LILLY AND COMPANY",
+   "jurisdiction": "US-IN",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "General Mills, Inc.",
+   "hy": false,
+   "lei": "2TGYMUGI08PO8X8L6150",
+   "legalName": "General Mills, Inc.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Gilead Sciences, Inc.",
+   "hy": false,
+   "lei": "549300WTZWR07K8MNV44",
+   "legalName": "GILEAD SCIENCES, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "hy": true,
+   "name": "HCA Healthcare, Inc.",
+   "lei": "529900PH4ZGUH2MNEU89",
+   "legalName": "HCA Healthcare Inc.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Johnson & Johnson",
+   "hy": false,
+   "lei": "549300G0CFPGEF6X2043",
+   "legalName": "Johnson & Johnson",
+   "jurisdiction": "US-NJ",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Kimberly-Clark Corporation",
+   "hy": false,
+   "lei": "MP3J6QPYPGN75NVW2S34",
+   "legalName": "KIMBERLY-CLARK CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Merck & Co., Inc.",
+   "hy": false,
+   "lei": "4YV9Y5M8S0BRK1RP0397",
+   "legalName": "MERCK & CO., INC.",
+   "jurisdiction": "US-NJ",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Mondelez International, Inc.",
+   "hy": false,
+   "lei": "549300DV9GIB88LZ5P30",
+   "legalName": "MONDELEZ INTERNATIONAL, INC.",
+   "jurisdiction": "US-VA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "PepsiCo, Inc.",
+   "hy": false,
+   "lei": "FJSUNZKFNQ5YPJ5OT455",
+   "legalName": "PepsiCo, Inc.",
+   "jurisdiction": "US-NC",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Pfizer Inc.",
+   "hy": false,
+   "lei": "765LHXWGK1KXCLTFYQ30",
+   "legalName": "PFIZER INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Philip Morris International Inc.",
+   "hy": false,
+   "lei": "HL3H1H2BGXWVG3BSWR90",
+   "legalName": "Philip Morris International Inc.",
+   "jurisdiction": "US-VA",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Stryker Corporation",
+   "hy": false,
+   "lei": "5493002F0SC4JTBU5137",
+   "legalName": "STRYKER CORPORATION",
+   "jurisdiction": "US-MI",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Sysco Corporation",
+   "hy": false,
+   "lei": "5RGWIFLMGH3YS7KWI652",
+   "legalName": "SYSCO CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "hy": true,
+   "name": "Tenet Healthcare Corporation",
+   "lei": "0W9AIBT6U6ADJ2I8HK17",
+   "legalName": "Tenet Healthcare Corporation",
+   "jurisdiction": "US-NV",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Cigna Group",
+   "hy": false,
+   "lei": "549300VIWYMSIGT1U456",
+   "legalName": "THE CIGNA GROUP",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Coca-Cola Company",
+   "hy": false,
+   "lei": "8945007BLGJ517U74C54",
+   "legalName": "The Coca-Cola Company",
+   "jurisdiction": "AU",
+   "country": "AU"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Kroger Co.",
+   "hy": false,
+   "lei": "6CPEOKI6OYJ13Q6O7870",
+   "legalName": "THE KROGER CO.",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Procter & Gamble Company",
+   "hy": false,
+   "lei": "2572IBTT8CCZW6AU4141",
+   "legalName": "THE PROCTER & GAMBLE COMPANY",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Thermo Fisher Scientific Inc.",
+   "hy": false,
+   "lei": "HCHV7422L5HDJZCRFL38",
+   "legalName": "THERMO FISHER SCIENTIFIC INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "UnitedHealth Group Incorporated",
+   "hy": false,
+   "lei": "549300GHBMY8T5GXDE41",
+   "legalName": "UNITEDHEALTH GROUP INCORPORATED",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Consumer Non-Cyclical",
+   "name": "Walmart Inc.",
+   "hy": false,
+   "lei": "Y87794H0US1R65VBXU25",
+   "legalName": "WALMART INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Ameren Corporation",
+   "hy": false,
+   "lei": "XRZQ5S7HYJFPHJ78L959",
+   "legalName": "AMEREN CORPORATION",
+   "jurisdiction": "US-MO",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "American Electric Power Company, Inc.",
+   "hy": false,
+   "lei": "1B4S6S7G0TW5EE83BO58",
+   "legalName": "AMERICAN ELECTRIC POWER COMPANY, INC.",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "CenterPoint Energy, Inc.",
+   "hy": false,
+   "lei": "21TPXMRRHFKOBHDC8J74",
+   "legalName": "CENTERPOINT ENERGY, INC.",
+   "jurisdiction": "US-TX",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "CMS Energy Corporation",
+   "hy": false,
+   "lei": "549300IA9XFBAGNIBW29",
+   "legalName": "CMS ENERGY CORPORATION",
+   "jurisdiction": "US-MI",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Consolidated Edison, Inc.",
+   "hy": false,
+   "lei": "54930033SBW53OO8T749",
+   "legalName": "CONSOLIDATED EDISON, INC.",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Dominion Energy, Inc.",
+   "hy": false,
+   "lei": "ILUL7B6Z54MRYCF6H308",
+   "legalName": "Dominion Energy, Inc.",
+   "jurisdiction": "US-VA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "DTE Energy Company",
+   "hy": false,
+   "lei": "549300IX8SD6XXD71I78",
+   "legalName": "DTE ENERGY COMPANY",
+   "jurisdiction": "US-MI",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Duke Energy Corporation",
+   "hy": false,
+   "lei": "I1BZKREC126H0VB1BL91",
+   "legalName": "DUKE ENERGY CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Edison International",
+   "hy": false,
+   "lei": "549300I7ROF15MAEVP56",
+   "legalName": "EDISON INTERNATIONAL",
+   "jurisdiction": "US-CA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Entergy Corporation",
+   "hy": false,
+   "lei": "4XM3TW50JULSLG8BNC79",
+   "legalName": "ENTERGY CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Eversource Energy",
+   "hy": false,
+   "lei": "SJ7XXD41SQU3ZNWUJ746",
+   "legalName": "EVERSOURCE ENERGY",
+   "jurisdiction": "US-MA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Exelon Corporation",
+   "hy": false,
+   "lei": "3SOUA6IRML7435B56G12",
+   "legalName": "EXELON CORPORATION",
+   "jurisdiction": "US-PA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "hy": true,
+   "name": "FirstEnergy Corp.",
+   "lei": "549300SVYJS666PQJH88",
+   "legalName": "FIRSTENERGY CORP.",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "NextEra Energy",
+   "hy": false,
+   "lei": "254900RHL9MEUS5NKX63",
+   "legalName": "NextEra Energy, Inc.",
+   "jurisdiction": "US-FL",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "PG&E Corporation",
+   "hy": false,
+   "lei": "8YQ2GSDWYZXO2EDN3511",
+   "legalName": "PG&E CORPORATION",
+   "jurisdiction": "US-CA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "PPL Corporation",
+   "hy": false,
+   "lei": "9N3UAJSNOUXFKQLF3V18",
+   "legalName": "PPL CORPORATION",
+   "jurisdiction": "US-PA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Public Service Enterprise Group Incorporated",
+   "hy": false,
+   "lei": "PUSS41EMO3E6XXNV3U28",
+   "legalName": "PUBLIC SERVICE ENTERPRISE GROUP INCORPORATED",
+   "jurisdiction": "US-NJ",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Sempra",
+   "hy": false,
+   "lei": "PBBKGKLRK5S5C0Y4T545",
+   "legalName": "SEMPRA",
+   "jurisdiction": "US-CA",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Southern Company",
+   "hy": false,
+   "lei": "2549001GD8PY1N3TK213",
+   "legalName": "Southern Pecan Company",
+   "jurisdiction": "KY",
+   "country": "KY"
+  },
+  {
+   "sector": "Electric",
+   "hy": true,
+   "name": "Vistra Corp.",
+   "lei": "549300KP43CPCUJOOG15",
+   "legalName": "VISTRA CORP.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "WEC Energy Group, Inc.",
+   "hy": false,
+   "lei": "549300IGLYTZUK3PVP70",
+   "legalName": "WEC ENERGY GROUP INC.",
+   "jurisdiction": "US-WI",
+   "country": "US"
+  },
+  {
+   "sector": "Electric",
+   "name": "Xcel Energy Inc.",
+   "hy": false,
+   "lei": "LGJNMI9GH8XIDG5RCM61",
+   "legalName": "Xcel Energy Inc.",
+   "jurisdiction": "US-MN",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "hy": true,
+   "name": "Antero Resources Corporation",
+   "lei": "APVBKPOULHUX7YZLKU17",
+   "legalName": "ANTERO RESOURCES CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Baker Hughes Company",
+   "hy": false,
+   "lei": "GH1MB7KUVSN6JDATX935",
+   "legalName": "BAKER HUGHES EMEA UNLIMITED COMPANY",
+   "jurisdiction": "IE",
+   "country": "IE"
+  },
+  {
+   "sector": "Energy",
+   "name": "Chevron Corporation",
+   "hy": false,
+   "lei": "549300FRUAGV0OSIMA92",
+   "legalName": "CHEVRON TRANSPORT CORPORATION LTD.",
+   "jurisdiction": "BM",
+   "country": "BM"
+  },
+  {
+   "sector": "Energy",
+   "name": "ConocoPhillips",
+   "hy": false,
+   "lei": "WPTL2Z3FIYTHSP5V2253",
+   "legalName": "CONOCOPHILLIPS",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Devon Energy Corporation",
+   "hy": false,
+   "lei": "54930042348RKR3ZPN35",
+   "legalName": "DEVON ENERGY CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "EOG Resources, Inc.",
+   "hy": false,
+   "lei": "XWTZDRYZPBUHIQBKDB46",
+   "legalName": "EOG RESOURCES, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Exxon Mobil Corporation",
+   "hy": false,
+   "lei": "J3WHBG0MTS7O8ZVMDC91",
+   "legalName": "EXXON MOBIL CORPORATION",
+   "jurisdiction": "US-NJ",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Halliburton Company",
+   "hy": false,
+   "lei": "ENYF8GB5SMQZ25S06U51",
+   "legalName": "HALLIBURTON COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Hess Corporation",
+   "hy": false,
+   "lei": "UASVRYNXNK17ULIGK870",
+   "legalName": "HESS CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Marathon Petroleum Corporation",
+   "hy": false,
+   "lei": "3BNYRYQHD39K4LCKQF12",
+   "legalName": "MARATHON PETROLEUM CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "hy": true,
+   "name": "Murphy Oil Corporation",
+   "lei": "QBKYQD0ODE7DC7PDIN91",
+   "legalName": "MURPHY OIL CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Occidental Petroleum Corporation",
+   "hy": false,
+   "lei": "IM7X0T3ECJW4C1T7ON55",
+   "legalName": "OCCIDENTAL PETROLEUM CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Phillips 66",
+   "hy": false,
+   "lei": "5493005JBO5YSIGK1814",
+   "legalName": "PHILLIPS 66",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Pioneer Natural Resources Company",
+   "hy": false,
+   "lei": "FY8JBF7CCL2VE4F1B628",
+   "legalName": "PIONEER NATURAL RESOURCES COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "hy": true,
+   "name": "Range Resources Corporation",
+   "lei": "H3Y3WLYCX0BTO1TRW162",
+   "legalName": "RANGE RESOURCES CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Energy",
+   "name": "Schlumberger Limited",
+   "hy": false,
+   "lei": "529900BMU6KOOV8HR333",
+   "legalName": "Schlumberger (Nigeria) Limited",
+   "jurisdiction": "NG",
+   "country": "NG"
+  },
+  {
+   "sector": "Energy",
+   "name": "Valero Energy Corporation",
+   "hy": false,
+   "lei": "549300XTO5VR8SKV1V74",
+   "legalName": "VALERO ENERGY CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Aflac Incorporated",
+   "hy": false,
+   "lei": "549300N0B7DOGLXWPP39",
+   "legalName": "AFLAC INCORPORATED",
+   "jurisdiction": "US-GA",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Berkshire Hathaway Inc.",
+   "hy": false,
+   "lei": "5493000C01ZX7D35SD85",
+   "legalName": "BERKSHIRE HATHAWAY INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Chubb Limited",
+   "hy": false,
+   "lei": "549300LWJB1J26JJ3O72",
+   "legalName": "CHUBB LIMITED",
+   "jurisdiction": "GB",
+   "country": "GB"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Lincoln National Corporation",
+   "hy": false,
+   "lei": "EFQMQROEDSNBRIP7LE47",
+   "legalName": "LINCOLN NATIONAL CORPORATION",
+   "jurisdiction": "US-IN",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "MetLife, Inc.",
+   "hy": false,
+   "lei": "C4BXATY60WC6XEOZDX54",
+   "legalName": "METLIFE, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Prudential Financial, Inc.",
+   "hy": false,
+   "lei": "5PRBRS5FEH7NREC8OR45",
+   "legalName": "PRUDENTIAL FINANCIAL, INC.",
+   "jurisdiction": "US-NJ",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Allstate Corporation",
+   "hy": false,
+   "lei": "OBT0W1ED8G0NWVOLOJ77",
+   "legalName": "THE ALLSTATE CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Progressive Corporation",
+   "hy": false,
+   "lei": "529900TACNVLY9DCR586",
+   "legalName": "The Progressive Corporation",
+   "jurisdiction": "US-OH",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Hartford Financial Services Group",
+   "hy": false,
+   "lei": "549300JHXE3OOMLWCM13",
+   "legalName": "THE PRUDENTIAL INSURANCE COMPANY OF AMERICA ON BEHALF OF ITS HARTFORD FINANCIAL SERVICES GROUP, INC SEPARATE ACCOUNT",
+   "jurisdiction": "US-NJ",
+   "country": "US"
+  },
+  {
+   "sector": "Insurance",
+   "name": "Travelers Companies",
+   "hy": false,
+   "lei": "549300Y650407RU8B149",
+   "legalName": "The Travelers Companies, Inc.",
+   "jurisdiction": "US-MN",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "Cheniere Energy, Inc.",
+   "hy": false,
+   "lei": "MIHC87W9WTYSYZWV1J40",
+   "legalName": "CHENIERE ENERGY, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "Energy Transfer LP",
+   "hy": false,
+   "lei": "MTLVN9N7JE8MIBIJ1H73",
+   "legalName": "ENERGY TRANSFER LP",
+   "jurisdiction": "US-TX",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "Enterprise Products Partners L.P.",
+   "hy": false,
+   "lei": "K4CDIF4M54DJZ6TB4Q48",
+   "legalName": "ENTERPRISE PRODUCTS PARTNERS L.P.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "Kinder Morgan, Inc.",
+   "hy": false,
+   "lei": "549300WR7IX8XE0TBO16",
+   "legalName": "KINDER MORGAN, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "MPLX LP",
+   "hy": false,
+   "lei": "5493000CZJ19CK4P3G36",
+   "legalName": "MPLX LP",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "ONEOK, Inc.",
+   "hy": false,
+   "lei": "2T3D6M0JSY48PSZI1Q41",
+   "legalName": "ONEOK, INC.",
+   "jurisdiction": "US-OK",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "TC PipeLines, LP",
+   "hy": false,
+   "lei": "6HL0C5LCIE4TN8UZHL06",
+   "legalName": "TC PIPELINES, LP",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Natural Gas",
+   "name": "Williams Companies, Inc.",
+   "hy": false,
+   "lei": "D71FAKCBLFS2O0RBPG08",
+   "legalName": "THE WILLIAMS COMPANIES, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "American Tower Corporation",
+   "hy": false,
+   "lei": "5493006ORUSIL88JOE18",
+   "legalName": "AMERICAN TOWER CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "AvalonBay Communities, Inc.",
+   "hy": false,
+   "lei": "K9G90K85RBWD2LAGQX17",
+   "legalName": "Avalonbay Communities, Inc.",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Boston Properties, Inc.",
+   "hy": false,
+   "lei": "549300EPD0ORP7O88F04",
+   "legalName": "Boston Properties, LLC",
+   "jurisdiction": "US-MN",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Digital Realty Trust, Inc.",
+   "hy": false,
+   "lei": "549300HKCZ31D08NEI41",
+   "legalName": "DIGITAL REALTY TRUST, INC.",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Equinix, Inc.",
+   "hy": false,
+   "lei": "549300EVUN2BTLJ3GT74",
+   "legalName": "EQUINIX, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Essex Property Trust, Inc.",
+   "hy": false,
+   "lei": "549300TR2H2VEFX0NC60",
+   "legalName": "ESSEX PROPERTY TRUST, INC.",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Kimco Realty Corporation",
+   "hy": false,
+   "lei": "254900ARY41P4V1JL861",
+   "legalName": "KIMCO REALTY CORPORATION",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Mid-America Apartment Communities, Inc.",
+   "hy": false,
+   "lei": "549300FQZKFR5YNSHZ21",
+   "legalName": "MID-AMERICA APARTMENT COMMUNITIES, INC.",
+   "jurisdiction": "US-TN",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Equity Residential",
+   "hy": false,
+   "lei": "254900WWWJTDEI331R73",
+   "legalName": "POINT EQUITY RESIDENTIAL LENDING",
+   "jurisdiction": "US-CA",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Prologis, Inc.",
+   "hy": false,
+   "lei": "529900DFH19P073LZ636",
+   "legalName": "PROLOGIS, INC.",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Public Storage",
+   "hy": false,
+   "lei": "254900GLQZAD4N7N5Q19",
+   "legalName": "Public Storage",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Realty Income Corporation",
+   "hy": false,
+   "lei": "549300CUWDAUZSH43859",
+   "legalName": "REALTY INCOME CORPORATION",
+   "jurisdiction": "US-MD",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Regency Centers Corporation",
+   "hy": false,
+   "lei": "529900053A7X7FJ97S58",
+   "legalName": "REGENCY CENTERS CORPORATION",
+   "jurisdiction": "US-FL",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Simon Property Group, Inc.",
+   "hy": false,
+   "lei": "529900GQL5X8H7AO3T64",
+   "legalName": "SIMON PROPERTY GROUP, INC.",
+   "jurisdiction": "US-IN",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Ventas, Inc.",
+   "hy": false,
+   "lei": "ORQTRC074CWLT3DKHT41",
+   "legalName": "VENTAS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "REITs",
+   "name": "Welltower Inc.",
+   "hy": false,
+   "lei": "254900F33BIAR82QTA19",
+   "legalName": "WELLTOWER INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Adobe Inc.",
+   "hy": false,
+   "lei": "FU4LY2G4933NH2E1CP29",
+   "legalName": "ADOBE INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Analog Devices, Inc.",
+   "hy": false,
+   "lei": "GYVOE5EZ4GDAVTU4CQ61",
+   "legalName": "ANALOG DEVICES, INC.",
+   "jurisdiction": "US-MA",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Apple Inc.",
+   "hy": false,
+   "lei": "HWUPKR0MPOU8FGXBT394",
+   "legalName": "Apple Inc.",
+   "jurisdiction": "US-CA",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Applied Materials, Inc.",
+   "hy": false,
+   "lei": "41BNNE1AFPNAZELZ6K07",
+   "legalName": "APPLIED MATERIALS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Broadcom Inc.",
+   "hy": false,
+   "lei": "549300WV6GIDOZJTV909",
+   "legalName": "BROADCOM INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Cisco Systems, Inc.",
+   "hy": false,
+   "lei": "549300LKFJ962MZ46593",
+   "legalName": "CISCO SYSTEMS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Dell Technologies Inc.",
+   "hy": false,
+   "lei": "549300TJB5YBRUPOG437",
+   "legalName": "Dell Technologies Inc.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Hewlett Packard Enterprise Company",
+   "hy": false,
+   "lei": "549300BX44RGX6ANDV88",
+   "legalName": "HEWLETT PACKARD ENTERPRISE COMPANY",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "HP Inc.",
+   "hy": false,
+   "lei": "WHKXQACZ14C5XRO8LW03",
+   "legalName": "HP INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Intel Corporation",
+   "hy": false,
+   "lei": "KNX4USFCNGPY45LOCE31",
+   "legalName": "INTEL CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "International Business Machines Corporation",
+   "hy": false,
+   "lei": "VGRQXHF3J8VDLUA7XE92",
+   "legalName": "INTERNATIONAL BUSINESS MACHINES CORPORATION",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Micron Technology, Inc.",
+   "hy": false,
+   "lei": "B3DXGBC8GAIYWI2Z0172",
+   "legalName": "MICRON TECHNOLOGY, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Microsoft Corporation",
+   "hy": false,
+   "lei": "INR2EJN1ERAN0W5ZP974",
+   "legalName": "MICROSOFT CORPORATION",
+   "jurisdiction": "US-WA",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "NVIDIA Corporation",
+   "hy": false,
+   "lei": "549300S4KLFTLO7GSQ80",
+   "legalName": "NVIDIA CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Oracle Corporation",
+   "hy": false,
+   "lei": "1Z4GXXU7ZHVWFCD8TV52",
+   "legalName": "ORACLE CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Salesforce, Inc.",
+   "hy": false,
+   "lei": "RCGZFPDMRW58VJ54VR07",
+   "legalName": "SALESFORCE, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "name": "Texas Instruments Incorporated",
+   "hy": false,
+   "lei": "WDJNR2L6D8RWOEB8T652",
+   "legalName": "TEXAS INSTRUMENTS INCORPORATED",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Technology",
+   "hy": true,
+   "name": "Xerox Holdings Corporation",
+   "lei": "5493000Y33XDVO2CXC18",
+   "legalName": "XEROX HOLDINGS CORPORATION",
+   "jurisdiction": "US-NY",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "hy": true,
+   "name": "American Airlines Group Inc.",
+   "lei": "IWUQB36BXD6OWD6X4T14",
+   "legalName": "American Airlines Group Inc.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "CSX Corporation",
+   "hy": false,
+   "lei": "549300JVQR4N1MMP3Q88",
+   "legalName": "CSX Corporation",
+   "jurisdiction": "US-VA",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "Delta Air Lines, Inc.",
+   "hy": false,
+   "lei": "Q2CCMS6R0AS67HJMBN42",
+   "legalName": "Delta Air Lines, Inc.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "FedEx Corporation",
+   "hy": false,
+   "lei": "549300E707U7WNPZN687",
+   "legalName": "FEDEX CORPORATION",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "Norfolk Southern Corporation",
+   "hy": false,
+   "lei": "54930036C8MWP850MI84",
+   "legalName": "Norfolk Southern Corporation",
+   "jurisdiction": "US-VA",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "Ryder System, Inc.",
+   "hy": false,
+   "lei": "ZXJ6Y2OSPZXIVGRILD15",
+   "legalName": "RYDER SYSTEM, INC.",
+   "jurisdiction": "US-FL",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "Southwest Airlines Co.",
+   "hy": false,
+   "lei": "UDTZ87G0STFETI6HGH41",
+   "legalName": "SOUTHWEST AIRLINES CO.",
+   "jurisdiction": "US-TX",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "Union Pacific Corporation",
+   "hy": false,
+   "lei": "549300LMMRSZZCZ8CL11",
+   "legalName": "UNION PACIFIC CORPORATION",
+   "jurisdiction": "US-UT",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "hy": true,
+   "name": "United Airlines Holdings, Inc.",
+   "lei": "98450079DA0B78DD6764",
+   "legalName": "UNITED AIRLINES HOLDINGS, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  },
+  {
+   "sector": "Transportation",
+   "name": "United Parcel Service, Inc.",
+   "hy": false,
+   "lei": "D01LMJZU09ULLNCY6Z23",
+   "legalName": "UNITED PARCEL SERVICE, INC.",
+   "jurisdiction": "US-DE",
+   "country": "US"
+  }
+ ]
+}
