@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { DatasetRegistry } from '../datasets/registry.js';
-import { SyntheticBook } from '../datasets/SyntheticBook.js';
+import { StubRowSource } from '../datasets/StubRowSource.js';
 import { FakeStompClient } from '../test/support/FakeStompClient.js';
 import { FakeWebSocket } from '../test/support/FakeWebSocket.js';
 import { LEGACY_SNAPSHOT_END_TOKEN, SNAPSHOT_END_TOKEN } from './contract.js';
@@ -17,7 +17,7 @@ interface Timer {
 function setup(rowCount = 1250) {
   const socket = new FakeWebSocket();
   const client = new FakeStompClient(socket);
-  const book = new SyntheticBook({ rowCount, seed: 7 });
+  const book = new StubRowSource({ rowCount });
   const registry = new DatasetRegistry();
   registry.register(book);
 

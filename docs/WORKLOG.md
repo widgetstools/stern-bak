@@ -757,7 +757,7 @@ deadline error ever surfaces in the wild (`"catalog read did not settle"`),
 capture the worker console via chrome://inspect at that moment — the
 backstop now makes the event visible instead of silent.
 
-## 15. `fi-trading-service` is in progress — phase 1 of 14 landed
+## 15. `fi-trading-service` is in progress — the live book now serves the wire
 
 `apps/source/fi-trading-service/` is a new standalone Node service that will
 serve a realistic fixed-income dataset: 70,000 positions across SPG / credit /
@@ -771,6 +771,53 @@ not a trading dataset: every row random-walks independently, no analytic derives
 from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
+
+**Landed (the book):** `domain/book` — the layer that turns the instrument and
+analytics work into an actual position book, and `LiveBook`, which serves it
+over the wire in place of the phase-1 `SyntheticBook` stand-in (deleted; its
+sentinel guard moved to `datasets/sentinel.ts` and the wire tests now drive a
+`StubRowSource`, because protocol tests should not depend on the factor model).
+
+A demo build is 2,905 securities and 1,758 positions across ten asset classes
+in ~520 ms, each row carrying 88 fields — $22.8bn of market value with an
+implied portfolio duration of 6.7 years and 61 negatively convex positions.
+`BOOK_SCALE` replaces `SNAPSHOT_ROWS`, which no longer controlled anything once
+the book's size came from its own scale rather than a row count.
+
+Four things in it are worth knowing:
+
+- **Tax lots are the only source of quantity and cost.** `amortizedCost` is the
+  bond repriced at the yield it was BOUGHT at, so constant-yield amortisation
+  (IRC §171/§1272) falls out rather than being a separate schedule, and a
+  premium bought four years ago shows a real unrealised loss today. FIFO/LIFO/
+  HICO relief all book P&L against the amortised basis, not the price paid.
+- **The fast path is exact to the convexity term.** Bumping `beta0` shifts the
+  curve in parallel, and every position's implied price move reproduces its own
+  effective duration with a residual of exactly `-C.dy/2` — verified across the
+  whole book, including the MBS whose residual comes back POSITIVE because its
+  convexity is negative. It runs at 230 us per factor-day for 1,758 positions,
+  which extrapolates to 9.2 ms/day at the 70,000-position target.
+- **Revaluation is a pure function of the factor state, not of the path.**
+  Chaining `price *= (1 + r)` per tick is not reversible: a move out and back
+  leaves a residual, and a scenario's answer would then depend on how many days
+  it stepped through. Every revaluation measures from the build state instead.
+- **Swaps mark to their upfront.** A CDS's market value is what has accrued away
+  from par, not its notional; treating 102 as "102% of notional held" put the
+  entire CDS notional into the firm's market value ($1.2bn against a true
+  $29mm). Single-name CDS are seasoned across 17 distinct IMM maturities and
+  share `issuerId` with the corporate bonds, so the bond-CDS basis is a join.
+
+Bugs the tests caught, all in production code: the convexity divisor guarded on
+`beta0 > 0.05` rather than its magnitude, so deep-premium mortgages and bought
+protection — the negative-duration positions — had their convexity scaled by
+D-squared a second time; the key-rate columns were dollars per 1% while `dv01`
+was dollars per basis point, a 100x inconsistency that would have wrecked the
+hedge solver (they now sum to a new `effectiveDv01` column); `averageHoldingDays`
+subtracted two YYYYMMDD integers; `Date.now()` in the row made two builds of the
+same seed differ; lots could open before their security was issued (a four-week
+bill showing a purchase from four years ago) or in a bond that had not settled
+yet (muni deals price weeks before delivery — they stay in the master and out of
+inventory).
 
 **Landed (phase 8):** CDS — the ISDA flat-hazard model with ACT/360 quarterly
 accrual, SNAC upfront/points conversion in both directions, CS01, jump-to-

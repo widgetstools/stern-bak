@@ -1,0 +1,259 @@
+/**
+ * A position, and the row a blotter shows for it.
+ *
+ * The position is DERIVED — quantity is the sum of its signed lot faces,
+ * average cost is the face-weighted amortised basis, unrealised P&L is the
+ * difference between the two at today's price. Nothing here is stored and
+ * later contradicted by the lots underneath it.
+ *
+ * The row is wide because a fixed-income blotter is wide, but every field on
+ * it is computed rather than sampled, so the risk columns agree with the price
+ * columns and DV01 predicts what a basis point actually does.
+ */
+
+import { diffDays, formatIso, type DateInt } from '../core/dateInt.js';
+import { formatPrice } from '../core/tickPrice.js';
+import { RATING_BUCKETS } from '../curves/ratingMigration.js';
+import { CREDIT_SECTORS } from '../curves/creditFactors.js';
+import type { Security } from '../instruments/types.js';
+import { rollupLots, type Lot } from './lots.js';
+import { dv01 } from '../analytics/riskAnalytic.js';
+import type { PricedSecurity } from './valuation.js';
+
+export interface DeskAssignment {
+  desk: string;
+  book: string;
+  trader: string;
+  portfolio: string;
+  strategy: string;
+  accountId: string;
+}
+
+export interface PositionInputs {
+  positionId: string;
+  security: Security;
+  priced: PricedSecurity;
+  lots: readonly Lot[];
+  desk: DeskAssignment;
+  asOf: DateInt;
+  /** Amortised basis for a lot, per 100. */
+  basisAt: (lot: Lot) => number;
+  /** Yesterday's mid, for the daily change columns. */
+  previousMid?: number;
+  /** Current factor for an amortising security. Steps monthly. */
+  poolFactor?: number;
+  /**
+   * Feed timestamp. Defaults to wall clock, which is right for a live quote
+   * and wrong for a build: a book has to be reproducible from its seed, and a
+   * `Date.now()` baked into the snapshot makes two identical builds differ.
+   */
+  timestamp?: number;
+}
+
+export interface PositionRow extends Record<string, unknown> {
+  positionId: string;
+  securityId: number;
+  cusip: string;
+  midPrice: number;
+  marketValue: number;
+  lastUpdate: number;
+  effectiveDv01: number;
+}
+
+const KRD_LABELS = ['krd3M', 'krd6M', 'krd1Y', 'krd2Y', 'krd3Y', 'krd5Y', 'krd7Y', 'krd10Y', 'krd20Y', 'krd30Y'] as const;
+
+function round(value: number, dp: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const factor = 10 ** dp;
+  return Math.round(value * factor) / factor;
+}
+
+/** Half the bid-ask, in points, by liquidity tier and asset class. */
+export function halfSpreadPoints(security: Security, duration: number): number {
+  const byTier: Record<string, number> = { T1: 0.25, T2: 1.5, T3: 4, T4: 10, T5: 28 };
+  const yieldBp = byTier[security.liquidityTier] ?? 8;
+  const classMultiple =
+    security.assetClass === 'CorpHY' ? 2.2
+    : security.assetClass === 'Muni' ? 1.6
+    : security.assetClass === 'CLO' ? 2.6
+    : security.assetClass === 'CMBS' || security.assetClass === 'ABS' ? 1.8
+    : 1;
+  // Convert a yield half-spread into price using duration.
+  return (yieldBp / 10000) * classMultiple * Math.max(0.25, duration) * 100;
+}
+
+/**
+ * Build the blotter row.
+ *
+ * Ordered the way a desk reads one: identity, terms, credit, pricing, yields
+ * and spreads, risk, then the position and its P&L.
+ */
+/** Dollars per basis point per 100 of face, for a duration and a dirty price. */
+function dv01Of(duration: number, dirtyPrice: number): number {
+  return dv01(duration, dirtyPrice, 100);
+}
+
+export function buildPositionRow(inputs: PositionInputs): PositionRow {
+  const { security, priced, lots, desk, asOf } = inputs;
+  const rollup = rollupLots(lots, asOf, inputs.basisAt);
+
+  const factor = inputs.poolFactor ?? 1;
+  const currentFace = rollup.quantityFace * factor;
+  const mid = priced.cleanPrice;
+  const half = halfSpreadPoints(security, priced.modifiedDuration);
+  const previousMid = inputs.previousMid ?? mid;
+
+  // A swap's market value is its mark, not its notional. Points upfront are
+  // quoted against 100, so the value of the position is what has accrued away
+  // from par — counting 102 as "102% of notional held" would put the whole
+  // notional of the CDS book into the firm's market value.
+  const isSwap = security.assetClass === 'CDS';
+  const marketValue = isSwap
+    ? ((mid - 100) / 100) * currentFace
+    : (mid / 100) * currentFace;
+  const accrued = (priced.accruedInterest / 100) * currentFace;
+  const costBasis = isSwap
+    ? ((rollup.averageCost - 100) / 100) * currentFace
+    : (rollup.averageCost / 100) * currentFace;
+  const unrealized = marketValue - costBasis;
+  const dailyPnl = ((mid - previousMid) / 100) * currentFace;
+
+  const row: PositionRow = {
+    // identity
+    positionId: inputs.positionId,
+    securityId: security.securityId,
+    cusip: security.cusip,
+    isin: security.isin,
+    description: security.description,
+    issuerId: security.issuerId,
+    issuerName: security.issuerName,
+    sector: CREDIT_SECTORS[security.sectorIndex] ?? 'Sovereign',
+    assetClass: security.assetClass,
+    securityType: security.securityType,
+    seniority: security.seniority,
+    currency: security.currency,
+
+    // terms
+    couponRate: security.couponRate,
+    couponType: security.couponType,
+    issueDate: formatIso(security.issueDate),
+    maturityDate: formatIso(security.maturityDate),
+    originalTermYears: security.originalTermYears,
+    yearsToMaturity: round(Math.max(0, diffDays(asOf, security.maturityDate) / 365.25), 3),
+    dayCount: security.dayCount,
+    frequency: security.frequency,
+    callable: security.callable,
+    nextCallDate: security.callSchedule.length > 0 ? formatIso(security.callSchedule[0]?.date as DateInt) : null,
+    amountOutstanding: security.amountOutstandingUsd,
+
+    // credit
+    rating: RATING_BUCKETS[security.ratingIndex] ?? 'NR',
+    ratingIndex: security.ratingIndex,
+    ratingBucket: security.ratingIndex <= 3 ? 'IG' : security.ratingIndex >= 7 ? 'D' : 'HY',
+    liquidityTier: security.liquidityTier,
+
+    // pricing
+    bidPrice: round(mid - half, 4),
+    askPrice: round(mid + half, 4),
+    midPrice: round(mid, 4),
+    cleanPrice: round(mid, 4),
+    dirtyPrice: round(priced.dirtyPrice, 4),
+    quotedPrice: formatPrice(mid, security.quotationBasis),
+    quotationBasis: security.quotationBasis,
+    bidAskPoints: round(half * 2, 4),
+    priceChange: round(mid - previousMid, 4),
+    priceChangePct: previousMid === 0 ? 0 : round(((mid - previousMid) / previousMid) * 100, 4),
+
+    // yields and spreads
+    yieldToMaturity: round(priced.yieldToMaturity, 4),
+    yieldToWorst: round(priced.yieldToWorst, 4),
+    workoutDate: priced.workoutDate === 0 ? null : formatIso(priced.workoutDate),
+    workoutType: priced.workoutType,
+    currentYield: round(priced.currentYield, 4),
+    zSpread: round(priced.zSpread, 1),
+    oas: round(priced.oas, 1),
+    issueSpreadBp: security.issueSpreadBp,
+    discountRate: round(priced.discountRate, 4),
+    bondEquivalentYield: round(priced.bondEquivalentYield, 4),
+
+    // risk
+    modifiedDuration: round(priced.modifiedDuration, 4),
+    effectiveDuration: round(priced.effectiveDuration, 4),
+    convexity: round(priced.convexity, 4),
+    effectiveConvexity: round(priced.effectiveConvexity, 4),
+    spreadDuration: round(priced.spreadDuration, 4),
+    weightedAverageLife: round(priced.weightedAverageLife, 3),
+    dv01: round((priced.dv01 / 100) * currentFace, 2),
+    // The key rate columns sum to THIS, not to `dv01`: they are built off the
+    // effective duration (the key rates partition unity over it), and effective
+    // and modified duration differ by `1 + y/2`. Emitting both keeps the hedge
+    // solver's bucket constraints consistent with its total-duration one.
+    effectiveDv01: round((dv01Of(priced.effectiveDuration, priced.dirtyPrice) / 100) * currentFace, 2),
+    cs01: round((priced.cs01 / 100) * currentFace, 2),
+
+    // position and P&L
+    quantityFace: round(rollup.quantityFace, 2),
+    currentFace: round(currentFace, 2),
+    factor: round(factor, 8),
+    marketValue: round(marketValue, 2),
+    accruedInterest: round(accrued, 2),
+    avgCost: round(rollup.averageCost, 4),
+    purchasePrice: round(rollup.averagePurchasePrice, 4),
+    bookYield: round(lots[0]?.purchaseYield ?? priced.yieldToMaturity, 4),
+    unrealizedPnL: round(unrealized, 2),
+    realizedPnL: round(rollup.realizedPnl, 2),
+    dailyPnL: round(dailyPnl, 2),
+    openLots: rollup.openLotCount,
+    daysHeld: Math.round(rollup.averageHoldingDays),
+    openDate: rollup.earliestOpenDate === null ? null : formatIso(rollup.earliestOpenDate),
+
+    // book
+    desk: desk.desk,
+    book: desk.book,
+    trader: desk.trader,
+    portfolio: desk.portfolio,
+    strategy: desk.strategy,
+    accountId: desk.accountId,
+
+    asOf: formatIso(asOf),
+    lastUpdate: inputs.timestamp ?? Date.now(),
+  };
+
+  for (let i = 0; i < KRD_LABELS.length; i++) {
+    // Dollars per BASIS POINT, like every other risk column on the row. The
+    // duration alone is dollars per 100 bp on face, which is a hundred times
+    // the number a risk report shows and does not sum to any DV01.
+    const scaled = (dv01Of(priced.keyRateDurations[i] ?? 0, priced.dirtyPrice) / 100) * currentFace;
+    row[KRD_LABELS[i] as string] = round(scaled, 2);
+  }
+  return row;
+}
+
+/** The desks a generated book is spread across, with mandates that match. */
+export const DESKS: readonly DeskAssignment[] = [
+  { desk: 'Rates', book: 'GOVT-01', trader: 'T. Wong', portfolio: 'Govt Plus', strategy: 'Duration', accountId: 'ACCT-001' },
+  { desk: 'IG Credit', book: 'CRED-01', trader: 'A. Perez', portfolio: 'Core IG', strategy: 'Carry', accountId: 'ACCT-002' },
+  { desk: 'HY Credit', book: 'CRED-02', trader: 'C. Lindqvist', portfolio: 'HY Opportunistic', strategy: 'Relative Value', accountId: 'ACCT-003' },
+  { desk: 'Munis', book: 'MUNI-01', trader: 'D. Sharma', portfolio: 'Muni Tax-Free', strategy: 'Ladder', accountId: 'ACCT-004' },
+  { desk: 'Securitized', book: 'SPG-01', trader: 'E. Rossi', portfolio: 'Securitized', strategy: 'Basis', accountId: 'ACCT-005' },
+  { desk: 'Credit L/S', book: 'CRED-03', trader: 'M. Okafor', portfolio: 'Credit Long/Short', strategy: 'Hedged', accountId: 'ACCT-006' },
+];
+
+/** The desk that holds a given asset class, so mandates and holdings agree. */
+export function deskFor(security: Security): DeskAssignment {
+  switch (security.assetClass) {
+    case 'Rates':
+    case 'Agency':
+      return DESKS[0] as DeskAssignment;
+    case 'CorpIG':
+      return DESKS[1] as DeskAssignment;
+    case 'CorpHY':
+      return DESKS[2] as DeskAssignment;
+    case 'Muni':
+      return DESKS[3] as DeskAssignment;
+    case 'CDS':
+      return DESKS[5] as DeskAssignment;
+    default:
+      return DESKS[4] as DeskAssignment;
+  }
+}

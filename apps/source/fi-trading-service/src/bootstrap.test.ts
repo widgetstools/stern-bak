@@ -53,7 +53,7 @@ describe('service over a real socket', () => {
       ...loadConfig({}),
       port: 0,
       logLevel: 'silent',
-      snapshotRows: 1200,
+      bookScale: 0.25,
       tickRows: 300,
       tickIntervalMs: 10,
     });
@@ -75,8 +75,10 @@ describe('service over a real socket', () => {
     const snapshotRows = frames
       .filter((f) => f.headers['message-type'] === 'snapshot')
       .flatMap((f) => JSON.parse(f.body) as { positionId: string }[]);
-    expect(snapshotRows).toHaveLength(1200);
-    expect(new Set(snapshotRows.map((r) => r.positionId)).size).toBe(1200);
+    // The book's size comes from its scale, not from a row-count knob, so the
+    // assertion is that the snapshot delivers the whole book exactly once.
+    expect(snapshotRows).toHaveLength(service.book.size());
+    expect(new Set(snapshotRows.map((r) => r.positionId)).size).toBe(service.book.size());
 
     await wait(
       () => frames.some((f) => f.headers['message-type'] === 'live-update'),

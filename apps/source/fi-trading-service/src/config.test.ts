@@ -8,7 +8,7 @@ describe('loadConfig', () => {
       port: 8081,
       host: '0.0.0.0',
       logLevel: 'info',
-      snapshotRows: 5000,
+      bookScale: 1,
       tickRows: 200,
       tickIntervalMs: 100,
       seed: 20260907,
@@ -20,7 +20,7 @@ describe('loadConfig', () => {
       PORT: '9000',
       HOST: '127.0.0.1',
       LOG_LEVEL: 'debug',
-      SNAPSHOT_ROWS: '250',
+      BOOK_SCALE: '2.5',
       TICK_ROWS: '10',
       TICK_INTERVAL_MS: '500',
       SEED: '42',
@@ -29,7 +29,7 @@ describe('loadConfig', () => {
       port: 9000,
       host: '127.0.0.1',
       logLevel: 'debug',
-      snapshotRows: 250,
+      bookScale: 2.5,
       tickRows: 10,
       tickIntervalMs: 500,
       seed: 42,
@@ -37,9 +37,9 @@ describe('loadConfig', () => {
   });
 
   it('clamps out-of-range values instead of failing to start', () => {
-    const config = loadConfig({ PORT: '999999', SNAPSHOT_ROWS: '-5', TICK_INTERVAL_MS: '1' });
+    const config = loadConfig({ PORT: '999999', BOOK_SCALE: '-5', TICK_INTERVAL_MS: '1' });
     expect(config.port).toBe(65535);
-    expect(config.snapshotRows).toBe(1);
+    expect(config.bookScale).toBe(0.05);
     expect(config.tickIntervalMs).toBe(10);
   });
 

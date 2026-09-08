@@ -13,7 +13,8 @@ export interface AppConfig {
   host: string;
   logLevel: LogLevel;
   /** Rows in the phase-1 synthetic book. */
-  snapshotRows: number;
+  /** Multiplier on the demo book scale. 1 is roughly 1,700 positions. */
+  bookScale: number;
   /** Rows mutated per simulator tick. */
   tickRows: number;
   /** Simulator cadence, ms. */
@@ -29,6 +30,15 @@ function intFromEnv(env: NodeJS.ProcessEnv, key: string, fallback: number, lo: n
   return Math.min(hi, Math.max(lo, parsed));
 }
 
+/** Same clamping as `intFromEnv`, for a dial that is meaningful below 1. */
+function numberFromEnv(env: NodeJS.ProcessEnv, key: string, fallback: number, lo: number, hi: number): number {
+  const raw = env[key];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(hi, Math.max(lo, parsed));
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const rawLevel = (env.LOG_LEVEL ?? 'info').toLowerCase();
   return {
@@ -36,7 +46,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: intFromEnv(env, 'PORT', 8081, 0, 65535),
     host: env.HOST ?? '0.0.0.0',
     logLevel: isLogLevel(rawLevel) ? rawLevel : 'info',
-    snapshotRows: intFromEnv(env, 'SNAPSHOT_ROWS', 5000, 1, 200_000),
+    bookScale: numberFromEnv(env, 'BOOK_SCALE', 1, 0.05, 60),
     tickRows: intFromEnv(env, 'TICK_ROWS', 200, 0, 100_000),
     tickIntervalMs: intFromEnv(env, 'TICK_INTERVAL_MS', 100, 10, 60_000),
     seed: intFromEnv(env, 'SEED', 20260907, 1, 2_147_483_647),
