@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SifmaCalendar } from '../core/sifmaCalendar.js';
 import { buildBook, DEMO_SCALE, scaleBook } from './bookBuilder.js';
-import { DESKS, deskFor, halfSpreadPoints } from './positions.js';
+import { halfSpreadPoints } from './positions.js';
+import { DEALER_DESKS, dealerDeskFor } from './institutions.js';
 import type { Security } from '../instruments/types.js';
 
 const built = buildBook({
@@ -35,11 +36,11 @@ describe('halfSpreadPoints', () => {
   });
 });
 
-describe('deskFor', () => {
+describe('dealerDeskFor', () => {
   it('routes every security in the universe to a declared desk', () => {
-    const names = new Set(DESKS.map((desk) => desk.desk));
+    const names = new Set(DEALER_DESKS.map((desk) => desk.desk));
     for (const security of built.securities) {
-      const desk = deskFor(security);
+      const desk = dealerDeskFor(security);
       expect(names).toContain(desk.desk);
       expect(desk.trader.length).toBeGreaterThan(0);
       expect(desk.book.length).toBeGreaterThan(0);
@@ -47,12 +48,12 @@ describe('deskFor', () => {
   });
 
   it('sends rates and credit to different desks', () => {
-    expect(deskFor(securityOf('Rates')).desk).not.toBe(deskFor(securityOf('CorpHY')).desk);
+    expect(dealerDeskFor(securityOf('Rates')).desk).not.toBe(dealerDeskFor(securityOf('CorpHY')).desk);
   });
 
   it('is stable for the same security', () => {
     const security = securityOf('Muni');
-    expect(deskFor(security)).toEqual(deskFor(security));
+    expect(dealerDeskFor(security)).toEqual(dealerDeskFor(security));
   });
 });
 
@@ -82,7 +83,11 @@ describe('buildPositionRow', () => {
 
   it('makes the dirty price the clean price plus accrued', () => {
     for (const row of rows) {
-      const perHundred = ((row.accruedInterest as number) / Math.max(1, row.currentFace as number)) * 100;
+      // Face is SIGNED — a dealer short carries negative face and negative
+      // accrued — but the dirty PRICE is a price and stays positive either way.
+      const face = Math.abs(row.currentFace as number);
+      if (face < 1) continue;
+      const perHundred = ((Math.abs(row.accruedInterest as number)) / face) * 100;
       expect(row.dirtyPrice as number).toBeCloseTo((row.cleanPrice as number) + perHundred, 3);
     }
   });

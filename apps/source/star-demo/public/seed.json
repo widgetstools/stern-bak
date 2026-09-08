@@ -5301,7 +5301,7 @@
                   "cellFadeDuration": 1000,
                   "cellChangeFlashColor": "amber",
                   "quickFilterText": "",
-                  "groupDefaultExpanded": 0,
+                  "groupDefaultExpanded": 1,
                   "rowGroupPanelShow": "always",
                   "pivotMode": false,
                   "pivotPanelShow": "never",
@@ -6191,6 +6191,52 @@
                           "color": "#9d174d"
                         }
                       }
+                    },
+                    {
+                      "id": "fi-short",
+                      "name": "Short inventory",
+                      "enabled": true,
+                      "priority": 15,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "currentFace",
+                          "quantityFace",
+                          "marketValue"
+                        ]
+                      },
+                      "expression": "[currentFace] < 0",
+                      "style": {
+                        "dark": {
+                          "color": "#f0a576",
+                          "fontWeight": "600"
+                        },
+                        "light": {
+                          "color": "#7a3b14",
+                          "fontWeight": "600"
+                        }
+                      }
+                    },
+                    {
+                      "id": "fi-underweight",
+                      "name": "Underweight vs benchmark",
+                      "enabled": true,
+                      "priority": 16,
+                      "scope": {
+                        "type": "cell",
+                        "columns": [
+                          "activeWeightPct"
+                        ]
+                      },
+                      "expression": "value < 0",
+                      "style": {
+                        "dark": {
+                          "color": "#ee8e8e"
+                        },
+                        "light": {
+                          "color": "#a02a2a"
+                        }
+                      }
                     }
                   ]
                 }
@@ -6305,6 +6351,10 @@
                     "version": "35.1.0",
                     "columnSizing": {
                       "columnSizingModel": [
+                        {
+                          "colId": "bookType",
+                          "width": 80
+                        },
                         {
                           "colId": "cusip",
                           "width": 100
@@ -6425,6 +6475,7 @@
                     },
                     "columnOrder": {
                       "orderedColIds": [
+                        "bookType",
                         "positionId",
                         "cusip",
                         "description",
@@ -6518,7 +6569,14 @@
                         "krd7Y",
                         "krd10Y",
                         "krd20Y",
-                        "krd30Y"
+                        "krd30Y",
+                        "benchmark",
+                        "axeSide",
+                        "axeSizeUsd",
+                        "inventoryAgeDays",
+                        "portfolioWeightPct",
+                        "benchmarkWeightPct",
+                        "activeWeightPct"
                       ]
                     },
                     "sort": {
@@ -6533,6 +6591,11 @@
                       "visible": false,
                       "openToolPanel": null,
                       "toolPanels": {}
+                    },
+                    "rowGroup": {
+                      "groupColIds": [
+                        "bookType"
+                      ]
                     }
                   }
                 }
@@ -6599,6 +6662,15 @@
         "requestMessage": "/snapshot/positions/fi-book/5000/500",
         "snapshotEndToken": "__SNAPSHOT_COMPLETE__",
         "columnDefinitions": [
+          {
+            "field": "bookType",
+            "headerName": "Book",
+            "cellDataType": "text",
+            "width": 80,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
           {
             "field": "positionId",
             "headerName": "Position Id",
@@ -7453,6 +7525,76 @@
           {
             "field": "krd30Y",
             "headerName": "Krd30 Y",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "benchmark",
+            "headerName": "Benchmark",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "axeSide",
+            "headerName": "Axe Side",
+            "cellDataType": "text",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "axeSizeUsd",
+            "headerName": "Axe Size Usd",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "inventoryAgeDays",
+            "headerName": "Inventory Age Days",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "portfolioWeightPct",
+            "headerName": "Portfolio Weight Pct",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "benchmarkWeightPct",
+            "headerName": "Benchmark Weight Pct",
+            "cellDataType": "number",
+            "width": 110,
+            "filter": true,
+            "sortable": true,
+            "resizable": true,
+            "hide": true
+          },
+          {
+            "field": "activeWeightPct",
+            "headerName": "Active Weight Pct",
             "cellDataType": "number",
             "width": 110,
             "filter": true,

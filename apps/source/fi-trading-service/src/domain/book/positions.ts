@@ -17,17 +17,10 @@ import { RATING_BUCKETS } from '../curves/ratingMigration.js';
 import { CREDIT_SECTORS } from '../curves/creditFactors.js';
 import type { Security } from '../instruments/types.js';
 import { rollupLots, type Lot } from './lots.js';
+import { benchmarkWeight, type DeskAssignment } from './institutions.js';
 import { dv01 } from '../analytics/riskAnalytic.js';
 import type { PricedSecurity } from './valuation.js';
 
-export interface DeskAssignment {
-  desk: string;
-  book: string;
-  trader: string;
-  portfolio: string;
-  strategy: string;
-  accountId: string;
-}
 
 export interface PositionInputs {
   positionId: string;
@@ -42,6 +35,19 @@ export interface PositionInputs {
   previousMid?: number;
   /** Current factor for an amortising security. Steps monthly. */
   poolFactor?: number;
+  /**
+   * Dealer only: the side the desk is advertising, and in what size. An axe is
+   * what a dealer publishes to clients — "I want to sell this" — and it is the
+   * single most useful column on an inventory blotter.
+   */
+  axe?: { side: 'Bid' | 'Offer' | 'Both'; sizeUsd: number } | null;
+  /** Fund only: this holding's share of the portfolio, in percent. */
+  portfolioWeightPct?: number;
+  /**
+   * Fund only: this holding's share of its SLEEVE, used to pro-rate the
+   * benchmark's sleeve weight down to the position.
+   */
+  benchmarkShare?: number;
   /**
    * Feed timestamp. Defaults to wall clock, which is right for a live quote
    * and wrong for a build: a book has to be reproducible from its seed, and a
@@ -59,6 +65,14 @@ export interface PositionRow extends Record<string, unknown> {
   lastUpdate: number;
   effectiveDv01: number;
   onTheRunRank: number | null;
+  bookType: string;
+  benchmark: string | null;
+  axeSide: string | null;
+  axeSizeUsd: number | null;
+  inventoryAgeDays: number | null;
+  portfolioWeightPct: number | null;
+  benchmarkWeightPct: number | null;
+  activeWeightPct: number | null;
 }
 
 const KRD_LABELS = ['krd3M', 'krd6M', 'krd1Y', 'krd2Y', 'krd3Y', 'krd5Y', 'krd7Y', 'krd10Y', 'krd20Y', 'krd30Y'] as const;
@@ -121,6 +135,11 @@ export function buildPositionRow(inputs: PositionInputs): PositionRow {
   // from par — counting 102 as "102% of notional held" would put the whole
   // notional of the CDS book into the firm's market value.
   const isSwap = security.assetClass === 'CDS';
+  const fundWeight = desk.bookType === 'Fund' ? inputs.portfolioWeightPct ?? 0 : null;
+  // Pro-rated to this row, so a sleeve's rows sum to the index's sleeve weight.
+  const rowIndexWeight =
+    benchmarkWeight(desk.benchmark, desk.desk) * (inputs.benchmarkShare ?? 0);
+
   const marketValue = isSwap
     ? ((mid - 100) / 100) * currentFace
     : (mid / 100) * currentFace;
@@ -224,13 +243,29 @@ export function buildPositionRow(inputs: PositionInputs): PositionRow {
     daysHeld: Math.round(rollup.averageHoldingDays),
     openDate: rollup.earliestOpenDate === null ? null : formatIso(rollup.earliestOpenDate),
 
-    // book
+    // book — who owns this, and on which side of the market
+    bookType: desk.bookType,
     desk: desk.desk,
     book: desk.book,
     trader: desk.trader,
     portfolio: desk.portfolio,
     strategy: desk.strategy,
     accountId: desk.accountId,
+    benchmark: desk.benchmark,
+
+    // sell side: what the desk is advertising, and how long it has been stuck
+    // with the position. Aged inventory is a dealer's problem and nobody
+    // else's — capital is tied up in it and the desk is charged for that.
+    axeSide: inputs.axe?.side ?? null,
+    axeSizeUsd: inputs.axe === null || inputs.axe === undefined ? null : round(inputs.axe.sizeUsd, 0),
+    inventoryAgeDays: desk.bookType === 'Dealer' ? Math.round(rollup.averageHoldingDays) : null,
+
+    // buy side: the position is the ACTIVE weight, not the holding. Holding 8%
+    // high yield against an index that holds none IS the bet; the 8% alone
+    // says nothing without the index beside it.
+    portfolioWeightPct: fundWeight === null ? null : round(fundWeight, 4),
+    benchmarkWeightPct: fundWeight === null ? null : round(rowIndexWeight, 4),
+    activeWeightPct: fundWeight === null ? null : round(fundWeight - rowIndexWeight, 4),
 
     asOf: formatIso(asOf),
     lastUpdate: inputs.timestamp ?? Date.now(),
@@ -247,30 +282,3 @@ export function buildPositionRow(inputs: PositionInputs): PositionRow {
 }
 
 /** The desks a generated book is spread across, with mandates that match. */
-export const DESKS: readonly DeskAssignment[] = [
-  { desk: 'Rates', book: 'GOVT-01', trader: 'T. Wong', portfolio: 'Govt Plus', strategy: 'Duration', accountId: 'ACCT-001' },
-  { desk: 'IG Credit', book: 'CRED-01', trader: 'A. Perez', portfolio: 'Core IG', strategy: 'Carry', accountId: 'ACCT-002' },
-  { desk: 'HY Credit', book: 'CRED-02', trader: 'C. Lindqvist', portfolio: 'HY Opportunistic', strategy: 'Relative Value', accountId: 'ACCT-003' },
-  { desk: 'Munis', book: 'MUNI-01', trader: 'D. Sharma', portfolio: 'Muni Tax-Free', strategy: 'Ladder', accountId: 'ACCT-004' },
-  { desk: 'Securitized', book: 'SPG-01', trader: 'E. Rossi', portfolio: 'Securitized', strategy: 'Basis', accountId: 'ACCT-005' },
-  { desk: 'Credit L/S', book: 'CRED-03', trader: 'M. Okafor', portfolio: 'Credit Long/Short', strategy: 'Hedged', accountId: 'ACCT-006' },
-];
-
-/** The desk that holds a given asset class, so mandates and holdings agree. */
-export function deskFor(security: Security): DeskAssignment {
-  switch (security.assetClass) {
-    case 'Rates':
-    case 'Agency':
-      return DESKS[0] as DeskAssignment;
-    case 'CorpIG':
-      return DESKS[1] as DeskAssignment;
-    case 'CorpHY':
-      return DESKS[2] as DeskAssignment;
-    case 'Muni':
-      return DESKS[3] as DeskAssignment;
-    case 'CDS':
-      return DESKS[5] as DeskAssignment;
-    default:
-      return DESKS[4] as DeskAssignment;
-  }
-}

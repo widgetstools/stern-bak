@@ -38,7 +38,11 @@ import { buildAbsDeals } from '../instruments/spgDealAbs.js';
 import { buildCloDeals } from '../instruments/spgDealClo.js';
 import type { Security } from '../instruments/types.js';
 import type { PoolState } from '../analytics/prepay/cprModel.js';
-import { deskFor, buildPositionRow, halfSpreadPoints, type PositionRow } from './positions.js';
+import { buildPositionRow, halfSpreadPoints, type PositionRow } from './positions.js';
+import {
+  dealerDeskFor, fundAssignment, mandatesFor, sectorAppetite, sleeveFor,
+  type DeskAssignment,
+} from './institutions.js';
 import { formatPrice, type QuotationBasis } from '../core/tickPrice.js';
 import type { Lot } from './lots.js';
 import { amortizedCost } from './lots.js';
@@ -56,6 +60,8 @@ export interface BookScale {
   cdsCoverage: number;
   /** Share of the security universe actually held. */
   heldFraction: number;
+  /** Share of eligible securities a given fund mandate actually holds. */
+  fundHoldFraction: number;
 }
 
 /** Demo scale: a book big enough to look real, small enough to build fast. */
@@ -69,6 +75,7 @@ export const DEMO_SCALE: BookScale = {
   cloDeals: 12,
   cdsCoverage: 0.35,
   heldFraction: 0.62,
+  fundHoldFraction: 0.35,
 };
 
 /**
@@ -93,6 +100,7 @@ export function scaleBook(base: BookScale, multiplier: number): BookScale {
     // fraction of the names have a swap on them.
     cdsCoverage: base.cdsCoverage,
     heldFraction: base.heldFraction,
+    fundHoldFraction: base.fundHoldFraction,
   };
 }
 
@@ -161,6 +169,8 @@ interface Holding {
   lots: Lot[];
   pool?: PoolState;
   spreadBp: number;
+  /** Whose position this is — a dealer desk or a fund mandate. */
+  desk: DeskAssignment;
 }
 
 export function spreadForSecurity(security: Security, issuer: Issuer | undefined, state: FactorState, engine: FactorEngine): number {
@@ -185,6 +195,7 @@ function seedLots(
   asOf: DateInt,
   currentYield: number,
   rng: Rng,
+  short = false,
 ): Lot[] {
   const lotCount = uniformInt(rng, 1, 4);
   const lots: Lot[] = [];
@@ -217,7 +228,7 @@ function seedLots(
       openTradeId: `TRD-${security.securityId}-${i + 1}`,
       openDate,
       settleDate: openDate,
-      side: 'LONG',
+      side: short ? 'SHORT' : 'LONG',
       originalFace: face,
       remainingFace: face,
       purchasePriceClean: priceAtYield(security, calendar, openDate, purchaseYield),
@@ -350,19 +361,54 @@ export function buildBook(options: BookOptions): BuiltBook {
     const priced = priceSecurity(security, ctx);
     if (!Number.isFinite(priced.cleanPrice) || priced.cleanPrice <= 0) continue;
 
-    const positionId = `POS-${String(positionSeq++).padStart(7, '0')}`;
-    const lotRng = createRng(deriveSeed(seed, 'lots', security.securityId));
-    const lots = seedLots(positionId, security, calendar, asOf, priced.yieldToMaturity, lotRng);
-    if (lots.length === 0) continue;
+    // The SAME security is warehoused by a dealer desk and held by whichever
+    // mandates may hold it. That overlap is the point: it is what makes an RFQ
+    // between the two sides expressible, and what lets one scenario move both
+    // books at once.
+    const owners: DeskAssignment[] = [dealerDeskFor(security)];
+    for (const mandate of mandatesFor(security.assetClass)) {
+      // A fund does not hold everything a dealer warehouses, and it wants
+      // different amounts of different sleeves — appetite tracks its benchmark.
+      const appetite = sectorAppetite(mandate, sleeveFor(security.assetClass));
+      if (rng() > scale.fundHoldFraction * appetite * 2.2) continue;
+      owners.push(fundAssignment(mandate, security.assetClass));
+    }
 
-    holdings.push({ positionId, security, priced, lots, spreadBp, ...(pool === undefined ? {} : { pool }) });
+    for (const desk of owners) {
+      const positionId = `POS-${String(positionSeq++).padStart(7, '0')}`;
+      const lotRng = createRng(deriveSeed(seed, 'lots', security.securityId * 8 + owners.indexOf(desk)));
+      // A dealer can be SHORT what it has sold and not yet bought back; a
+      // long-only fund cannot. Roughly a fifth of an inventory book is short.
+      const short = desk.bookType === 'Dealer' && lotRng() < 0.2;
+      const lots = seedLots(
+        positionId, security, calendar, asOf, priced.yieldToMaturity, lotRng, short,
+      );
+      if (lots.length === 0) continue;
+      holdings.push({
+        positionId, security, priced, lots, spreadBp, desk,
+        ...(pool === undefined ? {} : { pool }),
+      });
+    }
   }
 
   // A deterministic build stamp, so two builds of the same seed are equal.
   // The live path overwrites it with the wall clock on the first tick.
   const buildStamp = asOf * 1000;
+  // A fund holding's weight is its share of ITS OWN mandate, so the totals have
+  // to be known before any row is built.
+  const mandateValue = new Map<string, number>();
+  const sleeveValue = new Map<string, number>();
+  for (const holding of holdings) {
+    if (holding.desk.bookType !== 'Fund') continue;
+    const face = holding.lots.reduce((sum, lot) => sum + lot.remainingFace, 0) * (holding.pool?.factor ?? 1);
+    const value = (holding.priced.cleanPrice / 100) * face;
+    mandateValue.set(holding.desk.book, (mandateValue.get(holding.desk.book) ?? 0) + value);
+    const key = `${holding.desk.book}|${holding.desk.desk}`;
+    sleeveValue.set(key, (sleeveValue.get(key) ?? 0) + value);
+  }
+
   const rows = holdings.map((holding) =>
-    toRow(holding, calendar, asOf, holding.priced.cleanPrice, buildStamp));
+    toRow(holding, calendar, asOf, holding.priced.cleanPrice, buildStamp, mandateValue, sleeveValue));
   const riskVectors = holdings.map((holding, i) => toRiskVector(holding, issuerById, rows[i] as PositionRow));
   // Revaluation is always measured from the BUILD state, never chained off the
   // last tick. Chaining compounds `price *= (1 + r)`, which is not reversible:
@@ -395,6 +441,8 @@ export function buildBook(options: BookOptions): BuiltBook {
 
 function toRow(
   holding: Holding, calendar: Calendar, asOf: DateInt, previousMid: number, timestamp: number,
+  mandateValue: ReadonlyMap<string, number>,
+  sleeveValue: ReadonlyMap<string, number>,
 ): PositionRow {
   const terms = holding.security.assetClass === 'CDS' ? null : termsFor(holding.security, calendar);
   const basisAt = (lot: Lot): number =>
@@ -405,17 +453,75 @@ function toRow(
     security: holding.security,
     priced: holding.priced,
     lots: holding.lots,
-    desk: deskFor(holding.security),
+    desk: holding.desk,
     asOf,
     basisAt,
     previousMid,
     timestamp,
+    ...axeFor(holding),
+    ...weightFor(holding, mandateValue, sleeveValue),
     ...(holding.pool === undefined ? {} : { poolFactor: holding.pool.factor }),
   });
 }
 
+/**
+ * The axe a dealer is showing on a position.
+ *
+ * A long inventory line is axed to SELL and a short is axed to BUY — that is
+ * what an axe IS: the side the desk wants to trade to get flatter. Aged
+ * inventory is axed harder, because the desk is being charged for the balance
+ * sheet it is sitting on.
+ */
+function axeFor(holding: Holding): { axe: { side: 'Bid' | 'Offer' | 'Both'; sizeUsd: number } | null } {
+  if (holding.desk.bookType !== 'Dealer') return { axe: null };
+  const face = holding.lots.reduce(
+    (sum, lot) => sum + (lot.side === 'SHORT' ? -lot.remainingFace : lot.remainingFace), 0,
+  );
+  if (face === 0) return { axe: null };
+  return {
+    axe: {
+      side: face > 0 ? 'Offer' : 'Bid',
+      sizeUsd: Math.round(Math.abs(face) * 0.4),
+    },
+  };
+}
+
+/**
+ * A fund holding's weight, and its share of the benchmark's sleeve weight.
+ *
+ * The index weight is defined at SLEEVE level — the Aggregate is 42.5%
+ * government, not 42.5% per government bond. So a position's benchmark weight
+ * is its pro-rata share of its sleeve's index weight, which makes the column
+ * sum correctly: over a sleeve, benchmark weights total the index weight and
+ * active weights total the over- or underweight. Subtracting the whole sleeve
+ * weight on every row instead put Core Plus 7,541% underweight governments.
+ */
+function weightFor(
+  holding: Holding,
+  mandateValue: ReadonlyMap<string, number>,
+  sleeveValue: ReadonlyMap<string, number>,
+): { portfolioWeightPct?: number; benchmarkShare?: number } {
+  if (holding.desk.bookType !== 'Fund') return {};
+  const total = mandateValue.get(holding.desk.book) ?? 0;
+  if (total <= 0) return { portfolioWeightPct: 0, benchmarkShare: 0 };
+  const face = holding.lots.reduce((sum, lot) => sum + lot.remainingFace, 0) * (holding.pool?.factor ?? 1);
+  const value = (holding.priced.cleanPrice / 100) * face;
+  const sleeve = sleeveValue.get(`${holding.desk.book}|${holding.desk.desk}`) ?? 0;
+  return {
+    portfolioWeightPct: (value / total) * 100,
+    benchmarkShare: sleeve <= 0 ? 0 : value / sleeve,
+  };
+}
+
 function toRiskVector(holding: Holding, issuerById: Map<number, Issuer>, row: PositionRow): RiskVector {
-  const face = holding.lots.reduce((sum, lot) => sum + lot.remainingFace, 0);
+  // SIGNED, like `rollupLots`. A dealer can be short what it has sold, and
+  // summing raw `remainingFace` gave a short position a positive risk vector
+  // while its row carried a negative one — so the fast path revalued a short
+  // as though it were long, and every scenario, hedge and stress number
+  // computed for the inventory book had the wrong sign.
+  const face = holding.lots.reduce(
+    (sum, lot) => sum + (lot.side === 'SHORT' ? -lot.remainingFace : lot.remainingFace), 0,
+  );
   const issuer = issuerById.get(holding.security.issuerId);
   const currentFace = face * (holding.pool?.factor ?? 1);
   return {
