@@ -76,9 +76,14 @@ export function buildCdsSecurities(options: CdsSecurityOptions): Security[] {
       const couponRate = entity.standardCouponBp / 100;
       out.push({
         securityId: securityId++,
-        // A swap has no CUSIP. The RED pair code is what identifies it, and
-        // putting it in the CUSIP column is how a blotter actually shows it.
-        cusip: entity.redPair9,
+        // A swap has no CUSIP; the identifier a desk uses is the RED pair
+        // code, which is what a blotter shows in that column. But a RED PAIR
+        // code identifies the reference entity and its preferred reference
+        // obligation — NOT the contract. Every tenor on one name shares it, so
+        // using it alone made a 3-year and a 5-year on the same issuer the
+        // same security. Markit keys a contract by the pair code plus its
+        // maturity, so that is what goes here.
+        cusip: `${entity.redPair9}-${String(maturity).slice(2, 6)}`,
         isin: '',
         assetClass: 'CDS',
         securityType: 'CdsSingleName',
@@ -137,7 +142,12 @@ export function buildCdsIndexSecurities(
     const years = Math.max(0.25, (index.maturity - index.rollDate) / 10_000);
     out.push({
       securityId: securityId++,
-      cusip: `${index.family.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase()}${index.series}`,
+      // Squeezing the family name to six characters collapsed "iTraxx Europe"
+      // and "iTraxx Crossover" onto the same code. An index is identified by
+      // family, series AND version, so all three go in.
+      cusip:
+        `${index.family.replace(/[^A-Z0-9]/gi, '').toUpperCase()}` +
+        `-S${index.series}V${index.version}`,
       isin: '',
       assetClass: 'CDS',
       securityType: 'CdsIndex',

@@ -25,12 +25,28 @@ import { createRng, deriveSeed, uniformInt, type Rng } from '../core/rng.js';
 import { formatIso } from '../core/dateInt.js';
 import type { Security, LiquidityTier } from './types.js';
 
-/** Issuer prefixes matching real Treasury CUSIP families. */
+/**
+ * Issuer prefixes matching real Treasury CUSIP families.
+ *
+ * Each family lists its prefixes in the order Treasury actually filled them,
+ * and minting spills to the next only when the previous is full. A prefix
+ * carries just two issue characters — 34 x 34 = 1,156 codes — so one family
+ * cannot cover a book with thousands of Treasuries, and a demo-sized book
+ * still gets the exact real prefix because the overflow is never reached.
+ */
+export const TREASURY_PREFIX_FAMILY = {
+  bill: ['912797', '912796', '912795', '912794'],
+  note: ['91282C', '91282D', '91282E'],
+  bond: ['912810', '912803'],
+  strip: ['912820', '912833', '912834'],
+} as const;
+
+/** The primary prefix per family, for anything naming one directly. */
 export const TREASURY_PREFIX = {
-  bill: '912797',
-  note: '91282C',
-  bond: '912810',
-  strip: '912803',
+  bill: TREASURY_PREFIX_FAMILY.bill[0],
+  note: TREASURY_PREFIX_FAMILY.note[0],
+  bond: TREASURY_PREFIX_FAMILY.bond[0],
+  strip: TREASURY_PREFIX_FAMILY.strip[0],
 } as const;
 
 export interface TreasuryTenor {
@@ -155,7 +171,11 @@ export function buildTreasuries(options: TreasuryUniverseOptions): Security[] {
       const couponRate = isBill || isFrn ? 0 : couponFromAuctionYield(auctionYield);
 
       const prefix =
-        isBill ? TREASURY_PREFIX.bill : tenor.termYears > 10 ? TREASURY_PREFIX.bond : TREASURY_PREFIX.note;
+        isBill
+          ? TREASURY_PREFIX_FAMILY.bill
+          : tenor.termYears > 10
+            ? TREASURY_PREFIX_FAMILY.bond
+            : TREASURY_PREFIX_FAMILY.note;
       const cusip = mintCusip(prefix, usedCodes, rng);
 
       out.push({
@@ -218,7 +238,7 @@ function buildStrips(
   const out: Security[] = [];
   for (const bond of bonds) {
     if (bond.securityType !== 'TBond' || bond.onTheRunRank !== 0) continue;
-    const cusip = mintCusip(TREASURY_PREFIX.strip, usedCodes, rng);
+    const cusip = mintCusip(TREASURY_PREFIX_FAMILY.strip, usedCodes, rng);
     out.push({
       ...bond,
       securityId: securityId++,
@@ -237,18 +257,47 @@ function buildStrips(
   return out;
 }
 
-/** A CUSIP on the given issuer prefix, unique within this build. */
-export function mintCusip(prefix6: string, used: Set<string>, rng: Rng): string {
-  for (let attempt = 0; attempt < 4096; attempt++) {
-    const code = issueCode(uniformInt(rng, 0, 34 * 34 - 1));
-    const stem = `${prefix6}${code}`;
-    if (used.has(stem)) continue;
-    const cusip = completeCusip(stem);
-    if (cusip === null) continue;
-    used.add(stem);
-    return cusip;
+/** Issue codes available on one prefix: two characters from a 34-symbol set. */
+const ISSUE_CODE_SPACE = 34 * 34;
+
+/**
+ * A CUSIP on the given issuer prefix (or the first prefix in a family with
+ * room), unique within this build.
+ *
+ * Random draws first, so a small book gets scattered issue codes the way real
+ * ones are. But random probing alone gives up long before the space is full —
+ * once most codes are taken, collisions dominate and a fixed attempt budget
+ * fails on a prefix that still has hundreds free. So it falls back to a linear
+ * scan from a random offset, which finds a free code whenever one exists and
+ * only then moves to the next prefix in the family.
+ */
+export function mintCusip(
+  prefix6: string | readonly string[], used: Set<string>, rng: Rng,
+): string {
+  const prefixes = typeof prefix6 === 'string' ? [prefix6] : prefix6;
+  for (const prefix of prefixes) {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const stem = `${prefix}${issueCode(uniformInt(rng, 0, ISSUE_CODE_SPACE - 1))}`;
+      if (used.has(stem)) continue;
+      const cusip = completeCusip(stem);
+      if (cusip === null) continue;
+      used.add(stem);
+      return cusip;
+    }
+    const start = uniformInt(rng, 0, ISSUE_CODE_SPACE - 1);
+    for (let i = 0; i < ISSUE_CODE_SPACE; i++) {
+      const stem = `${prefix}${issueCode((start + i) % ISSUE_CODE_SPACE)}`;
+      if (used.has(stem)) continue;
+      const cusip = completeCusip(stem);
+      if (cusip === null) continue;
+      used.add(stem);
+      return cusip;
+    }
   }
-  throw new Error(`Exhausted the issue-code space for prefix ${prefix6}`);
+  throw new Error(
+    `Exhausted the issue-code space for ${prefixes.join(', ')} — ` +
+      `${ISSUE_CODE_SPACE} codes per prefix. Add another prefix to the family.`,
+  );
 }
 
 /** The on-the-run security for a tenor, or null when none was built. */
