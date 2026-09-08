@@ -1113,7 +1113,8 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": false
+            "singleton": false,
+            "asWindow": true
           },
           {
             "id": "grid-rates",
@@ -1128,7 +1129,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1144,7 +1145,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1160,7 +1161,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1176,7 +1177,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1192,7 +1193,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1208,7 +1209,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1224,7 +1225,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1240,7 +1241,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           },
           {
@@ -1256,7 +1257,7 @@
             "usesHostConfig": true,
             "appId": "StarDemo",
             "configServiceUrl": "",
-            "singleton": true,
+            "singleton": false,
             "asWindow": true
           }
         ]
@@ -3928,7 +3929,7 @@
       "componentType": "grid",
       "componentSubType": "rates",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -4729,7 +4730,7 @@
       "componentType": "grid",
       "componentSubType": "ig-credit",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -5621,7 +5622,7 @@
       "componentType": "grid",
       "componentSubType": "hy-credit",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -6524,7 +6525,7 @@
       "componentType": "grid",
       "componentSubType": "munis",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -7367,7 +7368,7 @@
       "componentType": "grid",
       "componentSubType": "securitized",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -8199,7 +8200,7 @@
       "componentType": "grid",
       "componentSubType": "credit-derivatives",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -8990,7 +8991,7 @@
       "componentType": "grid",
       "componentSubType": "core-plus-bond",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -9740,7 +9741,7 @@
       "componentType": "grid",
       "componentSubType": "tax-exempt-income",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -10493,7 +10494,7 @@
       "componentType": "grid",
       "componentSubType": "credit-opportunities",
       "isTemplate": true,
-      "singleton": true,
+      "singleton": false,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",

@@ -304,7 +304,7 @@ for (const spec of BLOTTERS) {
     // registered-component query will not find it: componentType 'grid',
     // its own subtype, isTemplate, and singleton set the same way.
     componentType: 'grid', componentSubType: subType,
-    isTemplate: true, singleton: true,
+    isTemplate: true, singleton: false,
     createdBy: 'k151344', updatedBy: 'k151344', creationTime: NOW, updatedTime: NOW,
     payload: { version: 1, profiles: [buildProfile(spec)], gridLevelData: { v: 1,
       provider: { liveProviderId: PROVIDER_ID, historicalProviderId: null, mode: 'live' },
@@ -314,11 +314,19 @@ for (const spec of BLOTTERS) {
   // configId / displayName sits in the store and can never be opened: the
   // OpenFin launcher needs `id` and `hostUrl` to create a window at all.
   //
-  // `singleton: true` is what makes the launcher reuse THIS config row —
-  // `instanceId = singletonId ?? mint(...)`, and singletonId is the configId —
-  // so the window opens on the seeded profile instead of cloning a fresh
-  // template row. It also means launching Rates twice focuses one window
-  // rather than opening a second, which is what a desk blotter should do.
+  // NOT a singleton, and always its own workspace window.
+  //
+  // A non-singleton launch mints a fresh instanceId and clones this template
+  // row onto it (`cloneTemplateRowForInstance` copies the whole payload, so the
+  // authored columns, filter and renderers come with it). Two consequences,
+  // both wanted here: a blotter can be opened more than once — two Rates
+  // windows on two monitors — and each window is a real workspace window that
+  // can be sized, moved and saved into a workspace layout.
+  //
+  // The trade-off, which `createBlotter` takes the other side of: edits land on
+  // the INSTANCE, not the template, so rearranging columns in an open window
+  // does not change what the next launch starts from. Changing the default
+  // means editing the template row.
   registry.payload.entries.push({
     id: configId,
     hostUrl: '/#/blotters/marketsgrid',
@@ -333,7 +341,7 @@ for (const spec of BLOTTERS) {
     usesHostConfig: true,
     appId: 'StarDemo',
     configServiceUrl: '',
-    singleton: true,
+    singleton: false,
     asWindow: true,
   });
 }
