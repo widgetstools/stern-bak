@@ -28,6 +28,16 @@ const seed = JSON.parse(readFileSync(seedPath, 'utf8'));
 const PROVIDER_ID = 'dp-fi-book';
 const NOW = '2026-09-08T12:00:00.000Z';
 
+/**
+ * The registry id / template configId, exactly as `deriveTemplateConfigId`
+ * builds it and as `create_blotter` uses it: `${componentType}-${subType}`,
+ * lowercase, with the subtype slugified from the display name. An arbitrary id
+ * works right up until something tries to resolve the template from the pair.
+ */
+const subTypeOf = (name) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'blotter';
+const configIdOf = (name) => `grid-${subTypeOf(name)}`;
+
 const provider = seed.appConfig.find((c) => c.configId === PROVIDER_ID);
 if (!provider) throw new Error(`provider ${PROVIDER_ID} not in the seed — run the provider build first`);
 const ALL_FIELDS = provider.payload.columnDefinitions.map((c) => c.field);
@@ -280,16 +290,21 @@ function buildProfile(spec) {
 
 const registry = seed.appConfig.find((c) => String(c.configId).startsWith('component-registry'));
 // Idempotent: drop anything a previous run created, then rebuild.
-const ids = new Set(BLOTTERS.map((b) => b.id));
+const ids = new Set(BLOTTERS.flatMap((b) => [b.id, configIdOf(b.name)]));
 seed.appConfig = seed.appConfig.filter((c) => !ids.has(c.configId));
 registry.payload.entries = registry.payload.entries.filter((e) => !ids.has(e.configId) && !ids.has(e.id));
 
 for (const spec of BLOTTERS) {
+  const configId = configIdOf(spec.name);
+  const subType = subTypeOf(spec.name);
   seed.appConfig.push({
-    configId: spec.id, appId: 'StarDemo', userId: 'k151344', isPublic: true,
+    configId, appId: 'StarDemo', userId: 'k151344', isPublic: true,
     displayText: `MarketsGrid profiles: ${spec.name}`,
-    componentType: 'grid', componentSubType: 'fixed-income',
-    isTemplate: true, singleton: false,
+    // The template row's identity must MATCH the registry entry, or a
+    // registered-component query will not find it: componentType 'grid',
+    // its own subtype, isTemplate, and singleton set the same way.
+    componentType: 'grid', componentSubType: subType,
+    isTemplate: true, singleton: true,
     createdBy: 'k151344', updatedBy: 'k151344', creationTime: NOW, updatedTime: NOW,
     payload: { version: 1, profiles: [buildProfile(spec)], gridLevelData: { v: 1,
       provider: { liveProviderId: PROVIDER_ID, historicalProviderId: null, mode: 'live' },
@@ -305,12 +320,13 @@ for (const spec of BLOTTERS) {
   // template row. It also means launching Rates twice focuses one window
   // rather than opening a second, which is what a desk blotter should do.
   registry.payload.entries.push({
-    id: spec.id,
+    id: configId,
     hostUrl: '/#/blotters/marketsgrid',
-    iconId: '',
+    // Without an icon the launcher renders a blank in the menu.
+    iconId: 'lucide:table',
     componentType: 'grid',
-    componentSubType: 'fixed-income',
-    configId: spec.id,
+    componentSubType: subType,
+    configId,
     displayName: spec.name,
     createdAt: NOW,
     type: 'internal',
@@ -322,10 +338,43 @@ for (const spec of BLOTTERS) {
   });
 }
 
+/**
+ * Dock buttons, filed under one dropdown.
+ *
+ * A registry entry is only reachable if something launches it. The platform
+ * renders a default dock when no config is saved, but this seed HAS one, so a
+ * blotter with no button in it simply cannot be opened — which is why nine
+ * blotters existed and one appeared.
+ *
+ * They go in a group rather than nine top-level buttons: `addDockButton` files
+ * blotters under "Assets", and a dock with a dozen loose icons is where a dock
+ * stops being navigable.
+ */
+const dock = seed.appConfig.find((c) => c.configId === 'dock-config');
+if (dock) {
+  const GROUP = 'Assets';
+  const uuid = (n) => `fi-dock-${n}`;
+  const options = BLOTTERS.map((spec) => ({
+    id: uuid(configIdOf(spec.name)),
+    tooltip: spec.name,
+    iconId: 'lucide:table',
+    actionId: 'launch-component',
+    customData: { registryEntryId: configIdOf(spec.name), asWindow: true },
+  }));
+  const others = (dock.payload.buttons ?? []).filter(
+    (b) => !(b.type === 'DropdownButton' && String(b.tooltip).toLowerCase() === GROUP.toLowerCase()),
+  );
+  dock.payload.buttons = [
+    ...others,
+    { type: 'DropdownButton', id: uuid('assets'), tooltip: GROUP, iconUrl: '', iconId: 'lucide:folder', options },
+  ];
+  dock.payload.updatedAt = NOW;
+}
+
 writeFileSync(seedPath, JSON.stringify(seed, null, 2));
-console.log(`${BLOTTERS.length} blotters written`);
+console.log(`${BLOTTERS.length} blotters written, ${dock ? 'dock group added' : 'NO DOCK CONFIG'}`);
 for (const spec of BLOTTERS) {
-  console.log(`  ${spec.id.padEnd(18)} ${String(spec.cols.length).padStart(2)} cols  ` +
+  console.log(`  ${configIdOf(spec.name).padEnd(26)} ${String(spec.cols.length).padStart(2)} cols  ` +
     `filter=${Object.keys(spec.filter).join('+')}` +
     `${spec.group ? `  group=${spec.group.join(',')}` : ''}`);
 }

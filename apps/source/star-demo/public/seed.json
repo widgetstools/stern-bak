@@ -1103,7 +1103,7 @@
           {
             "id": "grid-test",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
             "componentSubType": "test",
             "configId": "grid-test",
@@ -1116,12 +1116,12 @@
             "singleton": false
           },
           {
-            "id": "fi-rates",
+            "id": "grid-rates",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-rates",
+            "componentSubType": "rates",
+            "configId": "grid-rates",
             "displayName": "Rates",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1132,12 +1132,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-ig-credit",
+            "id": "grid-ig-credit",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-ig-credit",
+            "componentSubType": "ig-credit",
+            "configId": "grid-ig-credit",
             "displayName": "IG Credit",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1148,12 +1148,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-hy-credit",
+            "id": "grid-hy-credit",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-hy-credit",
+            "componentSubType": "hy-credit",
+            "configId": "grid-hy-credit",
             "displayName": "HY Credit",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1164,12 +1164,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-munis",
+            "id": "grid-munis",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-munis",
+            "componentSubType": "munis",
+            "configId": "grid-munis",
             "displayName": "Munis",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1180,12 +1180,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-securitized",
+            "id": "grid-securitized",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-securitized",
+            "componentSubType": "securitized",
+            "configId": "grid-securitized",
             "displayName": "Securitized",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1196,12 +1196,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-cds",
+            "id": "grid-credit-derivatives",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-cds",
+            "componentSubType": "credit-derivatives",
+            "configId": "grid-credit-derivatives",
             "displayName": "Credit Derivatives",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1212,12 +1212,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-core-plus",
+            "id": "grid-core-plus-bond",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-core-plus",
+            "componentSubType": "core-plus-bond",
+            "configId": "grid-core-plus-bond",
             "displayName": "Core Plus Bond",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1228,12 +1228,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-tax-exempt",
+            "id": "grid-tax-exempt-income",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-tax-exempt",
+            "componentSubType": "tax-exempt-income",
+            "configId": "grid-tax-exempt-income",
             "displayName": "Tax-Exempt Income",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1244,12 +1244,12 @@
             "asWindow": true
           },
           {
-            "id": "fi-credit-opps",
+            "id": "grid-credit-opportunities",
             "hostUrl": "/#/blotters/marketsgrid",
-            "iconId": "",
+            "iconId": "lucide:table",
             "componentType": "grid",
-            "componentSubType": "fixed-income",
-            "configId": "fi-credit-opps",
+            "componentSubType": "credit-opportunities",
+            "configId": "grid-credit-opportunities",
             "displayName": "Credit Opportunities",
             "createdAt": "2026-09-08T12:00:00.000Z",
             "type": "internal",
@@ -1280,18 +1280,117 @@
           {
             "type": "ActionButton",
             "id": "0395b5f2-088b-4bb1-b99f-724b53a01a6a",
-            "tooltip": "TestGrid",
+            "tooltip": "FI Book",
             "iconUrl": "",
-            "iconId": "",
+            "iconId": "lucide:table",
             "iconColor": "",
             "actionId": "launch-component",
             "customData": {
               "registryEntryId": "grid-test",
-              "asWindow": false
+              "asWindow": true
             }
+          },
+          {
+            "type": "DropdownButton",
+            "id": "fi-dock-assets",
+            "tooltip": "Assets",
+            "iconUrl": "",
+            "iconId": "lucide:folder",
+            "options": [
+              {
+                "id": "fi-dock-grid-rates",
+                "tooltip": "Rates",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-rates",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-ig-credit",
+                "tooltip": "IG Credit",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-ig-credit",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-hy-credit",
+                "tooltip": "HY Credit",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-hy-credit",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-munis",
+                "tooltip": "Munis",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-munis",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-securitized",
+                "tooltip": "Securitized",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-securitized",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-credit-derivatives",
+                "tooltip": "Credit Derivatives",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-credit-derivatives",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-core-plus-bond",
+                "tooltip": "Core Plus Bond",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-core-plus-bond",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-tax-exempt-income",
+                "tooltip": "Tax-Exempt Income",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-tax-exempt-income",
+                  "asWindow": true
+                }
+              },
+              {
+                "id": "fi-dock-grid-credit-opportunities",
+                "tooltip": "Credit Opportunities",
+                "iconId": "lucide:table",
+                "actionId": "launch-component",
+                "customData": {
+                  "registryEntryId": "grid-credit-opportunities",
+                  "asWindow": true
+                }
+              }
+            ]
           }
         ],
-        "updatedAt": "2026-06-09T00:34:29.394Z"
+        "updatedAt": "2026-09-08T12:00:00.000Z"
       },
       "createdBy": "k151344",
       "updatedBy": "k151344",
@@ -1470,7 +1569,7 @@
       "isPublic": true,
       "displayText": "MarketsGrid profiles: FI Book",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "test",
       "isTemplate": true,
       "singleton": false,
       "payload": {
@@ -2847,7 +2946,7 @@
       "componentType": "data-provider",
       "componentSubType": "stomp",
       "isTemplate": false,
-      "displayText": "FI Trading Service — positions",
+      "displayText": "FI Trading Service \u2014 positions",
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T02:30:00.000Z",
@@ -3821,15 +3920,15 @@
       }
     },
     {
-      "configId": "fi-rates",
+      "configId": "grid-rates",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Rates",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "rates",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -4617,20 +4716,20 @@
             "historicalProviderId": null,
             "mode": "live"
           },
-          "caption": "Rates — Govt & Agency"
+          "caption": "Rates \u2014 Govt & Agency"
         }
       }
     },
     {
-      "configId": "fi-ig-credit",
+      "configId": "grid-ig-credit",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: IG Credit",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "ig-credit",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -5514,15 +5613,15 @@
       }
     },
     {
-      "configId": "fi-hy-credit",
+      "configId": "grid-hy-credit",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: HY Credit",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "hy-credit",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -6417,15 +6516,15 @@
       }
     },
     {
-      "configId": "fi-munis",
+      "configId": "grid-munis",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Munis",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "munis",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -7260,15 +7359,15 @@
       }
     },
     {
-      "configId": "fi-securitized",
+      "configId": "grid-securitized",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Securitized",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "securitized",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -8092,15 +8191,15 @@
       }
     },
     {
-      "configId": "fi-cds",
+      "configId": "grid-credit-derivatives",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Credit Derivatives",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "credit-derivatives",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -8883,15 +8982,15 @@
       }
     },
     {
-      "configId": "fi-core-plus",
+      "configId": "grid-core-plus-bond",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Core Plus Bond",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "core-plus-bond",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -9633,15 +9732,15 @@
       }
     },
     {
-      "configId": "fi-tax-exempt",
+      "configId": "grid-tax-exempt-income",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Tax-Exempt Income",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "tax-exempt-income",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
@@ -10386,15 +10485,15 @@
       }
     },
     {
-      "configId": "fi-credit-opps",
+      "configId": "grid-credit-opportunities",
       "appId": "StarDemo",
       "userId": "k151344",
       "isPublic": true,
       "displayText": "MarketsGrid profiles: Credit Opportunities",
       "componentType": "grid",
-      "componentSubType": "fixed-income",
+      "componentSubType": "credit-opportunities",
       "isTemplate": true,
-      "singleton": false,
+      "singleton": true,
       "createdBy": "k151344",
       "updatedBy": "k151344",
       "creationTime": "2026-09-08T12:00:00.000Z",
