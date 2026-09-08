@@ -125,3 +125,36 @@ describe('POST /api/scenario/fork', () => {
     expect(fork.name).toBe('counterfactual');
   });
 });
+
+describe('POST /api/scenario/worst', () => {
+  it('searches for the move that hurts this book most and explains why', async () => {
+    const worst = await (await post('/api/scenario/worst', { horizonDays: 20, radius: 2.5 })).json() as {
+      move: { level: number; credit: number }; actualPnl: number; predictedPnl: number;
+      convexityEffect: number; explanation: string; plausibility: string; radius: number;
+      byBucket: { bucket: string; pnl: number }[];
+      exposure: { labels: string[]; standaloneLoss: number[] };
+    };
+    expect(worst.actualPnl).toBeLessThan(0);
+    expect(worst.move.level).toBeGreaterThan(0);
+    expect(worst.radius).toBe(2.5);
+    expect(worst.convexityEffect).toBeCloseTo(worst.actualPnl - worst.predictedPnl, 6);
+    expect(worst.explanation.length).toBeGreaterThan(40);
+    expect(worst.plausibility).toContain('standard-deviation boundary');
+    expect(worst.exposure.labels).toContain('credit');
+    expect(worst.byBucket[0]?.pnl).toBeLessThan(0);
+  });
+
+  it('hurts more the further into the tail it is asked to look', async () => {
+    const near = await (await post('/api/scenario/worst', { horizonDays: 10, radius: 1.5 })).json() as
+      { actualPnl: number };
+    const far = await (await post('/api/scenario/worst', { horizonDays: 10, radius: 4 })).json() as
+      { actualPnl: number };
+    expect(far.actualPnl).toBeLessThan(near.actualPnl);
+  });
+
+  it('clamps an absurd radius rather than reporting an impossible world', async () => {
+    const result = await (await post('/api/scenario/worst', { radius: 500 })).json() as
+      { radius: number };
+    expect(result.radius).toBe(6);
+  });
+});

@@ -18,6 +18,7 @@ import type { LiveBook } from '../datasets/LiveBook.js';
 import { snapshotBook, type BookSnapshot } from '../scenario/bookSnapshot.js';
 import { histogram, scanScenarios } from '../scenario/scanScenarios.js';
 import type { FactorShock } from '../scenario/forkEngine.js';
+import { reverseStress } from '../scenario/reverseStress.js';
 import type { Route } from './router.js';
 
 /** Caps. A scan is interactive or it is a background job; these keep it the first. */
@@ -125,6 +126,22 @@ export function scenarioRoutes(deps: ScenarioDeps): Route[] {
           ...(shock === undefined ? {} : { shock }),
         });
         return { ...result, distribution: histogram(result.terminalPnl) };
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/scenario/worst',
+      handler: async (request) => {
+        // Reverse stress: not "apply a stored scenario" but "search for the
+        // move that hurts THIS book most", which is a different answer for a
+        // muni book than for a high yield one.
+        const body = asRecord(request.body);
+        const radius = Number(body.radius);
+        return reverseStress({
+          book: currentSnapshot(deps),
+          horizonDays: clamp(body.horizonDays, 20, 1, MAX_HORIZON_DAYS),
+          radius: Number.isFinite(radius) ? Math.min(6, Math.max(0.5, radius)) : 2.5,
+        });
       },
     },
     {
