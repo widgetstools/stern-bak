@@ -5441,6 +5441,566 @@
                           }
                         }
                       }
+                    },
+                    "marketValue": {
+                      "colId": "marketValue",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      },
+                      "cellRendererId": "percent-bar",
+                      "cellRendererConfig": {
+                        "kind": "percent-bar",
+                        "config": {
+                          "max": 200000000,
+                          "showValue": true,
+                          "barColor": {
+                            "dark": "#7cc7f9",
+                            "light": "#1e6fb8"
+                          }
+                        }
+                      }
+                    },
+                    "unrealizedPnL": {
+                      "colId": "unrealizedPnL",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      },
+                      "cellRendererId": "pnl-value",
+                      "cellRendererConfig": {
+                        "kind": "pnl-value",
+                        "config": {}
+                      }
+                    },
+                    "dailyPnL": {
+                      "colId": "dailyPnL",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      },
+                      "cellRendererId": "pnl-value",
+                      "cellRendererConfig": {
+                        "kind": "pnl-value",
+                        "config": {}
+                      }
+                    },
+                    "currentFace": {
+                      "colId": "currentFace",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "accruedInterest": {
+                      "colId": "accruedInterest",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "effectiveDv01": {
+                      "colId": "effectiveDv01",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "cs01": {
+                      "colId": "cs01",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 0,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "yieldToMaturity": {
+                      "colId": "yieldToMaturity",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 3,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "yieldToWorst": {
+                      "colId": "yieldToWorst",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 3,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "couponRate": {
+                      "colId": "couponRate",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 3,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "zSpread": {
+                      "colId": "zSpread",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 1,
+                          "thousands": true
+                        }
+                      },
+                      "cellRendererId": "heatmap",
+                      "cellRendererConfig": {
+                        "kind": "heatmap",
+                        "config": {
+                          "domain": {
+                            "min": 0,
+                            "max": 600
+                          },
+                          "colorScale": {
+                            "min": {
+                              "dark": "#0f2b1c",
+                              "light": "#e8f4ec"
+                            },
+                            "mid": {
+                              "dark": "#3a3010",
+                              "light": "#fbf0cf"
+                            },
+                            "max": {
+                              "dark": "#3a1818",
+                              "light": "#fcdada"
+                            }
+                          },
+                          "textColor": {
+                            "dark": "#e8edf2",
+                            "light": "#1f2733"
+                          }
+                        }
+                      }
+                    },
+                    "oas": {
+                      "colId": "oas",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 1,
+                          "thousands": true
+                        }
+                      },
+                      "cellRendererId": "heatmap",
+                      "cellRendererConfig": {
+                        "kind": "heatmap",
+                        "config": {
+                          "domain": {
+                            "min": 0,
+                            "max": 600
+                          },
+                          "colorScale": {
+                            "min": {
+                              "dark": "#0f2b1c",
+                              "light": "#e8f4ec"
+                            },
+                            "mid": {
+                              "dark": "#3a3010",
+                              "light": "#fbf0cf"
+                            },
+                            "max": {
+                              "dark": "#3a1818",
+                              "light": "#fcdada"
+                            }
+                          },
+                          "textColor": {
+                            "dark": "#e8edf2",
+                            "light": "#1f2733"
+                          }
+                        }
+                      }
+                    },
+                    "effectiveDuration": {
+                      "colId": "effectiveDuration",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 2,
+                          "thousands": true
+                        }
+                      },
+                      "cellRendererId": "percent-bar",
+                      "cellRendererConfig": {
+                        "kind": "percent-bar",
+                        "config": {
+                          "max": 30,
+                          "showValue": true,
+                          "barColor": {
+                            "dark": "#7cc7f9",
+                            "light": "#1e6fb8"
+                          }
+                        }
+                      }
+                    },
+                    "convexity": {
+                      "colId": "convexity",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 2,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "avgCost": {
+                      "colId": "avgCost",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 4,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "priceChange": {
+                      "colId": "priceChange",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 4,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "bidAskPoints": {
+                      "colId": "bidAskPoints",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 4,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "yearsToMaturity": {
+                      "colId": "yearsToMaturity",
+                      "valueFormatterTemplate": {
+                        "kind": "preset",
+                        "preset": "number",
+                        "options": {
+                          "decimals": 2,
+                          "thousands": true
+                        }
+                      }
+                    },
+                    "rating": {
+                      "colId": "rating",
+                      "cellRendererId": "pill",
+                      "cellRendererConfig": {
+                        "kind": "pill",
+                        "config": {
+                          "rules": [
+                            {
+                              "value": "AAA",
+                              "bg": {
+                                "dark": "#103418",
+                                "light": "#d6f4dd"
+                              },
+                              "fg": {
+                                "dark": "#7fdf9b",
+                                "light": "#1f5d34"
+                              }
+                            },
+                            {
+                              "value": "AA",
+                              "bg": {
+                                "dark": "#0e3046",
+                                "light": "#dbeefd"
+                              },
+                              "fg": {
+                                "dark": "#7cc7f9",
+                                "light": "#0f4d75"
+                              }
+                            },
+                            {
+                              "value": "A",
+                              "bg": {
+                                "dark": "#102e3a",
+                                "light": "#dfeef4"
+                              },
+                              "fg": {
+                                "dark": "#7ec4d8",
+                                "light": "#10495a"
+                              }
+                            },
+                            {
+                              "value": "BBB",
+                              "bg": {
+                                "dark": "#33310c",
+                                "light": "#f7f1cc"
+                              },
+                              "fg": {
+                                "dark": "#e5dd6f",
+                                "light": "#5d551a"
+                              }
+                            },
+                            {
+                              "value": "BB",
+                              "bg": {
+                                "dark": "#3a2614",
+                                "light": "#fbe7d7"
+                              },
+                              "fg": {
+                                "dark": "#f0a576",
+                                "light": "#7a3b14"
+                              }
+                            },
+                            {
+                              "value": "B",
+                              "bg": {
+                                "dark": "#3a1818",
+                                "light": "#fcdada"
+                              },
+                              "fg": {
+                                "dark": "#ee8e8e",
+                                "light": "#7a1f1f"
+                              }
+                            },
+                            {
+                              "value": "CCC",
+                              "bg": {
+                                "dark": "#3a1818",
+                                "light": "#fcdada"
+                              },
+                              "fg": {
+                                "dark": "#ee8e8e",
+                                "light": "#7a1f1f"
+                              }
+                            },
+                            {
+                              "value": "D",
+                              "bg": {
+                                "dark": "#450a0a",
+                                "light": "#fecaca"
+                              },
+                              "fg": {
+                                "dark": "#fca5a5",
+                                "light": "#7f1d1d"
+                              }
+                            }
+                          ],
+                          "fallback": {
+                            "bg": {
+                              "dark": "#1f2733",
+                              "light": "#e8edf2"
+                            },
+                            "fg": {
+                              "dark": "#9aa6b2",
+                              "light": "#3d4753"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "sector": {
+                      "colId": "sector",
+                      "cellRendererId": "pill",
+                      "cellRendererConfig": {
+                        "kind": "pill",
+                        "config": {
+                          "rules": [
+                            {
+                              "value": "Sovereign",
+                              "bg": {
+                                "dark": "#23123a",
+                                "light": "#ebdcf8"
+                              },
+                              "fg": {
+                                "dark": "#b88bf0",
+                                "light": "#4e1b86"
+                              }
+                            },
+                            {
+                              "value": "Banking",
+                              "bg": {
+                                "dark": "#0f2b3f",
+                                "light": "#dbeaf6"
+                              },
+                              "fg": {
+                                "dark": "#7fc1ef",
+                                "light": "#0e466b"
+                              }
+                            },
+                            {
+                              "value": "Insurance",
+                              "bg": {
+                                "dark": "#0f2b3f",
+                                "light": "#dbeaf6"
+                              },
+                              "fg": {
+                                "dark": "#7fc1ef",
+                                "light": "#0e466b"
+                              }
+                            },
+                            {
+                              "value": "Electric",
+                              "bg": {
+                                "dark": "#102e22",
+                                "light": "#d8edd9"
+                              },
+                              "fg": {
+                                "dark": "#79d3a3",
+                                "light": "#1d5b2f"
+                              }
+                            },
+                            {
+                              "value": "Natural Gas",
+                              "bg": {
+                                "dark": "#102e22",
+                                "light": "#d8edd9"
+                              },
+                              "fg": {
+                                "dark": "#79d3a3",
+                                "light": "#1d5b2f"
+                              }
+                            },
+                            {
+                              "value": "Energy",
+                              "bg": {
+                                "dark": "#3a2310",
+                                "light": "#fbe5cc"
+                              },
+                              "fg": {
+                                "dark": "#f0a576",
+                                "light": "#7a3a13"
+                              }
+                            },
+                            {
+                              "value": "REITs",
+                              "bg": {
+                                "dark": "#2b1533",
+                                "light": "#f2dcf8"
+                              },
+                              "fg": {
+                                "dark": "#d795ef",
+                                "light": "#5c1a70"
+                              }
+                            },
+                            {
+                              "value": "Technology",
+                              "bg": {
+                                "dark": "#102e3a",
+                                "light": "#dfeef4"
+                              },
+                              "fg": {
+                                "dark": "#7ec4d8",
+                                "light": "#10495a"
+                              }
+                            },
+                            {
+                              "value": "Communications",
+                              "bg": {
+                                "dark": "#102e3a",
+                                "light": "#dfeef4"
+                              },
+                              "fg": {
+                                "dark": "#7ec4d8",
+                                "light": "#10495a"
+                              }
+                            }
+                          ],
+                          "fallback": {
+                            "bg": {
+                              "dark": "#1f2733",
+                              "light": "#e8edf2"
+                            },
+                            "fg": {
+                              "dark": "#9aa6b2",
+                              "light": "#3d4753"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "currency": {
+                      "colId": "currency",
+                      "cellRendererId": "country-flag",
+                      "cellRendererConfig": {
+                        "kind": "country-flag",
+                        "config": {
+                          "codeField": "currency"
+                        }
+                      }
+                    },
+                    "priceChangePct": {
+                      "colId": "priceChangePct",
+                      "cellRendererId": "trend-arrow",
+                      "cellRendererConfig": {
+                        "kind": "trend-arrow",
+                        "config": {
+                          "threshold": 0,
+                          "decimals": 3,
+                          "upColor": {
+                            "dark": "#7fdf9b",
+                            "light": "#1f7a34"
+                          },
+                          "downColor": {
+                            "dark": "#ee8e8e",
+                            "light": "#a02a2a"
+                          },
+                          "neutralColor": {
+                            "dark": "#9aa6b2",
+                            "light": "#5a6068"
+                          }
+                        }
+                      }
+                    },
+                    "lastUpdate": {
+                      "colId": "lastUpdate",
+                      "cellRendererId": "time-since",
+                      "cellRendererConfig": {
+                        "kind": "time-since",
+                        "config": {
+                          "sourceField": "lastUpdate"
+                        }
+                      }
                     }
                   }
                 }
@@ -6101,8 +6661,7 @@
             "width": 80,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "rating-badge"
+            "resizable": true
           },
           {
             "field": "couponRate",
@@ -6147,8 +6706,7 @@
             "width": 75,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "change-value"
+            "resizable": true
           },
           {
             "field": "bidAskPoints",
@@ -6184,8 +6742,7 @@
             "width": 90,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "oas-value"
+            "resizable": true
           },
           {
             "field": "oas",
@@ -6194,8 +6751,7 @@
             "width": 80,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "oas-value"
+            "resizable": true
           },
           {
             "field": "effectiveDuration",
@@ -6258,8 +6814,7 @@
             "width": 120,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "pnl-value"
+            "resizable": true
           },
           {
             "field": "dailyPnL",
@@ -6268,8 +6823,7 @@
             "width": 110,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "pnl-value"
+            "resizable": true
           },
           {
             "field": "avgCost",
@@ -6305,8 +6859,7 @@
             "width": 95,
             "filter": true,
             "sortable": true,
-            "resizable": true,
-            "cellRenderer": "book-name"
+            "resizable": true
           },
           {
             "field": "strategy",

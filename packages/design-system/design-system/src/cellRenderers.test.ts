@@ -991,3 +991,71 @@ describe('Configurable Renderers', () => {
     });
   });
 });
+
+/**
+ * A renderer that reads only `params.value` silently discards the column's
+ * formatter. The symptom is the formatting toolbar appearing to do nothing —
+ * the state changes, the grid re-renders, the same raw number is drawn again,
+ * and the only visible effect is the re-autosize that follows.
+ */
+describe('renderers honour the column formatter', () => {
+  const withFormat = (value: unknown, valueFormatted: string) =>
+    ({ value, valueFormatted }) as unknown as ICellRendererParams;
+  const noFormat = (value: unknown) =>
+    ({ value, valueFormatted: null }) as unknown as ICellRendererParams;
+
+  const cases: Array<[string, () => { init: (p: ICellRendererParams) => void; getGui: () => HTMLElement }]> = [
+    ['PnlValueRenderer', () => new PnlValueRenderer()],
+    ['OasValueRenderer', () => new OasValueRenderer()],
+    ['ChangeValueRenderer', () => new ChangeValueRenderer()],
+    ['FilledAmountRenderer', () => new FilledAmountRenderer()],
+    ['ColoredValueRenderer', () => new ColoredValueRenderer()],
+  ];
+
+  for (const [name, make] of cases) {
+    it(`${name} shows the formatted text when there is one`, () => {
+      const renderer = make();
+      renderer.init(withFormat(941181.9424744919, '941,182'));
+      expect(renderer.getGui().textContent).toContain('941,182');
+      // The formatter owns the whole display: no renderer suffix survives it,
+      // or a formatted P&L would read "941,182K".
+      expect(renderer.getGui().textContent).not.toContain('941181.94');
+      expect(renderer.getGui().textContent).not.toContain('K');
+    });
+  }
+
+  it('keeps its own presentation when no formatter is set', () => {
+    const pnl = new PnlValueRenderer();
+    pnl.init(noFormat(100));
+    expect(pnl.getGui().textContent).toBe('+100K');
+
+    const change = new ChangeValueRenderer();
+    change.init(noFormat(1.5));
+    expect(change.getGui().textContent).toBe('+1.50');
+  });
+
+  it('treats an empty formatted string as no formatter', () => {
+    const renderer = new PnlValueRenderer();
+    renderer.init({ value: 100, valueFormatted: '' } as unknown as ICellRendererParams);
+    expect(renderer.getGui().textContent).toBe('+100K');
+  });
+
+  it('still colours by the raw sign, not by the formatted text', () => {
+    // The formatter can hide the sign — "(50)" for a negative in accounting
+    // style — so colour must come from the value.
+    const renderer = new PnlValueRenderer();
+    renderer.init(withFormat(-50, '(50)'));
+    expect(renderer.getGui().style.color).toContain('negative');
+    expect(renderer.getGui().textContent).toBe('(50)');
+  });
+
+  it('lets the decimal buttons move a column that has a renderer on it', () => {
+    // What the toolbar actually does: rewrite valueFormatted, then re-render.
+    const two = new PnlValueRenderer();
+    two.init(withFormat(1234.5678, '1234.57'));
+    const four = new PnlValueRenderer();
+    four.init(withFormat(1234.5678, '1234.5678'));
+    expect(two.getGui().textContent).toBe('1234.57');
+    expect(four.getGui().textContent).toBe('1234.5678');
+  });
+});

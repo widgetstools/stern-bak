@@ -41,6 +41,28 @@ function el(tag: string, styles: Record<string, string>, text?: string): HTMLEle
 
 const MONO = "'JetBrains Mono', monospace";
 
+
+/**
+ * The text a value renderer should draw.
+ *
+ * AG-Grid hands a renderer BOTH `value` (raw) and `valueFormatted` (the column
+ * formatter's output). A renderer that reads only `value` silently discards the
+ * formatter, which is why the formatting toolbar's decimal buttons did nothing
+ * on a column with a renderer on it: the format state changed and was saved,
+ * the grid re-rendered, and the renderer drew the same raw number again.
+ *
+ * When a formatter IS set it owns the whole display, suffixes and all — a
+ * renderer appending its own would produce "941,181.94K". When there is none,
+ * the renderer's own presentation stands, so nothing changes for a column that
+ * never had a formatter.
+ */
+function displayText(params: ICellRendererParams, own: (value: unknown) => string): string {
+  const formatted = params.valueFormatted;
+  return formatted === null || formatted === undefined || formatted === ''
+    ? own(params.value)
+    : formatted;
+}
+
 // ── Side (BUY / SELL) ──
 export class SideCellRenderer implements ICellRendererComp {
   private eGui!: HTMLElement;
@@ -98,7 +120,8 @@ export class OasValueRenderer implements ICellRendererComp {
   init(params: ICellRendererParams) {
     const v = Number(params.value);
     const color = v > 80 ? 'var(--ds-accent-warning)' : 'var(--ds-accent-positive)';
-    this.eGui = el('span', { fontFamily: MONO, color }, v > 0 ? `+${v}` : String(v));
+    this.eGui = el('span', { fontFamily: MONO, color },
+      displayText(params, () => (v > 0 ? `+${v}` : String(v))));
   }
   getGui() { return this.eGui; }
   refresh() { return false; }
@@ -160,7 +183,8 @@ export class PnlValueRenderer implements ICellRendererComp {
   init(params: ICellRendererParams) {
     const v = Number(params.value);
     const color = v >= 0 ? 'var(--ds-accent-positive)' : 'var(--ds-accent-negative)';
-    this.eGui = el('span', { fontFamily: MONO, color }, `${v >= 0 ? '+' : ''}${v}K`);
+    this.eGui = el('span', { fontFamily: MONO, color },
+      displayText(params, () => `${v >= 0 ? '+' : ''}${v}K`));
   }
   getGui() { return this.eGui; }
   refresh() { return false; }
@@ -173,7 +197,8 @@ export class FilledAmountRenderer implements ICellRendererComp {
     const filled = params.value;
     const qty = params.data?.qty;
     const color = filled === qty ? 'var(--ds-accent-positive)' : 'var(--ds-accent-warning)';
-    this.eGui = el('span', { fontFamily: MONO, color }, String(filled));
+    this.eGui = el('span', { fontFamily: MONO, color },
+      displayText(params, () => String(filled)));
   }
   getGui() { return this.eGui; }
   refresh() { return false; }
@@ -196,7 +221,8 @@ export class ChangeValueRenderer implements ICellRendererComp {
     const v = Number(params.value);
     const color = v >= 0 ? 'var(--ds-accent-positive)' : 'var(--ds-accent-negative)';
     const prefix = v >= 0 ? '+' : '';
-    this.eGui = el('span', { fontFamily: MONO, color }, `${prefix}${v.toFixed(2)}`);
+    this.eGui = el('span', { fontFamily: MONO, color },
+      displayText(params, () => `${prefix}${v.toFixed(2)}`));
   }
   getGui() { return this.eGui; }
   refresh() { return false; }
