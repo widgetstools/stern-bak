@@ -77,6 +77,11 @@ export function halfSpreadPoints(security: Security, duration: number): number {
     : security.assetClass === 'Muni' ? 1.6
     : security.assetClass === 'CLO' ? 2.6
     : security.assetClass === 'CMBS' || security.assetClass === 'ABS' ? 1.8
+    // A credit index trades inside every one of its own constituents — that is
+    // most of the reason it exists, and it is why a desk moves credit risk in
+    // index form. Without this a five-year index can quote wider than a
+    // ten-year single name, purely because the spread scales with duration.
+    : security.securityType === 'CdsIndex' ? 0.35
     : 1;
   // Convert a yield half-spread into price using duration.
   return (yieldBp / 10000) * classMultiple * Math.max(0.25, duration) * 100;

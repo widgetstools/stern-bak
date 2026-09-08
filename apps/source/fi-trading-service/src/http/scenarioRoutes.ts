@@ -18,7 +18,12 @@ import type { LiveBook } from '../datasets/LiveBook.js';
 import { snapshotBook, type BookSnapshot } from '../scenario/bookSnapshot.js';
 import { histogram, scanScenarios } from '../scenario/scanScenarios.js';
 import type { FactorShock } from '../scenario/forkEngine.js';
-import { reverseStress } from '../scenario/reverseStress.js';
+import { factorExposure, reverseStress } from '../scenario/reverseStress.js';
+import { nssDiscountCurve } from '../domain/curves/discount.js';
+import { buildHedgeUniverse } from '../strategy/hedgeUniverse.js';
+import { solveHedge, FACTOR_LABELS } from '../strategy/hedgeSolver.js';
+import { overlayFromLegs } from '../strategy/hedgeOverlay.js';
+import { ticketsFromLegs } from '../strategy/tickets.js';
 import type { Route } from './router.js';
 
 /** Caps. A scan is interactive or it is a background job; these keep it the first. */
@@ -77,6 +82,27 @@ function currentSnapshot(deps: ScenarioDeps): BookSnapshot {
   return snapshotBook(
     deps.book.positions(), deps.book.riskVectors(), deps.book.factorState(), deps.asOf,
   );
+}
+
+/**
+ * Read a hedge target from a request.
+ *
+ * `null` and a missing entry mean different things and both are legitimate:
+ * an omitted factor is unconstrained (hold it roughly where it is), and an
+ * explicit number is a target to hit. A caller asking to "neutralise credit"
+ * sends `{ credit: 0 }` and says nothing about the curve.
+ */
+function readTarget(value: unknown, bookGradient: readonly number[]): (number | null)[] {
+  const raw = asRecord(value);
+  return FACTOR_LABELS.map((label, index) => {
+    const entry = raw[label];
+    if (entry === undefined || entry === null) return null;
+    if (typeof entry === 'string' && entry.toLowerCase() === 'hold') {
+      return bookGradient[index] as number;
+    }
+    const parsed = Number(entry);
+    return Number.isFinite(parsed) ? parsed : null;
+  });
 }
 
 export function scenarioRoutes(deps: ScenarioDeps): Route[] {
@@ -142,6 +168,84 @@ export function scenarioRoutes(deps: ScenarioDeps): Route[] {
           horizonDays: clamp(body.horizonDays, 20, 1, MAX_HORIZON_DAYS),
           radius: Number.isFinite(radius) ? Math.min(6, Math.max(0.5, radius)) : 2.5,
         });
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/strategy/solve',
+      handler: async (request) => {
+        // The closed loop in one call: solve a package against the live book,
+        // then re-run the SAME worlds with it on. Solving and verifying in one
+        // request is what guarantees both halves saw the same book — a second
+        // call could land after a tick and quietly compare two different ones.
+        const body = asRecord(request.body);
+        const snapshot = currentSnapshot(deps);
+        const exposure = factorExposure(snapshot);
+        const state = deps.book.factorState();
+
+        const universe = buildHedgeUniverse({
+          securities: deps.book.securities(),
+          spreadBpFor: deps.book.spreadFor,
+          valuation: {
+            asOf: deps.asOf, calendar: deps.calendar,
+            curve: nssDiscountCurve(state.betas), mortgage: state.mortgage,
+          },
+        });
+
+        const solved = solveHedge({
+          bookGradient: exposure.gradient,
+          candidates: universe,
+          target: { gradient: readTarget(body.target, exposure.gradient) },
+          ...(body.maxLegs === undefined ? {} : { maxLegs: clamp(body.maxLegs, 8, 1, 20) }),
+        });
+        const overlay = overlayFromLegs(solved.legs, state, deps.asOf);
+        const name = typeof body.name === 'string' ? body.name : 'hedge package';
+        const packaged = ticketsFromLegs(solved.legs, name, deps.seed);
+
+        const shared = {
+          fork: {
+            engine: deps.book.engine(), calendar: deps.calendar, from: state,
+            horizonDays: clamp(body.horizonDays, 20, 1, MAX_HORIZON_DAYS), seed: deps.seed,
+          },
+          book: snapshot,
+          worlds: clamp(body.worlds, 200, 1, MAX_WORLDS),
+          reportWorst: 1,
+        };
+        const before = await scanScenarios(shared);
+        const after = await scanScenarios({ ...shared, hedge: overlay });
+        const worstBefore = reverseStress({ book: snapshot, horizonDays: shared.fork.horizonDays });
+        const worstAfter = reverseStress({
+          book: snapshot, horizonDays: shared.fork.horizonDays, hedge: overlay,
+        });
+
+        return {
+          name,
+          bookFingerprint: snapshot.fingerprint,
+          package: packaged,
+          exposureBefore: Object.fromEntries(
+            FACTOR_LABELS.map((label, i) => [label, exposure.gradient[i]]),
+          ),
+          exposureAfter: Object.fromEntries(
+            FACTOR_LABELS.map((label, i) => [label, solved.hedgedGradient[i]]),
+          ),
+          coverage: Object.fromEntries(FACTOR_LABELS.map((label, i) => [label, solved.coverage[i]])),
+          residual: Object.fromEntries(FACTOR_LABELS.map((label, i) => [label, solved.residual[i]])),
+          narrative: solved.narrative,
+          candidateCount: universe.length,
+          // Measured on the SAME worlds, by the same code, with the package as
+          // an overlay. Not a modelled hedge ratio — a controlled experiment.
+          verification: {
+            worlds: shared.worlds,
+            horizonDays: shared.fork.horizonDays,
+            before: { worst: before.worst, var95: before.var95, cvar95: before.cvar95, median: before.median, best: before.best },
+            after: { worst: after.worst, var95: after.var95, cvar95: after.cvar95, median: after.median, best: after.best },
+            worstCaseBefore: worstBefore.actualPnl,
+            worstCaseAfter: worstAfter.actualPnl,
+            distributionBefore: histogram(before.terminalPnl),
+            distributionAfter: histogram(after.terminalPnl),
+          },
+          plausibility: before.plausibility,
+        };
       },
     },
     {

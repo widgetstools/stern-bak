@@ -17,7 +17,9 @@
 import { addMonths, type DateInt } from '../core/dateInt.js';
 import { createRng, deriveSeed } from '../core/rng.js';
 import type { CdsEntity } from './cdsEntities.js';
-import { protectionStart, standardMaturity, tenorYears, type CdsTenor } from './cdsContracts.js';
+import {
+  protectionStart, standardMaturity, tenorYears, type CdsIndex, type CdsTenor,
+} from './cdsContracts.js';
 import type { Security } from './types.js';
 
 /** Tenors a single-name desk actually runs risk in, with their weights. */
@@ -108,6 +110,66 @@ export function buildCdsSecurities(options: CdsSecurityOptions): Security[] {
         onTheRunRank: null,
       });
     }
+  }
+  return out;
+}
+
+/**
+ * CDX and iTraxx indices as tradeable securities.
+ *
+ * The instrument a desk actually reaches for to move credit risk in size. A
+ * broad book cannot be hedged with single names: at a realistic per-name limit
+ * it takes dozens of lines to shift a billion of spread exposure, and a solver
+ * restricted to single names reports — correctly — that it covered a fifth of
+ * what was asked. One index line does the same job, which is why indices exist.
+ *
+ * They are quoted differently from single names and the row says so: CDX.NA.HY
+ * and iTraxx Crossover trade in PRICE, the investment-grade families in spread.
+ */
+export function buildCdsIndexSecurities(
+  indices: readonly CdsIndex[], startSecurityId: number,
+): Security[] {
+  const out: Security[] = [];
+  let securityId = startSecurityId;
+
+  for (const index of indices) {
+    if (!index.onTheRun) continue;
+    const years = Math.max(0.25, (index.maturity - index.rollDate) / 10_000);
+    out.push({
+      securityId: securityId++,
+      cusip: `${index.family.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase()}${index.series}`,
+      isin: '',
+      assetClass: 'CDS',
+      securityType: 'CdsIndex',
+      description: `${index.family} S${index.series} V${index.version} ${(index.couponBp / 100).toFixed(0)}%`,
+      // An index has no single issuer. -1 keeps it out of every issuer join,
+      // which is what stops it being mistaken for a single-name basis leg.
+      issuerId: -1,
+      issuerName: index.family,
+      sectorIndex: 0,
+      currency: 'USD',
+      issueDate: index.rollDate,
+      datedDate: index.rollDate,
+      maturityDate: index.maturity,
+      originalTermYears: Math.round(years),
+      couponRate: index.couponBp / 100,
+      couponType: 'Fixed',
+      frequency: 4,
+      dayCount: 'ACT/360',
+      endOfMonth: false,
+      amountOutstandingUsd: 0,
+      quotationBasis: 'Decimal',
+      ratingIndex: index.couponBp === 500 ? 8 : 4,
+      seniority: 'SeniorUnsecured',
+      // The most liquid credit instruments there are — tighter than any of
+      // their own constituents.
+      liquidityTier: 'T1',
+      callable: false,
+      callSchedule: [],
+      benchmarkTenor: years,
+      issueSpreadBp: index.couponBp,
+      onTheRunRank: 0,
+    });
   }
   return out;
 }

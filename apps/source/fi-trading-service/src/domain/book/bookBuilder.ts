@@ -27,7 +27,8 @@ import { seedMortgageRates } from '../curves/mortgageRates.js';
 import { ratingVector, sectorVector, buildIssuers, type Issuer } from '../instruments/creditIssuers.js';
 import { buildCreditBonds } from '../instruments/creditBonds.js';
 import { buildCdsEntities, entitiesWithBonds } from '../instruments/cdsEntities.js';
-import { buildCdsSecurities } from '../instruments/cdsSecurities.js';
+import { buildCdsSecurities, buildCdsIndexSecurities } from '../instruments/cdsSecurities.js';
+import { buildCdsIndices } from '../instruments/cdsContracts.js';
 import { buildTreasuries } from '../instruments/treasuryAuction.js';
 import { buildAgencyDebentures } from '../instruments/agencyDebenture.js';
 import { buildMuniDeals } from '../instruments/muniDeals.js';
@@ -116,6 +117,8 @@ export interface BuiltBook {
   riskVectors: RiskVector[];
   step(date: DateInt): FactorState;
   repriceFast(state: FactorState): PositionRow[];
+  /** Current spread for any security in the master, in basis points. */
+  spreadFor(security: Security): number;
 }
 
 /**
@@ -163,7 +166,7 @@ interface Holding {
   spreadBp: number;
 }
 
-function spreadForSecurity(security: Security, issuer: Issuer | undefined, state: FactorState, engine: FactorEngine): number {
+export function spreadForSecurity(security: Security, issuer: Issuer | undefined, state: FactorState, engine: FactorEngine): number {
   if (security.assetClass === 'Rates') return 0;
   if (issuer === undefined) return security.issueSpreadBp;
   const base = engine.issuerSpread(state, issuer.issuerId, issuer.baseSpread5yBp);
@@ -291,6 +294,11 @@ function buildUniverse(
     entities: cdsEntities.slice(0, Math.max(1, Math.round(cdsEntities.length * scale.cdsCoverage))),
     asOf, seed, startSecurityId: 700_000, contractsPerEntity: 2,
   }));
+  // Indices. The instrument a desk moves credit risk in size with — a broad
+  // book cannot be hedged with single names at any realistic per-name limit.
+  securities.push(...buildCdsIndexSecurities(
+    buildCdsIndices({ asOf, entities: cdsEntities, historyPerFamily: 2 }), 750_000,
+  ));
 
   return { securities, issuers, pools };
 }
@@ -378,6 +386,8 @@ export function buildBook(options: BookOptions): BuiltBook {
       state = engine.step(state, date).state;
       return state;
     },
+    spreadFor: (security: Security): number =>
+      spreadForSecurity(security, issuerById.get(security.issuerId), state, engine),
     repriceFast: (next: FactorState): PositionRow[] => {
       repriceInPlace(rows, riskVectors, baseState, next);
       return rows;

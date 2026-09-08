@@ -36,6 +36,7 @@ import {
   buildBook, DEMO_SCALE, scaleBook, type BookScale, type BuiltBook, type RiskVector,
 } from '../domain/book/bookBuilder.js';
 import type { PositionRow } from '../domain/book/positions.js';
+import type { Security } from '../domain/instruments/types.js';
 import type { DatasetId } from '../wire/destinations.js';
 import type { RowSource } from './RowSource.js';
 
@@ -133,6 +134,14 @@ export class LiveBook implements RowSource {
   engine(): FactorEngine {
     return this.book.engine;
   }
+
+  /** The security master — the hedge universe is drawn from it, not from holdings. */
+  securities(): readonly Security[] {
+    return this.book.securities;
+  }
+
+  /** Current spread for any security in the master, in basis points. */
+  spreadFor = (security: Security): number => this.book.spreadFor(security);
 
   /** The date the book was built and priced at. */
   asOf(): DateInt {

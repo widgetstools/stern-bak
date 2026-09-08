@@ -158,3 +158,80 @@ describe('POST /api/scenario/worst', () => {
     expect(result.radius).toBe(6);
   });
 });
+
+describe('POST /api/strategy/solve', () => {
+  it('solves a package and verifies it on the same worlds, in one call', async () => {
+    const result = await (await post('/api/strategy/solve', {
+      name: 'Halve duration, hold credit', target: { level: -1e8, credit: 'hold' },
+      worlds: 25, horizonDays: 6,
+    })).json() as {
+      name: string; bookFingerprint: string; candidateCount: number; narrative: string;
+      package: { packageId: string; status: string; tickets: { kind: string; side: string; notionalUsd: number }[] };
+      exposureBefore: Record<string, number>; exposureAfter: Record<string, number>;
+      coverage: Record<string, number | null>;
+      verification: {
+        worlds: number; horizonDays: number;
+        before: { worst: number; cvar95: number }; after: { worst: number; cvar95: number };
+        worstCaseBefore: number; worstCaseAfter: number;
+        distributionBefore: { count: number }[]; distributionAfter: { count: number }[];
+      };
+    };
+
+    expect(result.name).toBe('Halve duration, hold credit');
+    expect(result.candidateCount).toBeGreaterThan(10);
+    expect(result.package.tickets.length).toBeGreaterThan(0);
+    expect(result.package.status).toBe('proposed');
+    expect(result.narrative.length).toBeGreaterThan(20);
+
+    // The hedge moved level toward the target and left credit alone.
+    expect(Math.abs(result.exposureAfter.level as number))
+      .toBeLessThan(Math.abs(result.exposureBefore.level as number));
+    expect(result.exposureAfter.credit).toBeCloseTo(result.exposureBefore.credit as number, -6);
+
+    // Verification ran the same worlds both ways.
+    expect(result.verification.worlds).toBe(25);
+    expect(result.verification.horizonDays).toBe(6);
+    expect(result.verification.distributionBefore.reduce((s, b) => s + b.count, 0)).toBe(25);
+    expect(result.verification.distributionAfter.reduce((s, b) => s + b.count, 0)).toBe(25);
+    expect(result.verification.worstCaseAfter).toBeGreaterThan(result.verification.worstCaseBefore);
+  }, 30_000);
+
+  it('reduces the worst case it was asked to reduce', async () => {
+    const result = await (await post('/api/strategy/solve', {
+      target: { level: 0, slope: 0, curvature: 0, hump: 0 }, worlds: 30, horizonDays: 8,
+    })).json() as { verification: { before: { cvar95: number }; after: { cvar95: number } } };
+    expect(result.verification.after.cvar95).toBeGreaterThan(result.verification.before.cvar95);
+  }, 30_000);
+
+  it('emits product-native tickets, not one generic shape', async () => {
+    const result = await (await post('/api/strategy/solve', {
+      target: { level: 0, credit: 0 }, worlds: 5, horizonDays: 3, maxLegs: 8,
+    })).json() as { package: { tickets: Record<string, unknown>[] } };
+    const kinds = new Set(result.package.tickets.map((t) => t.kind as string));
+    expect(kinds.size).toBeGreaterThan(1);
+    for (const ticket of result.package.tickets) {
+      if (ticket.kind === 'Treasury') expect(ticket).toHaveProperty('quotedPrice');
+      else {
+        expect(ticket).toHaveProperty('pointsUpfront');
+        expect(ticket).toHaveProperty('immMaturity');
+        expect(String(ticket.side)).toContain('PROTECTION');
+      }
+    }
+  }, 30_000);
+
+  it('runs against the same book the summary reports', async () => {
+    const summary = await (await fetch(`${base}/api/book/summary`)).json() as { fingerprint: string };
+    const result = await (await post('/api/strategy/solve', {
+      target: { level: 0 }, worlds: 3, horizonDays: 2,
+    })).json() as { bookFingerprint: string };
+    expect(result.bookFingerprint).toBe(summary.fingerprint);
+  }, 30_000);
+
+  it('treats an omitted factor as unconstrained rather than as a target of zero', async () => {
+    const result = await (await post('/api/strategy/solve', {
+      target: { level: 0 }, worlds: 3, horizonDays: 2,
+    })).json() as { coverage: Record<string, number | null> };
+    expect(result.coverage.level).not.toBeNull();
+    expect(result.coverage.credit).toBeNull();
+  }, 30_000);
+});

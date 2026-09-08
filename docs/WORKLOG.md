@@ -772,6 +772,57 @@ from a cashflow, and trades don't reconcile to the positions they name. **That
 generator is untouched and still in use** — this is additive, and retiring it is
 a separate decision.
 
+**Landed (the loop closes):** `strategy/` — a hedge universe drawn from the
+SECURITY MASTER (not from holdings: deriving candidates from positions silently
+excluded the credit indices, which are the most useful credit hedge there is and
+which the book happened not to own), a constraint solver, product-native tickets,
+and `POST /api/strategy/solve`, which solves and verifies in ONE call so both
+halves provably saw the same book.
+
+**Verification is the novel part.** The solved package becomes a `BookSnapshot`
+overlay, so `revalue` prices a hedge leg with the identical expansion it prices
+a position with and a hedged run differs from an unhedged one only in what is in
+the portfolio. Computing the hedge's effect analytically instead would have the
+same first-order model that designed the hedge also grading it.
+
+It is honest about what it finds. Asked to neutralise credit on this book, the
+package improves VaR95 by 11% and CVaR95 by 8% but makes the WORST world 4%
+worse — because this book's worst world is rate-driven, so credit protection
+costs carry there and buys nothing. A modelled hedge ratio would have reported
+success.
+
+    "Halve duration, hold credit" — 8 legs, 6,216mm gross
+      level  -1300mm -> -663mm      credit -1140mm -> -1140mm
+      Every target was met to within 5%.
+      VERIFIED on the same 200 worlds:
+        worst  -1270mm -> -867mm     CVaR -999mm -> -627mm
+
+The solver is weighted ridge least squares in the same five-factor basis the
+scenario engine moves, which is what makes solving and verifying commensurable.
+Three things had to be got right, each found by a test:
+
+- **Columns are normalised to unit norm.** A ridge penalises `x` in whatever
+  units the columns are in, and these differ by four orders of magnitude — a
+  million of thirty-year duration moves vastly more than a million of spread.
+  Scaling the penalty per candidate let the small columns explode (two billion
+  of four-week bills, to shorten duration); scaling it globally crushed them to
+  nothing. Normalising the columns makes it mean the same thing for every
+  instrument.
+- **Unconstrained is not free.** Asked to halve curve risk with credit left
+  open, a zero-weight solve sold sixty-three CDS lines and flipped the book from
+  1.1bn short credit to 1.6bn long. An unconstrained factor is held where it is,
+  at a low weight.
+- **Pruning is round-robin across the constrained factors**, not by leg size. A
+  size ranking starves whichever factor has the smallest per-million
+  sensitivity: asked to neutralise everything it kept six Treasuries and hedged
+  no credit at all.
+
+Also fixed: a package with no legs used to report "the book already meets the
+targets" whether nothing was needed or nothing on offer could help — completely
+different answers, and reporting the second as the first is how a book goes
+unhedged while looking fine. And `halfSpreadPoints` did not know indices exist,
+so a five-year index could quote wider than a ten-year single name.
+
 **Landed (the assistant reaches it):** four read-only tools in star-demo —
 `describe_book`, `run_scenarios`, `find_worst_case` and `fork_market` — with
 `scenarioClient.ts` following `llmClient.ts`'s shape (an editable base URL, a
