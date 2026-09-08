@@ -84,7 +84,11 @@ describe('buildBook', () => {
     const mbs = rows.filter((row) => row.assetClass === 'AgencyMBS');
     const rates = rows.filter((row) => row.assetClass === 'Rates');
     expect(mbs.some((row) => (row.convexity as number) < 0)).toBe(true);
-    expect(rates.every((row) => (row.convexity as number) > 0)).toBe(true);
+    // Non-negative rather than positive: the real auction record includes bills
+    // maturing tomorrow, whose convexity rounds to zero at the row's precision.
+    expect(rates.every((row) => (row.convexity as number) >= 0)).toBe(true);
+    expect(rates.filter((row) => (row.convexity as number) > 0).length)
+      .toBeGreaterThan(rates.length - 5);
   });
 });
 

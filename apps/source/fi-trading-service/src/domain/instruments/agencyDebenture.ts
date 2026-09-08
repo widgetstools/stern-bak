@@ -11,7 +11,7 @@ import { addYears, formatIso, type DateInt } from '../core/dateInt.js';
 import { isinFromCusip } from '../core/identifiers.js';
 import { createRng, deriveSeed, pickWeighted, uniformInt } from '../core/rng.js';
 import type { RedemptionOption } from '../analytics/workout.js';
-import { mintCusip } from './treasuryAuction.js';
+import { mintCusip } from './treasuryCusip.js';
 import type { Security } from './types.js';
 
 export interface AgencyIssuer {

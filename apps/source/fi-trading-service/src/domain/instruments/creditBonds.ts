@@ -25,7 +25,7 @@ import { createRng, deriveSeed, pick, pickWeighted, uniformInt, type Rng } from 
 import { issuerSpreadAtTenor } from '../curves/creditFactors.js';
 import type { RedemptionOption } from '../analytics/workout.js';
 import type { Issuer } from './creditIssuers.js';
-import { mintCusip } from './treasuryAuction.js';
+import { mintCusip } from './treasuryCusip.js';
 import type { LiquidityTier, Security, Seniority } from './types.js';
 
 /** Benchmark deal sizes. Syndicate desks price round numbers. */

@@ -58,6 +58,7 @@ export interface PositionRow extends Record<string, unknown> {
   marketValue: number;
   lastUpdate: number;
   effectiveDv01: number;
+  onTheRunRank: number | null;
 }
 
 const KRD_LABELS = ['krd3M', 'krd6M', 'krd1Y', 'krd2Y', 'krd3Y', 'krd5Y', 'krd7Y', 'krd10Y', 'krd20Y', 'krd30Y'] as const;
@@ -82,6 +83,13 @@ export function halfSpreadPoints(security: Security, duration: number): number {
     // index form. Without this a five-year index can quote wider than a
     // ten-year single name, purely because the spread scales with duration.
     : security.securityType === 'CdsIndex' ? 0.35
+    // A Treasury trades inside a corporate of the same liquidity tier by an
+    // order of magnitude — an off-the-run note is a fraction of a 32nd where an
+    // investment-grade bond is several basis points of yield. Without this the
+    // two came out identical whenever they shared a tier, which the real
+    // auction data made common: most outstanding Treasuries are seasoned.
+    : security.assetClass === 'Rates' ? 0.2
+    : security.assetClass === 'Agency' ? 0.5
     : 1;
   // Convert a yield half-spread into price using duration.
   return (yieldBp / 10000) * classMultiple * Math.max(0.25, duration) * 100;
@@ -156,6 +164,10 @@ export function buildPositionRow(inputs: PositionInputs): PositionRow {
     ratingIndex: security.ratingIndex,
     ratingBucket: security.ratingIndex <= 3 ? 'IG' : security.ratingIndex >= 7 ? 'D' : 'HY',
     liquidityTier: security.liquidityTier,
+    // 0 is on-the-run, 1 the first off-the-run, null for anything not
+    // auctioned. The single largest determinant of what a Treasury costs to
+    // trade, and the rates desk's primary axis.
+    onTheRunRank: security.onTheRunRank,
 
     // pricing
     bidPrice: round(mid - half, 4),

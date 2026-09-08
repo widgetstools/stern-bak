@@ -5856,6 +5856,10 @@
                         {
                           "colId": "strategy",
                           "width": 110
+                        },
+                        {
+                          "colId": "onTheRunRank",
+                          "width": 60
                         }
                       ]
                     },
@@ -5865,6 +5869,7 @@
                         "cusip",
                         "description",
                         "assetClass",
+                        "onTheRunRank",
                         "sector",
                         "rating",
                         "couponRate",
@@ -6067,6 +6072,15 @@
             "headerName": "Asset Class",
             "cellDataType": "text",
             "width": 105,
+            "filter": true,
+            "sortable": true,
+            "resizable": true
+          },
+          {
+            "field": "onTheRunRank",
+            "headerName": "OTR",
+            "cellDataType": "number",
+            "width": 60,
             "filter": true,
             "sortable": true,
             "resizable": true

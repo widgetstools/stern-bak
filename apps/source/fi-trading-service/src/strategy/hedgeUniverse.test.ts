@@ -25,12 +25,15 @@ describe('buildHedgeUniverse', () => {
   });
 
   it('comes from the security master, not from what the book happens to hold', () => {
-    // The indices are the case that matters: they are the most useful credit
-    // hedge there is and the book need not own one.
+    // Asserting that one PARTICULAR instrument is unheld makes the test an RNG
+    // accident. The property is that the universe is drawn from the master, so
+    // it must contain candidates the book does not own.
     const held = new Set(book.positions.map((row) => row.securityId as number));
-    const indices = universe.filter((candidate) => candidate.instrumentKind === 'CDX');
-    expect(indices.length).toBeGreaterThan(0);
-    expect(indices.some((candidate) => !held.has(candidate.securityId))).toBe(true);
+    const unheld = universe.filter((candidate) => !held.has(candidate.securityId));
+    expect(unheld.length).toBeGreaterThan(0);
+    // And the indices, the most useful credit hedge there is, are offered
+    // whether or not the book happens to own one.
+    expect(universe.some((candidate) => candidate.instrumentKind === 'CDX')).toBe(true);
   });
 
   it('excludes anything a desk could not trade in size', () => {

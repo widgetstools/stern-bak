@@ -29,7 +29,7 @@ import { buildCreditBonds } from '../instruments/creditBonds.js';
 import { buildCdsEntities, entitiesWithBonds } from '../instruments/cdsEntities.js';
 import { buildCdsSecurities, buildCdsIndexSecurities } from '../instruments/cdsSecurities.js';
 import { buildCdsIndices } from '../instruments/cdsContracts.js';
-import { buildTreasuries } from '../instruments/treasuryAuction.js';
+import { buildTreasuriesFromReference } from '../instruments/treasuryReference.js';
 import { buildAgencyDebentures } from '../instruments/agencyDebenture.js';
 import { buildMuniDeals } from '../instruments/muniDeals.js';
 import { buildMbsPools } from '../instruments/mbsPools.js';
@@ -45,7 +45,6 @@ import { amortizedCost } from './lots.js';
 import { priceAtYield, priceSecurity, termsFor, type PricedSecurity, type ValuationContext } from './valuation.js';
 
 export interface BookScale {
-  treasuryHistoryPerTenor: number;
   investmentGradeIssuers: number;
   highYieldIssuers: number;
   muniDeals: number;
@@ -61,7 +60,6 @@ export interface BookScale {
 
 /** Demo scale: a book big enough to look real, small enough to build fast. */
 export const DEMO_SCALE: BookScale = {
-  treasuryHistoryPerTenor: 10,
   investmentGradeIssuers: 140,
   highYieldIssuers: 90,
   muniDeals: 40,
@@ -84,7 +82,6 @@ export const DEMO_SCALE: BookScale = {
 export function scaleBook(base: BookScale, multiplier: number): BookScale {
   const grow = (n: number): number => Math.max(1, Math.round(n * multiplier));
   return {
-    treasuryHistoryPerTenor: grow(base.treasuryHistoryPerTenor),
     investmentGradeIssuers: grow(base.investmentGradeIssuers),
     highYieldIssuers: grow(base.highYieldIssuers),
     muniDeals: grow(base.muniDeals),
@@ -251,9 +248,10 @@ function buildUniverse(
   const pools = new Map<number, PoolState>();
 
   securities.push(
-    ...buildTreasuries({
-      asOf, seed, historicalYield, historyPerTenor: scale.treasuryHistoryPerTenor, includeStrips: true,
-    }),
+    // The REAL Treasury universe, from the committed auction snapshot. Its
+    // size is what Treasury has issued, not a scale knob — the on-the-run
+    // ladder has one issue per tenor because that is how many there are.
+    ...buildTreasuriesFromReference({ asOf, includeStrips: true, startSecurityId: 0 }),
   );
   securities.push(
     ...buildAgencyDebentures({ asOf, seed, startSecurityId: 20_000, benchmarkYield: historicalYield, perIssuer: 10 }),

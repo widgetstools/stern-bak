@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SifmaCalendar } from '../core/sifmaCalendar.js';
 import { buildBook, DEMO_SCALE, scaleBook } from '../book/bookBuilder.js';
 import { createRng } from '../core/rng.js';
-import { mintCusip, TREASURY_PREFIX_FAMILY } from './treasuryAuction.js';
+import { mintCusip, TREASURY_PREFIX_FAMILY } from './treasuryCusip.js';
 
 const calendar = new SifmaCalendar();
 
