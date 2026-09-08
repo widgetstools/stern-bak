@@ -21,7 +21,7 @@
  */
 import { cn } from '@wellsfargo-starui/react';
 import type { ScenarioCellPayload } from '../scenarioTools';
-import type { BucketContribution, PositionContribution } from '../scenarioClient';
+import type { BucketContribution, PositionContribution, SolveResponse, Ticket } from '../scenarioClient';
 
 const MM = 1_000_000;
 
@@ -126,6 +126,121 @@ function Positions({ positions }: { positions: readonly PositionContribution[] }
   );
 }
 
+/**
+ * The two distributions overlaid, which is the whole claim in one picture.
+ *
+ * They are drawn on ONE shared scale, because the point is that the hedged
+ * distribution is narrower and its tail shorter — and two charts with
+ * independent axes would hide exactly that.
+ */
+function BeforeAfter({ before, after }: {
+  before: { from: number; to: number; count: number }[];
+  after: { from: number; to: number; count: number }[];
+}) {
+  if (before.length === 0 || after.length === 0) return null;
+  const low = Math.min(before[0]?.from ?? 0, after[0]?.from ?? 0);
+  const high = Math.max(before.at(-1)?.to ?? 0, after.at(-1)?.to ?? 0);
+  const span = high - low || 1;
+  const peak = Math.max(...before.map((b) => b.count), ...after.map((b) => b.count), 1);
+
+  const track = (
+    bins: { from: number; to: number; count: number }[], className: string, label: string,
+  ) => (
+    <div className="relative h-8" role="img" aria-label={label}>
+      {bins.map((bin) => (
+        <div
+          key={`${bin.from}`}
+          title={`${mm(bin.from)} to ${mm(bin.to)}: ${bin.count}`}
+          className={cn('absolute bottom-0 rounded-t-[1px]', className)}
+          style={{
+            left: `${((bin.from - low) / span) * 100}%`,
+            width: `${Math.max(0.6, ((bin.to - bin.from) / span) * 100)}%`,
+            height: `${Math.max(2, (bin.count / peak) * 100)}%`,
+          }}
+        />
+      ))}
+      {/* Zero, so the losing half of each distribution is visible at a glance. */}
+      <div
+        className="absolute inset-y-0 w-px bg-border"
+        style={{ left: `${((0 - low) / span) * 100}%` }}
+      />
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-1 px-2.5 pt-2">
+      <div className="flex items-center gap-2">
+        <span className="w-10 shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground">before</span>
+        <div className="flex-1">{track(before, 'bg-muted-foreground/40', 'Outcomes before hedging')}</div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-10 shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground">after</span>
+        <div className="flex-1">
+          {track(after, 'bg-[color:var(--ds-positive,#15803d)]/60', 'Outcomes after hedging')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** One line per leg, showing the fields that leg's own product needs. */
+function Tickets({ tickets }: { tickets: readonly Ticket[] }) {
+  return (
+    <div className="flex flex-col gap-px px-2.5 pb-2">
+      {tickets.map((ticket) => (
+        <div key={ticket.ticketId} className="flex items-baseline gap-2">
+          <span
+            className={cn(
+              'shrink-0 w-16 font-mono text-[9px] uppercase',
+              ticket.side.startsWith('BUY')
+                ? 'text-[color:var(--ds-positive,#15803d)]'
+                : 'text-[color:var(--ds-negative,#c2410c)]',
+            )}
+          >
+            {ticket.side.replace('_PROTECTION', ' PROT')}
+          </span>
+          <span className="shrink-0 w-14 text-right font-mono text-[10px] tabular-nums">
+            {(ticket.notionalUsd / MM).toFixed(0)}mm
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[10px] text-foreground/80">
+            {ticket.description}
+          </span>
+          <span className="shrink-0 font-mono text-[9px] tabular-nums text-muted-foreground">
+            {ticket.kind === 'Treasury' ? ticket.quotedPrice : `${ticket.pointsUpfront.toFixed(2)} puf`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Coverage per factor: what was asked for, and what was actually achieved. */
+function Coverage({ solve }: { solve: SolveResponse }) {
+  const factors = Object.keys(solve.exposureBefore) as (keyof SolveResponse['exposureBefore'])[];
+  return (
+    <div className="flex flex-col gap-0.5 px-2.5 py-1.5">
+      {factors.map((factor) => {
+        const covered = solve.coverage[factor];
+        return (
+          <div key={factor} className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-[10px] text-muted-foreground">{factor}</span>
+            <span className="w-16 shrink-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground">
+              {mm(solve.exposureBefore[factor])}
+            </span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">→</span>
+            <span className="w-16 shrink-0 text-right font-mono text-[10px] tabular-nums">
+              {mm(solve.exposureAfter[factor])}
+            </span>
+            <span className="min-w-0 flex-1 text-right text-[9px] text-muted-foreground">
+              {covered === null ? 'unconstrained' : `${Math.round(covered * 100)}% covered`}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-2.5 pt-1.5 text-[9px] uppercase tracking-wide text-muted-foreground">{children}</div>
@@ -134,10 +249,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function ScenarioResultCell({ payload }: { payload: ScenarioCellPayload }) {
   const { scan, worstMove, fork } = payload;
+  const solve = payload.solve;
   const title =
     payload.view === 'scan' ? 'Forked worlds'
       : payload.view === 'worst-move' ? 'Worst plausible move'
-        : `Counterfactual — ${fork?.name ?? ''}`;
+        : payload.view === 'package' ? `Package — ${solve?.name ?? ''}`
+          : `Counterfactual — ${fork?.name ?? ''}`;
 
   return (
     <div className="w-full rounded-lg border border-border/60 overflow-hidden">
@@ -220,6 +337,34 @@ export function ScenarioResultCell({ payload }: { payload: ScenarioCellPayload }
               <Buckets buckets={fork.counterfactual.worstWorlds[0].byBucket} />
             </>
           )}
+        </>
+      )}
+
+      {solve !== undefined && (
+        <>
+          <BeforeAfter
+            before={solve.verification.distributionBefore}
+            after={solve.verification.distributionAfter}
+          />
+          <div className="grid grid-cols-4 gap-2 px-2.5 py-1.5 border-b border-border/60">
+            <Stat label="worst" value={mm(solve.verification.after.worst)}
+              tone={toneOf(solve.verification.after.worst - solve.verification.before.worst)} />
+            <Stat label="shortfall" value={mm(solve.verification.after.cvar95)}
+              tone={toneOf(solve.verification.after.cvar95 - solve.verification.before.cvar95)} />
+            <Stat label="cost" value={`${(solve.package.totalExecutionCost / 1000).toFixed(0)}k`} />
+            <Stat label="carry" value={`${mm(solve.package.carryChangeUsd)}/yr`}
+              tone={toneOf(solve.package.carryChangeUsd)} />
+          </div>
+          <p className="px-2.5 py-1.5 text-[10px] leading-snug text-muted-foreground border-b border-border/60">
+            {solve.narrative}
+          </p>
+          <SectionLabel>exposure</SectionLabel>
+          <Coverage solve={solve} />
+          <SectionLabel>
+            {solve.package.tickets.length} tickets · {solve.package.status} ·{' '}
+            {solve.package.packageId}
+          </SectionLabel>
+          <Tickets tickets={solve.package.tickets} />
         </>
       )}
 

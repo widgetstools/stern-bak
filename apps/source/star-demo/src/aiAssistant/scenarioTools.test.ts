@@ -187,3 +187,104 @@ describe('forkMarket', () => {
     expect(result.summary).toContain('kaboom');
   });
 });
+
+describe('solveStrategy', () => {
+  const SOLVE = {
+    name: 'Halve duration, hold credit', bookFingerprint: 'bk-abc', candidateCount: 138,
+    narrative: 'Every target was met to within 5%.',
+    package: {
+      packageId: 'PKG-01', name: 'Halve duration, hold credit', status: 'proposed' as const,
+      grossNotionalUsd: 6.2e9, totalExecutionCost: 1.6e6, carryChangeUsd: -3e8,
+      tickets: [{
+        ticketId: 'T1', securityId: 1, description: 'US TREASURY NOTE 4.750% 2036',
+        side: 'SELL' as const, notionalUsd: 1.11e9, executionCost: 2e5, carryUsd: -5e7,
+        kind: 'Treasury' as const, cusip: 'X', quotedPrice: '99-16+', decimalPrice: 99.5,
+        maturityDate: 20360907,
+      }],
+    },
+    exposureBefore: { level: -1.3e9, slope: 0, curvature: 0, hump: 0, credit: -1.1e9 },
+    exposureAfter: { level: -6.6e8, slope: 0, curvature: 0, hump: 0, credit: -1.1e9 },
+    coverage: { level: 0.98, slope: null, curvature: null, hump: null, credit: 1 },
+    residual: { level: 0, slope: null, curvature: null, hump: null, credit: 0 },
+    verification: {
+      worlds: 200, horizonDays: 20,
+      before: { worst: -1.27e9, var95: -7.8e8, cvar95: -9.99e8, median: -1.5e7, best: 1.47e9 },
+      after: { worst: -8.67e8, var95: -5.4e8, cvar95: -6.27e8, median: 1e7, best: 7.85e8 },
+      worstCaseBefore: -9.5e8, worstCaseAfter: -5.9e8,
+      distributionBefore: [], distributionAfter: [],
+    },
+    plausibility: '200 worlds',
+  };
+
+  it('leads with the verification, because that is the claim', async () => {
+    vi.spyOn(client, 'solveStrategy').mockResolvedValue(SOLVE);
+    const result = await tools.solveStrategy({ target: { level: -6.5e8, credit: 'hold' } });
+    expect(result.summary).toContain('Verified on the same 200 worlds');
+    expect(result.summary).toContain('-$1270.0mm');
+    expect(result.summary).toContain('-$867.0mm');
+    expect(payloadOf(result).view).toBe('package');
+  });
+
+  it('says the package is proposed and nothing was traded', async () => {
+    vi.spyOn(client, 'solveStrategy').mockResolvedValue(SOLVE);
+    const result = await tools.solveStrategy({ target: { level: 0 } });
+    expect(result.summary).toContain('proposed, not staged');
+    expect(result.summary).toContain('nothing has been traded');
+  });
+
+  it('carries the solver\'s own narrative through, residual and all', async () => {
+    vi.spyOn(client, 'solveStrategy').mockResolvedValue({
+      ...SOLVE, narrative: 'Short on credit (19% covered) — the tradeable universe cannot fully express that exposure.',
+    });
+    const result = await tools.solveStrategy({ target: { credit: 0 } });
+    expect(result.summary).toContain('19% covered');
+    expect(result.summary).toContain('cannot fully express');
+  });
+
+  /**
+   * The case a modelled hedge would hide. If the tail improved but the worst
+   * world got worse, the package does not address what drives this book's worst
+   * case, and the model has to be told so explicitly or it will report success.
+   */
+  it('calls out a hedge that improved the tail but worsened the worst world', async () => {
+    vi.spyOn(client, 'solveStrategy').mockResolvedValue({
+      ...SOLVE,
+      verification: {
+        ...SOLVE.verification,
+        after: { ...SOLVE.verification.after, worst: -1.32e9, cvar95: -9.2e8 },
+      },
+    });
+    const result = await tools.solveStrategy({ target: { credit: 0 } });
+    expect(result.summary).toContain('WORST world got worse');
+    expect(result.summary).toContain('does not help against what actually drives');
+  });
+
+  it('does not cry wolf when the worst world improved', async () => {
+    vi.spyOn(client, 'solveStrategy').mockResolvedValue(SOLVE);
+    const result = await tools.solveStrategy({ target: { level: 0 } });
+    expect(result.summary).not.toContain('WORST world got worse');
+  });
+
+  it('lists the legs it would trade', async () => {
+    vi.spyOn(client, 'solveStrategy').mockResolvedValue(SOLVE);
+    const result = await tools.solveStrategy({ target: { level: 0 } });
+    expect(result.summary).toContain('SELL 1110mm US TREASURY NOTE 4.750% 2036');
+  });
+
+  it('forwards the target untouched, including "hold"', async () => {
+    const spy = vi.spyOn(client, 'solveStrategy').mockResolvedValue(SOLVE);
+    await tools.solveStrategy({ target: { level: 0, credit: 'hold' }, worlds: 50 });
+    expect(spy).toHaveBeenCalledWith('http://svc.test:8081', {
+      target: { level: 0, credit: 'hold' }, worlds: 50,
+    });
+  });
+
+  it('reports an unreachable service rather than throwing', async () => {
+    vi.spyOn(client, 'solveStrategy').mockRejectedValue(
+      new ScenarioServiceError('not reachable', 'http://svc.test:8081'),
+    );
+    const result = await tools.solveStrategy({ target: { level: 0 } });
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('not reachable');
+  });
+});

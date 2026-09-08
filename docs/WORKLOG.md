@@ -823,8 +823,9 @@ different answers, and reporting the second as the first is how a book goes
 unhedged while looking fine. And `halfSpreadPoints` did not know indices exist,
 so a five-year index could quote wider than a ten-year single name.
 
-**Landed (the assistant reaches it):** four read-only tools in star-demo —
-`describe_book`, `run_scenarios`, `find_worst_case` and `fork_market` — with
+**Landed (the assistant reaches it):** five read-only tools in star-demo —
+`describe_book`, `run_scenarios`, `find_worst_case`, `fork_market` and
+`solve_strategy` — with
 `scenarioClient.ts` following `llmClient.ts`'s shape (an editable base URL, a
 health probe, a connection affordance in the settings strip) because the service
 is a separate origin and the assistant already talks to one.
@@ -834,7 +835,10 @@ pattern as `DATA_CELL` and `FIELD_CELL`: the assistant cannot render
 model-authored markup, so the block vocabulary IS the vocabulary.
 `ScenarioResultCell` draws the distribution with the losing tail shaded and the
 fifth percentile marked, then the worst world's factor path, then attribution by
-asset class and down to positions.
+asset class and down to positions. A solved package renders the two
+distributions overlaid on ONE shared scale — the point being that the hedged one
+is narrower with a shorter tail, which two independently-scaled charts would
+hide — over the coverage per factor and the product-native tickets.
 
 Three things were worth getting right:
 

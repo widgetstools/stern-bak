@@ -197,6 +197,83 @@ export function findWorstMove(
   return request<WorstMoveResponse>(baseUrl, '/api/scenario/worst', body);
 }
 
+export type FactorName = 'level' | 'slope' | 'curvature' | 'hump' | 'credit';
+
+export interface TicketBase {
+  ticketId: string;
+  securityId: number;
+  description: string;
+  side: 'BUY' | 'SELL' | 'BUY_PROTECTION' | 'SELL_PROTECTION';
+  notionalUsd: number;
+  executionCost: number;
+  carryUsd: number;
+}
+
+export interface TreasuryTicket extends TicketBase {
+  kind: 'Treasury';
+  cusip: string;
+  quotedPrice: string;
+  decimalPrice: number;
+  maturityDate: number;
+}
+
+export interface SwapTicket extends TicketBase {
+  kind: 'CDS' | 'CDX';
+  fixedCouponBp: 100 | 500;
+  pointsUpfront: number;
+  immMaturity: number;
+  clearingHouse: string;
+  executionVenue: string;
+  redPair9?: string;
+  family?: string;
+}
+
+export type Ticket = TreasuryTicket | SwapTicket;
+
+export interface SolveResponse {
+  name: string;
+  bookFingerprint: string;
+  candidateCount: number;
+  narrative: string;
+  package: {
+    packageId: string;
+    name: string;
+    tickets: Ticket[];
+    grossNotionalUsd: number;
+    totalExecutionCost: number;
+    carryChangeUsd: number;
+    status: 'proposed' | 'staged';
+  };
+  exposureBefore: Record<FactorName, number>;
+  exposureAfter: Record<FactorName, number>;
+  coverage: Record<FactorName, number | null>;
+  residual: Record<FactorName, number | null>;
+  verification: {
+    worlds: number;
+    horizonDays: number;
+    before: { worst: number; var95: number; cvar95: number; median: number; best: number };
+    after: { worst: number; var95: number; cvar95: number; median: number; best: number };
+    worstCaseBefore: number;
+    worstCaseAfter: number;
+    distributionBefore: { from: number; to: number; count: number }[];
+    distributionAfter: { from: number; to: number; count: number }[];
+  };
+  plausibility: string;
+}
+
+export interface SolveRequestBody {
+  name?: string;
+  /** Per factor: a number to hit, `"hold"` to keep, or omitted to leave open. */
+  target: Partial<Record<FactorName, number | 'hold'>>;
+  worlds?: number;
+  horizonDays?: number;
+  maxLegs?: number;
+}
+
+export function solveStrategy(baseUrl: string, body: SolveRequestBody): Promise<SolveResponse> {
+  return request<SolveResponse>(baseUrl, '/api/strategy/solve', body);
+}
+
 export function forkMarket(
   baseUrl: string, body: ScanRequest & { name?: string },
 ): Promise<ForkResponse> {

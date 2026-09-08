@@ -35,6 +35,20 @@ const SHOCK_PROPERTY = {
   additionalProperties: false,
 } as const;
 
+const FACTOR_TARGET = {
+  type: 'object',
+  description:
+    'Where you want each factor exposure to end up, in dollars per unit factor move. Three ways to name one, and the difference matters: a NUMBER is a target to hit (0 neutralises it, half the current value halves it); the string "hold" keeps it where it is; OMITTING it leaves it open, which the solver treats as "do not go out of your way to change this" rather than "do whatever you like to it". Read the current values off `find_worst_case`, whose `exposure.gradient` is in these units and in this order.',
+  properties: {
+    level: { type: 'number', description: 'Parallel curve exposure. Use 0 to go duration-neutral.' },
+    slope: { type: 'number', description: 'Slope exposure — a steepener or flattener.' },
+    curvature: { type: 'number', description: 'Curvature exposure — a belly trade.' },
+    hump: { type: 'number', description: 'Second curvature factor.' },
+    credit: { type: 'number', description: 'Systematic credit exposure. Use 0 to neutralise spread risk.' },
+  },
+  additionalProperties: false,
+} as const;
+
 export const SCENARIO_TOOL_SCHEMAS: OpenAIToolSchema[] = [
   {
     type: 'function',
@@ -117,6 +131,32 @@ export const SCENARIO_TOOL_SCHEMAS: OpenAIToolSchema[] = [
           shock: SHOCK_PROPERTY,
         },
         required: ['shock'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'solve_strategy',
+      description:
+        'Solve a package of trades that meets a set of risk targets over the actual book, then VERIFY it by re-running the same forked worlds with the package applied.\n\nThe verification is what makes this different from a hedge-ratio calculation, and you should lead with it. Proposing a hedge is ordinary. Proving it against the same worlds that produced the problem, and reporting the residual, is not — no trading system does it, because none of them can re-run the market. Both halves run in one call so they provably saw the same book.\n\nThe solver works over what a desk can actually trade — on-the-run Treasuries, single-name CDS and credit indices — and returns product-native tickets: a Treasury in 32nds with its CUSIP, a swap by notional and direction with points upfront, an IMM maturity and a clearing house.\n\nIt reports its residual honestly, and you must relay that. If a target came back only partly covered, say so and say why (the tradeable universe cannot always express an exposure). If the worst world got WORSE while the tail improved, say that too — it means the package does not address what actually drives this book\'s worst case, which is a real and useful finding rather than a failure to hide.\n\nNothing is traded. The package comes back "proposed".',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'What to call the package, e.g. "Halve duration, hold credit". Shown to the user.',
+          },
+          target: FACTOR_TARGET,
+          worlds: { type: 'number', description: 'Worlds to verify against. Default 200.' },
+          horizonDays: { type: 'number', description: 'Business days to verify over. Default 20.' },
+          maxLegs: {
+            type: 'number',
+            description: 'Most legs the package may have. Default 8. Fewer is more executable; more can cover the targets better.',
+          },
+        },
+        required: ['target'],
         additionalProperties: false,
       },
     },

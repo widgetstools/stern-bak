@@ -15,16 +15,16 @@
  * `DATA_CELL` and `FIELD_CELL` already do.
  */
 import {
-  fetchBookSummary, findWorstMove, forkMarket, runScan, ScenarioServiceError,
+  fetchBookSummary, findWorstMove, forkMarket, runScan, solveStrategy, ScenarioServiceError,
   type BucketContribution, type ForkResponse, type PositionContribution,
-  type ScanResponse, type WorstMoveResponse,
+  type ScanResponse, type SolveRequestBody, type SolveResponse, type WorstMoveResponse,
 } from './scenarioClient';
 import type { ToolExecutionResult } from './toolResult';
 
 /** Marker the transcript keys on to render a scenario cell instead of raw JSON. */
 export const SCENARIO_CELL = 'scenario-cell' as const;
 
-export type ScenarioCellKind = 'scan' | 'worst-move' | 'fork';
+export type ScenarioCellKind = 'scan' | 'worst-move' | 'fork' | 'package';
 
 export interface ScenarioCellPayload {
   kind: typeof SCENARIO_CELL;
@@ -41,6 +41,8 @@ export interface ScenarioCellPayload {
   worstMove?: WorstMoveResponse;
   /** Present for `fork`. */
   fork?: ForkResponse;
+  /** Present for `package` — the solved legs and their verification. */
+  solve?: SolveResponse;
   elapsedMs?: number;
 }
 
@@ -232,6 +234,53 @@ export function createScenarioTools(deps: ScenarioToolDeps) {
             headline,
             plausibility: fork.plausibility,
             fork,
+          } satisfies ScenarioCellPayload,
+        };
+      } catch (error) {
+        return failed(error);
+      }
+    },
+
+    /**
+     * Solve a package against the book, then verify it on the same worlds.
+     *
+     * The verification is the point and the summary leads with it: a hedge that
+     * is only designed is a claim, and one that has been re-run against the
+     * worlds that produced the problem is a measurement.
+     */
+    async solveStrategy(args: SolveRequestBody): Promise<ToolExecutionResult> {
+      try {
+        const solved = await solveStrategy(deps.baseUrl(), args);
+        const { verification: v } = solved;
+        const legs = solved.package.tickets
+          .map((ticket) => `${ticket.side} ${(ticket.notionalUsd / MM).toFixed(0)}mm ${ticket.description}`)
+          .join('; ');
+        const headline =
+          `${solved.package.tickets.length} legs, ` +
+          `${(solved.package.grossNotionalUsd / MM).toFixed(0)}mm gross. ` +
+          `Verified on the same ${v.worlds} worlds over ${v.horizonDays} days: ` +
+          `worst ${mm(v.before.worst)} to ${mm(v.after.worst)}, ` +
+          `expected shortfall ${mm(v.before.cvar95)} to ${mm(v.after.cvar95)}.`;
+        // A hedge that made something worse must say so, not be summarised away.
+        const worsened = v.after.worst < v.before.worst;
+        return {
+          ok: true,
+          summary:
+            `${headline} ${solved.narrative} ${legs}. ` +
+            (worsened
+              ? 'Note that the WORST world got worse even though the tail improved — ' +
+                'this package does not help against what actually drives this book\'s worst case.'
+              : '') +
+            ' The package is proposed, not staged; nothing has been traded.',
+          data: {
+            kind: SCENARIO_CELL,
+            view: 'package',
+            bookFingerprint: solved.bookFingerprint,
+            positionCount: 0,
+            baseMarketValue: 0,
+            headline,
+            plausibility: solved.plausibility,
+            solve: solved,
           } satisfies ScenarioCellPayload,
         };
       } catch (error) {

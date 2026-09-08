@@ -84,7 +84,8 @@ export type ToolName =
   | 'describe_book'
   | 'run_scenarios'
   | 'find_worst_case'
-  | 'fork_market';
+  | 'fork_market'
+  | 'solve_strategy';
 
 /** Tools that only read state — safe to auto-execute without user confirmation. */
 export const READ_ONLY_TOOLS: readonly ToolName[] = [
@@ -115,6 +116,8 @@ export const READ_ONLY_TOOLS: readonly ToolName[] = [
   'run_scenarios',
   'find_worst_case',
   'fork_market',
+  // Proposes a package; writes nothing. Staging it would be the mutating step.
+  'solve_strategy',
 ];
 
 export function isReadOnlyTool(name: string): name is (typeof READ_ONLY_TOOLS)[number] {

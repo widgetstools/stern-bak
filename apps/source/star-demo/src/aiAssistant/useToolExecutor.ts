@@ -80,7 +80,7 @@ import { simulateChange } from './simulateTools';
 import { listMockDatasets, listProviderFields, inferProviderFields, setProviderColumns } from './providerFieldTools';
 import { summarizeGridData, queryGridData } from './dataTools';
 import { createScenarioTools, type ScenarioShockArgs } from './scenarioTools';
-import { defaultScenarioBaseUrl } from './scenarioClient';
+import { defaultScenarioBaseUrl, type SolveRequestBody } from './scenarioClient';
 import type { DataHubClient } from './dataAccess';
 import { setColumnStyle, setColumnBehavior } from './columnStyleTools';
 import {
@@ -675,6 +675,8 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
       return scenarioToolsFor(ctx).forkMarket(args as {
         name?: string; horizonDays?: number; worlds?: number; shock: ScenarioShockArgs;
       });
+    case 'solve_strategy':
+      return scenarioToolsFor(ctx).solveStrategy(args as SolveRequestBody);
     case 'list_provider_fields':
       return listProviderFields(ctx.configStore, args);
     case 'infer_provider_fields':

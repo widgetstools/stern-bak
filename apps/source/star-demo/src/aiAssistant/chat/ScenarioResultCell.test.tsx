@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ScenarioResultCell } from './ScenarioResultCell';
 import { SCENARIO_CELL, type ScenarioCellPayload } from '../scenarioTools';
+import type { SolveResponse } from '../scenarioClient';
 
 const WORLD = {
   worldIndex: 48, terminalPnl: -1.55e9, worstPnl: -1.64e9, worstOnDay: 9,
@@ -135,5 +136,83 @@ describe('fork view', () => {
     expect(screen.getByText('−$15.3mm')).toBeInTheDocument();
     expect(screen.getByText('−$560.0mm')).toBeInTheDocument();
     expect(screen.getByText('−$545.0mm')).toBeInTheDocument();
+  });
+});
+
+describe('package view', () => {
+  const solve: SolveResponse = {
+    name: 'Halve duration, hold credit', bookFingerprint: 'bk-abc', candidateCount: 138,
+    narrative: 'Every target was met to within 5%.',
+    package: {
+      packageId: 'PKG-01', name: 'Halve duration, hold credit', status: 'proposed',
+      grossNotionalUsd: 6.2e9, totalExecutionCost: 1.646e6, carryChangeUsd: -3.04e8,
+      tickets: [
+        {
+          ticketId: 'TKT-01', securityId: 1, description: 'US TREASURY NOTE 4.750% 2036-09-07',
+          side: 'SELL', notionalUsd: 1.11e9, executionCost: 2e5, carryUsd: -5e7,
+          kind: 'Treasury', cusip: '912828YZ7', quotedPrice: '99-16+', decimalPrice: 99.515625,
+          maturityDate: 20360907,
+        },
+        {
+          ticketId: 'TKT-02', securityId: 2, description: 'CDX.NA.HY S46 V1 5%',
+          side: 'BUY_PROTECTION', notionalUsd: 2.1e9, executionCost: 1e5, carryUsd: -1e8,
+          kind: 'CDX', fixedCouponBp: 500, pointsUpfront: -1.25, immMaturity: 20310320,
+          clearingHouse: 'ICE Clear Credit', executionVenue: 'SEF', family: 'CDX.NA.HY',
+        },
+      ],
+    },
+    exposureBefore: { level: -1.3e9, slope: -3.4e8, curvature: -2.6e8, hump: -2.8e8, credit: -1.14e9 },
+    exposureAfter: { level: -6.63e8, slope: -2.39e8, curvature: -1.71e8, hump: -1.15e8, credit: -1.14e9 },
+    coverage: { level: 0.98, slope: null, curvature: null, hump: null, credit: 1 },
+    residual: { level: -1.3e7, slope: null, curvature: null, hump: null, credit: 0 },
+    verification: {
+      worlds: 200, horizonDays: 20,
+      before: { worst: -1.27e9, var95: -7.8e8, cvar95: -9.99e8, median: -1.5e7, best: 1.47e9 },
+      after: { worst: -8.67e8, var95: -5.4e8, cvar95: -6.27e8, median: 1e7, best: 7.85e8 },
+      worstCaseBefore: -9.49e8, worstCaseAfter: -5.9e8,
+      distributionBefore: [{ from: -1.3e9, to: 0, count: 120 }, { from: 0, to: 1.5e9, count: 80 }],
+      distributionAfter: [{ from: -9e8, to: 0, count: 110 }, { from: 0, to: 8e8, count: 90 }],
+    },
+    plausibility: '200 worlds drawn from the model',
+  };
+
+  const payload: ScenarioCellPayload = {
+    kind: SCENARIO_CELL, view: 'package', bookFingerprint: 'bk-abc', positionCount: 0,
+    baseMarketValue: 0, headline: '2 legs verified', plausibility: '200 worlds drawn from the model',
+    solve,
+  };
+
+  it('names the package and shows what it cost', () => {
+    render(<ScenarioResultCell payload={payload} />);
+    expect(screen.getByText(/Package — Halve duration, hold credit/)).toBeInTheDocument();
+    expect(screen.getByText('1646k')).toBeInTheDocument();
+    expect(screen.getByText('−$304.0mm/yr')).toBeInTheDocument();
+  });
+
+  it('overlays the two distributions on one shared scale', () => {
+    render(<ScenarioResultCell payload={payload} />);
+    expect(screen.getByRole('img', { name: /before hedging/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /after hedging/i })).toBeInTheDocument();
+  });
+
+  it('reports coverage per factor, including the ones left unconstrained', () => {
+    render(<ScenarioResultCell payload={payload} />);
+    expect(screen.getByText('98% covered')).toBeInTheDocument();
+    expect(screen.getAllByText('unconstrained').length).toBe(3);
+    expect(screen.getByText('Every target was met to within 5%.')).toBeInTheDocument();
+  });
+
+  it('shows each ticket with the fields its own product needs', () => {
+    render(<ScenarioResultCell payload={payload} />);
+    // A Treasury quotes in 32nds; a swap quotes points upfront.
+    expect(screen.getByText('99-16+')).toBeInTheDocument();
+    expect(screen.getByText('-1.25 puf')).toBeInTheDocument();
+    expect(screen.getByText('BUY PROT')).toBeInTheDocument();
+    expect(screen.getByText('SELL')).toBeInTheDocument();
+  });
+
+  it('says the package is only proposed', () => {
+    render(<ScenarioResultCell payload={payload} />);
+    expect(screen.getByText(/2 tickets · proposed · PKG-01/)).toBeInTheDocument();
   });
 });
