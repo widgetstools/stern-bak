@@ -16,9 +16,10 @@
     "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.reporter=json-summary --coverage.reporter=lcov",
     "validate:seed": "node scripts/validate-seed.mjs",
     "preview": "vite preview",
-    "client": "node launch.mjs http://localhost:5175/platform/manifest.fin.json"
+    "client": "node launch.mjs http://localhost:5175/platform/manifest.fin.json",
+    "validate:blotters": "node scripts/validateBlotters.mjs"
   },
-  "//dependencies-registry-notes": "react-grid-layout pinned to the ^2.2.x stable line. 2.x is the React-19-safe major: 1.x reached react-draggable/react-resizable through the removed ReactDOM.findDOMNode, while 2.2.4 passes nodeRef throughout (verified rendering under react 19.2 with zero console errors). It also replaces the WidthProvider HOC with the useContainerWidth hook, so there is no HOC to fight StrictMode. Chosen over gridstack (framework-agnostic and imperative — it owns the DOM nodes React is meant to own, and is 2.07MB unpacked to RGL's 448KB) and over react-mosaic (binary-tree tiling, no free 2D placement). @types are bundled; do not add @types/react-grid-layout, which only describes 1.x.",
+  "//dependencies-registry-notes": "react-grid-layout pinned to the ^2.2.x stable line. 2.x is the React-19-safe major: 1.x reached react-draggable/react-resizable through the removed ReactDOM.findDOMNode, while 2.2.4 passes nodeRef throughout (verified rendering under react 19.2 with zero console errors). It also replaces the WidthProvider HOC with the useContainerWidth hook, so there is no HOC to fight StrictMode. Chosen over gridstack (framework-agnostic and imperative \u2014 it owns the DOM nodes React is meant to own, and is 2.07MB unpacked to RGL's 448KB) and over react-mosaic (binary-tree tiling, no free 2D placement). @types are bundled; do not add @types/react-grid-layout, which only describes 1.x.",
   "dependencies": {
     "@openfin/core": "43.104.2",
     "@openfin/workspace": "23.2.25",
