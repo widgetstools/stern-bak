@@ -189,6 +189,85 @@ for (const e of gridEntries) {
   }
 }
 
+// ── dashboards ──────────────────────────────────────────────────────────────
+// Same three-object pattern as a blotter, with two differences that are easy to
+// get wrong because nothing else in the seed works this way:
+//
+//   • the config row's id is `dashboard-spec::<entryId>`, NOT the entry's
+//     configId. A dashboard is the one component whose row and entry ids
+//     differ.
+//   • the hostUrl must carry BOTH `?dashboard=` and `&grid=`. A dashboard
+//     opened from the dock has no blotter in its URL otherwise, so it draws
+//     nothing — which is why `save_dashboard` refuses without a targetGridId.
+const REPORT_BLOCK_KINDS = ['kpis', 'chart', 'table', 'pivot', 'lanes', 'commentary'];
+const dashboardEntries = entries.filter((e) => e.componentType === 'dashboard');
+
+for (const e of dashboardEntries) {
+  const label = e.configId ?? e.id ?? '(unnamed)';
+  for (const field of ['id', 'hostUrl', 'componentSubType', 'configId', 'type']) {
+    if (!e[field]) err(`dashboard ${label}: registry entry is missing "${field}"`);
+  }
+  const derived = `dashboard-${e.componentSubType}`.toLowerCase();
+  if (e.configId !== derived) err(`dashboard ${label}: configId should be "${derived}"`);
+
+  const url = String(e.hostUrl ?? '');
+  if (!url.startsWith('/#/analysis')) err(`dashboard ${label}: hostUrl should be the analysis route, got "${url}"`);
+  const params = new URLSearchParams(url.slice(url.indexOf('?') + 1));
+  if (!params.get('dashboard')) err(`dashboard ${label}: hostUrl has no ?dashboard= — it cannot restore its spec`);
+  if (!params.get('grid')) err(`dashboard ${label}: hostUrl has no &grid= — it opens with no rows to draw`);
+
+  const row = rows.get(`dashboard-spec::${e.configId}`);
+  if (!row) {
+    err(`dashboard ${label}: no "dashboard-spec::${e.configId}" row — note the prefix; a dashboard's row id is NOT its entry's configId`);
+    continue;
+  }
+  const stored = row.payload ?? {};
+  if (!stored.spec) { err(`dashboard ${label}: row carries no spec`); continue; }
+  if (!stored.gridId) err(`dashboard ${label}: row carries no gridId`);
+
+  // The blotter it reads must exist, and the URL must name the same one.
+  const source = rows.get(stored.gridId);
+  if (!source) err(`dashboard ${label}: reads grid "${stored.gridId}", which is not in the seed`);
+  if (params.get('grid') && stored.gridId && params.get('grid') !== stored.gridId) {
+    err(`dashboard ${label}: hostUrl grid "${params.get('grid')}" != stored gridId "${stored.gridId}"`);
+  }
+
+  const blocks = stored.spec.blocks ?? [];
+  if (blocks.length === 0) err(`dashboard ${label}: spec has no blocks`);
+  for (const [i, b] of blocks.entries()) {
+    if (!REPORT_BLOCK_KINDS.includes(b.kind)) {
+      err(`dashboard ${label}: block ${i} kind "${b.kind}" is not one of ${REPORT_BLOCK_KINDS.join(', ')}`);
+    }
+  }
+
+  // Blocks query the SOURCE GRID's provider, so a column that does not exist
+  // there renders an empty block. `save_dashboard` preflights this against
+  // live rows; a file editor cannot, so check what is checkable statically.
+  const providerId = source?.payload?.gridLevelData?.provider?.liveProviderId;
+  const fields = providerId && providers.get(providerId)
+    ? new Set((providers.get(providerId).columnDefinitions ?? []).map((d) => d.field))
+    : null;
+  if (fields) {
+    const cols = new Set();
+    const scan = (node) => {
+      if (!node || typeof node !== 'object') return;
+      for (const [k, v] of Object.entries(node)) {
+        if (['field', 'colId', 'column'].includes(k) && typeof v === 'string') cols.add(v);
+        if (k === 'groupBy' && Array.isArray(v)) v.forEach((c) => typeof c === 'string' && cols.add(c));
+        scan(v);
+      }
+    };
+    scan(stored.spec);
+    for (const c of cols) {
+      if (!fields.has(c)) err(`dashboard ${label}: references column "${c}", which ${providerId} does not define`);
+    }
+  }
+
+  if (!dockTargets.has(e.id)) {
+    warn(`dashboard ${label}: no dock button targets it — it can only be opened from a URL`);
+  }
+}
+
 // Registry entries pointing at rows that are not grids, and orphan rows.
 for (const [id, row] of rows) {
   if (row.componentType !== 'grid' || !row.isTemplate) continue;
@@ -200,7 +279,7 @@ for (const [id, row] of rows) {
 for (const w of warnings) console.warn(`[validate-blotters] warn  ${w}`);
 for (const e of errors) console.error(`[validate-blotters] ERROR ${e}`);
 console.log(
-  `[validate-blotters] ${gridEntries.length} blotters, ${providers.size} providers, ` +
+  `[validate-blotters] ${gridEntries.length} blotters, ${dashboardEntries.length} dashboards, ${providers.size} providers, ` +
   `${dockTargets.size} dock targets — ${errors.length} errors, ${warnings.length} warnings`,
 );
 process.exit(errors.length > 0 ? 1 : 0);
