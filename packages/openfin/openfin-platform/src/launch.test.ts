@@ -175,7 +175,7 @@ describe('launchRegisteredComponent', () => {
     expect(saveConfig).toHaveBeenCalled();
   });
 
-  it('creates a window when asWindow is true', async () => {
+  it('creates a WORKSPACE window when asWindow is true', async () => {
     loadRegistryConfig.mockResolvedValue({ version: 1, entries: [entry], updatedAt: '' });
     getConfigManager.mockResolvedValue({
       getConfig: vi.fn().mockResolvedValue(null),
@@ -184,6 +184,36 @@ describe('launchRegisteredComponent', () => {
     await launchRegisteredComponent('e1', { asWindow: true });
     expect(createWindow).toHaveBeenCalled();
     expect(createView).not.toHaveBeenCalled();
+
+    // A Browser window carrying the component as its single view — NOT a
+    // classic window with a top-level `url`. The distinction is the whole
+    // point: a classic window has no page, so it cannot be saved into a
+    // workspace layout, which is most of the reason to launch into a window.
+    const options = createWindow.mock.calls[0][0];
+    expect(options.url).toBeUndefined();
+    const pages = options.workspacePlatform?.pages;
+    expect(pages).toHaveLength(1);
+    expect(pages[0].isActive).toBe(true);
+    const stack = pages[0].layout.content[0];
+    expect(stack.type).toBe('stack');
+    const view = stack.content[0];
+    expect(view.componentName).toBe('view');
+    expect(view.componentState.url).toContain('resolved');
+    // Identity has to reach the view, not just the frame around it.
+    expect(view.componentState.customData.instanceId).toBeTruthy();
+  });
+
+  it('titles the window and its page from the registry entry', async () => {
+    loadRegistryConfig.mockResolvedValue({
+      version: 1, entries: [{ ...entry, displayName: 'Rates' }], updatedAt: '',
+    });
+    getConfigManager.mockResolvedValue({
+      getConfig: vi.fn().mockResolvedValue(null), saveConfig: vi.fn(),
+    });
+    await launchRegisteredComponent('e1', { asWindow: true });
+    const options = createWindow.mock.calls[0][0];
+    expect(options.workspacePlatform.title).toBe('Rates');
+    expect(options.workspacePlatform.pages[0].title).toBe('Rates');
   });
 
   it('focuses an in-flight singleton instead of launching again', async () => {

@@ -135,9 +135,11 @@ export async function launchApp(
 
 export interface LaunchRegisteredComponentOptions {
   /**
-   * When true, launch in a standalone OpenFin Window. When false (or
-   * omitted) launch as an OpenFin View inside the current Platform —
-   * matches the registry-editor's existing testComponent() default.
+   * When true, launch in a standalone WORKSPACE window — a Browser window
+   * holding the component as its single view, so it carries the page chrome
+   * and can be saved into a workspace layout. When false (or omitted) launch
+   * as an OpenFin View inside the current Platform, which matches the
+   * registry-editor's existing testComponent() default.
    */
   asWindow?: boolean;
 }
@@ -331,15 +333,50 @@ async function createComponentInstance(
 
   if (opts.asWindow) {
     const platform = getCurrentSync();
+    const windowName = `registered-${entry.id}-${instanceId}`;
     const [win] = await Promise.all([
+      // A WORKSPACE window, not a classic one. `createWindow({ url })` makes a
+      // plain OpenFin window: it has no page, so it carries none of the
+      // Browser chrome and — the part that matters — it cannot be saved into a
+      // workspace layout, which is most of the reason to launch a blotter into
+      // its own window at all. Passing `workspacePlatform.pages` instead
+      // produces the tabbed Browser window the platform's own snapshots use,
+      // holding this component as its single view.
       platform.createWindow({
-        url: resolvedUrl,
-        name: `registered-${entry.id}-${instanceId}`,
+        name: windowName,
         defaultWidth: 1200,
         defaultHeight: 800,
         autoShow: true,
         customData,
-      }),
+        workspacePlatform: {
+          title: entry.displayName || entry.componentType,
+          pages: [
+            {
+              pageId: `page-${instanceId}`,
+              title: entry.displayName || entry.componentType,
+              isActive: true,
+              layout: {
+                content: [
+                  {
+                    type: "stack",
+                    content: [
+                      {
+                        type: "component",
+                        componentName: "view",
+                        componentState: {
+                          name: `view-${instanceId}`,
+                          url: resolvedUrl,
+                          customData,
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as unknown as Parameters<ReturnType<typeof getCurrentSync>["createWindow"]>[0]),
       clonePromise,
     ]);
     return win;
