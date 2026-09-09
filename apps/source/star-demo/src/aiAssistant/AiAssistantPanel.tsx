@@ -219,14 +219,22 @@ export function AiAssistantPanel({
   useEffect(() => {
     if (!platform?.configManager) return;
     let cancelled = false;
-    void readDeskContext(platform.configManager).then((ctx) => {
-      if (cancelled) return;
-      setDesk(
-        ctx.mandate || ctx.benchmark || ctx.limits.length
-          ? { mandate: ctx.mandate, benchmark: ctx.benchmark, limitNames: ctx.limits.map((l) => l.name) }
-          : undefined,
-      );
-    });
+    void readDeskContext(platform.configManager)
+      .then((ctx) => {
+        if (cancelled) return;
+        setDesk(
+          ctx.mandate || ctx.benchmark || ctx.limits.length
+            ? { mandate: ctx.mandate, benchmark: ctx.benchmark, limitNames: ctx.limits.map((l) => l.name) }
+            : undefined,
+        );
+      })
+      // The desk brief is an enrichment of the system prompt, so a config store
+      // that cannot be read costs framing, not the conversation. Without this
+      // the rejection escapes the effect unhandled and the brief goes missing
+      // with no diagnostic at all.
+      .catch((err) => {
+        console.debug(`${LOG} could not read the desk context:`, err);
+      });
     return () => {
       cancelled = true;
     };
