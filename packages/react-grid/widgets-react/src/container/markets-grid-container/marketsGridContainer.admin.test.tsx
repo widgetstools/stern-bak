@@ -38,45 +38,60 @@ vi.mock('@wellsfargo-starui/grid', async (importOriginal) => ({
   useMarketsGridEventBridge: vi.fn(),
 }));
 
+// Every value below is a module-level SINGLETON, and the hooks return the same
+// reference on every call — which is what the real hooks do.
+//
+// Returning a fresh object literal per call makes `provider` a new identity on
+// every render, and the container builds its live row source in an effect keyed
+// on `[provider, rowIdFieldKey]`. An unstable provider re-runs that effect,
+// which calls `setLiveRowSource`, which renders, which mints another provider:
+// an unbounded loop that allocates a row source per turn until the worker dies
+// of heap exhaustion. It presents as an OOM with no test having run and no
+// stack pointing anywhere near this file, so it is worth keeping these stable.
+const dataServices = {
+  client: {
+    isProviderRunning: vi.fn().mockResolvedValue(true),
+    waitForProviderRunning: vi.fn().mockResolvedValue(true),
+  },
+};
+const providerCfg = { providerType: 'mock', keyColumn: 'id', columnDefinitions: [{ field: 'id' }] };
+const provider = {
+  id: 'dp-live',
+  start: vi.fn().mockResolvedValue(undefined),
+  stop: vi.fn().mockResolvedValue(undefined),
+  refresh: vi.fn().mockResolvedValue(undefined),
+  restart: restartMock,
+  getConfig: () => providerCfg,
+  getColumnDefs: () => [{ field: 'id' }],
+  onRowsReceived: vi.fn(() => () => undefined),
+  onSnapshotData: vi.fn(() => () => undefined),
+  onTick: vi.fn(() => () => undefined),
+  onError: vi.fn(() => () => undefined),
+  onStatus: vi.fn(() => () => undefined),
+};
+const dataProvider = {
+  provider,
+  status: 'ready',
+  error: undefined,
+  start: vi.fn(),
+  refresh: refreshProviderMock,
+  restart: restartMock,
+};
+const appDataStore = { store: { set: vi.fn(), get: vi.fn() } };
+const dataProviderConfig = { cfg: providerCfg, loading: false };
+const dataProvidersList = {
+  configs: [{ providerId: 'dp-live', name: 'Live', providerType: 'mock', config: { providerType: 'mock' } }],
+  loading: false,
+  refresh: vi.fn(),
+};
+
 vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
-  useDataServices: () => ({
-    client: {
-      isProviderRunning: vi.fn().mockResolvedValue(true),
-      waitForProviderRunning: vi.fn().mockResolvedValue(true),
-    },
-  }),
-  useDataProvider: () => ({
-    provider: {
-      id: 'dp-live',
-      start: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockResolvedValue(undefined),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      restart: restartMock,
-      getConfig: () => ({ providerType: 'mock', keyColumn: 'id', columnDefinitions: [{ field: 'id' }] }),
-      getColumnDefs: () => [{ field: 'id' }],
-      onRowsReceived: vi.fn(() => () => undefined),
-      onSnapshotData: vi.fn(() => () => undefined),
-      onTick: vi.fn(() => () => undefined),
-      onError: vi.fn(() => () => undefined),
-      onStatus: vi.fn(() => () => undefined),
-    },
-    status: 'ready',
-    error: undefined,
-    start: vi.fn(),
-    refresh: refreshProviderMock,
-    restart: restartMock,
-  }),
-  useAppDataStore: () => ({ store: { set: vi.fn(), get: vi.fn() } }),
-  useDataProviderConfig: () => ({
-    cfg: { providerType: 'mock', keyColumn: 'id', columnDefinitions: [{ field: 'id' }] },
-    loading: false,
-  }),
-  useResolvedCfg: () => ({ providerType: 'mock', keyColumn: 'id', columnDefinitions: [{ field: 'id' }] }),
-  useDataProvidersList: () => ({
-    configs: [{ providerId: 'dp-live', name: 'Live', providerType: 'mock', config: { providerType: 'mock' } }],
-    loading: false,
-    refresh: vi.fn(),
-  }),
+  useDataServices: () => dataServices,
+  useDataProvider: () => dataProvider,
+  useAppDataStore: () => appDataStore,
+  useDataProviderConfig: () => dataProviderConfig,
+  useResolvedCfg: () => providerCfg,
+  useDataProvidersList: () => dataProvidersList,
 }));
 
 vi.mock('./LoadingOverlay.js', () => ({ MarketsGridLoadingOverlay: () => null }));

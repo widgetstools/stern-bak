@@ -70,7 +70,12 @@ describe('DataGrid', () => {
     const pk = cells().configId;
     expect(pk.style.fontFamily).toBe('var(--ds-font-mono)');
     expect(pk.style.fontWeight).toBe('600');
-    expect(document.querySelector('.ag-pinned-left-cols-container')?.contains(pk)).toBe(true);
+    // AG Grid 33+ moved pinning into the row: there is no longer one
+    // `.ag-pinned-left-cols-container` per grid, each `.ag-row` carries its own
+    // `.ag-grid-pinned-left-cells` group. Asserting on the grid-level container
+    // silently passed `undefined` through `?.` once that element stopped
+    // existing, so this walks up from the cell instead.
+    expect(pk.closest('.ag-grid-pinned-left-cells')).not.toBeNull();
   });
 
   it('renders an object cell as a budgeted JSON preview, not the full payload', async () => {
