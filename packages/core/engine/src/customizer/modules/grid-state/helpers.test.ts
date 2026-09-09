@@ -131,10 +131,20 @@ describe('captureGridStateInto', () => {
       viewportAnchor: { firstRowIndex: 1, leftColId: null, horizontalPixel: 50 },
       quickFilter: 'find',
     };
+    // The horizontal fallback writes straight to AG Grid's scroll viewport —
+    // with no element present it is a no-op, which is exactly how it went
+    // unnoticed that the class had been renamed out from under it.
+    const viewport = document.createElement('div');
+    viewport.className = 'ag-body-horizontal-scroll-viewport';
+    document.body.append(viewport);
+
     applyGridState(api as never, saved);
     await new Promise<void>((r) => queueMicrotask(r));
     expect(api.applyColumnState).toHaveBeenCalled();
     expect(api.setGridOption).toHaveBeenCalledWith('quickFilterText', 'find');
+    expect(viewport.scrollLeft).toBe(50);
+
+    viewport.remove();
     warn.mockRestore();
   });
 

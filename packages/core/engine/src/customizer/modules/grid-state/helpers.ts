@@ -292,7 +292,13 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
       if (leftColId && api.getColumn(leftColId)) {
         api.ensureColumnVisible(leftColId, 'start');
       } else if (horizontalPixel > 0) {
-        const body = document.querySelector<HTMLElement>('.ag-body-viewport');
+        // AG Grid drives horizontal movement from its own scroll viewport, and
+        // exposes no public GridApi equivalent (`setHorizontalScrollPosition`
+        // is on the internal gridBodyScrollFeature), so this reaches for the
+        // element. The class is `ag-body-horizontal-scroll-viewport` as of
+        // AG Grid 36; the older `ag-body-viewport` no longer exists, which made
+        // this branch a silent no-op.
+        const body = document.querySelector<HTMLElement>('.ag-body-horizontal-scroll-viewport');
         if (body) body.scrollLeft = horizontalPixel;
       }
     } catch {
