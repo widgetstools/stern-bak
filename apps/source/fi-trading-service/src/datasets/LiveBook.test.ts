@@ -9,7 +9,7 @@ const book = new LiveBook({ seed: 20260907, scaleMultiplier: 0.15, ticksPerSessi
 async function collect(source: LiveBook, batchSize: number): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = [];
   for await (const batch of source.snapshot(batchSize)) {
-    out.push(...(batch as Record<string, unknown>[]));
+    out.push(...(batch as readonly Record<string, unknown>[]));
   }
   return out;
 }
@@ -29,7 +29,7 @@ describe('LiveBook', () => {
 
   it('never emits a value that would truncate the snapshot at the client', () => {
     expect(() =>
-      assertNoSentinelCollision(book.allRows() as Record<string, unknown>[], [
+      assertNoSentinelCollision(book.allRows() as readonly Record<string, unknown>[], [
         SNAPSHOT_END_TOKEN, LEGACY_SNAPSHOT_END_TOKEN,
       ]),
     ).not.toThrow();
