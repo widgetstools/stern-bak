@@ -676,7 +676,11 @@ async function runTool(name: ToolName, ctx: ToolExecutionContext, args: Record<s
         name?: string; horizonDays?: number; worlds?: number; shock: ScenarioShockArgs;
       });
     case 'solve_strategy':
-      return scenarioToolsFor(ctx).solveStrategy(args as SolveRequestBody);
+      // Through `unknown` because `SolveRequestBody` is an interface and so has
+      // no implicit index signature — unlike the inline object types the cases
+      // above cast to, it is assignable in neither direction from
+      // `Record<string, unknown>`. Same unvalidated model args either way.
+      return scenarioToolsFor(ctx).solveStrategy(args as unknown as SolveRequestBody);
     case 'list_provider_fields':
       return listProviderFields(ctx.configStore, args);
     case 'infer_provider_fields':
@@ -848,6 +852,14 @@ export interface UseToolExecutorOptions {
   lockedGridId?: string;
   /** The blotter window this panel was opened from; the default pin for any call that doesn't name its own instance. */
   focusInstanceId?: string;
+  /**
+   * Where the fixed-income service lives, read at call time so the settings
+   * strip can retarget it mid-conversation. Omitted, the scenario tools fall
+   * back to `defaultScenarioBaseUrl` — which is what happened to every call
+   * while this option existed on the tool context but not on this interface,
+   * so the panel passed an editable URL that reached nothing.
+   */
+  scenarioBaseUrl?: () => string;
 }
 
 export function useToolExecutor(options: UseToolExecutorOptions = {}) {
@@ -858,16 +870,16 @@ export function useToolExecutor(options: UseToolExecutorOptions = {}) {
   // route) builds this store over the same ConfigManager and wires worker
   // catalog invalidation, so a provider created here is picked up live.
   const { configStore, client } = useDataServices();
-  const { defaultGridId, lockedGridId, focusInstanceId } = options;
+  const { defaultGridId, lockedGridId, focusInstanceId, scenarioBaseUrl } = options;
 
   const executeTool = useCallback(
     (name: ToolName, args: Record<string, unknown>): Promise<ToolExecutionResult> =>
       dispatchTool(
         name,
-        { configManager, configStore, client: client as DataHubClient | undefined, appId, defaultGridId, lockedGridId, focusInstanceId },
+        { configManager, configStore, client: client as DataHubClient | undefined, appId, defaultGridId, lockedGridId, focusInstanceId, scenarioBaseUrl },
         args,
       ),
-    [configManager, configStore, client, appId, defaultGridId, lockedGridId, focusInstanceId],
+    [configManager, configStore, client, appId, defaultGridId, lockedGridId, focusInstanceId, scenarioBaseUrl],
   );
 
   return { executeTool };
