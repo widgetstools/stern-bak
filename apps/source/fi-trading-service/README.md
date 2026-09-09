@@ -9,18 +9,56 @@ dataset — every row random-walks independently, no analytic derives from a
 cashflow, and trades don't reconcile to the positions they claim to belong to.
 See the plan for the full rationale and the phase list.
 
-## Status: Phase 1 of 14
+## Status: phases 1–8 of 14, plus the scenario and strategy layers
 
-What works today is the **wire**. The datasets behind it are still a synthetic
-stand-in.
+The **pure domain layer is complete** — every price on the book is computed,
+from a factor model, through the instrument's own cashflows. A demo build is
+2,905 securities and 1,758 positions across ten asset classes in ~520 ms, each
+row carrying 88 fields.
 
-- [x] STOMP-over-WebSocket server: framing, sessions, destinations, snapshot
-      chunking, backpressure, heartbeats, live batching
-- [x] Verified compatible with the existing browser transport — the session
-      tests decode every frame with the *real* client parser, and one test
-      drives a real socket end to end
-- [ ] Domain core: calendars, curves, cashflow analytics, instruments
-- [ ] Columnar hot store, DuckDB corpus, order entry, simulators
+- [x] **Phase 1 — wire.** STOMP-over-WebSocket: framing, sessions, destinations,
+      snapshot chunking, backpressure, heartbeats, live batching. Verified
+      against the existing browser transport — the session tests decode every
+      frame with the *real* client parser, and one test drives a real socket
+      end to end
+- [x] **Phase 2 — `domain/core`.** `YYYYMMDD` int dates, the rules-based SIFMA
+      calendar, seven day counts, 32nds quotation, CUSIP/ISIN/SEDOL check
+      digits, xoshiro128\*\* and AS241/Cholesky
+- [x] **Phase 3 — `domain/curves`.** Nelson-Siegel-Svensson with frozen decays,
+      Ornstein-Uhlenbeck factors on the exact transition density, credit spreads
+      decomposed in log space, the MMD muni scale, rating migration
+- [x] **Phase 4 — `domain/analytics`.** Schedules, accrued interest, cashflow
+      projection, price/yield, duration/convexity/DV01 off the same cashflows as
+      the price, key-rate durations, yield-to-worst, effective duration
+- [x] **Phase 5 — `domain/instruments`.** Treasury auction ladder, STRIPS,
+      callable agencies, 650 corporate issuers with real LEIs and capital
+      structures
+- [x] **Phase 6.** Muni serial deals and the mortgage prepayment model — refi
+      S-curve, lock-in, seasoning, seasonality, burnout
+- [x] **Phase 7.** SPG capital stacks (CMBS/CLO/ABS) with derived credit support,
+      plus a Hull-White trinomial lattice for callable OAS
+- [x] **Phase 8.** CDS on the ISDA flat-hazard model — SNAC upfront/points, CS01,
+      jump-to-default, recovery01 — keyed by `issuerId` so the bond-CDS basis is
+      a join
+- [x] **`domain/book`.** `LiveBook`, priced off the factor model, with tax lots
+      as the only source of quantity and cost
+- [x] **`scenario/`** *(not in the original plan)*. Forked markets — a state is
+      forked and run forward under a different draw, giving a different but
+      internally consistent history rather than a shocked book. 250 worlds x 20
+      business days over 1,758 positions in 236 ms
+- [x] **`strategy/`** *(not in the original plan)*. A weighted-ridge hedge solver
+      that verifies its own package by re-running the same forked worlds
+- [ ] **Phases 9–14.** Columnar hot store, DuckDB corpus, order entry with lot
+      accounting, the simulators, the realism validation suite
+
+**What that leaves.** One of the six datasets is served: `positions` has a
+`RowSource`, and `trades`, `securityMaster`, `marketData`, `orders` and
+`taxLots` are in the destination grammar with nothing behind them, so
+subscribing to one is an explicit protocol error rather than a silent empty
+stream. Historical as-of-date streams are refused for the same reason — see
+`DatasetRegistry.resolve` in [`src/datasets/registry.ts`](./src/datasets/registry.ts).
+Everything remaining is storage, persistence and the write path; the financial
+modelling is done.
 
 ## Run it
 
@@ -36,6 +74,20 @@ changes are required** — the browser STOMP transport takes its subscribe topic
 trigger and end token from configuration.
 
 `GET /health` reports liveness and the live session count.
+
+## HTTP API
+
+The scenario and strategy layers are reached over HTTP (the browser is on
+another origin, so the router handles CORS and `OPTIONS`), on the `httpHandler`
+hook `StompServer` already had:
+
+| Endpoint | Answers |
+|---|---|
+| `GET /api/book/summary` | what the book is — asset-class split, market value, duration |
+| `POST /api/scenario/scan` | run N forked worlds, describe the loss distribution |
+| `POST /api/scenario/worst` | the worst world for THIS book, and why |
+| `POST /api/scenario/fork` | one world replayed with and without a named shock |
+| `POST /api/strategy/solve` | solve a hedge package, then verify it on the same worlds |
 
 ## Wire contract
 

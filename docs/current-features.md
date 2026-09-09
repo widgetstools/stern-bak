@@ -117,6 +117,16 @@ module or a different package provides it.
   open on a PARTIAL stored config (an assistant write, a hand-edited profile, an older
   schema) instead of throwing — a config missing its array field used to take down the
   whole column-settings drawer.
+- **Value renderers honour the column formatter** — AG Grid hands a cell renderer both
+  `value` (raw) and `valueFormatted` (the column formatter's output), and a renderer
+  reading only `value` silently discards the formatter, so the formatting toolbar's
+  decimal buttons did nothing on a column carrying one. The `displayText(params, own)`
+  helper prefers `valueFormatted` and falls back to the renderer's own presentation when
+  it is null/undefined/empty — and when a formatter IS set it owns the whole display,
+  suffixes included, so a renderer appending its own would produce `941,181.94K`. Applies
+  to the renderers that draw a numeric value: `ChangeValue`, `ColoredValue`,
+  `FilledAmount`, `Heatmap`, `OasValue`, `Pnl`, `SignedValue`. Renderers that read `value`
+  for semantics rather than display (`Side` picking buy/sell colour) are unaffected.
 - **@wellsfargo-starui/react shadcn primitives** — aligned to StarUI v1 density (30px controls, 2px radius, semibold tracking-tight chrome, `shadow-card`/`shadow-overlay`, `bg-background` form surfaces, buy/sell badge variants)
 
 #### Semantic tokens
@@ -1867,8 +1877,8 @@ of importing `@openfin/*` directly (architecture boundary).
 #### Launch
 
 - `launchApp()` — launch registered app by id (config overrides supported)
-- `launchRegisteredComponent()` — create registered-component instance in new view; stamps `?instanceId=` and `?id=` on the launch URL (`appendLaunchIdentityParams`) so reloads and workspace GC resolve the per-instance id from the query string; the template→instance config clone runs concurrently with `createWindow` / `createView` (window appears immediately; clone lands before the view's first config read)
-- `LaunchRegisteredComponentOptions` — instance config (layout, properties, parent)
+- `launchRegisteredComponent()` — create registered-component instance in new view; stamps `?instanceId=` and `?id=` on the launch URL (`appendLaunchIdentityParams`) so reloads and workspace GC resolve the per-instance id from the query string; the template→instance config clone runs concurrently with `createWindow` / `createView` (window appears immediately; clone lands before the view's first config read). With `asWindow: true` it builds a **workspace** window — `workspacePlatform.pages` carrying a single-view stack, the same shape the platform's own snapshots use — not a classic window with a top-level `url`, so the result carries Browser page chrome and can be saved into a workspace layout; `customData` reaches the view as well as the frame, so identity resolves inside the component
+- `LaunchRegisteredComponentOptions` — instance config (layout, properties, parent); `asWindow` selects standalone workspace window vs. view in the current platform
 
 #### Dock management
 

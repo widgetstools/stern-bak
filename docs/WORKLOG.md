@@ -10,7 +10,7 @@ Each entry states what is wrong, why it was left, and what "done" looks like, so
 it can be picked up cold. Close an item by deleting its section in the same
 change that fixes it.
 
-Last updated: 2026-08-02.
+Last updated: 2026-09-09.
 
 ---
 
@@ -1025,6 +1025,41 @@ from the platform source tree), and one test drives a real socket end to end.
 **Open (phases 9–14):** the columnar hot store, the DuckDB corpus, order entry
 with lot accounting, the simulators, and the realism validation suite. The pure
 domain layer (phases 2-8) is complete.
+
+Two things measure that gap concretely, so it can be picked up cold:
+
+- **One of six datasets is served.** `DATASETS` in `wire/destinations.ts` names
+  `positions`, `trades`, `securityMaster`, `marketData`, `orders` and `taxLots`,
+  each with a declared key column, and `bootstrap.ts` registers exactly one
+  `RowSource` — `LiveBook`, on `positions`. Subscribing to the other five is an
+  explicit protocol error, which is the intended behaviour until there is
+  something behind them.
+- **There is no history at all.** `DatasetRegistry.resolve` returns `null` for
+  any non-null `asOfDate` rather than handing back today's rows under a past
+  date. The corpus those streams read from is phase 10.
+
+Everything left is storage, persistence and the write path — the financial
+modelling is done, and its goldens are verified against independent computation
+and published identifiers.
+
+**Landed (the desks):** nine blotters — six dealer desks (rates, IG credit, HY
+credit, munis, securitized, credit derivatives) and three fund mandates (core
+plus, tax-exempt income, credit opportunities) — generated into `seed.json` by
+`scripts/buildFiBlotters.mjs` and pointed at the live book. None is a singleton:
+every one opens as a workspace window, so the same desk can be opened twice side
+by side.
+
+Registering one turned out to need **three objects that must agree** — a
+template config row, a component-registry entry and a dock button — with nothing
+in the type system relating them. `scripts/validateBlotters.mjs` checks the
+things that actually break, every one of which broke here first: a `keyColumn`
+absent from its own `columnDefinitions` (the hub silently drops every row), a
+dock button naming a registry entry that does not exist, duplicate column
+definitions, and `projectFields` on with a column list too narrow to cover what
+the grid reads. It is semantic validation sitting behind `validate-seed.mjs`,
+which only ever checked the envelope and would pass a seed whose blotters cannot
+be opened. `npm run validate:blotters`; exit 1 on any error, warnings do not
+fail.
 
 Three wire constraints discovered while building it, each now pinned by a test
 and documented in the app README — they bite anything that speaks to this hub:
