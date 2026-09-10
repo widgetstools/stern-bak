@@ -11,7 +11,9 @@ export const PROVIDER_TYPES = {
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
   MOCK: 'mock',
-  APPDATA: 'appdata'
+  APPDATA: 'appdata',
+  /** Consumer-side bridge to a dock-hosted hub over OpenFin IAB Channel. */
+  IAB_CHANNEL_BRIDGE: 'iab-channel-bridge',
 } as const;
 
 export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
@@ -26,7 +28,8 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
   [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
   [PROVIDER_TYPES.SOCKETIO]: 'socketio',
   [PROVIDER_TYPES.MOCK]: 'mock',
-  [PROVIDER_TYPES.APPDATA]: 'appdata'
+  [PROVIDER_TYPES.APPDATA]: 'appdata',
+  [PROVIDER_TYPES.IAB_CHANNEL_BRIDGE]: 'iab-channel-bridge',
 };
 
 /**
@@ -40,6 +43,7 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
   'appdata': PROVIDER_TYPES.APPDATA,
+  'iab-channel-bridge': PROVIDER_TYPES.IAB_CHANNEL_BRIDGE,
   // Capitalized (backward compatibility)
   'Stomp': PROVIDER_TYPES.STOMP,
   'StompSsrm': PROVIDER_TYPES.STOMP_SSRM,
@@ -383,6 +387,28 @@ export interface AppDataProviderConfig {
 }
 
 /**
+ * OpenFin IAB Channel bridge — grid consumer; upstream STOMP/REST runs
+ * in the dock hub and is referenced by catalog id.
+ */
+export interface IabChannelBridgeProviderConfig {
+  providerType: 'iab-channel-bridge';
+  /** Catalog id of the upstream provider the dock hub attaches to (e.g. STOMP). */
+  upstreamProviderId: string;
+  /**
+   * OpenFin Channel provider name. When omitted, consumers and the dock
+   * hub use {@link DEFAULT_MARKETSUI_DATA_HUB_CHANNEL}.
+   */
+  channelName?: string;
+  /** Copied from upstream for grid column / key metadata when offline. */
+  keyColumn?: string | readonly string[];
+  inferredFields?: FieldInfo[];
+  columnDefinitions?: ColumnDefinition[];
+}
+
+/** Default OpenFin Channel name for the dock-hosted data hub. */
+export const DEFAULT_MARKETSUI_DATA_HUB_CHANNEL = 'marketsui-data-hub';
+
+/**
  * Union type for all provider configurations
  */
 export type ProviderConfig =
@@ -392,7 +418,8 @@ export type ProviderConfig =
   | WebSocketProviderConfig
   | SocketIOProviderConfig
   | MockProviderConfig
-  | AppDataProviderConfig;
+  | AppDataProviderConfig
+  | IabChannelBridgeProviderConfig;
 
 /**
  * Provider capabilities
@@ -558,7 +585,13 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
   appdata: {
     providerType: 'appdata',
     variables: {}
-  }
+  },
+  'iab-channel-bridge': {
+    providerType: 'iab-channel-bridge',
+    upstreamProviderId: '',
+    columnDefinitions: [],
+    inferredFields: [],
+  },
 };
 
 /**
@@ -605,6 +638,13 @@ export function validateProviderConfig(config: ProviderConfig): ProviderValidati
       const wsConfig = config as WebSocketProviderConfig;
       if (wsConfig.url && !wsConfig.url.startsWith('ws://') && !wsConfig.url.startsWith('wss://')) {
         warnings.push('URL should typically start with ws:// or wss://');
+      }
+      break;
+    }
+    case 'iab-channel-bridge': {
+      const bridge = config as IabChannelBridgeProviderConfig;
+      if (!bridge.upstreamProviderId?.trim()) {
+        errors.push('Upstream provider id is required for IAB channel bridge');
       }
       break;
     }

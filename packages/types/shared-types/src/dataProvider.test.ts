@@ -178,6 +178,15 @@ describe('validateProviderConfig', () => {
       expect(result).toEqual({ isValid: true, errors: [], warnings: undefined });
     }
   });
+
+  it('requires upstreamProviderId for iab-channel-bridge', () => {
+    const result = validateProviderConfig({
+      providerType: 'iab-channel-bridge',
+      upstreamProviderId: '',
+    } as ProviderConfig);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain('Upstream provider id is required for IAB channel bridge');
+  });
 });
 
 describe('normalizeKeyColumns', () => {

@@ -28,9 +28,25 @@ export type {
 } from './provider/index.js';
 export {
   ProviderClientAdapter,
+  ChannelBridgeClientAdapter,
   resolveProviderCapabilities,
   SsrmProviderClientAdapter,
 } from './provider/index.js';
+export type {
+  ChannelBridgeClientAdapterOpts,
+  ConnectChannelHubClient,
+} from './provider/index.js';
+export {
+  CHANNEL_HUB_ACTIONS,
+  DEFAULT_MARKETSUI_DATA_HUB_CHANNEL,
+  resolveChannelHubName,
+} from './channel/channelHubProtocol.js';
+export type {
+  ChannelHubAttachRequest,
+  ChannelHubAttachResult,
+  ChannelHubEventPayload,
+  ChannelHubReply,
+} from './channel/channelHubProtocol.js';
 export type {
   ISsrmDataProvider,
   SsrmAggregatesRequest,

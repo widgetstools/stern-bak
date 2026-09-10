@@ -511,11 +511,15 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // the picker only, not as an attach cfg pass-through.
   const providerReady = Boolean(activeId && !activeRow.loading && rowIdField && columnDefs);
   const isSsrm = activeCfg?.providerType === 'stomp-ssrm';
+  const isChannelBridge = activeCfg?.providerType === 'iab-channel-bridge';
   const {
     provider,
     refresh: refreshProvider,
     restart: restartProvider,
-  } = useDataProvider<TData>(providerReady && !isSsrm ? activeId : null, { autoStart: false });
+  } = useDataProvider<TData>(providerReady && !isSsrm ? activeId : null, {
+    autoStart: false,
+    providerType: isChannelBridge ? 'iab-channel-bridge' : activeCfg?.providerType,
+  });
   const {
     provider: ssrmProvider,
     refresh: refreshSsrmProvider,

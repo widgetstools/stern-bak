@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ProviderClientAdapter, type IDataProvider } from '@wellsfargo-starui/data';
-import type { ProviderConfig } from '@wellsfargo-starui/types';
+import {
+  ChannelBridgeClientAdapter,
+  ProviderClientAdapter,
+  type IDataProvider,
+} from '@wellsfargo-starui/data';
+import type { ProviderConfig, ProviderType } from '@wellsfargo-starui/types';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import { useDataServicesContext } from './DataServicesProvider.js';
 
@@ -17,6 +21,8 @@ export interface UseDataProviderOpts {
    * 'loading' and `error` undefined in that case. Default `true`.
    */
   trackStatus?: boolean;
+  /** When set to `iab-channel-bridge`, uses OpenFin Channel instead of SharedWorker attach. */
+  providerType?: ProviderType;
 }
 
 export interface UseDataProviderResult<T = Record<string, unknown>> {
@@ -37,15 +43,30 @@ export function useDataProvider<T = Record<string, unknown>>(
   opts: UseDataProviderOpts = {},
 ): UseDataProviderResult<T> {
   const { client } = useDataServicesContext();
-  const { inlineCfg, autoStart = true, trackStatus = true } = opts;
+  const { inlineCfg, autoStart = true, trackStatus = true, providerType } = opts;
 
   const [status, setStatus] = useState<ProviderStatus>('loading');
   const [error, setError] = useState<string | undefined>(undefined);
 
+  const loadProviderConfig = useCallback(
+    async (id: string) => {
+      const row = await client.getProviderConfig(id);
+      return row?.config ?? null;
+    },
+    [client],
+  );
+
   const provider = useMemo(() => {
     if (!providerId) return null;
+    if (providerType === 'iab-channel-bridge') {
+      return new ChannelBridgeClientAdapter<T>({
+        providerId,
+        inlineCfg,
+        loadProviderConfig,
+      });
+    }
     return new ProviderClientAdapter<T>({ client, providerId, inlineCfg });
-  }, [client, providerId, inlineCfg]);
+  }, [client, providerId, inlineCfg, providerType, loadProviderConfig]);
 
   const providerRef = useRef(provider);
   providerRef.current = provider;

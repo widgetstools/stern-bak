@@ -23,6 +23,10 @@
       "types": "./host-data/dist/runtime/client/index.d.ts",
       "import": "./host-data/dist/runtime/client/index.js"
     },
+    "./channel-hub": {
+      "types": "./host-data/dist/channel/channelHubProtocol.d.ts",
+      "import": "./host-data/dist/channel/channelHubProtocol.js"
+    },
     "./runtime/worker/defaultEntry": {
       "types": "./host-data/dist/runtime/worker/defaultEntry.d.ts",
       "import": "./host-data/dist/runtime/worker/defaultEntry.js"

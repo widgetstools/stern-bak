@@ -10,7 +10,8 @@
 
 import { Button, ScrollArea } from '@wellsfargo-starui/react';
 import { CheckCircle2, Loader2, Plug, XCircle } from 'lucide-react';
-import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig } from '@wellsfargo-starui/types/shared';
+import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig, RestProviderConfig, MockProviderConfig, AppDataProviderConfig, IabChannelBridgeProviderConfig } from '@wellsfargo-starui/types/shared';
+import { IabChannelBridgeFields } from '../transports/IabChannelBridgeFields.js';
 import { StompFields } from '../transports/StompFields.js';
 import { StompSsrmFields } from '../transports/StompSsrmFields.js';
 import { RestFields } from '../transports/RestFields.js';
@@ -69,6 +70,13 @@ function Fields({ cfg, onChange }: { cfg: ProviderConfig; onChange(next: Partial
       return <MockFields cfg={cfg as MockProviderConfig} onChange={onChange as (n: Partial<MockProviderConfig>) => void} />;
     case 'appdata':
       return <AppDataFields cfg={cfg as AppDataProviderConfig} onChange={onChange as (n: Partial<AppDataProviderConfig>) => void} />;
+    case 'iab-channel-bridge':
+      return (
+        <IabChannelBridgeFields
+          cfg={cfg as IabChannelBridgeProviderConfig}
+          onChange={onChange as (n: Partial<IabChannelBridgeProviderConfig>) => void}
+        />
+      );
     default:
       return (
         <section className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">

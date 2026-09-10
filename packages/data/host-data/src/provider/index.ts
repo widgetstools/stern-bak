@@ -10,6 +10,12 @@ export {
   resolveProviderCapabilities,
   type ProviderClientAdapterOpts,
 } from './ProviderClientAdapter.js';
+export {
+  ChannelBridgeClientAdapter,
+  type ChannelBridgeClientAdapterOpts,
+  type ChannelHubClient,
+  type ConnectChannelHubClient,
+} from './ChannelBridgeClientAdapter.js';
 export type {
   ISsrmDataProvider,
   SsrmColumnValuesRequest,

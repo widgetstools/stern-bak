@@ -39,6 +39,14 @@ export function resolveProviderCapabilities(providerType: ProviderType): Provide
         supportsRefresh: false,
         supportsRestart: false,
       };
+    case 'iab-channel-bridge':
+      return {
+        providerType,
+        streaming: true,
+        realtime: true,
+        supportsRefresh: true,
+        supportsRestart: true,
+      };
     default:
       return {
         providerType,

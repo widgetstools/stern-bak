@@ -27,6 +27,10 @@
       "types": "./openfin-platform/dist/testBridge/index.d.ts",
       "import": "./openfin-platform/dist/testBridge/index.js"
     },
+    "./channel-data-hub": {
+      "types": "./openfin-platform/dist/channelDataHub/index.d.ts",
+      "import": "./openfin-platform/dist/channelDataHub/index.js"
+    },
     "./dock-editor": {
       "types": "./openfin-platform/dist/dockEditor/index.d.ts",
       "import": "./openfin-platform/dist/dockEditor/index.js"

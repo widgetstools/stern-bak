@@ -13,5 +13,6 @@ export {
   type AttachOpts,
   type SharedWorkerDataServicesClientOpts,
   type SubId,
+  type SubscribeHandle,
   type InPageWiring,
 } from './SharedWorkerDataServicesClient.js';

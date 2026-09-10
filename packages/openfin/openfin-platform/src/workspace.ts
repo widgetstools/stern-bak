@@ -44,7 +44,8 @@ import { createWorkspacePersistenceOverride } from './workspacePersistence';
 import { gcOrphanedConfigs } from './workspaceGc';
 import { buildCustomActions } from './internal/customActions';
 import { resolveDefaultPlatformScope } from './platformScope';
-import { resolveDeploymentIdentity } from './platformBootstrap';
+import { resolveDeploymentIdentity, resolvePlatformBootstrapFromCustomSettings } from './platformBootstrap';
+import { installChannelDataHub } from './channelDataHub/install.js';
 import { resolveSeedConfigUrl } from './resolveSeedConfigUrl';
 import {
   openChildToolWindow as openChildWindow,
@@ -347,6 +348,13 @@ export async function initWorkspace(config?: WorkspaceConfig): Promise<void> {
         config?.dock?.excludeTools,
       );
       log("Workspace platform initialized");
+      try {
+        const bootstrap = resolvePlatformBootstrapFromCustomSettings(settings.customSettings);
+        await installChannelDataHub({ bootstrap });
+        log("IAB channel data hub installed on dock");
+      } catch (hubErr) {
+        console.warn('[initWorkspace] installChannelDataHub failed:', hubErr);
+      }
     } catch (err) {
       console.error("Failed to initialize workspace components:", err);
     }
