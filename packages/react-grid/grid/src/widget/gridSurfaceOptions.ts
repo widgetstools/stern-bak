@@ -78,7 +78,9 @@ export function stripSurfaceManagedGridOptions(
 export function shouldSkipGridOptionSync(
   key: string,
   hostOverrideKeys: ReadonlySet<string>,
+  skipSyncKeys?: ReadonlySet<string>,
 ): boolean {
   if ((SURFACE_FIXED_GRID_OPTION_KEYS as readonly string[]).includes(key)) return true;
+  if (skipSyncKeys?.has(key)) return true;
   return hostOverrideKeys.has(key);
 }

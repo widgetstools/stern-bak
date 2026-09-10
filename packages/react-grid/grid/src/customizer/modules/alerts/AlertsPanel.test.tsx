@@ -98,6 +98,23 @@ describe('AlertsPanel', () => {
     expect(rule?.name).toBe('Big move');
   });
 
+  it('notes visible-rows-only evaluation under SSRM', () => {
+    platform.onGridReady({
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      getGridOption: (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined),
+    } as never);
+    render(
+      <GridProvider platform={platform}>
+        <AlertsSettingsBand
+          settings={platform.store.getModuleState<AlertsState>('alerts').settings}
+          onChange={() => undefined}
+        />
+      </GridProvider>,
+    );
+    expect(screen.getByTestId('alerts-ssrm-visible-only')).toBeTruthy();
+  });
+
   it('settings band toggles evaluation mode', () => {
     render(
       <GridProvider platform={platform}>

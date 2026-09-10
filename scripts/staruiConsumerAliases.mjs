@@ -292,7 +292,8 @@ export function auditSourceModePaths(appDir, opts = {}) {
   }
 
   const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs');
-  if (!existsSync(workerPath)) {
+  const wasmPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/dshub_bg.wasm');
+  if (!existsSync(workerPath) || !hostDataWorkerBundleCurrent(workerPath)) {
     requiresBuild.push({
       label: '@wellsfargo-starui/data/assets/data-services-worker.mjs',
       relTarget: './dist/assets/data-services-worker.mjs',
@@ -302,24 +303,50 @@ export function auditSourceModePaths(appDir, opts = {}) {
   } else {
     ok.push('@wellsfargo-starui/data/assets/data-services-worker.mjs');
   }
+  if (!existsSync(wasmPath)) {
+    requiresBuild.push({
+      label: '@wellsfargo-starui/data/assets/dshub_bg.wasm',
+      relTarget: './dist/assets/dshub_bg.wasm',
+      path: wasmPath,
+      member: '@wellsfargo-starui/data',
+    });
+  } else {
+    ok.push('@wellsfargo-starui/data/assets/dshub_bg.wasm');
+  }
 
   return { broken, requiresBuild, ok };
 }
 
+const HOST_DATA_WORKER_REL = 'packages/data/host-data/dist/assets/data-services-worker.mjs';
+const HOST_DATA_WASM_REL = 'packages/data/host-data/dist/assets/dshub_bg.wasm';
+/** Present only after the SSRM worker bundle is rebuilt. */
+const HOST_DATA_WORKER_CURRENT_MARKER = 'stomp-ssrm';
+
 const HOST_DATA_WORKER_ASSET_RE =
   /^@wellsfargo-starui\/data\/assets\/data-services-worker\.mjs\?url$/;
+const HOST_DATA_WASM_ASSET_RE =
+  /^@wellsfargo-starui\/data\/assets\/dshub_bg\.wasm(\?url)?$/;
+
+function hostDataWorkerBundleCurrent(workerPath) {
+  try {
+    return readFileSync(workerPath, 'utf8').includes(HOST_DATA_WORKER_CURRENT_MARKER);
+  } catch {
+    return false;
+  }
+}
 
 /** Resolve `@wellsfargo-starui/data/assets/data-services-worker.mjs?url` for Vite. */
 export function resolveHostDataWorkerAssetUrl(source, appDir) {
-  if (!HOST_DATA_WORKER_ASSET_RE.test(source)) return null;
   void appDir;
-
-  // Only one candidate now. This used to also search installed bucket tarballs
-  // under the app's node_modules; buckets are gone, and a consumer installing
-  // real member packages resolves the asset through normal node resolution
-  // without needing this plugin at all.
-  const workerPath = join(REPO_ROOT, 'packages/data/host-data/dist/assets/data-services-worker.mjs');
-  return existsSync(workerPath) ? `${workerPath}?url` : null;
+  if (HOST_DATA_WORKER_ASSET_RE.test(source)) {
+    const workerPath = join(REPO_ROOT, HOST_DATA_WORKER_REL);
+    return existsSync(workerPath) ? `${workerPath}?url` : null;
+  }
+  if (HOST_DATA_WASM_ASSET_RE.test(source)) {
+    const wasmPath = join(REPO_ROOT, HOST_DATA_WASM_REL);
+    return existsSync(wasmPath) ? `${wasmPath}?url` : null;
+  }
+  return null;
 }
 
 /**
@@ -327,11 +354,20 @@ export function resolveHostDataWorkerAssetUrl(source, appDir) {
  * @param {string} appDir absolute path to the app root
  */
 export function staruiHostDataWorkerAssetPlugin(appDir) {
+  const wasmPath = join(REPO_ROOT, HOST_DATA_WASM_REL);
   return {
     name: 'starui-host-data-worker-asset-url',
     enforce: 'pre',
     resolveId(source) {
       return resolveHostDataWorkerAssetUrl(source, appDir);
+    },
+    generateBundle() {
+      if (!existsSync(wasmPath)) return;
+      this.emitFile({
+        type: 'asset',
+        fileName: 'assets/dshub_bg.wasm',
+        source: readFileSync(wasmPath),
+      });
     },
   };
 }
@@ -342,12 +378,16 @@ export function staruiHostDataWorkerAssetPlugin(appDir) {
 // a cryptic ENOENT / unresolved-import. These sentinels gate an auto-build.
 const BUILD_ASSET_SENTINELS = [
   'packages/design-system/design-system/dist/css/theme.css',
-  'packages/data/host-data/dist/assets/data-services-worker.mjs',
+  HOST_DATA_WORKER_REL,
+  HOST_DATA_WASM_REL,
 ];
 
 /** True when every build-generated package asset an app needs is present. */
 export function staruiBuiltAssetsPresent() {
-  return BUILD_ASSET_SENTINELS.every((rel) => existsSync(join(REPO_ROOT, rel)));
+  if (!BUILD_ASSET_SENTINELS.every((rel) => existsSync(join(REPO_ROOT, rel)))) {
+    return false;
+  }
+  return hostDataWorkerBundleCurrent(join(REPO_ROOT, HOST_DATA_WORKER_REL));
 }
 
 /**

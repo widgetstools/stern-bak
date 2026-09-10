@@ -4,6 +4,7 @@ import {
   applyUnary,
   buildCallArgs,
   invokeFunction,
+  tryResolvedAggregate,
   isTruthy,
   resolveColumnRef,
   resolveVariable,
@@ -78,6 +79,8 @@ export class Evaluator {
   private evaluateCall(name: string, argNodes: ExpressionNode[], ctx: EvaluationContext): unknown {
     const fn = this.functions.get(name.toUpperCase());
     if (!fn) throw new Error(`Unknown function: ${name}`);
+    const resolved = tryResolvedAggregate(fn, argNodes, ctx);
+    if (resolved.ok) return resolved.value;
     const args = buildCallArgs(fn, argNodes, ctx, (arg) => this.evaluate(arg, ctx));
     return invokeFunction(fn, name, args, ctx);
   }

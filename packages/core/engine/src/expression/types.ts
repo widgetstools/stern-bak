@@ -119,6 +119,18 @@ export interface EvaluationContext {
    * supplier owns invalidation — clear it whenever `allRows` changes.
    */
   allRowsColumnCache?: Map<string, unknown[]>;
+  /**
+   * Optional: a precomputed dataset-wide value for `FN([column])`.
+   * Under SSRM {@link allRows} is only the loaded cache blocks, so
+   * `SUM([col1])` would be a block statistic. The SSRM surface attaches
+   * a lookup that reads `ISsrmDataProvider.getAggregates` (the engine
+   * holds every row).
+   *
+   * Return `undefined` to fall through to {@link allRows} (or the
+   * current-row scalar). Return `null` when the value is pending so
+   * the call does not silently reduce the loaded block instead.
+   */
+  resolveAggregate?: (fnName: string, columnId: string) => unknown;
 }
 
 // ─── Function Registry ───────────────────────────────────────────────────────
@@ -137,9 +149,12 @@ export interface FunctionDefinition {
    * functions so `SUM([price])` / `AVG([yield])` / `MIN([spread])` act
    * as cross-row reducers, matching the Excel-style intuition.
    *
-   * When `ctx.allRows` is undefined the flag is ignored — the function
-   * behaves like a vararg reducer on the current row. That keeps
-   * non-grid contexts (tests, server-side evaluation) working unchanged.
+   * When `ctx.resolveAggregate` returns a value for this call, that
+   * value is the function result (SSRM dataset totals). When
+   * `ctx.allRows` is undefined and no resolver applies, the flag is
+   * ignored — the function behaves like a vararg reducer on the
+   * current row. That keeps non-grid contexts (tests, server-side
+   * evaluation) working unchanged.
    */
   aggregateColumnRefs?: boolean;
   evaluate: (args: unknown[], ctx: EvaluationContext) => unknown;

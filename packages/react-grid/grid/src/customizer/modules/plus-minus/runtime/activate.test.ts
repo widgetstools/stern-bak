@@ -147,6 +147,22 @@ describe('activatePlusMinus', () => {
     platform.destroy();
   });
 
+  it('ignores nudges on server-side grids', async () => {
+    const platform = new GridPlatform({
+      gridId: 'pm-ssrm',
+      modules: [plusMinusModule],
+    });
+    const { api, cellKeyDownHandler, applyTransactionAsync } = makeMockApi();
+    (api as { getGridOption: (key: string) => unknown }).getGridOption = (key) =>
+      (key === 'rowModelType' ? 'serverSide' : undefined);
+    platform.onGridReady(api as never);
+    await cellKeyDownHandler()!({
+      event: { key: '+', preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as KeyboardEvent,
+    });
+    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    platform.destroy();
+  });
+
   it('ignores key when disabled', async () => {
     const platform = new GridPlatform({
       gridId: 'pm-off',

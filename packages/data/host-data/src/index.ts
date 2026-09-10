@@ -29,6 +29,13 @@ export type {
 export {
   ProviderClientAdapter,
   resolveProviderCapabilities,
+  SsrmProviderClientAdapter,
+} from './provider/index.js';
+export type {
+  ISsrmDataProvider,
+  SsrmAggregatesRequest,
+  SsrmAggregatesResult,
+  SsrmProviderClientAdapterOpts,
 } from './provider/index.js';
 
 // Platform bootstrap (Phase 0.5).

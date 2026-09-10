@@ -2,6 +2,7 @@ import type { ColDef, GridApi, SideBarDef, StatusPanelDef, Theme } from 'ag-grid
 import type { AnyModule, AppDataLookup, GridPlatform, MarketsGridLocalStorageConfig, StorageAdapter, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
 import type { GridHostContext } from '@wellsfargo-starui/core/host';
 import type { UseProfileManagerResult, VisualExcelExportOptions, ProviderGridHostApi, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
+import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 
 export type { ProviderGridHostApi, ProviderGridHostMode, GridEventBindingsHostApi } from '../customizer/index.js'; // relative on purpose (self-reference breaks the dist build + risks barrel cycles)
 export type { MarketsGridLocalStorageConfig, StorageAdapterFactory, StorageAdapterFactoryOpts } from '@wellsfargo-starui/core';
@@ -37,6 +38,15 @@ export interface MarketsGridProps<TData = unknown> {
    *  `gridApi.applyTransactionAsync` — see `applyProviderToGrid` in
    *  `@wellsfargo-starui/grid/widgets` MarketsGridContainer for the reference pattern. */
   rowData: TData[];
+  /**
+   * When set, remounts the AG Grid surface as SSRM (`rowModelType` is
+   * initial-only). CSRM `applyProviderToGrid` must not run.
+   */
+  ssrm?: {
+    provider: ISsrmDataProvider;
+    keyColumn?: string | readonly string[];
+    cacheBlockSize?: number;
+  };
   /** Base column definitions — modules can transform them. */
   columnDefs: ColDef<TData>[];
   /** Module list. Default passes {@link DEFAULT_MODULES}; use exported
@@ -382,7 +392,7 @@ export interface MarketsGridHandle {
   saveAll: () => Promise<void>;
 
   /** Export visible grid data to Excel with display formatters and style colours. */
-  exportVisualExcel: (options?: VisualExcelExportOptions) => void;
+  exportVisualExcel: (options?: VisualExcelExportOptions) => void | Promise<void>;
 
   /**
    * When `storage={createMarketsGridLocalStorageStorage()}` — returns the

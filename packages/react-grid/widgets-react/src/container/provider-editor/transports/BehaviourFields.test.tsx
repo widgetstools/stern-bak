@@ -105,4 +105,28 @@ describe('BehaviourFields', () => {
     await user.type(spinners.at(-1)!, '100');
     expect(onChange).toHaveBeenCalled();
   });
+
+  it('shows reconnect-only knobs for stomp-ssrm', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <BehaviourFields
+        cfg={{
+          providerType: 'stomp-ssrm',
+          websocketUrl: 'ws://x',
+          listenerTopic: '/t',
+          snapshotEndToken: 'Success',
+          requestBody: '',
+        }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.queryByText(/Thin field-level deltas/i)).toBeNull();
+    const delay = screen.getByRole('spinbutton');
+    await user.clear(delay);
+    await user.type(delay, '2500');
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ reconnect: expect.objectContaining({ initialDelayMs: expect.any(Number) }) }),
+    );
+  });
 });

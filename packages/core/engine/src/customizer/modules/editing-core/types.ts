@@ -45,4 +45,12 @@ export interface EditPreviewResult {
 export interface EditGridWriter {
   getRowNode(id: string): { data?: Record<string, unknown> } | undefined;
   applyTransactionAsync(update: { update: Record<string, unknown>[] }): Promise<void>;
+  /**
+   * Present on every AG Grid api, but only functional under the server-side
+   * row model — where `applyTransactionAsync` is a no-op. {@link applyPatches}
+   * prefers this one for SSRM grids so edits land in either row model.
+   */
+  applyServerSideTransactionAsync?(update: { update: Record<string, unknown>[] }): void;
+  /** Reads `rowModelType`; absent on the hand-rolled writers in tests. */
+  getGridOption?(key: 'rowModelType'): string | undefined;
 }

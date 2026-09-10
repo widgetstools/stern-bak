@@ -1243,3 +1243,110 @@ describe('SharedWorkerDataServicesClient — subscription-lost recovery', () => 
   });
 });
 
+describe('SharedWorkerDataServicesClient — SSRM protocol', () => {
+  it('attachSsrm posts mode ssrm and routes rpc + ticks', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: Array<{ kind?: string; reqId?: string; mode?: string }> = [];
+    channel.port2.addEventListener('message', (ev: MessageEvent) => {
+      posts.push(ev.data);
+    });
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      generateSubId: () => 'ssrm-1',
+    });
+    const subId = client.attachSsrm('p-ssrm', undefined, {
+      onStatus: vi.fn(),
+      onRowsReceived: vi.fn(),
+    });
+    expect(subId).toBe('ssrm-1');
+    await flush();
+    expect(posts.some((m) => m.kind === 'attach' && m.mode === 'ssrm')).toBe(true);
+
+    const ticks: unknown[] = [];
+    const off = client.onSsrmTick(subId, (p) => { ticks.push(p); });
+    channel.port2.postMessage({
+      kind: 'ssrm-tick',
+      subId,
+      payload: { kind: 'rowDelta', upserts: [{ id: '1' }] },
+    });
+    channel.port2.postMessage({
+      kind: 'ssrm-tick',
+      subId: 'other',
+      payload: { kind: 'rowDelta', upserts: [{ id: 'x' }] },
+    });
+    await flush();
+    expect(ticks).toHaveLength(1);
+    off();
+
+    const rowsP = client.ssrmGetRows('p-ssrm', subId, { startRow: 0, endRow: 10 });
+    await flush();
+    const getReq = posts.find((m) => m.kind === 'ssrm-get-rows');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: getReq?.reqId,
+      ok: true,
+      result: { rowData: [], rowCount: 0 },
+    });
+    await expect(rowsP).resolves.toMatchObject({ rowCount: 0 });
+
+    const watchP = client.ssrmWatchGroups('p-ssrm', subId, ['desk'], { qty: 'sum' });
+    await flush();
+    const watchReq = posts.find((m) => m.kind === 'ssrm-watch-groups');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: watchReq?.reqId,
+      ok: true,
+      result: { ok: true },
+    });
+    await expect(watchP).resolves.toBeUndefined();
+
+    const valuesP = client.ssrmColumnValues('p-ssrm', subId, { column: 'desk' });
+    await flush();
+    const valuesReq = posts.find((m) => m.kind === 'ssrm-column-values');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: valuesReq?.reqId,
+      ok: true,
+      result: { column: 'desk', values: ['A'], truncated: false },
+    });
+    await expect(valuesP).resolves.toMatchObject({ values: ['A'] });
+
+    const countP = client.ssrmRowCount('p-ssrm', subId, { filterModel: null });
+    await flush();
+    const countReq = posts.find((m) => m.kind === 'ssrm-row-count');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: countReq?.reqId,
+      ok: true,
+      result: { rowCount: 4200 },
+    });
+    await expect(countP).resolves.toEqual({ rowCount: 4200 });
+
+    const aggP = client.ssrmAggregates('p-ssrm', subId, {
+      specs: [{ column: 'qty', fn: 'sum' }],
+    });
+    await flush();
+    const aggReq = posts.find((m) => m.kind === 'ssrm-aggregates');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: aggReq?.reqId,
+      ok: true,
+      result: { values: { qty_sum: 10 } },
+    });
+    await expect(aggP).resolves.toEqual({ values: { qty_sum: 10 } });
+
+    const failP = client.ssrmGetRows('p-ssrm', subId, { startRow: 0 });
+    await flush();
+    const failReq = [...posts].reverse().find((m) => m.kind === 'ssrm-get-rows');
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: failReq?.reqId, ok: false });
+    await expect(failP).rejects.toThrow(/ssrm rpc failed/);
+
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: 'missing', ok: true, result: {} });
+    client.close();
+    expect(() => client.attachSsrm('p', undefined, { onStatus: vi.fn(), onRowsReceived: vi.fn() }))
+      .toThrow(/closed/);
+    await expect(client.ssrmGetRows('p', 's', { startRow: 0 })).rejects.toThrow(/closed/);
+  });
+});
+

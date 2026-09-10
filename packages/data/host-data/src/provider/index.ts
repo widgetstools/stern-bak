@@ -10,3 +10,16 @@ export {
   resolveProviderCapabilities,
   type ProviderClientAdapterOpts,
 } from './ProviderClientAdapter.js';
+export type {
+  ISsrmDataProvider,
+  SsrmColumnValuesRequest,
+  SsrmColumnValuesResult,
+  SsrmAggregatesRequest,
+  SsrmAggregatesResult,
+  SsrmRowCountRequest,
+  SsrmRowCountResult,
+} from './ISsrmDataProvider.js';
+export {
+  SsrmProviderClientAdapter,
+  type SsrmProviderClientAdapterOpts,
+} from './SsrmProviderClientAdapter.js';

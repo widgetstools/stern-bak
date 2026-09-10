@@ -84,11 +84,31 @@ describe('applyFilterConfigToColDef', () => {
 });
 
 describe('applyRowGroupingConfigToColDef', () => {
-  it('installs custom agg func when expression parses', () => {
+  it('maps SUM([value]) to a named aggFunc the SSRM engine understands', () => {
     const merged: { aggFunc?: unknown } = {};
     applyRowGroupingConfigToColDef(
       merged,
       { aggFunc: 'custom', customAggExpression: 'SUM([value])' },
+      engine,
+    );
+    expect(merged.aggFunc).toBe('sum');
+  });
+
+  it('maps AVG([colId]) when the expression names this column', () => {
+    const merged: { aggFunc?: unknown; colId: string } = { colId: 'price' };
+    applyRowGroupingConfigToColDef(
+      merged,
+      { aggFunc: 'custom', customAggExpression: 'AVG([price])' },
+      engine,
+    );
+    expect(merged.aggFunc).toBe('avg');
+  });
+
+  it('installs a client agg func for expressions the engine cannot name', () => {
+    const merged: { aggFunc?: unknown } = {};
+    applyRowGroupingConfigToColDef(
+      merged,
+      { aggFunc: 'custom', customAggExpression: 'SUM([value]) * 1.1' },
       engine,
     );
     expect(typeof merged.aggFunc).toBe('function');

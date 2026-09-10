@@ -20,7 +20,7 @@ name the ones you import. Peer dependencies you must supply yourself:
 | Peer | Range | Needed by |
 |---|---|---|
 | `react`, `react-dom` | `^19.2.5` | every React package |
-| `ag-grid-community` / `-enterprise` / `-react` | `^35.1.0` | `grid`, `widgets-react` (enterprise licence is yours to install) |
+| `ag-grid-community` / `-enterprise` / `-react` | `^36.1.0` | `grid`, `widgets-react` (enterprise licence is yours to install) |
 | `lucide-react` | `^0.554.0` | `grid`, `widgets-react`, `ui` |
 | `@tanstack/react-query` | `^5.80.0` | `widgets-react` |
 | `@openfin/*` | `23.0.20` / `43.101.2` — **optional** | only for OpenFin hosting |

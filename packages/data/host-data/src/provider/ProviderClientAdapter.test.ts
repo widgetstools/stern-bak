@@ -109,6 +109,11 @@ async function flush(): Promise<void> {
 
 describe('resolveProviderCapabilities', () => {
   it('maps provider types to streaming/restart capabilities', () => {
+    expect(resolveProviderCapabilities('stomp-ssrm')).toMatchObject({
+      streaming: true,
+      realtime: true,
+      supportsRestart: true,
+    });
     expect(resolveProviderCapabilities('rest')).toMatchObject({
       streaming: false,
       realtime: false,

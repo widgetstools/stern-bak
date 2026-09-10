@@ -55,6 +55,29 @@ describe('useProviderProbe', () => {
     expect(result.current.testResult).toBeNull();
   });
 
+  it('coerces stomp-ssrm to stomp for connect and infer', async () => {
+    vi.mocked(connectStomp).mockResolvedValue({ ok: true });
+    vi.mocked(probeStomp).mockResolvedValue({ ok: true, rows: [{ id: 1 }] });
+    const cfg = {
+      providerType: 'stomp-ssrm' as const,
+      websocketUrl: 'ws://localhost',
+      listenerTopic: '/topic/a',
+      snapshotEndToken: 'Success',
+      requestBody: '',
+    };
+    const { result } = renderHook(() => useProviderProbe(cfg));
+    await act(async () => {
+      await result.current.test();
+    });
+    await waitFor(() => expect(connectStomp).toHaveBeenCalled());
+    expect(vi.mocked(connectStomp).mock.calls[0][0]).toMatchObject({ providerType: 'stomp' });
+    await act(async () => {
+      await result.current.infer();
+    });
+    await waitFor(() => expect(probeStomp).toHaveBeenCalled());
+    expect(vi.mocked(probeStomp).mock.calls[0][0]).toMatchObject({ providerType: 'stomp' });
+  });
+
   it('records stomp connect success without row count', async () => {
     vi.mocked(connectStomp).mockResolvedValue({ ok: true });
     const { result } = renderHook(() => useProviderProbe(stompCfg));

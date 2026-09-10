@@ -100,9 +100,9 @@ module or a different package provides it.
 - Color palettes: paper, ink, graphite, teal, rose, amber, brand, cyan, purple, CVD-safe variants
 - Typography: font families, sizes, weights, letter-spacing, line-heights
 - Spacing scale, border radius, opacity scale, transition tokens, elevation/shadow scale
-- **StarUI v1 OKLCH tokens** (`tokens/starui-tokens.css`) — Azure accent, teal/rose buy/sell, FT paper light + blue-graphite dark; bare OKLCH components for alpha-friendly `oklch(var(--primary) / 0.12)` usage
+- **StarUI v1 OKLCH tokens** (`tokens/starui-tokens.css`) — primary matches Cursor IDE Cursor Dark (`#81A1C1`) / Cursor Light (`#2778C1`) `button.background`, teal/rose buy/sell, FT paper light + blue-graphite dark; bare OKLCH components for alpha-friendly `oklch(var(--primary) / 0.12)` usage
 - **Compat bridge** (`adapters/compatCss.ts`) — `--ds-*`, `--bn-*`, `--p-*`, and surface scale aliases mapped from OKLCH source tokens for grid chrome and legacy consumers
-- **PrimeNG preset** — `definePreset(Aura, …)` Azure ramp + FI buy/sell semantics (`primeng/starui-primeng-preset` parity)
+- **PrimeNG preset** — `definePreset(Aura, …)` Cursor Dark / Light primary + FI buy/sell semantics (`primeng/starui-primeng-preset` parity)
 - **AG Grid theme** — Quartz `staruiGridTheme` with light/dark `withParams` modes; OKLCH CSS vars; `data-ag-theme-mode` on `<html>` synced by `applyTheme` and runtime theme writers; density presets retained
 - **Tailwind preset** — OKLCH colors use `oklch(var(--token) / <alpha-value>)`; `fontSize` maps to `--text-*`; `h-control` / `size-control` map to `--control-h*` density tokens; shadcn opacity utilities resolve correctly in dark mode
 - **Theme-aware scrollbar baseline** (`styles/scrollbar.css`) — global zero-specificity (`:where()`) thin themed scrollbars on every scrollable surface + opt-in `.ds-scrollbar` utility; **AG Grid subtrees (`.ag-root-wrapper`, `.ag-popup`) are exempt via `:not()` guards so grids keep NATIVE composited scrollbars** — any matching `::-webkit-scrollbar` rule forces Chromium's main-thread custom-scrollbar path, making thumb drags compete with streaming grid transactions (and the match can't be undone by overriding properties). Paired with `measureNativeScrollbarWidth()` in `@wellsfargo-starui/grid` (`MarketsGridSurface` passes AG `scrollbarWidth`): AG sizes its scroll gutters from a `document.body` probe that gets the STYLED scrollbar, so without the exempt-probe measurement the native thumb rendered clipped in a too-narrow gutter
@@ -319,7 +319,11 @@ Per-renderer config types (`PillRendererConfig`,
 
 #### Core grid
 
-- `MarketsGrid` — main grid component (host integration, column defs, real-time rows)
+- `MarketsGrid` — main grid component (host integration, column defs, real-time rows); optional `ssrm` prop remounts as AG Grid 36.1 `rowModelType="serverSide"` (`createSsrmDatasource`, `bindSsrmTicks`, `watchGroupsFromApi`, required `getRowId`)
+- `createSsrmDatasource` / `bindSsrmTicks` / `bindSsrmExpressionAggregates` / `ssrmGetRowId` / `watchGroupsFromApi` / `withSsrmStatusBar` / `useSsrmStatusBar` / `applySsrmStatusBar` — AG Grid 36.1 SSRM helpers (`success({ rowData, rowCount, groupData?, grandTotalData? })`, `applyServerSideTransactionAsync`, `refreshServerSide`). `bindSsrmTicks` also purges on `ISsrmDataProvider.onRefresh`; the datasource forwards the live `quickFilterText` into each block request (AG Grid's own quick filter is client-side only). `bindSsrmExpressionAggregates` caches `getAggregates` for expression `SUM` / `AVG` / `MIN` / `MAX` / `COUNT` so calculated columns and provider `valueGetter`s (`[col1] / SUM([col1])`) use the engine total for the current filter, not the loaded cache blocks; `MEDIAN` / `STDEV` / `VARIANCE` / `DISTINCT_COUNT` still walk `allRows`. `withSsrmStatusBar` swaps the built-in status panels (total / filtered / selected / aggregation) for provider-backed React panels that keep AG Grid's `ag-status-name-value` chrome. `useSsrmStatusBar` holds that remapped object stable across pipeline ticks that don't change the enabled panel set, and keeps the last bar when the pipeline omits the key (omit is not "off"). `applySsrmStatusBar` is the only live write — `MarketsGridSsrmSurface` does not pass `statusBar` as an AgGridReact prop (that tears the bar down / fails to show it after mount). Grid Options `statusBar` / `statusBarShow*` always emit a `statusBar` object (`statusPanels: []` when off) so visibility is deterministic. Aggregation labels stay mounted (`–` until a value arrives) so the bar height does not pump. `useGridHost` skips `setGridOption('statusBar')` in SSRM so the raw `ag*` panels cannot fight the remapped bar
+- `SsrmTotalAndFilteredStatusPanel` / `SsrmFilteredStatusPanel` / `SsrmTotalStatusPanel` / `SsrmSelectedStatusPanel` / `SsrmAggregationStatusPanel` / `useSsrmStatusModel` — SSRM status-bar panels. Counts and aggregations poll `ISsrmDataProvider.getRowCount` / `getAggregates` (the engine holds the dataset); selected-row count is the grid's own selection (that state is local). One poll is shared across every panel on the same grid. Same panel set, labels, and `ag-status-name-value` chrome as CSRM's `agTotalAndFilteredRowCountComponent` / `agFilteredRowCountComponent` / `agTotalRowCountComponent` / `agSelectedRowCountComponent` / `agAggregationComponent`; honours CSRM's `aggFuncs` and `valueFormatter` statusPanelParams
+- `withSsrmSetFilterValues` / `withSsrmSetFilterDefaults` — supply `filterParams.values` for set filters under SSRM, which can't derive a list without client-side rows. Walks colDefs (column groups + `agMultiColumnFilter` set slots) and the `defaultColDef` separately, since AG Grid doesn't merge `filterParams` between them; `filter: true` counts (Enterprise resolves it to the set filter). A Multi Filter with no `filters` array gets AG Grid's default composition materialised (type filter by `cellDataType` + Set Filter) — otherwise there is no colDef to hang `values` on, and the stream-safe floating filters have no sub-filter slots to route models through. Adds `refreshValuesOnOpen` (live feed) and `suppressClearModelOnRefreshValues` (keep the selection); an explicit `values` list always wins. The lookup is bounded by `VALUES_TIMEOUT_MS` (5s, overridable per call) and falls back to an empty list — load-bearing rather than defensive: AG Grid won't apply a set-filter model until the list arrives, so an active saved-filter pill puts this lookup in front of the FIRST BLOCK, and a lookup that never settles (saturated worker, or one left from a previous page load that predates the RPC) is a grid that never shows a row. The selection survives the empty list, so the pill still filters. Applied automatically by `MarketsGridSsrmSurface`
+- `attachSsrmSession` / `getSsrmSession` / `isSsrmGrid` / `drainSsrmRows` / `exportSsrmVisualExcel` / `lockSsrmExpressionColumns` / `withSsrmSelectAll` / `sendSsrmClipboard` / `wrapSsrmContextMenu` — SSRM honesty locks. Excel/CSV drain the filtered book from the engine (refuse above `SSRM_EXPORT_MAX_ROWS`) instead of `exportDataAsExcel` on loaded blocks; calculated / expression columns (`context.staruiVirtual` / `staruiExpression`) cannot be sorted, filtered, or grouped; Advanced Filter is forced off (`toViewSpec` has no tree compiler); multi-row header select-all sets `selectAll: 'all'` so AG Grid 36 uses `setServerSideSelectionState`; clipboard still copies loaded text and says so. Smart Edit, Bulk Update, plus-minus, and letter-key shortcuts are disabled (edits do not persist to WASM / upstream). Alerts and conditional-styling header badges are labelled as loaded (visible) rows only
 - `MarketsGridCore` — grid platform + memo'd AG Grid surface only (no toolbar/settings/profile chrome); same pipeline as `MarketsGrid`
 - `MarketsGridHandle` — imperative ref (grid API + platform methods, `exportVisualExcel`)
 - `MarketsGridProps` — host context, storage factory, module overrides, callbacks;
@@ -347,7 +351,8 @@ Per-renderer config types (`PillRendererConfig`,
 - `useRestoreCellFocusOnWindowFocus` — alt-tab paste fix wired into `MarketsGridSurface`: re-asserts real browser focus on the cell AG Grid still reports as focused (`api.setFocusedCell`) when window refocus left DOM focus on `<body>`, so Ctrl+V/typing works without re-clicking. Triggers on BOTH the DOM window `focus` event and the parent OpenFin window's `focused` event (`subscribeParentWindowFocused` — covers the runtime never re-focusing the view, calling `focusCurrentOpenFinHost()` to reclaim web-contents focus first); retries at 0/150/400 ms (OpenFin can drop focus after the focus event); guarded by surface focusin/focusout ownership (multi-grid safe), a shared-localStorage last-focused-document stamp (multi-view fleet safe), never steals focus restored outside the grid, skips open cell editors
 - `mergeDefaultColDef`, `gridOptionCompare`, `buildStreamSafeComponents` — reference-stable pipeline → surface wiring
 - `useGridHost`, `useMarketsGridController` — imperative grid control hooks (internal to `MarketsGrid`; not on package `.` barrel)
-- `useFilterModel` — filter-model persistence + mutation; per-pill counts use incremental `RowChangeBus` deltas on streaming ticks (full-grid recompute only on structural changes / cold mount)
+- `useFilterModel` — filter-model persistence + mutation; per-pill counts use incremental `RowChangeBus` deltas on streaming ticks (full-grid recompute only on structural changes / cold mount), or the engine under SSRM (see `useSsrmFilterCounts`). Under SSRM the first `getRows` strips `filterModel` (grid-state / a set-filter values callback can put `in: []` on the request and a grouped store then paints nothing). After that block succeeds, `firstDataRendered` applies the pill — a one-value set filter is rewritten to text/number `equals` so AG Grid does not wait on the values list. Empty set slots are dropped on later requests so a stale callback cannot zero the grid. Toggles after that first block apply immediately. CSRM still pushes on mount
+- `useSsrmFilterCounts` / `SsrmRowCountProvider` / `useSsrmRowCounter` — saved-filter pill counts for the server-side row model. A client-side row walk can only see the loaded blocks under SSRM, so the badge would report block statistics and jump to the block size once the pill went active; instead each pill polls `ISsrmDataProvider.getRowCount` against its own filter model (matching CSRM, where pills count independently of each other). Polled at `SSRM_COUNT_REFRESH_MS` (1s) rather than recomputed per stream tick, non-overlapping, and keyed on pill content so caller re-renders don't re-arm the interval. Provided by `MarketsGridHost` when `ssrm` is set, `null` under CSRM
 - `useGridTheme` — resolves AG Grid theme from `data-theme`
 - `grid-chrome.css` — container/toolbar layout
 
@@ -487,8 +492,9 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - **Conditional styling** — themed style rules (dark/light); per-rule bands for cell/row style, **flash on match** (`FlashConfig` — colour/mode/duration), **indicator** badge (`RuleIndicator`), value formatter, and **animate value** (`AnimationConfig` — `spin` / `spin-reverse` / `pulse`, cell-scope only). Animate spins the matching cell's value glyph via CSS keyframes scoped to `.ag-cell-value` (shipped once as `ds-anim-*`), e.g. an Excel value format maps `1 → 🔄` and a `value = 1` rule spins it — the no-code "in progress" spinner. Header flash/indicator painting (`headerPainter`, `hasHeaderPaintRules`) skips row scans when no header-targeted rules are enabled and is not invoked on live ticks unless header paint rules exist
 - **Visual Excel** — WYSIWYG `.xlsx` export preserving display formatters and
   conditional style-rule colours. Engine: `buildVisualExcelStyles`,
-  `applyFormatExcelClasses`, `exportVisualExcel` (via `api.exportDataAsExcel` +
-  `processCellCallback`). Primary toolbar spreadsheet icon when enabled.
+  `applyFormatExcelClasses`, `exportVisualExcel` (CSRM: `api.exportDataAsExcel` +
+  `processCellCallback`; SSRM: `drainSsrmRows` + hidden `createGrid`, or refuse
+  above `SSRM_EXPORT_MAX_ROWS` — never the live cache). Primary toolbar spreadsheet icon when enabled.
   Settings panel: **Visual Excel**. Lab: **Visual Excel** tab (`lab-visual-excel-v1`).
 - **Editing family (overview)** — five customizer modules share a cell-patch
   journal (`EditJournal` in `@wellsfargo-starui/core`). React wiring: `recordEdit.ts`
@@ -510,7 +516,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   via `valueParser` on editable numeric columns. Single-column guard, optional
   preview-before-apply, and cell-patch journal recording for undo (via shared
   `EditJournal`). Framework-agnostic ops in `@wellsfargo-starui/core`; React module +
-  `SmartEditToolbarBody` in `@wellsfargo-starui/grid`. Settings panel: **Smart Edit**.
+  `SmartEditToolbarBody` in `@wellsfargo-starui/grid`. Disabled under SSRM (edits do not persist to the engine). Settings panel: **Smart Edit**.
   Lab: unified **Editing** tab (`lab-editing`, 12 profiles); focused Smart Edit
   profiles under `public/lab-profiles/smart-edit/`.
 - **Edit History** — session-scoped undo/redo journal consumed by all editing
@@ -529,21 +535,22 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   Smart Edit–only history demo in `public/lab-profiles/smart-edit/se-04-history.json`.
 - **Bulk Update** — replace all selected cells in one column with the same
   value (text, number, date). Distinct-value dropdown, confirm threshold,
-  single-column guard, journal integration. Settings panel: **Bulk Update**.
+  single-column guard, journal integration. Disabled under SSRM. Settings panel: **Bulk Update**.
   Lab: **Bulk Update** tab (`lab-bulk-update`) and unified **Editing** tab.
 - **Plus / Minus** — keyboard +/- nudge rules with per-column increment/decrement
   steps and optional expression gates. Takes over +/- keys from Smart Edit when
   enabled; `suppressKeyboardEvent` on editable numeric columns prevents inline
   edit from consuming +/- keys. Keyboard only — no toolbar segment. Journal
-  integration via `recordHistory`. Settings panel: **Plus / Minus**.
+  integration via `recordHistory`. No-ops under SSRM. Settings panel: **Plus / Minus**.
   Lab: **Plus / Minus** tab (`lab-plus-minus`).
 - **Shortcuts** — letter-key arithmetic (× ÷ + −) with per-shortcut operand and
   column scope. Distinct from Smart Edit K/M/B magnitude parsing in the cell editor.
   Keyboard only — no toolbar segment. Journal integration via `recordHistory`.
-  Settings panel: **Shortcuts**. Lab: **Shortcuts** tab (`lab-shortcuts`).
+  No-ops under SSRM. Settings panel: **Shortcuts**. Lab: **Shortcuts** tab (`lab-shortcuts`).
 - **Alerts** — expression-driven notifications (dataChange / relativeChange /
   rowChange triggers) with toast, toolbar bell badge, and OpenFin Notification
-  Centre channels. Runtime evaluates on `cellValueChanged` and on
+  Centre channels. Under SSRM the settings band states evaluation is loaded
+  (visible) rows only. Runtime evaluates on `cellValueChanged` and on
   `modelUpdated` / `rowDataUpdated` cell diffs (host `rowData` streams).
   Customizer editor: collapsible **Global settings** band in a two-column
   layout (Alerts + Frequency | Channels + History) plus per-rule editor with
@@ -607,10 +614,10 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 **Public exports:**
 
 - `./widgets` — blotter components, hooks, provider, theme
-- `./widgets/markets-grid-container` — `MarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
+- `./widgets/markets-grid-container` — `MarketsGridContainer`, `SsrmMarketsGridContainer`, `DatePicker`, `ProviderSelection`, `ProviderMode`
 - `./widgets/provider-editor` — `DataProviderEditor`, `EditorForm`, `useProviderProbe`, `cloneProviderConfig`, `exportProviderConfig`, `parseProviderConfigImport`
 - `./widgets/data-provider-selector` — `DataProviderSelector`
-- `./widgets/hosted` — `HostedMarketsGrid` (legacy wrapper)
+- `./widgets/hosted` — `HostedMarketsGrid`, `HostedSsrmMarketsGrid`
 
 #### Blotter framework (v2)
 
@@ -625,7 +632,10 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `MarketsGridContainer` — grid + two-provider picker + mode toggle (`Alt+Shift+P` /
   grid-level provider persistence; provider pickers live in grid customizer → Custom Settings (`providerGridHost`)
-- `MarketsGridContainer` — hub data via `useDataProvider` + `applyProviderToGrid` (no direct `client.subscribe` / cfg pass-through); optional `defaultLiveProviderId` for single-provider demos; live mode cold-starts STOMP immediately (hub attach dedupes concurrent windows); historical restore late-joins a running hub provider via `isProviderRunning` / `waitForProviderRunning` (≤2s) + `provider.start()` instead of `restartProvider` (avoids peer grid refresh and duplicate STOMP when several windows open at once)
+- `MarketsGridContainer` — hub data via `useDataProvider` + `applyProviderToGrid` (no direct `client.subscribe` / cfg pass-through); when the catalog type is `stomp-ssrm`, auto-picks `useSsrmDataProvider` + `MarketsGrid.ssrm` (no CSRM `applyProviderToGrid`); optional `defaultLiveProviderId` for single-provider demos; live mode cold-starts STOMP immediately (hub attach dedupes concurrent windows); historical restore late-joins a running hub provider via `isProviderRunning` / `waitForProviderRunning` (≤2s) + `provider.start()` instead of `restartProvider` (avoids peer grid refresh and duplicate STOMP when several windows open at once)
+- `SsrmMarketsGridContainer` / `HostedSsrmMarketsGrid` — same MarketsGrid chrome as the CSRM hosted path; two instances can share one `stomp-ssrm` `providerId` (one WASM cache, independent SSRM views)
+- `apps/source/stomp-ssrm-minimal` — two `HostedSsrmMarketsGrid` instances (desk vs trader grouping) against one catalog row; auto-starts `stomp-view-server` via `npm run app -- stomp-ssrm-minimal`. Same chrome as the CSRM demo: filters row, formatting toolbar (which also enables the View menu's Auto Format item), editing toolbar
+- `useSsrmProviderWiring` — SSRM counterpart to `useProviderDataWiring`: no row plumbing (the surface reads blocks from the worker), just the stale-data banner, loading overlay + progressive row count, and `provider:status` container events
 - `useProviderDataWiring` — provider→grid hot path inside `MarketsGridContainer`; live ticks apply regardless of `document.hidden` — hidden/minimized blotters stay fully current (trading policy: window-local alerting + instant correctness on restore; the old hidden-pause + refresh-on-visible dormancy was removed; Chromium's own background timer throttling is left at platform defaults); on STOMP auto-reconnect (`error` → `ready`) clears the stale banner and triggers `provider.refresh()` so every blotter replays the hub cache without a manual Reload
 - `MarketsGridContainer` — when an active provider id is chosen but `useDataProviderConfig` is still loading, renders a lightweight placeholder (no throwaway `MarketsGrid` / AG Grid shell); the `__no_provider__` shell path is unchanged when no provider is selected or cfg is loaded but missing key/columns
 - `applyProviderToGrid` — live-tick add/update split with pending-add coalescing (`createApplyProviderToGridState`, `splitProviderRowsForGrid`, `splitProviderRowsWithResolver`); after snapshot commit, `markSnapshotLoaded` indexes row ids so live ticks avoid O(n) `getRowNode`; ticks for ids still in an async add queue retain the latest payload instead of being dropped so peer grids on the same hub provider stay row-count aligned; internal to `MarketsGridContainer` / `useBlotterDataConnection` (not on public barrel)
@@ -650,6 +660,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `RestFields` — URL, headers, auth, body template
 - `StompFields` — broker URL, login, subscribe topics, parsing
+- `StompSsrmFields` — `StompFields` plus SSRM knobs (`blockSize`, `publishWindowMs`, `searchColumns`); Behaviour tab reconnect-only (no CSRM thin-deltas / wireFormat / projectFields)
 - `MockFields` — seed data, latency, mutation playback
 - `AppDataFields` — read from `@wellsfargo-starui/data` AppData
 - `BehaviourFields` — per-transport behaviour knobs; STOMP: reconnect initial delay, realtime throttle (on/off switch + ms) + conflation (on/off switch + conflate-by-key), "Thin field-level deltas" switch (`thinDeltas`), snapshot chunk size, "Wire format" select (`wireFormat`: JSON / Columnar), "Keep only column fields" projection switch (`projectFields`) (all written to `cfg`, also settable in code)
@@ -851,7 +862,7 @@ modules).
 
 #### Re-exports
 
-- DataProvider type contracts
+- DataProvider type contracts (`PROVIDER_TYPES.STOMP_SSRM` / `StompSsrmProviderConfig` / `blockSize` / `publishWindowMs` / `searchColumns`)
 - FieldSelector types
 - Configuration types
 
@@ -921,7 +932,10 @@ modules).
 - **Editing core** — `EditJournal`, `CellPatch`, `EditSource`, `buildPatchesFromTargets`,
   `applyForwardPatches`, `previewPatches`, `assertSingleColumnSelection`,
   `BuildNudgePatchesOptions` — cell-patch journal for row data edits (one user
-  action = one undo step)
+  action = one undo step). Every editing module writes through `applyPatches`,
+  which dispatches on `rowModelType`: `applyServerSideTransactionAsync` for
+  SSRM grids (AG Grid ignores `applyTransactionAsync` there),
+  `applyTransactionAsync` otherwise
 - **Smart edit** — `applyNumericOp`, `parseMagnitudeSuffix`, `collectTargetCells`,
   `applySmartEditColDefTransforms`, `deserializeSmartEditState`, `INITIAL_SMART_EDIT`
 - **Data change history** — `DataChangeHistorySettings`, `recordSourceKey`,
@@ -957,7 +971,9 @@ modules).
 - `REGEX_MATCH` — invalid patterns return `false` (never throw)
 - `tryCompileToAgString()` — transpile to AG Grid `valueFormatter` string
   (still the FIRST choice — zero per-cell JS; the closure is the fallback)
-- `ExpressionNode`, `EvaluationContext`, `ValidationResult`, `FunctionDefinition`
+- `ExpressionNode`, `EvaluationContext` (`allRows` / `resolveAggregate` for column-wide `SUM([col])` — resolver wins under SSRM so the reduce is the engine total, not loaded blocks), `ValidationResult`, `FunctionDefinition`
+- `SSRM_EXPR_AGG_KEY` / `lookupSsrmExprAggregate` — GridApi brand the SSRM surface attaches so calculated-column and provider `valueGetter`s resolve dataset-wide aggregates without the engine importing `@wellsfargo-starui/grid`
+- `simpleColumnAggregate` / `simpleAggFuncForColumn` — detect `SUM|AVG|MIN|MAX|COUNT([value]|[colId])` so a custom grouping expression becomes a named `aggFunc` the SSRM engine (and CSRM built-ins) can honour; richer formulas stay a client `IAggFunc` over loaded children
 - `migrateExpressionSyntax()` — legacy migration
 - Conditional sugar (both desugar to short-circuiting ternaries at parse time, so
   they compose with everything and the `IF`/`IFS`/`SWITCH`/`CASE(...)` functions
@@ -1236,7 +1252,7 @@ modules).
 - `./runtime/client` — `SharedWorkerDataServicesClient`
 - `./runtime/sharedWorker` — `installSharedWorkerHub`, `SharedWorkerDataServicesHub`
 - `./runtime/worker/defaultEntry` — default worker entry; accepts ports itself, waits for the `worker-bootstrap` handshake, then builds the ConfigManager, runs `ConfigManager.init()` and hands the ports to `installSharedWorkerHub` (`adoptPorts`) for catalog/AppData hydrate before port traffic
-- `./assets/data-services-worker.mjs` — pre-built, self-contained esbuild worker bundle (stompjs inlined, **zero** static or dynamic imports). Also the **default** target of the zero-config path below: it must be a single non-splitting chunk because Vite's default `worker.format` is `iife`, which rejects any code-splitting worker build
+- `./assets/data-services-worker.mjs` — pre-built, self-contained esbuild worker bundle (stompjs + vendored `RustHub` inlined, **zero** leftover bare imports). Sibling `./assets/dshub_bg.wasm` is fetched by the worker at boot. Also the **default** target of the zero-config path below: it must be a single non-splitting chunk because Vite's default `worker.format` is `iife`, which rejects any code-splitting worker build
 - **Zero-config worker resolution** — `workerScriptUrl` is optional on every public signature (`createDataServicesWorker`, `createDataServicesClient`, `bootstrapDataServicesWithWorkerAsset`, `EnsurePlatformReadyOpts`, `EnsureHubOpts`, `WarmHubConnectionOpts`, `CreateAppDataServicesOpts`, `DataHubProvider`). Omitted, the library resolves its own worker via an inline `new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), { type: 'module' })` — the form Vite / webpack 5 / Next / Rollup / Parcel all statically detect, so a consumer emits the worker with no build config (browser-verified: chunk emitted, fetched, and constructed). An explicitly passed URL still wins, for CDN / OpenFin-manifest / `<script>` hosting. Vite **dev** additionally needs `optimizeDeps: { exclude: ['@wellsfargo-starui/data'] }`, because prebundling into `.vite/deps/` relocates the module and breaks the relative resolution
 - SSR/Node guard — `createDataServicesWorker` throws a named, actionable error when `SharedWorker` is undefined instead of a bare `ReferenceError`
 
@@ -1260,9 +1276,11 @@ modules).
 #### Provider primitives
 
 - `IDataProvider` — uniform client contract (`start` / `stop` / `refresh` / `restart`, sync getters, event registrars); types + `ProviderClientAdapter` hub adapter (Phase 3)
+- `ISsrmDataProvider` — SSRM client contract at `IDataProvider` lifecycle parity (`capabilities`, `start` / `stop` / `refresh` / `restart`, `getRows`, `getColumnValues`, `getRowCount`, `getAggregates`, `watchGroups`, `onSsrmTick`, `onRefresh`); no `getData()` / `onSnapshotData()` / `onTick()` — rows stay in the worker cache. `getAggregates` feeds the status bar and expression `SUM` / `AVG` / `MIN` / `MAX` / `COUNT`
+- `SsrmProviderClientAdapter` — hub attach in `ssrm` mode (no CSRM cache replay) + `ssrm-get-rows` / `ssrm-column-values` / `ssrm-row-count` / `ssrm-aggregates` / `ssrm-watch-groups` RPC + `ssrm-tick`. `refresh()` emits `onRefresh` so bound grids purge and re-read blocks (the SSRM stand-in for CSRM cache replay); `restart()` purges too, since the reconnect re-boots the worker cache
 - `IDataProviderFactory` — `getProvider(providerId)` factory surface
 - `ProviderClientAdapter` — client-side `IDataProvider`; cfg-free subscribe, `SnapshotReassembler` snapshot assembly, `getProvider()` on hub bundle. `getData()` returns the last snapshot commit by reference (not copied, not updated on live ticks). `onReset` deliveries update snapshot subscribers (mid-stream STOMP reconnect). `start()` resolves its one provider via the worker's on-demand `get-config` (single-row read, no full-catalog gate) so attach is race-safe even mid-preload
-- `resolveProviderCapabilities()` — transport capability flags for STOMP / REST / mock / appdata
+- `resolveProviderCapabilities()` — transport capability flags for STOMP / `stomp-ssrm` / REST / mock / appdata
 - `DataServicesHubBundle` / `ResolvedDataServicesHubBundle` — hub bundle from `ensurePlatformReady` / `ensureDataServicesHub`. Hydration is split into parallel signals: `appDataReady` (AppData mirror snapshot) + `catalogReady` (worker catalog preload), with `ready = Promise.all([appDataReady, catalogReady])` for full-hydration callers. Plus `stopProvider`, `dispose`, legacy client handles
 - `ProviderCapabilities` — streaming / realtime / refresh / restart flags per transport
 - `ProviderHandle` — `stop()` + `restart()` lifecycle
@@ -1273,6 +1291,12 @@ modules).
 
 #### Transports
 
+- **STOMP SSRM** (`providerType: 'stomp-ssrm'`) — same `startStomp()` wire path; rows flatten into a vendored rangrez `RustHub` WASM cache in the existing SharedWorker (no CSRM snapshot fan-out). Protocol: `ssrm-get-rows`, `ssrm-column-values`, `ssrm-row-count`, `ssrm-aggregates`, `ssrm-watch-groups`, `ssrm-tick`. AG Grid 36.1 SSRM blocks + live `applyServerSideTransactionAsync`. Worker bundle must include the `stomp-ssrm` factory + sibling `dshub_bg.wasm` (Vite auto-rebuilds if the on-disk worker is stale)
+- `flattenRow` / `flattenRows` — rangrez-compatible ingest (`_` separator, max depth 6, arrays skipped) before `apply_message_json`
+- `toViewSpec` / `toViewSpecResult` / `filterModelToNodes` — AG Grid `IServerSideGetRowsRequest` → Rust `ViewSpec` (`groupKeys` → equals filters, next `groupBy` + `depth: 1`, `valueCols` → aggregates, `pivotCols` → `splitBy`). Covers all four filter-model grammars: simple text/number/date, combined `AND`/`OR` (`AND` flattens into the ANDed top-level list, `OR` becomes an `or` node), `set` → `equals` / an `or` of `equals` (a grouped view applies `in` to group rows, which don't carry the filtered column, so the root request came back empty), empty set still → `in: []`, and the `multi` envelope our stream-safe floating filters emit. `inRange` carries `valueTo`; date filters read `dateFrom`/`dateTo`; text equality folds case to match AG Grid. `quickFilterText` expands into an `or` of `contains` across the provider's `searchColumns`. `toViewSpecResult` also returns `unsupported` — untranslatable conditions are reported, never dropped silently (a dropped filter shows more rows than asked for)
+- `SsrmFilterOp` / `SsrmFilterNode` — the engine's operator vocabulary (`equals`, `notEqual`, `equalsIgnoreCase`, `notEqualIgnoreCase`, `contains`, `notContains`, `startsWith`, `endsWith`, `greaterThan(OrEqual)`, `lessThan(OrEqual)`, `inRange`, `in`, `blank`, `notBlank`) plus the `or` disjunction node
+- `RustHubHost` / `loadVendoredRustHub` — singleton vendored `RustHub` WASM (`boot_datasource`, `connect`/`disconnect`, `on_control`, `tick`, `apply_message_json`, `poll_shared_delta`)
+- `SsrmWasmPlane` — per-`providerId` façade: boot schema from `columnDefinitions` + `keyColumn` + `searchColumns`, ingest STOMP emits, translate starui RPCs to wasm control. `getColumnValues` answers set-filter lists as a one-level grouped view (the engine already returns one row per distinct key, so no new WASM entry point), excluding the column's own filter so de-selecting a value doesn't remove it from the list. `getAggregates` answers the status bar and expression aggregates (`sum` / `avg` / `min` / `max` / `count` over the current filter) via the engine's `aggregates` control. `getRowCount` answers saved-filter pill badges by reading a one-row window — the engine reports the view's total whatever window was asked for, so the count costs no row materialisation. Views are cached by canonical query signature (filter order normalised, since the array is ANDed) and capped per session at `MAX_VIEWS_PER_SESSION` (24), disposing evicted ones via the engine's `disposeView`: an engine view is live and maintained every tick, so opening one per read — every scrolled block, every expanded group, every pill poll — compounds until the worker stops answering and the grid hangs on "loading". Views are also dropped on session detach and on datasource re-boot, when the ids they hold are stale
 - **STOMP** (`startStomp()`)
   - WebSocket via `@stomp/stompjs`
   - Worker-side `{{name.key}}` resolution on every connect/restart via `appDataLookup` (SharedWorker AppData mirror); `restart({ asOfDate })` overlay **wins** for historical date keys (`asOfDate`, `position-asofdate`) so toolbar reload is deterministic
@@ -1314,7 +1338,7 @@ modules).
 - Columnar wire format (`cfg.wireFormat: 'columnar'`, default `'json'`): all binary frames (cache replay, pre-ready snapshot fan-out, large live ticks) encode via the typed-array columnar codec (`wire/columnarCodec.ts`, `COL1` frames) — numbers travel as raw little-endian Float64, booleans as bitmaps, strings/nested objects as one `JSON.parse` per **column**, presence/null bitmaps preserve ragged rows and null-vs-absent — cutting each window's main-thread decode several-fold on number-heavy feeds; frames that don't qualify (non-plain-object rows) fall back to JSON per chunk (`DeltaBinEvent.enc` discriminates per event); `tryEncodeColumnar` / `decodeColumnar` exported from `@wellsfargo-starui/data/runtime`
 - Buffering between snapshot-resolve and update registration
 - Lazy provider create on first attach, reuse on subsequent attaches
-- **Idle auto-teardown** — when the last data *and* stats subscriber leaves (`detach`, `onPortClosed`, dead-port prune, or missed heartbeats), `SharedWorkerDataServicesHub` calls `stopProvider` (upstream STOMP/REST/mock stops, cache cleared); re-attach cold-starts
+- **Idle auto-teardown** — when the last data *and* stats subscriber leaves (`detach`, `onPortClosed`, dead-port prune, or missed heartbeats), `SharedWorkerDataServicesHub` calls `stopProvider` (upstream STOMP/REST/mock stops, cache cleared); re-attach cold-starts. `onPortClosed` also releases each dropped subId's SSRM engine session — a reload closes the port without ever sending `detach` and the worker outlives the page, so without it every reload left another live session and its open views behind for the engine to maintain
 - **Subscriber heartbeats** — clients send `{ kind: 'ping', subId, meta? }` every 15s; hub sweeps every 10s and evicts subs silent for >45s; `buildIntrospectSnapshot()` exposes per-subscriber `attachedAt`, `lastPingAt`, `stale`, and optional `meta.label` on each running provider row
 - `SharedWorkerDataServicesClient` registers `pagehide` (non-bfcache) → `close()` so blotter window teardown sends `detach` for every subscription before the port dies
 - `refresh-provider` RPC — replay hub cache to one subscriber in chunked `delta-bin` frames with `status: loading` → chunks → `status: ready` (no upstream I/O); `SubscribeHandle.refresh()` / `IDataProvider.refresh()`; drives the **Refresh view** busy overlay in `MarketsGridContainer`
@@ -1439,6 +1463,7 @@ modules).
 #### DataProvider hook (preferred)
 
 - `useDataProvider(providerId, opts?)` — hub-backed `IDataProvider` wrapper (`ProviderClientAdapter`); preferred over `useProviderStream` for production grids
+- `useSsrmDataProvider(providerId, opts?)` — hub-backed `ISsrmDataProvider` (`SsrmProviderClientAdapter`); used by SSRM blotters instead of `getData()`. Returns the same `{ provider, status, error, start, refresh, restart }` shape as `useDataProvider`, so the container's Refresh view / Reload from source / toolbar-date reload drive either row model
   - `UseDataProviderOpts`: `inlineCfg` (unsaved editor draft), `autoStart` (default `true`), `trackStatus` (default `true`; `false` skips status/error state mirroring for callers that consume provider events directly)
   - `UseDataProviderResult`: `provider`, `status`, `error`, `start()`, `refresh()`, `restart(extra?)`
   - Subscribes to `onStatus` and `onError` from the adapter

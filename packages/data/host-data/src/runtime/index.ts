@@ -44,7 +44,13 @@ export type {
   CatalogChangeDetail,
   CatalogReadyEvent,
 } from './protocol.js';
-export { isRequest, isEvent, isAppDataRequest, isAppDataEvent } from './protocol.js';
+export { isRequest, isEvent, isAppDataRequest, isAppDataEvent, isSsrmRpcEvent, isSsrmTickEvent } from './protocol.js';
+export type {
+  SsrmGetRowsRequest,
+  SsrmGetRowsResult,
+  SsrmTickPayload,
+  SsrmWatchGroupsRequest,
+} from './ssrm/index.js';
 
 // Wire codecs — typed-array columnar frames + thin-delta row diffing.
 export { tryEncodeColumnar, decodeColumnar } from './wire/columnarCodec.js';

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-//  PrimeNG Preset — StarUI v1 Azure palette (PrimeNG 20/21)
+//  PrimeNG Preset — Cursor Dark / Light primary (PrimeNG 20/21)
 //  Mirrors starui-design-system/primeng/starui-primeng-preset.ts
 // ─────────────────────────────────────────────────────────────
 
@@ -30,8 +30,8 @@ export const primengPreset = definePreset(Aura, {
     colorScheme: {
       light: {
         primary: {
-          color: '{azure.600}', contrastColor: 'oklch(0.99 0.015 250)',
-          hoverColor: '{azure.700}', activeColor: '{azure.800}',
+          color: 'oklch(0.561 0.137 249.9)', contrastColor: 'oklch(0.991 0 0)',
+          hoverColor: 'oklch(0.514 0.124 250.3)', activeColor: 'oklch(0.497 0.143 250.7)',
         },
         surface: {
           0: '#ffffff', 50: 'oklch(0.986 0.009 67)', 100: 'oklch(0.962 0.015 67)',
@@ -47,8 +47,8 @@ export const primengPreset = definePreset(Aura, {
       },
       dark: {
         primary: {
-          color: '{azure.500}', contrastColor: 'oklch(0.99 0.02 252)',
-          hoverColor: '{azure.400}', activeColor: '{azure.300}',
+          color: 'oklch(0.697 0.059 248.7)', contrastColor: 'oklch(0.226 0.013 264.3)',
+          hoverColor: 'oklch(0.713 0.056 247.8)', activeColor: 'oklch(0.775 0.062 217.5)',
         },
         surface: {
           0: '#ffffff', 50: 'oklch(0.96 0.006 258)', 100: 'oklch(0.86 0.008 258)',

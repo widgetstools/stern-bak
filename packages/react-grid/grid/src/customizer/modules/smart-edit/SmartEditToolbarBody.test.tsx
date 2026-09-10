@@ -76,6 +76,16 @@ describe('SmartEditToolbarBody', () => {
     expect(screen.getByText(/1 cell\b/)).toBeTruthy();
   });
 
+  it('disables apply on server-side grids', () => {
+    const api = makeMockApi() as ReturnType<typeof makeMockApi> & {
+      getGridOption: (key: string) => unknown;
+    };
+    api.getGridOption = (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined);
+    mount(makePlatform(), api);
+    expect(screen.getByTestId('smart-edit-ssrm-disabled')).toBeTruthy();
+    expect(screen.queryByTestId('smart-edit-op-multiply')).toBeNull();
+  });
+
   it('disables op buttons when no cells selected', () => {
     const platform = makePlatform();
     const api = makeMockApi();

@@ -30,6 +30,8 @@ export function activatePlusMinus(platform: PlatformHandle<PlusMinusState>): () 
     const onCellKeyDown = async (e: { event?: Event | null }) => {
       const state = platform.getState();
       if (!state.settings.enabled) return;
+      // Edits do not persist to the WASM cache / upstream.
+      if (api.getGridOption?.('rowModelType') === 'serverSide') return;
 
       const ke = e.event as KeyboardEvent | undefined;
       if (!ke) return;

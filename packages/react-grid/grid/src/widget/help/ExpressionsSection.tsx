@@ -105,9 +105,12 @@ END`}</Pre>
 
       <H3>Aggregation &amp; stats (column-aware)</H3>
       <P>
-        Given a direct <Code>[col]</Code> reference, these reduce the whole column
-        (every loaded row, via <Code>ctx.allRows</Code>). Given scalar arguments,
-        they reduce the argument list instead.
+        Given a direct <Code>[col]</Code> reference, these reduce the whole
+        column. Client-side row model walks every loaded row; under SSRM,{' '}
+        <Code>SUM</Code> <Code>AVG</Code> <Code>MIN</Code> <Code>MAX</Code>{' '}
+        <Code>COUNT</Code> use the engine total for the current filter (not
+        just the blocks on screen). Given scalar arguments, they reduce the
+        argument list instead.
       </P>
       <P>
         <Code>SUM</Code> <Code>COUNT</Code> <Code>DISTINCT_COUNT</Code> <Code>AVG</Code>{' '}
@@ -190,6 +193,13 @@ END`}</Pre>
 
       <H3>Custom aggregation — weighted-average spread</H3>
       <Pre>{'SUM([value] * [quantity]) / SUM([quantity])'}</Pre>
+      <P>
+        Under SSRM, <Code>SUM([value])</Code> / <Code>AVG</Code> / <Code>MIN</Code>{' '}
+        / <Code>MAX</Code> / <Code>COUNT</Code> become the engine&apos;s named{' '}
+        <Code>aggFunc</Code>. Richer custom aggs still run on loaded children only.
+        Calculated and expression columns cannot be sorted, filtered, or grouped
+        on the server — use a source column.
+      </P>
     </>
   );
 }

@@ -40,5 +40,7 @@ describe('gridSurfaceOptions', () => {
     expect(shouldSkipGridOptionSync('statusBar', hostKeys)).toBe(true);
     expect(shouldSkipGridOptionSync('animateRows', hostKeys)).toBe(false);
     expect(shouldSkipGridOptionSync('cellSelection', hostKeys)).toBe(true);
+    expect(shouldSkipGridOptionSync('statusBar', new Set(), new Set(['statusBar']))).toBe(true);
+    expect(shouldSkipGridOptionSync('animateRows', new Set(), new Set(['statusBar']))).toBe(false);
   });
 });

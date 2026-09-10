@@ -131,3 +131,13 @@ export { compileToFunction, type CompiledExpression } from './compileToFunction'
 export { createFunctionRegistry, getAllFunctions } from './functions';
 export { astUsesAggregateFunctions, getAggregateFunctionNames } from './usesAggregates';
 export { migrateExpressionSyntax, migrateExpressionsInObject } from './migrate';
+export {
+  SSRM_EXPR_AGG_KEY,
+  lookupSsrmExprAggregate,
+} from './ssrmAggregateLookup';
+export type { SsrmExprAggLookup } from './ssrmAggregateLookup';
+export {
+  simpleColumnAggregate,
+  simpleAggFuncForColumn,
+} from './simpleColumnAggregate';
+export type { SimpleAggFn, SimpleColumnAggregate } from './simpleColumnAggregate';

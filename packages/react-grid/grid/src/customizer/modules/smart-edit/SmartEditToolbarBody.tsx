@@ -47,6 +47,7 @@ import {
   EditingToolbarOpGroup,
   EditingToolbarSegment,
 } from '../../../widget/editingToolbar/EditingToolbarPrimitives';
+import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
 import { useSmartEditSelection } from './useSmartEditSelection';
 import {
   applyEdits,
@@ -97,7 +98,7 @@ export function SmartEditToolbarBody({ layout = 'standalone' }: EditingToolbarSe
     patches?: readonly CellPatch[],
   ) => {
     const api = platform.api.api;
-    if (!api || !settings.settings.enabled) return;
+    if (!api || !settings.settings.enabled || isSsrmGrid(api)) return;
 
     const targets = resolveTargetCells(api);
     if (targets.length === 0) return;
@@ -188,6 +189,24 @@ export function SmartEditToolbarBody({ layout = 'standalone' }: EditingToolbarSe
   };
 
   if (!settings.settings.enabled) return null;
+
+  if (isSsrmGrid(platform.api.api)) {
+    return (
+      <EditingToolbarSegment
+        layout={layout}
+        label={layout === 'segment' ? 'Smart' : 'Smart edit'}
+        data-testid="smart-edit-toolbar"
+        meta="SSRM"
+      >
+        <span
+          className="text-xs text-[color:var(--ds-text-muted)]"
+          data-testid="smart-edit-ssrm-disabled"
+        >
+          Edits stay in the loaded cache — Smart Edit is off on server-side grids.
+        </span>
+      </EditingToolbarSegment>
+    );
+  }
 
   const disabled = count === 0 || !columnGuard.ok;
   const ops = settings.settings.enabledOps;

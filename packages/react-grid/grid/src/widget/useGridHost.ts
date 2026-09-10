@@ -90,6 +90,12 @@ export function useGridHost(opts: {
   rowIdField?: string | readonly string[];
   appData?: AppDataLookup;
   hostOverrideKeys?: ReadonlySet<string>;
+  /**
+   * Keys the surface already passes as explicit AgGridReact props.
+   * Dual-sourcing those via `setGridOption` tears the widget down
+   * (SSRM owns `statusBar` this way).
+   */
+  skipSyncKeys?: ReadonlySet<string>;
 }) {
   const platformRef = useRef<GridPlatform | null>(null);
   if (!platformRef.current) {
@@ -102,6 +108,7 @@ export function useGridHost(opts: {
   }
   const platform = platformRef.current;
   const hostOverrideKeys = opts.hostOverrideKeys ?? new Set<string>();
+  const skipSyncKeys = opts.skipSyncKeys;
 
   // A single "state changed" tick drives pipeline re-runs. Coalesce bursts
   // (profile deserialize touches every module) into one rAF tick per frame.
@@ -159,14 +166,15 @@ export function useGridHost(opts: {
   const lastFuncSynced = useRef<Record<string, unknown>>({});
   const lastGridOptionsRef = useRef<Partial<GridOptions> | null>(null);
   useEffect(() => {
-    if (lastGridOptionsRef.current === gridOptions) return;
+    const previousOptions = lastGridOptionsRef.current;
+    if (previousOptions === gridOptions) return;
     lastGridOptionsRef.current = gridOptions;
     const api = platform.api.api;
     if (!api) return;
     if ((api as unknown as { isDestroyed?: () => boolean }).isDestroyed?.()) return;
     for (const [key, value] of Object.entries(gridOptions)) {
       if (INITIAL_ONLY_GRID_OPTIONS.has(key)) continue;
-      if (shouldSkipGridOptionSync(key, hostOverrideKeys)) continue;
+      if (shouldSkipGridOptionSync(key, hostOverrideKeys, skipSyncKeys)) continue;
       if (containsFunction(value)) {
         if (lastFuncSynced.current[key] === value) continue;
         // Shallow member compare (functions by reference, never JSON):
@@ -205,12 +213,28 @@ export function useGridHost(opts: {
       if (typeof getLive === 'function' && Object.is(getLive.call(api, key), value)) continue;
       (api.setGridOption as (k: string, v: unknown) => void)(key, value);
     }
+    // general-settings omits `statusBar` when the master toggle / every
+    // panel is off. Dropping the key used to leave the previous bar up.
+    if (
+      previousOptions
+      && Object.prototype.hasOwnProperty.call(previousOptions, 'statusBar')
+      && !Object.prototype.hasOwnProperty.call(gridOptions, 'statusBar')
+      && !shouldSkipGridOptionSync('statusBar', hostOverrideKeys, skipSyncKeys)
+    ) {
+      delete lastSyncedRef.current.statusBar;
+      delete lastSyncedJson.current.statusBar;
+      delete lastFuncSynced.current.statusBar;
+      const getLive = (api as { getGridOption?: (k: string) => unknown }).getGridOption;
+      if (!(typeof getLive === 'function' && Object.is(getLive.call(api, 'statusBar'), undefined))) {
+        (api.setGridOption as (k: string, v: unknown) => void)('statusBar', undefined);
+      }
+    }
     // Reason: `gridOptions` is the value driving this effect, but its
     // identity is gated by `tick` (same `useMemo` above) — listing both
     // would be redundant. The linter can't see that tick→gridOptions is
     // a 1:1 dependency, so we omit gridOptions explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [platform, tick, hostOverrideKeys]);
+  }, [platform, tick, hostOverrideKeys, skipSyncKeys]);
 
   // Referentially stable: these are props on the memo'd
   // MarketsGridHost/MarketsGridSurface chain — fresh functions per

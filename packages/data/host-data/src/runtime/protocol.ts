@@ -103,8 +103,9 @@ export interface AttachRequest {
   /**
    * `'data'` (default) — listener receives `delta` + `status` events.
    * `'stats'` — listener receives a `stats` event at 1 Hz.
+   * `'ssrm'` — keep-alive + status; no CSRM cache replay (WASM via RPC).
    */
-  mode: 'data' | 'stats';
+  mode: 'data' | 'stats' | 'ssrm';
   /**
    * Required on FIRST attach when `providerId` is not in the hub catalog.
    * Optional when the worker has preloaded the provider row via
@@ -202,10 +203,10 @@ export interface RefreshProviderRequest {
   providerId: string;
 }
 
-/** One attached hub subscriber (data or stats mode). */
+/** One attached hub subscriber (data, stats, or ssrm mode). */
 export interface HubSubscriberIntrospectRow {
   subId: string;
-  mode: 'data' | 'stats';
+  mode: 'data' | 'stats' | 'ssrm';
   attachedAt: number;
   lastPingAt: number;
   /** True when `lastPingAt` is older than the hub ping timeout. */
@@ -369,6 +370,58 @@ export interface WorkerBootstrapRequest {
   payload: WorkerBootstrapPayload;
 }
 
+export interface SsrmGetRowsWireRequest {
+  kind: 'ssrm-get-rows';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmGetRowsRequest;
+}
+
+/** Distinct column values for an AG Grid set filter list. */
+export interface SsrmColumnValuesWireRequest {
+  kind: 'ssrm-column-values';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmColumnValuesRequest;
+}
+
+/** Matched row count for a filter the grid hasn't applied (pill badges). */
+export interface SsrmRowCountWireRequest {
+  kind: 'ssrm-row-count';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmRowCountRequest;
+}
+
+/** Dataset-level aggregations for the SSRM status bar. */
+export interface SsrmAggregatesWireRequest {
+  kind: 'ssrm-aggregates';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmAggregatesRequest;
+}
+
+export interface SsrmWatchGroupsWireRequest {
+  kind: 'ssrm-watch-groups';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  groupBy: readonly string[];
+  aggregates?: Record<string, string>;
+}
+
+export interface SsrmSetViewportWireRequest {
+  kind: 'ssrm-set-viewport';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  keys?: readonly string[];
+}
+
 export type Request =
   | AttachRequest
   | DetachRequest
@@ -381,7 +434,28 @@ export type Request =
   | ConfigInvalidateRequest
   | RefreshProviderRequest
   | HubIntrospectRequest
-  | ProviderRunningRequest;
+  | ProviderRunningRequest
+  | SsrmGetRowsWireRequest
+  | SsrmColumnValuesWireRequest
+  | SsrmRowCountWireRequest
+  | SsrmAggregatesWireRequest
+  | SsrmWatchGroupsWireRequest
+  | SsrmSetViewportWireRequest;
+
+export interface SsrmRpcEvent {
+  kind: 'ssrm-rpc';
+  reqId: string;
+  subId: string;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+export interface SsrmTickEvent {
+  kind: 'ssrm-tick';
+  subId: string;
+  payload: import('./ssrm/ssrmTypes.js').SsrmTickPayload;
+}
 
 // ─── Worker → Client events ────────────────────────────────────────
 
@@ -642,8 +716,22 @@ export function isRequest(value: unknown): value is Request {
     k === 'config-invalidate' ||
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
-    k === 'provider-running'
+    k === 'provider-running' ||
+    k === 'ssrm-get-rows' ||
+    k === 'ssrm-column-values' ||
+    k === 'ssrm-row-count' ||
+    k === 'ssrm-aggregates' ||
+    k === 'ssrm-watch-groups' ||
+    k === 'ssrm-set-viewport'
   );
+}
+
+export function isSsrmRpcEvent(value: unknown): value is SsrmRpcEvent {
+  return Boolean(value && typeof value === 'object' && (value as { kind?: string }).kind === 'ssrm-rpc');
+}
+
+export function isSsrmTickEvent(value: unknown): value is SsrmTickEvent {
+  return Boolean(value && typeof value === 'object' && (value as { kind?: string }).kind === 'ssrm-tick');
 }
 
 export function isEvent(value: unknown): value is Event {

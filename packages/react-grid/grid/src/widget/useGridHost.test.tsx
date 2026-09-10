@@ -129,6 +129,54 @@ describe('useGridHost', () => {
     expect(api.setGridOption).not.toHaveBeenCalled();
   });
 
+  it('skips statusBar setGridOption when skipSyncKeys names it', () => {
+    const { result } = renderHook(() =>
+      useGridHost({
+        gridId: 'g1',
+        modules: [generalSettingsModule],
+        baseColumnDefs: [{ field: 'price' }],
+        skipSyncKeys: new Set(['statusBar']),
+      }),
+    );
+    const { api } = makeFakeApi();
+
+    act(() => {
+      result.current.onGridReady({ api } as never);
+    });
+    act(() => {
+      result.current.platform.store.setModuleState('general-settings', (prev) => ({
+        ...prev,
+        statusBarShowAggregation: true,
+      }));
+    });
+    const keys = (api.setGridOption as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+    expect(keys).not.toContain('statusBar');
+  });
+
+  it('pushes empty statusBar panels when Grid Options turn the bar off', () => {
+    const { result } = renderHook(() =>
+      useGridHost({
+        gridId: 'g1',
+        modules: [generalSettingsModule],
+        baseColumnDefs: [{ field: 'price' }],
+      }),
+    );
+    const { api } = makeFakeApi();
+
+    act(() => {
+      result.current.onGridReady({ api } as never);
+    });
+    act(() => {
+      result.current.platform.store.setModuleState('general-settings', (prev) => ({
+        ...prev,
+        statusBar: false,
+      }));
+    });
+
+    expect(result.current.gridOptions.statusBar).toEqual({ statusPanels: [] });
+    expect(api.setGridOption).toHaveBeenCalledWith('statusBar', { statusPanels: [] });
+  });
+
   it('respects hostOverrideKeys when syncing options', () => {
     const hostOverrideKeys = new Set(['defaultColDef']);
     const { result } = renderHook(() =>

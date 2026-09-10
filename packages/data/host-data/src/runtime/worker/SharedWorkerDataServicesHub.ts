@@ -20,7 +20,7 @@
  *   - `hubIntrospect.ts` / `hubStats.ts` — diagnostics snapshots
  */
 
-import type { ProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
+import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
 import type {
   AttachRequest,
   DetachRequest,
@@ -32,7 +32,15 @@ import type {
   CatalogEvent,
   RefreshProviderRequest,
   HubIntrospectSnapshot,
+  SsrmColumnValuesWireRequest,
+  SsrmGetRowsWireRequest,
+  SsrmAggregatesWireRequest,
+  SsrmRowCountWireRequest,
+  SsrmWatchGroupsWireRequest,
+  SsrmRpcEvent,
+  SsrmTickEvent,
 } from '../protocol.js';
+import { SsrmWasmPlane, publishWindowMsOf } from '../ssrm/SsrmWasmPlane.js';
 import { startProvider } from '../providers/registry.js';
 import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider.js';
 import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
@@ -92,6 +100,8 @@ export class SharedWorkerDataServicesHub {
 
   private readonly emitCtx: ProviderEmitContext;
   private readonly catalogRpcCtx: CatalogRpcContext;
+  private readonly ssrmPlane: SsrmWasmPlane;
+  private ssrmTickTimer: unknown = null;
 
   constructor(opts: SharedWorkerDataServicesHubOpts = {}) {
     this.statsIntervalMs = opts.statsIntervalMs ?? 1000;
@@ -106,11 +116,15 @@ export class SharedWorkerDataServicesHub {
       this.configCatalog = null;
     }
 
+    this.ssrmPlane = new SsrmWasmPlane(opts.createRustHub);
     this.emitCtx = {
       dataListenerCount: (providerId) => this.subscribers.dataCount(providerId),
       broadcast: (providerId, slot, eventTemplate) =>
         this.broadcastData(providerId, slot, eventTemplate),
       flushStats: (providerId) => this.flushStatsToListeners(providerId),
+      ingestSsrm: (providerId, rows, replace) => {
+        void this.ssrmPlane.ingest(providerId, rows, replace);
+      },
     };
     this.catalogRpcCtx = {
       catalog: this.configCatalog,
@@ -141,6 +155,20 @@ export class SharedWorkerDataServicesHub {
       case 'refresh-provider': this.handleRefreshProvider(req); return;
       case 'hub-introspect': handleHubIntrospect(this.catalogRpcCtx, port, req); return;
       case 'provider-running': handleProviderRunning(this.catalogRpcCtx, port, req); return;
+      case 'ssrm-get-rows': void this.handleSsrmGetRows(port, req); return;
+      case 'ssrm-column-values': void this.handleSsrmColumnValues(port, req); return;
+      case 'ssrm-row-count': void this.handleSsrmRowCount(port, req); return;
+      case 'ssrm-aggregates': void this.handleSsrmAggregates(port, req); return;
+      case 'ssrm-watch-groups': void this.handleSsrmWatchGroups(port, req); return;
+      case 'ssrm-set-viewport':
+        port.postMessage({
+          kind: 'ssrm-rpc',
+          reqId: req.reqId,
+          subId: req.subId,
+          ok: true,
+          result: { ok: true },
+        } satisfies SsrmRpcEvent);
+        return;
     }
   }
 
@@ -210,12 +238,18 @@ export class SharedWorkerDataServicesHub {
       /* port already torn down */
     }
     this.connectedPorts.delete(port);
-    const { idleCandidates, statsEmptied } = this.subscribers.removeByPort(port);
+    const { idleCandidates, subIds, statsEmptied } = this.subscribers.removeByPort(port);
     if (statsEmptied) this.maybeStopStatsSampler();
     this.appDataSvc.onPortClosed(port);
+    // A reload closes the port without ever sending `detach`, and the worker
+    // outlives the page. Without this the dead page's engine session and its
+    // open views stay live, and every reload leaves another generation of
+    // them for the engine to maintain on every tick.
+    for (const subId of subIds) void this.ssrmPlane.detachSession(subId);
     for (const providerId of idleCandidates) {
       this.maybeStopProviderIfIdle(providerId);
     }
+    this.maybeStopSsrmTicker();
   }
 
   /** Stop every provider + cancel sampler. For shutdown only. */
@@ -323,7 +357,9 @@ export class SharedWorkerDataServicesHub {
       if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
     }
 
-    if (req.mode === 'data') {
+    if (req.mode === 'ssrm') {
+      this.attachSsrmListener(req.providerId, req.subId, port, slot);
+    } else if (req.mode === 'data') {
       this.attachDataListener(req.providerId, req.subId, port, slot, {
         skipCacheReplay: isRestartAttach,
       });
@@ -333,9 +369,11 @@ export class SharedWorkerDataServicesHub {
   }
 
   private handleDetach(req: DetachRequest): void {
+    void this.ssrmPlane.detachSession(req.subId);
     const removed = this.subscribers.remove(req.subId);
     if (removed.statsEmptied) this.maybeStopStatsSampler();
     if (removed.providerId) this.maybeStopProviderIfIdle(removed.providerId);
+    this.maybeStopSsrmTicker();
   }
 
   private maybeStopProviderIfIdle(providerId: string): void {
@@ -433,6 +471,7 @@ export class SharedWorkerDataServicesHub {
     this.maybeStopStatsSampler();
 
     const stopResult = slot.handle.stop();
+    this.maybeStopSsrmTicker();
     this.maybeStopSubscriberSweeper();
     if (stopResult instanceof Promise) await stopResult;
   }
@@ -455,7 +494,7 @@ export class SharedWorkerDataServicesHub {
     cfg: ProviderConfig | undefined,
     extra?: Record<string, unknown>,
   ): void {
-    if (!cfg || cfg.providerType !== 'stomp') return;
+    if (!cfg || (cfg.providerType !== 'stomp' && cfg.providerType !== 'stomp-ssrm')) return;
     traceWorkerAppDataSnapshot(
       `${phase} · worker AppData`,
       this.appDataSvc.snapshotRows().map((r) => ({ name: r.name, values: r.values })),
@@ -532,6 +571,10 @@ export class SharedWorkerDataServicesHub {
       slot.handle = startProvider(cfg, emit, {
         appDataLookup: (name, key) => this.appDataSvc.get(name, key),
       });
+      if (cfg.providerType === 'stomp-ssrm') {
+        void this.ssrmPlane.boot(providerId, cfg as StompSsrmProviderConfig);
+        this.ensureSsrmTicker();
+      }
     } catch (err) {
       this.providers.delete(providerId);
       throw err;
@@ -593,6 +636,117 @@ export class SharedWorkerDataServicesHub {
     }
 
     this.replayCacheToPort(subId, port, slot, 'attach');
+  }
+
+  private attachSsrmListener(
+    providerId: string,
+    subId: string,
+    port: PortLike,
+    slot: ProviderSlot,
+  ): void {
+    this.subscribers.attach(providerId, subId, port, 'ssrm');
+    this.ensureSubscriberSweeper();
+    void this.ssrmPlane.attachSession(subId);
+    if (slot.cfg.providerType === 'stomp-ssrm') {
+      void this.ssrmPlane.boot(providerId, slot.cfg as StompSsrmProviderConfig);
+      this.ensureSsrmTicker();
+    }
+    port.postMessage({ subId, kind: 'status', status: slot.status, error: slot.lastError } satisfies Event);
+  }
+
+  /** Run one SSRM RPC and post its `ssrm-rpc` reply, ok or error. */
+  private async replySsrmRpc(
+    port: PortLike,
+    req: { reqId: string; subId: string },
+    run: () => Promise<unknown>,
+  ): Promise<void> {
+    try {
+      const result = await run();
+      port.postMessage({
+        kind: 'ssrm-rpc',
+        reqId: req.reqId,
+        subId: req.subId,
+        ok: true,
+        result,
+      } satisfies SsrmRpcEvent);
+    } catch (err) {
+      port.postMessage({
+        kind: 'ssrm-rpc',
+        reqId: req.reqId,
+        subId: req.subId,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } satisfies SsrmRpcEvent);
+    }
+  }
+
+  private handleSsrmGetRows(port: PortLike, req: SsrmGetRowsWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, () =>
+      this.ssrmPlane.getRows(req.subId, req.providerId, req.request));
+  }
+
+  private handleSsrmColumnValues(port: PortLike, req: SsrmColumnValuesWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, () =>
+      this.ssrmPlane.getColumnValues(req.subId, req.providerId, req.request));
+  }
+
+  private handleSsrmAggregates(port: PortLike, req: SsrmAggregatesWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, () =>
+      this.ssrmPlane.getAggregates(req.subId, req.providerId, req.request));
+  }
+
+  private handleSsrmRowCount(port: PortLike, req: SsrmRowCountWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, () =>
+      this.ssrmPlane.getRowCount(req.subId, req.providerId, req.request));
+  }
+
+  private handleSsrmWatchGroups(port: PortLike, req: SsrmWatchGroupsWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, async () => {
+      await this.ssrmPlane.watchGroups(req.subId, req.providerId, {
+        groupBy: req.groupBy,
+        aggregates: req.aggregates,
+      });
+      return { ok: true };
+    });
+  }
+
+  private ensureSsrmTicker(): void {
+    if (this.ssrmTickTimer !== null) return;
+    const windowMs = [...this.providers.values()].reduce((min, slot) => {
+      if (slot.cfg.providerType !== 'stomp-ssrm') return min;
+      return Math.min(min, publishWindowMsOf(slot.cfg as StompSsrmProviderConfig));
+    }, 100);
+    this.ssrmTickTimer = this.setTimer(() => this.flushSsrmTicks(), windowMs);
+  }
+
+  private maybeStopSsrmTicker(): void {
+    const anySsrm = [...this.providers.values()].some((s) => s.cfg.providerType === 'stomp-ssrm')
+      && [...this.providers.keys()].some((id) => this.subscribers.dataCount(id) > 0);
+    if (anySsrm || this.ssrmTickTimer === null) return;
+    this.clearTimer(this.ssrmTickTimer);
+    this.ssrmTickTimer = null;
+  }
+
+  private flushSsrmTicks(): void {
+    for (const [providerId, slot] of this.providers) {
+      if (slot.cfg.providerType !== 'stomp-ssrm') continue;
+      const ticks = this.ssrmPlane.pollTicks(providerId);
+      if (ticks.length === 0) continue;
+      const listeners = this.subscribers.dataListeners(providerId);
+      if (!listeners) continue;
+      const dead: string[] = [];
+      for (const tick of ticks) {
+        for (const l of listeners.values()) {
+          const event: SsrmTickEvent = { kind: 'ssrm-tick', subId: l.subId, payload: tick };
+          try {
+            l.port.postMessage(event);
+          } catch {
+            dead.push(l.subId);
+          }
+        }
+      }
+      this.pruneDeadDataListeners(providerId, dead);
+    }
   }
 
   /**

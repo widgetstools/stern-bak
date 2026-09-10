@@ -27,6 +27,7 @@ export function activateShortcuts(platform: PlatformHandle<ShortcutsState>): () 
     const onCellKeyDown = async (e: { event?: Event | null }) => {
       const state = platform.getState();
       if (!state.settings.enabled) return;
+      if (api.getGridOption?.('rowModelType') === 'serverSide') return;
 
       const ke = e.event as KeyboardEvent | undefined;
       if (!ke) return;

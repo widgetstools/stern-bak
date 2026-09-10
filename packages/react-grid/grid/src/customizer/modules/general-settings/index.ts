@@ -151,10 +151,9 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
           defaultToolPanel: defaultPanelEnabled ? s.sideBarDefaultPanel : undefined,
         };
 
-    // Status Bar — same pattern. AG-Grid's `statusBar` is undefined when
-    // off (it has no `false` shorthand like `sideBar` does), so we omit
-    // the property entirely rather than assign undefined to satisfy the
-    // type checker.
+    // Status Bar — AG-Grid has no `false` shorthand. Empty `statusPanels`
+    // is the off shape; we always emit the key so live sync cannot treat a
+    // missing property as a flicker-off.
     const statusBarPanels: Array<Record<string, unknown>> = [];
     if (s.statusBar) {
       if (s.statusBarShowTotalAndFilteredCount) {
@@ -175,7 +174,7 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
     }
     const statusBarOpt = s.statusBar && statusBarPanels.length > 0
       ? { statusPanels: statusBarPanels }
-      : undefined;
+      : { statusPanels: [] };
 
     return {
       ...opts,
@@ -222,9 +221,8 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
       suppressAggFuncInHeader: s.suppressAggFuncInHeader,
       showOpenedGroup: s.showOpenedGroup,
       // groupHideColumnsUntilExpanded is intentionally NOT emitted —
-      // AG-Grid 35.1.0 doesn't recognise it (logs an "invalid
-      // gridOptions property" warning) and there's no like-for-like
-      // replacement. The state is still tracked + shown in the
+      // AG-Grid 36.1 still treats it as an invalid gridOptions property
+      // in this workspace. The state is still tracked + shown in the
       // settings panel so the toggle is preserved if AG-Grid adds
       // it back in a later minor.
       groupHideParentOfSingleChild: s.groupHideParentOfSingleChild,
@@ -313,10 +311,10 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
       // is intentionally OVERRIDDEN — this is a user-controlled option,
       // and the host typically passes nothing here anyway.
       sideBar: sideBarOpt,
-      // statusBar is omitted (left as host's `opts.statusBar`) when off,
-      // so a host that wires its own status bar isn't clobbered. When the
-      // user enables it, our config wins.
-      ...(statusBarOpt ? { statusBar: statusBarOpt } : {}),
+      // Always emit statusBar. Omitting the key made live sync treat a
+      // pipeline tick as "bar off" and tore it down; empty panels is the
+      // off shape. Host overrides still win via hostOverrideKeys.
+      statusBar: statusBarOpt,
 
       // ── Performance ──
       // Grid refresh-rate cap: 8/sec → 125 ms async-transaction flush
@@ -333,11 +331,10 @@ export const generalSettingsModule: Module<GeneralSettingsState> = {
       suppressMaxRenderedRowRestriction: s.suppressMaxRenderedRowRestriction,
       suppressAnimationFrame: s.suppressAnimationFrame,
       debounceVerticalScrollbar: s.debounceVerticalScrollbar,
-    // Double-cast: some grid-option fields (e.g. groupHideColumnsUntilExpanded)
-    // exist in newer AG-Grid minor releases but aren't in 35.1.0's type defs.
-    // Pinning to 35.1.0 exact (corporate requirement) means TS flags them as
-    // excess-properties; we pass them through at runtime since AG-Grid silently
-    // ignores unknown options.
+    // Double-cast: some grid-option fields may exist in newer AG-Grid
+    // minors but aren't in the 36.1.0 type defs. Pinning to the 36.1.x
+    // stable line means TS flags them as excess-properties; we pass them
+    // through at runtime since AG-Grid silently ignores unknown options.
     } as unknown as Partial<GridOptions>;
   },
 

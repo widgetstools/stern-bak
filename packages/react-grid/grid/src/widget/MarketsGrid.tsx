@@ -42,6 +42,9 @@ import { MarketsGridSurface } from './MarketsGridSurface';
 
 export { DEFAULT_MODULES, MINIMAL_MODULES } from './modules';
 
+/** SSRM surface passes a remapped `statusBar` as an explicit AgGridReact prop. */
+const SSRM_SKIP_SYNC_KEYS: ReadonlySet<string> = new Set(['statusBar']);
+
 // One-shot dev-only warning when the host forgets to pass `storage`
 // (or the legacy `storageAdapter`). Module-scoped so the message fires
 // at most once per page session even across many grid mounts. Reset
@@ -79,6 +82,7 @@ function useMarketsGridShell<TData>(
     dataStale = false,
     historicalViewMode = false,
     onGridReady: onGridReadyProp,
+    ssrm,
   } = props;
 
   ensureAgGridModules(agGridModules as readonly Module[] | undefined);
@@ -118,6 +122,9 @@ function useMarketsGridShell<TData>(
     baseColumnDefs: baseColumnDefs as never,
     appData: resolvedAppData,
     hostOverrideKeys,
+    // Surface owns the remapped React `statusBar` prop — setGridOption
+    // of the raw `ag*` panels (or a second remapped object) tears the bar down.
+    skipSyncKeys: ssrm ? SSRM_SKIP_SYNC_KEYS : undefined,
   });
 
   const internalTheme = useGridTheme();
@@ -235,6 +242,7 @@ function MarketsGridInner<TData = unknown>(
 ) {
   const {
     rowData,
+    ssrm,
     rowHeight,
     headerHeight,
     animateRows,
@@ -398,6 +406,7 @@ function MarketsGridInner<TData = unknown>(
         toolbarDateHistoryEnabled={toolbarDateHistoryEnabled}
         toolbarActionsLayout={toolbarActionsLayout}
         includeAllStreamSafeFilters={includeAllStreamSafeFilters ?? true}
+        ssrm={ssrm}
       />
       </GeneralSettingsProvider>
     </GridProvider>

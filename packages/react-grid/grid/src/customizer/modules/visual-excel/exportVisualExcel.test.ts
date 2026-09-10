@@ -22,6 +22,21 @@ describe('exportVisualExcel', () => {
       .toBe('fmt:42');
   });
 
+  it('does not export the live cache under SSRM without a session', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const exportDataAsExcel = vi.fn();
+    const api = {
+      exportDataAsExcel,
+      getGridOption: (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined),
+    } as unknown as GridApi;
+
+    await exportVisualExcel(api, INITIAL_VISUAL_EXCEL.settings);
+
+    expect(exportDataAsExcel).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no engine session'));
+    warn.mockRestore();
+  });
+
   it('honours custom fileName and onlySelected options', () => {
     const exportDataAsExcel = vi.fn();
     const api = { exportDataAsExcel } as unknown as GridApi;

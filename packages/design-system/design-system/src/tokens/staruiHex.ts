@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 //  STARUI — canonical hex token packs
 //  Source: starui-tokens.css (Binance-inspired trading palette).
-//  Cyan signature accent · mint-teal buy/up · rose sell/down.
+//  Primary matches Cursor IDE Cursor Dark / Cursor Light button.background.
+//  Mint-teal buy/up · rose sell/down.
 // ─────────────────────────────────────────────────────────────
 
 import { hexToHslChannel } from '../internal/wcag';
@@ -68,11 +69,11 @@ export const staruiHex = {
     border: '#2b3139',
     border2: '#3e4552',
     divider: '#21262d',
-    accent: '#22d3ee',
-    accentHover: '#4ae0f2',
-    accentFg: '#06232b',
-    accentSoft: 'rgba(34,211,238,0.12)',
-    accentRing: 'rgba(34,211,238,0.45)',
+    accent: '#81A1C1',
+    accentHover: '#87A6C4',
+    accentFg: '#191c22',
+    accentSoft: 'rgba(129,161,193,0.12)',
+    accentRing: 'rgba(129,161,193,0.45)',
     buy: '#22e3a8',
     buyHover: '#3fecb8',
     buyFg: '#07251b',
@@ -93,7 +94,7 @@ export const staruiHex = {
     neutralSoft: 'rgba(170,179,191,0.10)',
     neutralRing: 'rgba(170,179,191,0.25)',
     hoverOverlay: 'rgba(255,255,255,0.05)',
-    selection: 'rgba(34,211,238,0.22)',
+    selection: 'rgba(129,161,193,0.22)',
     disabledBg: '#252a31',
     disabledFg: '#565d68',
     scrollbar: '#3e4552',
@@ -101,7 +102,7 @@ export const staruiHex = {
     askFill: 'rgba(255,90,130,0.16)',
     shadowCard: '0 1px 0 rgba(255,255,255,0.04) inset, 0 2px 6px rgba(0,0,0,0.5)',
     shadowOverlay: '0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 24px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)',
-    glowFocus: '0 0 0 2px rgba(34,211,238,0.40), 0 0 24px rgba(34,211,238,0.16)',
+    glowFocus: '0 0 0 2px rgba(129,161,193,0.40), 0 0 24px rgba(129,161,193,0.16)',
   },
   lightClinical: {
     bg: '#f4f6f8',
@@ -115,11 +116,11 @@ export const staruiHex = {
     border: '#dce2e9',
     border2: '#c2cad4',
     divider: '#eef1f4',
-    accent: '#0891b2',
-    accentHover: '#0e7490',
-    accentFg: '#ffffff',
-    accentSoft: 'rgba(8,145,178,0.10)',
-    accentRing: 'rgba(8,145,178,0.32)',
+    accent: '#2778C1',
+    accentHover: '#246AAB',
+    accentFg: '#FCFCFC',
+    accentSoft: 'rgba(39,120,193,0.10)',
+    accentRing: 'rgba(39,120,193,0.32)',
     buy: '#0d9488',
     buyHover: '#0b7a70',
     buyFg: '#ffffff',
@@ -140,7 +141,7 @@ export const staruiHex = {
     neutralSoft: 'rgba(51,65,85,0.07)',
     neutralRing: 'rgba(51,65,85,0.20)',
     hoverOverlay: 'rgba(15,23,42,0.04)',
-    selection: 'rgba(8,145,178,0.16)',
+    selection: 'rgba(39,120,193,0.16)',
     disabledBg: '#eef1f4',
     disabledFg: '#94a3b8',
     scrollbar: '#c2cad4',
@@ -148,7 +149,7 @@ export const staruiHex = {
     askFill: 'rgba(225,29,72,0.09)',
     shadowCard: '0 1px 2px rgba(15,23,42,0.06)',
     shadowOverlay: '0 1px 2px rgba(15,23,42,0.08), 0 8px 22px rgba(15,23,42,0.10)',
-    glowFocus: '0 0 0 3px rgba(8,145,178,0.18)',
+    glowFocus: '0 0 0 3px rgba(39,120,193,0.18)',
   },
   lightPaper: {
     bg: '#efede9',
@@ -162,11 +163,11 @@ export const staruiHex = {
     border: '#d3c9b5',
     border2: '#b4a98f',
     divider: '#e2dac9',
-    accent: '#0e7490',
-    accentHover: '#155e75',
-    accentFg: '#ffffff',
-    accentSoft: 'rgba(14,116,144,0.10)',
-    accentRing: 'rgba(14,116,144,0.32)',
+    accent: '#2778C1',
+    accentHover: '#246AAB',
+    accentFg: '#FCFCFC',
+    accentSoft: 'rgba(39,120,193,0.10)',
+    accentRing: 'rgba(39,120,193,0.32)',
     buy: '#0f766e',
     buyHover: '#0c5e58',
     buyFg: '#ffffff',
@@ -187,7 +188,7 @@ export const staruiHex = {
     neutralSoft: 'rgba(82,74,56,0.07)',
     neutralRing: 'rgba(82,74,56,0.22)',
     hoverOverlay: 'rgba(42,37,25,0.045)',
-    selection: 'rgba(14,116,144,0.16)',
+    selection: 'rgba(39,120,193,0.16)',
     disabledBg: '#ece6da',
     disabledFg: '#8a806a',
     scrollbar: '#b4a98f',
@@ -195,7 +196,7 @@ export const staruiHex = {
     askFill: 'rgba(190,18,60,0.10)',
     shadowCard: '0 1px 2px rgba(42,37,25,0.06)',
     shadowOverlay: '0 1px 2px rgba(42,37,25,0.08), 0 8px 22px rgba(42,37,25,0.12)',
-    glowFocus: '0 0 0 3px rgba(14,116,144,0.18)',
+    glowFocus: '0 0 0 3px rgba(39,120,193,0.18)',
   },
 } as const satisfies Record<string, StaruiHexPack>;
 

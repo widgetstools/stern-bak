@@ -59,4 +59,34 @@ describe('applyPatches', () => {
       update: [{ id: 'missing', qty: 2 }],
     });
   });
+
+  // AG Grid ignores applyTransactionAsync under the server-side row model.
+  it('routes SSRM grids through applyServerSideTransactionAsync', async () => {
+    const api = {
+      ...mockWriter({ r1: { id: 'r1', qty: 100 } }),
+      applyServerSideTransactionAsync: vi.fn(),
+      getGridOption: () => 'serverSide',
+    };
+    const count = await applyForwardPatches(api, [
+      { rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 100, newValue: 50 },
+    ]);
+    expect(count).toBe(1);
+    expect(api.applyServerSideTransactionAsync).toHaveBeenCalledWith({
+      update: [{ id: 'r1', qty: 50 }],
+    });
+    expect(api.applyTransactionAsync).not.toHaveBeenCalled();
+  });
+
+  it('keeps the client-side transaction for clientSide grids', async () => {
+    const api = {
+      ...mockWriter({ r1: { id: 'r1', qty: 100 } }),
+      applyServerSideTransactionAsync: vi.fn(),
+      getGridOption: () => 'clientSide',
+    };
+    await applyForwardPatches(api, [
+      { rowId: 'r1', colId: 'qty', field: 'qty', oldValue: 100, newValue: 50 },
+    ]);
+    expect(api.applyServerSideTransactionAsync).not.toHaveBeenCalled();
+    expect(api.applyTransactionAsync).toHaveBeenCalled();
+  });
 });

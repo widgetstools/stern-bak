@@ -92,6 +92,20 @@ describe('validateProviderConfig', () => {
     expect(result.errors).toEqual(['Provider type is required']);
   });
 
+  it('accepts a well-formed stomp-ssrm config', () => {
+    const result = validateProviderConfig({
+      providerType: 'stomp-ssrm',
+      websocketUrl: 'wss://feed/ws',
+      snapshotTimeoutMs: 60000,
+      listenerTopic: '/t',
+      snapshotEndToken: 'Success',
+      requestBody: '',
+      blockSize: 200,
+      publishWindowMs: 100,
+    } as ProviderConfig);
+    expect(result.isValid).toBe(true);
+  });
+
   it('accepts a well-formed stomp config with no warnings', () => {
     const result = validateProviderConfig({
       providerType: 'stomp',

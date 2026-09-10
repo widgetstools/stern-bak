@@ -11,6 +11,13 @@ export async function applyPatches(
   if (patches.length === 0) return 0;
   const updates = buildRowUpdatesFromPatches(api, patches, direction, rowIdField);
   if (updates.length === 0) return 0;
+  if (
+    api.getGridOption?.('rowModelType') === 'serverSide'
+    && api.applyServerSideTransactionAsync
+  ) {
+    api.applyServerSideTransactionAsync({ update: updates });
+    return patches.length;
+  }
   await api.applyTransactionAsync({ update: updates });
   return patches.length;
 }

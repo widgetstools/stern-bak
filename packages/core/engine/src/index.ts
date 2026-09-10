@@ -114,12 +114,19 @@ export {
   tryCompileToAgString,
   astUsesAggregateFunctions,
   getAggregateFunctionNames,
+  SSRM_EXPR_AGG_KEY,
+  lookupSsrmExprAggregate,
+  simpleColumnAggregate,
+  simpleAggFuncForColumn,
 } from './expression';
 export type {
   ExpressionNode,
   EvaluationContext,
   ValidationResult,
   FunctionDefinition,
+  SsrmExprAggLookup,
+  SimpleAggFn,
+  SimpleColumnAggregate,
 } from './expression';
 export { migrateExpressionSyntax, migrateExpressionsInObject } from './expression/migrate';
 

@@ -33,6 +33,9 @@ export interface BehaviourFieldsProps {
 const CONFLATE_NONE = '__none__';
 
 export function BehaviourFields({ cfg, onChange }: BehaviourFieldsProps) {
+  if (cfg.providerType === 'stomp-ssrm') {
+    return <StompSsrmBehaviour cfg={cfg as unknown as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
+  }
   if (cfg.providerType === 'stomp') {
     return <StompBehaviour cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
   }
@@ -48,6 +51,34 @@ function conflateFieldOptions(cfg: StompProviderConfig): string[] {
   const fromCols = (cfg.columnDefinitions ?? []).map((c) => c.field);
   if (fromCols.length > 0) return [...new Set(fromCols)];
   return [...new Set((cfg.inferredFields ?? []).map((f) => f.path))];
+}
+
+function StompSsrmBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(next: Partial<StompProviderConfig>): void }) {
+  return (
+    <section className="rounded-lg border border-border bg-muted/30 p-4 space-y-5 max-w-md">
+      <div className="space-y-3.5">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reconnect</h3>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Initial Delay (ms)</Label>
+          <Input
+            type="number"
+            className="h-8 text-sm"
+            min={0}
+            max={60_000}
+            step={500}
+            value={cfg.reconnect?.initialDelayMs ?? 5000}
+            onChange={(e) => onChange({
+              reconnect: { ...(cfg.reconnect ?? {}), initialDelayMs: Number(e.target.value) || 0 },
+            })}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Static delay between reconnect attempts. CSRM-only knobs (thin deltas, wire
+            format, field projection) do not apply — the WASM cache is the projection.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(next: Partial<StompProviderConfig>): void }) {

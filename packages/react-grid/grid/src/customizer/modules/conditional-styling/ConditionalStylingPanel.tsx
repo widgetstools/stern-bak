@@ -736,7 +736,7 @@ function IndicatorPicker({
       ))}
 
       <Caps size="2xs" color="var(--ds-text-faint)">
-        Shown as a 12×12 badge on the top-right of every cell (and column header) currently matching this rule.
+        Shown as a 12×12 badge on the top-right of every cell (and column header) currently matching this rule. On server-side grids, matching is loaded (visible) rows only.
       </Caps>
     </div>
   );

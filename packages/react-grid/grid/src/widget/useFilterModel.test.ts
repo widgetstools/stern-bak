@@ -28,6 +28,7 @@ import {
   type SavedFiltersState,
 } from '@wellsfargo-starui/grid/customizer';
 import { useFilterModel } from './useFilterModel';
+import { SsrmRowCountProvider, type SsrmRowCounter } from './useSsrmFilterCounts';
 import type { SavedFilter } from './types';
 
 // ─── Fake GridApi harness ──────────────────────────────────────────────
@@ -568,5 +569,106 @@ describe('useFilterModel — AG-Grid wiring', () => {
     platform.onGridReady(fake.api);
     renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
     expect(fake.setFilterModelCalls.some((m) => m && Object.keys(m).length === 2)).toBe(true);
+  });
+});
+
+describe('useFilterModel — pill counts under the server-side row model', () => {
+  let platform: GridPlatform;
+  beforeEach(() => { platform = makePlatform(); });
+
+  // Rows only exist for the blocks SSRM has loaded, so counting them reports
+  // block statistics: the badge would read "matches among loaded rows" and
+  // jump to the block size the moment the pill went active.
+  function ssrmWrapper(counter: SsrmRowCounter) {
+    return function Wrapper({ children }: { children: React.ReactNode }) {
+      return React.createElement(
+        GridProvider,
+        { platform },
+        React.createElement(SsrmRowCountProvider, { value: counter }, children),
+      );
+    };
+  }
+
+  function seedOnePillOverTwoRows(): FakeApiHarness {
+    seedFilters(platform, [{
+      id: 'a',
+      label: 'A',
+      active: false,
+      filterModel: { side: { filterType: 'text', type: 'equals', filter: 'BUY' } },
+    }]);
+    const nodes = [
+      { id: 'r1', data: { side: 'BUY' } },
+      { id: 'r2', data: { side: 'SELL' } },
+    ];
+    const fake = makeFakeApi();
+    fake.api.forEachNode = ((fn: (node: typeof nodes[number]) => void) => {
+      for (const node of nodes) fn(node);
+    }) as GridApi['forEachNode'];
+    platform.onGridReady(fake.api);
+    return fake;
+  }
+
+  it('takes the count from the engine instead of walking loaded rows', async () => {
+    seedOnePillOverTwoRows();
+    const counter = vi.fn(async () => 4200);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: ssrmWrapper(counter) });
+    await act(async () => {});
+
+    // The client walk would have said 1 — one of the two loaded rows.
+    expect(result.current.filterCounts.a).toBe(4200);
+    expect(counter).toHaveBeenCalledWith({
+      side: { filterType: 'text', type: 'equals', filter: 'BUY' },
+    });
+  });
+
+  it('still walks rows under CSRM', () => {
+    seedOnePillOverTwoRows();
+    const { result } = renderHook(() => useFilterModel(), { wrapper: wrapper(platform) });
+    expect(result.current.filterCounts.a).toBe(1);
+  });
+
+  it('does not apply an active pill until the first block has painted', () => {
+    // Grouped + set-filter pill at mount: AG Grid waits on the values
+    // callback before the first getRows, so the grid paints empty. Let
+    // the unfiltered block land, then apply.
+    seedFilters(platform, [{
+      id: 'a',
+      label: 'desk: Govies',
+      active: true,
+      filterModel: { desk: { filterType: 'set', values: ['Govies'] } },
+    }]);
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+    const callsAtReady = fake.setFilterModelCalls.length;
+
+    renderHook(() => useFilterModel(), { wrapper: ssrmWrapper(async () => 0) });
+    expect(fake.setFilterModelCalls.length).toBe(callsAtReady);
+
+    act(() => fake.fireEvent('firstDataRendered'));
+    expect(fake.setFilterModelCalls.at(-1)).toEqual({
+      desk: { filterType: 'text', type: 'equals', filter: 'Govies' },
+    });
+  });
+
+  it('applies a later toggle immediately once the first block has painted', () => {
+    seedFilters(platform, [{
+      id: 'a',
+      label: 'desk: Govies',
+      active: false,
+      filterModel: { desk: { filterType: 'set', values: ['Govies'] } },
+    }]);
+    const fake = makeFakeApi();
+    platform.onGridReady(fake.api);
+
+    const { result } = renderHook(() => useFilterModel(), { wrapper: ssrmWrapper(async () => 0) });
+    act(() => fake.fireEvent('firstDataRendered'));
+    const afterPaint = fake.setFilterModelCalls.length;
+
+    act(() => result.current.toggle('a'));
+    expect(fake.setFilterModelCalls.length).toBeGreaterThan(afterPaint);
+    expect(fake.setFilterModelCalls.at(-1)).toEqual({
+      desk: { filterType: 'text', type: 'equals', filter: 'Govies' },
+    });
   });
 });

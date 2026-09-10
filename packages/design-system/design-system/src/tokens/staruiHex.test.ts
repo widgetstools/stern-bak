@@ -4,17 +4,17 @@ import { buildAgGridFromStarui, buildShadcnFromStarui, staruiHex } from './staru
 describe('staruiHex', () => {
   it('exports dark palette', () => {
     expect(staruiHex.dark.bg).toBe('#0b0d10');
-    expect(staruiHex.dark.accent).toBe('#22d3ee');
+    expect(staruiHex.dark.accent).toBe('#81A1C1');
   });
 
   it('exports lightClinical palette', () => {
     expect(staruiHex.lightClinical.bg).toBe('#f4f6f8');
-    expect(staruiHex.lightClinical.accent).toBe('#0891b2');
+    expect(staruiHex.lightClinical.accent).toBe('#2778C1');
   });
 
   it('exports lightPaper palette', () => {
     expect(staruiHex.lightPaper.bg).toBe('#efede9');
-    expect(staruiHex.lightPaper.accent).toBe('#0e7490');
+    expect(staruiHex.lightPaper.accent).toBe('#2778C1');
   });
 });
 

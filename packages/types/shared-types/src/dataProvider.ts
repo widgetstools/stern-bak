@@ -6,6 +6,7 @@
  */
 export const PROVIDER_TYPES = {
   STOMP: 'stomp',
+  STOMP_SSRM: 'stomp-ssrm',
   REST: 'rest',
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
@@ -20,6 +21,7 @@ export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
  */
 export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = {
   [PROVIDER_TYPES.STOMP]: 'stomp',
+  [PROVIDER_TYPES.STOMP_SSRM]: 'stomp-ssrm',
   [PROVIDER_TYPES.REST]: 'rest',
   [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
   [PROVIDER_TYPES.SOCKETIO]: 'socketio',
@@ -32,6 +34,7 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
  */
 export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = {
   'stomp': PROVIDER_TYPES.STOMP,
+  'stomp-ssrm': PROVIDER_TYPES.STOMP_SSRM,
   'rest': PROVIDER_TYPES.REST,
   'websocket': PROVIDER_TYPES.WEBSOCKET,
   'socketio': PROVIDER_TYPES.SOCKETIO,
@@ -39,6 +42,7 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'appdata': PROVIDER_TYPES.APPDATA,
   // Capitalized (backward compatibility)
   'Stomp': PROVIDER_TYPES.STOMP,
+  'StompSsrm': PROVIDER_TYPES.STOMP_SSRM,
   'Rest': PROVIDER_TYPES.REST,
   'WebSocket': PROVIDER_TYPES.WEBSOCKET,
   'SocketIO': PROVIDER_TYPES.SOCKETIO,
@@ -227,6 +231,20 @@ export interface StompProviderConfig {
 }
 
 /**
+ * STOMP + AG Grid SSRM. Same wire destinations as {@link StompProviderConfig};
+ * the SharedWorker keeps one WASM cache and answers `getRows` blocks.
+ */
+export interface StompSsrmProviderConfig extends Omit<StompProviderConfig, 'providerType'> {
+  providerType: 'stomp-ssrm';
+  /** AG Grid `cacheBlockSize`. Default 200. */
+  blockSize?: number;
+  /** WASM tick / shared-delta poll window in ms. Default 100. */
+  publishWindowMs?: number;
+  /** Columns included in worker quick-filter matching. */
+  searchColumns?: readonly string[];
+}
+
+/**
  * REST Provider Configuration
  */
 export interface RestProviderConfig {
@@ -369,6 +387,7 @@ export interface AppDataProviderConfig {
  */
 export type ProviderConfig =
   | StompProviderConfig
+  | StompSsrmProviderConfig
   | RestProviderConfig
   | WebSocketProviderConfig
   | SocketIOProviderConfig
@@ -486,6 +505,25 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     inferredFields: [],
     columnDefinitions: []
   },
+  'stomp-ssrm': {
+    providerType: 'stomp-ssrm',
+    listenerTopic: '',
+    websocketUrl: '',
+    snapshotEndToken: 'Success',
+    requestBody: '',
+    snapshotTimeoutMs: 60000,
+    dataType: 'positions',
+    autoStart: false,
+    heartbeat: {
+      outgoing: 4000,
+      incoming: 4000
+    },
+    inferredFields: [],
+    columnDefinitions: [],
+    blockSize: 200,
+    publishWindowMs: 100,
+    searchColumns: []
+  },
   rest: {
     providerType: 'rest',
     baseUrl: '',
@@ -542,8 +580,9 @@ export function validateProviderConfig(config: ProviderConfig): ProviderValidati
   }
 
   switch (config.providerType) {
-    case 'stomp': {
-      const stompConfig = config as StompProviderConfig;
+    case 'stomp':
+    case 'stomp-ssrm': {
+      const stompConfig = config as StompProviderConfig | StompSsrmProviderConfig;
       if (stompConfig.websocketUrl && !stompConfig.websocketUrl.startsWith('ws://') && !stompConfig.websocketUrl.startsWith('wss://')) {
         warnings.push('WebSocket URL should typically start with ws:// or wss://');
       }

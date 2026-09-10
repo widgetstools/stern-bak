@@ -43,6 +43,7 @@ const APPS = {
   'markets-grid-lab': { port: 6300, assetsInclude: ['**/*.md'] },
   'star-demo': { port: 6175, svgr: true },
   'stomp-marketsgrid-minimal': { port: 6213 },
+  'stomp-ssrm-minimal': { port: 6214 },
   // stomp-view-server is intentionally absent: it imports zero
   // @wellsfargo-starui packages, so a tarball copy would prove nothing.
 };

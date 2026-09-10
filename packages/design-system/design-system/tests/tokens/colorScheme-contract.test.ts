@@ -70,8 +70,8 @@ describe('ColorScheme contract', () => {
     expect(light.cvd.sell).not.toBe(light.accent.negative);
   });
 
-  it('STARUI signature cyan: primary and info share the accent hue', () => {
-    expect(dark.primary.color).toBe(dark.accent.info);
-    expect(light.primary.color).toBe(light.accent.info);
+  it('primary matches Cursor IDE Cursor Dark / Cursor Light button.background', () => {
+    expect(dark.primary.color).toBe('#81A1C1');
+    expect(light.primary.color).toBe('#2778C1');
   });
 });

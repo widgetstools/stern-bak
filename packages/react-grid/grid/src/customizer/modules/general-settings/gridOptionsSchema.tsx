@@ -183,7 +183,7 @@ export const GRID_OPTIONS_SCHEMA: readonly BandSchema[] = [
     index: '04',
     title: 'FILTER · SORT · CLIPBOARD',
     fields: [
-      { kind: 'bool', key: 'enableAdvancedFilter', label: 'ADVANCED FILTER', testId: 'go-advanced-filter' },
+      { kind: 'bool', key: 'enableAdvancedFilter', label: 'ADVANCED FILTER', hint: 'Ignored on server-side (SSRM) grids — the engine has no Advanced Filter compiler', testId: 'go-advanced-filter' },
       { kind: 'bool', key: 'includeHiddenColumnsInQuickFilter', label: 'HIDDEN COL QF', hint: 'Include hidden columns in quick-filter matches', testId: 'go-hidden-cols-in-qf' },
       {
         kind: 'select', key: 'multiSortMode', label: 'MULTI SORT', hint: 'How clicking a header extends the sort set', testId: 'go-multi-sort',

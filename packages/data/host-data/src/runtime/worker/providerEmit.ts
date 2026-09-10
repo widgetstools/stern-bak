@@ -34,6 +34,8 @@ export interface ProviderEmitContext {
   broadcast(providerId: string, slot: ProviderSlot, eventTemplate: Event): void;
   /** Push a fresh stats snapshot to stats listeners (loading / timing). */
   flushStats(providerId: string): void;
+  /** SSRM: ingest flattened rows into the WASM plane (no CSRM cache). */
+  ingestSsrm?(providerId: string, rows: readonly unknown[], replace: boolean): void;
 }
 
 /**
@@ -116,6 +118,20 @@ function applyRows(
   slot: ProviderSlot,
   event: Extract<ProviderEmitEvent, { rows: readonly unknown[] }>,
 ): void {
+  if (slot.cfg.providerType === 'stomp-ssrm') {
+    ctx.ingestSsrm?.(providerId, event.rows, Boolean(event.replace));
+    slot.lastMessageAt = Date.now();
+    slot.msgCount += 1;
+    slot.msgsByBucket[slot.bucketIdx] += 1;
+    if (!slot.snapshotReady) {
+      ctx.broadcast(providerId, slot, {
+        kind: 'rows-received',
+        count: event.rows.length,
+        subId: '',
+      });
+    }
+    return;
+  }
   const keyColumn = (slot.cfg as { keyColumn?: string | readonly string[] }).keyColumn;
   const replay = slot.replay;
   if (event.replace) {

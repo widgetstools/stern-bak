@@ -216,4 +216,6 @@ export interface SharedWorkerDataServicesHubOpts {
   setTimer?: (cb: () => void, ms: number) => unknown;
   /** Inject the timer cancel for tests. Default: clearInterval. */
   clearTimer?: (handle: unknown) => void;
+  /** Inject a RustHub factory (unit tests). Production loads vendored WASM. */
+  createRustHub?: import('../ssrm/RustHubHost.js').RustHubFactory;
 }

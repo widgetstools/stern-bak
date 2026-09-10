@@ -19,7 +19,7 @@ import {
   type PortLike,
 } from './hubTypes.js';
 
-export type SubscriberMode = 'data' | 'stats';
+export type SubscriberMode = 'data' | 'stats' | 'ssrm';
 
 export interface RemovedSubscriber {
   providerId?: string;
@@ -39,7 +39,7 @@ export class SubscriberRegistry {
   private readonly subIndex = new Map<string, { providerId: string; mode: SubscriberMode }>();
 
   attach(providerId: string, subId: string, port: PortLike, mode: SubscriberMode): void {
-    const byProvider = mode === 'data' ? this.dataByProvider : this.statsByProvider;
+    const byProvider = mode === 'stats' ? this.statsByProvider : this.dataByProvider;
     const set = byProvider.get(providerId) ?? new Map<string, DataListener>();
     const now = Date.now();
     set.set(subId, { subId, port, attachedAt: now, lastPingAt: now });
@@ -77,7 +77,7 @@ export class SubscriberRegistry {
   listenerOf(subId: string): DataListener | StatsListener | undefined {
     const entry = this.subIndex.get(subId);
     if (!entry) return undefined;
-    const byProvider = entry.mode === 'data' ? this.dataByProvider : this.statsByProvider;
+    const byProvider = entry.mode === 'stats' ? this.statsByProvider : this.dataByProvider;
     return byProvider.get(entry.providerId)?.get(subId);
   }
 
@@ -97,7 +97,7 @@ export class SubscriberRegistry {
     const entry = this.subIndex.get(subId);
     if (!entry) return {};
     this.subIndex.delete(subId);
-    const byProvider = entry.mode === 'data' ? this.dataByProvider : this.statsByProvider;
+    const byProvider = entry.mode === 'stats' ? this.statsByProvider : this.dataByProvider;
     const listeners = byProvider.get(entry.providerId);
     const l = listeners?.get(subId);
     if (!listeners || !l) return {};
@@ -112,17 +112,24 @@ export class SubscriberRegistry {
 
   /**
    * Drop every subscription owned by `port` (window closed).
-   * @returns provider ids that may now be idle, and whether any stats
-   * listener map was emptied (caller may stop the sampler).
+   * @returns provider ids that may now be idle, the subIds dropped (each is a
+   * session some other plane may still be holding resources for), and whether
+   * any stats listener map was emptied (caller may stop the sampler).
    */
-  removeByPort(port: PortLike): { idleCandidates: Set<string>; statsEmptied: boolean } {
+  removeByPort(port: PortLike): {
+    idleCandidates: Set<string>;
+    subIds: string[];
+    statsEmptied: boolean;
+  } {
     const idleCandidates = new Set<string>();
+    const subIds: string[] = [];
     let statsEmptied = false;
     for (const [providerId, listeners] of this.dataByProvider) {
       for (const [subId, l] of listeners) {
         if (l.port !== port) continue;
         listeners.delete(subId);
         this.subIndex.delete(subId);
+        subIds.push(subId);
         idleCandidates.add(providerId);
       }
       if (listeners.size === 0) this.dataByProvider.delete(providerId);
@@ -132,6 +139,7 @@ export class SubscriberRegistry {
         if (l.port !== port) continue;
         listeners.delete(subId);
         this.subIndex.delete(subId);
+        subIds.push(subId);
         idleCandidates.add(providerId);
       }
       if (listeners.size === 0) {
@@ -139,7 +147,7 @@ export class SubscriberRegistry {
         statsEmptied = true;
       }
     }
-    return { idleCandidates, statsEmptied };
+    return { idleCandidates, subIds, statsEmptied };
   }
 
   /**
@@ -147,7 +155,7 @@ export class SubscriberRegistry {
    * on `postMessage`). @returns whether the stats map was emptied.
    */
   pruneDead(providerId: string, mode: SubscriberMode, deadSubIds: readonly string[]): boolean {
-    const byProvider = mode === 'data' ? this.dataByProvider : this.statsByProvider;
+    const byProvider = mode === 'stats' ? this.statsByProvider : this.dataByProvider;
     const listeners = byProvider.get(providerId);
     if (!listeners) return false;
     for (const subId of deadSubIds) {

@@ -46,6 +46,8 @@ import {
   type RelativeChangeMode,
 } from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
+import { useGridApi } from '../../hooks/useGridApi';
+import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useDirty } from '../../hooks/useDirty';
@@ -112,6 +114,7 @@ interface AlertsSettingsBandProps {
 
 export function AlertsSettingsBand({ settings, onChange }: AlertsSettingsBandProps) {
   const openFinDetected = isOpenFinHost();
+  const ssrm = isSsrmGrid(useGridApi());
   const setEvalMode = (mode: EvaluationMode) =>
     onChange((prev) => ({ ...prev, evaluationMode: mode }));
 
@@ -131,6 +134,15 @@ export function AlertsSettingsBand({ settings, onChange }: AlertsSettingsBandPro
               data-testid="alerts-enabled-switch"
             />
           </div>
+          {ssrm ? (
+            <p
+              className="text-xs text-[color:var(--ds-text-muted)] py-1"
+              data-testid="alerts-ssrm-visible-only"
+            >
+              Server-side grids evaluate alerts on loaded (visible) rows only,
+              not the full filtered book.
+            </p>
+          ) : null}
         </Band>
 
         <Band title="Frequency">

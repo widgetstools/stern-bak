@@ -61,6 +61,14 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
     refresh: refreshProviderMock,
     restart: restartMock,
   }),
+  useSsrmDataProvider: () => ({
+    provider: null,
+    status: 'loading',
+    error: undefined,
+    start: vi.fn(),
+    refresh: vi.fn(),
+    restart: vi.fn(),
+  }),
   useAppDataStore: () => ({ store: { set: vi.fn(), get: vi.fn() } }),
   useDataProviderConfig: () => ({
     cfg: { providerType: 'mock', keyColumn: 'id', columnDefinitions: [{ field: 'id' }] },

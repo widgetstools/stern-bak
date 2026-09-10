@@ -45,9 +45,25 @@ import type {
   RowPatch,
   StopRequest,
   SubscriberMeta,
+  SsrmColumnValuesWireRequest,
+  SsrmGetRowsWireRequest,
+  SsrmAggregatesWireRequest,
+  SsrmRowCountWireRequest,
+  SsrmWatchGroupsWireRequest,
 } from '../protocol.js';
+import type {
+  SsrmColumnValuesRequest,
+  SsrmColumnValuesResult,
+  SsrmGetRowsRequest,
+  SsrmGetRowsResult,
+  SsrmAggregatesRequest,
+  SsrmAggregatesResult,
+  SsrmRowCountRequest,
+  SsrmRowCountResult,
+  SsrmTickPayload,
+} from '../ssrm/ssrmTypes.js';
 import { SUBSCRIBER_PING_INTERVAL_MS } from '../worker/hubTypes.js';
-import { isCatalogEvent, isEvent, isAppDataEvent } from '../protocol.js';
+import { isCatalogEvent, isEvent, isAppDataEvent, isSsrmRpcEvent, isSsrmTickEvent } from '../protocol.js';
 import { composeRowId, type DataProviderConfig, type ProviderConfig } from '@wellsfargo-starui/types';
 import { decodeColumnar } from '../wire/columnarCodec.js';
 import type { ListOptions } from '../config/store.js';
@@ -191,6 +207,11 @@ export class SharedWorkerDataServicesClient {
   >();
   private readonly catalogReadyWaiters: Array<() => void> = [];
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
+  private readonly ssrmPending = new Map<
+    string,
+    { resolve: (value: unknown) => void; reject: (err: Error) => void }
+  >();
+  private readonly ssrmTickListeners = new Map<SubId, Set<(payload: SsrmTickPayload) => void>>();
   private readonly heartbeatTimers = new Map<SubId, ReturnType<typeof setInterval>>();
   private readonly heartbeatMeta = new Map<SubId, SubscriberMeta | undefined>();
   private pageHideHandler: ((ev: PageTransitionEvent) => void) | null = null;
@@ -253,6 +274,133 @@ export class SharedWorkerDataServicesClient {
     });
     this.startHeartbeat(subId, opts.meta);
     return subId;
+  }
+
+  /**
+   * Attach without CSRM cache replay. Status + `ssrm-tick` only;
+   * blocks arrive via {@link ssrmGetRows}.
+   */
+  attachSsrm(
+    providerId: string,
+    cfg: ProviderConfig | undefined,
+    listener: Pick<DataListener, 'onStatus' | 'onRowsReceived'>,
+    opts: AttachOpts = {},
+  ): SubId {
+    if (this.closed) throw new Error('[SharedWorkerDataServicesClient] client is closed');
+    const subId = this.generateSubId();
+    this.subs.set(subId, {
+      kind: 'data',
+      listener: {
+        onDelta: () => undefined,
+        onStatus: listener.onStatus,
+        onRowsReceived: listener.onRowsReceived,
+      },
+      attach: { providerId, cfg, extra: opts.extra, meta: opts.meta },
+    });
+    this.send({
+      kind: 'attach',
+      subId,
+      providerId,
+      cfg,
+      mode: 'ssrm',
+      extra: opts.extra,
+    });
+    this.startHeartbeat(subId, opts.meta);
+    return subId;
+  }
+
+  ssrmGetRows(providerId: string, subId: string, request: SsrmGetRowsRequest): Promise<SsrmGetRowsResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-get-rows',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmGetRowsResult>;
+  }
+
+  /** Distinct values for one column — populates an AG Grid set filter list. */
+  ssrmColumnValues(
+    providerId: string,
+    subId: string,
+    request: SsrmColumnValuesRequest,
+  ): Promise<SsrmColumnValuesResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-column-values',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmColumnValuesResult>;
+  }
+
+  /** Matched row count for a filter the grid hasn't applied (pill badges). */
+  ssrmRowCount(
+    providerId: string,
+    subId: string,
+    request: SsrmRowCountRequest,
+  ): Promise<SsrmRowCountResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-row-count',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmRowCountResult>;
+  }
+
+  ssrmAggregates(
+    providerId: string,
+    subId: string,
+    request: SsrmAggregatesRequest,
+  ): Promise<SsrmAggregatesResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-aggregates',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmAggregatesResult>;
+  }
+
+  ssrmWatchGroups(
+    providerId: string,
+    subId: string,
+    groupBy: readonly string[],
+    aggregates?: Record<string, string>,
+  ): Promise<void> {
+    return this.ssrmRpc({
+      kind: 'ssrm-watch-groups',
+      providerId,
+      subId,
+      groupBy,
+      aggregates,
+    }).then(() => undefined);
+  }
+
+  onSsrmTick(subId: SubId, handler: (payload: SsrmTickPayload) => void): () => void {
+    const set = this.ssrmTickListeners.get(subId) ?? new Set();
+    set.add(handler);
+    this.ssrmTickListeners.set(subId, set);
+    return () => {
+      const next = this.ssrmTickListeners.get(subId);
+      next?.delete(handler);
+      if (next && next.size === 0) this.ssrmTickListeners.delete(subId);
+    };
+  }
+
+  private ssrmRpc(
+    req:
+      | Omit<SsrmGetRowsWireRequest, 'reqId'>
+      | Omit<SsrmColumnValuesWireRequest, 'reqId'>
+      | Omit<SsrmRowCountWireRequest, 'reqId'>
+      | Omit<SsrmAggregatesWireRequest, 'reqId'>
+      | Omit<SsrmWatchGroupsWireRequest, 'reqId'>,
+  ): Promise<unknown> {
+    if (this.closed) {
+      return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
+    }
+    const reqId = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      this.ssrmPending.set(reqId, { resolve, reject });
+      this.send({ ...req, reqId } as Request);
+    });
   }
 
   /**
@@ -852,6 +1000,20 @@ export class SharedWorkerDataServicesClient {
     }
     if (isAppDataEvent(ev.data)) {
       this.routeAppDataEvent(ev.data);
+      return;
+    }
+    if (isSsrmRpcEvent(ev.data)) {
+      const pending = this.ssrmPending.get(ev.data.reqId);
+      if (!pending) return;
+      this.ssrmPending.delete(ev.data.reqId);
+      if (ev.data.ok) pending.resolve(ev.data.result);
+      else pending.reject(new Error(ev.data.error ?? 'ssrm rpc failed'));
+      return;
+    }
+    if (isSsrmTickEvent(ev.data)) {
+      const listeners = this.ssrmTickListeners.get(ev.data.subId);
+      if (!listeners) return;
+      for (const h of listeners) h(ev.data.payload);
       return;
     }
     if (!isEvent(ev.data)) return;

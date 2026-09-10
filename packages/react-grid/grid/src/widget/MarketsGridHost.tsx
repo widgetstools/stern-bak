@@ -30,6 +30,7 @@ import { TooltipProvider } from '@wellsfargo-starui/react';
 import { resolveGridDensity } from '@wellsfargo-starui/design-system/adapters/ag-grid';
 import type { AnyModule, StorageAdapter } from '@wellsfargo-starui/core';
 import type { AdminAction, MarketsGridHandle, MarketsGridProps } from './types';
+import { SsrmRowCountProvider, type SsrmRowCounter } from './useSsrmFilterCounts';
 import { FormattingToolbar } from './FormattingToolbar';
 import { EditingToolbar } from './editingToolbar/EditingToolbar';
 import type { EditingToolbarHostProps } from './editingToolbar/resolveEditingToolbarAllow';
@@ -41,6 +42,7 @@ import { PrimaryToolbar } from './PrimaryToolbar';
 import { ColumnSelectorDialog } from './column-selector';
 import { UnsavedSwitchDialog } from './UnsavedSwitchDialog';
 import { MarketsGridSurface } from './MarketsGridSurface';
+import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface';
 import { buildGridContextMenuItems } from './gridContextMenu';
 import { StaleDataBanner } from './StaleDataBanner';
 import { HistoricalViewBanner } from './HistoricalViewBanner';
@@ -102,6 +104,7 @@ export interface MarketsGridHostProps<TData> {
   toolbarDateHistoryEnabled: boolean | undefined;
   toolbarActionsLayout: 'inline' | 'overflow';
   includeAllStreamSafeFilters: boolean;
+  ssrm: MarketsGridProps<TData>['ssrm'];
 }
 
 function MarketsGridHostInner<TData>({
@@ -158,6 +161,7 @@ function MarketsGridHostInner<TData>({
   toolbarDateHistoryEnabled,
   toolbarActionsLayout,
   includeAllStreamSafeFilters,
+  ssrm,
 }: MarketsGridHostProps<TData>) {
   const generalSettings = useGeneralSettingsFromContext();
   const headerCaseAttr = generalSettings?.headerCaseUppercase ? 'upper' : undefined;
@@ -262,8 +266,20 @@ function MarketsGridHostInner<TData>({
     [settingsOpen, setSettingsOpen, styleToolbarOpen, editingToolbarOpen, saveFlash, isDirty],
   );
 
+  // Saved-filter pill counts. A client-side row walk can only see the loaded
+  // blocks under SSRM, so the engine answers instead.
+  const ssrmRowCounter = useMemo<SsrmRowCounter | null>(
+    () => (ssrm
+      ? (filterModel) => ssrm.provider
+        .getRowCount({ filterModel })
+        .then((r) => r.rowCount)
+      : null),
+    [ssrm],
+  );
+
   return (
     <GridChromeProvider value={chromeState}>
+    <SsrmRowCountProvider value={ssrmRowCounter}>
     <TooltipProvider delayDuration={200}>
     <div
       className={className}
@@ -354,24 +370,46 @@ function MarketsGridHostInner<TData>({
         </div>
       )}
 
-      <MarketsGridSurface
-        gridRef={gridRef}
-        gridOptions={gridOptions}
-        hostOverrideKeys={hostOverrideKeys}
-        theme={theme}
-        rowData={rowData}
-        columnDefs={columnDefs}
-        rowHeight={rowHeight}
-        headerHeight={headerHeight}
-        animateRows={animateRows}
-        sideBar={sideBar}
-        statusBar={statusBar}
-        defaultColDef={defaultColDef}
-        getContextMenuItems={getContextMenuItems}
-        onGridReady={handleGridReady}
-        onGridPreDestroyed={onGridPreDestroyed}
-        includeAllStreamSafeFilters={includeAllStreamSafeFilters}
-      />
+      {ssrm ? (
+        <MarketsGridSsrmSurface
+          key={`ssrm:${ssrm.provider.id}`}
+          gridRef={gridRef}
+          gridOptions={gridOptions}
+          hostOverrideKeys={hostOverrideKeys}
+          theme={theme}
+          columnDefs={columnDefs}
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          animateRows={animateRows}
+          sideBar={sideBar}
+          statusBar={statusBar}
+          defaultColDef={defaultColDef}
+          getContextMenuItems={getContextMenuItems}
+          onGridReady={handleGridReady}
+          onGridPreDestroyed={onGridPreDestroyed}
+          includeAllStreamSafeFilters={includeAllStreamSafeFilters}
+          ssrm={ssrm}
+        />
+      ) : (
+        <MarketsGridSurface
+          gridRef={gridRef}
+          gridOptions={gridOptions}
+          hostOverrideKeys={hostOverrideKeys}
+          theme={theme}
+          rowData={rowData}
+          columnDefs={columnDefs}
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          animateRows={animateRows}
+          sideBar={sideBar}
+          statusBar={statusBar}
+          defaultColDef={defaultColDef}
+          getContextMenuItems={getContextMenuItems}
+          onGridReady={handleGridReady}
+          onGridPreDestroyed={onGridPreDestroyed}
+          includeAllStreamSafeFilters={includeAllStreamSafeFilters}
+        />
+      )}
 
       {(settingsMounted || settingsOpen) && (
         <LazySettingsSheet
@@ -400,6 +438,7 @@ function MarketsGridHostInner<TData>({
       )}
     </div>
     </TooltipProvider>
+    </SsrmRowCountProvider>
     </GridChromeProvider>
   );
 }

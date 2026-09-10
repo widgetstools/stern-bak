@@ -333,13 +333,13 @@ describe('generalSettingsModule.transformGridOptions sidebar and status bar', ()
     expect((opts.sideBar as { defaultToolPanel?: string }).defaultToolPanel).toBeUndefined();
   });
 
-  it('omits statusBar when disabled or no panels', () => {
+  it('emits empty statusBar panels when disabled or no panels', () => {
     const off = generalSettingsModule.transformGridOptions!(
       {},
       { ...INITIAL_GENERAL_SETTINGS, statusBar: false },
       ctx,
     );
-    expect(off.statusBar).toBeUndefined();
+    expect(off.statusBar).toEqual({ statusPanels: [] });
 
     const empty = generalSettingsModule.transformGridOptions!(
       {},
@@ -354,7 +354,7 @@ describe('generalSettingsModule.transformGridOptions sidebar and status bar', ()
       },
       ctx,
     );
-    expect(empty.statusBar).toBeUndefined();
+    expect(empty.statusBar).toEqual({ statusPanels: [] });
   });
 
   it('builds statusBar panels when enabled', () => {

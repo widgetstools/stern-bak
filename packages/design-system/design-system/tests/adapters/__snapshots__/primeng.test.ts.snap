@@ -5044,10 +5044,10 @@ exports[`primengPreset > matches snapshot 1`] = `
           },
         },
         "primary": {
-          "activeColor": "{azure.300}",
-          "color": "{azure.500}",
-          "contrastColor": "oklch(0.99 0.02 252)",
-          "hoverColor": "{azure.400}",
+          "activeColor": "oklch(0.775 0.062 217.5)",
+          "color": "oklch(0.697 0.059 248.7)",
+          "contrastColor": "oklch(0.226 0.013 264.3)",
+          "hoverColor": "oklch(0.713 0.056 247.8)",
         },
         "surface": {
           "0": "#ffffff",
@@ -5185,10 +5185,10 @@ exports[`primengPreset > matches snapshot 1`] = `
           },
         },
         "primary": {
-          "activeColor": "{azure.800}",
-          "color": "{azure.600}",
-          "contrastColor": "oklch(0.99 0.015 250)",
-          "hoverColor": "{azure.700}",
+          "activeColor": "oklch(0.497 0.143 250.7)",
+          "color": "oklch(0.561 0.137 249.9)",
+          "contrastColor": "oklch(0.991 0 0)",
+          "hoverColor": "oklch(0.514 0.124 250.3)",
         },
         "surface": {
           "0": "#ffffff",
