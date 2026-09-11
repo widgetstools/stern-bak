@@ -163,6 +163,32 @@ vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
         'Config browser',
       ),
     ),
+  HostedSsrmMarketsGrid: (props: Record<string, unknown>) =>
+    React.createElement(
+      'div',
+      {
+        'data-testid': 'hosted-ssrm-markets-grid',
+        'data-grid-id': props.gridId,
+      },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          'data-testid': 'edit-provider',
+          onClick: () => (props.onEditProvider as ((id: string) => void) | undefined)?.('p-1'),
+        },
+        'Edit provider',
+      ),
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          'data-testid': 'open-config-browser',
+          onClick: () => (props.onOpenConfigBrowser as (() => void) | undefined)?.(),
+        },
+        'Config browser',
+      ),
+    ),
 }));
 
 vi.mock('@wellsfargo-starui/grid/widgets/provider-editor', () => ({

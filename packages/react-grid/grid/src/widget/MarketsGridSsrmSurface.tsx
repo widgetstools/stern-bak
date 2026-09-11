@@ -31,6 +31,7 @@ import { sendSsrmClipboard } from '../ssrm/sendSsrmClipboard.js';
 import { attachSsrmSession, detachSsrmSession } from '../ssrm/ssrmSession.js';
 import { withSsrmSelectAll } from '../ssrm/withSsrmSelectAll.js';
 import { wrapSsrmContextMenu } from '../ssrm/wrapSsrmContextMenu.js';
+import { SsrmBlankLoadingCellRenderer } from '../ssrm/SsrmBlankLoadingCellRenderer.js';
 
 export interface MarketsGridSsrmConfig {
   provider: ISsrmDataProvider;
@@ -214,14 +215,17 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   // Columns that inherit `filter: true` and name no filterParams of their own
   // resolve to a set filter too, and AG Grid doesn't deep-merge filterParams
   // between defaultColDef and colDef — so the default needs its own callback.
-  const ssrmDefaultColDef = useMemo(
-    () => withSsrmSetFilterDefaults(
+  const ssrmDefaultColDef = useMemo(() => {
+    const base = withSsrmSetFilterDefaults(
       (hostOverrides.defaultColDef ?? pipelineGridOptions.defaultColDef) as
         Record<string, unknown> | undefined,
       ssrm.provider,
-    ),
-    [hostOverrides.defaultColDef, pipelineGridOptions.defaultColDef, ssrm.provider],
-  );
+    );
+    return {
+      ...base,
+      loadingCellRenderer: SsrmBlankLoadingCellRenderer,
+    };
+  }, [hostOverrides.defaultColDef, pipelineGridOptions.defaultColDef, ssrm.provider]);
 
   // AgGridReact does not reliably forward `statusBar` after mount, and a
   // new prop reference tears the bar down. Push only when the remapped
@@ -240,6 +244,8 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         columnDefs={ssrmColumnDefs as never}
         defaultColDef={ssrmDefaultColDef as never}
         rowModelType="serverSide"
+        suppressServerSideFullWidthLoadingRow
+        loadingCellRenderer={SsrmBlankLoadingCellRenderer}
         cacheBlockSize={ssrm.cacheBlockSize ?? 200}
         serverSideDatasource={datasource}
         getRowId={getRowId}

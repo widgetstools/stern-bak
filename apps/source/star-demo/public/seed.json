@@ -1114,6 +1114,22 @@
             "appId": "StarDemo",
             "configServiceUrl": "",
             "singleton": false
+          },
+          {
+            "id": "grid-ssrm",
+            "hostUrl": "/#/blotters/ssrmmarketsgrid",
+            "iconId": "",
+            "componentType": "grid",
+            "componentSubType": "ssrm",
+            "configId": "grid-ssrm",
+            "displayName": "SSRM Grid",
+            "createdAt": "2026-09-11T00:00:00.000Z",
+            "type": "internal",
+            "usesHostConfig": true,
+            "appId": "StarDemo",
+            "configServiceUrl": "",
+            "singleton": false,
+            "asWindow": false
           }
         ]
       },

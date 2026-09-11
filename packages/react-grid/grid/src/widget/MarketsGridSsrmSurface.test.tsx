@@ -42,6 +42,7 @@ vi.mock('./useRestoreCellFocusOnWindowFocus.js', () => ({
 }));
 
 import { MarketsGridSsrmSurface } from './MarketsGridSsrmSurface.js';
+import { SsrmBlankLoadingCellRenderer } from '../ssrm/SsrmBlankLoadingCellRenderer.js';
 
 function provider(): ISsrmDataProvider {
   return {
@@ -101,6 +102,11 @@ describe('MarketsGridSsrmSurface', () => {
     );
     expect(getByTestId('ag-grid-ssrm')).toHaveAttribute('data-row-model', 'serverSide');
     expect(getByTestId('ag-grid-ssrm')).toHaveAttribute('data-block-size', '150');
+    expect(lastGridProps.current?.suppressServerSideFullWidthLoadingRow).toBe(true);
+    expect(lastGridProps.current?.loadingCellRenderer).toBe(SsrmBlankLoadingCellRenderer);
+    expect(
+      (lastGridProps.current?.defaultColDef as { loadingCellRenderer?: unknown })?.loadingCellRenderer,
+    ).toBe(SsrmBlankLoadingCellRenderer);
     expect(onGridReady).toHaveBeenCalled();
     expect(p.onSsrmTick).toHaveBeenCalled();
     expect(p.watchGroups).toHaveBeenCalled();

@@ -16,7 +16,7 @@ import {
 } from '../platformBootstrap';
 import { StarGridAppProvider } from '../starGridApp/StarGridAppContext';
 import type { StarGridAppState } from '../starGridApp/types';
-import BlottersMarketsGrid from './BlottersMarketsGrid';
+import BlottersSsrmMarketsGrid from './BlottersSsrmMarketsGrid';
 
 const boot: PlatformBootstrapResult = {
   config: { appId: 'StarDemo', userId: 'dev1' },
@@ -49,7 +49,7 @@ function renderWithProviders(ui: React.ReactNode) {
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
-describe('BlottersMarketsGrid', () => {
+describe('BlottersSsrmMarketsGrid', () => {
   let origin = `http://localhost:${readViteDevPort(appRoot)}`;
 
   beforeEach(() => {
@@ -57,41 +57,36 @@ describe('BlottersMarketsGrid', () => {
     origin = `http://localhost:${readViteDevPort(appRoot)}`;
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { origin },
+      value: { origin, search: '?instanceId=grid-ssrm' },
     });
   });
 
-  it('renders HostedMarketsGrid with blotter config', () => {
-    renderWithProviders(<BlottersMarketsGrid />);
-    expect(getOneByTestId('hosted-markets-grid')).toHaveAttribute(
+  it('renders HostedSsrmMarketsGrid with launch instance id as gridId', () => {
+    renderWithProviders(<BlottersSsrmMarketsGrid />);
+    expect(getOneByTestId('hosted-ssrm-markets-grid')).toHaveAttribute(
       'data-grid-id',
-      'star-demo-blotter',
+      'grid-ssrm',
     );
+  });
+
+  it('prompts for instance id when not OpenFin and no launch stamp', () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { origin, search: '' },
+    });
+    const { getByText } = renderWithProviders(<BlottersSsrmMarketsGrid />);
+    expect(getByText(/registered instance id/i)).toBeTruthy();
   });
 
   it('opens provider editor popout on edit', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<BlottersMarketsGrid />);
+    renderWithProviders(<BlottersSsrmMarketsGrid />);
     await user.click(getOneByTestId('edit-provider'));
     await waitFor(() => {
       expect(mockOpenSurface).toHaveBeenCalledWith(
         expect.objectContaining({
           url: expect.stringContaining('id=p-1'),
           windowName: 'data-providers',
-        }),
-      );
-    });
-  });
-
-  it('opens config browser popout', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<BlottersMarketsGrid />);
-    await user.click(getOneByTestId('open-config-browser'));
-    await waitFor(() => {
-      expect(mockOpenSurface).toHaveBeenCalledWith(
-        expect.objectContaining({
-          url: `${origin}/#/config-browser`,
-          windowName: 'config-browser',
         }),
       );
     });

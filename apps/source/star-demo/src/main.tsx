@@ -28,6 +28,8 @@ const RenameViewTab       = React.lazy(() => import("./views/RenameViewTab"));
 /** Start downloading+parsing the MarketsGrid route chunk in parallel with platform bootstrap. */
 const blottersMarketsGridChunk = import("./views/BlottersMarketsGrid");
 const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
+const blottersSsrmMarketsGridChunk = import("./views/BlottersSsrmMarketsGrid");
+const BlottersSsrmMarketsGrid = React.lazy(() => blottersSsrmMarketsGridChunk);
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
 
 const WorkspaceSetup = React.lazy(() =>
@@ -59,12 +61,17 @@ if (initialPath.startsWith("/rename-view-tab")) {
 }
 
 /** Warm AG Grid vendor chunks while bootstrap runs (no-op if route chunk already started). */
-if (typeof window !== "undefined" && window.location.hash.includes("/blotters/marketsgrid")) {
-  void Promise.all([
-    import("ag-grid-community"),
-    import("ag-grid-enterprise"),
-    import("ag-grid-react"),
-  ]).catch(() => { /* dev-only prebundle warm-up */ });
+if (typeof window !== "undefined") {
+  const warmBlotterHash =
+    window.location.hash.includes("/blotters/marketsgrid") ||
+    window.location.hash.includes("/blotters/ssrmmarketsgrid");
+  if (warmBlotterHash) {
+    void Promise.all([
+      import("ag-grid-community"),
+      import("ag-grid-enterprise"),
+      import("ag-grid-react"),
+    ]).catch(() => { /* dev-only prebundle warm-up */ });
+  }
 }
 
 /** Suspend on the config-only bootstrap (ConfigManager, no data hub). */
@@ -151,6 +158,14 @@ function AppTree() {
             element={
               <React.Suspense fallback={LOADING}>
                 <BlottersMarketsGrid />
+              </React.Suspense>
+            }
+          />
+          <Route
+            path="/blotters/ssrmmarketsgrid"
+            element={
+              <React.Suspense fallback={LOADING}>
+                <BlottersSsrmMarketsGrid />
               </React.Suspense>
             }
           />
