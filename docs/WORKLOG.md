@@ -10,7 +10,7 @@ Each entry states what is wrong, why it was left, and what "done" looks like, so
 it can be picked up cold. Close an item by deleting its section in the same
 change that fixes it.
 
-Last updated: 2026-08-02.
+Last updated: 2026-09-11.
 
 ---
 
@@ -747,6 +747,24 @@ storm) could not reproduce the stall.
 deadline error ever surfaces in the wild (`"catalog read did not settle"`),
 capture the worker console via chrome://inspect at that moment — the
 backstop now makes the event visible instead of silent.
+
+## 15. SSRM hardening follow-ups (2026-09-11)
+
+**Area:** `packages/react-grid/grid/src/ssrm`, `packages/data/host-data/src/runtime/ssrm` ·
+**Blocked on:** nothing — prioritised list with evidence in
+[`superpowers/plans/2026-09-11-ssrm-hardening-handoff.md`](superpowers/plans/2026-09-11-ssrm-hardening-handoff.md)
+
+The 2026-09-11 pass fixed the silent-wrong SSRM defects found by live measurement
+(descending sorts were ascending, every `cellValueChanged` threw and aborted pastes,
+inserts/deletes never applied, select-all counted 0, date filters compared strings)
+and removed the sort-time refresh storm. What remains, in the handoff's order:
+edits are overwritten by the next upstream tick for that row (whole-row upserts);
+one unhandled jsdom `getClientRects` error makes the grid test project exit 1 with
+all tests passing; expression columns stay locked (engine has no expressions);
+group expansion is not restored from profiles; pivot is untranslated in practice;
+cold start is 5–42 s; three 1 Hz pollers per grid; `ssrm-set-viewport` is dead
+protocol. Verified engine facts and measurement recipe are in the same document and
+in `apps/scripts/ssrm-perf/`.
 
 ## Pre-existing, tracked elsewhere
 
