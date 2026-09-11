@@ -1,6 +1,20 @@
-export { createSsrmDatasource, type CreateSsrmDatasourceOptions } from './createSsrmDatasource.js';
-export { ssrmGetRowId, createSsrmGetRowId } from './ssrmGetRowId.js';
+export {
+  createSsrmDatasource,
+  SSRM_MAX_ATTEMPTS,
+  SSRM_READY_TIMEOUT_MS,
+  SSRM_REQUEST_TIMEOUT_MS,
+  SSRM_RETRY_BACKOFF_MS,
+  type CreateSsrmDatasourceOptions,
+} from './createSsrmDatasource.js';
+export { SsrmBlockCache, ssrmViewKey, type SsrmBlockCacheOptions } from './SsrmBlockCache.js';
+export { ssrmGetRowId, createSsrmGetRowId, SSRM_ROW_ID_KEY } from './ssrmGetRowId.js';
 export { bindSsrmTicks, type BindSsrmTicksOptions } from './bindSsrmTicks.js';
+export {
+  bindSsrmEdits,
+  ssrmPasteTarget,
+  type BindSsrmEditsOptions,
+  type SsrmPasteTarget,
+} from './bindSsrmEdits.js';
 export { bindSsrmExpressionAggregates } from './bindSsrmExpressionAggregates.js';
 export { watchGroupsFromApi } from './watchGroupsFromApi.js';
 export {

@@ -23,11 +23,18 @@ function provider(total = 1000, filtered = 25): ISsrmDataProvider {
   } as unknown as ISsrmDataProvider;
 }
 
-function api(opts: { filter?: object; selected?: number; column?: string; quickFilter?: string } = {}): GridApi {
+function api(opts: {
+  filter?: object;
+  selected?: number;
+  column?: string;
+  quickFilter?: string;
+  selectionState?: unknown;
+} = {}): GridApi {
   const listeners = new Map<string, Set<() => void>>();
   return {
     getFilterModel: () => opts.filter ?? null,
     getSelectedNodes: () => Array.from({ length: opts.selected ?? 0 }),
+    getServerSideSelectionState: () => opts.selectionState,
     getCellRanges: () => (opts.column
       ? [{ columns: [{ getColId: () => opts.column }] }]
       : []),
@@ -86,6 +93,31 @@ describe('useSsrmStatusModel', () => {
   it('reports the grid\'s selected-row count (selection is local)', async () => {
     const { result } = mount(provider(), api({ selected: 3 }));
     await waitFor(() => expect(result.current.selected).toBe(3));
+  });
+
+  it('counts a header select-all as the filtered total minus the un-ticked rows', async () => {
+    const { result } = mount(provider(5000, 42), api({
+      filter: { desk: { filterType: 'set', values: ['Govies'] } },
+      selected: 0,
+      selectionState: { selectAll: true, toggledNodes: ['a', 'b'] },
+    }));
+    await waitFor(() => expect(result.current.filtered).toBe(42));
+    expect(result.current.selected).toBe(40);
+  });
+
+  it('counts the toggled ids when select-all is off, and ignores group-shaped state', async () => {
+    const flat = mount(provider(), api({
+      selected: 0,
+      selectionState: { selectAll: false, toggledNodes: ['a', 'b', 'c'] },
+    }));
+    await waitFor(() => expect(flat.result.current.selected).toBe(3));
+
+    const grouped = mount(provider(), api({
+      selected: 2,
+      selectionState: { selectAll: false, toggledNodes: [{ nodeId: 'g', selectAllChildren: true }] },
+    }));
+    await waitFor(() => expect(grouped.result.current.total).toBeGreaterThan(0));
+    expect(grouped.result.current.selected).toBe(2);
   });
 
   it('re-reads on the live-feed interval', async () => {

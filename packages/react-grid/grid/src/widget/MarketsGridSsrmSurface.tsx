@@ -9,7 +9,11 @@ import {
   type RefObject,
 } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { GetContextMenuItems, GridReadyEvent } from 'ag-grid-community';
+import type {
+  GetContextMenuItems,
+  GridReadyEvent,
+  ProcessDataFromClipboardParams,
+} from 'ag-grid-community';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { MarketsGridProps } from './types';
 import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
@@ -17,8 +21,10 @@ import { buildStreamSafeComponents } from './buildStreamSafeComponents';
 import { measureNativeScrollbarWidth } from './nativeScrollbarWidth';
 import { useRestoreCellFocusOnWindowFocus } from './useRestoreCellFocusOnWindowFocus';
 import { bindSsrmExpressionAggregates } from '../ssrm/bindSsrmExpressionAggregates.js';
+import { bindSsrmEdits, ssrmPasteTarget } from '../ssrm/bindSsrmEdits.js';
 import { bindSsrmTicks } from '../ssrm/bindSsrmTicks.js';
 import { createSsrmDatasource } from '../ssrm/createSsrmDatasource.js';
+import { SsrmBlockCache } from '../ssrm/SsrmBlockCache.js';
 import { createSsrmGetRowId } from '../ssrm/ssrmGetRowId.js';
 import { watchGroupsFromApi } from '../ssrm/watchGroupsFromApi.js';
 import { applySsrmStatusBar, useSsrmStatusBar } from '../ssrm/ssrmStatusBar.js';
@@ -59,6 +65,14 @@ export interface MarketsGridSsrmSurfaceProps<TData> {
 }
 
 const SURFACE_STYLE: CSSProperties = { flex: 1 };
+
+/** Engine group rows carry their leaf count as `__count`; AG Grid shows it as "(n)". */
+function ssrmChildCount(data: unknown): number {
+  const count = (data as { __count?: unknown } | null | undefined)?.__count;
+  return typeof count === 'number' ? count : (undefined as unknown as number);
+}
+
+type ClipboardHook = (params: ProcessDataFromClipboardParams) => string[][] | null;
 
 /** Referential equality, like `MarketsGridSurface` — AgGridReact re-processes
  *  every changed prop reference, and `ssrm` is rebuilt by the host. */
@@ -153,14 +167,32 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     return typeof raw === 'string' ? raw : '';
   }, [gridRef]);
 
+  // One block cache per provider, shared by the datasource (serve / prefetch)
+  // and the tick binder (patch by id, clear before anything that moves rows).
+  const blockCache = useMemo(() => new SsrmBlockCache(), [ssrm.provider]);
   const datasource = useMemo(
-    () => createSsrmDatasource(ssrm.provider, { getQuickFilterText }),
-    [ssrm.provider, getQuickFilterText],
+    () => createSsrmDatasource(ssrm.provider, { getQuickFilterText, cache: blockCache }),
+    [ssrm.provider, getQuickFilterText, blockCache],
   );
   const getRowId = useMemo(
-    () => createSsrmGetRowId(ssrm.keyColumn ?? 'positionId'),
+    () => createSsrmGetRowId(ssrm.keyColumn ?? 'id'),
     [ssrm.keyColumn],
   );
+
+  // A paste over block placeholders writes nothing and says nothing. Refuse
+  // it whole rather than land a partial paste that looks complete.
+  const innerClipboardHook = pipelineGridOptions.processDataFromClipboard as ClipboardHook | undefined;
+  const processDataFromClipboard = useCallback<ClipboardHook>((params) => {
+    const target = ssrmPasteTarget(params.api, params.data.length);
+    if (target.unloaded > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[ssrm] paste refused: ${target.unloaded} of ${target.rows} target rows are not loaded yet. Wait for the rows to fill, then paste again.`,
+      );
+      return null;
+    }
+    return innerClipboardHook ? innerClipboardHook(params) : params.data;
+  }, [innerClipboardHook]);
 
   // Built-in panels walk row nodes — under SSRM that's the loaded blocks.
   // Identity is held stable across pipeline ticks that don't change the
@@ -177,17 +209,21 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   const handleReady = useCallback((event: GridReadyEvent) => {
     attachSsrmSession(event.api, ssrm.provider);
     applySsrmStatusBar(event.api, statusBarRef.current);
-    const offTicks = bindSsrmTicks(ssrm.provider, event.api);
+    const offTicks = bindSsrmTicks(ssrm.provider, event.api, { cache: blockCache });
+    // Cell edits, pastes and fills go back to the engine so they survive the
+    // next tick and reach every grid on the provider.
+    const offEdits = bindSsrmEdits(ssrm.provider, event.api);
     const offGroups = watchGroupsFromApi(ssrm.provider, event.api);
     const offExprAgg = bindSsrmExpressionAggregates(ssrm.provider, event.api);
     (event.api as GridReadyEvent['api'] & { __ssrmCleanup?: () => void }).__ssrmCleanup = () => {
       offTicks();
+      offEdits();
       offGroups();
       offExprAgg();
       detachSsrmSession(event.api);
     };
     onGridReady(event);
-  }, [ssrm.provider, onGridReady]);
+  }, [ssrm.provider, onGridReady, blockCache]);
 
   useEffect(() => () => {
     const api = gridRef.current?.api as (GridReadyEvent['api'] & { __ssrmCleanup?: () => void }) | undefined;
@@ -249,6 +285,8 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         cacheBlockSize={ssrm.cacheBlockSize ?? 200}
         serverSideDatasource={datasource}
         getRowId={getRowId}
+        getChildCount={ssrmChildCount}
+        processDataFromClipboard={processDataFromClipboard}
         maintainColumnOrder
         cellSelection={true}
         enableAdvancedFilter={false}

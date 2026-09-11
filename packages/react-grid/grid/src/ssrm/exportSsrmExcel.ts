@@ -12,24 +12,30 @@ export function filterSsrmExportSelection(
   rows: Record<string, unknown>[],
 ): Record<string, unknown>[] {
   const state = api.getServerSideSelectionState?.() as
-    | { selectAll?: boolean }
+    | { selectAll?: boolean; toggledNodes?: unknown[] }
     | undefined;
-  if (state?.selectAll) return rows;
+  const getRowId = api.getGridOption?.('getRowId') as
+    | ((p: { data: unknown }) => string)
+    | undefined;
+  const idOf = (row: Record<string, unknown>): string =>
+    (getRowId ? String(getRowId({ data: row })) : String(row.id ?? ''));
+  if (state?.selectAll) {
+    // Header select-all with rows the user un-ticked afterwards: those ids
+    // are the exclusions, and an export that ignores them ships rows the
+    // user explicitly deselected.
+    const excluded = new Set(
+      (state.toggledNodes ?? []).filter((id): id is string => typeof id === 'string'),
+    );
+    if (excluded.size === 0) return rows;
+    return rows.filter((row) => !excluded.has(idOf(row)));
+  }
   const ids = new Set(
     (api.getSelectedNodes?.() ?? [])
       .map((n) => n.id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   );
   if (ids.size === 0) return [];
-  const getRowId = api.getGridOption?.('getRowId') as
-    | ((p: { data: unknown }) => string)
-    | undefined;
-  return rows.filter((row) => {
-    const id = getRowId ? String(getRowId({ data: row })) : String(
-      (row as { id?: unknown }).id ?? '',
-    );
-    return ids.has(id);
-  });
+  return rows.filter((row) => ids.has(idOf(row)));
 }
 
 export function exportDrainedRowsAsExcel(

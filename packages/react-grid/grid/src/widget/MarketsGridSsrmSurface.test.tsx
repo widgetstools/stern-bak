@@ -242,7 +242,46 @@ describe('MarketsGridSsrmSurface', () => {
         ssrm={{ provider: p, keyColumn: 'id' }}
       />,
     );
-    expect(lastGridProps.current?.defaultColDef).toBe(defaultColDef);
+    // No set-filter values callback is added — only the blank block
+    // placeholder renderer every SSRM default col def carries.
+    expect(lastGridProps.current?.defaultColDef).toEqual({
+      sortable: true,
+      loadingCellRenderer: SsrmBlankLoadingCellRenderer,
+    });
+    unmount();
+  });
+
+  it('shows engine child counts on group rows and refuses a paste onto unloaded rows', () => {
+    const p = provider();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { unmount } = render(
+      <MarketsGridSsrmSurface
+        gridRef={{ current: null }}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'desk' }]}
+        defaultColDef={undefined}
+        onGridReady={vi.fn()}
+        onGridPreDestroyed={vi.fn()}
+        ssrm={{ provider: p, keyColumn: 'id' }}
+      />,
+    );
+    const getChildCount = lastGridProps.current?.getChildCount as (data: unknown) => number;
+    expect(getChildCount({ __count: 42 })).toBe(42);
+    expect(getChildCount({})).toBeUndefined();
+
+    const paste = lastGridProps.current?.processDataFromClipboard as (p: unknown) => string[][] | null;
+    const loaded = { data: {} };
+    const stub = { stub: true };
+    const apiFor = (rows: unknown[]) => ({
+      getCellRanges: () => [{ startRow: { rowIndex: 0 }, endRow: { rowIndex: rows.length - 1 } }],
+      getDisplayedRowAtIndex: (i: number) => rows[i],
+    });
+    expect(paste({ api: apiFor([loaded, loaded]), data: [['1'], ['2']] })).toEqual([['1'], ['2']]);
+    expect(paste({ api: apiFor([loaded, stub]), data: [['1'], ['2']] })).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('paste refused'));
+    warn.mockRestore();
     unmount();
   });
 

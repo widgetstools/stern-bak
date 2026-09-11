@@ -112,6 +112,14 @@ describe('filterSsrmExportSelection', () => {
     expect(filterSsrmExportSelection(api, rows)).toBe(rows);
   });
 
+  it('excludes rows un-ticked after a header select-all', () => {
+    const api = {
+      getServerSideSelectionState: () => ({ selectAll: true, toggledNodes: ['a'] }),
+      getGridOption: (k: string) => (k === 'getRowId' ? (p: { data: { id: string } }) => p.data.id : undefined),
+    } as unknown as GridApi;
+    expect(filterSsrmExportSelection(api, [{ id: 'a' }, { id: 'b' }])).toEqual([{ id: 'b' }]);
+  });
+
   it('filters drained rows to selected node ids', () => {
     const api = {
       getServerSideSelectionState: () => ({}),

@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createSsrmGetRowId, ssrmGetRowId } from './ssrmGetRowId.js';
+import { createSsrmGetRowId, SSRM_ROW_ID_KEY, ssrmGetRowId } from './ssrmGetRowId.js';
 
 describe('ssrmGetRowId', () => {
   it('uses the key column for leaves', () => {
     expect(ssrmGetRowId({ positionId: 'p1' }, 'positionId')).toBe('p1');
+  });
+
+  it('honours a branded id stub ahead of the key columns (tick removals)', () => {
+    expect(ssrmGetRowId({ [SSRM_ROW_ID_KEY]: 'a-b' }, ['a', 'b'])).toBe('a-b');
+    expect(ssrmGetRowId({ [SSRM_ROW_ID_KEY]: '', positionId: 'p1' }, 'positionId')).toBe('p1');
   });
 
   it('uses __ssrmGroupKey for groups', () => {

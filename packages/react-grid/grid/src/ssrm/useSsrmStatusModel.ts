@@ -65,7 +65,28 @@ function selectedColumn(api: GridApi): string | null {
   return values[0]?.getColId?.() ?? null;
 }
 
-function selectedCount(api: GridApi): number {
+/**
+ * Under SSRM a header select-all is server-side selection state, not a set of
+ * selected nodes: `getSelectedNodes` sees only the loaded blocks (or nothing
+ * at all once `selectAll` is set). Count from the state — `selectAll` with
+ * exclusions is the filtered total minus the toggled ids; otherwise the
+ * toggled ids ARE the selection. Group-selection state (object entries) has
+ * no row count to offer, so it falls back to the node walk.
+ */
+function selectedCount(api: GridApi, filtered: number): number {
+  const state = api.getServerSideSelectionState?.() as
+    | { selectAll?: boolean; toggledNodes?: unknown[] }
+    | null
+    | undefined;
+  if (
+    state
+    && typeof state.selectAll === 'boolean'
+    && Array.isArray(state.toggledNodes)
+    && state.toggledNodes.every((id) => typeof id === 'string')
+  ) {
+    const toggled = state.toggledNodes.length;
+    return state.selectAll ? Math.max(0, filtered - toggled) : toggled;
+  }
   return api.getSelectedNodes?.()?.length ?? 0;
 }
 
@@ -102,7 +123,7 @@ async function loadModel(
   return {
     total,
     filtered,
-    selected: selectedCount(api),
+    selected: selectedCount(api, filtered),
     aggregates: aggregates.values,
     aggregateColumn: column,
   };
