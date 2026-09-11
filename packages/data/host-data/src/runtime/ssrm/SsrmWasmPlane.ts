@@ -14,7 +14,8 @@ import type {
   SsrmViewSpec,
   SsrmWatchGroupsRequest,
 } from './ssrmTypes.js';
-import { toViewSpecResult } from './toViewSpec.js';
+import { ssrmEpochColumn } from './ssrmTypes.js';
+import { ssrmEpochOf, toViewSpecResult, type ToViewSpecOptions } from './toViewSpec.js';
 
 const EMPTY_PARAMS = '{}';
 
@@ -105,6 +106,27 @@ function resultOf(replies: SsrmControlReply[], id: string): SsrmControlReply {
   return match;
 }
 
+const NON_TEXT_TYPES = new Set(['number', 'boolean']);
+
+/**
+ * Columns the quick filter searches. An explicit `searchColumns` wins; with
+ * none configured every non-numeric, non-boolean column is searched — the
+ * behaviour of AG Grid's own quick filter, which the search bar promises.
+ */
+export function resolveSearchColumns(cfg: StompSsrmProviderConfig): readonly string[] {
+  if (cfg.searchColumns?.length) return cfg.searchColumns;
+  return (cfg.columnDefinitions ?? [])
+    .filter((c) => typeof c.field === 'string' && !NON_TEXT_TYPES.has(String(c.cellDataType ?? 'text')))
+    .map((c) => c.field as string);
+}
+
+/** Columns declared as dates — their filter bounds need the storage shape. */
+export function dateColumnsOf(cfg: StompSsrmProviderConfig): readonly string[] {
+  return (cfg.columnDefinitions ?? [])
+    .filter((c) => typeof c.field === 'string' && (c.cellDataType === 'date' || c.cellDataType === 'dateString'))
+    .map((c) => c.field as string);
+}
+
 function bootJson(providerId: string, cfg: StompSsrmProviderConfig): string {
   const keyCol = cfg.keyColumn;
   const keyColumns = Array.isArray(keyCol)
@@ -116,6 +138,8 @@ function bootJson(providerId: string, cfg: StompSsrmProviderConfig): string {
     name: c.field,
     type: c.cellDataType === 'number' ? 'f64' : c.cellDataType === 'boolean' ? 'bool' : 'string',
   }));
+  // Numeric epoch shadow per date column — the engine orders numbers, not strings.
+  for (const col of dateColumnsOf(cfg)) columns.push({ name: ssrmEpochColumn(col), type: 'f64' });
   return JSON.stringify({
     id: providerId,
     schemaRef: `${providerId}@v1`,
@@ -133,8 +157,17 @@ export class SsrmWasmPlane {
   private readonly host: RustHubHost;
   private readonly booted = new Set<string>();
   private readonly subscribed = new Set<string>();
+  /**
+   * Which datasource each session subscribed to. `tick()` drains EVERY
+   * session's outbox in one call, so group deltas must be routed back to
+   * their own provider — without this map, provider B's deltas reached
+   * provider A's grids and triggered refreshes there.
+   */
+  private readonly sessionProvider = new Map<string, string>();
   /** Quick filter needs `searchColumns` at getRows time, not just at boot. */
   private readonly searchColumns = new Map<string, readonly string[]>();
+  /** Date columns per provider — each gets a numeric epoch shadow column at boot and ingest. */
+  private readonly dateColumns = new Map<string, readonly string[]>();
   /** Live engine views by query signature, insertion-ordered least-recent first. */
   private readonly views = new Map<string, OpenView>();
   private nextCtl = 1;
@@ -149,7 +182,31 @@ export class SsrmWasmPlane {
     this.dropViews((v) => v.providerId === providerId);
     hub.boot_datasource(bootJson(providerId, cfg));
     this.booted.add(providerId);
-    this.searchColumns.set(providerId, cfg.searchColumns ?? []);
+    this.searchColumns.set(providerId, resolveSearchColumns(cfg));
+    this.dateColumns.set(providerId, dateColumnsOf(cfg));
+  }
+
+  /** Translator options for one provider: quick-filter columns and date columns. */
+  private specOpts(providerId: string): ToViewSpecOptions {
+    return {
+      searchColumns: this.searchColumns.get(providerId),
+      dateColumns: this.dateColumns.get(providerId),
+    };
+  }
+
+  /**
+   * Stamp the numeric epoch shadow next to every date column. The engine
+   * only tests strings for equality, so date ranges and date sorts run
+   * against this shadow; the string stays for display and `contains`.
+   */
+  private stampEpochs(providerId: string, rows: Record<string, unknown>[]): void {
+    const cols = this.dateColumns.get(providerId);
+    if (!cols?.length) return;
+    for (const row of rows) {
+      for (const col of cols) {
+        if (col in row) row[ssrmEpochColumn(col)] = ssrmEpochOf(row[col]);
+      }
+    }
   }
 
   async reset(providerId: string, cfg: StompSsrmProviderConfig): Promise<void> {
@@ -166,6 +223,7 @@ export class SsrmWasmPlane {
     const hub = this.host.current;
     if (!hub) return [];
     this.subscribed.delete(sessionId);
+    this.sessionProvider.delete(sessionId);
     this.dropViews((v) => v.sessionId === sessionId);
     return parseJson<string[]>(hub.disconnect(sessionId), []);
   }
@@ -182,6 +240,7 @@ export class SsrmWasmPlane {
     }
     const flat = flattenRows(rows);
     if (flat.length === 0) return;
+    this.stampEpochs(providerId, flat as Record<string, unknown>[]);
     hub.apply_message_json(providerId, EMPTY_PARAMS, JSON.stringify(flat));
   }
 
@@ -192,12 +251,11 @@ export class SsrmWasmPlane {
   ): Promise<SsrmGetRowsResult> {
     const hub = await this.host.ensure();
     await this.ensureSubscribed(hub, sessionId, providerId);
-    const { spec, unsupported } = toViewSpecResult(req, {
-      searchColumns: this.searchColumns.get(providerId),
-    });
+    const { spec, unsupported } = toViewSpecResult(req, this.specOpts(providerId));
     if (unsupported.length > 0) {
       // Loud on purpose: a dropped condition renders MORE rows than asked for,
-      // which is indistinguishable from working software.
+      // which is indistinguishable from working software. The worker console
+      // is not where users look, so the list also rides the result.
       // eslint-disable-next-line no-console
       console.warn(`[ssrm] ${providerId}: untranslatable filter conditions —`, unsupported);
     }
@@ -213,6 +271,7 @@ export class SsrmWasmPlane {
       groupData: win.groupData,
       grandTotalData: win.grandTotalData,
       pivotResultFields: win.pivotResultFields,
+      ...(unsupported.length > 0 ? { unsupportedFilters: unsupported } : {}),
     };
   }
 
@@ -240,7 +299,7 @@ export class SsrmWasmPlane {
     delete scoped[req.column];
     const { spec } = toViewSpecResult(
       { filterModel: scoped, sortModel: [{ colId: req.column, sort: 'asc' }] },
-      { searchColumns: this.searchColumns.get(providerId) },
+      this.specOpts(providerId),
     );
     spec.groupBy = [req.column];
     spec.aggregates = {};
@@ -281,9 +340,7 @@ export class SsrmWasmPlane {
   ): Promise<SsrmRowCountResult> {
     const hub = await this.host.ensure();
     await this.ensureSubscribed(hub, sessionId, providerId);
-    const { spec } = toViewSpecResult(req, {
-      searchColumns: this.searchColumns.get(providerId),
-    });
+    const { spec } = toViewSpecResult(req, this.specOpts(providerId));
     const win = this.readView(hub, sessionId, providerId, spec, 0, 1);
     return { rowCount: typeof win.rowCount === 'number' ? win.rowCount : 0 };
   }
@@ -300,9 +357,7 @@ export class SsrmWasmPlane {
     if (req.specs.length === 0) return { values: {} };
     const hub = await this.host.ensure();
     await this.ensureSubscribed(hub, sessionId, providerId);
-    const { spec } = toViewSpecResult(req, {
-      searchColumns: this.searchColumns.get(providerId),
-    });
+    const { spec } = toViewSpecResult(req, this.specOpts(providerId));
     const id = this.ctlId();
     const opened = resultOf(
       this.control(hub, sessionId, {
@@ -347,21 +402,40 @@ export class SsrmWasmPlane {
     );
   }
 
-  pollTicks(providerId: string): SsrmTickPayload[] {
+  /**
+   * Drain the engine ONCE and bucket every tick by provider.
+   *
+   * `tick()` returns every session's queued group deltas in a single call, so
+   * it must be polled once per flush and routed by the session's datasource
+   * (see {@link sessionProvider}); the shared row delta is per datasource and
+   * is polled for each booted provider. Providers with nothing to say are
+   * absent from the map.
+   */
+  pollAllTicks(): Map<string, SsrmTickPayload[]> {
+    const out = new Map<string, SsrmTickPayload[]>();
     const hub = this.host.current;
-    if (!hub) return [];
-    const out: SsrmTickPayload[] = [];
+    if (!hub) return out;
+    const push = (providerId: string, tick: SsrmTickPayload): void => {
+      const bucket = out.get(providerId);
+      if (bucket) bucket.push(tick);
+      else out.set(providerId, [tick]);
+    };
     const perSession = parseJson<Array<{ sessionId: string; messages?: unknown[] }>>(hub.tick(), []);
     for (const rec of perSession) {
+      const providerId = this.sessionProvider.get(rec.sessionId);
+      // A session only produces deltas after `subscribe`, which records it
+      // here; anything else is a session already torn down.
+      if (!providerId) continue;
       for (const raw of rec.messages ?? []) {
         const m = raw as { type?: string; groups?: Record<string, unknown>[]; removed?: string[] };
         if (m.type === 'groupDelta') {
-          out.push({ kind: 'groupDelta', groups: m.groups, removed: m.removed });
+          push(providerId, { kind: 'groupDelta', groups: m.groups, removed: m.removed });
         }
       }
     }
-    const dstr = hub.poll_shared_delta(providerId, EMPTY_PARAMS);
-    if (dstr) {
+    for (const providerId of this.booted) {
+      const dstr = hub.poll_shared_delta(providerId, EMPTY_PARAMS);
+      if (!dstr) continue;
       const m = parseJson<{
         type?: string;
         upserts?: Record<string, unknown>[];
@@ -369,7 +443,7 @@ export class SsrmWasmPlane {
         reset?: boolean;
       }>(dstr, {});
       if (m.type === 'rowDelta' || m.upserts || m.removals) {
-        out.push({
+        push(providerId, {
           kind: 'rowDelta',
           upserts: m.upserts,
           removals: m.removals,
@@ -378,6 +452,15 @@ export class SsrmWasmPlane {
       }
     }
     return out;
+  }
+
+  /**
+   * One provider's ticks. Convenience over {@link pollAllTicks} for a
+   * single-provider worker — it drains the engine, so other providers' ticks
+   * from this poll are discarded. The hub uses `pollAllTicks` directly.
+   */
+  pollTicks(providerId: string): SsrmTickPayload[] {
+    return this.pollAllTicks().get(providerId) ?? [];
   }
 
   memStats(): unknown {
@@ -497,6 +580,7 @@ export class SsrmWasmPlane {
       delivery: 'rows',
     });
     this.subscribed.add(sessionId);
+    this.sessionProvider.set(sessionId, providerId);
   }
 
   private control(hub: RustHubLike, sessionId: string, msg: Record<string, unknown>): SsrmControlReply[] {

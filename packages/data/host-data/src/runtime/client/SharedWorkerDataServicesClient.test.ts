@@ -1243,6 +1243,57 @@ describe('SharedWorkerDataServicesClient — subscription-lost recovery', () => 
   });
 });
 
+describe('SharedWorkerDataServicesClient — SSRM RPC lifecycle', () => {
+  it('rejects an SSRM RPC the worker never answers', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      ssrmRpcTimeoutMs: 20,
+    });
+    await expect(client.ssrmGetRows('p', 's', { startRow: 0, endRow: 10 }))
+      .rejects.toThrow(/ssrm-get-rows timed out after 20ms/);
+    client.close();
+    channel.port2.close();
+  });
+
+  it('settles a late reply normally and rejects what is still pending on close', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: Array<{ kind?: string; reqId?: string }> = [];
+    channel.port2.addEventListener('message', (ev: MessageEvent) => { posts.push(ev.data); });
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      ssrmRpcTimeoutMs: 0,
+    });
+    const answered = client.ssrmGetRows('p', 's', { startRow: 0, endRow: 10 });
+    const orphaned = client.ssrmRowCount('p', 's', {});
+    await new Promise((r) => setTimeout(r, 0));
+    const getReq = posts.find((m) => m.kind === 'ssrm-get-rows');
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: getReq?.reqId, ok: true, result: { rowData: [], rowCount: 3 } });
+    await expect(answered).resolves.toMatchObject({ rowCount: 3 });
+    client.close();
+    await expect(orphaned).rejects.toThrow(/client closed/);
+    channel.port2.close();
+  });
+
+  it('posts grid edits as ssrm-apply-edits and resolves the applied count', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: Array<{ kind?: string; reqId?: string; rows?: unknown[] }> = [];
+    channel.port2.addEventListener('message', (ev: MessageEvent) => { posts.push(ev.data); });
+    const client = new SharedWorkerDataServicesClient(channel.port1, { disablePageHideClose: true });
+    const p = client.ssrmApplyEdits('p', 's', [{ id: '1', px: 2 }]);
+    await new Promise((r) => setTimeout(r, 0));
+    const req = posts.find((m) => m.kind === 'ssrm-apply-edits');
+    expect(req?.rows).toEqual([{ id: '1', px: 2 }]);
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: req?.reqId, ok: true, result: { applied: 1 } });
+    await expect(p).resolves.toEqual({ applied: 1 });
+    client.close();
+    channel.port2.close();
+  });
+});
+
 describe('SharedWorkerDataServicesClient — SSRM protocol', () => {
   it('attachSsrm posts mode ssrm and routes rpc + ticks', async () => {
     const channel = new MessageChannel();

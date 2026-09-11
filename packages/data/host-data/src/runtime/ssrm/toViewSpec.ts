@@ -13,13 +13,21 @@
  *   - combined    `{ operator: 'AND'|'OR', conditions: [...] }`
  *   - set         `{ filterType: 'set', values: [...] }`
  *   - multi       `{ filterType: 'multi', filterModels: [...] }` (ANDed slots)
+ *
+ * Two engine facts, both verified against the vendored WASM rather than read
+ * off its typings, shape this file:
+ *   - the sort direction key is `sort`, not `dir`;
+ *   - string columns answer `equals` / `contains` / `blank` but never order,
+ *     so date ranges and date sorts go through a numeric epoch shadow column
+ *     the plane stamps at ingest (see {@link ssrmEpochColumn}).
  */
-import type {
-  SsrmFilterCondition,
-  SsrmFilterNode,
-  SsrmFilterOp,
-  SsrmGetRowsRequest,
-  SsrmViewSpec,
+import {
+  ssrmEpochColumn,
+  type SsrmFilterCondition,
+  type SsrmFilterNode,
+  type SsrmFilterOp,
+  type SsrmGetRowsRequest,
+  type SsrmViewSpec,
 } from './ssrmTypes.js';
 
 /**
@@ -54,6 +62,8 @@ const SCALAR_OPS: Record<string, SsrmFilterOp> = {
 
 const VALUELESS_OPS = new Set<SsrmFilterOp>(['blank', 'notBlank']);
 
+const DAY_MS = 86_400_000;
+
 interface FilterModelEntry {
   filterType?: string;
   type?: string;
@@ -75,6 +85,11 @@ export interface ToViewSpecOptions {
    * becomes an OR of `contains` across these columns.
    */
   searchColumns?: readonly string[];
+  /**
+   * Columns declared as dates. Their range filters and sorts are rewritten
+   * onto the epoch shadow column; everything else about them is a string.
+   */
+  dateColumns?: readonly string[];
 }
 
 export interface ToViewSpecResult {
@@ -83,11 +98,32 @@ export interface ToViewSpecResult {
   unsupported: string[];
 }
 
+/** `Date.parse` of a stored date string, or null when it is not one. */
+export function ssrmEpochOf(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string' || value.length < 10) return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * The UTC day AG Grid's `YYYY-MM-DD HH:mm:ss` bound names, as an epoch range.
+ * Date-only strings parse as UTC midnight, so UTC day bounds line up with
+ * them exactly; the time part of the bound is ignored because AG Grid's date
+ * menu is a calendar-day comparison.
+ */
+function dayRange(raw: string): { start: number; end: number } | null {
+  const start = Date.parse(`${raw.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(start)) return null;
+  return { start, end: start + DAY_MS - 1 };
+}
+
 /** One column's filter model → engine nodes (ANDed unless an `or` node). */
 export function filterModelToNodes(
   colId: string,
   model: FilterModelEntry | null | undefined,
   unsupported: string[],
+  isDateColumn = false,
 ): SsrmFilterNode[] {
   if (!model || typeof model !== 'object') return [];
 
@@ -95,12 +131,12 @@ export function filterModelToNodes(
   // Our stream-safe floating filters emit exactly this envelope for
   // `agMultiColumnFilter` columns (see buildMultiEnvelope).
   if (Array.isArray(model.filterModels)) {
-    return model.filterModels.flatMap((slot) => filterModelToNodes(colId, slot, unsupported));
+    return model.filterModels.flatMap((slot) => filterModelToNodes(colId, slot, unsupported, isDateColumn));
   }
 
   if (model.operator || Array.isArray(model.conditions)) {
     const parts = (model.conditions ?? []).flatMap(
-      (c) => filterModelToNodes(colId, c, unsupported),
+      (c) => filterModelToNodes(colId, c, unsupported, isDateColumn),
     );
     // AND flattens into the top-level list, which is ANDed anyway. OR cannot.
     if (model.operator !== 'OR') return parts;
@@ -125,6 +161,8 @@ export function filterModelToNodes(
     if (values.length === 1) return [eq(values[0])];
     return [{ op: 'or', conditions: values.map(eq) }];
   }
+
+  if (kind === 'date' && isDateColumn) return dateNodes(colId, model, unsupported);
 
   if (model.type === 'inRange') {
     const isDate = kind === 'date';
@@ -151,6 +189,45 @@ export function filterModelToNodes(
 }
 
 /**
+ * AG Grid's date menu is a DAY comparison: `equals` means the same calendar
+ * day, `greaterThan` means after that day. On the epoch shadow column each
+ * day is a numeric range, which the engine can order; blank / notBlank stay
+ * on the string column, where the engine answers them.
+ */
+function dateNodes(
+  colId: string,
+  model: FilterModelEntry,
+  unsupported: string[],
+): SsrmFilterNode[] {
+  const type = model.type;
+  if (type === 'blank' || type === 'notBlank') return [{ column: colId, op: type }];
+  const epoch = ssrmEpochColumn(colId);
+  const from = typeof model.dateFrom === 'string' ? dayRange(model.dateFrom) : null;
+  if (!from) {
+    unsupported.push(`${colId}: ${String(type)} (date without a bound)`);
+    return [];
+  }
+  const cond = (op: SsrmFilterOp, value: number, valueTo?: number): SsrmFilterCondition =>
+    (valueTo === undefined ? { column: epoch, op, value } : { column: epoch, op, value, valueTo });
+  switch (type) {
+    case 'equals': return [cond('inRange', from.start, from.end)];
+    case 'notEqual':
+      return [{ op: 'or', conditions: [cond('lessThan', from.start), cond('greaterThan', from.end)] }];
+    case 'lessThan': return [cond('lessThan', from.start)];
+    case 'lessThanOrEqual': return [cond('lessThanOrEqual', from.end)];
+    case 'greaterThan': return [cond('greaterThan', from.end)];
+    case 'greaterThanOrEqual': return [cond('greaterThanOrEqual', from.start)];
+    case 'inRange': {
+      const to = (typeof model.dateTo === 'string' ? dayRange(model.dateTo) : null) ?? from;
+      return [cond('inRange', from.start, to.end)];
+    }
+    default:
+      unsupported.push(`${colId}: ${String(type)} (date)`);
+      return [];
+  }
+}
+
+/**
  * Build the view spec for one `getRows` request.
  *
  * Grouping is the subtle rule: AG Grid asks for ONE level at a time.
@@ -165,6 +242,7 @@ export function toViewSpecResult(
   const filter: SsrmFilterNode[] = [];
   const groupKeys = req.groupKeys ?? [];
   const rowGroupCols = req.rowGroupCols ?? [];
+  const dateColumns = new Set(opts.dateColumns ?? []);
 
   // The expanded path becomes one equality filter per level.
   groupKeys.forEach((value, i) => {
@@ -173,25 +251,34 @@ export function toViewSpecResult(
   });
 
   for (const [colId, model] of Object.entries(req.filterModel ?? {})) {
-    filter.push(...filterModelToNodes(colId, model as FilterModelEntry, unsupported));
+    filter.push(...filterModelToNodes(colId, model as FilterModelEntry, unsupported, dateColumns.has(colId)));
   }
 
+  // AG Grid's quick filter splits on whitespace and requires EVERY word to
+  // match SOME column, so "gov apac" finds a Govies desk in APAC even though
+  // no single cell holds both words. One OR node per word; the list is ANDed.
   const text = req.quickFilterText?.trim();
   if (text) {
     const cols = opts.searchColumns ?? [];
     if (cols.length === 0) {
       unsupported.push(`quick filter "${text}" (no searchColumns configured)`);
     } else {
-      filter.push({
-        op: 'or',
-        conditions: cols.map((column) => ({ column, op: 'contains' as const, value: text })),
-      });
+      for (const word of text.split(/\s+/).filter(Boolean)) {
+        filter.push({
+          op: 'or',
+          conditions: cols.map((column) => ({ column, op: 'contains' as const, value: word })),
+        });
+      }
     }
   }
 
   const spec: SsrmViewSpec = {
     filter,
-    sort: (req.sortModel ?? []).map((s) => ({ column: s.colId, dir: s.sort })),
+    // A date column sorts by its epoch shadow — the engine does not order strings.
+    sort: (req.sortModel ?? []).map((s) => ({
+      column: dateColumns.has(s.colId) ? ssrmEpochColumn(s.colId) : s.colId,
+      sort: s.sort,
+    })),
   };
 
   const next = rowGroupCols[groupKeys.length];

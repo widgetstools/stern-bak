@@ -1,5 +1,86 @@
 import { describe, expect, it } from 'vitest';
-import { filterModelToNodes, toViewSpec, toViewSpecResult } from './toViewSpec.js';
+import { filterModelToNodes, ssrmEpochOf, toViewSpec, toViewSpecResult } from './toViewSpec.js';
+import { ssrmEpochColumn } from './ssrmTypes.js';
+
+describe('toViewSpec — quick filter words', () => {
+  it('ANDs one OR-of-contains node per word, like AG Grid\'s quick filter', () => {
+    const spec = toViewSpec(
+      { quickFilterText: 'gov  apac' },
+      { searchColumns: ['desk', 'region'] },
+    );
+    expect(spec.filter).toEqual([
+      { op: 'or', conditions: [
+        { column: 'desk', op: 'contains', value: 'gov' },
+        { column: 'region', op: 'contains', value: 'gov' },
+      ] },
+      { op: 'or', conditions: [
+        { column: 'desk', op: 'contains', value: 'apac' },
+        { column: 'region', op: 'contains', value: 'apac' },
+      ] },
+    ]);
+  });
+});
+
+describe('toViewSpec — date columns on the epoch shadow', () => {
+  const DAY = 86_400_000;
+  const start = Date.UTC(2030, 0, 5);
+  const end = start + DAY - 1;
+  const epoch = ssrmEpochColumn('maturity');
+  const day = (type: string, extra: Record<string, unknown> = {}) => ({
+    filterType: 'date', type, dateFrom: '2030-01-05 00:00:00', dateTo: null, ...extra,
+  });
+  const one = (type: string, extra?: Record<string, unknown>) =>
+    toViewSpec({ filterModel: { maturity: day(type, extra) } }, { dateColumns: ['maturity'] }).filter;
+
+  it('parses stored values to epoch ms', () => {
+    expect(ssrmEpochOf('2030-01-05')).toBe(start);
+    expect(ssrmEpochOf('2030-01-05T10:00:00.000Z')).toBe(start + 10 * 3_600_000);
+    expect(ssrmEpochOf(start)).toBe(start);
+    expect(ssrmEpochOf('not a date')).toBeNull();
+    expect(ssrmEpochOf(null)).toBeNull();
+    expect(ssrmEpochOf(Number.NaN)).toBeNull();
+  });
+
+  it('turns AG Grid\'s day comparisons into numeric ranges on the shadow column', () => {
+    expect(one('equals')).toEqual([{ column: epoch, op: 'inRange', value: start, valueTo: end }]);
+    expect(one('notEqual')).toEqual([{
+      op: 'or',
+      conditions: [
+        { column: epoch, op: 'lessThan', value: start },
+        { column: epoch, op: 'greaterThan', value: end },
+      ],
+    }]);
+    expect(one('lessThan')).toEqual([{ column: epoch, op: 'lessThan', value: start }]);
+    expect(one('lessThanOrEqual')).toEqual([{ column: epoch, op: 'lessThanOrEqual', value: end }]);
+    expect(one('greaterThan')).toEqual([{ column: epoch, op: 'greaterThan', value: end }]);
+    expect(one('greaterThanOrEqual')).toEqual([{ column: epoch, op: 'greaterThanOrEqual', value: start }]);
+    expect(one('inRange', { dateTo: '2030-01-06 00:00:00' })).toEqual([
+      { column: epoch, op: 'inRange', value: start, valueTo: start + 2 * DAY - 1 },
+    ]);
+    // Blank tests stay on the string column, where the engine answers them.
+    expect(one('blank')).toEqual([{ column: 'maturity', op: 'blank' }]);
+  });
+
+  it('sorts a date column by its shadow and leaves other columns alone', () => {
+    const spec = toViewSpec(
+      { sortModel: [{ colId: 'maturity', sort: 'desc' }, { colId: 'desk', sort: 'asc' }] },
+      { dateColumns: ['maturity'] },
+    );
+    expect(spec.sort).toEqual([{ column: epoch, sort: 'desc' }, { column: 'desk', sort: 'asc' }]);
+  });
+
+  it('reports a date condition without a bound, and treats undeclared columns as before', () => {
+    const { spec, unsupported } = toViewSpecResult(
+      { filterModel: { maturity: { filterType: 'date', type: 'equals', dateFrom: null } } },
+      { dateColumns: ['maturity'] },
+    );
+    expect(spec.filter).toEqual([]);
+    expect(unsupported).toEqual(['maturity: equals (date without a bound)']);
+    // Not declared as a date column: the raw AG Grid bound passes through.
+    const raw = toViewSpec({ filterModel: { maturity: day('equals') } }).filter;
+    expect(raw).toEqual([{ column: 'maturity', op: 'equals', value: '2030-01-05 00:00:00' }]);
+  });
+});
 
 describe('toViewSpec', () => {
   it('maps the next group level only and turns groupKeys into equals filters', () => {
@@ -20,7 +101,9 @@ describe('toViewSpec', () => {
       sortModel: [{ colId: 'desk', sort: 'asc' }],
     });
     expect(spec.filter).toEqual([{ column: 'trader', op: 'contains', value: 'ann' }]);
-    expect(spec.sort).toEqual([{ column: 'desk', dir: 'asc' }]);
+    // `sort`, not `dir` — the engine ignores `dir` and returns ascending.
+    expect(spec.sort).toEqual([{ column: 'desk', sort: 'asc' }]);
+    expect(toViewSpec({ sortModel: [{ colId: 'px', sort: 'desc' }] }).sort).toEqual([{ column: 'px', sort: 'desc' }]);
   });
 
   it('maps pivot columns and defaults missing agg funcs to sum', () => {

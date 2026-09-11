@@ -5,6 +5,8 @@ import type { ProviderCapabilities } from './ProviderCapabilities.js';
 import type {
   SsrmAggregatesRequest,
   SsrmAggregatesResult,
+  SsrmApplyEditsRequest,
+  SsrmApplyEditsResult,
   SsrmColumnValuesRequest,
   SsrmColumnValuesResult,
   SsrmGetRowsRequest,
@@ -18,6 +20,8 @@ import type {
 export type {
   SsrmAggregatesRequest,
   SsrmAggregatesResult,
+  SsrmApplyEditsRequest,
+  SsrmApplyEditsResult,
   SsrmColumnValuesRequest,
   SsrmColumnValuesResult,
   SsrmGetRowsRequest,
@@ -69,6 +73,21 @@ export interface ISsrmDataProvider {
    */
   getAggregates(req: SsrmAggregatesRequest): Promise<SsrmAggregatesResult>;
   watchGroups(req: SsrmWatchGroupsRequest): Promise<void>;
+  /**
+   * Write grid edits (cell edit, paste, fill) into the engine cache so every
+   * grid on the provider sees them and a block refresh keeps them. Rows are
+   * whole records carrying the key column(s). The upstream feed is not
+   * written to; its next tick for a row wins. Optional: a provider without
+   * a write path leaves edits local to the grid that made them.
+   */
+  applyEdits?(req: SsrmApplyEditsRequest): Promise<SsrmApplyEditsResult>;
+  /**
+   * Last status the hub reported for this subscription. Lets a datasource
+   * hold its first block until the snapshot is in the engine instead of
+   * painting an empty grid with a row count of zero. Optional for
+   * implementations that cannot say.
+   */
+  readonly status?: ProviderStatus;
   onSsrmTick(handler: (payload: SsrmTickPayload) => void): Unsubscribe;
   /** Fires when bound grids must purge and re-read (refresh / restart). */
   onRefresh(handler: () => void): Unsubscribe;

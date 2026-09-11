@@ -25,6 +25,27 @@ export interface SsrmGetRowsResult {
   groupData?: Record<string, unknown>;
   grandTotalData?: Record<string, unknown>;
   pivotResultFields?: string[];
+  /**
+   * Filter conditions the engine had no translation for. The block was served
+   * WITHOUT them, so it holds more rows than the grid's filter asks for — the
+   * main thread must surface this rather than paint it as a correct result.
+   */
+  unsupportedFilters?: readonly string[];
+}
+
+/**
+ * Rows edited in a grid — cell edits, clipboard paste, fill handle — written
+ * into the engine cache so every grid on the provider sees the same values
+ * and a block refresh keeps them. Each row must carry the key column(s);
+ * send the full row, since the engine upserts whole records. The upstream
+ * feed is NOT written to: its next tick for that row wins.
+ */
+export interface SsrmApplyEditsRequest {
+  rows: readonly Record<string, unknown>[];
+}
+
+export interface SsrmApplyEditsResult {
+  applied: number;
 }
 
 export interface SsrmTickPayload {
@@ -73,10 +94,28 @@ export interface SsrmFilterOr {
 
 export type SsrmFilterNode = SsrmFilterCondition | SsrmFilterOr;
 
+/**
+ * Suffix of the numeric shadow column the plane stamps next to every date
+ * column at ingest (`Date.parse` of the stored string, or null). The engine
+ * orders numbers but only tests strings for equality, so date range filters
+ * and date sorts run against the shadow, never the string.
+ */
+export const SSRM_EPOCH_SUFFIX = '__epoch';
+
+export function ssrmEpochColumn(column: string): string {
+  return `${column}${SSRM_EPOCH_SUFFIX}`;
+}
+
 export interface SsrmViewSpec {
   /** ANDed together. */
   filter: SsrmFilterNode[];
-  sort: Array<{ column: string; dir: 'asc' | 'desc' }>;
+  /**
+   * The engine reads the direction from `sort` — a `dir` key is silently
+   * ignored and the view comes back ascending, which is how every descending
+   * sort in this stack was wrong before this shape was verified against the
+   * WASM directly.
+   */
+  sort: Array<{ column: string; sort: 'asc' | 'desc' }>;
   groupBy?: string[];
   splitBy?: string[];
   aggregates?: Record<string, string>;

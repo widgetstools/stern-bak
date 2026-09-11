@@ -50,6 +50,7 @@ import type {
   SsrmAggregatesWireRequest,
   SsrmRowCountWireRequest,
   SsrmWatchGroupsWireRequest,
+  SsrmApplyEditsWireRequest,
 } from '../protocol.js';
 import type {
   SsrmColumnValuesRequest,
@@ -58,6 +59,7 @@ import type {
   SsrmGetRowsResult,
   SsrmAggregatesRequest,
   SsrmAggregatesResult,
+  SsrmApplyEditsResult,
   SsrmRowCountRequest,
   SsrmRowCountResult,
   SsrmTickPayload,
@@ -186,7 +188,15 @@ export interface SharedWorkerDataServicesClientOpts {
   generateSubId?: () => string;
   /** Disable window `pagehide` → `close()` wiring (tests). Default false. */
   disablePageHideClose?: boolean;
+  /**
+   * Reject an SSRM RPC (`ssrm-get-rows` and friends) that the worker has not
+   * answered within this many ms. A lost reply otherwise leaves the promise —
+   * and an AG Grid block — pending forever. `0` disables. Default 15 000.
+   */
+  ssrmRpcTimeoutMs?: number;
 }
+
+export const DEFAULT_SSRM_RPC_TIMEOUT_MS = 15_000;
 
 export class SharedWorkerDataServicesClient {
   private readonly port: MessagePort;
@@ -209,8 +219,13 @@ export class SharedWorkerDataServicesClient {
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
   private readonly ssrmPending = new Map<
     string,
-    { resolve: (value: unknown) => void; reject: (err: Error) => void }
+    {
+      resolve: (value: unknown) => void;
+      reject: (err: Error) => void;
+      timer?: ReturnType<typeof setTimeout>;
+    }
   >();
+  private readonly ssrmRpcTimeoutMs: number;
   private readonly ssrmTickListeners = new Map<SubId, Set<(payload: SsrmTickPayload) => void>>();
   private readonly heartbeatTimers = new Map<SubId, ReturnType<typeof setInterval>>();
   private readonly heartbeatMeta = new Map<SubId, SubscriberMeta | undefined>();
@@ -220,6 +235,7 @@ export class SharedWorkerDataServicesClient {
   constructor(port: MessagePort, opts: SharedWorkerDataServicesClientOpts = {}) {
     this.port = port;
     this.generateSubId = opts.generateSubId ?? (() => crypto.randomUUID());
+    this.ssrmRpcTimeoutMs = opts.ssrmRpcTimeoutMs ?? DEFAULT_SSRM_RPC_TIMEOUT_MS;
     this.port.addEventListener('message', this.handleMessage);
     this.port.start();
     if (!opts.disablePageHideClose && typeof globalThis.addEventListener === 'function') {
@@ -374,6 +390,20 @@ export class SharedWorkerDataServicesClient {
     }).then(() => undefined);
   }
 
+  /** Write grid edits (paste / cell edit) into the engine cache. */
+  ssrmApplyEdits(
+    providerId: string,
+    subId: string,
+    rows: readonly Record<string, unknown>[],
+  ): Promise<SsrmApplyEditsResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-apply-edits',
+      providerId,
+      subId,
+      rows,
+    }) as Promise<SsrmApplyEditsResult>;
+  }
+
   onSsrmTick(subId: SubId, handler: (payload: SsrmTickPayload) => void): () => void {
     const set = this.ssrmTickListeners.get(subId) ?? new Set();
     set.add(handler);
@@ -391,14 +421,23 @@ export class SharedWorkerDataServicesClient {
       | Omit<SsrmColumnValuesWireRequest, 'reqId'>
       | Omit<SsrmRowCountWireRequest, 'reqId'>
       | Omit<SsrmAggregatesWireRequest, 'reqId'>
-      | Omit<SsrmWatchGroupsWireRequest, 'reqId'>,
+      | Omit<SsrmWatchGroupsWireRequest, 'reqId'>
+      | Omit<SsrmApplyEditsWireRequest, 'reqId'>,
   ): Promise<unknown> {
     if (this.closed) {
       return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
     }
     const reqId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      this.ssrmPending.set(reqId, { resolve, reject });
+      const timer = this.ssrmRpcTimeoutMs > 0
+        ? setTimeout(() => {
+          if (!this.ssrmPending.delete(reqId)) return;
+          reject(new Error(
+            `[SharedWorkerDataServicesClient] ${req.kind} timed out after ${this.ssrmRpcTimeoutMs}ms — the worker did not answer.`,
+          ));
+        }, this.ssrmRpcTimeoutMs)
+        : undefined;
+      this.ssrmPending.set(reqId, { resolve, reject, timer });
       this.send({ ...req, reqId } as Request);
     });
   }
@@ -864,6 +903,13 @@ export class SharedWorkerDataServicesClient {
       pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
     }
     this.catalogPending.clear();
+    // Block reads in flight when the page closes must settle too — a pending
+    // promise here is an AG Grid block that never leaves its loading state.
+    for (const [, pending] of this.ssrmPending) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
+    }
+    this.ssrmPending.clear();
     for (const resolve of this.catalogReadyWaiters) resolve();
     this.catalogReadyWaiters.length = 0;
     this.catalogChangeListeners.clear();
@@ -1006,6 +1052,7 @@ export class SharedWorkerDataServicesClient {
       const pending = this.ssrmPending.get(ev.data.reqId);
       if (!pending) return;
       this.ssrmPending.delete(ev.data.reqId);
+      if (pending.timer) clearTimeout(pending.timer);
       if (ev.data.ok) pending.resolve(ev.data.result);
       else pending.reject(new Error(ev.data.error ?? 'ssrm rpc failed'));
       return;

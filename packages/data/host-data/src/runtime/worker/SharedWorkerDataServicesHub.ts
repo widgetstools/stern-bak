@@ -37,6 +37,7 @@ import type {
   SsrmAggregatesWireRequest,
   SsrmRowCountWireRequest,
   SsrmWatchGroupsWireRequest,
+  SsrmApplyEditsWireRequest,
   SsrmRpcEvent,
   SsrmTickEvent,
 } from '../protocol.js';
@@ -160,6 +161,7 @@ export class SharedWorkerDataServicesHub {
       case 'ssrm-row-count': void this.handleSsrmRowCount(port, req); return;
       case 'ssrm-aggregates': void this.handleSsrmAggregates(port, req); return;
       case 'ssrm-watch-groups': void this.handleSsrmWatchGroups(port, req); return;
+      case 'ssrm-apply-edits': void this.handleSsrmApplyEdits(port, req); return;
       case 'ssrm-set-viewport':
         port.postMessage({
           kind: 'ssrm-rpc',
@@ -700,6 +702,23 @@ export class SharedWorkerDataServicesHub {
       this.ssrmPlane.getRowCount(req.subId, req.providerId, req.request));
   }
 
+  /**
+   * Grid edits go into the engine cache like an upstream message: every
+   * session sharing the datasource sees them on its next tick, and a block
+   * refresh returns the edited values. The upstream feed is not written to.
+   */
+  private handleSsrmApplyEdits(port: PortLike, req: SsrmApplyEditsWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, async () => {
+      const slot = this.providers.get(req.providerId);
+      if (!slot || slot.cfg.providerType !== 'stomp-ssrm') {
+        throw new Error(`[ssrm] ${req.providerId} is not a running stomp-ssrm provider`);
+      }
+      if (req.rows.length === 0) return { applied: 0 };
+      await this.ssrmPlane.ingest(req.providerId, req.rows, false);
+      return { applied: req.rows.length };
+    });
+  }
+
   private handleSsrmWatchGroups(port: PortLike, req: SsrmWatchGroupsWireRequest): Promise<void> {
     return this.replySsrmRpc(port, req, async () => {
       await this.ssrmPlane.watchGroups(req.subId, req.providerId, {
@@ -728,9 +747,12 @@ export class SharedWorkerDataServicesHub {
   }
 
   private flushSsrmTicks(): void {
-    for (const [providerId, slot] of this.providers) {
-      if (slot.cfg.providerType !== 'stomp-ssrm') continue;
-      const ticks = this.ssrmPlane.pollTicks(providerId);
+    // One engine drain per flush: `tick()` returns every session's group
+    // deltas at once, so polling per provider handed provider B's deltas to
+    // whichever provider polled first.
+    for (const [providerId, ticks] of this.ssrmPlane.pollAllTicks()) {
+      const slot = this.providers.get(providerId);
+      if (!slot || slot.cfg.providerType !== 'stomp-ssrm') continue;
       if (ticks.length === 0) continue;
       const listeners = this.subscribers.dataListeners(providerId);
       if (!listeners) continue;

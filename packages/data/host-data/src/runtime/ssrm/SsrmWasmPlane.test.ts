@@ -120,10 +120,127 @@ describe('SsrmWasmPlane', () => {
     });
     const plane = new SsrmWasmPlane(() => hub);
     await plane.boot('p1', cfg);
+    await plane.attachSession('s1');
+    await plane.getRows('s1', 'p1', { startRow: 0, endRow: 1 });
     expect(plane.pollTicks('p1')).toEqual([
       { kind: 'groupDelta', groups: [{ desk: 'A' }], removed: [] },
       { kind: 'rowDelta', upserts: [{ id: '1' }], removals: [], reset: false },
     ]);
+  });
+
+  it('routes each session\'s group deltas to its own provider in one drain', async () => {
+    const hub = fakeHub();
+    let drains = 0;
+    hub.tick = () => {
+      drains += 1;
+      return JSON.stringify([
+        { sessionId: 's1', messages: [{ type: 'groupDelta', groups: [{ desk: 'A' }], removed: [] }] },
+        { sessionId: 's2', messages: [{ type: 'groupDelta', groups: [{ desk: 'B' }], removed: [] }] },
+        { sessionId: 'gone', messages: [{ type: 'groupDelta', groups: [{ desk: 'Z' }], removed: [] }] },
+      ]);
+    };
+    const polled: string[] = [];
+    hub.poll_shared_delta = (ds) => {
+      polled.push(ds);
+      return ds === 'p2' ? JSON.stringify({ type: 'rowDelta', upserts: [{ id: 'x' }] }) : '';
+    };
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg);
+    await plane.boot('p2', cfg);
+    await plane.attachSession('s1');
+    await plane.attachSession('s2');
+    await plane.getRows('s1', 'p1', { startRow: 0, endRow: 1 });
+    await plane.getRows('s2', 'p2', { startRow: 0, endRow: 1 });
+
+    const buckets = plane.pollAllTicks();
+    expect(drains).toBe(1);
+    expect(polled.sort()).toEqual(['p1', 'p2']);
+    expect(buckets.get('p1')).toEqual([
+      { kind: 'groupDelta', groups: [{ desk: 'A' }], removed: [] },
+    ]);
+    expect(buckets.get('p2')).toEqual([
+      { kind: 'groupDelta', groups: [{ desk: 'B' }], removed: [] },
+      { kind: 'rowDelta', upserts: [{ id: 'x' }], removals: undefined, reset: undefined },
+    ]);
+    expect([...buckets.keys()]).not.toContain('gone');
+
+    // A detached session's deltas are no longer routed anywhere.
+    await plane.detachSession('s2');
+    expect(plane.pollAllTicks().has('p2')).toBe(true); // shared row delta still polls
+    expect(plane.pollAllTicks().get('p2')).toEqual([
+      { kind: 'rowDelta', upserts: [{ id: 'x' }], removals: undefined, reset: undefined },
+    ]);
+  });
+
+  describe('quick filter columns and date shapes', () => {
+    function capturingHub() {
+      const hub = fakeHub();
+      const views: Array<{ filter?: unknown[] }> = [];
+      const orig = hub.on_control;
+      hub.on_control = (sid, json) => {
+        const msg = JSON.parse(json) as { type?: string; view?: { filter?: unknown[] } };
+        if (msg.type === 'openView' && msg.view) views.push(msg.view);
+        return orig(sid, json);
+      };
+      return { hub, views };
+    }
+
+    it('searches every non-numeric column when no searchColumns are configured', async () => {
+      const { hub, views } = capturingHub();
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', {
+        ...cfg,
+        searchColumns: undefined,
+        columnDefinitions: [
+          { field: 'id' },
+          { field: 'desk', cellDataType: 'text' },
+          { field: 'px', cellDataType: 'number' },
+          { field: 'live', cellDataType: 'boolean' },
+          { field: 'maturity', cellDataType: 'dateString' },
+        ],
+      } as StompSsrmProviderConfig);
+      await plane.attachSession('s1');
+      await plane.getRows('s1', 'p1', { startRow: 0, endRow: 1, quickFilterText: 'gov' });
+      expect(views[0]?.filter).toEqual([{
+        op: 'or',
+        conditions: [
+          { column: 'id', op: 'contains', value: 'gov' },
+          { column: 'desk', op: 'contains', value: 'gov' },
+          { column: 'maturity', op: 'contains', value: 'gov' },
+        ],
+      }]);
+    });
+
+    it('boots an epoch shadow per date column, stamps it at ingest, and filters / sorts dates on it', async () => {
+      const { hub, views } = capturingHub();
+      const boot = vi.spyOn(hub, 'boot_datasource');
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', {
+        ...cfg,
+        columnDefinitions: [{ field: 'id' }, { field: 'maturity', cellDataType: 'dateString' }],
+      } as StompSsrmProviderConfig);
+      const schema = JSON.parse(boot.mock.calls[0][0] as string) as { columns: Array<{ name: string; type: string }> };
+      expect(schema.columns).toContainEqual({ name: 'maturity__epoch', type: 'f64' });
+
+      await plane.attachSession('s1');
+      await plane.ingest('p1', [{ id: '1', maturity: null }, { id: '2', maturity: '2031-06-30' }], false);
+      const ingested = JSON.parse(apply.mock.calls[0][2] as string) as Array<Record<string, unknown>>;
+      expect(ingested[0]).toMatchObject({ id: '1', maturity: null, maturity__epoch: null });
+      expect(ingested[1]).toMatchObject({ id: '2', maturity: '2031-06-30', maturity__epoch: Date.UTC(2031, 5, 30) });
+
+      await plane.getRows('s1', 'p1', {
+        startRow: 0,
+        endRow: 1,
+        filterModel: { maturity: { filterType: 'date', type: 'greaterThan', dateFrom: '2030-01-05 00:00:00', dateTo: null } },
+        sortModel: [{ colId: 'maturity', sort: 'desc' }],
+      });
+      const view = views[0] as { filter?: unknown[]; sort?: unknown[] };
+      expect(view.filter).toEqual([
+        { column: 'maturity__epoch', op: 'greaterThan', value: Date.UTC(2030, 0, 5) + 86_400_000 - 1 },
+      ]);
+      expect(view.sort).toEqual([{ column: 'maturity__epoch', sort: 'desc' }]);
+    });
   });
 
   describe('getColumnValues', () => {
@@ -146,7 +263,7 @@ describe('SsrmWasmPlane', () => {
       expect(specs.at(-1)).toMatchObject({
         groupBy: ['desk'],
         depth: 1,
-        sort: [{ column: 'desk', dir: 'asc' }],
+        sort: [{ column: 'desk', sort: 'asc' }],
       });
     });
 

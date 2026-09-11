@@ -6,6 +6,8 @@ import type { ISsrmDataProvider } from './ISsrmDataProvider.js';
 import type { ProviderCapabilities } from './ProviderCapabilities.js';
 import { resolveProviderCapabilities } from './ProviderClientAdapter.js';
 import type {
+  SsrmApplyEditsRequest,
+  SsrmApplyEditsResult,
   SsrmColumnValuesRequest,
   SsrmColumnValuesResult,
   SsrmGetRowsRequest,
@@ -31,6 +33,12 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   private resolvedConfig: ProviderConfig | null = null;
   private subId: string | null = null;
   private offTick: Unsubscribe | null = null;
+  private lastStatus: ProviderStatus = 'loading';
+
+  /** Last hub status for this subscription — `loading` until the hub says otherwise. */
+  get status(): ProviderStatus {
+    return this.lastStatus;
+  }
 
   private readonly tickHandlers = new Set<(payload: SsrmTickPayload) => void>();
   private readonly refreshHandlers = new Set<() => void>();
@@ -101,6 +109,7 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   private attach(opts: { extra?: Record<string, unknown> } = {}): void {
     this.subId = this.client.attachSsrm(this.id, this.attachCfg(), {
       onStatus: (status, error) => {
+        this.lastStatus = status;
         for (const h of this.statusHandlers) h(status, error);
         if (status === 'error' && error) {
           const err = new Error(error);
@@ -123,6 +132,12 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
       this.client.detach(this.subId);
       this.subId = null;
     }
+    this.lastStatus = 'loading';
+  }
+
+  applyEdits(req: SsrmApplyEditsRequest): Promise<SsrmApplyEditsResult> {
+    if (!this.subId) return Promise.reject(new Error('[SsrmProviderClientAdapter] not started'));
+    return this.client.ssrmApplyEdits(this.id, this.subId, req.rows);
   }
 
   getConfig(): ProviderConfig {

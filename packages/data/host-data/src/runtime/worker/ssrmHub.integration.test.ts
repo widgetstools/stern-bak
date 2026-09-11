@@ -97,6 +97,46 @@ describe('hub stomp-ssrm', () => {
     expect(rpc?.result).toMatchObject({ rowCount: 0, rowData: [] });
   });
 
+  it('writes grid edits into the engine cache so a block read returns them', async () => {
+    const hub = new SharedWorkerDataServicesHub({ createRustHub: () => fakeHub() });
+    const port = makePort();
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'ssrm-1', mode: 'ssrm', cfg });
+    hub.handleRequest(port, {
+      kind: 'ssrm-apply-edits',
+      reqId: 'e1',
+      providerId: 'ssrm-1',
+      subId: 's1',
+      rows: [{ id: 'row-1', desk: 'Edited' }],
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const edit = port.messages.find((m) => (m as SsrmRpcEvent).reqId === 'e1') as SsrmRpcEvent | undefined;
+    expect(edit?.ok).toBe(true);
+    expect(edit?.result).toEqual({ applied: 1 });
+
+    hub.handleRequest(port, {
+      kind: 'ssrm-get-rows',
+      reqId: 'r1',
+      providerId: 'ssrm-1',
+      subId: 's1',
+      request: { startRow: 0, endRow: 10 },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const rows = port.messages.find((m) => (m as SsrmRpcEvent).reqId === 'r1') as SsrmRpcEvent | undefined;
+    expect(rows?.result).toMatchObject({ rowCount: 1, rowData: [{ id: 'row-1', desk: 'Edited' }] });
+
+    hub.handleRequest(port, {
+      kind: 'ssrm-apply-edits',
+      reqId: 'e2',
+      providerId: 'nope',
+      subId: 's1',
+      rows: [{ id: 'x' }],
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const bad = port.messages.find((m) => (m as SsrmRpcEvent).reqId === 'e2') as SsrmRpcEvent | undefined;
+    expect(bad?.ok).toBe(false);
+    expect(bad?.error).toMatch(/not a running stomp-ssrm provider/);
+  });
+
   it('answers ssrm-column-values so a set filter can populate its list', async () => {
     const hub = new SharedWorkerDataServicesHub({ createRustHub: () => fakeHub() });
     const port = makePort();
