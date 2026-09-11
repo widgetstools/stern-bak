@@ -16,8 +16,8 @@
     "ag-grid-community": "36.1.0",
     "ag-grid-react": "36.1.0",
     "lucide-react": "^0.554.0",
-    "react": "~19.2.5",
-    "react-dom": "~19.2.5",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "react-hook-form": "^7.83.0",
     "recharts": "^3.10.1"
   },
