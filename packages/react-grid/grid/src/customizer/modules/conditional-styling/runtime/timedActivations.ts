@@ -328,9 +328,12 @@ function onCellValueChangedHandler(
   deps: TimedActivationsDeps,
 ): void {
   const node = event.node;
-  const getColId = event.column?.getColId;
-  if (!node || typeof node !== 'object' || typeof getColId !== 'function') return;
-  const colId = getColId();
+  if (!node || typeof node !== 'object' || typeof event.column?.getColId !== 'function') return;
+  // Call through the column: AG Grid 36 columns are class instances whose
+  // `getColId` reads `this.colId`. Detaching the method threw on every
+  // cellValueChanged, which aborted AG Grid's paste dispatch after the first
+  // cell and starved every listener registered after this one.
+  const colId = event.column.getColId();
   if (!colId) return;
   const now = Date.now();
   // One flag probe per event — every traceTimed below builds a payload

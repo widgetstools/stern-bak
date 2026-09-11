@@ -384,4 +384,43 @@ describe('processTimedActivations — delta vs full pass', () => {
     expect(scheduleRefresh).not.toHaveBeenCalled();
     dispose();
   });
+
+  it('cellValueChanged calls getColId through the column (AG Grid 36 columns read `this.colId`)', () => {
+    // A detached `getColId` threw on every cellValueChanged, which aborted
+    // AG Grid's paste dispatch after the first cell.
+    class Column {
+      constructor(private readonly colId: string) {}
+      getColId(): string { return this.colId; }
+    }
+    const node = makeNode('a', { __id: 'a', price: 1, side: 'B' });
+    const apiListeners = new Map<string, Set<(event: unknown) => void>>();
+    const api = {
+      addEventListener: (evt: string, fn: (event: unknown) => void) => {
+        if (!apiListeners.has(evt)) apiListeners.set(evt, new Set());
+        apiListeners.get(evt)!.add(fn);
+      },
+      removeEventListener: vi.fn(),
+      getColumns: () => [new Column('price')],
+    };
+    const deps = {
+      store: createTimedRuleStore(),
+      triggers: { get: () => new Set(['price']) } as unknown as TriggerCache,
+      diffCacheByApi: new WeakMap(),
+      scheduleRefresh: vi.fn(),
+      scheduleTargetedRefresh: vi.fn(),
+      armNextExpiry: vi.fn(),
+      evaluate: vi.fn(),
+    };
+    const platform = {
+      api: { api },
+      getState: () => ({ rules: [] }),
+      resources: { expression: () => ({ parseAndEvaluate: () => false }) },
+    };
+    const timed = createTimedActivations(platform as never, deps as never);
+    const dispose = timed.attachCellValueChangedListener();
+    const listeners = [...(apiListeners.get('cellValueChanged') ?? [])];
+    expect(listeners).toHaveLength(1);
+    expect(() => listeners[0]({ node, column: new Column('price'), oldValue: 1, newValue: 2 })).not.toThrow();
+    dispose();
+  });
 });
