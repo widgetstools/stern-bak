@@ -29,10 +29,15 @@ export function App() {
     let cancelled = false;
     void (async () => {
       const rows = await configStore.list(userId, { subtype: 'stomp-ssrm' });
-      const exists = rows.some((p) => p.providerId === STOMP_SSRM_PROVIDER_ID);
+      const existing = rows.find((p) => p.providerId === STOMP_SSRM_PROVIDER_ID);
       const storedVersion = localStorage.getItem('stomp-ssrm-minimal.cfg-version');
       const shouldRefresh = storedVersion !== String(STOMP_SSRM_PROVIDER_CFG_VERSION);
-      if (shouldRefresh || !exists) await configStore.save(stompSsrmProviderDraft, userId);
+      // `?rate=` changes the live trigger; re-save when the stored row's
+      // trigger disagrees with the one this page was opened with.
+      const storedTrigger = (existing?.config as { requestMessage?: string } | undefined)?.requestMessage;
+      const rateChanged = storedTrigger !== undefined
+        && storedTrigger !== (stompSsrmProviderDraft.config as { requestMessage?: string }).requestMessage;
+      if (shouldRefresh || !existing || rateChanged) await configStore.save(stompSsrmProviderDraft, userId);
       if (shouldRefresh) {
         localStorage.setItem('stomp-ssrm-minimal.cfg-version', String(STOMP_SSRM_PROVIDER_CFG_VERSION));
       }
@@ -67,8 +72,7 @@ export function App() {
         caption="SSRM · grouped by desk"
         //onGridReady={groupOnReady('desk')}
         {...shared}
-      />/
-      
+      />
     </div>
   );
 }
