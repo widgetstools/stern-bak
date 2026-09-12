@@ -350,9 +350,16 @@ update timestamp.`,
         case 'currency':
           return { ...c, cellRenderer: 'country-flag', cellRendererParams: { codeField: 'currency' } };
         case 'priceChangePct':
-          return { ...c, cellRenderer: 'trend-arrow', cellRendererParams: { threshold: 0 } };
+          return { ...c, cellRenderer: 'trend-arrow', cellRendererParams: {
+            threshold: 0,
+            upColor: { dark: '#7fdf9b', light: '#1f7a34' },
+            downColor: { dark: '#ee8e8e', light: '#a02a2a' },
+          } };
         case 'modifiedDuration':
-          return { ...c, cellRenderer: 'percent-bar', cellRendererParams: { max: 30, showValue: true, valueFormatter: fmt.num2 } };
+          return { ...c, cellRenderer: 'percent-bar', cellRendererParams: {
+            max: 30, showValue: true,
+            barColor: { dark: '#7cc7f9', light: '#1e6fb8' },
+          } };
         case 'oas':
           return { ...c, cellRenderer: 'heatmap', cellRendererParams: {
             domain: { min: 20, max: 600 },
@@ -363,9 +370,16 @@ update timestamp.`,
             },
           }};
         case 'krdSparkline':
-          return { ...c, cellRenderer: 'sparkline' };
+          return { ...c, cellRenderer: 'sparkline', cellRendererParams: {
+            variant: 'area',
+            lineColor: { dark: '#9aa6b2', light: '#3d4753' },
+            fillColor: { dark: '#2a3340', light: '#e2e8ee' },
+          } };
         case 'marketValue':
-          return { ...c, cellRenderer: 'percent-bar', cellRendererParams: { max: 50_000_000, showValue: true, valueFormatter: fmt.money } };
+          return { ...c, cellRenderer: 'percent-bar', cellRendererParams: {
+            max: 50_000_000, showValue: true,
+            barColor: { dark: '#7cc7f9', light: '#1e6fb8' },
+          } };
         case 'dailyPnL':
           return { ...c, cellRenderer: 'pnl-value' };
         case 'lastUpdate':

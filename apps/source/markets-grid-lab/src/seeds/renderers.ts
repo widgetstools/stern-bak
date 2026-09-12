@@ -1,12 +1,19 @@
+import type { CellRendererConfig } from '@wellsfargo-starui/design-system';
 import type { ColumnAssignment, ColumnCustomizationState } from '@wellsfargo-starui/grid/customizer';
 
-function cr(
-  kind: string,
-  config: Record<string, unknown>,
+// Typed against the design-system's discriminated config union, so a config
+// that does not match its renderer's contract fails the BUILD — this file
+// once shipped three shapes the renderers silently refused (a sparkline
+// without its required `variant`, a percent-bar with `max` nested inside an
+// inverted `fromField`, a trend-arrow with a `colorScale` object the
+// renderer never reads), and every one painted a blank column.
+function cr<K extends CellRendererConfig['kind']>(
+  kind: K,
+  config: Extract<CellRendererConfig, { kind: K }>['config'],
 ): Pick<ColumnAssignment, 'cellRendererId' | 'cellRendererConfig'> {
   return {
     cellRendererId: kind,
-    cellRendererConfig: { kind, config },
+    cellRendererConfig: { kind, config } as CellRendererConfig,
   };
 }
 
@@ -68,11 +75,9 @@ const A: Record<string, ColumnAssignment> = {
     headerName: 'Δ % (arrow)',
     ...cr('trend-arrow', {
       threshold: 0,
-      colorScale: {
-        up: { dark: '#7fdf9b', light: '#1f7a34' },
-        down: { dark: '#ee8e8e', light: '#a02a2a' },
-        flat: { dark: '#9aa6b2', light: '#5a6068' },
-      },
+      upColor: { dark: '#7fdf9b', light: '#1f7a34' },
+      downColor: { dark: '#ee8e8e', light: '#a02a2a' },
+      neutralColor: { dark: '#9aa6b2', light: '#5a6068' },
     }),
   },
   modifiedDuration: {
@@ -88,9 +93,9 @@ const A: Record<string, ColumnAssignment> = {
     colId: 'krdSparkline',
     headerName: 'KRD (spark)',
     ...cr('sparkline', {
+      variant: 'area',
       lineColor: { dark: '#9aa6b2', light: '#3d4753' },
       fillColor: { dark: '#2a3340', light: '#e2e8ee' },
-      strokeWidth: 1.25,
     }),
   },
   oas: {
@@ -110,18 +115,22 @@ const A: Record<string, ColumnAssignment> = {
     colId: 'marketValue',
     headerName: 'Mkt Val (bar)',
     ...cr('percent-bar', {
-      fromField: { max: 50_000_000 },
+      max: 50_000_000,
       barColor: { dark: '#7cc7f9', light: '#1e6fb8' },
       showValue: true,
     }),
   },
-  unrealizedPnL: { colId: 'unrealizedPnL', headerName: 'Unreal (PnL)', ...cr('pnl-value', {}) },
-  dailyPnL: { colId: 'dailyPnL', headerName: 'Daily (PnL)', ...cr('pnl-value', {}) },
-  ytdPnL: { colId: 'ytdPnL', headerName: 'YTD (PnL)', ...cr('pnl-value', {}) },
+  // pnl-value is a zero-config built-in: a valid renderer id with no entry in
+  // the CellRendererConfig union, so it takes no config envelope at all.
+  unrealizedPnL: { colId: 'unrealizedPnL', headerName: 'Unreal (PnL)', cellRendererId: 'pnl-value' },
+  dailyPnL: { colId: 'dailyPnL', headerName: 'Daily (PnL)', cellRendererId: 'pnl-value' },
+  ytdPnL: { colId: 'ytdPnL', headerName: 'YTD (PnL)', cellRendererId: 'pnl-value' },
   lastUpdate: {
     colId: 'lastUpdate',
     headerName: 'Updated',
-    ...cr('time-since', { sourceField: 'lastUpdate' }),
+    // time-since renders the CELL value (lastUpdate) — its config only tunes
+    // refresh cadence and future-color, neither needed here.
+    ...cr('time-since', {}),
   },
 };
 
