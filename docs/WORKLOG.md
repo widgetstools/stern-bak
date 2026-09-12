@@ -827,7 +827,12 @@ RUN (2026-09-12, worker-baseline.mjs): the CSRM fan-out ladder reproduced
 starvation did NOT reproduce on the dev rig (p99 ≤ 2.1 ms even during the
 20k snapshot re-stream — short drain-paced macrotasks) — re-probe on a
 corporate/OpenFin rig with useRest:true before calling the config plane
-low-risk. Honest limits stated in the plan: same-plane
+low-risk. THROTTLE=4 Windows-proxy run (CDP page throttling; worker
+thread NOT throttleable, so numbers understate Windows): the starvation
+mechanism appears — 103.8 ms hub-ready stall during snapshot re-stream,
+mid-storm window open 225→924 ms, joiner ladder to 5.4 s. Dev rig is an
+M4 Max; deployment target is Windows 11 32 GB — all exit gates run native
+AND throttled, final acceptance on the real target box. Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere

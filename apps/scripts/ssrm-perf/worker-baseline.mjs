@@ -30,6 +30,14 @@ const SSRM_URL = process.env.SSRM_URL ?? 'http://localhost:5215/';
 const CSRM_URL = process.env.CSRM_URL ?? 'http://localhost:5216/';
 const TAG = process.env.TAG ?? 'worker-baseline';
 const CSRM_PAGES = Math.max(2, Number(process.env.CSRM_PAGES) || 10);
+// CPU throttle multiplier (CDP Emulation.setCPUThrottlingRate) — a coarse
+// Windows-11-corporate-hardware proxy on the M4 Max dev rig. CAVEAT: CDP
+// throttling applies to PAGE renderer threads; the SharedWorker's thread is
+// a separate target Playwright cannot throttle, so worker-side costs
+// (ingest, encode) still run at native speed. Page-side costs (decode,
+// row building, grid paint — the bulk of the CSRM fan-out ladder) scale.
+// Worker-side scaling needs the real Windows box; see plan §5.
+const THROTTLE = Math.max(1, Number(process.env.THROTTLE) || 1);
 
 // Reuse harness 1's worker-port instrumentation verbatim…
 const src = readFileSync(join(HERE, 'ssrm-validate.mjs'), 'utf8');
@@ -97,7 +105,13 @@ async function probeConfig(page, samples, gapMs) {
 }
 
 const PHASES = (process.env.PHASES ?? 'AB,C').split(',');
-const out = { tag: TAG, startedAt: new Date().toISOString(), ssrmUrl: SSRM_URL, csrmUrl: CSRM_URL, scenarios: {} };
+const out = { tag: TAG, startedAt: new Date().toISOString(), ssrmUrl: SSRM_URL, csrmUrl: CSRM_URL, throttle: THROTTLE, scenarios: {} };
+
+async function throttlePage(ctx, page) {
+  if (THROTTLE <= 1) return;
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
+}
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -111,9 +125,11 @@ const out = { tag: TAG, startedAt: new Date().toISOString(), ssrmUrl: SSRM_URL, 
     // A1 — idle baseline: blotter with a quiet feed (?rate=0), probe from a
     // second window sharing the worker.
     const blotter = await ctx.newPage();
+    await throttlePage(ctx, blotter);
     await blotter.goto(`${SSRM_URL}?rate=0`, { waitUntil: 'domcontentloaded' });
     await waitForSsrmRows(blotter);
     const toolIdle = await ctx.newPage();
+    await throttlePage(ctx, toolIdle);
     await toolIdle.goto(`${SSRM_URL}?rate=0`, { waitUntil: 'domcontentloaded' });
     await waitForSsrmRows(toolIdle);
     await sleep(2000);
@@ -153,6 +169,7 @@ const out = { tag: TAG, startedAt: new Date().toISOString(), ssrmUrl: SSRM_URL, 
     // B — a FRESH window opening mid-storm: wall time to rows + the platform's
     // own load-mark ladder.
     const late = await ctx.newPage();
+    await throttlePage(ctx, late);
     const t0 = Date.now();
     await late.goto(`${SSRM_URL}?rate=10000`, { waitUntil: 'domcontentloaded' });
     await waitForSsrmRows(late);
@@ -200,6 +217,7 @@ const out = { tag: TAG, startedAt: new Date().toISOString(), ssrmUrl: SSRM_URL, 
 
     // Window 1 pays the broker snapshot into the worker cache.
     const first = await ctx.newPage();
+    await throttlePage(ctx, first);
     const tFirst = Date.now();
     await first.goto(CSRM_URL, { waitUntil: 'domcontentloaded' });
     await csrmReady(first);
@@ -207,7 +225,11 @@ const out = { tag: TAG, startedAt: new Date().toISOString(), ssrmUrl: SSRM_URL, 
 
     // Windows 2..N attach SIMULTANEOUSLY — the replay fan-out under test.
     const joiners = [];
-    for (let i = 1; i < CSRM_PAGES; i += 1) joiners.push(await ctx.newPage());
+    for (let i = 1; i < CSRM_PAGES; i += 1) {
+      const page = await ctx.newPage();
+      await throttlePage(ctx, page);
+      joiners.push(page);
+    }
     const tJoin = Date.now();
     const joinMs = await Promise.all(joiners.map(async (page) => {
       await page.goto(CSRM_URL, { waitUntil: 'domcontentloaded' });

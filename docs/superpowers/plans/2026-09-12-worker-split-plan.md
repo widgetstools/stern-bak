@@ -262,17 +262,32 @@ posts). Numbers into §5.
 changes), production previews, stomp-view-server 20k rows, M-series macOS.
 Raw JSON in `apps/scripts/ssrm-perf/out/worker-baseline-*.json`.
 
-| probe | before (W0) | after (W3/W4) |
-|---|---|---|
-| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | — |
-| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | — |
-| `list-configs` p50 / p99, DURING 20k snapshot re-stream (115 samples @100 ms) | 0.3 / 0.8 ms | — |
-| Fresh window open mid-storm: wall→rows / `platform-ready` mark | 225–267 ms / 70–88 ms | — |
-| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | — |
-| 10 CSRM windows × 20k: 9 simultaneous joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | — |
-| 10 CSRM windows × 20k: joiner first→last spread / last÷first ratio | 1 246 ms / **2.14×** (target ≤1.5×) | — |
-| Joiner `platform-ready` marks during the fan-out | 138–220 ms | — |
-| Hub-thread ms consumed by the 10-window fan-out (encode + post) | needs worker-side timing (W4 adds it) | — |
+**Hardware reality (binding constraint, 2026-09-12):** development is an
+M4 Max / 32 GB — close to the fastest single-thread CPU shipping. The
+deployment target is **Windows 11 / 32 GB corporate hardware**: expect
+2–5× slower single-thread, efficiency-core scheduling, AV scanning. Every
+number below measured natively is a LOWER BOUND. Rule for all phases:
+exit gates run twice — native and `THROTTLE=4` (the harness's CDP
+Windows proxy) — and final acceptance happens on the actual Windows 11
+target. The proxy itself UNDERSTATES Windows: CDP throttles page
+renderer threads only, the SharedWorker thread cannot be throttled from
+Playwright, so worker-side costs (ingest, encode, fan-out posting) still
+ran at M4 speed in every `THROTTLE=4` row.
+
+| probe | native (M4 Max) | THROTTLE=4 (Windows proxy, worker unthrottled) | after (W3/W4) |
+|---|---|---|---|
+| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | 0.1 / 0.5 ms | — |
+| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | 0.2 / 0.6 ms | — |
+| config RPC DURING 20k snapshot re-stream — p99 / MAX | 0.8 / 1.4 ms | 1.0 / **103.8 ms** | — |
+| Fresh window open mid-storm: wall→rows / `platform-ready` | 225–267 / 70–88 ms | **924 / 219 ms** | — |
+| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | 3 683 ms¹ | — |
+| 10 CSRM windows × 20k: 9 joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | 2 642 → **5 437 ms** (p50 4 539) | — |
+| 10 CSRM windows × 20k: joiner spread / last÷first | 1 246 ms / 2.14× | **2 795 ms** / 2.06× | — |
+| Joiner `platform-ready` during the fan-out | 138–220 ms | 235–494 ms | — |
+| Hub-thread ms consumed by the fan-out (encode + post) | needs worker-side timing (W4 adds it) | — | — |
+
+¹ broker-paced (network dominates), and the second C run rides the prior
+run's warmed broker snapshot cache — not comparable across runs.
 
 ### W0 findings — what reproduced and what did not
 
@@ -282,7 +297,17 @@ per-window serialized replay, exactly the mechanism W4's round-robin
 scheduler removes. Platform boot is NOT the cost (joiner `platform-ready`
 at 138–220 ms); the ladder is replay + decode + paint queueing.
 
-**Not reproduced on this rig: config-RPC starvation.** Across idle, a
+**Starvation appears under the Windows proxy.** At `THROTTLE=4` the
+snapshot re-stream produced a 103.8 ms `hub-ready` stall (native max:
+1.2 ms) — the first direct sighting of a config RPC pinned behind
+ingest — while mid-storm window opens went 225 → 924 ms and the joiner
+ladder reached 5.4 s. All with the WORKER still at native speed; on real
+Windows hardware the worker's own macrotasks stretch too, so the
+production picture is strictly worse than the proxy — the reported
+tens-of-seconds opens are consistent with this trajectory (slower worker
+macrotasks × more windows × REST-mode config), not anomalous.
+
+**Not reproduced natively: config-RPC starvation.** Across idle, a
 rate=10000 steady storm, and the 20k snapshot re-stream itself, catalog
 RPC p99 never exceeded 2.1 ms, and a fresh window opened mid-storm in
 ~250 ms. The SSRM ingest path batches into SHORT macrotasks
