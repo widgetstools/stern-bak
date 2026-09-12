@@ -118,6 +118,14 @@ export {
   lookupSsrmExprAggregate,
   simpleColumnAggregate,
   simpleAggFuncForColumn,
+  classifySsrmExpression,
+  compileToEngineExpression,
+  toComputedColumnSpec,
+} from './expression';
+export type {
+  CompileToEngineExpressionResult,
+  SsrmExpressionClassification,
+  SsrmExpressionTier,
 } from './expression';
 export type {
   ExpressionNode,

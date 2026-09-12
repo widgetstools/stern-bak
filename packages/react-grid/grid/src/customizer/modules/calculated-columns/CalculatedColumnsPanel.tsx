@@ -23,7 +23,7 @@
  */
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
-import { astUsesAggregateFunctions, ExpressionEngine } from '@wellsfargo-starui/core';
+import { classifySsrmExpression, ExpressionEngine, type SsrmExpressionClassification } from '@wellsfargo-starui/core';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';
 import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
 import { useGridApi } from '../../hooks/useGridApi';
@@ -60,28 +60,60 @@ function tierEngine(): ExpressionEngine {
 }
 
 /**
- * Which SSRM tier this column's expression lands in (Rust plan §5.3):
- * `compiled` — a real engine column (none today: the vendored WASM has no
- * expression support); `materialized` — computed in the grid per loaded row,
- * with sort/filter/group locked by `lockSsrmExpressionColumns`. Cross-row
- * SUM/AVG/MIN/MAX/COUNT read engine-wide totals through the aggregates RPC,
- * so they are flagged rather than left to read as loaded-block statistics.
- * Under CSRM there are no tiers — returns null.
+ * Which SSRM tier this column's expression lands in — the REAL classifier
+ * from the engine expression contract (plan §12 T1): `compiled` expressions
+ * are fully expressible in the wire grammar and unlock engine-side with T3
+ * (plus any `requires` phases); `materialized` stays a client column;
+ * `unsupported` leans on loaded-row-only aggregates (MEDIAN/STDEV/VARIANCE/
+ * DISTINCT_COUNT) whose values ARE loaded-block statistics. Under CSRM there
+ * are no tiers — returns null. A parse failure classifies as materialized
+ * (the broken expression already renders null per row).
  */
 function ssrmExpressionTier(
   ssrm: boolean,
   expression: string | undefined,
-): { tier: 'materialized'; usesAggregates: boolean } | null {
+): SsrmExpressionClassification | null {
   if (!ssrm) return null;
-  let usesAggregates = false;
-  if (expression) {
-    try {
-      usesAggregates = astUsesAggregateFunctions(tierEngine().parse(expression));
-    } catch {
-      usesAggregates = false;
-    }
+  try {
+    return classifySsrmExpression(tierEngine().parse(expression ?? ''));
+  } catch {
+    return {
+      tier: 'materialized',
+      requires: [],
+      engineAggregates: [],
+      loadedRowAggregates: [],
+      untranslatable: ['expression does not parse'],
+    };
   }
-  return { tier: 'materialized', usesAggregates };
+}
+
+const TIER_CHIP: Record<SsrmExpressionClassification['tier'], string> = {
+  compiled: 'ENGINE-READY',
+  materialized: 'GRID',
+  unsupported: 'LOADED ROWS',
+};
+
+/** The badge's expanded sentence — mechanisms, not adjectives. */
+function tierNote(tier: SsrmExpressionClassification): string {
+  const parts = [
+    'SERVER-SIDE GRID — computed in the grid per loaded row; sort, filter and row-group are locked (the engine has no expression support yet).',
+  ];
+  if (tier.tier === 'compiled') {
+    const needs = ['plan §12 T3'];
+    if (tier.requires.includes('aggregates')) needs.push('T4 (aggregate scalars)');
+    if (tier.requires.includes('dateFns')) needs.push('T6 (typed dates)');
+    parts.push(`Engine-ready: compiles to the engine expression contract — unlocks with ${needs.join(' + ')}.`);
+  }
+  if (tier.engineAggregates.length > 0) {
+    parts.push('SUM / AVG / MIN / MAX / COUNT read engine-wide totals, not the loaded blocks.');
+  }
+  if (tier.tier === 'unsupported') {
+    parts.push(`${tier.loadedRowAggregates.join(' / ')} has no engine total — its value here is a loaded-block statistic.`);
+  }
+  if (tier.tier === 'materialized' && tier.untranslatable.length > 0) {
+    parts.push(`Outside the engine grammar: ${tier.untranslatable[0]}.`);
+  }
+  return parts.join(' ');
 }
 
 /** Base-36 id with a stable `vcol_` prefix — collision-safe for reasonable
@@ -362,11 +394,12 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
             {tier ? (
               <SummaryChip
                 label="SSRM TIER"
-                tone="warning"
+                tone={tier.tier === 'unsupported' ? 'warning' : tier.tier === 'compiled' ? 'info' : 'warning'}
                 data-testid={`cc-virtual-ssrm-tier-${colId}`}
                 value={
-                  <Mono color="var(--ds-accent-warning)">
-                    {tier.usesAggregates ? 'GRID + ENGINE AGG' : 'GRID'}
+                  <Mono color={tier.tier === 'compiled' ? 'var(--ds-primary)' : 'var(--ds-accent-warning)'}>
+                    {TIER_CHIP[tier.tier]}
+                    {tier.engineAggregates.length > 0 ? ' + ENGINE AGG' : ''}
                   </Mono>
                 }
                 title="Server-side grid: this column is computed in the grid, not the engine."
@@ -378,11 +411,7 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
               className="w-full mt-1 text-xs text-muted-foreground"
               data-testid={`cc-virtual-ssrm-note-${colId}`}
             >
-              SERVER-SIDE GRID — computed in the grid per loaded row; sort, filter and
-              row-group are locked (the engine has no expression support).
-              {tier.usesAggregates
-                ? ' SUM / AVG / MIN / MAX / COUNT read engine-wide totals, not the loaded blocks.'
-                : ''}
+              {tierNote(tier)}
             </div>
           ) : null}
           <div className="w-full mt-2 flex items-center gap-2">
