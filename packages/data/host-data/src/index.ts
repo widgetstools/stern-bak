@@ -35,6 +35,8 @@ export type {
   ISsrmDataProvider,
   SsrmAggregatesRequest,
   SsrmAggregatesResult,
+  SsrmApplyEditsRequest,
+  SsrmApplyEditsResult,
   SsrmProviderClientAdapterOpts,
 } from './provider/index.js';
 

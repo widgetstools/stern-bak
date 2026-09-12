@@ -12,6 +12,8 @@ export {
 } from './ProviderClientAdapter.js';
 export type {
   ISsrmDataProvider,
+  SsrmApplyEditsRequest,
+  SsrmApplyEditsResult,
   SsrmColumnValuesRequest,
   SsrmColumnValuesResult,
   SsrmAggregatesRequest,
