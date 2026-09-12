@@ -115,6 +115,60 @@ describe('MarketsGridSsrmSurface', () => {
     unmount();
   });
 
+  it('attaches the editing-core engine writer on ready and clears it on unmount', async () => {
+    const p = provider();
+    const applied: unknown[] = [];
+    (p as { applyEdits?: unknown }).applyEdits = vi.fn(async (req: unknown) => {
+      applied.push(req);
+      return { applied: 1 };
+    });
+    const gridRef = { current: { api: readyApi } };
+    const { unmount } = render(
+      <MarketsGridSsrmSurface
+        gridRef={gridRef as never}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'id' }]}
+        sideBar={undefined}
+        statusBar={undefined}
+        defaultColDef={undefined}
+        onGridReady={vi.fn()}
+        onGridPreDestroyed={vi.fn()}
+        ssrm={{ provider: p, keyColumn: 'id' }}
+      />,
+    );
+    const writer = (readyApi as Record<string, unknown>).__ssrmEditWriter as
+      (rows: Record<string, unknown>[], cols: string[][]) => Promise<unknown>;
+    expect(typeof writer).toBe('function');
+    await writer([{ id: 'r1', qty: 5 }], [['qty']]);
+    expect(applied).toEqual([{ rows: [{ id: 'r1', qty: 5 }], editedColumns: [['qty']] }]);
+
+    unmount();
+    expect((readyApi as Record<string, unknown>).__ssrmEditWriter).toBeUndefined();
+  });
+
+  it('attaches no writer for a provider without applyEdits — disables stand', () => {
+    const gridRef = { current: { api: readyApi } };
+    const { unmount } = render(
+      <MarketsGridSsrmSurface
+        gridRef={gridRef as never}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'id' }]}
+        sideBar={undefined}
+        statusBar={undefined}
+        defaultColDef={undefined}
+        onGridReady={vi.fn()}
+        onGridPreDestroyed={vi.fn()}
+        ssrm={{ provider: provider(), keyColumn: 'id' }}
+      />,
+    );
+    expect((readyApi as Record<string, unknown>).__ssrmEditWriter).toBeUndefined();
+    unmount();
+  });
+
   it('answers isServerSideGroupOpenByDefault from the profile-restored expansion stash', () => {
     const p = provider();
     const gridRef = { current: { api: readyApi } };

@@ -85,6 +85,18 @@ describe('BulkUpdateToolbarBody', () => {
     expect(screen.queryByTestId('bulk-update-apply')).toBeNull();
   });
 
+  it('enables on server-side grids when the engine write hook is attached', () => {
+    const api = makeMockApi() as ReturnType<typeof makeMockApi> & {
+      getGridOption: (key: string) => unknown;
+      __ssrmEditWriter?: unknown;
+    };
+    api.getGridOption = (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined);
+    api.__ssrmEditWriter = () => Promise.resolve({ applied: 0 });
+    mount(makePlatform(), api);
+    expect(screen.queryByTestId('bulk-update-ssrm-disabled')).toBeNull();
+    expect(screen.getByTestId('bulk-update-apply')).toBeTruthy();
+  });
+
   it('apply is disabled until a value is entered', () => {
     mount(makePlatform());
     expect((screen.getByTestId('bulk-update-apply') as HTMLButtonElement).disabled).toBe(true);

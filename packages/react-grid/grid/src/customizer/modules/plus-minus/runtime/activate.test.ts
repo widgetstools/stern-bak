@@ -163,6 +163,36 @@ describe('activatePlusMinus', () => {
     platform.destroy();
   });
 
+  it('nudges server-side grids WITH the engine write hook and persists through it', async () => {
+    const platform = new GridPlatform({
+      gridId: 'pm-ssrm-writer',
+      modules: [plusMinusModule],
+    });
+    platform.store.setModuleState('plus-minus', () => ({
+      ...INITIAL_PLUS_MINUS,
+      nudges: [{
+        ...defaultPlusMinusNudge('Qty'),
+        scope: { columnIds: ['quantityFace'] },
+        incrementStep: 500,
+      }],
+    }));
+    const { api, cellKeyDownHandler } = makeMockApi();
+    const applyServerSideTransactionAsync = vi.fn();
+    const writer = vi.fn().mockResolvedValue({ applied: 1 });
+    Object.assign(api as object, {
+      getGridOption: (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined),
+      applyServerSideTransactionAsync,
+      __ssrmEditWriter: writer,
+    });
+    platform.onGridReady(api as never);
+    await cellKeyDownHandler()!({
+      event: { key: '+', preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as KeyboardEvent,
+    });
+    expect(applyServerSideTransactionAsync).toHaveBeenCalled();
+    expect(writer).toHaveBeenCalled();
+    platform.destroy();
+  });
+
   it('ignores key when disabled', async () => {
     const platform = new GridPlatform({
       gridId: 'pm-off',

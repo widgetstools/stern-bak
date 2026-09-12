@@ -16,7 +16,7 @@ import type {
 } from 'ag-grid-community';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import { SSRM_PIVOT_FIELD_SEPARATOR } from '@wellsfargo-starui/data/runtime';
-import { restoredExpandedGroupIds } from '@wellsfargo-starui/core';
+import { attachSsrmEditWriter, restoredExpandedGroupIds } from '@wellsfargo-starui/core';
 import type { MarketsGridProps } from './types';
 import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
 import { buildStreamSafeComponents } from './buildStreamSafeComponents';
@@ -232,6 +232,15 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     // Cell edits, pastes and fills go back to the engine so they survive the
     // next tick and reach every grid on the provider.
     const offEdits = bindSsrmEdits(ssrm.provider, event.api);
+    // The editing-core write hook: Smart Edit / Bulk Update / Plus-Minus /
+    // Shortcuts / journal undo all funnel through applyPatches, which
+    // persists via this writer (plan §12 C1/C2). Without applyEdits the
+    // writer stays absent and those modules keep their honesty disables.
+    const applyEdits = ssrm.provider.applyEdits?.bind(ssrm.provider);
+    if (applyEdits) {
+      attachSsrmEditWriter(event.api, (rows, editedColumns) =>
+        applyEdits({ rows: rows.map((r) => ({ ...r })), editedColumns }));
+    }
     const offGroups = watchGroupsFromApi(ssrm.provider, event.api);
     const offExprAgg = bindSsrmExpressionAggregates(ssrm.provider, event.api);
     (event.api as GridReadyEvent['api'] & { __ssrmCleanup?: () => void }).__ssrmCleanup = () => {
@@ -239,6 +248,7 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
       offEdits();
       offGroups();
       offExprAgg();
+      attachSsrmEditWriter(event.api, null);
       detachSsrmSession(event.api);
     };
     onGridReady(event);

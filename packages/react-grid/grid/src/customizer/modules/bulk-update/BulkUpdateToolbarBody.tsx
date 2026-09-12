@@ -40,6 +40,7 @@ import {
   EditingToolbarApplyButton,
   EditingToolbarSegment,
 } from '../../../widget/editingToolbar/EditingToolbarPrimitives';
+import { lookupSsrmEditWriter } from '@wellsfargo-starui/core';
 import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
 import { useBulkUpdateSelection } from './useBulkUpdateSelection';
 import { applyBulkUpdateEdits, resolveBulkUpdateTargets } from './runtime/applyBulkUpdateEdits';
@@ -84,7 +85,7 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
 
   const executeApply = useCallback(async () => {
     const api = platform.api.api;
-    if (!api || !settings.settings.enabled || !value.trim() || isSsrmGrid(api)) return;
+    if (!api || !settings.settings.enabled || !value.trim() || (isSsrmGrid(api) && !lookupSsrmEditWriter(api))) return;
 
     const targets = resolveBulkUpdateTargets(api);
     if (targets.length === 0) return;
@@ -180,7 +181,10 @@ export function BulkUpdateToolbarBody({ layout = 'standalone' }: EditingToolbarS
 
   if (!settings.settings.enabled) return null;
 
-  if (isSsrmGrid(platform.api.api)) {
+  // With the engine write hook attached (plan §12 C1) the segment works —
+  // writes persist through ssrm-apply-edits like a paste. Without it, the
+  // honest disable stands.
+  if (isSsrmGrid(platform.api.api) && !lookupSsrmEditWriter(platform.api.api)) {
     return (
       <EditingToolbarSegment
         layout={layout}
