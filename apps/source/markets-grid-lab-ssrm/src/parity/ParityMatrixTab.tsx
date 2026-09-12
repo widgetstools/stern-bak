@@ -72,10 +72,10 @@ export function ParityMatrixTab({ onNavigate }: { onNavigate: (tabId: string) =>
         </table>
 
         <p className="mt-5 text-[12px] leading-relaxed text-[color:var(--ds-text-faint)]">
-          Gaps route through <code>ssrm-apply-edits</code> rebuilds (bulk update, plus/minus,
-          shortcuts) or engine capabilities (expressions, book-wide alert predicates) — the
-          engine-side items live in the SSRM hardening handoff and the Rust engine plan under{' '}
-          <code>docs/superpowers/plans/</code>.
+          The former write-path gaps (bulk update, plus/minus, shortcuts, undo) closed with the
+          engine edit writer on the <code>applyPatches</code> seam (plan §12 C1/C2). Remaining
+          partials await engine capabilities — expressions (T3/T4), book-wide alert predicates
+          (T5) — tracked in the Rust engine plan under <code>docs/superpowers/plans/</code>.
         </p>
       </div>
     </div>

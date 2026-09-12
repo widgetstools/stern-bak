@@ -17,9 +17,10 @@ describe('parity notes', () => {
     }
   });
 
-  it('marks the known write-path gaps as gaps, not partials', () => {
-    expect(parityFor('bulk-update')?.status).toBe('gap');
-    expect(parityFor('plus-minus')?.status).toBe('gap');
-    expect(parityFor('shortcuts')?.status).toBe('gap');
+  it('the former write-path gaps closed with the engine edit writer (plan §12 C1)', () => {
+    expect(parityFor('bulk-update')?.status).toBe('full');
+    expect(parityFor('plus-minus')?.status).toBe('full');
+    expect(parityFor('shortcuts')?.status).toBe('full');
+    expect(parityFor('editing')?.status).toBe('full');
   });
 });
