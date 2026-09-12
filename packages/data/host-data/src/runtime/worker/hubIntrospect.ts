@@ -8,6 +8,7 @@
 
 import type {
   AppDataRow,
+  HubFanoutIntrospect,
   HubIntrospectSnapshot,
   HubProviderIntrospectRow,
 } from '../protocol.js';
@@ -23,6 +24,8 @@ export interface IntrospectSources {
   connectedPortCount: number;
   appDataListenerCount: number;
   appDataRows: readonly AppDataRow[];
+  /** Late-join replay fan-out accounting (data hub only). */
+  fanout?: HubFanoutIntrospect;
 }
 
 export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSnapshot {
@@ -93,5 +96,6 @@ export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSn
         values: r.values,
       })),
     },
+    ...(src.fanout ? { fanout: src.fanout } : {}),
   };
 }

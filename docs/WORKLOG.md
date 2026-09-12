@@ -876,10 +876,17 @@ the ConfigManager's own row cache, which never touch the data worker's
 thread, so there is no contention to remove; revisit only with a
 measured read cost. Field note from the Windows probe: the demo pages
 block `DOMContentLoaded` on Google Fonts (0.1–11 s here) — the harness
-now aborts those hosts; apps should self-host or defer the fonts. W3
-(re-measure + soak + docs) and W4 (CSRM fan-out) remain — continued on
-the Windows target box per the operator
-handoff [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
+now aborts those hosts; apps should self-host or defer the fonts. W4
+landed (2026-09-12): `ReplayScheduler` fans late-join replays out
+round-robin (rounds of one chunk per pending port, 8 ms budget between
+rounds, MessageChannel yield, chunks frozen per job at enqueue, live
+deltas deferred per port until its `ready`), with hub-thread accounting on
+`hub-introspect.fanout`; 10-window ladder 1.47× → 1.09–1.36× (spread
+1 204 → 272–939 ms), hub thread ≈ 0.6–0.9 s encode + 0.45–0.6 s posting
+per 9-port episode — the posting floor is structured-clone per port, so
+the SharedArrayBuffer stretch (needs `crossOriginIsolated`) is the next
+lever there and was NOT built. W3 (final re-measure, soak, docs, orphan
+sweep) is the closing pass — see the handoff [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere

@@ -661,6 +661,84 @@ describe('SharedWorkerDataServicesHub — snapshot replay memoization', () => {
   });
 });
 
+describe('SharedWorkerDataServicesHub — round-robin replay fan-out (worker-split W4)', () => {
+  /** Hub whose replay passes hold ~one post each (a vanishing budget) and whose yields we run by hand. */
+  function fanoutHub() {
+    const yields: Array<() => void> = [];
+    const hub = new SharedWorkerDataServicesHub({
+      replayPassBudgetMs: 0.0001,
+      yieldToMacrotask: (cb) => { yields.push(cb); },
+    });
+    const drain = () => { while (yields.length) yields.splice(0).forEach((cb) => cb()); };
+    return { hub, drain };
+  }
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r${i}`, x: i }));
+
+  it('every simultaneous joiner gets its first chunk before any joiner gets its second, then ready', () => {
+    const { hub, drain } = fanoutHub();
+    const primer = makePort();
+    hub.handleRequest(primer, { kind: 'attach', subId: 'primer', providerId: 'p1', mode: 'data', cfg: cfg() });
+    controllers.get('default')!.emit({ rows: rows(1500), replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+
+    const seq: string[] = []; // cross-port order of delta-bin posts
+    const joiners = ['j1', 'j2', 'j3'].map((subId) => {
+      const port = makePort();
+      const inner = port.postMessage.bind(port);
+      port.postMessage = (m: unknown) => { if ((m as { kind?: string }).kind === 'delta-bin') seq.push(subId); inner(m); };
+      hub.handleRequest(port, { kind: 'attach', subId, providerId: 'p1', mode: 'data' });
+      return { subId, port };
+    });
+    drain();
+
+    for (const { port, subId } of joiners) {
+      const kinds = port.messages.map((m) => `${m.kind}${(m as { replace?: boolean }).replace ? '*' : ''}${(m as { status?: string }).status ? ':' + (m as { status?: string }).status : ''}`);
+      expect(kinds, subId).toEqual(['status:loading', 'delta-bin*', 'delta-bin', 'delta-bin', 'status:ready']);
+      expect(rowsOf(port.messages[1])!.length + rowsOf(port.messages[2])!.length + rowsOf(port.messages[3])!.length).toBe(1500);
+    }
+    // Round-robin across passes: the last joiner's first chunk lands before
+    // the first joiner's last chunk — nobody waits behind a whole replay.
+    expect(seq.indexOf('j3')).toBeLessThan(seq.lastIndexOf('j1'));
+    const stats = hub.buildIntrospectSnapshot().fanout!;
+    expect(stats.replays).toBe(3);
+    expect(stats.passes).toBeGreaterThan(1);
+    expect(stats.lastEpisode).toMatchObject({ ports: 3, chunksPosted: 9 });
+  });
+
+  it('a live tick landing mid-replay reaches the replaying port only after its ready — and the others at once', () => {
+    const { hub, drain } = fanoutHub();
+    const primer = makePort();
+    hub.handleRequest(primer, { kind: 'attach', subId: 'primer', providerId: 'p1', mode: 'data', cfg: cfg() });
+    controllers.get('default')!.emit({ rows: rows(1000), replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+
+    const late = makePort();
+    hub.handleRequest(late, { kind: 'attach', subId: 'late', providerId: 'p1', mode: 'data' });
+    // Replay in flight (first chunk posted, more owed): a tick arrives.
+    primer.messages.length = 0;
+    controllers.get('default')!.emit({ rows: [{ id: 'r0', x: 999 }] });
+    expect(primer.messages.map((m) => m.kind)).toEqual(['delta']);
+    expect(late.messages.map((m) => m.kind)).not.toContain('delta');
+    drain();
+
+    const kinds = late.messages.map((m) => `${m.kind}${(m as { status?: string }).status ? ':' + (m as { status?: string }).status : ''}`);
+    expect(kinds).toEqual(['status:loading', 'delta-bin', 'delta-bin', 'status:ready', 'delta']);
+    expect(rowsOf(late.messages[4])).toEqual([{ id: 'r0', x: 999 }]);
+  });
+
+  it('a joiner that detaches mid-replay gets nothing more', () => {
+    const { hub, drain } = fanoutHub();
+    const primer = makePort();
+    hub.handleRequest(primer, { kind: 'attach', subId: 'primer', providerId: 'p1', mode: 'data', cfg: cfg() });
+    controllers.get('default')!.emit({ rows: rows(1500), replace: true });
+    const late = makePort();
+    hub.handleRequest(late, { kind: 'attach', subId: 'late', providerId: 'p1', mode: 'data' });
+    hub.handleRequest(late, { kind: 'detach', subId: 'late' });
+    drain();
+    expect(late.messages.map((m) => m.kind)).toEqual(['status', 'delta-bin']);
+  });
+});
+
 describe('SharedWorkerDataServicesHub — binary snapshot broadcast (restart/initial fan-out)', () => {
   const binChunks = (port: CapturedPort) =>
     port.messages.filter((m) => m.kind === 'delta-bin') as Array<Event & { kind: 'delta-bin' }>;

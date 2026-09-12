@@ -273,6 +273,18 @@ export interface HubAppDataIntrospectRow {
   values: Record<string, unknown>;
 }
 
+/** Hub-thread accounting of late-join replay fan-out (data hub only — W4). */
+export interface HubFanoutIntrospect {
+  passes: number;
+  replays: number;
+  chunksPosted: number;
+  /** Hub-thread ms encoding dirty buckets (once per attach). */
+  encodeMs: number;
+  /** Hub-thread ms inside replay passes (posting). */
+  hubThreadMs: number;
+  lastEpisode: { ports: number; chunksPosted: number; encodeMs: number; hubThreadMs: number; wallMs: number } | null;
+}
+
 export interface HubIntrospectSnapshot {
   connectedPorts: number;
   catalogReady: boolean;
@@ -283,6 +295,8 @@ export interface HubIntrospectSnapshot {
     listenerCount: number;
     rows: readonly HubAppDataIntrospectRow[];
   };
+  /** Present on the data hub's answer only. */
+  fanout?: HubFanoutIntrospect;
 }
 
 /** Query live hub diagnostics (providers, subscribers, cache sizes). */

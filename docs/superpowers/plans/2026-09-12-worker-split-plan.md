@@ -248,6 +248,18 @@ orphaned.
 
 ### W4 — CSRM snapshot fan-out: 20k rows × 10 blotters, almost simultaneously
 
+**W4 landed (2026-09-12, Windows target).** Items 1–3 as specified,
+built on the existing bucketed replay cache: `ReplayScheduler` (rounds of
+one chunk per pending port, 8 ms budget between rounds, MessageChannel
+yield, visible-before-hidden order, each job's chunk set frozen at
+enqueue so the encode is one per attach burst, live deltas deferred per
+port until its `ready`, cancellation on detach / close / stop / recreate)
+with the hub-thread accounting surfaced through `hub-introspect.fanout`
+(`encodeMs` and posting `hubThreadMs` separately). Item 4
+(SharedArrayBuffer) is NOT built: the web previews are not
+`crossOriginIsolated`, and the measured hub-thread cost below does not
+justify it. Numbers in §5.
+
 What already exists (build on it, don't reinvent): the replay path keeps
 **bucketed, pre-encoded binary chunks** with per-bucket invalidation
 (`runtime/worker/replayCache.ts` — attach cost is proportional to recent
@@ -391,6 +403,30 @@ ladder is replay + decode + paint, W4's target. The customizer-open timing
 (`customizerOpenMs`) is wired in the harness but the SSRM demo's toolbar
 does not render the settings button, so it reads `null` there — see the
 W3 notes for where it is measured.
+
+**W4 landed (2026-09-12, Windows native, `TAG=win-w4b-c1/c2`, raw
+`out/win-w4b-*.json`, fonts isolated).** 10 CSRM windows × 20k: joiners
+2 980 → 3 252 ms (p50 3 192, spread **272 ms**, last÷first **1.09×**)
+and 2 616 → 3 555 ms (p50 3 192, spread 939 ms, 1.36×) on the two runs,
+against 2 541 → 3 745 ms (spread 1 204, 1.47×) on the W2 build — the
+ladder target (≤ 1.5×) is met with margin, and p50 is unchanged because a
+round-robin fan-out finishes everyone together. First window 1 523 /
+1 553 ms (`platform-ready` 275–281 ms). **Hub-thread ms consumed by the
+fan-out (the row that needed worker-side timing):** per 9-port episode
+`encodeMs` 557 / 906 ms + posting `hubThreadMs` 580 / 446 ms, wall
+1 236 / 1 564 ms — down from 2 487 / 3 148 ms hub-thread in the first
+scheduler cut, which re-resolved chunks every pass and, under this
+sweeping feed, re-encoded most of the 20k-row cache 30+ times; freezing
+each job's chunks at enqueue restored one encode per attach. What
+remains is structural: encode is feed-dependent (each attach re-encodes
+the buckets dirtied since the previous one — the price of a consistent
+per-attach snapshot), and posting is ~1.2–1.6 ms per 500-row chunk per
+port (360 posts), the structured-clone floor that only a
+`crossOriginIsolated` SharedArrayBuffer transport removes. The "within
+~2× a single-window replay" hub-thread target is therefore NOT met
+(≈ 7–10×) and cannot be on this transport; the joiner wall time on this
+box is client-bound (ten renderers decoding + painting 20k rows on one
+CPU), not hub-bound.
 
 ### W0 findings — what reproduced and what did not
 

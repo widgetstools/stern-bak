@@ -24,6 +24,7 @@
  *   - {@link ProviderLifecycleReads} — cfg + AppData reads at lifecycle moments
  *   - {@link HubSsrmRpc} — SSRM block RPCs, engine sessions, the tick loop
  *   - {@link HubStatsSampler} — the 1 Hz diagnostics sampler
+ *   - {@link ReplayScheduler} — round-robin late-join replay fan-out
  *   - `providerEmit.ts` — upstream event application + encode
  *   - `replayCache.ts` — bucketed late-join replay encoding
  *   - `hubIntrospect.ts` / `hubStats.ts` — diagnostics snapshots
@@ -46,7 +47,6 @@ import {
   traceWorkerAppDataSnapshot,
 } from '../template/templateTrace.js';
 import {
-  LATE_JOIN_CHUNK_SIZE,
   SEC_WINDOW,
   MIN_WINDOW,
   type PortLike,
@@ -55,7 +55,9 @@ import {
   SUBSCRIBER_SWEEP_INTERVAL_MS,
 } from './hubTypes.js';
 import { restartClickLatency, restartExtrasEqual } from './hubHelpers.js';
-import { newReplayCache, ensureReplayChunks } from './replayCache.js';
+import { newReplayCache } from './replayCache.js';
+import { ReplayScheduler } from './ReplayScheduler.js';
+import { yieldToMacrotask } from './yieldToMacrotask.js';
 import { snapshotProviderStats } from './hubStats.js';
 import { applyProviderEmit, type ProviderEmitContext } from './providerEmit.js';
 import { buildIntrospectSnapshot } from './hubIntrospect.js';
@@ -100,11 +102,24 @@ export class SharedWorkerDataServicesHub {
   private readonly introspectCtx: IntrospectRpcContext;
   private readonly ssrm: HubSsrmRpc;
   private readonly stats: HubStatsSampler;
+  private readonly replay: ReplayScheduler;
 
   constructor(opts: SharedWorkerDataServicesHubOpts = {}) {
     this.setTimer = opts.setTimer ?? ((cb, ms) => setInterval(cb, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     this.lifecycle = new ProviderLifecycleReads(opts.configManager);
+
+    this.replay = new ReplayScheduler(
+      {
+        isCurrentSlot: (providerId, slot) => this.providers.get(providerId) === slot,
+        isHidden: (subId) => Boolean(this.subscribers.listenerOf(subId)?.hidden),
+        post: (job, event) => this.postDataEvent(job, event),
+        recordPublish: (slot, count) => this.recordPublish(slot, count),
+        yieldThen: opts.yieldToMacrotask ?? yieldToMacrotask,
+        now: () => (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+      },
+      opts.replayPassBudgetMs,
+    );
 
     this.stats = new HubStatsSampler(
       {
@@ -173,6 +188,7 @@ export class SharedWorkerDataServicesHub {
       connectedPortCount: this.connectedPorts.size,
       appDataListenerCount: 0,
       appDataRows: this.lifecycle.snapshotRows(),
+      fanout: this.replay.snapshotStats(),
     });
   }
 
@@ -188,6 +204,7 @@ export class SharedWorkerDataServicesHub {
       if (owner === port) this.pendingAttaches.delete(subId);
     }
     const { idleCandidates, subIds, statsEmptied } = this.subscribers.removeByPort(port);
+    for (const subId of subIds) this.replay.cancel(subId);
     if (statsEmptied) this.stats.maybeStop();
     // A reload closes the port without ever sending `detach`, and the worker
     // outlives the page. Without this the dead page's engine session and its
@@ -371,6 +388,7 @@ export class SharedWorkerDataServicesHub {
 
   private handleDetach(req: DetachRequest): void {
     this.pendingAttaches.delete(req.subId);
+    this.replay.cancel(req.subId);
     this.ssrm.detachSession(req.subId);
     const removed = this.subscribers.remove(req.subId);
     if (removed.statsEmptied) this.stats.maybeStop();
@@ -455,6 +473,7 @@ export class SharedWorkerDataServicesHub {
     // Drop from the registry first so late STOMP frames cannot fan-out
     // while deactivate() is still in flight.
     this.providers.delete(providerId);
+    this.replay.cancelProvider(providerId);
 
     for (const l of this.subscribers.removeDataListenersOf(providerId)) {
       try {
@@ -506,6 +525,7 @@ export class SharedWorkerDataServicesHub {
       wireFormat?: string;
     };
     const slot: ProviderSlot = {
+      providerId,
       handle: undefined as unknown as ProviderHandle, // set immediately below
       cfg,
       cache: new Map<string, unknown>(),
@@ -640,15 +660,12 @@ export class SharedWorkerDataServicesHub {
   }
 
   /**
-   * Chunked cache replay to a single port (late-join attach or
-   * refresh-provider).
-   *
-   * Ships pre-encoded `delta-bin` chunks (see {@link DeltaBinEvent}):
-   * the replay cache re-encodes only the buckets dirtied since the
-   * last replay and posts the SAME byte buffers to every replaying
-   * port. Cloning a Uint8Array across the port is a flat memcpy — no
-   * per-row object graph walk per subscriber, which is what made
-   * simultaneous multi-window attaches GC-storm the worker.
+   * Cache replay to a single port (late-join attach or refresh-provider):
+   * `loading`, pre-encoded `delta-bin` chunks through the
+   * {@link ReplayScheduler} (round-robin across every replaying port — W4;
+   * same byte buffers to every port, a flat memcpy each), then `ready`.
+   * An attach replay of an EMPTY cache must NOT settle the client snapshot
+   * (upstream still owes rows + ready); a refresh always ends with `ready`.
    */
   private replayCacheToPort(
     subId: string,
@@ -657,41 +674,16 @@ export class SharedWorkerDataServicesHub {
     mode: 'attach' | 'refresh',
   ): void {
     // eslint-disable-next-line no-console
-    if (DEBUG) console.log(
-      `[v2/hub] → subId=${subId}: replay rows=${slot.cache.size} in ${
-        Math.max(1, Math.ceil(slot.cache.size / LATE_JOIN_CHUNK_SIZE))
-      } chunk(s), status=${slot.status}`,
-    );
+    if (DEBUG) console.log(`[v2/hub] → subId=${subId}: replay rows=${slot.cache.size}, status=${slot.status}`);
     port.postMessage({ subId, kind: 'status', status: 'loading' } satisfies Event);
-    if (slot.cache.size === 0) {
-      port.postMessage({ subId, kind: 'delta', rows: [], replace: true } satisfies Event);
-      this.recordPublish(slot, 1);
-    } else {
-      const chunks = ensureReplayChunks(slot.replay, slot.cache, slot.columnar);
-      for (let i = 0; i < chunks.length; i++) {
-        port.postMessage({
-          subId,
-          kind: 'delta-bin',
-          buf: chunks[i].buf,
-          enc: chunks[i].enc,
-          replace: i === 0,
-        } satisfies Event);
-        this.recordPublish(slot, 1);
-      }
+    if (slot.cache.size > 0) {
+      this.replay.enqueue({ providerId: slot.providerId, subId, port, slot, mode });
+      return;
     }
-    // Refresh always ends with `ready` so the busy overlay clears. Attach
-    // replay on an empty cache must NOT settle the client snapshot — the
-    // upstream provider still owes rows + ready.
-    const emitReady = mode === 'refresh' || slot.cache.size > 0;
-    if (emitReady) {
-      port.postMessage({
-        subId,
-        kind: 'status',
-        // Replay succeeded — surface `ready` so the grid clears any stale
-        // banner even if the upstream transport is still recovering.
-        status: 'ready',
-        error: undefined,
-      } satisfies Event);
+    port.postMessage({ subId, kind: 'delta', rows: [], replace: true } satisfies Event);
+    this.recordPublish(slot, 1);
+    if (mode === 'refresh') {
+      port.postMessage({ subId, kind: 'status', status: 'ready', error: undefined } satisfies Event);
     }
   }
 
@@ -771,6 +763,13 @@ export class SharedWorkerDataServicesHub {
     const dead: string[] = [];
     let live = 0;
     for (const l of listeners.values()) {
+      // A port still owing replay chunks must not see a live frame inside
+      // its snapshot — hold it; the scheduler flushes after that port's
+      // `ready` (W4).
+      if (this.replay.isReplaying(l.subId)) {
+        this.replay.defer(l.subId, eventTemplate);
+        continue;
+      }
       if (!this.postDataEvent(l, eventTemplate)) {
         dead.push(l.subId);
         continue;

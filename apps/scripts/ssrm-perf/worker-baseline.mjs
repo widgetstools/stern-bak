@@ -314,6 +314,28 @@ const readSpawnAt = (page) => page.evaluate(() => Math.round(window.__spawnAt ??
       return Date.now() - tJoin;
     }));
     const marks = await Promise.all(joiners.map((p) => readMarks(p)));
+    // Hub-thread accounting of the fan-out that just ran (plan §5's last row):
+    // the data hub's `hub-introspect` carries the ReplayScheduler's episode.
+    let fanout = null;
+    try {
+      const snap = await first.evaluate(() => window.__cfgRpc('hub-introspect', null, 'data'));
+      void snap; // latency only; the payload is read below on a second call
+      fanout = await first.evaluate(() => new Promise((resolve, reject) => {
+        const C = window.__cfgProbe;
+        const port = (C.named.find((p) => p.name.startsWith('mkt-data-services:')) || C.named[0]).port;
+        const reqId = 'probe-introspect-' + Math.random().toString(36).slice(2, 8);
+        const timer = setTimeout(() => reject(new Error('introspect timed out')), 10000);
+        port.addEventListener('message', function onMsg(ev) {
+          const d = ev.data;
+          if (d && d.kind === 'config-snapshot' && d.reqId === reqId) {
+            port.removeEventListener('message', onMsg); clearTimeout(timer); resolve(d.introspect ? d.introspect.fanout ?? null : null);
+          }
+        });
+        port.postMessage({ kind: 'hub-introspect', reqId });
+      }));
+    } catch (err) {
+      console.warn('[C] fan-out accounting not read:', String(err).slice(0, 120));
+    }
     out.scenarios.csrmFanout = {
       pages: CSRM_PAGES,
       firstWindowColdMs: firstMs,
@@ -323,6 +345,7 @@ const readSpawnAt = (page) => page.evaluate(() => Math.round(window.__spawnAt ??
       joinSpreadMs: Math.max(...joinMs) - Math.min(...joinMs),
       joinStats: stats(joinMs),
       joinerPlatformReady: marks.map((m) => m['platform-ready']),
+      hubFanout: fanout,
     };
     console.log('\n[C csrm fan-out]', JSON.stringify(out.scenarios.csrmFanout));
     await ctx.close();

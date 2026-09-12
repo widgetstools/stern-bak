@@ -34,6 +34,14 @@ export const LATE_JOIN_CHUNK_SIZE = 500;
  */
 export const LIVE_BIN_MIN_ROWS = 64;
 
+/**
+ * Hub-thread budget of one late-join replay pass (worker-split W4). A
+ * lone window's replay fits inside it and ships synchronously; a fan-out
+ * that does not is interleaved round-robin across passes, with a macrotask
+ * yield between them so ingest and block RPCs keep flowing.
+ */
+export const REPLAY_PASS_BUDGET_MS = 8;
+
 /** Sliding-window length for upstream + publish /s averages. */
 export const SEC_WINDOW = 5;
 /** Sliding-window length for publish /min rolling total. */
@@ -88,6 +96,8 @@ export interface EncodedChunk {
 }
 
 export interface ProviderSlot {
+  /** The id this slot is registered under. */
+  providerId: string;
   handle: ProviderHandle;
   cfg: ProviderConfig;
   cache: Map<string, unknown>;
@@ -213,4 +223,8 @@ export interface SharedWorkerDataServicesHubOpts {
   clearTimer?: (handle: unknown) => void;
   /** Inject a RustHub factory (unit tests). Production loads vendored WASM. */
   createRustHub?: import('../ssrm/RustHubHost.js').RustHubFactory;
+  /** Inject the replay scheduler's macrotask yield (tests). Default: MessageChannel hop. */
+  yieldToMacrotask?: (cb: () => void) => void;
+  /** Override the replay pass budget (tests). Default `REPLAY_PASS_BUDGET_MS`. */
+  replayPassBudgetMs?: number;
 }
