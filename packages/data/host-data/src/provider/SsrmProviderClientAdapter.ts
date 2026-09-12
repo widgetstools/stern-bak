@@ -137,7 +137,7 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
 
   applyEdits(req: SsrmApplyEditsRequest): Promise<SsrmApplyEditsResult> {
     if (!this.subId) return Promise.reject(new Error('[SsrmProviderClientAdapter] not started'));
-    return this.client.ssrmApplyEdits(this.id, this.subId, req.rows);
+    return this.client.ssrmApplyEdits(this.id, this.subId, req.rows, req.editedColumns);
   }
 
   getConfig(): ProviderConfig {

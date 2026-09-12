@@ -37,11 +37,24 @@ export interface SsrmGetRowsResult {
  * Rows edited in a grid — cell edits, clipboard paste, fill handle — written
  * into the engine cache so every grid on the provider sees the same values
  * and a block refresh keeps them. Each row must carry the key column(s);
- * send the full row, since the engine upserts whole records. The upstream
- * feed is NOT written to: its next tick for that row wins.
+ * send the full row, since the engine upserts whole records.
+ *
+ * The upstream feed is NOT written to. To keep a whole-row upstream resend
+ * from silently reverting the edit, name the edited columns: the plane holds
+ * each named column as an overlay and reapplies it over incoming upstream
+ * rows until the upstream value itself CHANGES (a genuinely new value wins)
+ * or echoes the edited value back (confirmed). Without `editedColumns` no
+ * overlay is kept and the row's next upstream tick wins — the pre-overlay
+ * behaviour.
  */
 export interface SsrmApplyEditsRequest {
   rows: readonly Record<string, unknown>[];
+  /**
+   * Index-aligned with `rows`: the columns the user actually edited in each
+   * row. Only these are overlaid; the rest of the row is carried solely so
+   * the engine's whole-row upsert does not blank it.
+   */
+  editedColumns?: ReadonlyArray<readonly string[]>;
 }
 
 export interface SsrmApplyEditsResult {
@@ -93,6 +106,17 @@ export interface SsrmFilterOr {
 }
 
 export type SsrmFilterNode = SsrmFilterCondition | SsrmFilterOr;
+
+/**
+ * Separator the engine joins pivot key paths with when a `splitBy` view
+ * names its result fields (`US|USD|marketValue` — probed, not documented).
+ * The grid must hand the SAME separator to AG Grid
+ * (`serverSidePivotResultFieldSeparator`) so the secondary column tree
+ * splits where the engine joined. A pivot key VALUE containing `|` would
+ * corrupt the tree — the engine offers no escaping, so that stays a
+ * documented limit rather than a translated one.
+ */
+export const SSRM_PIVOT_FIELD_SEPARATOR = '|';
 
 /**
  * Suffix of the numeric shadow column the plane stamps next to every date
@@ -164,6 +188,8 @@ export interface SsrmColumnValuesRequest {
   limit?: number;
   /** Narrow the distinct scan to the other columns' active filters. */
   filterModel?: Record<string, unknown> | null;
+  /** Narrow the distinct scan to the active quick filter, like any other filter. */
+  quickFilterText?: string;
 }
 
 export interface SsrmColumnValuesResult {

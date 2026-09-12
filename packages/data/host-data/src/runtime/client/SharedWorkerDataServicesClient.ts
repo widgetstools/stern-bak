@@ -395,12 +395,14 @@ export class SharedWorkerDataServicesClient {
     providerId: string,
     subId: string,
     rows: readonly Record<string, unknown>[],
+    editedColumns?: ReadonlyArray<readonly string[]>,
   ): Promise<SsrmApplyEditsResult> {
     return this.ssrmRpc({
       kind: 'ssrm-apply-edits',
       providerId,
       subId,
       rows,
+      ...(editedColumns ? { editedColumns } : {}),
     }) as Promise<SsrmApplyEditsResult>;
   }
 

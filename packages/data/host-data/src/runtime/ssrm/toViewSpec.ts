@@ -290,8 +290,16 @@ export function toViewSpecResult(
   }
 
   if (req.pivotMode && (req.pivotCols ?? []).length > 0) {
-    spec.splitBy = req.pivotCols!.map((c) => c.id);
-    spec.columns = (req.valueCols ?? []).map((c) => c.id);
+    // Probed: `splitBy` without `groupBy` returns FLAT LEAF ROWS — the
+    // engine only pivots grouped views. Silently sending it would render
+    // an un-pivoted grid that looks like a pivot with no columns, so a
+    // pivot with no row groups is reported instead of translated.
+    if (rowGroupCols.length === 0) {
+      unsupported.push('pivot without row groups (the engine pivots grouped views only)');
+    } else {
+      spec.splitBy = req.pivotCols!.map((c) => c.id);
+      spec.columns = (req.valueCols ?? []).map((c) => c.id);
+    }
   }
 
   return { spec, unsupported };

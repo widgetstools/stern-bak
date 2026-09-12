@@ -96,7 +96,12 @@ describe('SsrmWasmPlane', () => {
     });
     expect(grouped.rowData[0]).toMatchObject({ __ssrmGroupKey: 'A' });
     expect(plane.memStats()).toEqual({ rows: 0 });
-    await expect(plane.detachSession('s1')).resolves.toEqual(['p1#{}']);
+    // The ingest anchored a hub-owned session, so the grid session's detach
+    // does NOT free the cache key — the anchor still holds it…
+    await expect(plane.detachSession('s1')).resolves.toEqual([]);
+    // …until the provider stops and the anchor is released with it.
+    plane.releaseAnchor('p1');
+    await expect(plane.detachSession('s2')).resolves.toEqual(['p1#{}']);
   });
 
   it('polls group and row ticks and ignores a hub-less plane', () => {
@@ -479,16 +484,48 @@ describe('SsrmWasmPlane', () => {
       }
     }
 
-    it('caps the held views and disposes the ones it drops', async () => {
+    it('caps the held poll views and disposes the ones it drops', async () => {
       const { hub, opened, disposed } = countingHub();
       const plane = new SsrmWasmPlane(() => hub);
       await plane.boot('p1', cfg);
 
-      await countDistinctQueries(plane, 's1', 27);
+      await countDistinctQueries(plane, 's1', 15);
 
-      expect(opened).toHaveLength(27);
-      // 24 held, so the three least recently used are released.
+      expect(opened).toHaveLength(15);
+      // 12 poll views held, so the three least recently used are released.
       expect(disposed).toEqual(['v1', 'v2', 'v3']);
+    });
+
+    it('caps block views in their own, larger partition', async () => {
+      const { hub, opened, disposed } = countingHub();
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+
+      for (let i = 0; i < 26; i += 1) {
+        await plane.getRows('s1', 'p1', {
+          startRow: 0,
+          endRow: 1,
+          filterModel: { id: { filterType: 'text', type: 'contains', filter: String(i) } },
+        });
+      }
+
+      expect(opened).toHaveLength(26);
+      // 24 block views held, so the two least recently used are released.
+      expect(disposed).toEqual(['v1', 'v2']);
+    });
+
+    it('never lets poll churn evict a block view (the mid-scroll rebuild)', async () => {
+      const { hub, disposed } = countingHub();
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+
+      // The view the user is scrolling…
+      await plane.getRows('s1', 'p1', { startRow: 0, endRow: 100 });
+      // …then far more distinct poll queries than the poll cap holds.
+      await countDistinctQueries(plane, 's1', 15);
+
+      // Only poll views were released; the block view (v1) survived.
+      expect(disposed).toEqual(['v2', 'v3', 'v4']);
     });
 
     it('caps each session separately, so one grid cannot evict another\'s', async () => {
@@ -497,11 +534,24 @@ describe('SsrmWasmPlane', () => {
       await plane.boot('p1', cfg);
 
       await plane.getRowCount('s1', 'p1', {});
-      await countDistinctQueries(plane, 's2', 26);
+      await countDistinctQueries(plane, 's2', 14);
 
-      // s2 blew through its own cap; s1's single view is untouched.
+      // s2 blew through its own poll cap; s1's single view is untouched.
       expect(disposed).not.toContain('v1');
       expect(disposed).toHaveLength(2);
+    });
+
+    it('warms the root view so the first block read is a cache hit', async () => {
+      const { hub, opened } = countingHub();
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+
+      await plane.warmRootView('s1', 'p1');
+      await plane.getRows('s1', 'p1', { startRow: 0, endRow: 200 });
+      // The root count poll shares it too.
+      await plane.getRowCount('s1', 'p1', {});
+
+      expect(opened).toHaveLength(1);
     });
 
     it('releases a session\'s views when it detaches', async () => {
@@ -528,6 +578,186 @@ describe('SsrmWasmPlane', () => {
       await plane.getRowCount('s1', 'p1', {});
       expect(opened).toHaveLength(2);
     });
+  });
+
+  describe('edit overlays', () => {
+    /** Rows the plane last handed to `apply_message_json`. */
+    function lastApplied(spy: ReturnType<typeof vi.spyOn>): Array<Record<string, unknown>> {
+      const call = spy.mock.calls.at(-1) as unknown as [string, string, string];
+      return JSON.parse(call[2]) as Array<Record<string, unknown>>;
+    }
+
+    it('holds an edited column over stale whole-row resends until upstream itself moves', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+
+      await plane.applyEdits('p1', [{ id: '1', desk: 'EDITED' }], [['desk']]);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'EDITED' });
+
+      // The legacy wire resends the whole pre-edit row on any tick — twice,
+      // to prove the baseline capture holds beyond the first resend.
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'EDITED' });
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'EDITED' });
+
+      // Upstream produces a genuinely NEW value — it wins, and the hold ends.
+      await plane.ingest('p1', [{ id: '1', desk: 'B' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'B' });
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'A' });
+    });
+
+    it('treats an upstream echo of the edited value as confirmation', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+      await plane.applyEdits('p1', [{ id: '1', desk: 'EDITED' }], [['desk']]);
+
+      await plane.ingest('p1', [{ id: '1', desk: 'EDITED' }], false);
+      // Hold released — upstream owns the column again.
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'A' });
+    });
+
+    it('holds only the named columns; a sparse tick without them cannot revert', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+      await plane.ingest('p1', [{ id: '1', desk: 'A', region: 'US' }], false);
+      await plane.applyEdits('p1', [{ id: '1', desk: 'EDITED', region: 'US' }], [['desk']]);
+
+      // Sparse tick without the edited column: passes through untouched.
+      await plane.ingest('p1', [{ id: '1', region: 'EU' }], false);
+      expect(lastApplied(apply)[0]).toEqual({ id: '1', region: 'EU' });
+
+      // Whole-row resend: only `desk` is held, `region` is upstream's.
+      await plane.ingest('p1', [{ id: '1', desk: 'A', region: 'APAC' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'EDITED', region: 'APAC' });
+    });
+
+    it('keeps no hold without editedColumns — the pre-overlay contract', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+      await plane.applyEdits('p1', [{ id: '1', desk: 'EDITED' }]);
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'A' });
+    });
+
+    it('survives a same-config re-boot (every attach boots) but not a config change', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+      await plane.applyEdits('p1', [{ id: '1', desk: 'EDITED' }], [['desk']]);
+
+      await plane.boot('p1', cfg); // second grid attaches — same config
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'EDITED' });
+
+      await plane.boot('p1', {
+        ...cfg,
+        columnDefinitions: [{ field: 'id' }, { field: 'desk' }, { field: 'pnl', cellDataType: 'number' }],
+      } as StompSsrmProviderConfig); // edited columns may no longer mean the same thing
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'A' });
+    });
+
+    it('releases the hold when the row is removed upstream', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', cfg);
+      await plane.applyEdits('p1', [{ id: '1', desk: 'EDITED' }], [['desk']]);
+
+      hub.poll_shared_delta = () => JSON.stringify({ type: 'rowDelta', removals: ['1'] });
+      plane.pollAllTicks();
+      hub.poll_shared_delta = () => '';
+
+      await plane.ingest('p1', [{ id: '1', desk: 'A' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'A' });
+    });
+
+    it('stamps the epoch shadow of the EDITED date, not the resent one', async () => {
+      const hub = fakeHub();
+      const apply = vi.spyOn(hub, 'apply_message_json');
+      const plane = new SsrmWasmPlane(() => hub);
+      await plane.boot('p1', {
+        ...cfg,
+        columnDefinitions: [{ field: 'id' }, { field: 'maturity', cellDataType: 'dateString' }],
+      } as StompSsrmProviderConfig);
+      await plane.applyEdits('p1', [{ id: '1', maturity: '2032-01-01' }], [['maturity']]);
+      expect(lastApplied(apply)[0]).toMatchObject({ maturity__epoch: Date.UTC(2032, 0, 1) });
+
+      await plane.ingest('p1', [{ id: '1', maturity: '2030-01-01' }], false);
+      expect(lastApplied(apply)[0]).toMatchObject({
+        maturity: '2032-01-01',
+        maturity__epoch: Date.UTC(2032, 0, 1),
+      });
+    });
+  });
+
+  it('derives pivotResultFields from a splitBy window (the engine reports none)', async () => {
+    const hub = fakeHub();
+    const inner = hub.on_control;
+    hub.on_control = (sid, msgJson) => {
+      const msg = JSON.parse(msgJson) as { id: string; type: string };
+      if (msg.type === 'readWindow') {
+        return JSON.stringify([{
+          id: msg.id,
+          type: 'result',
+          payload: {
+            rows: [
+              { __group: true, __count: 2, desk: 'Credit', 'EU|mv': 40, 'US|mv': 30, 'US|other': 9 },
+              { __group: true, __count: 2, desk: 'Rates', 'APAC|mv': 20, 'US|mv': 10 },
+            ],
+            rowCount: 2,
+          },
+        }]);
+      }
+      return inner(sid, msgJson);
+    };
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg);
+    const page = await plane.getRows('s1', 'p1', {
+      startRow: 0,
+      endRow: 10,
+      pivotMode: true,
+      pivotCols: [{ id: 'region' }],
+      rowGroupCols: [{ id: 'desk' }],
+      valueCols: [{ id: 'mv' }],
+    });
+    // Sorted union across the window; `US|other` is not a requested value
+    // column, so it stays a data key rather than becoming a pivot column.
+    expect(page.pivotResultFields).toEqual(['APAC|mv', 'EU|mv', 'US|mv']);
+  });
+
+  it('scopes the set-filter value list to the quick filter', async () => {
+    const hub = fakeHub();
+    const specs: Array<{ filter?: unknown[] }> = [];
+    const inner = hub.on_control;
+    hub.on_control = (sid, msgJson) => {
+      const msg = JSON.parse(msgJson) as { type: string; view?: { filter?: unknown[] } };
+      if (msg.type === 'openView' && msg.view) specs.push(msg.view);
+      return inner(sid, msgJson);
+    };
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg);
+    await plane.getColumnValues('s1', 'p1', { column: 'desk', quickFilterText: 'gov' });
+    expect(specs.at(-1)?.filter).toEqual([{
+      op: 'or',
+      conditions: [
+        { column: 'id', op: 'contains', value: 'gov' },
+        { column: 'desk', op: 'contains', value: 'gov' },
+      ],
+    }]);
   });
 
   it('throws when openView omits viewId or returns an error', async () => {

@@ -414,14 +414,6 @@ export interface SsrmWatchGroupsWireRequest {
   aggregates?: Record<string, string>;
 }
 
-export interface SsrmSetViewportWireRequest {
-  kind: 'ssrm-set-viewport';
-  reqId: string;
-  providerId: string;
-  subId: string;
-  keys?: readonly string[];
-}
-
 /** Grid edits (paste / cell edit) written into the engine cache. */
 export interface SsrmApplyEditsWireRequest {
   kind: 'ssrm-apply-edits';
@@ -429,6 +421,8 @@ export interface SsrmApplyEditsWireRequest {
   providerId: string;
   subId: string;
   rows: readonly Record<string, unknown>[];
+  /** Index-aligned with `rows` — see {@link import('./ssrm/ssrmTypes.js').SsrmApplyEditsRequest}. */
+  editedColumns?: ReadonlyArray<readonly string[]>;
 }
 
 export type Request =
@@ -449,7 +443,6 @@ export type Request =
   | SsrmRowCountWireRequest
   | SsrmAggregatesWireRequest
   | SsrmWatchGroupsWireRequest
-  | SsrmSetViewportWireRequest
   | SsrmApplyEditsWireRequest;
 
 export interface SsrmRpcEvent {
@@ -732,7 +725,6 @@ export function isRequest(value: unknown): value is Request {
     k === 'ssrm-row-count' ||
     k === 'ssrm-aggregates' ||
     k === 'ssrm-watch-groups' ||
-    k === 'ssrm-set-viewport' ||
     k === 'ssrm-apply-edits'
   );
 }

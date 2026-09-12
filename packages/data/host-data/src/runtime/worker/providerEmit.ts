@@ -36,6 +36,12 @@ export interface ProviderEmitContext {
   flushStats(providerId: string): void;
   /** SSRM: ingest flattened rows into the WASM plane (no CSRM cache). */
   ingestSsrm?(providerId: string, rows: readonly unknown[], replace: boolean): void;
+  /**
+   * SSRM: the snapshot just landed (`ready`) — build the root engine view
+   * for attached sessions now, off the request path, so the first block
+   * read is a warm-view hit instead of paying the view build.
+   */
+  warmSsrm?(providerId: string): void;
 }
 
 /**
@@ -62,6 +68,7 @@ export function applyProviderEmit(
       slot.snapshotFetchMs = Date.now() - slot.snapshotFetchStartedAt;
       slot.snapshotReady = true;
       slot.publishWindowSeconds = 0;
+      if (slot.cfg.providerType === 'stomp-ssrm') ctx.warmSsrm?.(providerId);
     }
     slot.status = event.status;
     if (event.status === 'error') {

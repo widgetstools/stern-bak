@@ -14,7 +14,7 @@ import type {
   SsrmViewSpec,
   SsrmWatchGroupsRequest,
 } from './ssrmTypes.js';
-import { ssrmEpochColumn } from './ssrmTypes.js';
+import { ssrmEpochColumn, SSRM_PIVOT_FIELD_SEPARATOR } from './ssrmTypes.js';
 import { ssrmEpochOf, toViewSpecResult, type ToViewSpecOptions } from './toViewSpec.js';
 
 const EMPTY_PARAMS = '{}';
@@ -23,7 +23,37 @@ const EMPTY_PARAMS = '{}';
 const DEFAULT_COLUMN_VALUES_LIMIT = 1000;
 
 /**
- * Open views held per session (≈ per grid).
+ * Ceiling on held edit overlays per provider. Each entry is one edited row
+ * (a map of edited column → value), so this bounds worker memory against a
+ * pathological "paste over the whole book" without ever being reachable by
+ * hand-editing. Over the cap the OLDEST edits are released to the feed —
+ * FIFO, so a fresh edit never evicts silently in favour of a stale one.
+ */
+export const MAX_EDIT_OVERLAYS_PER_PROVIDER = 10_000;
+
+/**
+ * One edited cell held over the upstream feed.
+ *
+ * `apply_message_json` upserts WHOLE rows (§3 of the SSRM handoff), so a
+ * `legacy`-wire feed that resends a full row on any tick silently reverts an
+ * engine-side edit to every column it carries. The overlay is reapplied to
+ * incoming rows until the upstream value itself moves:
+ *   - upstream echoes the edited value → confirmed, overlay dropped;
+ *   - upstream sends the SAME value it sent before the edit → stale resend,
+ *     the edit is reapplied;
+ *   - upstream sends a genuinely NEW value → upstream wins, overlay dropped.
+ * `baseline` is the pre-edit upstream value, captured lazily from the first
+ * post-edit tick for the row.
+ */
+interface EditOverlayEntry {
+  value: unknown;
+  /** First upstream value seen after the edit; undefined until one arrives. */
+  baseline?: unknown;
+  hasBaseline: boolean;
+}
+
+/**
+ * Open views held per session (≈ per grid), partitioned by what opened them.
  *
  * An engine view is LIVE — maintained on every tick for as long as it is open
  * — so opening one per read and never disposing it is not a slow leak but a
@@ -32,17 +62,34 @@ const DEFAULT_COLUMN_VALUES_LIMIT = 1000;
  * stuck loading forever. Every scrolled block asks the same query with a
  * different window, so a small cache serves nearly all reads from one view.
  *
- * Sized for what one grid holds at once: the level being scrolled, a view per
- * expanded group, one per saved-filter pill, and one per open set-filter value
- * list. Under the cap this never evicts; over it, the cost is a re-open.
- * Scoped per session so a second grid can't evict the first one's views.
+ * The partition exists because the two view populations have different
+ * lifetimes and costs: `block` views (getRows — the level being scrolled plus
+ * a view per expanded group) are what the user is looking at, while `poll`
+ * views (status-bar counts, saved-filter pill badges, set-filter value lists)
+ * are re-read on a cadence. In one LRU a grid with many expanded groups let
+ * the pollers evict a block view mid-scroll — and the re-open rebuilt a view
+ * over the whole dataset on the block path, exactly where the latency shows.
+ * Under the caps nothing evicts; over one, the cost is a re-open within that
+ * partition only. Scoped per session so a second grid can't evict the first
+ * one's views.
  */
-const MAX_VIEWS_PER_SESSION = 24;
+export const MAX_BLOCK_VIEWS_PER_SESSION = 24;
+/** Root/filtered counts + one per pill + open set-filter lists. */
+export const MAX_POLL_VIEWS_PER_SESSION = 12;
+
+/** What opened a view — the eviction partition it counts against. */
+type ViewKind = 'block' | 'poll';
+
+const VIEW_CAPS: Record<ViewKind, number> = {
+  block: MAX_BLOCK_VIEWS_PER_SESSION,
+  poll: MAX_POLL_VIEWS_PER_SESSION,
+};
 
 interface OpenView {
   sessionId: string;
   providerId: string;
   viewId: string;
+  kind: ViewKind;
 }
 
 /**
@@ -99,6 +146,31 @@ function stampGroupKey(row: Record<string, unknown>, groupCol: string): Record<s
   };
 }
 
+/**
+ * The pivot result fields of a `splitBy` window, derived from the rows.
+ *
+ * The engine names pivoted aggregates `<key>|…|<valueCol>` on each group row
+ * but reports no field list of its own (probed — `readWindow` payloads carry
+ * only `rows`/`rowCount`). AG Grid builds its secondary column tree from
+ * `pivotResultFields`, so the plane collects every such key across the
+ * window, keyed to the requested value columns to keep data columns out.
+ * Sorted so the tree is stable across blocks and reloads.
+ */
+function derivePivotResultFields(
+  rows: readonly Record<string, unknown>[],
+  valueCols: readonly string[],
+): string[] {
+  const fields = new Set<string>();
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      const cut = key.lastIndexOf(SSRM_PIVOT_FIELD_SEPARATOR);
+      if (cut <= 0) continue;
+      if (valueCols.includes(key.slice(cut + 1))) fields.add(key);
+    }
+  }
+  return [...fields].sort();
+}
+
 function resultOf(replies: SsrmControlReply[], id: string): SsrmControlReply {
   const match = replies.find((r) => r.id === id) ?? replies.find((r) => r.type === 'result');
   if (!match) throw new Error('[ssrm] wasm control returned no result');
@@ -127,13 +199,15 @@ export function dateColumnsOf(cfg: StompSsrmProviderConfig): readonly string[] {
     .map((c) => c.field as string);
 }
 
-function bootJson(providerId: string, cfg: StompSsrmProviderConfig): string {
+/** Key column(s) rows are upserted by — the overlay keys rows the same way. */
+export function keyColumnsOf(cfg: StompSsrmProviderConfig): string[] {
   const keyCol = cfg.keyColumn;
-  const keyColumns = Array.isArray(keyCol)
-    ? [...keyCol]
-    : keyCol
-      ? [keyCol]
-      : ['positionId'];
+  if (typeof keyCol === 'string') return [keyCol];
+  return keyCol && keyCol.length > 0 ? [...keyCol] : ['positionId'];
+}
+
+function bootJson(providerId: string, cfg: StompSsrmProviderConfig): string {
+  const keyColumns = keyColumnsOf(cfg);
   const columns = (cfg.columnDefinitions ?? []).map((c) => ({
     name: c.field,
     type: c.cellDataType === 'number' ? 'f64' : c.cellDataType === 'boolean' ? 'bool' : 'string',
@@ -168,6 +242,27 @@ export class SsrmWasmPlane {
   private readonly searchColumns = new Map<string, readonly string[]>();
   /** Date columns per provider — each gets a numeric epoch shadow column at boot and ingest. */
   private readonly dateColumns = new Map<string, readonly string[]>();
+  /** Key columns per provider — how ingest matches incoming rows to overlays. */
+  private readonly keyColumns = new Map<string, readonly string[]>();
+  /**
+   * Held edits per provider: row key → edited column → {@link EditOverlayEntry}.
+   * Insertion-ordered (Map), so the cap evicts oldest-edited-row first.
+   */
+  private readonly editOverlays = new Map<string, Map<string, Map<string, EditOverlayEntry>>>();
+  /** Last boot payload per provider — a change invalidates held edits. */
+  private readonly bootSignature = new Map<string, string>();
+  /**
+   * Providers holding a hub-owned anchor subscription.
+   *
+   * Probed engine fact: `apply_message_json` DROPS its rows while the
+   * datasource has zero subscribed sessions — `connect` alone is not enough,
+   * and grid sessions only subscribe on their first RPC. Without an anchor,
+   * every snapshot row streamed before the first block/count RPC lands is
+   * silently lost, which is the "empty first block (rowCount 0), then purge"
+   * cold start. The anchor subscribes before the first ingest and lives
+   * until {@link releaseAnchor} (provider stop).
+   */
+  private readonly anchored = new Set<string>();
   /** Live engine views by query signature, insertion-ordered least-recent first. */
   private readonly views = new Map<string, OpenView>();
   private nextCtl = 1;
@@ -180,10 +275,17 @@ export class SsrmWasmPlane {
     const hub = await this.host.ensure();
     // Views held over a re-boot point at a datasource that no longer exists.
     this.dropViews((v) => v.providerId === providerId);
-    hub.boot_datasource(bootJson(providerId, cfg));
+    const boot = bootJson(providerId, cfg);
+    hub.boot_datasource(boot);
     this.booted.add(providerId);
     this.searchColumns.set(providerId, resolveSearchColumns(cfg));
     this.dateColumns.set(providerId, dateColumnsOf(cfg));
+    this.keyColumns.set(providerId, keyColumnsOf(cfg));
+    // Held edits survive a same-config re-boot (every ssrm attach calls
+    // boot), but a schema/config CHANGE invalidates them — they were made
+    // against columns that may no longer mean the same thing.
+    if (this.bootSignature.get(providerId) !== boot) this.editOverlays.delete(providerId);
+    this.bootSignature.set(providerId, boot);
   }
 
   /** Translator options for one provider: quick-filter columns and date columns. */
@@ -228,8 +330,35 @@ export class SsrmWasmPlane {
     return parseJson<string[]>(hub.disconnect(sessionId), []);
   }
 
+  /** The engine keeps rows only for subscribed datasources — see {@link anchored}. */
+  private ensureAnchor(hub: RustHubLike, providerId: string): void {
+    if (this.anchored.has(providerId)) return;
+    const anchorId = `__hub-anchor:${providerId}`;
+    hub.connect(anchorId);
+    this.control(hub, anchorId, {
+      id: this.ctlId(),
+      type: 'subscribe',
+      ref: { datasourceId: providerId, params: {} },
+      delivery: 'rows',
+    });
+    this.anchored.add(providerId);
+  }
+
+  /** Provider stopped — let the engine drop its cache with the last session. */
+  releaseAnchor(providerId: string): void {
+    if (!this.anchored.delete(providerId)) return;
+    const hub = this.host.current;
+    if (!hub) return;
+    try {
+      hub.disconnect(`__hub-anchor:${providerId}`);
+    } catch {
+      /* engine already dropped it */
+    }
+  }
+
   async ingest(providerId: string, rows: readonly unknown[], replace: boolean): Promise<void> {
     const hub = await this.host.ensure();
+    this.ensureAnchor(hub, providerId);
     if (replace && rows.length === 0) {
       // Empty replace = restart flush. Re-boot so stale keys drop.
       if (this.booted.has(providerId)) {
@@ -240,8 +369,120 @@ export class SsrmWasmPlane {
     }
     const flat = flattenRows(rows);
     if (flat.length === 0) return;
+    // Overlays first, epochs second — an overlaid date edit must stamp the
+    // epoch of the EDITED value, not the upstream one it replaced.
+    this.applyEditOverlays(providerId, flat as Record<string, unknown>[]);
     this.stampEpochs(providerId, flat as Record<string, unknown>[]);
     hub.apply_message_json(providerId, EMPTY_PARAMS, JSON.stringify(flat));
+  }
+
+  /**
+   * Write grid edits into the engine cache and hold each edited column over
+   * the feed. See {@link EditOverlayEntry} for the hold/release rules —
+   * without them a `legacy`-wire upstream that resends whole rows reverts an
+   * edit on the row's next tick, which `ssrm-validate3` caught live.
+   */
+  async applyEdits(
+    providerId: string,
+    rows: readonly Record<string, unknown>[],
+    editedColumns?: ReadonlyArray<readonly string[]>,
+  ): Promise<number> {
+    const hub = await this.host.ensure();
+    this.ensureAnchor(hub, providerId);
+    const flat = flattenRows(rows) as Record<string, unknown>[];
+    if (flat.length === 0) return 0;
+    this.recordEditOverlays(providerId, flat, editedColumns);
+    this.stampEpochs(providerId, flat);
+    hub.apply_message_json(providerId, EMPTY_PARAMS, JSON.stringify(flat));
+    return flat.length;
+  }
+
+  /** Composite row key, or undefined when a key part is missing. */
+  private rowKeyOf(row: Record<string, unknown>, keys: readonly string[]): string | undefined {
+    if (keys.some((k) => row[k] == null)) return undefined;
+    return keys.map((k) => String(row[k])).join('');
+  }
+
+  private recordEditOverlays(
+    providerId: string,
+    rows: readonly Record<string, unknown>[],
+    editedColumns: ReadonlyArray<readonly string[]> | undefined,
+  ): void {
+    if (!editedColumns?.length) return;
+    const keys = this.keyColumns.get(providerId) ?? [];
+    if (keys.length === 0) return;
+    let overlays = this.editOverlays.get(providerId);
+    if (!overlays) {
+      overlays = new Map();
+      this.editOverlays.set(providerId, overlays);
+    }
+    rows.forEach((row, i) => {
+      const cols = editedColumns[i];
+      if (!cols?.length) return;
+      const key = this.rowKeyOf(row, keys);
+      if (key === undefined) return;
+      const held = overlays.get(key) ?? new Map<string, EditOverlayEntry>();
+      // Re-insert so a re-edited row moves to the young end of the FIFO.
+      overlays.delete(key);
+      for (const col of cols) {
+        if (!(col in row)) continue;
+        held.set(col, { value: row[col], hasBaseline: false });
+      }
+      if (held.size > 0) overlays.set(key, held);
+    });
+    while (overlays.size > MAX_EDIT_OVERLAYS_PER_PROVIDER) {
+      const oldest = overlays.keys().next().value;
+      if (oldest === undefined) break;
+      overlays.delete(oldest);
+    }
+  }
+
+  /** Reapply held edits over incoming upstream rows — see {@link EditOverlayEntry}. */
+  private applyEditOverlays(providerId: string, rows: Record<string, unknown>[]): void {
+    const overlays = this.editOverlays.get(providerId);
+    if (!overlays?.size) return;
+    const keys = this.keyColumns.get(providerId) ?? [];
+    if (keys.length === 0) return;
+    for (const row of rows) {
+      const key = this.rowKeyOf(row, keys);
+      if (key === undefined) continue;
+      const held = overlays.get(key);
+      if (!held) continue;
+      for (const [col, entry] of [...held]) {
+        // A sparse tick without this column cannot revert the edit — the
+        // whole-row problem only exists for rows that carry the column.
+        if (!(col in row)) continue;
+        const incoming = row[col];
+        if (Object.is(incoming, entry.value)) {
+          // Upstream echoed the edit back — confirmed, nothing to hold.
+          held.delete(col);
+          continue;
+        }
+        if (!entry.hasBaseline) {
+          entry.baseline = incoming;
+          entry.hasBaseline = true;
+          row[col] = entry.value;
+          continue;
+        }
+        if (!Object.is(incoming, entry.baseline)) {
+          // Upstream produced a genuinely new value — it wins.
+          held.delete(col);
+          continue;
+        }
+        // Stale whole-row resend of the pre-edit value — hold the edit.
+        row[col] = entry.value;
+      }
+      if (held.size === 0) overlays.delete(key);
+    }
+  }
+
+  /** Rows deleted upstream take their held edits with them. */
+  private pruneEditOverlays(providerId: string, removals: readonly string[] | undefined): void {
+    if (!removals?.length) return;
+    const overlays = this.editOverlays.get(providerId);
+    if (!overlays?.size) return;
+    for (const id of removals) overlays.delete(id);
+    if (overlays.size === 0) this.editOverlays.delete(providerId);
   }
 
   async getRows(
@@ -265,12 +506,17 @@ export class SsrmWasmPlane {
     if (groupCol) {
       rowData = rowData.map((r) => stampGroupKey(r, groupCol));
     }
+    // The engine reports no pivot field list of its own — derive it from the
+    // window so AG Grid can build the secondary column tree.
+    const pivotResultFields = spec.splitBy?.length
+      ? win.pivotResultFields ?? derivePivotResultFields(rowData, spec.columns ?? [])
+      : win.pivotResultFields;
     return {
       rowData,
       rowCount: typeof win.rowCount === 'number' ? win.rowCount : rowData.length,
       groupData: win.groupData,
       grandTotalData: win.grandTotalData,
-      pivotResultFields: win.pivotResultFields,
+      pivotResultFields,
       ...(unsupported.length > 0 ? { unsupportedFilters: unsupported } : {}),
     };
   }
@@ -298,7 +544,14 @@ export class SsrmWasmPlane {
     const scoped: Record<string, unknown> = { ...(req.filterModel ?? {}) };
     delete scoped[req.column];
     const { spec } = toViewSpecResult(
-      { filterModel: scoped, sortModel: [{ colId: req.column, sort: 'asc' }] },
+      {
+        filterModel: scoped,
+        sortModel: [{ colId: req.column, sort: 'asc' }],
+        // The quick filter narrows the visible rows like any other filter,
+        // so a value list that ignores it offers values the grid would
+        // show zero rows for.
+        ...(req.quickFilterText ? { quickFilterText: req.quickFilterText } : {}),
+      },
       this.specOpts(providerId),
     );
     spec.groupBy = [req.column];
@@ -306,7 +559,7 @@ export class SsrmWasmPlane {
     spec.depth = 1;
 
     // One extra row distinguishes "exactly at the cap" from "truncated".
-    const win = this.readView(hub, sessionId, providerId, spec, 0, limit + 1);
+    const win = this.readView(hub, sessionId, providerId, spec, 0, limit + 1, 'poll');
     const rows = win.rows ?? [];
     const seen = new Set<string>();
     const values: unknown[] = [];
@@ -341,7 +594,7 @@ export class SsrmWasmPlane {
     const hub = await this.host.ensure();
     await this.ensureSubscribed(hub, sessionId, providerId);
     const { spec } = toViewSpecResult(req, this.specOpts(providerId));
-    const win = this.readView(hub, sessionId, providerId, spec, 0, 1);
+    const win = this.readView(hub, sessionId, providerId, spec, 0, 1, 'poll');
     return { rowCount: typeof win.rowCount === 'number' ? win.rowCount : 0 };
   }
 
@@ -380,6 +633,25 @@ export class SsrmWasmPlane {
       if (!Number.isNaN(n)) values[key] = n;
     }
     return { values };
+  }
+
+  /**
+   * Open (and materialise) the root view — no filter, no sort — for one
+   * session, off the request path.
+   *
+   * The first block after `ready` paid a 1–2.5 s engine view build over the
+   * 20k-row fixture because the view was only opened when AG Grid asked for
+   * rows. Building it the moment the snapshot lands means the datasource's
+   * first `getRows` (whose spec has the same {@link viewSignature}) is a
+   * cache hit on an already-built view. The 1-row read forces the build —
+   * `openView` alone may defer materialisation — and mirrors `getRowCount`'s
+   * "never ask for an empty window" caution.
+   */
+  async warmRootView(sessionId: string, providerId: string): Promise<void> {
+    const hub = await this.host.ensure();
+    await this.ensureSubscribed(hub, sessionId, providerId);
+    const { spec } = toViewSpecResult({}, this.specOpts(providerId));
+    this.readView(hub, sessionId, providerId, spec, 0, 1);
   }
 
   async watchGroups(
@@ -443,6 +715,7 @@ export class SsrmWasmPlane {
         reset?: boolean;
       }>(dstr, {});
       if (m.type === 'rowDelta' || m.upserts || m.removals) {
+        this.pruneEditOverlays(providerId, m.removals);
         push(providerId, {
           kind: 'rowDelta',
           upserts: m.upserts,
@@ -477,8 +750,9 @@ export class SsrmWasmPlane {
     spec: SsrmViewSpec,
     startRow: number,
     endRow: number | undefined,
+    kind: ViewKind = 'block',
   ): SsrmReadWindow {
-    const viewId = this.acquireView(hub, sessionId, providerId, spec);
+    const viewId = this.acquireView(hub, sessionId, providerId, spec, kind);
 
     const readId = this.ctlId();
     const window = resultOf(
@@ -506,12 +780,16 @@ export class SsrmWasmPlane {
     sessionId: string,
     providerId: string,
     spec: SsrmViewSpec,
+    kind: ViewKind,
   ): string {
     const key = viewSignature(sessionId, providerId, spec);
     const cached = this.views.get(key);
     if (cached) {
-      // Re-insert so the map stays ordered least-recently-used first.
+      // Re-insert so the map stays ordered least-recently-used first. A
+      // block read promotes a poll-opened view (the root count view IS the
+      // root block view) — block is the partition whose eviction hurts.
       this.views.delete(key);
+      if (kind === 'block') cached.kind = 'block';
       this.views.set(key, cached);
       return cached.viewId;
     }
@@ -529,17 +807,19 @@ export class SsrmWasmPlane {
     const viewId = ((opened.payload ?? {}) as { viewId?: string }).viewId;
     if (!viewId) throw new Error('[ssrm] openView returned no viewId');
 
-    this.views.set(key, { sessionId, providerId, viewId });
-    this.evictSession(hub, sessionId);
+    this.views.set(key, { sessionId, providerId, viewId, kind });
+    this.evictSession(hub, sessionId, kind);
     return viewId;
   }
 
-  /** Release this session's least recently used views down to the cap. */
-  private evictSession(hub: RustHubLike, sessionId: string): void {
-    const mine = [...this.views].filter(([, v]) => v.sessionId === sessionId);
+  /** Release this session's least recently used `kind` views down to that partition's cap. */
+  private evictSession(hub: RustHubLike, sessionId: string, kind: ViewKind): void {
+    const mine = [...this.views].filter(
+      ([, v]) => v.sessionId === sessionId && v.kind === kind,
+    );
     // Clamped: a negative end would make `slice` count back from the end and
     // evict while under the cap.
-    const excess = Math.max(0, mine.length - MAX_VIEWS_PER_SESSION);
+    const excess = Math.max(0, mine.length - VIEW_CAPS[kind]);
     for (const [key, view] of mine.slice(0, excess)) {
       this.views.delete(key);
       this.disposeView(hub, view);

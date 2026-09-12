@@ -51,6 +51,7 @@ export type {
   SsrmTickPayload,
   SsrmWatchGroupsRequest,
 } from './ssrm/index.js';
+export { SSRM_PIVOT_FIELD_SEPARATOR } from './ssrm/index.js';
 
 // Wire codecs — typed-array columnar frames + thin-delta row diffing.
 export { tryEncodeColumnar, decodeColumnar } from './wire/columnarCodec.js';

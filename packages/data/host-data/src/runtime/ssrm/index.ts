@@ -1,10 +1,14 @@
 export { flattenRow, flattenRows, FLATTEN_SEPARATOR, FLATTEN_MAX_DEPTH } from './flattenRow.js';
 export { toViewSpec, toViewSpecResult, filterModelToNodes } from './toViewSpec.js';
 export type { ToViewSpecOptions, ToViewSpecResult } from './toViewSpec.js';
-export { RustHubHost, loadVendoredRustHub, resetRustHubLoader } from './RustHubHost.js';
+// NO value exports of RustHubHost / SsrmWasmPlane here: they are worker-only
+// (RustHubHost dynamic-imports the vendored WASM, which only the worker build
+// aliases), and this barrel is what `@wellsfargo-starui/data/runtime` serves to PAGE
+// code. The hub reaches them by relative import; a value re-export here makes
+// every page bundle try to resolve `@starui/dshub` and fail.
 export type { RustHubLike, RustHubFactory } from './RustHubHost.js';
-export { SsrmWasmPlane, publishWindowMsOf } from './SsrmWasmPlane.js';
 export type { SsrmPlaneBootCfg } from './SsrmWasmPlane.js';
+export { ssrmEpochColumn, SSRM_EPOCH_SUFFIX, SSRM_PIVOT_FIELD_SEPARATOR } from './ssrmTypes.js';
 export type {
   SsrmColRef,
   SsrmColumnValuesRequest,

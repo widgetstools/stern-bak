@@ -126,6 +126,7 @@ export class SharedWorkerDataServicesHub {
       ingestSsrm: (providerId, rows, replace) => {
         void this.ssrmPlane.ingest(providerId, rows, replace);
       },
+      warmSsrm: (providerId) => this.warmSsrmSessions(providerId),
     };
     this.catalogRpcCtx = {
       catalog: this.configCatalog,
@@ -162,15 +163,6 @@ export class SharedWorkerDataServicesHub {
       case 'ssrm-aggregates': void this.handleSsrmAggregates(port, req); return;
       case 'ssrm-watch-groups': void this.handleSsrmWatchGroups(port, req); return;
       case 'ssrm-apply-edits': void this.handleSsrmApplyEdits(port, req); return;
-      case 'ssrm-set-viewport':
-        port.postMessage({
-          kind: 'ssrm-rpc',
-          reqId: req.reqId,
-          subId: req.subId,
-          ok: true,
-          result: { ok: true },
-        } satisfies SsrmRpcEvent);
-        return;
     }
   }
 
@@ -473,6 +465,9 @@ export class SharedWorkerDataServicesHub {
     this.maybeStopStatsSampler();
 
     const stopResult = slot.handle.stop();
+    // Drop the plane's anchor subscription with the provider — the engine
+    // frees the datasource cache when its last session lets go.
+    if (slot.cfg.providerType === 'stomp-ssrm') this.ssrmPlane.releaseAnchor(providerId);
     this.maybeStopSsrmTicker();
     this.maybeStopSubscriberSweeper();
     if (stopResult instanceof Promise) await stopResult;
@@ -652,8 +647,22 @@ export class SharedWorkerDataServicesHub {
     if (slot.cfg.providerType === 'stomp-ssrm') {
       void this.ssrmPlane.boot(providerId, slot.cfg as StompSsrmProviderConfig);
       this.ensureSsrmTicker();
+      // Late joiner on a snapshot that already landed: build its root view
+      // now rather than on its first block read.
+      if (slot.status === 'ready') {
+        void this.ssrmPlane.warmRootView(subId, providerId).catch(() => undefined);
+      }
     }
     port.postMessage({ subId, kind: 'status', status: slot.status, error: slot.lastError } satisfies Event);
+  }
+
+  /** Build the root engine view for every attached SSRM session — see `warmSsrm`. */
+  private warmSsrmSessions(providerId: string): void {
+    const listeners = this.subscribers.dataListeners(providerId);
+    if (!listeners) return;
+    for (const l of listeners.values()) {
+      void this.ssrmPlane.warmRootView(l.subId, providerId).catch(() => undefined);
+    }
   }
 
   /** Run one SSRM RPC and post its `ssrm-rpc` reply, ok or error. */
@@ -705,7 +714,9 @@ export class SharedWorkerDataServicesHub {
   /**
    * Grid edits go into the engine cache like an upstream message: every
    * session sharing the datasource sees them on its next tick, and a block
-   * refresh returns the edited values. The upstream feed is not written to.
+   * refresh returns the edited values. The upstream feed is not written to;
+   * the plane holds each edited column over whole-row upstream resends until
+   * the upstream value itself changes (see `SsrmWasmPlane.applyEdits`).
    */
   private handleSsrmApplyEdits(port: PortLike, req: SsrmApplyEditsWireRequest): Promise<void> {
     return this.replySsrmRpc(port, req, async () => {
@@ -714,8 +725,8 @@ export class SharedWorkerDataServicesHub {
         throw new Error(`[ssrm] ${req.providerId} is not a running stomp-ssrm provider`);
       }
       if (req.rows.length === 0) return { applied: 0 };
-      await this.ssrmPlane.ingest(req.providerId, req.rows, false);
-      return { applied: req.rows.length };
+      const applied = await this.ssrmPlane.applyEdits(req.providerId, req.rows, req.editedColumns);
+      return { applied };
     });
   }
 

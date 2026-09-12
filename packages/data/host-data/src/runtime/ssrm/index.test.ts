@@ -4,25 +4,31 @@ import {
   FLATTEN_SEPARATOR,
   flattenRow,
   flattenRows,
-  loadVendoredRustHub,
-  publishWindowMsOf,
-  resetRustHubLoader,
-  RustHubHost,
-  SsrmWasmPlane,
+  SSRM_EPOCH_SUFFIX,
+  SSRM_PIVOT_FIELD_SEPARATOR,
+  ssrmEpochColumn,
   toViewSpec,
 } from './index.js';
 
 describe('ssrm runtime barrel', () => {
-  it('re-exports the WASM plane helpers', () => {
+  it('re-exports the page-safe helpers and constants', () => {
     expect(flattenRow).toEqual(expect.any(Function));
     expect(flattenRows).toEqual(expect.any(Function));
     expect(toViewSpec).toEqual(expect.any(Function));
-    expect(RustHubHost).toEqual(expect.any(Function));
-    expect(SsrmWasmPlane).toEqual(expect.any(Function));
-    expect(loadVendoredRustHub).toEqual(expect.any(Function));
-    expect(resetRustHubLoader).toEqual(expect.any(Function));
-    expect(publishWindowMsOf).toEqual(expect.any(Function));
+    expect(ssrmEpochColumn).toEqual(expect.any(Function));
+    expect(SSRM_EPOCH_SUFFIX).toBe('__epoch');
+    expect(SSRM_PIVOT_FIELD_SEPARATOR).toBe('|');
     expect(FLATTEN_SEPARATOR).toBe('_');
     expect(FLATTEN_MAX_DEPTH).toBe(6);
+  });
+
+  it('exports NO WASM plane values — the barrel is what page bundles import', async () => {
+    // RustHubHost / SsrmWasmPlane are worker-only (they resolve the vendored
+    // WASM); a value re-export here would make every page build try to
+    // resolve `@starui/dshub` and fail. The hub imports them relatively.
+    const barrel = await import('./index.js');
+    expect('RustHubHost' in barrel).toBe(false);
+    expect('SsrmWasmPlane' in barrel).toBe(false);
+    expect('loadVendoredRustHub' in barrel).toBe(false);
   });
 });

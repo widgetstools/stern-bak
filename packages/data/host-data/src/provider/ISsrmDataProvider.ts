@@ -76,9 +76,21 @@ export interface ISsrmDataProvider {
   /**
    * Write grid edits (cell edit, paste, fill) into the engine cache so every
    * grid on the provider sees them and a block refresh keeps them. Rows are
-   * whole records carrying the key column(s). The upstream feed is not
-   * written to; its next tick for a row wins. Optional: a provider without
-   * a write path leaves edits local to the grid that made them.
+   * whole records carrying the key column(s).
+   *
+   * The upstream feed is not written to. When `editedColumns` names the
+   * edited cells, the worker holds each one as an overlay over the feed:
+   * a whole-row upstream resend of the row's PRE-EDIT values (the `legacy`
+   * wire shape) is rewritten so the edit survives, while an upstream tick
+   * that genuinely changes the column — a new value, or an echo of the
+   * edited one — releases the hold and upstream wins from then on. Edits
+   * are also released when their row is removed upstream or the provider
+   * config changes, and the oldest-edited rows are released beyond a
+   * 10 000-row cap. Without `editedColumns` no hold is kept: the row's
+   * next upstream tick reverts the edit.
+   *
+   * Optional: a provider without a write path leaves edits local to the
+   * grid that made them.
    */
   applyEdits?(req: SsrmApplyEditsRequest): Promise<SsrmApplyEditsResult>;
   /**

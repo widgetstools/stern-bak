@@ -118,6 +118,17 @@ describe('toViewSpec', () => {
     expect(spec.aggregates).toEqual({ qty: 'sum' });
   });
 
+  it('reports a pivot with no row groups instead of translating it', () => {
+    // Probed: splitBy without groupBy returns flat leaves — not a pivot.
+    const { spec, unsupported } = toViewSpecResult({
+      pivotMode: true,
+      pivotCols: [{ id: 'ccy' }],
+      valueCols: [{ id: 'qty' }],
+    });
+    expect(spec.splitBy).toBeUndefined();
+    expect(unsupported).toEqual(['pivot without row groups (the engine pivots grouped views only)']);
+  });
+
   it('skips groupKeys that have no matching row group column', () => {
     const spec = toViewSpec({ groupKeys: ['only'] });
     expect(spec.filter).toEqual([]);
