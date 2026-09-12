@@ -3,7 +3,6 @@ import {
   buildStompSsrmConfig,
   DEFAULT_LIVE_RATE,
   liveRateFromLocation,
-  STOMP_SSRM_PROVIDER_CFG_VERSION,
   STOMP_SSRM_PROVIDER_ID,
   stompSsrmProviderDraft,
 } from './stompProvider.js';
@@ -11,7 +10,6 @@ import {
 describe('stompProvider', () => {
   it('seeds a stomp-ssrm catalog row on the same wire as CSRM STOMP', () => {
     expect(STOMP_SSRM_PROVIDER_ID).toBe('stomp-ssrm-minimal:positions');
-    expect(STOMP_SSRM_PROVIDER_CFG_VERSION).toBe(3);
     expect(stompSsrmProviderDraft.config.providerType).toBe('stomp-ssrm');
     expect(stompSsrmProviderDraft.config.websocketUrl).toBe('ws://localhost:8081');
     expect(stompSsrmProviderDraft.config.listenerTopic).toBe('/snapshot/positions/TRADER001');

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import './test/setupMocks.js';
 import { staruiTestState } from './test/setupMocks.js';
-import { STOMP_SSRM_PROVIDER_CFG_VERSION, STOMP_SSRM_PROVIDER_ID, stompSsrmProviderDraft } from './stompProvider.js';
+import { STOMP_SSRM_PROVIDER_ID, stompSsrmProviderDraft } from './stompProvider.js';
 
 vi.mock('./bootstrap.js', () => ({
   getPlatform: () => staruiTestState.platform,
@@ -17,7 +17,6 @@ describe('App', () => {
     staruiTestState.configStore.list.mockResolvedValue([]);
     staruiTestState.configStore.save.mockResolvedValue(undefined);
     staruiTestState.configStore.remove.mockResolvedValue(undefined);
-    localStorage.setItem('stomp-ssrm-minimal.cfg-version', String(STOMP_SSRM_PROVIDER_CFG_VERSION));
   });
 
   it('seeds one stomp-ssrm catalog row and mounts the grid', async () => {
@@ -48,9 +47,13 @@ describe('App', () => {
     }
   });
 
-  it('skips save when the provider already exists at the current version', async () => {
+  it('skips save when the stored config matches — a re-save restarts the provider', async () => {
     staruiTestState.configStore.list.mockResolvedValue([
-      { providerId: STOMP_SSRM_PROVIDER_ID, name: stompSsrmProviderDraft.name },
+      {
+        providerId: STOMP_SSRM_PROVIDER_ID,
+        name: stompSsrmProviderDraft.name,
+        config: JSON.parse(JSON.stringify(stompSsrmProviderDraft.config)),
+      },
     ]);
     const { App } = await import('./App.js');
     render(<App />);

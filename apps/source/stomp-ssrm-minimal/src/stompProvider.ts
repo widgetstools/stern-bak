@@ -2,7 +2,6 @@ import type { DataProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-st
 
 const TAG = 'TRADER001';
 
-export const STOMP_SSRM_PROVIDER_CFG_VERSION = 3;
 export const STOMP_SSRM_PROVIDER_ID = 'stomp-ssrm-minimal:positions';
 
 /** Default aggregate row-updates per second the fixture broker is asked for. */

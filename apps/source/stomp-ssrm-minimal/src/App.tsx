@@ -5,11 +5,7 @@ import { useDataServices, useUserIdFromContext } from '@wellsfargo-starui/react/
 import { getPlatform } from './bootstrap.js';
 import { gridEventHandlers } from './platform/gridEventHandlers.js';
 import { gridHandlerMeta } from './platform/hooksMeta.js';
-import {
-  stompSsrmProviderDraft,
-  STOMP_SSRM_PROVIDER_CFG_VERSION,
-  STOMP_SSRM_PROVIDER_ID,
-} from './stompProvider.js';
+import { stompSsrmProviderDraft, STOMP_SSRM_PROVIDER_ID } from './stompProvider.js';
 
 function groupOnReady(colId: string) {
   return (event: GridReadyEvent) => {
@@ -30,17 +26,13 @@ export function App() {
     void (async () => {
       const rows = await configStore.list(userId, { subtype: 'stomp-ssrm' });
       const existing = rows.find((p) => p.providerId === STOMP_SSRM_PROVIDER_ID);
-      const storedVersion = localStorage.getItem('stomp-ssrm-minimal.cfg-version');
-      const shouldRefresh = storedVersion !== String(STOMP_SSRM_PROVIDER_CFG_VERSION);
-      // `?rate=` changes the live trigger; re-save when the stored row's
-      // trigger disagrees with the one this page was opened with.
-      const storedTrigger = (existing?.config as { requestMessage?: string } | undefined)?.requestMessage;
-      const rateChanged = storedTrigger !== undefined
-        && storedTrigger !== (stompSsrmProviderDraft.config as { requestMessage?: string }).requestMessage;
-      if (shouldRefresh || !existing || rateChanged) await configStore.save(stompSsrmProviderDraft, userId);
-      if (shouldRefresh) {
-        localStorage.setItem('stomp-ssrm-minimal.cfg-version', String(STOMP_SSRM_PROVIDER_CFG_VERSION));
-      }
+      // Re-save ONLY on a real config difference (`?rate=` changes the
+      // trigger; editing buildStompSsrmConfig changes the rest). Saving is
+      // not free: it restarts the provider and re-streams the 20k snapshot,
+      // which was most of the 5–42 s cold start ssrm-validate3 measured.
+      const differs = !existing
+        || JSON.stringify(existing.config ?? null) !== JSON.stringify(stompSsrmProviderDraft.config);
+      if (differs) await configStore.save(stompSsrmProviderDraft, userId);
       if (!cancelled) setProviderId(STOMP_SSRM_PROVIDER_ID);
     })();
     return () => { cancelled = true; };
@@ -60,7 +52,7 @@ export function App() {
     showFormattingToolbar: true,
     showEditingToolbar: true,
     sideBar: true as const,
-    defaultColDef: { enableRowGroup: true, enableValue: true },
+    defaultColDef: { enableRowGroup: true, enableValue: true, enablePivot: true },
   };
 
   return (
