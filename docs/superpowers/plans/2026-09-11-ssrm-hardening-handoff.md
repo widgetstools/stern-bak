@@ -1,7 +1,7 @@
 # SSRM hardening — handoff and open items
 
-**Date:** 2026-09-11 (first pass committed as `b720833..6a037d2`; the second pass — §2b — was
-left **uncommitted** by the agent that did it; the owner commits)
+**Date:** 2026-09-11 (first pass committed as `b720833..6a037d2`; second pass — §2b — as
+`89f6128..cff7e62`)
 **Branch:** `feature/ssrm-dataprovider-refactor`
 **Audience:** the next agent (or person) picking up the AG Grid server-side row model (SSRM) work in
 `@wellsfargo-starui/grid` + `@wellsfargo-starui/data`. Everything below was verified against the
