@@ -37,8 +37,7 @@ import type {
   RoleRow,
   SeedData,
   SeedConfigReloadMode,
-  UserProfileRow,
-} from './types';
+  UserProfileRow, ConfigWriter } from './types';
 import { isVisible, type VisibilityContext } from './visibility';
 import {
   type SeedLockManager,
@@ -140,6 +139,8 @@ export class ConfigManager {
   private seedConfigUrl: string | undefined;
   private seedConfigReload: SeedConfigReloadMode;
   private restUrl: string | undefined;
+  /** Single-writer delegate (worker-split W2) — see {@link ConfigWriter}. */
+  private readonly writer: ConfigWriter | undefined;
   private readonly appId: string;
   private readonly identity: AppIdentity;
   private dataServices: DataServicesHandle | undefined;
@@ -183,6 +184,7 @@ export class ConfigManager {
     this.appId = options.appId ?? DEFAULT_APP_ID;
     this.identity = options.identity ?? DEFAULT_IDENTITY;
     this.dataServices = options.dataServices;
+    this.writer = options.writer;
     this.changeNotifier = new ChangeNotifier();
     // Evict the read cache on every write — local and cross-tab. The
     // notifier fires this for our own `notify` calls AND for inbound
@@ -729,12 +731,21 @@ export class ConfigManager {
     this.stampAppConfigScope(config);
     this.stampWrite(config, isInsert);
 
-    if (this.restUrl) {
-      await this.syncToRest('upsert', 'configurations', config.configId, config, {
-        ifMatch: options?.expectedUpdatedTime,
-      });
+    if (this.writer) {
+      // Single writer (worker-split W2): the platform-services worker
+      // persists (REST + IndexedDB) and returns the row as stored; adopt
+      // its stamps so this context's cache matches what a later
+      // optimistic-lock check will find in IndexedDB.
+      const persisted = await this.writer.saveConfig(config, options);
+      Object.assign(config, persisted);
+    } else {
+      if (this.restUrl) {
+        await this.syncToRest('upsert', 'configurations', config.configId, config, {
+          ifMatch: options?.expectedUpdatedTime,
+        });
+      }
+      await this.db.appConfig.put(config);
     }
-    await this.db.appConfig.put(config);
     // Cross-tab + same-tab notify (Session 3.2). Subscribers via
     // `profiles.subscribe(scope, fn)` get a callback whenever a write
     // touches their `configId`. Fired AFTER Dexie's write resolves so
@@ -813,10 +824,14 @@ export class ConfigManager {
    * In REST mode, also deletes from the remote backend.
    */
   async deleteConfig(configId: string): Promise<void> {
-    if (this.restUrl) {
-      await this.syncToRest("delete", "configurations", configId, undefined);
+    if (this.writer) {
+      await this.writer.deleteConfig(configId);
+    } else {
+      if (this.restUrl) {
+        await this.syncToRest("delete", "configurations", configId, undefined);
+      }
+      await this.db.appConfig.delete(configId);
     }
-    await this.db.appConfig.delete(configId);
     this.changeNotifier.notify(configId);
     // `notify` already evicted via the invalidation listener; this is a
     // belt-and-braces drop in case the notifier was disabled.

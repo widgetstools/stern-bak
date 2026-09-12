@@ -12,6 +12,7 @@
  */
 
 import type { DataProviderConfig, ProviderConfig, ProviderStatus, ProviderType } from '@wellsfargo-starui/types';
+import type { AppConfigRow } from '@wellsfargo-starui/core/host/config';
 
 // ─── AppData row shape (mirrors AppDataConfig from probes/appdata) ─
 
@@ -194,6 +195,26 @@ export interface ConfigInvalidateRequest {
   kind: 'config-invalidate';
   reqId: string;
   providerId?: string;
+}
+
+/**
+ * Persist one `appConfig` row through the platform-services worker — the
+ * single writer for config rows (worker-split plan W2). Replies with the
+ * row as stored; a stale `expectedUpdatedTime` answers `ok: false` with
+ * `code: 'optimistic-lock'` and the current row.
+ */
+export interface ConfigSaveRequest {
+  kind: 'config-save';
+  reqId: string;
+  row: AppConfigRow;
+  expectedUpdatedTime?: string;
+}
+
+/** Delete one `appConfig` row through the platform-services worker. */
+export interface ConfigDeleteRequest {
+  kind: 'config-delete';
+  reqId: string;
+  configId: string;
 }
 
 /** Replay hub row cache to one subscriber without upstream I/O. */
@@ -454,6 +475,8 @@ export type Request =
   | GetConfigRequest
   | ListConfigsRequest
   | ConfigInvalidateRequest
+  | ConfigSaveRequest
+  | ConfigDeleteRequest
   | RefreshProviderRequest
   | HubIntrospectRequest
   | ProviderRunningRequest
@@ -658,6 +681,12 @@ export interface ConfigSnapshotEvent {
   introspect?: HubIntrospectSnapshot;
   /** Response to `provider-running`. */
   running?: boolean;
+  /** Response to `config-save`: the row as persisted by the writer. */
+  row?: AppConfigRow;
+  /** `ok: false` refinement — a stale `expectedUpdatedTime` on `config-save`. */
+  code?: 'optimistic-lock';
+  /** With `code: 'optimistic-lock'`: the row currently stored (null when unknown). */
+  conflictRow?: AppConfigRow | null;
 }
 
 export type CatalogEvent = CatalogReadyEvent | ConfigSnapshotEvent;
@@ -738,6 +767,8 @@ export function isRequest(value: unknown): value is Request {
     k === 'get-config' ||
     k === 'list-configs' ||
     k === 'config-invalidate' ||
+    k === 'config-save' ||
+    k === 'config-delete' ||
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
     k === 'provider-running' ||

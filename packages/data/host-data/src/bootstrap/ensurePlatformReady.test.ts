@@ -34,10 +34,16 @@ vi.mock('../hub/ensureDataServicesHub.js', async (importOriginal) => {
   return {
     ...actual,
     ensureDataServicesHub: (...args: unknown[]) => ensureDataServicesHubMock(...args),
-    // jsdom has no SharedWorker — warm-up must stay a no-op in tests.
+    // jsdom has no SharedWorker — warm-up must stay a no-op in tests, and the
+    // config tier takes the no-worker fallback unless a test hands it a
+    // platform connection.
     warmHubConnection: vi.fn(),
+    warmPlatformConnection: (...args: unknown[]) => warmPlatformConnectionMock(...args),
   };
 });
+
+const warmPlatformConnectionMock = vi.fn(() => null as unknown);
+import { CONFIG_READY_DEADLINE_MS } from './ensurePlatformReady.js';
 
 describe('ensurePlatformReady', () => {
   beforeEach(() => {
@@ -311,7 +317,109 @@ async function flushMicrotasks(): Promise<void> {
   }
 }
 
-describe('ensureConfigReady', () => {
+describe('ensureConfigReady — thin window on the services worker (W2)', () => {
+  function fakePlatform(overrides: Record<string, unknown> = {}) {
+    const client = {
+      waitForCatalogReady: vi.fn().mockResolvedValue(undefined),
+      saveConfigRow: vi.fn(async (row: unknown) => ({ ...(row as object), updatedBy: 'worker' })),
+      deleteConfigRow: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    };
+    return { platform: { worker: {}, client }, client };
+  }
+
+  beforeEach(() => {
+    vi.mocked(isSeedIdentityCached).mockReturnValue(false);
+    createConfigManagerMock.mockImplementation((opts: unknown) => ({
+      _opts: opts,
+      init: vi.fn().mockResolvedValue(undefined),
+      onConfigChanged: vi.fn(() => () => {}),
+    }));
+    // `clearAllMocks` keeps implementations — pin a resolving hub here so a
+    // previous describe's rejecting `appDataReady` cannot leak in.
+    ensureDataServicesHubMock.mockImplementation(() =>
+      Promise.resolve({
+        client: { stop: vi.fn(), invalidateConfig: vi.fn().mockResolvedValue(undefined) },
+        platformClient: {},
+        appData: {},
+        configManager: {},
+        ready: Promise.resolve(),
+        appDataReady: Promise.resolve(),
+        catalogReady: Promise.resolve(),
+        dispose: vi.fn(),
+        getProvider: vi.fn(),
+        stopProvider: vi.fn(),
+      }),
+    );
+  });
+
+  afterEach(() => {
+    _resetEnsurePlatformReadyForTests();
+    _resetEnsureDataServicesHubForTests();
+    warmPlatformConnectionMock.mockReset().mockReturnValue(null);
+    vi.clearAllMocks();
+  });
+
+  it('never seeds: opens IndexedDB read-only (attach) with no seed URL and gates on the services worker catalog', async () => {
+    const { platform, client } = fakePlatform();
+    warmPlatformConnectionMock.mockReturnValue(platform);
+
+    const bundle = await ensureConfigReady(
+      { ...DEV_PLATFORM_BOOTSTRAP, seedConfigUrl: '/seed.json' },
+      { workerScriptUrl: '/worker.mjs' },
+    );
+
+    expect(warmPlatformConnectionMock).toHaveBeenCalledWith(expect.objectContaining({ appId: 'TestApp', workerScriptUrl: '/worker.mjs' }));
+    const opts = createConfigManagerMock.mock.calls[0][0] as { seedConfigUrl?: string; writer?: unknown };
+    expect(opts.seedConfigUrl).toBeUndefined();
+    expect(opts.writer).toBeDefined();
+    const cm = bundle.configManager as unknown as { init: ReturnType<typeof vi.fn> };
+    expect(cm.init).toHaveBeenCalledWith({ mode: 'attach' });
+    expect(client.waitForCatalogReady).toHaveBeenCalledTimes(1);
+    expect(bundle.attachMode).toBe(true);
+    expect(bundle.platformClient).toBe(client);
+  });
+
+  it('routes the window\'s config writes through the platform client (single writer)', async () => {
+    const { platform, client } = fakePlatform();
+    warmPlatformConnectionMock.mockReturnValue(platform);
+    await ensureConfigReady(DEV_PLATFORM_BOOTSTRAP);
+
+    const writer = (createConfigManagerMock.mock.calls[0][0] as { writer: { saveConfig: (r: unknown, o?: unknown) => Promise<unknown>; deleteConfig: (id: string) => Promise<void> } }).writer;
+    const stored = await writer.saveConfig({ configId: 'c1' }, { expectedUpdatedTime: 't0' });
+    expect(client.saveConfigRow).toHaveBeenCalledWith({ configId: 'c1' }, { expectedUpdatedTime: 't0' });
+    expect(stored).toMatchObject({ configId: 'c1', updatedBy: 'worker' });
+    await writer.deleteConfig('c1');
+    expect(client.deleteConfigRow).toHaveBeenCalledWith('c1');
+  });
+
+  it('proceeds (degraded, warned) when the services worker never reports its catalog', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { platform } = fakePlatform({ waitForCatalogReady: vi.fn(() => new Promise(() => {})) });
+    warmPlatformConnectionMock.mockReturnValue(platform);
+    try {
+      const pending = ensureConfigReady(DEV_PLATFORM_BOOTSTRAP);
+      await vi.advanceTimersByTimeAsync(CONFIG_READY_DEADLINE_MS + 1);
+      const bundle = await pending;
+      expect(bundle.platformClient).toBe(platform.client);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not report its catalog'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ensurePlatformReady rides the same config tier and hands the hub that ConfigManager', async () => {
+    const { platform } = fakePlatform();
+    warmPlatformConnectionMock.mockReturnValue(platform);
+    const { configManager } = await ensureConfigReady(DEV_PLATFORM_BOOTSTRAP, { workerScriptUrl: '/worker.mjs' });
+    await ensurePlatformReady(DEV_PLATFORM_BOOTSTRAP, { workerScriptUrl: '/worker.mjs' });
+    expect(createConfigManagerMock).toHaveBeenCalledTimes(1);
+    expect(ensureDataServicesHubMock).toHaveBeenCalledWith(expect.objectContaining({ mainThreadConfigManager: configManager }));
+  });
+});
+
+describe('ensureConfigReady — no-SharedWorker fallback (window bootstraps itself)', () => {
   beforeEach(() => {
     vi.mocked(isSeedIdentityCached).mockReturnValue(false);
     createConfigManagerMock.mockImplementation((opts: unknown) => ({

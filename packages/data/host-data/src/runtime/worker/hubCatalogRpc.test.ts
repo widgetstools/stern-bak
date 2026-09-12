@@ -13,8 +13,11 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { OptimisticLockError, type AppConfigRow, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
+  handleConfigDelete,
   handleConfigInvalidate,
+  handleConfigSave,
   handleGetConfig,
   handleHubIntrospect,
   handleHubReady,
@@ -36,6 +39,8 @@ const INTROSPECT = { providers: [], ports: 0 } as unknown as HubIntrospectSnapsh
 function fakeCtx(overrides: Partial<CatalogRpcContext> = {}): CatalogRpcContext {
   return {
     catalog: null,
+    configManager: null,
+    ownWrites: new Set<string>(),
     broadcastCatalogEvent: vi.fn(),
     resyncAppData: vi.fn(async () => {}),
     buildIntrospect: () => INTROSPECT,
@@ -382,5 +387,104 @@ describe('replyBounded catalog handlers (WORKLOG item 14)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+function providerRow(configId: string, displayText = configId): AppConfigRow {
+  return {
+    configId,
+    appId: 'TestApp',
+    userId: 'system',
+    componentType: 'data-provider',
+    componentSubType: 'mock',
+    isTemplate: false,
+    displayText,
+    payload: { providerType: 'mock' },
+    createdBy: 'dev1',
+    updatedBy: 'dev1',
+    creationTime: '2026-01-01T00:00:00.000Z',
+    updatedTime: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function fakeConfigManager(rows: Map<string, AppConfigRow>, opts: { conflict?: AppConfigRow } = {}) {
+  return {
+    saveConfig: vi.fn(async (row: AppConfigRow) => {
+      if (opts.conflict) throw new OptimisticLockError(opts.conflict);
+      rows.set(row.configId, { ...row, updatedBy: 'worker' });
+    }),
+    deleteConfig: vi.fn(async (id: string) => { rows.delete(id); }),
+    getConfig: vi.fn(async (id: string) => rows.get(id)),
+  } as unknown as ConfigManager;
+}
+
+describe('handleConfigSave / handleConfigDelete — the single writer (W2)', () => {
+  it('answers not-available when the host has no ConfigManager', async () => {
+    const { port, last } = fakePort();
+    await handleConfigSave(fakeCtx(), port, { kind: 'config-save', reqId: 's0', row: providerRow('p1') });
+    expect(last()).toMatchObject({ reqId: 's0', ok: false, error: NO_CATALOG_ERROR });
+  });
+
+  it('persists through the ConfigManager, refreshes the catalog BEFORE replying, and replies with the stored row', async () => {
+    const rows = new Map<string, AppConfigRow>();
+    const cm = fakeConfigManager(rows);
+    const catalog = fakeCatalog();
+    const ctx = fakeCtx({ catalog, configManager: cm });
+    const { port, last } = fakePort();
+    const order: string[] = [];
+    (catalog!.invalidate as ReturnType<typeof vi.fn>).mockImplementation(async () => { order.push('invalidate'); });
+    (ctx.resyncAppData as ReturnType<typeof vi.fn>).mockImplementation(async () => { order.push('resync'); });
+    port.postMessage = ((orig) => (m: unknown) => { order.push('reply'); orig(m); })(port.postMessage);
+
+    await handleConfigSave(ctx, port, { kind: 'config-save', reqId: 's1', row: providerRow('p1'), expectedUpdatedTime: 't0' });
+
+    expect(cm.saveConfig).toHaveBeenCalledWith(expect.objectContaining({ configId: 'p1' }), { expectedUpdatedTime: 't0' });
+    expect(order).toEqual(['invalidate', 'resync', 'reply']);
+    expect(last()).toMatchObject({ reqId: 's1', ok: true, row: expect.objectContaining({ configId: 'p1', updatedBy: 'worker' }) });
+    expect(ctx.broadcastCatalogEvent).toHaveBeenCalledWith({ kind: 'catalog-ready', providerId: 'p1' });
+    expect(ctx.ownWrites.size).toBe(0);
+  });
+
+  it('a non-catalog row (grid profile) is persisted without touching the catalog', async () => {
+    const rows = new Map<string, AppConfigRow>();
+    const catalog = fakeCatalog();
+    const ctx = fakeCtx({ catalog, configManager: fakeConfigManager(rows) });
+    const { port, last } = fakePort();
+    await handleConfigSave(ctx, port, {
+      kind: 'config-save', reqId: 's2',
+      row: { ...providerRow('grid-1'), componentType: 'markets-grid-profile-set', componentSubType: '' },
+    });
+    expect(last()).toMatchObject({ reqId: 's2', ok: true });
+    expect(catalog!.invalidate).not.toHaveBeenCalled();
+    expect(ctx.broadcastCatalogEvent).not.toHaveBeenCalled();
+  });
+
+  it('a stale write surfaces as ok:false with the optimistic-lock code and the current row', async () => {
+    const conflict = providerRow('p1', 'elsewhere');
+    const ctx = fakeCtx({ catalog: fakeCatalog(), configManager: fakeConfigManager(new Map(), { conflict }) });
+    const { port, last } = fakePort();
+    await handleConfigSave(ctx, port, { kind: 'config-save', reqId: 's3', row: providerRow('p1'), expectedUpdatedTime: 'old' });
+    expect(last()).toMatchObject({ reqId: 's3', ok: false, code: 'optimistic-lock', conflictRow: expect.objectContaining({ displayText: 'elsewhere' }) });
+    expect(ctx.broadcastCatalogEvent).not.toHaveBeenCalled();
+    expect(ctx.ownWrites.size).toBe(0);
+  });
+
+  it('delete of a catalog row refreshes the catalog and broadcasts; an unknown id just acks', async () => {
+    const rows = new Map<string, AppConfigRow>([['p1', providerRow('p1')]]);
+    const cm = fakeConfigManager(rows);
+    const catalog = fakeCatalog();
+    const ctx = fakeCtx({ catalog, configManager: cm });
+    const { port, last } = fakePort();
+
+    await handleConfigDelete(ctx, port, { kind: 'config-delete', reqId: 'd1', configId: 'p1' });
+    expect(cm.deleteConfig).toHaveBeenCalledWith('p1');
+    expect(catalog!.invalidate).toHaveBeenCalledWith('p1');
+    expect(last()).toMatchObject({ reqId: 'd1', ok: true });
+    expect(ctx.broadcastCatalogEvent).toHaveBeenCalledWith({ kind: 'catalog-ready', providerId: 'p1' });
+
+    (ctx.broadcastCatalogEvent as ReturnType<typeof vi.fn>).mockClear();
+    await handleConfigDelete(ctx, port, { kind: 'config-delete', reqId: 'd2', configId: 'ghost' });
+    expect(last()).toMatchObject({ reqId: 'd2', ok: true });
+    expect(ctx.broadcastCatalogEvent).not.toHaveBeenCalled();
   });
 });

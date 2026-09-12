@@ -858,9 +858,27 @@ worker inits read-only attach mode, hub at the 800-line ceiling after
 `HubSsrmRpc` + `HubStatsSampler` extraction); React hooks + adapters were
 stragglers still issuing catalog RPCs on the DATA client and were
 re-pointed at `platformClient`; the inspector merges both workers'
-introspect. Windows-native W0 numbers (W1b HEAD) are in plan §5. W2 (thin
-windows + warmPlatform + boot ordering / WORKLOG-14), W3, W4 remain —
-continued on the Windows target box per the operator
+introspect. Windows-native W0 numbers (W1b HEAD) are in plan §5. W2 landed on
+the Windows target (2026-09-12): `ensureConfigReady` is the thin-window
+tier (platform-services port spawned alone and first, read-only attach-mode
+IndexedDB, gated on the worker's catalog with a 20 s backstop — windows
+never seed), config writes ride the port (`ConfigWriter` →
+`config-save` / `config-delete`; the services worker is the single
+writer, refreshes its catalog inline and self-invalidates on its own
+change notifier for writes from anywhere else; window-side
+`wireWorkerCatalogSync` deleted), `warmPlatform()` is the app-load /
+OpenFin-provider-window warm-up (stats-mode attach keeps providers
+running without fan-out; star-demo's provider window calls it with
+`providers: 'autoStart'`), and the WORKLOG-14 installer race is fixed
+(see item 14). Deliberately NOT done: a per-`gridId` profile cache in
+worker RAM — reads stay window-local IndexedDB primary-key gets through
+the ConfigManager's own row cache, which never touch the data worker's
+thread, so there is no contention to remove; revisit only with a
+measured read cost. Field note from the Windows probe: the demo pages
+block `DOMContentLoaded` on Google Fonts (0.1–11 s here) — the harness
+now aborts those hosts; apps should self-host or defer the fonts. W3
+(re-measure + soak + docs) and W4 (CSRM fan-out) remain — continued on
+the Windows target box per the operator
 handoff [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 

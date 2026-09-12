@@ -135,6 +135,7 @@ describe('installPlatformServicesHost — hydration window', () => {
     const configManager = {
       getAppId: () => 'TestApp',
       getIdentity: () => ({ userId: 'worker' }),
+      onConfigChanged: () => () => {},
       getConfigsByComponentTypesUnfiltered: vi.fn(() => {
         listCalls += 1;
         if (listCalls === 1) return new Promise<never[]>((resolve) => { releaseLoad = () => resolve([]); });

@@ -16,8 +16,10 @@ export {
   ensureConfigReady,
   ensurePlatformReady,
   type ConfigReadyBundle,
+  type EnsureConfigReadyOpts,
   type EnsurePlatformReadyOpts,
 } from './ensurePlatformReady.js';
+export { warmPlatform, type WarmPlatformOpts } from './warmPlatform.js';
 export {
   markConfigReady,
   markHubConnected,

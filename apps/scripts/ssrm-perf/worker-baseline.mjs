@@ -143,12 +143,41 @@ async function throttlePage(ctx, page) {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
 }
 
+// The demo pages `<link>` Google Fonts stylesheets, which block
+// DOMContentLoaded — and every app bootstrap behind it — on an EXTERNAL
+// fetch. Measured on the Windows target: 0.1 s, 1.7 s and 11.1 s for the
+// same request across three cold windows, which is what made the W1c phase-C
+// first window read 12.7 s twice. That is a page/network cost, not a platform
+// one; abort the hosts so the harness measures the platform. (For the field
+// the demo apps should self-host or defer those fonts — WORKLOG item 17.)
+const FONT_HOSTS = /fonts\.(googleapis|gstatic)\.com/;
+async function isolateContext(ctx) {
+  await ctx.route(FONT_HOSTS, (route) => route.abort());
+}
+
+// Time from navigation start to the FIRST SharedWorker construction — the
+// page's own load/bootstrap cost ahead of any platform code. Lets a
+// first-window number be decomposed into page vs platform.
+const INIT_SPAWN = `(() => {
+  const OrigSW = window.SharedWorker;
+  if (!OrigSW) return;
+  const Wrapped = function SharedWorker(...args) {
+    if (window.__spawnAt === undefined) window.__spawnAt = performance.now();
+    return new OrigSW(...args);
+  };
+  Wrapped.prototype = OrigSW.prototype;
+  window.SharedWorker = Wrapped;
+})();`;
+const readSpawnAt = (page) => page.evaluate(() => Math.round(window.__spawnAt ?? -1));
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
 
   // ───────────────────────── A + B: the SSRM app's shared worker ──
   if (PHASES.includes('AB')) {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 850 } });
+    await isolateContext(ctx);
+    await ctx.addInitScript(INIT_SPAWN);
     await ctx.addInitScript(INIT_SSRM);
     await ctx.addInitScript(INIT_CONFIG);
 
@@ -202,7 +231,23 @@ async function throttlePage(ctx, page) {
     await late.goto(`${SSRM_URL}?rate=10000`, { waitUntil: 'domcontentloaded' });
     await waitForSsrmRows(late);
     const wallMs = Date.now() - t0;
-    out.scenarios.windowOpenMidStorm = { wallToRowsMs: wallMs, loadMarks: await readMarks(late) };
+    // B2 — the grid customizer opening in that window WHILE the storm runs:
+    // click the settings button, wait for the sheet. This is the tool-window
+    // open the desk feels; the sheet's profile reads ride the window's own
+    // ConfigManager (IndexedDB primary-key gets) and its config RPCs the
+    // platform port — none of it the data worker's thread.
+    let customizerOpenMs = null;
+    try {
+      const btn = late.locator('[data-testid="v2-settings-open-btn"]').first();
+      await btn.waitFor({ state: 'visible', timeout: 10_000 });
+      const tOpen = Date.now();
+      await btn.click();
+      await late.locator('[aria-label="Grid settings"]').first().waitFor({ state: 'visible', timeout: 30_000 });
+      customizerOpenMs = Date.now() - tOpen;
+    } catch (err) {
+      console.warn('[B2] customizer open not measured:', String(err).slice(0, 120));
+    }
+    out.scenarios.windowOpenMidStorm = { wallToRowsMs: wallMs, spawnAtMs: await readSpawnAt(late), loadMarks: await readMarks(late), customizerOpenMs };
     console.log('\n[B window open mid-storm]', JSON.stringify(out.scenarios.windowOpenMidStorm));
     await ctx.close();
   }
@@ -210,6 +255,8 @@ async function throttlePage(ctx, page) {
   // ───────────────────────── C: 10 CSRM windows × 20k snapshot ──
   if (PHASES.includes('C')) {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 850 } });
+    await isolateContext(ctx);
+    await ctx.addInitScript(INIT_SPAWN);
     await ctx.addInitScript(INIT_SSRM);   // port hook only (marks + rows detection)
     await ctx.addInitScript(INIT_CONFIG);
 
@@ -250,6 +297,8 @@ async function throttlePage(ctx, page) {
     await first.goto(CSRM_URL, { waitUntil: 'domcontentloaded' });
     await csrmReady(first);
     const firstMs = Date.now() - tFirst;
+    const firstSpawnAt = await readSpawnAt(first);
+    const firstMarks = await readMarks(first);
 
     // Windows 2..N attach SIMULTANEOUSLY — the replay fan-out under test.
     const joiners = [];
@@ -268,6 +317,8 @@ async function throttlePage(ctx, page) {
     out.scenarios.csrmFanout = {
       pages: CSRM_PAGES,
       firstWindowColdMs: firstMs,
+      firstWindowSpawnAtMs: firstSpawnAt,
+      firstWindowPlatformReadyMs: firstMarks['platform-ready'],
       joinersMs: joinMs,
       joinSpreadMs: Math.max(...joinMs) - Math.min(...joinMs),
       joinStats: stats(joinMs),

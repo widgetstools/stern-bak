@@ -5131,6 +5131,7 @@
         "listenerTopic": "/snapshot/positions/trd1",
         "requestMessage": "/snapshot/positions/trd1/1000/10",
         "snapshotEndToken": "Success",
+        "autoStart": true,
         "columnDefinitions": [
           {
             "field": "positionId",

@@ -17,6 +17,7 @@ import type { RuntimePort } from "@wellsfargo-starui/core/host";
 import {
   initConfigBootstrap,
   initPlatformBootstrap,
+  warmPlatformFromProvider,
   PlatformBootstrapProvider,
   usePlatformBootstrap,
   type PlatformBootstrapResult,
@@ -56,6 +57,10 @@ if (initialPath.startsWith("/rename-view-tab")) {
   // pure-fin dialog — needs neither config rows nor the data plane
 } else if (initialPath.startsWith("/workspace-setup")) {
   void initConfigBootstrap();
+} else if (initialPath.startsWith("/platform/provider")) {
+  // The session-long provider window: config tier for its own route, plus
+  // the platform warm-up so blotter views open against running providers.
+  warmPlatformFromProvider();
 } else {
   void initPlatformBootstrap();
 }

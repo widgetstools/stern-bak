@@ -145,6 +145,7 @@ describe('installPlatformServicesHost — adopted ports during hydrate (WORKLOG 
     const configManager = {
       getAppId: () => 'TestApp',
       getIdentity: () => ({ userId: 'worker' }),
+      onConfigChanged: () => () => {},
       getConfigsByComponentTypesUnfiltered: () => {
         calls += 1;
         if (calls === 1) return new Promise<never[]>((resolve) => { release = () => resolve([]); });

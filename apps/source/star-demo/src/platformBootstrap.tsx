@@ -7,6 +7,7 @@ import {
   ensureConfigReady,
   ensurePlatformReady,
   resolvePlatformBootstrapFromJson,
+  warmPlatform,
   type ConfigReadyBundle,
   type PlatformBootstrapConfig,
   type ResolvedDataServicesHubBundle,
@@ -78,7 +79,9 @@ export function initConfigBootstrap(): Promise<ConfigBootstrapResult> {
       const config = isOpenFinRuntime()
         ? await resolvePlatformBootstrapFromManifest()
         : await resolvePlatformBootstrapFromJson('/app-config.json');
-      const { configManager } = await ensureConfigReady(config);
+      // Thin window: connects the platform-services worker (spawning it first
+      // and nothing else) and gates on its catalog — this window never seeds.
+      const { configManager } = await ensureConfigReady(config, { workerScriptUrl: workerAssetUrl });
       setConfigManager(configManager);
       return { config, configManager };
     })();
@@ -103,4 +106,18 @@ export function initPlatformBootstrap(): Promise<PlatformBootstrapResult> {
     })();
   }
   return platformBootstrapPromise;
+}
+
+/**
+ * OpenFin provider-window warm-up (worker-split plan W2): the provider
+ * window lives for the whole session, so it spawns both SharedWorkers and
+ * starts every catalog provider flagged `autoStart` while the dock loads.
+ * A blotter view launched afterwards attaches to a RUNNING provider and
+ * paints from the worker cache. Fire-and-forget; the lazy path in each view
+ * still boots everything if this never ran.
+ */
+export function warmPlatformFromProvider(): void {
+  void initConfigBootstrap().then(({ config }) =>
+    warmPlatform(config, { workerScriptUrl: workerAssetUrl, providers: 'autoStart' }),
+  );
 }

@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInPageWiring, SharedWorkerDataServicesClient } from './SharedWorkerDataServicesClient';
 import { PlatformServicesHost } from '../worker/PlatformServicesHost.js';
+import { OptimisticLockError } from '@wellsfargo-starui/core/host/config';
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub';
 import { registerProvider } from '../providers/registry';
 import { isAppDataRequest, isRequest } from '../protocol';
@@ -206,6 +207,7 @@ function stubConfigManager(): ConfigManager & { _rows: Map<string, AppConfigRow>
   return {
     _rows: rows,
     getAppId() { return 'TestApp'; },
+    onConfigChanged() { return () => {}; },
     async getConfigsByUser(userId: string) {
       return [...rows.values()].filter((r) => r.userId === userId);
     },
@@ -1430,3 +1432,32 @@ describe('SharedWorkerDataServicesClient — SSRM protocol', () => {
   });
 });
 
+describe('SharedWorkerDataServicesClient — config writes ride the platform host (W2)', () => {
+  it('saveConfigRow persists through the host and resolves with the stored row; a later read sees it', async () => {
+    const cm = stubConfigManager();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
+
+    const stored = await w.client.saveConfigRow(mockProviderRow('p9'));
+    expect(stored.configId).toBe('p9');
+    expect(cm._rows.get('p9')).toBeDefined();
+    expect((await w.client.getProviderConfig('p9'))?.providerId).toBe('p9');
+
+    await w.client.deleteConfigRow('p9');
+    expect(cm._rows.has('p9')).toBe(false);
+    w.close();
+  });
+
+  it('a stale write rejects with OptimisticLockError carrying the current row', async () => {
+    const cm = stubConfigManager();
+    const current = mockProviderRow('p1');
+    (cm as unknown as { saveConfig: () => Promise<void> }).saveConfig = async () => { throw new OptimisticLockError(current); };
+    const w = wirePlatform({ configManager: cm });
+
+    await expect(w.client.saveConfigRow(mockProviderRow('p1'), { expectedUpdatedTime: 'old' })).rejects.toBeInstanceOf(OptimisticLockError);
+    await w.client.saveConfigRow(mockProviderRow('p1'), { expectedUpdatedTime: 'old' }).catch((err: OptimisticLockError) => {
+      expect(err.currentRow).toMatchObject({ configId: 'p1' });
+    });
+    w.close();
+  });
+});

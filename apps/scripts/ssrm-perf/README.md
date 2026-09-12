@@ -35,8 +35,12 @@ Playwright comes from `apps/node_modules` (the scripts resolve it relative to `a
 | `ssrm-diag2.mjs` | Reaches the grid api through the React fiber and traces `pasteStart` / `cellValueChanged` / `pasteEnd` plus hub status events around a quick search. |
 | `engine-probe-ops.mjs` | Which filter ops / sorts the WASM engine honours on string vs number columns. |
 | `engine-probe-sort.mjs` | Which sort descriptor key the engine reads (`sort`, not `dir`). |
+| `worker-baseline.mjs` | The worker-split plan's measurement (plan §5): **A** config-RPC latency (`hub-ready` / `list-configs` on the PLATFORM-services port, the scalar `provider-running` on the DATA port) idle vs a `?rate=10000` storm vs the 20k snapshot re-stream; **B** a fresh window opening mid-storm (wall→rows, spawn offset, `starui:*` load marks) plus the grid customizer opening in it (`customizerOpenMs`); **C** 10 CSRM windows × 20k rows — first window (cold, with its spawn offset + `platform-ready`) and 9 simultaneous joiners (per-window full paint, spread, last÷first). Needs both previews (`SSRM_URL` :5215, `CSRM_URL` :5216) and the broker. Knobs: `PHASES=AB,C`, `CSRM_PAGES=10`, `THROTTLE=4` (CDP page throttle — a Windows proxy on a fast rig; the SharedWorker thread cannot be throttled), `TAG=…` names `out/<tag>-<ts>.json`. Every context aborts the Google Fonts hosts: the demo pages block `DOMContentLoaded` on them, and on a proxied box that alone read 0.1–11 s per window. |
+| `worker-split-smoke.mjs` | Rerunnable proof of the split on a live preview: both SharedWorkers by name, catalog + AppData answered by the platform worker only, the provider running on the data worker, `hub-ready` / `list-configs` on the data port get NO reply (route deleted), `provider-running` still does. Exits non-zero on any failed check. |
 
 ```bash
+SSRM_URL=http://localhost:5215/ CSRM_URL=http://localhost:5216/ TAG=win-w2 node apps/scripts/ssrm-perf/worker-baseline.mjs
+SSRM_URL=http://localhost:5215/ node apps/scripts/ssrm-perf/worker-split-smoke.mjs
 APP_URL=http://localhost:5215/ TAG=baseline node apps/scripts/ssrm-perf/ssrm-validate3.mjs
 APP_URL="http://localhost:5215/?rate=10000" TAG=10k node apps/scripts/ssrm-perf/ssrm-validate3.mjs
 node apps/scripts/ssrm-perf/engine-probe-ops.mjs

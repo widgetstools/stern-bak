@@ -54,6 +54,7 @@ export {
   resolvePlatformBootstrapFromObject,
   ensureConfigReady,
   ensurePlatformReady,
+  warmPlatform,
   ensureDataServicesHub,
   SnapshotReassembler,
   mergeHubIntrospect,
@@ -72,7 +73,9 @@ export type { LoadMilestone } from './bootstrap/index.js';
 export type {
   FetchLike,
   ConfigReadyBundle,
+  EnsureConfigReadyOpts,
   EnsurePlatformReadyOpts,
+  WarmPlatformOpts,
   EnsureHubOpts,
   ResolvedDataServicesHubBundle,
   SnapshotReassemblerCallbacks,

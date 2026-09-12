@@ -67,9 +67,10 @@ function mockAppDataProviderRow(id: string, name: string, values: Record<string,
   };
 }
 
-function mockConfigManager(rows: Map<string, AppConfigRow>): ConfigManager {
+function mockConfigManager(rows: Map<string, AppConfigRow>, listeners: Array<(id: string) => void> = []): ConfigManager {
   return {
     getAppId() { return 'TestApp'; },
+    onConfigChanged(fn: (id: string) => void) { listeners.push(fn); return () => { listeners.splice(listeners.indexOf(fn), 1); }; },
     async getAllConfigsUnfiltered() { return [...rows.values()]; },
     async getConfigsByComponentTypesUnfiltered(types: string[]) {
       return [...rows.values()].filter((r) => types.includes(r.componentType));
@@ -345,5 +346,83 @@ describe('PlatformServicesHost — introspection', () => {
     const port = makePort();
     host.handleRequest(port, { kind: 'provider-running', reqId: 'pr-1', providerId: 'p1' });
     expect(byReqId(port, 'pr-1')).toMatchObject({ ok: true, running: false });
+  });
+});
+
+describe('PlatformServicesHost — single writer (W2)', () => {
+  it('config-save persists a catalog row, refreshes the catalog before replying, and broadcasts catalog-ready', async () => {
+    const rows = new Map([['p1', { ...mockProviderRow('p1'), displayText: 'Original' }]]);
+    const host = new PlatformServicesHost({ configManager: mockConfigManager(rows) });
+    await host.hydrateCatalog();
+    const port = makePort();
+
+    host.handleRequest(port, { kind: 'config-save', reqId: 'save-1', row: { ...mockProviderRow('p1'), displayText: 'Renamed' } });
+    await tick();
+
+    expect(byReqId(port, 'save-1')).toMatchObject({ ok: true, row: expect.objectContaining({ displayText: 'Renamed' }) });
+    expect(port.messages).toContainEqual(expect.objectContaining({ kind: 'catalog-ready', providerId: 'p1' }));
+    host.handleRequest(port, { kind: 'list-configs', reqId: 'list-1' });
+    expect(byReqId(port, 'list-1')).toMatchObject({ configs: [expect.objectContaining({ providerId: 'p1', name: 'Renamed' })] });
+  });
+
+  it('config-delete drops the row from the catalog', async () => {
+    const rows = new Map([['p1', mockProviderRow('p1')], ['p2', mockProviderRow('p2')]]);
+    const host = new PlatformServicesHost({ configManager: mockConfigManager(rows) });
+    await host.hydrateCatalog();
+    const port = makePort();
+
+    host.handleRequest(port, { kind: 'config-delete', reqId: 'del-1', configId: 'p1' });
+    await tick();
+
+    expect(byReqId(port, 'del-1')).toMatchObject({ ok: true });
+    host.handleRequest(port, { kind: 'list-configs', reqId: 'list-2' });
+    expect(byReqId(port, 'list-2')).toMatchObject({ configs: [expect.objectContaining({ providerId: 'p2' })] });
+  });
+
+  it('a config change from ANOTHER context (change notifier) refreshes the catalog and broadcasts', async () => {
+    const listeners: Array<(id: string) => void> = [];
+    const rows = new Map([['p1', { ...mockProviderRow('p1'), displayText: 'Original' }]]);
+    const host = new PlatformServicesHost({ configManager: mockConfigManager(rows, listeners) });
+    await host.hydrateCatalog();
+    const port = makePort();
+    host.handleRequest(port, { kind: 'hub-ready', reqId: 'touch' });
+    port.messages.length = 0;
+
+    rows.set('p1', { ...mockProviderRow('p1'), displayText: 'Edited elsewhere' });
+    rows.set('grid-1', { ...mockProviderRow('grid-1'), componentType: 'markets-grid-profile-set', componentSubType: '' });
+    for (const fn of listeners) { fn('p1'); fn('grid-1'); }
+    await tick();
+    await tick();
+
+    expect(port.messages.filter((m) => (m as { kind?: string }).kind === 'catalog-ready')).toEqual([
+      expect.objectContaining({ kind: 'catalog-ready', providerId: 'p1' }),
+    ]);
+    host.handleRequest(port, { kind: 'get-config', reqId: 'get-1', providerId: 'p1' });
+    await tick();
+    expect(byReqId(port, 'get-1')).toMatchObject({ config: expect.objectContaining({ name: 'Edited elsewhere' }) });
+  });
+
+  it('a row deleted in another context leaves the catalog too', async () => {
+    const listeners: Array<(id: string) => void> = [];
+    const rows = new Map([['p1', mockProviderRow('p1')]]);
+    const host = new PlatformServicesHost({ configManager: mockConfigManager(rows, listeners) });
+    await host.hydrateCatalog();
+    const port = makePort();
+    host.handleRequest(port, { kind: 'hub-ready', reqId: 'touch' }); // ports register on first traffic
+    rows.delete('p1');
+    for (const fn of listeners) fn('p1');
+    await tick();
+    await tick();
+    host.handleRequest(port, { kind: 'list-configs', reqId: 'list-3' });
+    expect(byReqId(port, 'list-3')).toMatchObject({ configs: [] });
+    expect(port.messages).toContainEqual(expect.objectContaining({ kind: 'catalog-ready', providerId: 'p1' }));
+  });
+
+  it('dispose unsubscribes from the change notifier', async () => {
+    const listeners: Array<(id: string) => void> = [];
+    const host = new PlatformServicesHost({ configManager: mockConfigManager(new Map(), listeners) });
+    expect(listeners).toHaveLength(1);
+    await host.dispose();
+    expect(listeners).toHaveLength(0);
   });
 });

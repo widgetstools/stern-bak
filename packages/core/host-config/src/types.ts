@@ -422,7 +422,29 @@ export type SeedConfigReloadMode = 'empty-only' | 'when-changed';
 /**
  * Options for creating a ConfigManager instance.
  */
+/**
+ * Delegate for `appConfig` row writes — the worker-split's single-writer
+ * rule (plan W2). When a ConfigManager is built with one, `saveConfig` /
+ * `deleteConfig` hand the stamped row to the delegate instead of writing
+ * IndexedDB (and REST) themselves, so the delegate's owner — the
+ * platform-services SharedWorker — is the only context that writes config
+ * rows. Reads stay local: IndexedDB is shared, and the delegate resolves
+ * only after its write landed, returning the row as persisted (the owner's
+ * audit stamps win), which this context then caches and announces.
+ */
+export interface ConfigWriter {
+  saveConfig(row: AppConfigRow, options?: { expectedUpdatedTime?: string }): Promise<AppConfigRow>;
+  deleteConfig(configId: string): Promise<void>;
+}
+
 export interface ConfigManagerOptions {
+  /**
+   * Route `appConfig` writes through a {@link ConfigWriter} instead of this
+   * context's own IndexedDB / REST write path. Windows pass the
+   * platform-services worker's client; the worker itself has none.
+   */
+  writer?: ConfigWriter;
+
   /**
    * URL to a JSON file containing seed data for first-run initialization.
    * The file should contain `appRegistry`, `userProfiles`, and `roles` arrays.

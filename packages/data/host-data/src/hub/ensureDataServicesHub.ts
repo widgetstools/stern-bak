@@ -63,20 +63,18 @@ export type WarmHubConnectionOpts = PlatformBootstrapConfig & {
   workerScriptUrl?: string;
 };
 
+/** The window's port to the platform-services worker alone (tool windows need nothing else). */
+export interface PlatformConnection {
+  worker: SharedWorker;
+  client: SharedWorkerDataServicesClient;
+}
+
 const hubPromises = new Map<string, Promise<ResolvedDataServicesHubBundle>>();
 const hubConnections = new Map<string, HubConnection>();
+const platformConnections = new Map<string, PlatformConnection>();
 
-/**
- * Get or create this window's single SharedWorker connection for `appId`.
- * One MessagePort per window: the hub bundle wraps this client, so callers
- * that connect early (to overlap worker spawn with other init) don't leave
- * a second throwaway port behind.
- */
-function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
-  const existing = hubConnections.get(opts.appId);
-  if (existing) return existing;
-
-  const workerOpts = {
+function workerOptsOf(opts: WarmHubConnectionOpts) {
+  return {
     appName: opts.appId,
     configServiceRestUrl: resolveConfigServiceRestUrl(opts),
     appId: opts.appId,
@@ -84,23 +82,51 @@ function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
     seedConfigUrl: opts.seedConfigUrl,
     seedConfigReload: opts.seedConfigReload,
   };
-  // Platform-services worker FIRST: it is the sole seeder and the catalog +
-  // AppData server, and tool windows gate on it alone. The data worker's
-  // ConfigManager attaches read-only (worker-split W1c).
-  const platformWorker = createPlatformServicesWorker(opts.workerScriptUrl, workerOpts);
-  const worker = createDataServicesWorker(opts.workerScriptUrl, workerOpts);
+}
+
+/**
+ * Get or create this window's port to the platform-services worker — the
+ * sole seeder and the catalog + AppData server. Spawned FIRST and on its
+ * own, so a config-only window (tool window, editor) never spawns the data
+ * worker at all (worker-split W2: thin windows).
+ */
+function getOrCreatePlatformConnection(opts: WarmHubConnectionOpts): PlatformConnection {
+  const existing = platformConnections.get(opts.appId);
+  if (existing) return existing;
+  const worker = createPlatformServicesWorker(opts.workerScriptUrl, workerOptsOf(opts));
+  const connection: PlatformConnection = {
+    worker,
+    client: new SharedWorkerDataServicesClient(worker.port),
+  };
+  platformConnections.set(opts.appId, connection);
+  return connection;
+}
+
+/**
+ * Get or create this window's TWO SharedWorker connections for `appId`.
+ * One MessagePort per worker per window: the hub bundle wraps these
+ * clients, so callers that connect early (to overlap worker spawn with
+ * other init) don't leave throwaway ports behind.
+ */
+function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
+  const existing = hubConnections.get(opts.appId);
+  if (existing) return existing;
+
+  const platform = getOrCreatePlatformConnection(opts);
+  // Data worker second; its ConfigManager attaches read-only (W1c).
+  const worker = createDataServicesWorker(opts.workerScriptUrl, workerOptsOf(opts));
   const connection: HubConnection = {
     worker,
     client: new SharedWorkerDataServicesClient(worker.port),
-    platformWorker,
-    platformClient: new SharedWorkerDataServicesClient(platformWorker.port),
+    platformWorker: platform.worker,
+    platformClient: platform.client,
   };
   hubConnections.set(opts.appId, connection);
   return connection;
 }
 
 /**
- * Fire-and-forget worker spawn/connect so the SharedWorker boots (and
+ * Fire-and-forget spawn of BOTH workers so they boot (and the platform one
  * seeds, on cold start) while the caller does other init. Never throws —
  * environments without SharedWorker surface the real error later from
  * {@link ensureDataServicesHub}.
@@ -110,6 +136,19 @@ export function warmHubConnection(opts: WarmHubConnectionOpts): void {
     getOrCreateHubConnection(opts);
   } catch {
     /* hub connect will surface the real error */
+  }
+}
+
+/**
+ * Spawn / reuse the platform-services connection only. `null` where
+ * SharedWorker is unavailable — the caller falls back to a self-contained
+ * main-thread bootstrap.
+ */
+export function warmPlatformConnection(opts: WarmHubConnectionOpts): PlatformConnection | null {
+  try {
+    return getOrCreatePlatformConnection(opts);
+  } catch {
+    return null;
   }
 }
 
@@ -166,6 +205,7 @@ function adaptDataServicesToHubBundle(
       services.dispose();
       hubPromises.delete(appId);
       hubConnections.delete(appId);
+      platformConnections.delete(appId);
     },
     client: services.client,
     platformClient,
@@ -219,7 +259,10 @@ export function _resetEnsureDataServicesHubForTests(): void {
   hubPromises.clear();
   for (const connection of hubConnections.values()) {
     try { connection.client.close(); } catch { /* best-effort */ }
-    try { connection.platformClient.close(); } catch { /* best-effort */ }
+  }
+  for (const connection of platformConnections.values()) {
+    try { connection.client.close(); } catch { /* best-effort */ }
   }
   hubConnections.clear();
+  platformConnections.clear();
 }

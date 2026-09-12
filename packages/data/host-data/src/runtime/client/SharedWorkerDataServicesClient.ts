@@ -20,6 +20,7 @@
  * forever, which surfaces the issue).
  */
 
+import { OptimisticLockError, type AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import type {
   AppDataAckEvent,
   AppDataDeltaEvent,
@@ -28,7 +29,9 @@ import type {
   AttachRequest,
   CatalogChangeDetail,
   CatalogEvent,
+  ConfigDeleteRequest,
   ConfigInvalidateRequest,
+  ConfigSaveRequest,
   ConfigSnapshotEvent,
   DeltaPatchEvent,
   DetachRequest,
@@ -823,6 +826,26 @@ export class SharedWorkerDataServicesClient {
     await this.rpcCatalog({ kind: 'config-invalidate', providerId });
   }
 
+  /**
+   * Persist one `appConfig` row through the platform-services worker — the
+   * single writer for config rows (worker-split W2). Resolves with the row
+   * as stored; rejects with {@link OptimisticLockError} when
+   * `expectedUpdatedTime` is stale.
+   */
+  async saveConfigRow(row: AppConfigRow, options?: { expectedUpdatedTime?: string }): Promise<AppConfigRow> {
+    const snap = await this.rpcCatalog({
+      kind: 'config-save',
+      row,
+      expectedUpdatedTime: options?.expectedUpdatedTime,
+    });
+    return snap.row ?? row;
+  }
+
+  /** Delete one `appConfig` row through the platform-services worker. */
+  async deleteConfigRow(configId: string): Promise<void> {
+    await this.rpcCatalog({ kind: 'config-delete', configId });
+  }
+
   /** Live SharedWorker hub diagnostics (providers, subscribers, cache sizes). */
   async getHubIntrospect(): Promise<HubIntrospectSnapshot> {
     const snap = await this.rpcCatalog({ kind: 'hub-introspect' });
@@ -1041,6 +1064,8 @@ export class SharedWorkerDataServicesClient {
       | Omit<GetConfigRequest, 'reqId'>
       | Omit<ListConfigsRequest, 'reqId'>
       | Omit<ConfigInvalidateRequest, 'reqId'>
+      | Omit<ConfigSaveRequest, 'reqId'>
+      | Omit<ConfigDeleteRequest, 'reqId'>
       | Omit<HubIntrospectRequest, 'reqId'>
       | Omit<ProviderRunningRequest, 'reqId'>,
   ): Promise<ConfigSnapshotEvent> {
@@ -1214,6 +1239,7 @@ export class SharedWorkerDataServicesClient {
     if (!pending) return;
     this.catalogPending.delete(event.reqId);
     if (event.ok) pending.resolve(event);
+    else if (event.code === 'optimistic-lock') pending.reject(new OptimisticLockError(event.conflictRow ?? undefined));
     else pending.reject(new Error(event.error ?? 'Catalog request failed'));
   }
 

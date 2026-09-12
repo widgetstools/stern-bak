@@ -5,6 +5,7 @@ import {
   _resetEnsureDataServicesHubForTests,
   ensureDataServicesHub,
   warmHubConnection,
+  warmPlatformConnection,
 } from './ensureDataServicesHub.js';
 
 const createDataServicesWorkerMock = vi.fn();
@@ -214,5 +215,47 @@ describe('ensureDataServicesHub', () => {
     await expect(ensureDataServicesHub(opts)).rejects.toThrow('bootstrap failed');
     await expect(ensureDataServicesHub(opts)).resolves.toBeDefined();
     expect(bootstrapDataServicesMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('warmPlatformConnection — the config tier spawns the platform worker alone (W2)', () => {
+  const fakeCm = {} as ConfigManager;
+  beforeEach(() => {
+    const fakeWorker = () => ({
+      port: { addEventListener: vi.fn(), removeEventListener: vi.fn(), postMessage: vi.fn(), start: vi.fn(), close: vi.fn() },
+    });
+    createDataServicesWorkerMock.mockReset().mockImplementation(fakeWorker);
+    createPlatformServicesWorkerMock.mockReset().mockImplementation(fakeWorker);
+    bootstrapDataServicesMock.mockReset().mockImplementation(() => ({
+      client: { waitForCatalogReady: vi.fn(), stop: vi.fn() },
+      appData: {},
+      configManager: fakeCm,
+      ready: Promise.resolve(),
+      dispose: vi.fn(),
+    }));
+  });
+  afterEach(() => {
+    _resetEnsureDataServicesHubForTests();
+  });
+
+  it('spawns only the platform-services worker, and the hub later reuses that same port', async () => {
+    const platform = warmPlatformConnection({ ...DEV_PLATFORM_BOOTSTRAP, workerScriptUrl: '/worker.mjs' });
+    expect(platform).not.toBeNull();
+    expect(createPlatformServicesWorkerMock).toHaveBeenCalledTimes(1);
+    expect(createDataServicesWorkerMock).not.toHaveBeenCalled();
+
+    const bundle = await ensureDataServicesHub({
+      ...DEV_PLATFORM_BOOTSTRAP,
+      workerScriptUrl: '/worker.mjs',
+      mainThreadConfigManager: fakeCm,
+    });
+    expect(createPlatformServicesWorkerMock).toHaveBeenCalledTimes(1);
+    expect(createDataServicesWorkerMock).toHaveBeenCalledTimes(1);
+    expect(bundle.platformClient).toBe(platform!.client);
+  });
+
+  it('returns null instead of throwing where SharedWorker is unavailable', () => {
+    createPlatformServicesWorkerMock.mockImplementation(() => { throw new Error('no SharedWorker'); });
+    expect(warmPlatformConnection({ ...DEV_PLATFORM_BOOTSTRAP, workerScriptUrl: '/worker.mjs' })).toBeNull();
   });
 });

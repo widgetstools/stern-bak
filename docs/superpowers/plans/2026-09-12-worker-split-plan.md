@@ -167,6 +167,21 @@ unchanged (bootstrap wires both clients); the hub file shrinks below the
 
 ### W2 — Boot rework, app-load warm-up, ordering hardening
 
+**W2 landed (2026-09-12, Windows target).** `ensureConfigReady` is the
+thin-window tier (platform port first and alone; read-only attach-mode
+IndexedDB; gated on the services worker's catalog; config writes become
+`config-save` / `config-delete` RPCs through `ConfigManagerOptions.writer`
+so the services worker is the single writer and self-invalidates —
+`wireWorkerCatalogSync` deleted); `warmPlatform()` as specified
+(stats-mode attach = running provider, zero fan-out); the installer
+ordering is test-pinned (every port attached before hydrate, dispatch
+backlogged — WORKLOG 14 closed with its forensic cause); star-demo's
+OpenFin provider window calls `warmPlatform(config, { providers:
+'autoStart' })`. The per-`gridId` worker-RAM profile cache was NOT built:
+profile reads are window-local IndexedDB primary-key gets behind the
+ConfigManager's row cache and never touch the data worker's thread.
+Numbers in §5.
+
 - **`warmPlatform()` — the one-line app-load call.** Today the worker is
   created when the first hosted grid MOUNTS (`DataHubProvider` defaults to
   `mode: 'lazy'` → `ensurePlatformReady` on mount), so the first grid's
@@ -346,8 +361,36 @@ a cold first window's `appdata-ready` / `catalog-ready` /
 `platform-ready` marks never fired. 10-window CSRM: joiners
 1 993 → 3 322 ms (p50 2 576, spread 1 329 ms, last÷first 1.67×) — same
 band as the W1b column within run-to-run noise; the first window read
-12.7 s on this run against 4.3 s before, a broker-paced outlier
-(footnote ¹) re-sampled in W3/W4.
+12.7 s on this run against 4.3 s before — traced (navigation + resource
+timing) NOT to the platform but to the demo page's `<link>` to Google
+Fonts stylesheets, which block `DOMContentLoaded` and every bootstrap
+behind it on an external fetch: 11.1 s, 1.7 s and 0.1 s for the same
+request across three cold windows on this box, with spawn →
+`platform-ready` a steady ~140 ms and spawn → 20k rows ~1.3 s underneath.
+The harness now aborts the font hosts and records each window's spawn
+offset so first-window numbers decompose into page vs platform; the
+demo apps should self-host or defer those fonts (see WORKLOG 17) — on a
+proxied corporate box this alone is seconds of a "slow window open".
+Re-sampled with the fonts isolated (`win-w1c-c3`): first window 1 476 ms
+(spawn at 201 ms, `platform-ready` 335 ms), joiners 2 449 → 3 644 ms
+(p50 3 072, spread 1 195, last÷first 1.49×).
+
+**W2 landed (2026-09-12, Windows native, `TAG=win-w2`, raw
+`out/win-w2-*.json`, fonts isolated).** Config probe unchanged (idle
+0.4 / 0.6 ms, storm 0.3 / 0.6 ms, re-stream p99 1.1 / max 2.6 ms; data
+port p99 ≤ 0.7 ms / max 1.4 ms). The thin window's own ladder is the
+number this phase is for: fresh window mid-storm `config-ready` 172 ms →
+`platform-ready` **177 ms** (5 ms apart — no seed, no seed lock, no
+main-thread hydrate; W1c: 145 → 157, W1b: 173 → 187), wall→rows 632 ms of
+which spawn at 168 ms — the rest is page JS + grid paint, not platform.
+10-window CSRM first window 1 366 ms (spawn 170 ms, `platform-ready`
+**222 ms**, i.e. 52 ms after the workers spawned); joiners
+2 541 → 3 745 ms (p50 2 937, spread 1 204, last÷first 1.47×), joiner
+`platform-ready` 789–1 179 ms — unchanged band, as expected: the joiner
+ladder is replay + decode + paint, W4's target. The customizer-open timing
+(`customizerOpenMs`) is wired in the harness but the SSRM demo's toolbar
+does not render the settings button, so it reads `null` there — see the
+W3 notes for where it is measured.
 
 ### W0 findings — what reproduced and what did not
 

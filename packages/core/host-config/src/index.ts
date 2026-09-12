@@ -61,6 +61,7 @@ export type {
   ApplicationContext,
   ConfigManagerInitOptions,
   ConfigManagerOptions,
+  ConfigWriter,
   DataServicesHandle,
   PermissionRow,
   PendingSyncRow,
