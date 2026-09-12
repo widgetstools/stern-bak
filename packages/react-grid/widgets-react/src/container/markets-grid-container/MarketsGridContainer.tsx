@@ -32,6 +32,7 @@ import {
   createMarketsGridContainerEventBus,
   useMarketsGridEventBridge,
 } from '@wellsfargo-starui/grid';
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
 import { traceStompProviderCfg } from '@wellsfargo-starui/data/runtime';
 import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/core';
@@ -510,7 +511,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // `useDataProviderConfig` / `useResolvedCfg` for column defs and
   // the picker only, not as an attach cfg pass-through.
   const providerReady = Boolean(activeId && !activeRow.loading && rowIdField && columnDefs);
-  const isSsrm = activeCfg?.providerType === 'stomp-ssrm';
+  const isSsrm = isSsrmProviderType(activeCfg?.providerType);
   const {
     provider,
     refresh: refreshProvider,
