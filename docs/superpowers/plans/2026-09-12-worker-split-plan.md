@@ -257,12 +257,46 @@ posts). Numbers into §5.
 
 ## 5. Measurements
 
-| probe | before (W0) | after (W3) |
+**W0 run: 2026-09-12**, `apps/scripts/ssrm-perf/worker-baseline.mjs`
+(synthetic catalog RPCs injected on the hooked worker port — no app
+changes), production previews, stomp-view-server 20k rows, M-series macOS.
+Raw JSON in `apps/scripts/ssrm-perf/out/worker-baseline-*.json`.
+
+| probe | before (W0) | after (W3/W4) |
 |---|---|---|
-| `list-configs` p50 / p99, idle | — | — |
-| `list-configs` p50 / p99, rate=10000 storm | — | — |
-| AppData attach→snapshot, storm | — | — |
-| Tool-window time-to-interactive, storm | — | — |
-| First hosted-grid mount → first paint: lazy vs `warmPlatform` at app load | — | — |
-| 10 CSRM windows × 20k snapshot: per-window full paint, first→last spread | — | — |
-| Hub-thread ms consumed by the 10-window fan-out (encode + post) | — | — |
+| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | — |
+| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | — |
+| `list-configs` p50 / p99, DURING 20k snapshot re-stream (115 samples @100 ms) | 0.3 / 0.8 ms | — |
+| Fresh window open mid-storm: wall→rows / `platform-ready` mark | 225–267 ms / 70–88 ms | — |
+| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | — |
+| 10 CSRM windows × 20k: 9 simultaneous joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | — |
+| 10 CSRM windows × 20k: joiner first→last spread / last÷first ratio | 1 246 ms / **2.14×** (target ≤1.5×) | — |
+| Joiner `platform-ready` marks during the fan-out | 138–220 ms | — |
+| Hub-thread ms consumed by the 10-window fan-out (encode + post) | needs worker-side timing (W4 adds it) | — |
+
+### W0 findings — what reproduced and what did not
+
+**Reproduced: the W4 fan-out ladder.** Nine windows attaching at once to a
+20k CSRM cache finish in a near-monotonic ladder (1 091 → 2 337 ms) —
+per-window serialized replay, exactly the mechanism W4's round-robin
+scheduler removes. Platform boot is NOT the cost (joiner `platform-ready`
+at 138–220 ms); the ladder is replay + decode + paint queueing.
+
+**Not reproduced on this rig: config-RPC starvation.** Across idle, a
+rate=10000 steady storm, and the 20k snapshot re-stream itself, catalog
+RPC p99 never exceeded 2.1 ms, and a fresh window opened mid-storm in
+~250 ms. The SSRM ingest path batches into SHORT macrotasks
+(drain-paced chunks + `publishWindowMs` conflation), so on a fast
+machine the queue drains between them. The tens-of-seconds tool-window
+opens reported from real deployments therefore come from conditions this
+rig did not model, most plausibly: **`useRest: true`** (config reads
+become REST round-trips through the worker instead of Dexie),
+**OpenFin** (background throttling/occlusion of the worker's owning
+context; corporate hardware), **more windows × more providers**
+compounding with the CSRM fan-out ladder above, and Windows-class CPUs
+where the same macrotasks run several times longer. **W0 follow-up
+(open):** re-run this exact probe on a corporate/OpenFin rig with
+`useRest: true` before treating the config plane as low-risk — the
+architectural argument for the split (queueing isolation, thin windows,
+single-writer) stands regardless, but the latency claim should carry the
+right numbers for the environment that hurt.

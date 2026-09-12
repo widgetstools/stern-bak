@@ -821,7 +821,13 @@ stretch). Thin-window principle added: windows never open Dexie — config
 AND AppData reads/writes are services-worker RPCs (the customizer's
 storage adapter included, with a per-gridId profile cache in worker
 memory); the tens-of-seconds window opens trace to every window running
-its own ConfigManager boot against a storming data worker. Honest limits stated in the plan: same-plane
+its own ConfigManager boot against a storming data worker. W0 baseline
+RUN (2026-09-12, worker-baseline.mjs): the CSRM fan-out ladder reproduced
+(9 joiners 1091→2337 ms, last÷first 2.14× vs the ≤1.5× target); config-RPC
+starvation did NOT reproduce on the dev rig (p99 ≤ 2.1 ms even during the
+20k snapshot re-stream — short drain-paced macrotasks) — re-probe on a
+corporate/OpenFin rig with useRest:true before calling the config plane
+low-risk. Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere
