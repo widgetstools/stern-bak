@@ -271,8 +271,14 @@ After every feature add / update / fix / removal:
 
 ## Dep version edits
 
-Pin to the **stable line** for each major (React 19.2.x, @openfin/core
-43.101.x), not the latest patch. Document a per-package "stable-vs-latest"
-rationale inline in a `//dependencies-registry-notes` block when introducing
-version pins. Don't drift: the whole reason for this monorepo was to stop
-drift.
+Pin to the **stable line** for each major (@openfin/core 43.101.x), not the
+latest patch. **React is the deliberate exception** (owner decision,
+2026-09-11): `^19.2.5` in all React packages and apps, so each install root
+hoists ONE copy of whatever 19.x npm resolves — a `~19.2.x` pin nesting a
+second React under a package while `ag-grid-react` pulls a newer hoisted one
+is the "two Reacts" failure where every hook test dies with
+`Cannot read properties of null (reading 'useState')`. Keep the caret
+consistent across BOTH install roots (`/` and `apps/`). Document a
+per-package "stable-vs-latest" rationale inline in a
+`//dependencies-registry-notes` block when introducing version pins. Don't
+drift: the whole reason for this monorepo was to stop drift.

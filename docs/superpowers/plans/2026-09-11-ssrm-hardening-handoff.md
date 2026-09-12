@@ -1,8 +1,8 @@
 # SSRM hardening — handoff and open items
 
-**Date:** 2026-09-11
-**Branch:** `feature/ssrm-dataprovider-refactor` (work described here was left **uncommitted** by the
-agent that did it; the owner commits)
+**Date:** 2026-09-11 (first pass committed as `b720833..6a037d2`; the second pass — §2b — was
+left **uncommitted** by the agent that did it; the owner commits)
+**Branch:** `feature/ssrm-dataprovider-refactor`
 **Audience:** the next agent (or person) picking up the AG Grid server-side row model (SSRM) work in
 `@wellsfargo-starui/grid` + `@wellsfargo-starui/data`. Everything below was verified against the
 installed AG Grid 36.1 bundle, the vendored Rust/WASM engine, and a live run of
@@ -30,7 +30,7 @@ customizer profile (`GridPlatform.destroy()` is one-way). The container already 
 | Status / counts | `useSsrmStatusModel.ts`, `SsrmStatusPanels.tsx`, `ssrmStatusBar.ts`, `widget/useSsrmFilterCounts.ts` | Engine-backed status bar and saved-filter pill counts, 1 Hz polls |
 | Other locks | `withSsrmSetFilterValues.ts`, `lockSsrmExpressionColumns.ts`, `exportSsrmExcel.ts`, `drainSsrmRows.ts`, `withSsrmSelectAll.ts`, `sendSsrmClipboard.ts`, `wrapSsrmContextMenu.ts` | The "honesty locks" — never present block statistics as book statistics |
 | Client contract | `packages/data/host-data/src/provider/ISsrmDataProvider.ts`, `SsrmProviderClientAdapter.ts` | `getRows / getColumnValues / getRowCount / getAggregates / watchGroups / applyEdits? / status?` + `onSsrmTick / onRefresh / onStatus` |
-| Wire | `packages/data/host-data/src/runtime/protocol.ts`, `runtime/client/SharedWorkerDataServicesClient.ts` | `ssrm-get-rows / -column-values / -row-count / -aggregates / -watch-groups / -apply-edits` RPCs (`ssrmRpc`, 15 s timeout), `ssrm-tick` push, `ssrm-set-viewport` (dead — see §5) |
+| Wire | `packages/data/host-data/src/runtime/protocol.ts`, `runtime/client/SharedWorkerDataServicesClient.ts` | `ssrm-get-rows / -column-values / -row-count / -aggregates / -watch-groups / -apply-edits` RPCs (`ssrmRpc`, 15 s timeout), `ssrm-tick` push |
 | Hub (SharedWorker) | `runtime/worker/SharedWorkerDataServicesHub.ts` | Routes RPCs to the plane; `flushSsrmTicks` fans `pollAllTicks()` out per provider; STOMP ingest → `plane.ingest` |
 | Plane | `runtime/ssrm/SsrmWasmPlane.ts`, `toViewSpec.ts`, `ssrmTypes.ts` | Per-provider façade over the vendored Rust hub; AG Grid request → engine view spec; view cache (24 / session); epoch shadow columns for dates |
 | Engine | `packages/data/host-data/vendor/dshub/` (`dshub.js`, `dshub_bg.wasm`, `dshub.d.ts`) | Vendored rangrez `RustHub` WASM. **Black box** — its capabilities are only known from probing (§3) |
@@ -82,6 +82,72 @@ Tests added or updated for all of the above; `docs/current-features.md` updated.
 
 ---
 
+## 2b. What changed in the second pass (2026-09-11, hardening)
+
+Every P0/P1 item from the original §5 was closed except double serialisation; the closures and
+their mechanisms:
+
+- **Edits survive upstream ticks** (was item 1). `bindSsrmEdits` now sends the per-row
+  `editedColumns` it coalesced (read via `event.column.getColId()`), and `SsrmWasmPlane.applyEdits`
+  holds each named cell as an overlay: a whole-row resend of the pre-edit value is rewritten so the
+  edit stands; an upstream value that genuinely moves — or echoes the edit — releases the hold, as
+  do row removals, config changes and a 10 000-row FIFO cap. Semantics documented on
+  `ISsrmDataProvider.applyEdits`; verified against the real WASM
+  (`SsrmWasmPlane.wasm.integration.test.ts`) and live across two windows under a 1 000 upd/s
+  legacy feed (`ssrm-multiwindow.mjs`: the edited cell read back edited on BOTH pages).
+- **Grid test project exits 0** (was item 2). The unhandled `textRange(...).getClientRects`
+  TypeError was `@codemirror/view` (ExpressionEditor) measuring on a rAF after its test finished —
+  a jsdom Range gap. `grid/src/test/setup.ts` shims `Range.prototype.getClientRects` /
+  `getBoundingClientRect`.
+- **Calculated columns say their tier** (was item 3). The panel editor shows an `SSRM TIER` chip +
+  note under SSRM: grid-computed per loaded row, sort/filter/group locked (the engine has no
+  expression support); `astUsesAggregateFunctions` flags expressions whose SUM/AVG/MIN/MAX/COUNT
+  read engine-wide totals. The compile tier stays empty until an engine with expressions lands
+  (Rust plan §5.3).
+- **Expanded groups restore from a saved profile** (was item 4). `captureGridState` derives
+  `rowGroupExpansion` from loaded group nodes (AG Grid's state module reports none under SSRM);
+  `applyGridState` stashes the ids on the api (`RESTORED_EXPANDED_GROUP_IDS_KEY`); the surface
+  answers `isServerSideGroupOpenByDefault` from the stash as each group row loads. Group node ids
+  derive from data (`key` / `level:parents:key`), so they are reload-stable. The per-level block
+  params / refresh options remain unset — see §5.
+- **Pivot is translated AND exercised** (was item 5). Probed: `splitBy` pivots grouped views only;
+  fields come back `key|…|valueCol` with `|` and no field list. The plane derives
+  `pivotResultFields`; the surface sets `serverSidePivotResultFieldSeparator: '|'`; pivot with no
+  row groups is reported unsupported; the demo enables `enablePivot`; the real-WASM test pins the
+  whole path.
+- **Cold start** (was item 6). Three causes closed: the demo re-saved (→ restarted → re-streamed)
+  its provider row on every version/localStorage mismatch — now re-saves only when the built config
+  actually differs; the first block paid the engine's root-view build — the hub now warms the root
+  view when the snapshot lands (`warmSsrm` on `ready`, and for late SSRM attaches); and — probed —
+  the engine DROPS rows ingested while no session is subscribed, which grid sessions only do on
+  their first RPC, so early snapshot chunks were lost — the plane now anchors a hub-owned
+  subscription before any ingest. Measured (`ssrm-multiwindow.mjs`): second window 213–247 ms to
+  rows; first window ~6–7 s, dominated by the fixture broker's snapshot streaming pace.
+- **Zero polling RPCs at idle** (was item 7). The status model and pill counters are tick-gated:
+  the 1 Hz cadence reads only after a provider tick/refresh arrived (grid-side changes still
+  refresh immediately). Measured: 0 block RPCs and 0 polls over 10 s at `?rate=0`, both windows.
+  The view cache is partitioned (block 24 / poll 12 per session) so pollers can never evict a
+  block view mid-scroll. The engine-side `ssrm-summary` push remains an option if live-feed poll
+  cost (measured ~3 RPCs/s/grid under load) ever matters.
+- **`ssrm-set-viewport` deleted** (was item 8) — protocol type, `isRequest` arm, hub case.
+- **Selection with group-selection state** (was item 10). `ssrmGroupSelection.ts`: counts resolve
+  the `groupSelects` tree against loaded group rows' engine `__count` (AG Grid 36 serializer
+  semantics: a toggled entry is the opposite of its parent; leaves carry `nodeId` only); exports
+  filter drained flat rows by each row's rebuilt group chain. Both fall back to the loaded-node
+  walk rather than guess when a toggled group is not loaded.
+- **Set-filter lists honour the quick filter** (was item 11) — values getter forwards
+  `quickFilterText`; the plane applies it like any other condition.
+- Hygiene closed (were items 12–15, 17): dead `quickFilterChanged` listener removed; count panels
+  render an en-dash until the first engine answer; the 2026-08-07 chrome spec carries a superseded
+  banner; CLAUDE.md documents the `^19.2.5` React caret policy; the demo README describes the
+  one-grid app.
+- New: `ssrm-multiwindow.mjs` (N same-origin pages, shared worker/session/cache — cold, idle,
+  sibling-scroll isolation, cross-window edit), run at PAGES=2 for the numbers above. The
+  `@wellsfargo-starui/data/runtime` barrel no longer value-exports the WASM-only plane/host
+  (page bundles could not resolve `@starui/dshub`); the hub reaches them relatively.
+
+---
+
 ## 3. Verified engine facts — do not re-derive
 
 Probed with `apps/scripts/ssrm-perf/engine-probe-*.mjs` (loads the WASM in Node via `initSync`).
@@ -95,8 +161,13 @@ Probed with `apps/scripts/ssrm-perf/engine-probe-*.mjs` (loads the WASM in Node 
 | Group rows carry `__group`, `__level`, `__expanded`, `__count` (leaf count), `__path`; the top-level grouped `rowCount` is the group count. | `getChildCount` reads `__count`. |
 | `apply_message_json` upserts **whole rows** by key. | A partial row nulls the columns it omits — always send full rows (edits do). |
 | Boot schema types accepted: `f64`, `bool`, `string`. | No date type; hence `__epoch`. |
-| Every boundary crossing is a JSON string (control in, rows out) and rows are then structured-cloned to each window. | Double serialisation per block (§5, item 9). |
-| A view is live and maintained on every tick; the plane caps them at 24 per session (LRU). | Every distinct query (each expanded group, each pill, each set-filter list) costs a view. |
+| Every boundary crossing is a JSON string (control in, rows out) and rows are then structured-cloned to each window. | Double serialisation per block (§5, item 2). |
+| A view is live and maintained on every tick; the plane caps them per session (block 24 / poll 12 partitions since pass 2). | Every distinct query (each expanded group, each pill, each set-filter list) costs a view. |
+| **Rows applied while the datasource has ZERO subscribed sessions are dropped** — `connect` alone is not enough, a `subscribe` control must exist. | The plane holds a hub-owned anchor subscription (`__hub-anchor:<id>`) from first ingest to provider stop. Without it, snapshot rows streamed before the first grid RPC were silently lost — the "empty first block, then purge" cold start. |
+| `splitBy` pivots **grouped views only**; alone it returns flat leaves. Pivot fields are named `<key>\|…\|<valueCol>` (`\|` separator, no escaping) and the payload carries NO field list. | The plane derives `pivotResultFields` from the window; the surface sets `serverSidePivotResultFieldSeparator: '\|'`; pivot with no row groups is reported unsupported. A pivot key VALUE containing `\|` corrupts the tree — documented limit. |
+| **No delete primitive.** No `apply_message_json` envelope removes rows, and a re-boot (same or bumped `schemaRef`, empty schema, even all-sessions-disconnect) keeps existing rows. | A restart that SHRINKS the dataset leaves removed keys in the engine (see §5). The old "empty replace re-boots so stale keys drop" comment was wrong whenever anything was subscribed. |
+| Same-schema re-boot keeps rows AND live subscriptions; late subscribers see the shared cache. | A second grid attaching (which re-runs `boot`) is safe. |
+| Engine facts above are pinned by `SsrmWasmPlane.wasm.integration.test.ts`, which runs the plane against the real vendored WASM. | A vendored WASM bump that changes them fails tests instead of rendering silently wrong grids. |
 
 ---
 
@@ -124,104 +195,55 @@ Drag-scroll cost is AG Grid DOM churn (CPU profile: ~56 % native layout/DOM, 22 
 
 ---
 
+
+### 4b. Multi-window baselines (pass 2, `ssrm-multiwindow.mjs`, PAGES=2, production build)
+
+| Measurement | Value |
+|---|---|
+| Cold to first rows, window 1 (fresh worker, snapshot stream) | 5.9–7.0 s (broker pacing dominates) |
+| Cold to first rows, window 2 (warm worker cache + warmed root view) | 213–247 ms |
+| Idle 10 s, live feed 1000 upd/s — block RPCs per window | 0 (tick-gated polls: ~3 RPCs/s) |
+| Idle 10 s, `?rate=0` — ALL RPCs per window | 0 block, 2–3 total (post-reset initial reads) |
+| Window 2 scrolls 60 steps — window 1 block RPCs / long tasks | 0 / 0 (117 blocks on window 2, p50 19 ms) |
+| Edit via `ssrm-apply-edits` + `editedColumns` on window 1, read on window 2 under live legacy feed | edited value on BOTH windows after 2.5 s of whole-row resends |
+
+---
+
 ## 5. Open items, in priority order
 
 Each item: what is wrong, the evidence, where, a suggested approach, and what "done" looks like.
+Close an item by deleting it here in the change that fixes it.
 
-### P0 — correctness a trader would notice
+**1. The engine cannot delete rows — a restart that shrinks the dataset leaves stale keys.**
+Probed (§3): no `apply_message_json` envelope removes rows, and every re-boot shape keeps existing
+rows while any session is subscribed. The "empty replace re-boots so stale keys drop" path in
+`SsrmWasmPlane.ingest` never dropped anything once a session was live — and now the anchor
+subscription is always live. Consequence: after a provider restart whose new snapshot no longer
+contains some keys, those rows stay in the engine and render as current. The fixture always
+resends all 20k keys, so the demo cannot show it. Approaches: (a) an engine-side delete/truncate
+entry point (vendored WASM change — rangrez backlog, it is first-party); (b) plane-side tombstone
+diff on restart: remember the key set, diff against the new snapshot once `ready` lands, and…
+there is nothing to apply the deletions WITH today, which is why (a) is the real fix. Done: a
+restart with a smaller snapshot shows exactly the new rows; the WASM integration test pins the
+delete primitive.
 
-**1. Edits are overwritten by the next upstream tick for that row.**
-Evidence: `ssrm-validate3.mjs` paste step — 4 values persisted through 3 s of ticks and an engine
-refetch, but in one run a row reverted after an upstream tick. Cause: the STOMP fixture's `legacy` wire
-mode resends the *whole* row and the engine upserts whole rows (§3), so an engine-side edit to *any*
-column dies with the row's next tick. Where: `SsrmWasmPlane.ingest`, `stomp-view-server` (`LIVE_MODE`).
-Approaches: (a) sparse wire mode (`live-mode: sparse` header / `LIVE_MODE=sparse`) — partial rows only
-touch changed fields; verify the engine merges partial upserts rather than nulling; (b) an "edited
-fields" overlay in the plane (per row id → {col: value, at}) reapplied on ingest until the upstream value
-changes or a TTL passes; (c) the real answer for trading: a backend write path (`applyEdits` → upstream),
-with the engine echoing the confirmed value. Done: a pasted value survives an upstream tick for its row,
-and the behaviour is written down in `ISsrmDataProvider.applyEdits`'s doc comment.
+**2. Double serialisation on every block.** Rows are JSON-stringified inside the WASM boundary,
+parsed, then structured-cloned per window. The CSRM path already has a columnar binary codec with
+transferables (`protocol.ts` `delta-bin`, `providerEmit.ts`). At 20k rows / one grid the block RPC
+is 4–5 ms, so this only matters at much larger row counts or many windows.
 
-**2. Unhandled error in the grid test project.** `npx vitest run --project grid` in
-`packages/react-grid` passes all 2011 tests but exits 1 with one unhandled
-`TypeError: textRange(...).getClientRects is not a function` (a jsdom gap hit asynchronously by some
-dependency's text measurement). Not attributed to a file; `rg` for `textRange(` finds nothing in
-`packages/`, `ag-grid-community`, `ag-grid-enterprise`, `@radix-ui`, `cmdk`, `@floating-ui`. Approach:
-run with `--reporter=verbose` (slow, ~12 min) or bisect by folder to find the file, then stub
-`Range.prototype.getClientRects` in `grid/src/test/setup.ts` or mock the component. Done: exit 0.
+**3. Per-level SSRM store options are unset and unmeasured.** `getServerSideGroupLevelParams`,
+`serverSideOnlyRefreshFilteredGroups`, `serverSideSortAllLevels`, `purgeClosedRowNodes`,
+`isApplyServerSideTransaction` (coverage table in the Rust plan §5.9). Group expansion restore
+landed without them. Measure with the ssrm-perf harness before defaulting any.
 
-**3. Expression / calculated columns cannot sort, filter or group under SSRM; alerts and conditional
-styling see loaded rows only.** Locked deliberately by `lockSsrmExpressionColumns.ts`. The chrome spec
-mentions `configureExpressions` / `toSsrmExpressionRules` as "already built" — they exist only on the
-unmerged `origin/feature/ssrm` branch and target an engine that does not exist on `main`. The vendored
-WASM has no expression support. Approach: follow the three-tier planner in the Rust plan (§5.3 there):
-compile what the engine can express (none today), materialise the rest client-side with the lock kept,
-report the unsupported tier in the customizer. Done: the panel says which tier a column is in; nothing
-silently blank.
+**4. Scale the multi-window soak.** `ssrm-multiwindow.mjs` ran at PAGES=2 (numbers in §4b). The
+six-blotter shape from the CSRM diagnosis is `PAGES=6 APP_URL="http://localhost:5215/?rate=10000"`
+— not yet run.
 
-### P1 — parity and robustness
+**5. Line endings.** Several files carry LF in a CRLF working tree (git normalises on commit).
+Harmless; renormalise only if it bothers `git diff` — owner's call, the diff would be repo-wide.
 
-**4. Expanded groups are not restored from a saved profile; no per-level block params.**
-`isServerSideGroupOpenByDefault`, `getServerSideGroupLevelParams`, `serverSideOnlyRefreshFilteredGroups`,
-`serverSideSortAllLevels`, `purgeClosedRowNodes`, `isApplyServerSideTransaction` are unset (see the
-coverage table in the Rust plan §5.9). Where: `MarketsGridSsrmSurface.tsx`. Approach: feed
-`isServerSideGroupOpenByDefault` from the grid state the profile already persists; measure the three
-refresh options before defaulting them. Done: reload restores the same expanded groups.
-
-**5. Pivot is translated but never exercised.** `spec.splitBy` / `columns` are emitted;
-`serverSidePivotResultFieldSeparator` is unset; no test or demo pivots. Risk: separator collisions
-corrupt the secondary column tree silently (Rust plan §5.9.2). Done: a pivot in the demo with a test.
-
-**6. Cold start is slow and variable (5–42 s to first rows).** Evidence: `ssrm-validate3` `[cold]`.
-Two contributors: the demo re-saves its provider row on a config-version or `?rate` change, which
-restarts the provider and re-streams the 20k snapshot; and the first block after `ready` takes 1–2.5 s
-(engine view build over 20k rows). Approach: measure `SsrmWasmPlane.readView` first-call cost;
-consider warming the root view on `ready`; make the demo's re-save conditional on an actual config
-diff. Done: cold start < 5 s on the fixture, first block < 300 ms after `ready`.
-
-**7. Three independent 1 Hz pollers per grid.** Status model (2 row-count RPCs/s), pill counts (1 per
-pill/s), expression aggregates. Each opens/reads an engine view against the 24-view cap; with many
-expanded groups the cap thrashes (an eviction rebuilds a view over the whole dataset mid-scroll).
-Approach: one `ssrm-summary` push per provider per tick carrying total / filtered / per-pill counts /
-aggregates computed engine-side; raise or partition the view cap (block views vs poll views). Done:
-zero polling RPCs at idle.
-
-**8. `ssrm-set-viewport` is dead protocol.** Declared in `protocol.ts`, answered `ok:true` by the hub,
-sent by nobody. Either implement the push model (client sends the visible range + overscan on
-`bodyScroll`; worker pushes that window on change; client applies with `api.applyServerSideRowData`,
-which exists in the installed enterprise bundle) or delete the message. The block cache + prefetch made
-this less urgent; the drag-scroll cost is DOM, not data.
-
-**9. Double serialisation on every block.** Rows are JSON-stringified inside the WASM boundary, parsed,
-then structured-cloned per window. The CSRM path already has a columnar binary codec with transferables
-(`protocol.ts` `delta-bin`, `providerEmit.ts`). Only worth doing after §7; at 20k rows / one grid the
-RPC is 5 ms.
-
-**10. Selection with group-selection state.** `useSsrmStatusModel.selectedCount` and
-`filterSsrmExportSelection` fall back to loaded nodes when `toggledNodes` holds group objects
-(`groupSelects`). Correct but incomplete. Done: counts and exports honour group selection state.
-
-**11. `getColumnValues` ignores the quick filter.** Set-filter lists honour other columns' filters but
-not `quickFilterText`; the list can offer values the quick filter would hide. One-line change in the
-surface's values getter + plane.
-
-### P2 — hygiene
-
-12. `useSsrmStatusModel` listens for a `quickFilterChanged` grid event that does not exist (the
-    `filterChanged` it also listens for fires anyway). Remove.
-13. Status panels render `0` before the first engine answer; render a dash or "…" instead (the Rust plan
-    calls this trap out).
-14. `docs/superpowers/plans/2026-08-07-marketsgrid-ssrm-chrome.md` carries the fatal surface-remount
-    advice — annotate or retire it.
-15. `CLAUDE.md` says "pin to the stable line (React 19.2.x)"; the pins are now `^19.2.5` resolving 19.3.0
-    at the owner's request. Update the policy text or re-pin consistently in both install roots.
-16. Several files were written with LF line endings in a CRLF working tree (git warns, normalises on
-    commit). Harmless; renormalise if it bothers `git diff`.
-17. The demo's `App.test.tsx` was asserting two grids while `App.tsx` renders one; aligned to one grid.
-    The README still says "two grids". Decide which the demo should be.
-18. Multi-window / six-blotter SSRM soak was never run (the CSRM diagnosis in the memory notes was six
-    blotters on one renderer thread). `ssrm-validate2.mjs` can be extended to open two pages on the same
-    origin (shared SharedWorker + provider).
 
 ---
 
@@ -267,11 +289,13 @@ cd apps/source/stomp-ssrm-minimal && npx vitest run
 # live measurement — see apps/scripts/ssrm-perf/README.md
 ```
 
-Suggested commit split for the uncommitted work (all on `feature/ssrm-dataprovider-refactor`):
-1. `fix(grid): call getColId through the column so paste and edit events survive AG Grid 36`
-2. `fix(data): engine sort key is sort not dir; epoch shadow columns for date filters and sorts`
-3. `feat(data,grid): engine write path for edits (ssrm-apply-edits), paste guard, provider status`
-4. `perf(grid): transaction-first ticks, block cache + prefetch, ready gate, retry/timeout`
-5. `fix(grid,data): removals, select-all counts, cross-provider ticks, RPC timeouts, unsupported filters`
-6. `chore: unpin React to ^19.2.5 in both install roots; Windows launcher; demo rate param; ssrm-perf harness`
-7. `docs: current-features SSRM bullets; this handoff`
+Second-pass additions to the same flow: `SsrmWasmPlane.wasm.integration.test.ts` runs the plane
+against the real vendored WASM (no server needed); `ssrm-multiwindow.mjs` needs the broker + a
+production `vite preview` on :5215 (see `apps/scripts/ssrm-perf/README.md`).
+
+Suggested commit split for the second-pass work:
+1. `fix(data): anchor engine subscription before ingest; edit overlays; view-cap partition; warm root view; page-safe runtime barrel; drop ssrm-set-viewport`
+2. `feat(grid): profile group-expansion restore, pivot separator, group-selection counts/exports, quick-filter-scoped set lists, tick-gated pollers, dash-before-first-count, calc-column SSRM tier`
+3. `fix(grid): shim jsdom Range geometry so the grid test project exits 0`
+4. `feat(apps): demo config-diff re-save + enablePivot; ssrm-multiwindow soak harness`
+5. `docs: engine facts (zero-subscriber drop, pivot naming, no delete), baselines 4b, close §5 items, chrome-spec banner, CLAUDE.md React policy`

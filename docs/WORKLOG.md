@@ -750,21 +750,23 @@ backstop now makes the event visible instead of silent.
 
 ## 15. SSRM hardening follow-ups (2026-09-11)
 
-**Area:** `packages/react-grid/grid/src/ssrm`, `packages/data/host-data/src/runtime/ssrm` ·
-**Blocked on:** nothing — prioritised list with evidence in
-[`superpowers/plans/2026-09-11-ssrm-hardening-handoff.md`](superpowers/plans/2026-09-11-ssrm-hardening-handoff.md)
+**Area:** `packages/data/host-data/src/runtime/ssrm`, `packages/react-grid/grid/src/ssrm` ·
+**Blocked on:** item 1 needs a vendored-WASM change (rangrez is first-party) —
+prioritised list with evidence in
+[`superpowers/plans/2026-09-11-ssrm-hardening-handoff.md`](superpowers/plans/2026-09-11-ssrm-hardening-handoff.md) §5
 
-The 2026-09-11 pass fixed the silent-wrong SSRM defects found by live measurement
-(descending sorts were ascending, every `cellValueChanged` threw and aborted pastes,
-inserts/deletes never applied, select-all counted 0, date filters compared strings)
-and removed the sort-time refresh storm. What remains, in the handoff's order:
-edits are overwritten by the next upstream tick for that row (whole-row upserts);
-one unhandled jsdom `getClientRects` error makes the grid test project exit 1 with
-all tests passing; expression columns stay locked (engine has no expressions);
-group expansion is not restored from profiles; pivot is untranslated in practice;
-cold start is 5–42 s; three 1 Hz pollers per grid; `ssrm-set-viewport` is dead
-protocol. Verified engine facts and measurement recipe are in the same document and
-in `apps/scripts/ssrm-perf/`.
+Two passes on 2026-09-11 closed every original P0/P1 item except double
+serialisation (handoff §2 and §2b are the change logs; §3 the probed engine
+facts; §4/§4b the measured baselines). What remains, in the handoff's order:
+**the engine cannot delete rows** — no ingest envelope removes a key and every
+re-boot shape keeps existing rows, so a provider restart whose snapshot shrank
+leaves stale keys rendering as current (needs an engine-side delete/truncate
+entry point); double serialisation per block (JSON in the WASM boundary, then
+structured clone — only matters past ~1 grid / 20k rows, block RPC is 4–5 ms);
+per-level SSRM store options unset and unmeasured
+(`getServerSideGroupLevelParams` and friends); the six-blotter soak
+(`ssrm-multiwindow.mjs` ran at PAGES=2; `PAGES=6` at `?rate=10000` has not);
+LF-in-CRLF line endings (harmless, owner's call).
 
 ## Pre-existing, tracked elsewhere
 
