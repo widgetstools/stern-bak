@@ -813,7 +813,15 @@ class, plus `warmPlatform()` — the one-line fire-and-forget app-load /
 OpenFin-dock warm-up that spawns the workers and starts autoStart
 providers off the UI thread; the existing lazy create-on-first-grid-mount
 path stays as the fallback, merged through the same per-appId promise
-maps) → W3 re-measure + soak. Honest limits stated in the plan: same-plane
+maps) → W3 re-measure + soak → W4 CSRM fan-out (20k snapshot × 10
+blotters near-simultaneous: round-robin chunk scheduling over the
+existing bucketed pre-encoded replay cache, one encode for broadcast +
+replay, backpressure-aware pacing, SAB as a crossOriginIsolated-gated
+stretch). Thin-window principle added: windows never open Dexie — config
+AND AppData reads/writes are services-worker RPCs (the customizer's
+storage adapter included, with a per-gridId profile cache in worker
+memory); the tens-of-seconds window opens trace to every window running
+its own ConfigManager boot against a storming data worker. Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere

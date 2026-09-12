@@ -44,16 +44,32 @@ behind ingest.
 ## 2. Target shape
 
 ```
-window ──┬── PlatformServicesClient ── SharedWorker "«appId»-platform"
-         │      (catalog RPC + AppData)     · worker ConfigManager (catalog cache)
-         │                                  · HubAppDataService (sole AppData writer)
-         │                                  · seedIfEmpty on first boot
-         │
-         └── SharedWorkerDataServicesClient ── SharedWorker "«appId»" (data hub)
-                (providers, CSRM deltas,        · provider slots + transports
-                 SSRM RPCs + ticks)             · SSRM WASM plane
-                                                · own READ-ONLY ConfigManager
+window (THIN: no Dexie, no ConfigManager, no seeding — two ports + RPC)
+   ├── PlatformServicesClient ── SharedWorker "«appId»-platform"
+   │      (config reads AND writes,   · the ONLY ConfigManager / Dexie owner
+   │       AppData, invalidations)    · HubAppDataService (sole AppData writer)
+   │                                  · seedIfEmpty on first boot
+   │                                  · per-window config-snapshot RPC + push invalidations
+   └── SharedWorkerDataServicesClient ── SharedWorker "«appId»" (data hub)
+          (providers, CSRM deltas,       · provider slots + transports
+           SSRM RPCs + ticks)            · SSRM WASM plane
+                                         · own READ-ONLY ConfigManager (Dexie reads
+                                           at provider lifecycle moments only)
 ```
+
+**Thin-window principle (2026-09-12 requirement):** a window must not LOAD
+config/AppData — it REQUESTS them. Today every window constructs its own
+ConfigManager (Dexie open + seed-identity check + catalog preload + AppData
+bootstrap hooks, all on that window's main thread, all contending with the
+storming data worker) — the observed tens-of-seconds window opens. After
+the split a window's boot is: connect two SharedWorker ports, one
+`config-snapshot` RPC (kilobytes), subscribe invalidations — interactive in
+the low hundreds of milliseconds regardless of data-plane load, because the
+services worker's queue is empty by construction. This covers the grid
+customizer too: its profile/config storage adapter re-targets the services
+client, and the services worker keeps a per-`gridId` profile cache in
+memory so the Nth window opening the same blotter gets its profile from
+worker RAM, not an IndexedDB re-read.
 
 Three facts make this split cheap:
 
@@ -61,10 +77,13 @@ Three facts make this split cheap:
   `HubAppDataService` is a self-contained class. They move; they are not
   rewritten.
 - **IndexedDB is shared across workers.** The data hub does not need the
-  services worker to READ configs: it keeps its own ConfigManager and reads
-  Dexie directly — exactly what it does today. Single-WRITER discipline is
-  preserved (services worker owns AppData writes; config writes stay where
-  they are today — window ConfigManagers — with invalidations re-targeted).
+  services worker to READ configs: it keeps its own read-only ConfigManager
+  against the same Dexie DB. Single-WRITER discipline goes FURTHER than
+  first drafted: the services worker owns ALL config and AppData writes —
+  windows never touch Dexie at all (`wireWorkerCatalogSync` and the
+  window-side ConfigManager leave the window boot path entirely; the
+  customizer's saves become services-client RPCs). One writer, one truth,
+  no per-window IndexedDB connections.
 - **The data hub's config/AppData reads happen at provider LIFECYCLE
   moments only** — start / restart / refresh resolve the cfg and its
   AppData template tokens (`SharedWorkerDataServicesHub.ts:574`,
@@ -84,7 +103,10 @@ Extend `apps/scripts/ssrm-perf/` with a config-probe page: while
 p50/p99. Baseline BEFORE any split, same numbers re-run in W3. The blotter
 workload target shape (10 windows / 20k rows / 10k updates-sec) is the
 measurement condition, per the platform's standing rule. Also capture
-tool-window time-to-interactive (lab window open during the storm).
+tool-window time-to-interactive (lab window open during the storm). Also
+baseline the W4 target now: 10 CSRM windows attaching to one 20k-row
+provider — per-window time-to-full-paint and the FIRST→LAST spread (the
+"almost simultaneously" number), idle and under ticks.
 
 *Exit:* numbers in this doc's §5; the probe committed and rerunnable.
 
@@ -98,13 +120,16 @@ tool-window time-to-interactive (lab window open during the storm).
   `WorkerAppDataStore`, worker ConfigManager construction + `seedIfEmpty`
   + hydrate. Delete the moved cases from the hub's dispatch table in the
   same change (repo rule — no shims; every consumer is in-repo).
-- New `PlatformServicesClient` (small — the catalog+AppData slice of
-  today's `SharedWorkerDataServicesClient`); the existing client drops
-  those RPCs. `AppDataMirror` re-targets the services client.
-  `wireWorkerCatalogSync` re-targets it too (data-provider/appdata row
-  invalidations go to the services worker; the DATA worker's catalog
-  staleness is resolved by its on-demand reads — a `refresh-provider` /
-  restart reads current rows by construction).
+- New `PlatformServicesClient` (the catalog+AppData slice of today's
+  `SharedWorkerDataServicesClient`, PLUS config writes: save / delete
+  become RPCs so the services worker is the only Dexie writer and
+  `wireWorkerCatalogSync` dissolves — invalidations originate where the
+  write lands and push to every subscribed window). `AppDataMirror`
+  re-targets the services client. The grid customizer's config-service
+  storage adapter re-targets it too, with the per-`gridId` profile cache
+  served from worker memory. The DATA worker's catalog staleness is
+  resolved by its on-demand reads — a `refresh-provider` / restart reads
+  current rows by construction.
 - The data hub keeps a read-only ConfigManager for provider starts and
   the `appDataLookup` template resolution, now reading IndexedDB at
   lifecycle moments (fresh Dexie read replaces the in-memory mirror).
@@ -179,6 +204,43 @@ the handoff §4b numbers, then the deferred PAGES=6); docs
 handoff cross-reference), and deletion sweep of anything the split
 orphaned.
 
+### W4 — CSRM snapshot fan-out: 20k rows × 10 blotters, almost simultaneously
+
+What already exists (build on it, don't reinvent): the replay path keeps
+**bucketed, pre-encoded binary chunks** with per-bucket invalidation
+(`runtime/worker/replayCache.ts` — attach cost is proportional to recent
+churn, not cache size) over the columnar codec
+(`hubEncoding.encodeChunk` → `wire/columnarCodec.ts`), and `broadcast`
+fans one event template to every listener. Encoded `ArrayBuffer`s are
+POSTed un-transferred, so each port pays a memcpy-grade structured clone
+of bytes — already far cheaper than cloning 20k row objects per window.
+
+What W4 changes:
+
+1. **Interleave, don't serialize.** Today N simultaneous attaches run
+   `replayCacheToPort` to completion one window at a time — window 10's
+   first chunk waits for nine full replays. Replace with a round-robin
+   chunk scheduler: one pass posts chunk k to every pending replay before
+   chunk k+1 to any, yielding to the macrotask queue between passes so
+   provider ingest and block RPCs breathe. First→last spread collapses
+   from O(9 × replay) to O(one pass).
+2. **One encode for both paths.** The live `replace` broadcast and the
+   late-join replay must share the same bucketed encoded chunks (one
+   encode per bucket per churn, whatever the audience count).
+3. **Backpressure-aware pacing** per port (the socket-high-water idea the
+   STOMP server uses): a stalled hidden window must not hold the
+   round-robin pass hostage — skip it, catch it up next pass.
+4. **SharedArrayBuffer, gated stretch.** With `crossOriginIsolated`
+   (OpenFin can set COOP/COEP; the web app needs server headers), the
+   encoded snapshot region becomes ONE SAB all windows read — zero copies
+   at fan-out. Designed behind the same `EncodedChunk` seam so it is a
+   transport swap, not a rewrite; only attempted after 1–3 are measured.
+
+*Exit:* the W0 10-window baseline re-run — target: last window's
+full-paint within ~1.5× the first window's, and total hub-thread time for
+the fan-out within ~2× a single-window replay (encode once + N buffer
+posts). Numbers into §5.
+
 ## 4. Honest limits — what this split does NOT fix
 
 - **Same-plane contention stays.** A second blotter window's SSRM block
@@ -188,9 +250,10 @@ orphaned.
 - **Two threads still share the CPU.** Under machine saturation the
   services worker's scheduling improves latency because its queue is
   empty, not because cycles appear. The win is queueing isolation.
-- **Config WRITES remain window-side** (ConfigManager → Dexie). Moving
-  writes into the services worker (single-writer symmetry with AppData) is
-  a candidate W4, not assumed here.
+- **Decode cost stays per window.** Encoded snapshot buffers fan out
+  cheaply, but each window still decodes and builds row objects on its own
+  main thread — that is parallel across windows (each has its own thread)
+  and is not a hub bottleneck, but it bounds single-window paint time.
 
 ## 5. Measurements
 
@@ -201,3 +264,5 @@ orphaned.
 | AppData attach→snapshot, storm | — | — |
 | Tool-window time-to-interactive, storm | — | — |
 | First hosted-grid mount → first paint: lazy vs `warmPlatform` at app load | — | — |
+| 10 CSRM windows × 20k snapshot: per-window full paint, first→last spread | — | — |
+| Hub-thread ms consumed by the 10-window fan-out (encode + post) | — | — |
