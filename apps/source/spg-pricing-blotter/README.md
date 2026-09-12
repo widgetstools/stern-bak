@@ -46,7 +46,11 @@ why the worker's edit overlay releases (the echo confirms it).
 ## CSV bulk import
 
 **Import CSV** takes a `cusip,price` file (header/BOM/quotes tolerated,
-per-line errors reported). Rows are validated against the server first — an
+per-line errors reported). A ready-made test file is committed:
+**`sample-marks.csv`** — 120 real cusips spread across the whole book with
+nudged prices (a few identical, so the "unchanged" badge shows), plus one
+unknown cusip and one bad price line so the validation UI has something to
+report. Rows are validated against the server first — an
 unknown cusip can never upsert a phantom row into the engine — previewed
 old → new, then **staged**: applied to the grid amber, committed only by
 **Save n to server** (or rolled back by **Discard**, which restores the
