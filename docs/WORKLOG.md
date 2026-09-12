@@ -751,8 +751,11 @@ backstop now makes the event visible instead of silent.
 ## 15. SSRM hardening follow-ups (2026-09-11)
 
 **Area:** `packages/data/host-data/src/runtime/ssrm`, `packages/react-grid/grid/src/ssrm` ·
-**Blocked on:** item 1 needs a vendored-WASM change (rangrez is first-party) —
-prioritised list with evidence in
+**Blocked on:** item 1 needs a vendored-WASM change (rangrez is first-party) — phased as
+T2 of the engine enhancement plan,
+[`superpowers/plans/2026-08-23-ssrm-engine-rust-perspective.md`](superpowers/plans/2026-08-23-ssrm-engine-rust-perspective.md) §12
+(T1–T7 + C1–C2 is the route to full SSRM parity, measured by `apps/source/markets-grid-lab-ssrm`);
+evidence in
 [`superpowers/plans/2026-09-11-ssrm-hardening-handoff.md`](superpowers/plans/2026-09-11-ssrm-hardening-handoff.md) §5
 
 Two passes on 2026-09-11 closed every original P0/P1 item except double

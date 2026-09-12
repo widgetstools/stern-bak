@@ -92,7 +92,7 @@ export const PARITY: ParityEntry[] = [
       'Expressions evaluate client-side on each loaded row, so values render exactly as CSRM.',
       'Sort / filter / row-group on a calculated column are locked (silent-wrong otherwise); the customizer editor names the tier (SSRM TIER chip).',
       'SUM/AVG/MIN/MAX/COUNT inside expressions read engine-wide totals via the aggregates RPC — not loaded-block statistics. MEDIAN/STDEV/VARIANCE/DISTINCT_COUNT still walk loaded rows only.',
-      'Engine-compiled expressions await engine support (Rust plan §5.3 tier 1).',
+      'Engine-compiled expressions land with phases T1/T3/T4 of the engine enhancement plan (Rust plan §12).',
     ],
   },
   {
@@ -136,7 +136,7 @@ export const PARITY: ParityEntry[] = [
     notes: [
       'Data-change alert rules listen to grid transactions, so they evaluate rows the grid holds: scrolled-away blocks that were purged do not tick client-side.',
       'The alerts settings band states evaluation is loaded (visible) rows — the honest label, not a silent gap.',
-      'Book-wide alerting needs engine-side predicates (Rust plan §5.2) — not built.',
+      'Book-wide alerting lands with phase T5 (view membership deltas) of the engine enhancement plan (Rust plan §12).',
     ],
   },
   {

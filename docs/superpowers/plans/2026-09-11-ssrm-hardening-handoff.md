@@ -220,12 +220,11 @@ rows while any session is subscribed. The "empty replace re-boots so stale keys 
 `SsrmWasmPlane.ingest` never dropped anything once a session was live — and now the anchor
 subscription is always live. Consequence: after a provider restart whose new snapshot no longer
 contains some keys, those rows stay in the engine and render as current. The fixture always
-resends all 20k keys, so the demo cannot show it. Approaches: (a) an engine-side delete/truncate
-entry point (vendored WASM change — rangrez backlog, it is first-party); (b) plane-side tombstone
-diff on restart: remember the key set, diff against the new snapshot once `ready` lands, and…
-there is nothing to apply the deletions WITH today, which is why (a) is the real fix. Done: a
-restart with a smaller snapshot shows exactly the new rows; the WASM integration test pins the
-delete primitive.
+resends all 20k keys, so the demo cannot show it. Now phased: **T2 of the engine
+enhancement plan** ([Rust plan §12](./2026-08-23-ssrm-engine-rust-perspective.md)) —
+`delete_rows` / `truncate` / `replace_snapshot` plus retention decoupled from subscribers,
+which also deletes the anchor-subscription workaround. Done: a restart with a smaller
+snapshot shows exactly the new rows; the WASM integration test pins the delete primitive.
 
 **2. Double serialisation on every block.** Rows are JSON-stringified inside the WASM boundary,
 parsed, then structured-cloned per window. The CSRM path already has a columnar binary codec with
