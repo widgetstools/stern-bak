@@ -280,9 +280,9 @@ describe('CalculatedColumnsPanel (v4)', () => {
       isDestroyed: () => false,
     } as never);
     render(<MasterDetail platform={ssrmPlatform} />);
+    // `[price] * [quantity] / 1000` compiles — the engine evaluates it (T3).
     expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
-      .toMatch(/computed in the grid per loaded row/i);
-    // `[price] * [quantity] / 1000` is row-local — no engine-aggregate flag.
+      .toMatch(/WASM engine evaluates it per row/i);
     expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
       .not.toMatch(/engine-wide totals/i);
 
@@ -292,5 +292,12 @@ describe('CalculatedColumnsPanel (v4)', () => {
     });
     expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
       .toMatch(/engine-wide totals/i);
+
+    // Outside the grammar → stays a locked grid column, computed per loaded row.
+    fireEvent.change(screen.getByTestId('cc-virtual-expr-grossPnl'), {
+      target: { value: "REGEX_MATCH([desk], '^G')" },
+    });
+    expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
+      .toMatch(/computed in the grid per loaded row/i);
   });
 });

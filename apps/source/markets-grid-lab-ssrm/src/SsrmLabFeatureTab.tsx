@@ -30,8 +30,11 @@ export interface SsrmLabFeatureTabProps {
 }
 
 export function SsrmLabFeatureTab({ config, providerId }: SsrmLabFeatureTabProps) {
+  // Seed against the SSRM grid's OWN id — the storage adapter is scoped to
+  // `<gridId>-ssrm`, and a seed built for the lab's id fails the adapter's
+  // gridId check silently (caught live: "demo profile install failed").
   const onProfilesReady = useLabDemoProfiles(
-    config.gridId,
+    `${config.gridId}-ssrm`,
     config.profiles,
     config.activeProfileId,
   );

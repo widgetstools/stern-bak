@@ -50,6 +50,9 @@ export type {
   SsrmGetRowsResult,
   SsrmTickPayload,
   SsrmWatchGroupsRequest,
+  SsrmWatchPredicateRequest,
+  SsrmComputedColumnSpec,
+  SsrmExprNode,
 } from './ssrm/index.js';
 export { SSRM_PIVOT_FIELD_SEPARATOR } from './ssrm/index.js';
 

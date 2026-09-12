@@ -6,7 +6,26 @@ export interface RustHubLike {
   on_control(session_id: string, msg_json: string): string;
   tick(): string;
   apply_message_json(ds_id: string, params_json: string, raw_json: string): string;
+  /** Delete rows by key — removals ride the delta stream. Returns "[n]". */
+  delete_rows(ds_id: string, params_json: string, keys_json: string): string;
+  /** Remove every row in one revision, schema kept. Returns "[n]". */
+  truncate(ds_id: string, params_json: string): string;
+  /**
+   * Atomic truncate + ingest — restart semantics: afterwards the table holds
+   * exactly the rows sent; surviving keys are never emitted as removals.
+   * Returns "[upserts,truncated]".
+   */
+  replace_snapshot(ds_id: string, params_json: string, raw_json: string): string;
+  /** Drop the ingest retention pin (provider stop). Returns "true"/"false". */
+  drop_table(ds_id: string, params_json: string): string;
   poll_shared_delta(ds_id: string, params_json: string): string;
+  /**
+   * Engine feature manifest (JSON). OPTIONAL on the injectable interface —
+   * test fakes predate it — and the plane treats "absent" as "none of the
+   * gated features": computed columns are then reported unsupported instead
+   * of silently mis-served.
+   */
+  capabilities?(): string;
   mem_stats(): string;
 }
 

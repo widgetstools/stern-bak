@@ -414,6 +414,25 @@ export interface SsrmWatchGroupsWireRequest {
   aggregates?: Record<string, string>;
 }
 
+/** Watch a compiled boolean predicate over the whole dataset (viewDelta ticks). */
+export interface SsrmWatchPredicateWireRequest {
+  kind: 'ssrm-watch-predicate';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  ruleId: string;
+  expr: import('./ssrm/ssrmTypes.js').SsrmExprNode;
+}
+
+/** Drop one watched predicate. */
+export interface SsrmUnwatchPredicateWireRequest {
+  kind: 'ssrm-unwatch-predicate';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  ruleId: string;
+}
+
 /** Grid edits (paste / cell edit) written into the engine cache. */
 export interface SsrmApplyEditsWireRequest {
   kind: 'ssrm-apply-edits';
@@ -443,6 +462,8 @@ export type Request =
   | SsrmRowCountWireRequest
   | SsrmAggregatesWireRequest
   | SsrmWatchGroupsWireRequest
+  | SsrmWatchPredicateWireRequest
+  | SsrmUnwatchPredicateWireRequest
   | SsrmApplyEditsWireRequest;
 
 export interface SsrmRpcEvent {

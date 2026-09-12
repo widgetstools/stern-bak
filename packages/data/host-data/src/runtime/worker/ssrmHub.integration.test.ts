@@ -48,6 +48,15 @@ function fakeHub(trace?: { disconnected: string[]; disposed: string[] }): RustHu
       rows.push(...JSON.parse(raw) as Record<string, unknown>[]);
       return '[1,0]';
     },
+    delete_rows: () => '[0]',
+    truncate: () => { const n = rows.length; rows.length = 0; return `[${n}]`; },
+    replace_snapshot: (_ds, _p, raw) => {
+      const removed = rows.length;
+      rows.length = 0;
+      rows.push(...JSON.parse(raw) as Record<string, unknown>[]);
+      return `[${rows.length},${removed}]`;
+    },
+    drop_table: () => 'true',
     poll_shared_delta: () => '',
     mem_stats: () => '{}',
   };

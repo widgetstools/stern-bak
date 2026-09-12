@@ -61,7 +61,7 @@ export const PARITY: ParityEntry[] = [
     summary: 'All renderers paint; synthetic valueGetter columns are locked for sort/filter.',
     notes: [
       'Pills, heatmaps, percent bars, trend arrows render from block row data exactly as CSRM.',
-      'KRD sparkline and bid/ask width are client valueGetters with no engine column — sorting/filtering them would silently order by nothing, so they carry the staruiSsrmClientExpr brand and the honesty lock disables sort/filter/group with a tooltip.',
+      'KRD sparkline and bid/ask width are client valueGetters with no engine column — sorting/filtering them would silently order by nothing, so they carry the staruiSsrmClientExpr brand and the honesty lock disables sort/filter/group with a tooltip. (Calculated columns in the expression grammar are NOT in this bucket anymore — they compile into the engine, see the Calculated tab.)',
       'The KRD inputs (krd1Y…krd30Y) ride the engine schema so the sparkline has data on every loaded row.',
     ],
   },
@@ -86,13 +86,12 @@ export const PARITY: ParityEntry[] = [
   {
     tabId: 'calc',
     label: 'Calculated Columns',
-    status: 'partial',
-    summary: 'Computed per loaded row; sort/filter/group locked — the engine has no expressions.',
+    status: 'full',
+    summary: 'Compiled expressions run IN the engine — sort/filter/group work dataset-wide.',
     notes: [
-      'Expressions evaluate client-side on each loaded row, so values render exactly as CSRM.',
-      'Sort / filter / row-group on a calculated column are locked (silent-wrong otherwise); the customizer editor names the tier (SSRM TIER chip).',
-      'SUM/AVG/MIN/MAX/COUNT inside expressions read engine-wide totals via the aggregates RPC — not loaded-block statistics. MEDIAN/STDEV/VARIANCE/DISTINCT_COUNT still walk loaded rows only.',
-      'Engine-compiled expressions land with phases T1/T3/T4 of the engine enhancement plan (Rust plan §12).',
+      'Expressions in the engine grammar compile to the wire contract and ride every block request as computed columns; the WASM engine evaluates them per row (plan §12 T3), pinned to client semantics by a 44-case golden corpus.',
+      'Sort, filter, row-group and aggregation on a compiled column happen engine-side over the whole book — the lock now applies only to columns OUTSIDE the grammar (diff refs, REGEX_MATCH…), and the customizer chip says which is which (ENGINE vs GRID).',
+      'Aggregate scalars — SUM/AVG/MIN/MAX/COUNT and, since T4, MEDIAN/STDEV/VARIANCE/DISTINCT_COUNT — resolve engine-side over the filtered set, never as loaded-block statistics.',
     ],
   },
   {
@@ -131,12 +130,12 @@ export const PARITY: ParityEntry[] = [
   {
     tabId: 'alerts',
     label: 'Alerts',
-    status: 'partial',
-    summary: 'Alerts fire on loaded rows only — an unloaded row cannot trigger.',
+    status: 'full',
+    summary: 'Compiled data-change rules watch the WHOLE book via engine membership deltas.',
     notes: [
-      'Data-change alert rules listen to grid transactions, so they evaluate rows the grid holds: scrolled-away blocks that were purged do not tick client-side.',
-      'The alerts settings band states evaluation is loaded (visible) rows — the honest label, not a silent gap.',
-      'Book-wide alerting lands with phase T5 (view membership deltas) of the engine enhancement plan (Rust plan §12).',
+      'A data-change rule whose expression compiles becomes an engine predicate watch (plan §12 T5): the engine diffs the predicate\'s row set per revision and pushes entered rows as viewDelta ticks — a row three pages below the viewport fires the alert.',
+      'Engine-watched rules are excluded from the client evaluator, so a loaded row\'s transition cannot fire twice; deltas route only to the grid that owns the rule (two windows never double-fire).',
+      'Rules outside the wire grammar — diff refs (oldValue…), column-scoped rules, relativeChange — stay client-side on loaded rows, and the settings band says so.',
     ],
   },
   {

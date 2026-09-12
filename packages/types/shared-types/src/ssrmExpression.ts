@@ -25,11 +25,10 @@
  * Deliberately OUTSIDE v1 (compile reports them untranslatable): variables
  * (`x`, `value`, `oldValue`…), diff refs, member access, `REGEX_MATCH`
  * (version-dependent), `NOW`/`TODAY`/`DATE_DIFF`/`DATE_ADD`
- * (non-deterministic or unit-laden), and the loaded-row-only aggregates
- * `MEDIAN`/`STDEV`/`VARIANCE`/`DISTINCT_COUNT`. Aggregate forms
- * `SUM/AVG/COUNT/MIN/MAX([col])` ARE in the grammar (`agg` node) but
- * require engine aggregate-scalar support (phase T4); date-part functions
- * require typed date columns (phase T6).
+ * (non-deterministic or unit-laden). Aggregate forms `FN([col])` — the full
+ * set including `MEDIAN`/`STDEV`/`VARIANCE`/`DISTINCT_COUNT` since T4 — are
+ * in the grammar (`agg` node) and require the `aggregates` capability;
+ * date-part functions require typed date columns (T6).
  */
 
 export const SSRM_EXPR_CONTRACT_VERSION = 1 as const;
@@ -56,8 +55,10 @@ export type SsrmExprScalarFn =
   | 'ISNULL' | 'ISNOTNULL' | 'ISEMPTY'
   | 'YEAR' | 'MONTH' | 'DAY' | 'IS_WEEKDAY';
 
-/** Aggregate forms — view-level scalars, engine support arrives with T4. */
-export type SsrmExprAggFn = 'sum' | 'avg' | 'count' | 'min' | 'max';
+/** Aggregate forms — view-level scalars the engine computes (T4: full set). */
+export type SsrmExprAggFn =
+  | 'sum' | 'avg' | 'count' | 'min' | 'max'
+  | 'median' | 'stdev' | 'variance' | 'distinct_count';
 
 export type SsrmExprNode =
   | { k: 'lit'; v: number | string | boolean | null }

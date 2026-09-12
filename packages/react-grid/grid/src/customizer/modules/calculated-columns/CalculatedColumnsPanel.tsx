@@ -81,36 +81,31 @@ function ssrmExpressionTier(
       tier: 'materialized',
       requires: [],
       engineAggregates: [],
-      loadedRowAggregates: [],
       untranslatable: ['expression does not parse'],
     };
   }
 }
 
 const TIER_CHIP: Record<SsrmExpressionClassification['tier'], string> = {
-  compiled: 'ENGINE-READY',
+  compiled: 'ENGINE',
   materialized: 'GRID',
-  unsupported: 'LOADED ROWS',
 };
 
 /** The badge's expanded sentence — mechanisms, not adjectives. */
 function tierNote(tier: SsrmExpressionClassification): string {
-  const parts = [
-    'SERVER-SIDE GRID — computed in the grid per loaded row; sort, filter and row-group are locked (the engine has no expression support yet).',
-  ];
   if (tier.tier === 'compiled') {
-    const needs = ['plan §12 T3'];
-    if (tier.requires.includes('aggregates')) needs.push('T4 (aggregate scalars)');
-    if (tier.requires.includes('dateFns')) needs.push('T6 (typed dates)');
-    parts.push(`Engine-ready: compiles to the engine expression contract — unlocks with ${needs.join(' + ')}.`);
+    const parts = [
+      'SERVER-SIDE GRID — compiled to the engine expression contract: the WASM engine evaluates it per row, so sort, filter and row-group work dataset-wide (plan §12 T3).',
+    ];
+    if (tier.engineAggregates.length > 0) {
+      parts.push('Aggregate scalars read engine-wide totals over the filtered set, not the loaded blocks.');
+    }
+    return parts.join(' ');
   }
-  if (tier.engineAggregates.length > 0) {
-    parts.push('SUM / AVG / MIN / MAX / COUNT read engine-wide totals, not the loaded blocks.');
-  }
-  if (tier.tier === 'unsupported') {
-    parts.push(`${tier.loadedRowAggregates.join(' / ')} has no engine total — its value here is a loaded-block statistic.`);
-  }
-  if (tier.tier === 'materialized' && tier.untranslatable.length > 0) {
+  const parts = [
+    'SERVER-SIDE GRID — computed in the grid per loaded row; sort, filter and row-group are locked (outside the engine expression grammar).',
+  ];
+  if (tier.untranslatable.length > 0) {
     parts.push(`Outside the engine grammar: ${tier.untranslatable[0]}.`);
   }
   return parts.join(' ');
@@ -394,7 +389,7 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
             {tier ? (
               <SummaryChip
                 label="SSRM TIER"
-                tone={tier.tier === 'unsupported' ? 'warning' : tier.tier === 'compiled' ? 'info' : 'warning'}
+                tone={tier.tier === 'compiled' ? 'info' : 'warning'}
                 data-testid={`cc-virtual-ssrm-tier-${colId}`}
                 value={
                   <Mono color={tier.tier === 'compiled' ? 'var(--ds-primary)' : 'var(--ds-accent-warning)'}>

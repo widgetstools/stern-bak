@@ -113,7 +113,14 @@ describe('compileToEngineExpression wire shapes', () => {
       version: 1 as const,
       expr: { k: 'bin', op: 'div', l: { k: 'col', name: 'pnl' }, r: { k: 'col', name: 'mv' } },
     });
-    expect(toComputedColumnSpec('bad', parse('MEDIAN([mv])'))).toBeNull();
+    // T4: the statistical aggregate form compiles like SUM does.
+    expect(toComputedColumnSpec('med', parse('MEDIAN([mv])'))).toEqual({
+      as: 'med',
+      version: 1 as const,
+      expr: { k: 'agg', fn: 'median', col: 'mv' },
+    });
+    // The varargs scalar form stays outside grammar v1.
+    expect(toComputedColumnSpec('bad', parse('MEDIAN(1, 2, 3)'))).toBeNull();
   });
 
   it('reports a malformed AST instead of throwing', () => {
@@ -131,7 +138,6 @@ describe('classifySsrmExpression', () => {
       tier: 'compiled',
       requires: [],
       engineAggregates: [],
-      loadedRowAggregates: [],
       untranslatable: [],
     });
   });
@@ -153,9 +159,16 @@ describe('classifySsrmExpression', () => {
     expect(c.untranslatable[0]).toMatch(/REGEX_MATCH/);
   });
 
-  it('loaded-rows aggregate → unsupported, whatever else it contains', () => {
+  it('statistical aggregate → compiled with requires aggregates (T4)', () => {
     const c = classify('[px] - MEDIAN([px])');
-    expect(c.tier).toBe('unsupported');
-    expect(c.loadedRowAggregates).toEqual(['MEDIAN']);
+    expect(c.tier).toBe('compiled');
+    expect(c.requires).toEqual(['aggregates']);
+    expect(c.engineAggregates).toContain('MEDIAN');
+  });
+
+  it('statistical varargs form stays materialized — only FN([col]) is in grammar v1', () => {
+    const c = classify('MEDIAN([a], [b])');
+    expect(c.tier).toBe('materialized');
+    expect(c.untranslatable[0]).toMatch(/aggregate form/);
   });
 });

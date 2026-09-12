@@ -71,7 +71,7 @@ describe('buildVirtualColDef', () => {
     const good = buildVirtualColDef(virtual(), engine, cache);
     const bad = buildVirtualColDef(virtual({ expression: '((((' }), engine, cache);
 
-    expect(good.context).toEqual({ staruiVirtual: true });
+    expect(good.context).toEqual({ staruiVirtual: true, staruiExprSource: '[price] * [qty]' });
     const getter = good.valueGetter as (p: { data: Record<string, unknown> }) => unknown;
     expect(getter({ data: { price: 2, qty: 3 } })).toBe(6);
 

@@ -910,12 +910,12 @@ they are separate sessions.
 | # | Phase | Where | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | **T1** | Expression wire contract + tier compiler | stern-bak only | — | **DONE 2026-09-11** |
-| **T2** | Table lifecycle: delete / truncate / replace, retention decoupled from subscribers | rangrez → re-vendor | — | open |
-| **T3** | Computed columns on views (incremental recompute) | rangrez → re-vendor | T1 | open |
-| **T4** | Aggregate scalars in expressions + full aggregate set | rangrez → re-vendor | T3 | open |
-| **T5** | Per-view membership deltas + alert bridge | rangrez → re-vendor | T1 | open |
-| **T6** | Typed date/timestamp columns; retire the `__epoch` shadows | rangrez → re-vendor | — | open |
-| **T7** | Pivot completeness (group-less pivot, separator safety) | rangrez → re-vendor | — | open |
+| **T2** | Table lifecycle: delete / truncate / replace, retention decoupled from subscribers | rangrez → re-vendor | — | **DONE 2026-09-11** |
+| **T3** | Computed columns on views (incremental recompute) | rangrez → re-vendor | T1 | **DONE 2026-09-12** |
+| **T4** | Aggregate scalars in expressions + full aggregate set | rangrez → re-vendor | T3 | **DONE 2026-09-12** |
+| **T5** | Per-view membership deltas + alert bridge | rangrez → re-vendor | T1 | **DONE 2026-09-12** |
+| **T6** | Typed date/timestamp columns; retire the `__epoch` shadows | rangrez → re-vendor | — | **DONE 2026-09-12** |
+| **T7** | Pivot completeness (group-less pivot, separator safety) | rangrez → re-vendor | — | **DONE 2026-09-12** |
 | **C1** | Write-path rebuild: Bulk Update, Plus/Minus, Shortcuts, Smart Edit on `ssrm-apply-edits` | stern-bak only | — | **DONE 2026-09-11** |
 | **C2** | SSRM undo/redo: journal inverse-edits through `applyEdits` | stern-bak only | C1 | **DONE 2026-09-11** (same seam) |
 
@@ -926,6 +926,17 @@ they are separate sessions.
 (`ssrmExpressionContract.fixtures.json`) pinning the CLIENT evaluator's semantics — the
 corpus the Rust side must reproduce at T3; the customizer's SSRM TIER chip now reports the
 real tier (ENGINE-READY / GRID / LOADED ROWS) with the phases each column awaits.
+
+**T2 landed as:** rangrez — `Registry.ensure_pinned`/`unpin` (ingest pins the table, so
+retention follows the data; the zero-subscriber drop is gone at the root),
+`TableCache::truncate` (one revision, deletions ride the log), the superseded-removal rule
+in `changed_since` (a live re-upsert cancels its older deletion — what makes
+`replace_snapshot` safe for surviving keys), and wasm entry points `delete_rows` /
+`truncate` / `replace_snapshot` / `drop_table`; `apply_message_json` now get-or-creates
+via the pin. stern-bak — the plane's restart flush routes through `replace_snapshot`
+(the empty-schema re-boot hack is deleted), the anchor-subscription workaround is deleted,
+`stopProvider` calls `dropTable`, and `deleteRows` is exposed. Pinned by
+`tests/lifecycle.rs` (rangrez) and the T2 cases in the WASM integration suite.
 
 **C1/C2 landed as:** an editing-core GridApi brand (`SSRM_EDIT_WRITER_KEY`,
 `attachSsrmEditWriter` / `lookupSsrmEditWriter` — the `SSRM_EXPR_AGG_KEY` pattern) that the
@@ -959,6 +970,37 @@ snapshot shows exactly the new rows; upstream removal envelopes map to `delete_r
 lifecycle tests). Closes handoff §5 item 1. *Exit:* WASM tests pin retention-without-
 subscribers, delete, truncate, replace; shrinking-restart e2e in the plane suite; anchor
 code gone. *Verify:* `packages/data` vitest + `ssrm-multiwindow.mjs` rerun.
+
+**T3–T7 landed as (2026-09-12, one engine pass):** rangrez `src/expr.rs` evaluates wire
+grammar v1 with the client's JS coercions verbatim, proven by the GENERATED corpus
+`tests/fixtures/ssrmExpressionContract.wire.json` (44 compiled cases incl. the T4
+statistical aggregates) in `tests/expr_contract.rs` — the fixture file is written by
+stern-bak from `ssrmExpressionContract.fixtures.json` and copied over, never hand-edited.
+`ViewSpec.computed` + a per-view `ComputedMemo` (patched via the cache touch log like the
+slot memo) make computed columns first-class in filter / sort / groupBy / aggregates /
+splitBy and on every materialized row; half-parsed computed columns REJECT `openView`.
+Aggregate scalars resolve over the view's FILTERED rows with `expr::client_aggregate`
+(client fold semantics), converging one revision behind a scalar-dependent filter — the
+client binder's own temporal behaviour. `Agg` gained median/stdev/variance/
+distinct_count via the shared `MultiAcc`. `ViewSpec.watch` + `View::membership_delta`
+(prime-silent, complete entered/left key lists, entered rows capped at 200) feed the wasm
+`tick()`'s `viewDelta` messages, routed to the opening session. Typed date columns parse
+epochs at WRITE time in `TableCache` (hand-rolled ISO-8601, 1.78-safe) — `query_value`
+serves instants to sort/filter while `row_json` keeps the string. Group-less `splitBy`
+serves the one grand-total row, and split values fold `|` → `¦` so a value cannot forge
+pivot field boundaries. `capabilities()` names all of it. stern-bak:
+`compileSsrmComputedColumns` compiles tier-`compiled` calculated columns into every
+getRows request; `lockSsrmExpressionColumns` skips engine-backed colIds; the alerts
+runtime's `bindSsrmAlertPredicates` registers compiled dataChange rules as engine
+predicate watches (dispatch through the SAME `createAlertDispatcher`, engine-watched
+rules excluded from client evaluation, deltas pinned to the owning subId); the `__epoch`
+shadow machinery is DELETED (`ssrmEpochColumn`, `SSRM_EPOCH_SUFFIX`, `stampEpochs`,
+`ssrmEpochOf`, the `dateNodes`/sort rewrites) — boot types date columns `date` and the
+bounds target the real column; the pivot-needs-row-groups guard is gone. Six new
+engine-fact pins in `SsrmWasmPlane.wasm.integration.test.ts` (T3 compute/sort/filter,
+T3 loud refusal, T4 group median, T5 watch→viewDelta→unwatch, T6 instant sort + range
+filter, T7 grand-total row). Parity matrix: Calculated → full, Alerts → full
+(14 full / 2 partial / 0 gap; the two partials are the deliberate viewport semantics).
 
 **T3 — Computed columns on views.**
 *Rangrez:* view spec gains `computed: [{ as, expr }]` (T1 wire form); columns materialize
@@ -1025,16 +1067,17 @@ undo of a paste restores engine values in a second window.
 
 | Gap (parity lab / handoff) | Phase |
 | --- | --- |
-| Calculated: sort/filter/group locked (parity: partial) | T1 **(done)** + T3 (row-local), T4 (cross-row) |
-| Renderers: synthetic valueGetter columns locked | T3 |
-| Alerts: loaded rows only | T5 (diff-refs: named follow-up) |
+| Calculated: sort/filter/group locked (parity: partial) | T1 + T3 (row-local), T4 (cross-row) — **done, parity full** |
+| Renderers: synthetic valueGetter columns locked | T3 **(done — grammar expressions unlock; raw valueGetters stay locked by design)** |
+| Alerts: loaded rows only | T5 **(done — compiled rules book-wide; diff-refs: named follow-up)** |
 | Bulk Update / Plus-Minus / Shortcuts: gap | C1 **(done — closed)** |
 | Editing: journal/undo CSRM-only | C2 **(done — closed)** |
-| Handoff §5.1 — engine cannot delete rows; anchor workaround | T2 |
-| Date `__epoch` shadow hack | T6 |
-| Pivot needs row groups; `\|` collision | T7 |
+| Handoff §5.1 — engine cannot delete rows; anchor workaround | T2 **(done — closed)** |
+| Date `__epoch` shadow hack | T6 **(done — machinery deleted)** |
+| Pivot needs row groups; `\|` collision | T7 **(done — grand-total pivot; values fold `\|`→`¦`)** |
 | Handoff §5.2 double serialisation, §5.3 per-level options, §5.4 six-blotter soak | unchanged — not engine-grammar work |
 
-After T1–T7 + C1–C2 the parity matrix is all-green except the two deliberate viewport
-semantics (conditional styling paints what is visible — correct, not a gap) and the
-diff-ref follow-up, each labelled in-app.
+T1–T7 + C1–C2 are all landed (2026-09-12). The parity matrix stands at 14 full /
+2 partial / 0 gap — the two partials are the deliberate viewport semantics (conditional
+styling paints what is visible; raw client valueGetter renderer columns stay locked),
+and the diff-ref alert follow-up remains named in-app.

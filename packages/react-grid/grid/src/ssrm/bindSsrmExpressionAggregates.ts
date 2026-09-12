@@ -13,7 +13,9 @@ import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import type { GridApi } from 'ag-grid-community';
 import { SSRM_COUNT_REFRESH_MS } from '../widget/useSsrmFilterCounts';
 
-type SsrmAggFn = 'sum' | 'avg' | 'min' | 'max' | 'count';
+type SsrmAggFn =
+  | 'sum' | 'avg' | 'min' | 'max' | 'count'
+  | 'median' | 'stdev' | 'variance' | 'distinct_count';
 type SsrmAggSpec = { column: string; fn: SsrmAggFn; as: string };
 
 const EXPR_TO_SSRM: Record<string, SsrmAggFn> = {
@@ -22,6 +24,11 @@ const EXPR_TO_SSRM: Record<string, SsrmAggFn> = {
   MIN: 'min',
   MAX: 'max',
   COUNT: 'count',
+  // T4: the engine aggregates these too — no longer loaded-rows-only.
+  MEDIAN: 'median',
+  STDEV: 'stdev',
+  VARIANCE: 'variance',
+  DISTINCT_COUNT: 'distinct_count',
 };
 
 export interface SsrmExprAggSession extends SsrmExprAggLookup {

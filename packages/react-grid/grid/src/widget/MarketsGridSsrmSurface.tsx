@@ -35,6 +35,7 @@ import {
   withSsrmSetFilterValues,
 } from '../ssrm/withSsrmSetFilterValues.js';
 import { lockSsrmExpressionColumns } from '../ssrm/lockSsrmExpressionColumns.js';
+import { compileSsrmComputedColumns } from '../ssrm/compileSsrmComputedColumns.js';
 import { sendSsrmClipboard } from '../ssrm/sendSsrmClipboard.js';
 import { attachSsrmSession, detachSsrmSession } from '../ssrm/ssrmSession.js';
 import { withSsrmSelectAll } from '../ssrm/withSsrmSelectAll.js';
@@ -142,11 +143,23 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     [columnDefs, includeAllStreamSafeFilters],
   );
 
+  // Calculated columns that compile under the engine expression contract ride
+  // every getRows request as engine computed columns (plan §12 T3) — those
+  // stay sortable / filterable / groupable dataset-wide.
+  const computedCompilation = useMemo(
+    () => compileSsrmComputedColumns(columnDefs as readonly unknown[]),
+    [columnDefs],
+  );
+
   // Set filters can't scan rows under SSRM — their lists come from the worker.
-  // Expression / calculated columns are client-only; lock sort/filter/group.
+  // Expression columns OUTSIDE the engine grammar stay client-only; lock
+  // their sort/filter/group.
   const ssrmColumnDefs = useMemo(
-    () => lockSsrmExpressionColumns(withSsrmSetFilterValues(columnDefs, ssrm.provider)),
-    [columnDefs, ssrm.provider],
+    () => lockSsrmExpressionColumns(
+      withSsrmSetFilterValues(columnDefs, ssrm.provider),
+      computedCompilation.engineBacked,
+    ),
+    [columnDefs, ssrm.provider, computedCompilation],
   );
 
   const ssrmContextMenu = useMemo(
@@ -173,8 +186,12 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
   // and the tick binder (patch by id, clear before anything that moves rows).
   const blockCache = useMemo(() => new SsrmBlockCache(), [ssrm.provider]);
   const datasource = useMemo(
-    () => createSsrmDatasource(ssrm.provider, { getQuickFilterText, cache: blockCache }),
-    [ssrm.provider, getQuickFilterText, blockCache],
+    () => createSsrmDatasource(ssrm.provider, {
+      getQuickFilterText,
+      cache: blockCache,
+      getComputedColumns: () => computedCompilation.computed,
+    }),
+    [ssrm.provider, getQuickFilterText, blockCache, computedCompilation],
   );
   const getRowId = useMemo(
     () => createSsrmGetRowId(ssrm.keyColumn ?? 'id'),

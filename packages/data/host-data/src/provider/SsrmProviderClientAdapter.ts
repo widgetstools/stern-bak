@@ -18,6 +18,7 @@ import type {
   SsrmRowCountResult,
   SsrmTickPayload,
   SsrmWatchGroupsRequest,
+  SsrmWatchPredicateRequest,
 } from '../runtime/ssrm/ssrmTypes.js';
 
 export interface SsrmProviderClientAdapterOpts {
@@ -174,6 +175,16 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   watchGroups(req: SsrmWatchGroupsRequest): Promise<void> {
     if (!this.subId) return Promise.reject(new Error('[SsrmProviderClientAdapter] not started'));
     return this.client.ssrmWatchGroups(this.id, this.subId, req.groupBy, req.aggregates);
+  }
+
+  watchPredicate(req: SsrmWatchPredicateRequest): Promise<void> {
+    if (!this.subId) return Promise.reject(new Error('[SsrmProviderClientAdapter] not started'));
+    return this.client.ssrmWatchPredicate(this.id, this.subId, req.ruleId, req.expr);
+  }
+
+  unwatchPredicate(ruleId: string): Promise<void> {
+    if (!this.subId) return Promise.reject(new Error('[SsrmProviderClientAdapter] not started'));
+    return this.client.ssrmUnwatchPredicate(this.id, this.subId, ruleId);
   }
 
   onSsrmTick(handler: (payload: SsrmTickPayload) => void): Unsubscribe {

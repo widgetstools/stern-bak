@@ -50,6 +50,8 @@ import type {
   SsrmAggregatesWireRequest,
   SsrmRowCountWireRequest,
   SsrmWatchGroupsWireRequest,
+  SsrmWatchPredicateWireRequest,
+  SsrmUnwatchPredicateWireRequest,
   SsrmApplyEditsWireRequest,
 } from '../protocol.js';
 import type {
@@ -390,6 +392,15 @@ export class SharedWorkerDataServicesClient {
     }).then(() => undefined);
   }
 
+  /** Watch a compiled predicate dataset-wide; deltas arrive as `viewDelta` ticks. */
+  ssrmWatchPredicate(providerId: string, subId: string, ruleId: string, expr: import('../ssrm/ssrmTypes.js').SsrmExprNode): Promise<void> {
+    return this.ssrmRpc({ kind: 'ssrm-watch-predicate', providerId, subId, ruleId, expr }).then(() => undefined);
+  }
+
+  ssrmUnwatchPredicate(providerId: string, subId: string, ruleId: string): Promise<void> {
+    return this.ssrmRpc({ kind: 'ssrm-unwatch-predicate', providerId, subId, ruleId }).then(() => undefined);
+  }
+
   /** Write grid edits (paste / cell edit) into the engine cache. */
   ssrmApplyEdits(
     providerId: string,
@@ -424,6 +435,8 @@ export class SharedWorkerDataServicesClient {
       | Omit<SsrmRowCountWireRequest, 'reqId'>
       | Omit<SsrmAggregatesWireRequest, 'reqId'>
       | Omit<SsrmWatchGroupsWireRequest, 'reqId'>
+      | Omit<SsrmWatchPredicateWireRequest, 'reqId'>
+      | Omit<SsrmUnwatchPredicateWireRequest, 'reqId'>
       | Omit<SsrmApplyEditsWireRequest, 'reqId'>,
   ): Promise<unknown> {
     if (this.closed) {

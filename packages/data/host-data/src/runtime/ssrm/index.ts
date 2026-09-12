@@ -8,7 +8,7 @@ export type { ToViewSpecOptions, ToViewSpecResult } from './toViewSpec.js';
 // every page bundle try to resolve `@starui/dshub` and fail.
 export type { RustHubLike, RustHubFactory } from './RustHubHost.js';
 export type { SsrmPlaneBootCfg } from './SsrmWasmPlane.js';
-export { ssrmEpochColumn, SSRM_EPOCH_SUFFIX, SSRM_PIVOT_FIELD_SEPARATOR } from './ssrmTypes.js';
+export { SSRM_PIVOT_FIELD_SEPARATOR } from './ssrmTypes.js';
 export type {
   SsrmColRef,
   SsrmColumnValuesRequest,
@@ -27,5 +27,8 @@ export type {
   SsrmRowCountResult,
   SsrmTickPayload,
   SsrmWatchGroupsRequest,
+  SsrmWatchPredicateRequest,
   SsrmViewSpec,
+  SsrmComputedColumnSpec,
+  SsrmExprNode,
 } from './ssrmTypes.js';

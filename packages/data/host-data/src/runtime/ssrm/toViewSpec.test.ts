@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterModelToNodes, ssrmEpochOf, toViewSpec, toViewSpecResult } from './toViewSpec.js';
-import { ssrmEpochColumn } from './ssrmTypes.js';
+import { filterModelToNodes, toViewSpec, toViewSpecResult } from './toViewSpec.js';
 
 describe('toViewSpec — quick filter words', () => {
   it('ANDs one OR-of-contains node per word, like AG Grid\'s quick filter', () => {
@@ -21,27 +20,20 @@ describe('toViewSpec — quick filter words', () => {
   });
 });
 
-describe('toViewSpec — date columns on the epoch shadow', () => {
+describe('toViewSpec — date columns as numeric day ranges (typed dates, T6)', () => {
   const DAY = 86_400_000;
   const start = Date.UTC(2030, 0, 5);
   const end = start + DAY - 1;
-  const epoch = ssrmEpochColumn('maturity');
+  // The bounds target the REAL column: the engine's typed date columns
+  // compare numeric bounds against the epoch parsed at write time.
+  const epoch = 'maturity';
   const day = (type: string, extra: Record<string, unknown> = {}) => ({
     filterType: 'date', type, dateFrom: '2030-01-05 00:00:00', dateTo: null, ...extra,
   });
   const one = (type: string, extra?: Record<string, unknown>) =>
     toViewSpec({ filterModel: { maturity: day(type, extra) } }, { dateColumns: ['maturity'] }).filter;
 
-  it('parses stored values to epoch ms', () => {
-    expect(ssrmEpochOf('2030-01-05')).toBe(start);
-    expect(ssrmEpochOf('2030-01-05T10:00:00.000Z')).toBe(start + 10 * 3_600_000);
-    expect(ssrmEpochOf(start)).toBe(start);
-    expect(ssrmEpochOf('not a date')).toBeNull();
-    expect(ssrmEpochOf(null)).toBeNull();
-    expect(ssrmEpochOf(Number.NaN)).toBeNull();
-  });
-
-  it('turns AG Grid\'s day comparisons into numeric ranges on the shadow column', () => {
+  it('turns AG Grid\'s day comparisons into numeric ranges on the date column', () => {
     expect(one('equals')).toEqual([{ column: epoch, op: 'inRange', value: start, valueTo: end }]);
     expect(one('notEqual')).toEqual([{
       op: 'or',
@@ -61,12 +53,12 @@ describe('toViewSpec — date columns on the epoch shadow', () => {
     expect(one('blank')).toEqual([{ column: 'maturity', op: 'blank' }]);
   });
 
-  it('sorts a date column by its shadow and leaves other columns alone', () => {
+  it('sorts a date column under its own name — the engine orders the parsed instant', () => {
     const spec = toViewSpec(
       { sortModel: [{ colId: 'maturity', sort: 'desc' }, { colId: 'desk', sort: 'asc' }] },
       { dateColumns: ['maturity'] },
     );
-    expect(spec.sort).toEqual([{ column: epoch, sort: 'desc' }, { column: 'desk', sort: 'asc' }]);
+    expect(spec.sort).toEqual([{ column: 'maturity', sort: 'desc' }, { column: 'desk', sort: 'asc' }]);
   });
 
   it('reports a date condition without a bound, and treats undeclared columns as before', () => {
@@ -118,15 +110,15 @@ describe('toViewSpec', () => {
     expect(spec.aggregates).toEqual({ qty: 'sum' });
   });
 
-  it('reports a pivot with no row groups instead of translating it', () => {
-    // Probed: splitBy without groupBy returns flat leaves — not a pivot.
+  it('translates a pivot with no row groups — the engine serves the grand-total row (T7)', () => {
     const { spec, unsupported } = toViewSpecResult({
       pivotMode: true,
       pivotCols: [{ id: 'ccy' }],
       valueCols: [{ id: 'qty' }],
     });
-    expect(spec.splitBy).toBeUndefined();
-    expect(unsupported).toEqual(['pivot without row groups (the engine pivots grouped views only)']);
+    expect(spec.splitBy).toEqual(['ccy']);
+    expect(spec.columns).toEqual(['qty']);
+    expect(unsupported).toEqual([]);
   });
 
   it('skips groupKeys that have no matching row group column', () => {

@@ -40,6 +40,27 @@ function fakeHub(): RustHubLike & { rows: Record<string, unknown>[] } {
       rows.push(...batch);
       return '[1,0]';
     },
+    delete_rows: (_ds, _p, keysJson) => {
+      const keys = new Set(JSON.parse(keysJson) as string[]);
+      const before = rows.length;
+      for (let i = rows.length - 1; i >= 0; i -= 1) {
+        if (keys.has(String(rows[i].id))) rows.splice(i, 1);
+      }
+      return `[${before - rows.length}]`;
+    },
+    truncate: () => {
+      const n = rows.length;
+      rows.length = 0;
+      return `[${n}]`;
+    },
+    replace_snapshot: (_ds, _p, raw) => {
+      const removed = rows.length;
+      rows.length = 0;
+      const batch = JSON.parse(raw) as Record<string, unknown>[];
+      rows.push(...batch);
+      return `[${batch.length},${removed}]`;
+    },
+    drop_table: () => 'true',
     poll_shared_delta: () => '',
     mem_stats: () => '{"rows":0}',
   };
@@ -68,9 +89,10 @@ describe('SsrmWasmPlane', () => {
     expect(page.rowData[0]).toMatchObject({ id: '1' });
   });
 
-  it('reboots on empty replace, skips empty ingest, and stamps group keys', async () => {
+  it('routes a restart flush through replace_snapshot (T2), skips empty ingest, and stamps group keys', async () => {
     const hub = fakeHub();
     const boot = vi.spyOn(hub, 'boot_datasource');
+    const replace = vi.spyOn(hub, 'replace_snapshot');
     const plane = new SsrmWasmPlane(() => hub);
     await plane.boot('p1', {
       ...cfg,
@@ -81,8 +103,14 @@ describe('SsrmWasmPlane', () => {
         { field: 'desk' },
       ],
     } as StompSsrmProviderConfig);
+    hub.rows.push({ id: 'stale' });
+    // Restart flush: NO re-boot (probed: it never dropped rows anyway) —
+    // the engine's replace_snapshot truncates, and the chunks that follow
+    // repopulate as plain upserts.
     await plane.ingest('p1', [], true);
-    expect(boot).toHaveBeenCalledTimes(2);
+    expect(boot).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(hub.rows).toHaveLength(0);
     await plane.ingest('p1', [], false);
     await plane.ingest('p1', [{ id: 1, nested: { a: 2 } }], false);
     await plane.reset('p1', cfg);
@@ -96,12 +124,9 @@ describe('SsrmWasmPlane', () => {
     });
     expect(grouped.rowData[0]).toMatchObject({ __ssrmGroupKey: 'A' });
     expect(plane.memStats()).toEqual({ rows: 0 });
-    // The ingest anchored a hub-owned session, so the grid session's detach
-    // does NOT free the cache key — the anchor still holds it…
-    await expect(plane.detachSession('s1')).resolves.toEqual([]);
-    // …until the provider stops and the anchor is released with it.
-    plane.releaseAnchor('p1');
-    await expect(plane.detachSession('s2')).resolves.toEqual(['p1#{}']);
+    // No anchor session anymore — retention is engine-side (T2), so the
+    // grid session's detach frees the cache key like any last subscriber.
+    await expect(plane.detachSession('s1')).resolves.toEqual(['p1#{}']);
   });
 
   it('polls group and row ticks and ignores a hub-less plane', () => {
@@ -216,7 +241,7 @@ describe('SsrmWasmPlane', () => {
       }]);
     });
 
-    it('boots an epoch shadow per date column, stamps it at ingest, and filters / sorts dates on it', async () => {
+    it('boots date columns typed `date` — bounds and sorts target the real column (T6)', async () => {
       const { hub, views } = capturingHub();
       const boot = vi.spyOn(hub, 'boot_datasource');
       const apply = vi.spyOn(hub, 'apply_message_json');
@@ -225,14 +250,16 @@ describe('SsrmWasmPlane', () => {
         ...cfg,
         columnDefinitions: [{ field: 'id' }, { field: 'maturity', cellDataType: 'dateString' }],
       } as StompSsrmProviderConfig);
+      // The engine parses the epoch at write time from the `date` type — no
+      // client-stamped `__epoch` shadow column anywhere in the schema.
       const schema = JSON.parse(boot.mock.calls[0][0] as string) as { columns: Array<{ name: string; type: string }> };
-      expect(schema.columns).toContainEqual({ name: 'maturity__epoch', type: 'f64' });
+      expect(schema.columns).toContainEqual({ name: 'maturity', type: 'date' });
+      expect(schema.columns.some((c) => c.name.endsWith('__epoch'))).toBe(false);
 
       await plane.attachSession('s1');
       await plane.ingest('p1', [{ id: '1', maturity: null }, { id: '2', maturity: '2031-06-30' }], false);
       const ingested = JSON.parse(apply.mock.calls[0][2] as string) as Array<Record<string, unknown>>;
-      expect(ingested[0]).toMatchObject({ id: '1', maturity: null, maturity__epoch: null });
-      expect(ingested[1]).toMatchObject({ id: '2', maturity: '2031-06-30', maturity__epoch: Date.UTC(2031, 5, 30) });
+      expect(ingested[1]).toEqual({ id: '2', maturity: '2031-06-30' });
 
       await plane.getRows('s1', 'p1', {
         startRow: 0,
@@ -242,9 +269,9 @@ describe('SsrmWasmPlane', () => {
       });
       const view = views[0] as { filter?: unknown[]; sort?: unknown[] };
       expect(view.filter).toEqual([
-        { column: 'maturity__epoch', op: 'greaterThan', value: Date.UTC(2030, 0, 5) + 86_400_000 - 1 },
+        { column: 'maturity', op: 'greaterThan', value: Date.UTC(2030, 0, 5) + 86_400_000 - 1 },
       ]);
-      expect(view.sort).toEqual([{ column: 'maturity__epoch', sort: 'desc' }]);
+      expect(view.sort).toEqual([{ column: 'maturity', sort: 'desc' }]);
     });
   });
 
@@ -685,7 +712,7 @@ describe('SsrmWasmPlane', () => {
       expect(lastApplied(apply)[0]).toMatchObject({ id: '1', desk: 'A' });
     });
 
-    it('stamps the epoch shadow of the EDITED date, not the resent one', async () => {
+    it('holds an edited date over a resend — the engine re-parses its epoch at write', async () => {
       const hub = fakeHub();
       const apply = vi.spyOn(hub, 'apply_message_json');
       const plane = new SsrmWasmPlane(() => hub);
@@ -694,13 +721,12 @@ describe('SsrmWasmPlane', () => {
         columnDefinitions: [{ field: 'id' }, { field: 'maturity', cellDataType: 'dateString' }],
       } as StompSsrmProviderConfig);
       await plane.applyEdits('p1', [{ id: '1', maturity: '2032-01-01' }], [['maturity']]);
-      expect(lastApplied(apply)[0]).toMatchObject({ maturity__epoch: Date.UTC(2032, 0, 1) });
+      expect(lastApplied(apply)[0]).toEqual({ id: '1', maturity: '2032-01-01' });
 
+      // Legacy resend of the pre-edit value: the overlay rewrites the string;
+      // the engine's typed date column parses the EDITED instant at write.
       await plane.ingest('p1', [{ id: '1', maturity: '2030-01-01' }], false);
-      expect(lastApplied(apply)[0]).toMatchObject({
-        maturity: '2032-01-01',
-        maturity__epoch: Date.UTC(2032, 0, 1),
-      });
+      expect(lastApplied(apply)[0]).toEqual({ id: '1', maturity: '2032-01-01' });
     });
   });
 

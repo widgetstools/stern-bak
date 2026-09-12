@@ -751,22 +751,23 @@ backstop now makes the event visible instead of silent.
 ## 15. SSRM hardening follow-ups (2026-09-11)
 
 **Area:** `packages/data/host-data/src/runtime/ssrm`, `packages/react-grid/grid/src/ssrm` ·
-**Blocked on:** item 1 needs a vendored-WASM change (rangrez is first-party) — phased as
-T2 of the engine enhancement plan,
+**Blocked on:** nothing — the remaining engine phases proceed in rangrez, per
+the engine enhancement plan,
 [`superpowers/plans/2026-08-23-ssrm-engine-rust-perspective.md`](superpowers/plans/2026-08-23-ssrm-engine-rust-perspective.md) §12
 (T1–T7 + C1–C2 is the route to full SSRM parity, measured by `apps/source/markets-grid-lab-ssrm`);
 evidence in
 [`superpowers/plans/2026-09-11-ssrm-hardening-handoff.md`](superpowers/plans/2026-09-11-ssrm-hardening-handoff.md) §5
 
-Two passes on 2026-09-11 closed every original P0/P1 item except double
-serialisation (handoff §2 and §2b are the change logs; §3 the probed engine
-facts; §4/§4b the measured baselines). What remains, in the handoff's order:
-**the engine cannot delete rows** — no ingest envelope removes a key and every
-re-boot shape keeps existing rows, so a provider restart whose snapshot shrank
-leaves stale keys rendering as current (needs an engine-side delete/truncate
-entry point); double serialisation per block (JSON in the WASM boundary, then
-structured clone — only matters past ~1 grid / 20k rows, block RPC is 4–5 ms);
-per-level SSRM store options unset and unmeasured
+Three passes on 2026-09-11 closed every original P0/P1 item except double
+serialisation, plus plan-§12 phases T1/T2/C1/C2; the 2026-09-12 engine pass
+landed the remaining five (T3 computed columns, T4 aggregate scalars, T5
+membership deltas / book-wide alerts, T6 typed dates with the `__epoch`
+machinery deleted, T7 pivot completeness) — handoff §2/§2b/§2c are the change
+logs, §3 the probed engine facts, §4/§4b the measured baselines; the parity
+matrix stands at 14 full / 2 partial / 0 gap. What remains, in the handoff's
+order: double serialisation per block (JSON in the WASM boundary, then
+structured clone — only matters past ~1 grid / 20k rows, block RPC is
+4–5 ms); per-level SSRM store options unset and unmeasured
 (`getServerSideGroupLevelParams` and friends); the six-blotter soak
 (`ssrm-multiwindow.mjs` ran at PAGES=2; `PAGES=6` at `?rate=10000` has not);
 LF-in-CRLF line endings (harmless, owner's call).

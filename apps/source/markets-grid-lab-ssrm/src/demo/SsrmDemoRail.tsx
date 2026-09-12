@@ -44,20 +44,24 @@ export function SsrmDemoRail({ activeTab }: { activeTab: string }) {
   const [collapsed, setCollapsed] = useState(false);
   const [paused, setPaused] = useState(false);
   const [tickMs, setTickMs] = useState(DEFAULT_STREAM.updateIntervalMs);
+  const [rowCount, setRowCount] = useState(DEFAULT_STREAM.rowCount);
   const [lastInjected, setLastInjected] = useState<string | null>(null);
   const { handle } = useSsrmDemoRegistry();
 
   const scenarios = useMemo(() => scenariosForTab(activeTab), [activeTab]);
 
-  const restartStream = (next: { paused?: boolean; tickMs?: number }) => {
+  const restartStream = (next: { paused?: boolean; tickMs?: number; rowCount?: number }) => {
     if (!handle) return;
     const nextPaused = next.paused ?? paused;
     const nextTick = next.tickMs ?? tickMs;
+    const nextRows = next.rowCount ?? rowCount;
     setPaused(nextPaused);
     setTickMs(nextTick);
+    setRowCount(nextRows);
     void handle.provider.restart({
       updateIntervalMs: nextTick,
       enableUpdates: !nextPaused,
+      rowCount: nextRows,
     });
   };
 
@@ -142,6 +146,35 @@ export function SsrmDemoRail({ activeTab }: { activeTab: string }) {
             disabled={!handle}
             aria-label="Tick interval"
           />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-[color:var(--ds-text-secondary)]">
+            Book size · {rowCount.toLocaleString()} rows
+          </Label>
+          <div className="flex gap-1" role="group" aria-label="Book size">
+            {[100, 500, 2000, 5000].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => restartStream({ rowCount: n })}
+                disabled={!handle}
+                data-testid={`ssrm-rail-rows-${n}`}
+                className={`flex-1 rounded-md border px-1 py-1 text-[11px] transition-colors ${
+                  rowCount === n
+                    ? 'border-[color:var(--ds-primary)] bg-[color:var(--ds-primary-soft)] text-[color:var(--ds-text-primary)]'
+                    : 'border-[color:var(--ds-border-primary)] bg-[color:var(--ds-surface-secondary)] text-[color:var(--ds-text-secondary)] hover:border-[color:var(--ds-text-secondary)]'
+                }`}
+              >
+                {n >= 1000 ? `${n / 1000}k` : n}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] leading-snug text-[color:var(--ds-text-faint)]">
+            Shrinking the book restarts the provider with a smaller snapshot — the grid
+            shows exactly the new rows, stale keys leave as engine removals
+            (plan §12 T2 <code>replace_snapshot</code>).
+          </p>
         </div>
 
         <div className="mt-1 flex flex-col gap-1.5">

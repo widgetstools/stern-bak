@@ -13,9 +13,13 @@ import type {
   SsrmTickPayload,
   SsrmViewSpec,
   SsrmWatchGroupsRequest,
+  SsrmWatchPredicateRequest,
 } from './ssrmTypes.js';
-import { ssrmEpochColumn, SSRM_PIVOT_FIELD_SEPARATOR } from './ssrmTypes.js';
-import { ssrmEpochOf, toViewSpecResult, type ToViewSpecOptions } from './toViewSpec.js';
+import { SSRM_PIVOT_FIELD_SEPARATOR } from './ssrmTypes.js';
+import { toViewSpecResult, type ToViewSpecOptions } from './toViewSpec.js';
+
+/** Result column a watched predicate computes into — engine-internal name. */
+const WATCH_PREDICATE_COLUMN = '__ssrmWatch';
 
 const EMPTY_PARAMS = '{}';
 
@@ -174,6 +178,12 @@ function derivePivotResultFields(
 function resultOf(replies: SsrmControlReply[], id: string): SsrmControlReply {
   const match = replies.find((r) => r.id === id) ?? replies.find((r) => r.type === 'result');
   if (!match) throw new Error('[ssrm] wasm control returned no result');
+  // The engine's refusals arrive as `{type: 'error', message}` — surface the
+  // engine's own words (e.g. WHICH computed column failed to parse), not a
+  // generic missing-payload error downstream.
+  if (match.type === 'error') {
+    throw new Error(String((match as { message?: unknown }).message ?? 'engine error'));
+  }
   if (match.error) throw new Error(String(match.error));
   return match;
 }
@@ -208,12 +218,18 @@ export function keyColumnsOf(cfg: SsrmProviderConfig): string[] {
 
 function bootJson(providerId: string, cfg: SsrmProviderConfig): string {
   const keyColumns = keyColumnsOf(cfg);
+  // A `date` type makes the engine parse the epoch at WRITE time (plan §12
+  // T6): sorts order instants and numeric range bounds compare against the
+  // parsed value, while the stored string stays what rows display. This
+  // retired the client-stamped `__epoch` shadow columns.
   const columns = (cfg.columnDefinitions ?? []).map((c) => ({
     name: c.field,
-    type: c.cellDataType === 'number' ? 'f64' : c.cellDataType === 'boolean' ? 'bool' : 'string',
+    type:
+      c.cellDataType === 'number' ? 'f64'
+      : c.cellDataType === 'boolean' ? 'bool'
+      : c.cellDataType === 'date' || c.cellDataType === 'dateString' ? 'date'
+      : 'string',
   }));
-  // Numeric epoch shadow per date column — the engine orders numbers, not strings.
-  for (const col of dateColumnsOf(cfg)) columns.push({ name: ssrmEpochColumn(col), type: 'f64' });
   return JSON.stringify({
     id: providerId,
     schemaRef: `${providerId}@v1`,
@@ -240,7 +256,7 @@ export class SsrmWasmPlane {
   private readonly sessionProvider = new Map<string, string>();
   /** Quick filter needs `searchColumns` at getRows time, not just at boot. */
   private readonly searchColumns = new Map<string, readonly string[]>();
-  /** Date columns per provider — each gets a numeric epoch shadow column at boot and ingest. */
+  /** Date columns per provider — typed `date` at boot; the engine parses epochs at write. */
   private readonly dateColumns = new Map<string, readonly string[]>();
   /** Key columns per provider — how ingest matches incoming rows to overlays. */
   private readonly keyColumns = new Map<string, readonly string[]>();
@@ -251,20 +267,16 @@ export class SsrmWasmPlane {
   private readonly editOverlays = new Map<string, Map<string, Map<string, EditOverlayEntry>>>();
   /** Last boot payload per provider — a change invalidates held edits. */
   private readonly bootSignature = new Map<string, string>();
-  /**
-   * Providers holding a hub-owned anchor subscription.
-   *
-   * Probed engine fact: `apply_message_json` DROPS its rows while the
-   * datasource has zero subscribed sessions — `connect` alone is not enough,
-   * and grid sessions only subscribe on their first RPC. Without an anchor,
-   * every snapshot row streamed before the first block/count RPC lands is
-   * silently lost, which is the "empty first block (rowCount 0), then purge"
-   * cold start. The anchor subscribes before the first ingest and lives
-   * until {@link releaseAnchor} (provider stop).
-   */
-  private readonly anchored = new Set<string>();
+
   /** Live engine views by query signature, insertion-ordered least-recent first. */
   private readonly views = new Map<string, OpenView>();
+  /**
+   * Watched predicates (plan §12 T5): engine viewId → registration. Kept OFF
+   * the query-view LRU — an alert watch must never be evicted by scrolling.
+   */
+  private readonly watchViews = new Map<string, { sessionId: string; providerId: string; ruleId: string }>();
+  /** Parsed engine `capabilities()` — memoized once the hub exists. */
+  private capsMemo: Record<string, unknown> | null | undefined;
   private nextCtl = 1;
 
   constructor(factory?: RustHubFactory) {
@@ -275,6 +287,7 @@ export class SsrmWasmPlane {
     const hub = await this.host.ensure();
     // Views held over a re-boot point at a datasource that no longer exists.
     this.dropViews((v) => v.providerId === providerId);
+    this.dropWatches((w) => w.providerId === providerId);
     const boot = bootJson(providerId, cfg);
     hub.boot_datasource(boot);
     this.booted.add(providerId);
@@ -296,21 +309,6 @@ export class SsrmWasmPlane {
     };
   }
 
-  /**
-   * Stamp the numeric epoch shadow next to every date column. The engine
-   * only tests strings for equality, so date ranges and date sorts run
-   * against this shadow; the string stays for display and `contains`.
-   */
-  private stampEpochs(providerId: string, rows: Record<string, unknown>[]): void {
-    const cols = this.dateColumns.get(providerId);
-    if (!cols?.length) return;
-    for (const row of rows) {
-      for (const col of cols) {
-        if (col in row) row[ssrmEpochColumn(col)] = ssrmEpochOf(row[col]);
-      }
-    }
-  }
-
   async reset(providerId: string, cfg: SsrmProviderConfig): Promise<void> {
     this.booted.delete(providerId);
     await this.boot(providerId, cfg);
@@ -327,52 +325,55 @@ export class SsrmWasmPlane {
     this.subscribed.delete(sessionId);
     this.sessionProvider.delete(sessionId);
     this.dropViews((v) => v.sessionId === sessionId);
+    this.dropWatches((w) => w.sessionId === sessionId);
     return parseJson<string[]>(hub.disconnect(sessionId), []);
   }
 
-  /** The engine keeps rows only for subscribed datasources — see {@link anchored}. */
-  private ensureAnchor(hub: RustHubLike, providerId: string): void {
-    if (this.anchored.has(providerId)) return;
-    const anchorId = `__hub-anchor:${providerId}`;
-    hub.connect(anchorId);
-    this.control(hub, anchorId, {
-      id: this.ctlId(),
-      type: 'subscribe',
-      ref: { datasourceId: providerId, params: {} },
-      delivery: 'rows',
-    });
-    this.anchored.add(providerId);
-  }
-
-  /** Provider stopped — let the engine drop its cache with the last session. */
-  releaseAnchor(providerId: string): void {
-    if (!this.anchored.delete(providerId)) return;
+  /**
+   * Provider stopped — drop the engine's ingest retention pin so the table
+   * frees with its last session (T2: retention follows the DATA — ingest
+   * pins the table engine-side, so rows land whether or not any session has
+   * subscribed yet, and survive every viewer leaving).
+   */
+  dropTable(providerId: string): void {
     const hub = this.host.current;
     if (!hub) return;
     try {
-      hub.disconnect(`__hub-anchor:${providerId}`);
+      hub.drop_table(providerId, EMPTY_PARAMS);
     } catch {
       /* engine already dropped it */
     }
+    this.editOverlays.delete(providerId);
+  }
+
+  /** Delete rows by key — removals reach the grids via the delta stream. */
+  async deleteRows(providerId: string, keys: readonly string[]): Promise<number> {
+    if (keys.length === 0) return 0;
+    const hub = await this.host.ensure();
+    const reply = hub.delete_rows(providerId, EMPTY_PARAMS, JSON.stringify(keys));
+    this.pruneEditOverlays(providerId, keys);
+    return parseJson<number[]>(reply, [0])[0] ?? 0;
   }
 
   async ingest(providerId: string, rows: readonly unknown[], replace: boolean): Promise<void> {
     const hub = await this.host.ensure();
-    this.ensureAnchor(hub, providerId);
-    if (replace && rows.length === 0) {
-      // Empty replace = restart flush. Re-boot so stale keys drop.
-      if (this.booted.has(providerId)) {
-        this.dropViews((v) => v.providerId === providerId);
-        hub.boot_datasource(JSON.stringify({ id: providerId, schemaRef: `${providerId}@v1`, keyColumns: [], columns: [] }));
-      }
+    const flat = flattenRows(rows) as Record<string, unknown>[];
+    // Overlays before ingest — the engine parses date epochs at write time,
+    // so an overlaid date edit is parsed as the EDITED value, not the
+    // upstream one it replaced.
+    this.applyEditOverlays(providerId, flat);
+    if (replace) {
+      // Restart flush: after this the table holds exactly `rows` (possibly
+      // none — the chunked-snapshot case, where the truncate lands here and
+      // the chunks follow as plain upserts). Stale keys become removals on
+      // the delta stream; keys that survive the replace are never emitted
+      // as removals (engine rule: a live re-upsert supersedes its delete).
+      // This REPLACES the old empty-schema re-boot, which — probed — never
+      // dropped anything while a session was subscribed.
+      hub.replace_snapshot(providerId, EMPTY_PARAMS, JSON.stringify(flat));
       return;
     }
-    const flat = flattenRows(rows);
     if (flat.length === 0) return;
-    // Overlays first, epochs second — an overlaid date edit must stamp the
-    // epoch of the EDITED value, not the upstream one it replaced.
-    this.applyEditOverlays(providerId, flat as Record<string, unknown>[]);
-    this.stampEpochs(providerId, flat as Record<string, unknown>[]);
     hub.apply_message_json(providerId, EMPTY_PARAMS, JSON.stringify(flat));
   }
 
@@ -388,11 +389,9 @@ export class SsrmWasmPlane {
     editedColumns?: ReadonlyArray<readonly string[]>,
   ): Promise<number> {
     const hub = await this.host.ensure();
-    this.ensureAnchor(hub, providerId);
     const flat = flattenRows(rows) as Record<string, unknown>[];
     if (flat.length === 0) return 0;
     this.recordEditOverlays(providerId, flat, editedColumns);
-    this.stampEpochs(providerId, flat);
     hub.apply_message_json(providerId, EMPTY_PARAMS, JSON.stringify(flat));
     return flat.length;
   }
@@ -485,6 +484,22 @@ export class SsrmWasmPlane {
     if (overlays.size === 0) this.editOverlays.delete(providerId);
   }
 
+  /**
+   * The engine's feature manifest. `{}` until the hub exists or when the
+   * build predates `capabilities()` — every gate below then reads "absent",
+   * so a feature is refused loudly rather than silently mis-served.
+   */
+  private engineCaps(): Record<string, unknown> {
+    if (this.capsMemo === undefined) {
+      const hub = this.host.current;
+      if (!hub) return {};
+      this.capsMemo = typeof hub.capabilities === 'function'
+        ? parseJson<Record<string, unknown> | null>(hub.capabilities(), null)
+        : null;
+    }
+    return this.capsMemo ?? {};
+  }
+
   async getRows(
     sessionId: string,
     providerId: string,
@@ -493,6 +508,13 @@ export class SsrmWasmPlane {
     const hub = await this.host.ensure();
     await this.ensureSubscribed(hub, sessionId, providerId);
     const { spec, unsupported } = toViewSpecResult(req, this.specOpts(providerId));
+    if (spec.computed?.length && this.engineCaps().computedColumns !== true) {
+      // An engine that ignores `computed` would serve the view WITHOUT the
+      // column while the grid sorts/filters on it — report, never degrade
+      // silently.
+      delete spec.computed;
+      unsupported.push('computed columns (engine build without computedColumns)');
+    }
     if (unsupported.length > 0) {
       // Loud on purpose: a dropped condition renders MORE rows than asked for,
       // which is indistinguishable from working software. The worker console
@@ -675,6 +697,67 @@ export class SsrmWasmPlane {
   }
 
   /**
+   * Watch a boolean predicate over the WHOLE dataset (plan §12 T5). The
+   * predicate becomes a computed column on a watch-flagged engine view
+   * filtered to `predicate = true`; each revision the engine diffs the
+   * membership and `tick()` carries the entered/left keys (entered rows
+   * materialized, capped at 200). Replaces any prior watch with the same
+   * `ruleId` for this session.
+   */
+  async watchPredicate(
+    sessionId: string,
+    providerId: string,
+    req: SsrmWatchPredicateRequest,
+  ): Promise<void> {
+    const hub = await this.host.ensure();
+    await this.ensureSubscribed(hub, sessionId, providerId);
+    const caps = this.engineCaps();
+    if (caps.viewDeltas !== true || caps.computedColumns !== true) {
+      throw new Error('[ssrm] this engine build has no predicate watches (viewDeltas/computedColumns)');
+    }
+    this.unwatchPredicate(sessionId, req.ruleId);
+    const spec: SsrmViewSpec = {
+      filter: [{ column: WATCH_PREDICATE_COLUMN, op: 'equals', value: true }],
+      sort: [],
+      computed: [{ as: WATCH_PREDICATE_COLUMN, expr: req.expr }],
+      watch: true,
+    };
+    const openId = this.ctlId();
+    const opened = resultOf(
+      this.control(hub, sessionId, {
+        id: openId,
+        type: 'openView',
+        ref: { datasourceId: providerId, params: {} },
+        view: spec,
+      }),
+      openId,
+    );
+    const viewId = ((opened.payload ?? {}) as { viewId?: string }).viewId;
+    if (!viewId) throw new Error('[ssrm] watchPredicate: openView returned no viewId');
+    this.watchViews.set(viewId, { sessionId, providerId, ruleId: req.ruleId });
+  }
+
+  /** Drop one session's watched predicate. Safe when none exists. */
+  unwatchPredicate(sessionId: string, ruleId: string): void {
+    const hub = this.host.current;
+    for (const [viewId, reg] of [...this.watchViews]) {
+      if (reg.sessionId !== sessionId || reg.ruleId !== ruleId) continue;
+      this.watchViews.delete(viewId);
+      if (hub) this.disposeView(hub, { ...reg, viewId, kind: 'poll' });
+    }
+  }
+
+  /** Drop every watch matching `match` (provider reboot, session teardown). */
+  private dropWatches(match: (reg: { sessionId: string; providerId: string }) => boolean): void {
+    const hub = this.host.current;
+    for (const [viewId, reg] of [...this.watchViews]) {
+      if (!match(reg)) continue;
+      this.watchViews.delete(viewId);
+      if (hub) this.disposeView(hub, { sessionId: reg.sessionId, providerId: reg.providerId, viewId, kind: 'poll' });
+    }
+  }
+
+  /**
    * Drain the engine ONCE and bucket every tick by provider.
    *
    * `tick()` returns every session's queued group deltas in a single call, so
@@ -699,9 +782,31 @@ export class SsrmWasmPlane {
       // here; anything else is a session already torn down.
       if (!providerId) continue;
       for (const raw of rec.messages ?? []) {
-        const m = raw as { type?: string; groups?: Record<string, unknown>[]; removed?: string[] };
+        const m = raw as {
+          type?: string;
+          groups?: Record<string, unknown>[];
+          removed?: string[];
+          viewId?: string;
+          entered?: string[];
+          left?: string[];
+          rows?: Record<string, unknown>[];
+        };
         if (m.type === 'groupDelta') {
           push(providerId, { kind: 'groupDelta', groups: m.groups, removed: m.removed });
+        } else if (m.type === 'viewDelta' && m.viewId) {
+          const reg = this.watchViews.get(m.viewId);
+          // A delta for a watch this plane no longer tracks (rule removed
+          // mid-tick) is dropped — its subscriber asked to stop hearing it.
+          if (reg) {
+            push(reg.providerId, {
+              kind: 'viewDelta',
+              ruleId: reg.ruleId,
+              entered: m.entered,
+              left: m.left,
+              rows: m.rows,
+              watchSubId: reg.sessionId,
+            });
+          }
         }
       }
     }

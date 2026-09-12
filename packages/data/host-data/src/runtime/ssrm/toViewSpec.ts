@@ -17,12 +17,13 @@
  * Two engine facts, both verified against the vendored WASM rather than read
  * off its typings, shape this file:
  *   - the sort direction key is `sort`, not `dir`;
- *   - string columns answer `equals` / `contains` / `blank` but never order,
- *     so date ranges and date sorts go through a numeric epoch shadow column
- *     the plane stamps at ingest (see {@link ssrmEpochColumn}).
+ *   - a column the boot schema types as `date` is parsed to an epoch at WRITE
+ *     time inside the engine (plan §12 T6), so date sorts order instants and
+ *     date range filters send NUMERIC epoch bounds against the REAL column —
+ *     the client-side `__epoch` shadow stamping this file used to target is
+ *     retired.
  */
 import {
-  ssrmEpochColumn,
   type SsrmFilterCondition,
   type SsrmFilterNode,
   type SsrmFilterOp,
@@ -86,8 +87,9 @@ export interface ToViewSpecOptions {
    */
   searchColumns?: readonly string[];
   /**
-   * Columns declared as dates. Their range filters and sorts are rewritten
-   * onto the epoch shadow column; everything else about them is a string.
+   * Columns the boot schema types as dates. Their filter models use AG Grid's
+   * calendar-day grammar, so they translate to numeric epoch DAY ranges — the
+   * engine compares them against the epoch it parsed at write time.
    */
   dateColumns?: readonly string[];
 }
@@ -96,14 +98,6 @@ export interface ToViewSpecResult {
   spec: SsrmViewSpec;
   /** Human-readable descriptions of conditions with no engine translation. */
   unsupported: string[];
-}
-
-/** `Date.parse` of a stored date string, or null when it is not one. */
-export function ssrmEpochOf(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value !== 'string' || value.length < 10) return null;
-  const ms = Date.parse(value);
-  return Number.isNaN(ms) ? null : ms;
 }
 
 /**
@@ -190,9 +184,9 @@ export function filterModelToNodes(
 
 /**
  * AG Grid's date menu is a DAY comparison: `equals` means the same calendar
- * day, `greaterThan` means after that day. On the epoch shadow column each
- * day is a numeric range, which the engine can order; blank / notBlank stay
- * on the string column, where the engine answers them.
+ * day, `greaterThan` means after that day. Each day becomes a numeric epoch
+ * range against the REAL column — the engine's typed date columns compare
+ * numeric bounds against the epoch parsed at write time (plan §12 T6).
  */
 function dateNodes(
   colId: string,
@@ -201,7 +195,7 @@ function dateNodes(
 ): SsrmFilterNode[] {
   const type = model.type;
   if (type === 'blank' || type === 'notBlank') return [{ column: colId, op: type }];
-  const epoch = ssrmEpochColumn(colId);
+  const epoch = colId;
   const from = typeof model.dateFrom === 'string' ? dayRange(model.dateFrom) : null;
   if (!from) {
     unsupported.push(`${colId}: ${String(type)} (date without a bound)`);
@@ -274,12 +268,13 @@ export function toViewSpecResult(
 
   const spec: SsrmViewSpec = {
     filter,
-    // A date column sorts by its epoch shadow — the engine does not order strings.
-    sort: (req.sortModel ?? []).map((s) => ({
-      column: dateColumns.has(s.colId) ? ssrmEpochColumn(s.colId) : s.colId,
-      sort: s.sort,
-    })),
+    // Date columns sort by the epoch the engine parsed at write time — the
+    // sort names the real column, the engine substitutes the instant.
+    sort: (req.sortModel ?? []).map((s) => ({ column: s.colId, sort: s.sort })),
   };
+  if (req.computedColumns?.length) {
+    spec.computed = req.computedColumns.map((c) => ({ as: c.as, expr: c.expr }));
+  }
 
   const next = rowGroupCols[groupKeys.length];
   if (next) {
@@ -290,15 +285,16 @@ export function toViewSpecResult(
   }
 
   if (req.pivotMode && (req.pivotCols ?? []).length > 0) {
-    // Probed: `splitBy` without `groupBy` returns FLAT LEAF ROWS — the
-    // engine only pivots grouped views. Silently sending it would render
-    // an un-pivoted grid that looks like a pivot with no columns, so a
-    // pivot with no row groups is reported instead of translated.
-    if (rowGroupCols.length === 0) {
-      unsupported.push('pivot without row groups (the engine pivots grouped views only)');
-    } else {
-      spec.splitBy = req.pivotCols!.map((c) => c.id);
-      spec.columns = (req.valueCols ?? []).map((c) => c.id);
+    // A pivot with no row groups is the grand-total pivot: the engine
+    // serves it as one row splitting every aggregate (plan §12 T7). The
+    // grouping branch above only runs when there IS a next group level, so
+    // the value columns must become aggregates here too — a split with no
+    // aggregates yields a row of nothing but `__count`.
+    spec.splitBy = req.pivotCols!.map((c) => c.id);
+    spec.columns = (req.valueCols ?? []).map((c) => c.id);
+    if (!spec.aggregates) {
+      spec.aggregates = {};
+      for (const v of req.valueCols ?? []) spec.aggregates[v.id] = v.aggFunc ?? 'sum';
     }
   }
 

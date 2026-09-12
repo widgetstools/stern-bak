@@ -10,6 +10,12 @@ import { ssrmViewKey, type SsrmBlockCache } from './SsrmBlockCache.js';
 export interface CreateSsrmDatasourceOptions {
   getQuickFilterText?: () => string;
   /**
+   * Engine computed columns riding every block request (plan §12 T3). Read
+   * per request so a live edit to a calculated column takes effect on the
+   * next block without rebuilding the datasource.
+   */
+  getComputedColumns?: () => readonly import('@wellsfargo-starui/data/runtime').SsrmComputedColumnSpec[];
+  /**
    * Per-attempt ceiling on one block read. The worker RPC has its own
    * timeout, but a provider implementation may not — and a block that never
    * settles is a viewport that stays blank. Default 15 000 ms; 0 disables.
@@ -332,10 +338,12 @@ export function createSsrmDatasource(
       const filterModel = firstBlockDone
         ? withoutEmptySetFilters(base.filterModel)
         : withoutSetFilters(base.filterModel);
+      const computedColumns = options.getComputedColumns?.() ?? [];
       const req: SsrmGetRowsRequest = {
         ...base,
         filterModel,
         ...(quickFilterText ? { quickFilterText } : {}),
+        ...(computedColumns.length > 0 ? { computedColumns } : {}),
       };
       if (!quickFilterText) delete req.quickFilterText;
 

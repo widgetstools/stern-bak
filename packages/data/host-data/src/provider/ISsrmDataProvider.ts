@@ -15,6 +15,7 @@ import type {
   SsrmRowCountResult,
   SsrmTickPayload,
   SsrmWatchGroupsRequest,
+  SsrmWatchPredicateRequest,
 } from '../runtime/ssrm/ssrmTypes.js';
 
 export type {
@@ -30,6 +31,7 @@ export type {
   SsrmRowCountResult,
   SsrmTickPayload,
   SsrmWatchGroupsRequest,
+  SsrmWatchPredicateRequest,
 };
 
 /**
@@ -73,6 +75,17 @@ export interface ISsrmDataProvider {
    */
   getAggregates(req: SsrmAggregatesRequest): Promise<SsrmAggregatesResult>;
   watchGroups(req: SsrmWatchGroupsRequest): Promise<void>;
+  /**
+   * Watch a compiled boolean predicate over the WHOLE dataset. The engine
+   * diffs the predicate's row set per revision; transitions arrive as
+   * `viewDelta` ticks (`ruleId`, entered/left keys, entered rows) on
+   * {@link onSsrmTick} — alert rules fire on ALL rows, not loaded blocks.
+   * Optional: a provider without engine predicate support omits it, and
+   * alert rules stay a loaded-rows evaluation.
+   */
+  watchPredicate?(req: SsrmWatchPredicateRequest): Promise<void>;
+  /** Drop one watched predicate. Safe when none is registered. */
+  unwatchPredicate?(ruleId: string): Promise<void>;
   /**
    * Write grid edits (cell edit, paste, fill) into the engine cache so every
    * grid on the provider sees them and a block refresh keeps them. Rows are

@@ -1,54 +1,498 @@
 {
-  "$comment": "SSRM engine expression contract v1 — golden fixtures. `expected` is the CLIENT evaluator's output (coercions and all); ssrmExpressionContract.test.ts asserts it here, and the rangrez WASM engine must reproduce it byte-for-byte when phase T3 lands (Rust plan §12, binding constraint 3: one grammar, one parser, one semantics). `compiles: false` cases must be REPORTED untranslatable, never guessed. Rows use plain column names; `allRows` feeds the client evaluator's aggregate expansion where an `agg` case needs it.",
-  "version": 1,
-  "cases": [
-    { "name": "arith add", "source": "[a] + [b]", "row": { "a": 2, "b": 3.5 }, "expected": 5.5, "compiles": true },
-    { "name": "arith sub mul", "source": "([a] - [b]) * 2", "row": { "a": 10, "b": 4 }, "expected": 12, "compiles": true },
-    { "name": "div", "source": "[a] / [b]", "row": { "a": 9, "b": 2 }, "expected": 4.5, "compiles": true },
-    { "name": "div by zero yields null (pending-aggregate sentinel)", "source": "[a] / [b]", "row": { "a": 9, "b": 0 }, "expected": null, "compiles": true },
-    { "name": "div by null yields null", "source": "[a] / [b]", "row": { "a": 9, "b": null }, "expected": null, "compiles": true },
-    { "name": "mod", "source": "[a] % [b]", "row": { "a": 7, "b": 4 }, "expected": 3, "compiles": true },
-    { "name": "plus concatenates when either side is a string", "source": "[s] + [a]", "row": { "s": "px:", "a": 4 }, "expected": "px:4", "compiles": true },
-    { "name": "null in arithmetic coerces to 0 (JS semantics, not SQL null)", "source": "[a] * [b]", "row": { "a": null, "b": 5 }, "expected": 0, "compiles": true },
-    { "name": "null plus number is number", "source": "[a] + [b]", "row": { "a": null, "b": 5 }, "expected": 5, "compiles": true },
-    { "name": "unary minus", "source": "-[a]", "row": { "a": 3 }, "expected": -3, "compiles": true },
-    { "name": "eq is strict", "source": "[a] == [b]", "row": { "a": 5, "b": "5" }, "expected": false, "compiles": true },
-    { "name": "ne is strict", "source": "[a] != [b]", "row": { "a": 5, "b": "5" }, "expected": true, "compiles": true },
-    { "name": "lt", "source": "[a] < [b]", "row": { "a": 2, "b": 3 }, "expected": true, "compiles": true },
-    { "name": "le ge gt chain via and", "source": "[a] <= 2 AND [b] >= 3 AND [b] > 2", "row": { "a": 2, "b": 3 }, "expected": true, "compiles": true },
-    { "name": "and returns the deciding operand, not a boolean", "source": "[a] AND [b]", "row": { "a": 0, "b": 7 }, "expected": 0, "compiles": true },
-    { "name": "or returns the first truthy operand", "source": "[a] OR [b]", "row": { "a": 0, "b": 7 }, "expected": 7, "compiles": true },
-    { "name": "not", "source": "NOT ([a] > 5)", "row": { "a": 3 }, "expected": true, "compiles": true },
-    { "name": "ternary uses isTruthy (empty string is falsy)", "source": "[s] ? 1 : 2", "row": { "s": "" }, "expected": 2, "compiles": true },
-    { "name": "in is strict includes", "source": "[a] IN [1, 2, 3]", "row": { "a": "2" }, "expected": false, "compiles": true },
-    { "name": "in hit", "source": "[s] IN ['AA', 'BB']", "row": { "s": "BB" }, "expected": true, "compiles": true },
-    { "name": "between inclusive", "source": "[a] BETWEEN 2 AND 4", "row": { "a": 4 }, "expected": true, "compiles": true },
-    { "name": "between miss", "source": "[a] BETWEEN 2 AND 4", "row": { "a": 4.01 }, "expected": false, "compiles": true },
-    { "name": "abs round", "source": "ROUND(ABS([a]), 1)", "row": { "a": -2.347 }, "expected": 2.3, "compiles": true },
-    { "name": "floor ceil", "source": "FLOOR([a]) + CEIL([a])", "row": { "a": 2.5 }, "expected": 5, "compiles": true },
-    { "name": "sqrt pow", "source": "SQRT(POW([a], 2))", "row": { "a": 7 }, "expected": 7, "compiles": true },
-    { "name": "mod fn", "source": "MOD([a], 4)", "row": { "a": 7 }, "expected": 3, "compiles": true },
-    { "name": "log exp roundtrip", "source": "ROUND(LOG(EXP([a])), 6)", "row": { "a": 2 }, "expected": 2, "compiles": true },
-    { "name": "scalar min max (multi-arg form stays scalar)", "source": "MIN([a], [b]) + MAX([a], [b])", "row": { "a": 2, "b": 9 }, "expected": 11, "compiles": true },
-    { "name": "concat coerces null to empty string", "source": "CONCAT([s], '-', [t])", "row": { "s": "AB", "t": null }, "expected": "AB-", "compiles": true },
-    { "name": "upper lower trim", "source": "UPPER([s]) + LOWER([t]) + TRIM([u])", "row": { "s": "ab", "t": "CD", "u": "  x  " }, "expected": "ABcdx", "compiles": true },
-    { "name": "len of null is 0", "source": "LEN([s])", "row": { "s": null }, "expected": 0, "compiles": true },
-    { "name": "substring is (start, length)", "source": "SUBSTRING([s], 1, 3)", "row": { "s": "abcdef" }, "expected": "bcd", "compiles": true },
-    { "name": "replace", "source": "REPLACE([s], 'b', 'x')", "row": { "s": "abcb" }, "expected": "axcx", "compiles": true },
-    { "name": "contains starts ends", "source": "CONTAINS([s], 'ov') AND STARTS_WITH([s], 'G') AND ENDS_WITH([s], 's')", "row": { "s": "Govies" }, "expected": true, "compiles": true },
-    { "name": "if", "source": "IF([a] > 0, 'up', 'down')", "row": { "a": 1 }, "expected": "up", "compiles": true },
-    { "name": "ifs first match wins", "source": "IFS([a] > 10, 'big', [a] > 5, 'mid', true, 'small')", "row": { "a": 7 }, "expected": "mid", "compiles": true },
-    { "name": "isnull is a fallback (v, default), not a predicate", "source": "ISNULL([s], 'dash')", "row": { "s": null }, "expected": "dash", "compiles": true },
-    { "name": "isnotnull and isempty are predicates", "source": "IF(ISNOTNULL([s]) AND ISEMPTY([t]), 'e', 'v')", "row": { "s": 1, "t": "" }, "expected": "e", "compiles": true },
-    { "name": "nested conditional over arithmetic", "source": "IF([pnl] / [mv] > 0.1, 'hot', 'cold')", "row": { "pnl": 30, "mv": 200 }, "expected": "hot", "compiles": true },
-    { "name": "agg form compiles with requires aggregates", "source": "[mv] / SUM([mv])", "row": { "mv": 25 }, "allRows": [{ "mv": 25 }, { "mv": 75 }], "expected": 0.25, "compiles": true, "requires": ["aggregates"] },
-    { "name": "avg over column", "source": "AVG([px])", "row": { "px": 1 }, "allRows": [{ "px": 2 }, { "px": 4 }], "expected": 3, "compiles": true, "requires": ["aggregates"] },
-    { "name": "date part requires typed dates", "source": "YEAR([d])", "row": { "d": "2031-06-30" }, "expected": 2031, "compiles": true, "requires": ["dateFns"] },
-    { "name": "median is loaded-rows-only — refused", "source": "MEDIAN([px])", "row": { "px": 1 }, "allRows": [{ "px": 1 }, { "px": 2 }, { "px": 9 }], "expected": 2, "compiles": false },
-    { "name": "stdev refused", "source": "STDEV([px]) > 1", "row": { "px": 1 }, "allRows": [{ "px": 1 }, { "px": 5 }], "expected": true, "compiles": false },
-    { "name": "regex refused", "source": "REGEX_MATCH([s], '^G')", "row": { "s": "Govies" }, "expected": true, "compiles": false },
-    { "name": "now refused (non-deterministic)", "source": "YEAR(NOW())", "compiles": false },
-    { "name": "date_diff refused (unit-laden)", "source": "DATE_DIFF([d], TODAY(), 'days')", "compiles": false },
-    { "name": "variable refused", "source": "value * 2", "row": {}, "compiles": false }
-  ]
+ "$comment": "SSRM engine expression contract v1 — golden fixtures. `expected` is the CLIENT evaluator's output (coercions and all); ssrmExpressionContract.test.ts asserts it here, and the rangrez WASM engine must reproduce it byte-for-byte when phase T3 lands (Rust plan §12, binding constraint 3: one grammar, one parser, one semantics). `compiles: false` cases must be REPORTED untranslatable, never guessed. Rows use plain column names; `allRows` feeds the client evaluator's aggregate expansion where an `agg` case needs it.",
+ "version": 1,
+ "cases": [
+  {
+   "name": "arith add",
+   "source": "[a] + [b]",
+   "row": {
+    "a": 2,
+    "b": 3.5
+   },
+   "expected": 5.5,
+   "compiles": true
+  },
+  {
+   "name": "arith sub mul",
+   "source": "([a] - [b]) * 2",
+   "row": {
+    "a": 10,
+    "b": 4
+   },
+   "expected": 12,
+   "compiles": true
+  },
+  {
+   "name": "div",
+   "source": "[a] / [b]",
+   "row": {
+    "a": 9,
+    "b": 2
+   },
+   "expected": 4.5,
+   "compiles": true
+  },
+  {
+   "name": "div by zero yields null (pending-aggregate sentinel)",
+   "source": "[a] / [b]",
+   "row": {
+    "a": 9,
+    "b": 0
+   },
+   "expected": null,
+   "compiles": true
+  },
+  {
+   "name": "div by null yields null",
+   "source": "[a] / [b]",
+   "row": {
+    "a": 9,
+    "b": null
+   },
+   "expected": null,
+   "compiles": true
+  },
+  {
+   "name": "mod",
+   "source": "[a] % [b]",
+   "row": {
+    "a": 7,
+    "b": 4
+   },
+   "expected": 3,
+   "compiles": true
+  },
+  {
+   "name": "plus concatenates when either side is a string",
+   "source": "[s] + [a]",
+   "row": {
+    "s": "px:",
+    "a": 4
+   },
+   "expected": "px:4",
+   "compiles": true
+  },
+  {
+   "name": "null in arithmetic coerces to 0 (JS semantics, not SQL null)",
+   "source": "[a] * [b]",
+   "row": {
+    "a": null,
+    "b": 5
+   },
+   "expected": 0,
+   "compiles": true
+  },
+  {
+   "name": "null plus number is number",
+   "source": "[a] + [b]",
+   "row": {
+    "a": null,
+    "b": 5
+   },
+   "expected": 5,
+   "compiles": true
+  },
+  {
+   "name": "unary minus",
+   "source": "-[a]",
+   "row": {
+    "a": 3
+   },
+   "expected": -3,
+   "compiles": true
+  },
+  {
+   "name": "eq is strict",
+   "source": "[a] == [b]",
+   "row": {
+    "a": 5,
+    "b": "5"
+   },
+   "expected": false,
+   "compiles": true
+  },
+  {
+   "name": "ne is strict",
+   "source": "[a] != [b]",
+   "row": {
+    "a": 5,
+    "b": "5"
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "lt",
+   "source": "[a] < [b]",
+   "row": {
+    "a": 2,
+    "b": 3
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "le ge gt chain via and",
+   "source": "[a] <= 2 AND [b] >= 3 AND [b] > 2",
+   "row": {
+    "a": 2,
+    "b": 3
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "and returns the deciding operand, not a boolean",
+   "source": "[a] AND [b]",
+   "row": {
+    "a": 0,
+    "b": 7
+   },
+   "expected": 0,
+   "compiles": true
+  },
+  {
+   "name": "or returns the first truthy operand",
+   "source": "[a] OR [b]",
+   "row": {
+    "a": 0,
+    "b": 7
+   },
+   "expected": 7,
+   "compiles": true
+  },
+  {
+   "name": "not",
+   "source": "NOT ([a] > 5)",
+   "row": {
+    "a": 3
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "ternary uses isTruthy (empty string is falsy)",
+   "source": "[s] ? 1 : 2",
+   "row": {
+    "s": ""
+   },
+   "expected": 2,
+   "compiles": true
+  },
+  {
+   "name": "in is strict includes",
+   "source": "[a] IN [1, 2, 3]",
+   "row": {
+    "a": "2"
+   },
+   "expected": false,
+   "compiles": true
+  },
+  {
+   "name": "in hit",
+   "source": "[s] IN ['AA', 'BB']",
+   "row": {
+    "s": "BB"
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "between inclusive",
+   "source": "[a] BETWEEN 2 AND 4",
+   "row": {
+    "a": 4
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "between miss",
+   "source": "[a] BETWEEN 2 AND 4",
+   "row": {
+    "a": 4.01
+   },
+   "expected": false,
+   "compiles": true
+  },
+  {
+   "name": "abs round",
+   "source": "ROUND(ABS([a]), 1)",
+   "row": {
+    "a": -2.347
+   },
+   "expected": 2.3,
+   "compiles": true
+  },
+  {
+   "name": "floor ceil",
+   "source": "FLOOR([a]) + CEIL([a])",
+   "row": {
+    "a": 2.5
+   },
+   "expected": 5,
+   "compiles": true
+  },
+  {
+   "name": "sqrt pow",
+   "source": "SQRT(POW([a], 2))",
+   "row": {
+    "a": 7
+   },
+   "expected": 7,
+   "compiles": true
+  },
+  {
+   "name": "mod fn",
+   "source": "MOD([a], 4)",
+   "row": {
+    "a": 7
+   },
+   "expected": 3,
+   "compiles": true
+  },
+  {
+   "name": "log exp roundtrip",
+   "source": "ROUND(LOG(EXP([a])), 6)",
+   "row": {
+    "a": 2
+   },
+   "expected": 2,
+   "compiles": true
+  },
+  {
+   "name": "scalar min max (multi-arg form stays scalar)",
+   "source": "MIN([a], [b]) + MAX([a], [b])",
+   "row": {
+    "a": 2,
+    "b": 9
+   },
+   "expected": 11,
+   "compiles": true
+  },
+  {
+   "name": "concat coerces null to empty string",
+   "source": "CONCAT([s], '-', [t])",
+   "row": {
+    "s": "AB",
+    "t": null
+   },
+   "expected": "AB-",
+   "compiles": true
+  },
+  {
+   "name": "upper lower trim",
+   "source": "UPPER([s]) + LOWER([t]) + TRIM([u])",
+   "row": {
+    "s": "ab",
+    "t": "CD",
+    "u": "  x  "
+   },
+   "expected": "ABcdx",
+   "compiles": true
+  },
+  {
+   "name": "len of null is 0",
+   "source": "LEN([s])",
+   "row": {
+    "s": null
+   },
+   "expected": 0,
+   "compiles": true
+  },
+  {
+   "name": "substring is (start, length)",
+   "source": "SUBSTRING([s], 1, 3)",
+   "row": {
+    "s": "abcdef"
+   },
+   "expected": "bcd",
+   "compiles": true
+  },
+  {
+   "name": "replace",
+   "source": "REPLACE([s], 'b', 'x')",
+   "row": {
+    "s": "abcb"
+   },
+   "expected": "axcx",
+   "compiles": true
+  },
+  {
+   "name": "contains starts ends",
+   "source": "CONTAINS([s], 'ov') AND STARTS_WITH([s], 'G') AND ENDS_WITH([s], 's')",
+   "row": {
+    "s": "Govies"
+   },
+   "expected": true,
+   "compiles": true
+  },
+  {
+   "name": "if",
+   "source": "IF([a] > 0, 'up', 'down')",
+   "row": {
+    "a": 1
+   },
+   "expected": "up",
+   "compiles": true
+  },
+  {
+   "name": "ifs first match wins",
+   "source": "IFS([a] > 10, 'big', [a] > 5, 'mid', true, 'small')",
+   "row": {
+    "a": 7
+   },
+   "expected": "mid",
+   "compiles": true
+  },
+  {
+   "name": "isnull is a fallback (v, default), not a predicate",
+   "source": "ISNULL([s], 'dash')",
+   "row": {
+    "s": null
+   },
+   "expected": "dash",
+   "compiles": true
+  },
+  {
+   "name": "isnotnull and isempty are predicates",
+   "source": "IF(ISNOTNULL([s]) AND ISEMPTY([t]), 'e', 'v')",
+   "row": {
+    "s": 1,
+    "t": ""
+   },
+   "expected": "e",
+   "compiles": true
+  },
+  {
+   "name": "nested conditional over arithmetic",
+   "source": "IF([pnl] / [mv] > 0.1, 'hot', 'cold')",
+   "row": {
+    "pnl": 30,
+    "mv": 200
+   },
+   "expected": "hot",
+   "compiles": true
+  },
+  {
+   "name": "agg form compiles with requires aggregates",
+   "source": "[mv] / SUM([mv])",
+   "row": {
+    "mv": 25
+   },
+   "allRows": [
+    {
+     "mv": 25
+    },
+    {
+     "mv": 75
+    }
+   ],
+   "expected": 0.25,
+   "compiles": true,
+   "requires": [
+    "aggregates"
+   ]
+  },
+  {
+   "name": "avg over column",
+   "source": "AVG([px])",
+   "row": {
+    "px": 1
+   },
+   "allRows": [
+    {
+     "px": 2
+    },
+    {
+     "px": 4
+    }
+   ],
+   "expected": 3,
+   "compiles": true,
+   "requires": [
+    "aggregates"
+   ]
+  },
+  {
+   "name": "date part requires typed dates",
+   "source": "YEAR([d])",
+   "row": {
+    "d": "2031-06-30"
+   },
+   "expected": 2031,
+   "compiles": true,
+   "requires": [
+    "dateFns"
+   ]
+  },
+  {
+   "name": "median aggregate compiles with requires aggregates",
+   "source": "MEDIAN([px])",
+   "row": {
+    "px": 1
+   },
+   "allRows": [
+    {
+     "px": 1
+    },
+    {
+     "px": 2
+    },
+    {
+     "px": 9
+    }
+   ],
+   "expected": 2,
+   "compiles": true,
+   "requires": [
+    "aggregates"
+   ]
+  },
+  {
+   "name": "stdev aggregate compiles with requires aggregates",
+   "source": "STDEV([px]) > 1",
+   "row": {
+    "px": 1
+   },
+   "allRows": [
+    {
+     "px": 1
+    },
+    {
+     "px": 5
+    }
+   ],
+   "expected": true,
+   "compiles": true,
+   "requires": [
+    "aggregates"
+   ]
+  },
+  {
+   "name": "regex refused",
+   "source": "REGEX_MATCH([s], '^G')",
+   "row": {
+    "s": "Govies"
+   },
+   "expected": true,
+   "compiles": false
+  },
+  {
+   "name": "now refused (non-deterministic)",
+   "source": "YEAR(NOW())",
+   "compiles": false
+  },
+  {
+   "name": "date_diff refused (unit-laden)",
+   "source": "DATE_DIFF([d], TODAY(), 'days')",
+   "compiles": false
+  },
+  {
+   "name": "variable refused",
+   "source": "value * 2",
+   "row": {},
+   "compiles": false
+  }
+ ]
 }

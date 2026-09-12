@@ -43,7 +43,10 @@ describe('bindSsrmExpressionAggregates', () => {
     ];
     expect(session).toBeDefined();
     expect(session!.resolve('SUM', 'price')).toBeNull();
-    expect(session!.resolve('MEDIAN', 'price')).toBeUndefined();
+    // T4: the statistical set resolves engine-side too — pending, not refused.
+    expect(session!.resolve('MEDIAN', 'price')).toBeNull();
+    // Outside the aggregate map entirely → undefined (falls back to allRows).
+    expect(session!.resolve('MODE', 'price')).toBeUndefined();
 
     await vi.waitFor(() => {
       expect(session!.resolve('SUM', 'price')).toBe(1000);

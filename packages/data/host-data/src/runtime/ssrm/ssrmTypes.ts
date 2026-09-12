@@ -1,3 +1,7 @@
+import type { SsrmComputedColumnSpec, SsrmExprNode } from '@wellsfargo-starui/types/shared/ssrmExpression';
+
+export type { SsrmComputedColumnSpec, SsrmExprNode };
+
 /** AG Grid 36 SSRM getRows request (subset we persist across the worker port). */
 export interface SsrmColRef {
   id: string;
@@ -9,6 +13,13 @@ export interface SsrmColRef {
 export interface SsrmGetRowsRequest {
   startRow?: number;
   endRow?: number;
+  /**
+   * Engine-computed columns riding this view (contract wire form v1,
+   * `compileToEngineExpression` output). The engine evaluates them per row —
+   * they are addressable by the same request's sort/filter/group under their
+   * `as` name, and each returned row carries the value.
+   */
+  computedColumns?: readonly SsrmComputedColumnSpec[];
   rowGroupCols?: readonly SsrmColRef[];
   valueCols?: readonly SsrmColRef[];
   pivotCols?: readonly SsrmColRef[];
@@ -62,17 +73,43 @@ export interface SsrmApplyEditsResult {
 }
 
 export interface SsrmTickPayload {
-  kind: 'rowDelta' | 'groupDelta';
+  kind: 'rowDelta' | 'groupDelta' | 'viewDelta';
   upserts?: readonly Record<string, unknown>[];
   removals?: readonly string[];
   reset?: boolean;
   groups?: readonly Record<string, unknown>[];
   removed?: readonly string[];
+  /** viewDelta: the watched predicate this delta belongs to. */
+  ruleId?: string;
+  /** viewDelta: keys that ENTERED the predicate's row set this tick. */
+  entered?: readonly string[];
+  /** viewDelta: keys that LEFT it. */
+  left?: readonly string[];
+  /** viewDelta: entered rows at current values (capped engine-side at 200). */
+  rows?: readonly Record<string, unknown>[];
+  /**
+   * viewDelta: the session that registered the watch. The worker fans ticks
+   * out per provider; this pins the delta to the ONE grid whose rule it is,
+   * so two windows with the same profile do not both fire the same alert.
+   */
+  watchSubId?: string;
 }
 
 export interface SsrmWatchGroupsRequest {
   groupBy: readonly string[];
   aggregates?: Record<string, string>;
+}
+
+/**
+ * Watch a boolean predicate over the whole dataset: the engine keeps the
+ * predicate's row set per revision and reports which keys ENTER and LEAVE
+ * (`viewDelta` ticks) — alert rules fire on transitions across ALL rows,
+ * not just loaded blocks. The predicate is a compiled contract expression
+ * (same wire form as computed columns).
+ */
+export interface SsrmWatchPredicateRequest {
+  ruleId: string;
+  expr: SsrmExprNode;
 }
 
 /**
@@ -112,23 +149,12 @@ export type SsrmFilterNode = SsrmFilterCondition | SsrmFilterOr;
  * names its result fields (`US|USD|marketValue` — probed, not documented).
  * The grid must hand the SAME separator to AG Grid
  * (`serverSidePivotResultFieldSeparator`) so the secondary column tree
- * splits where the engine joined. A pivot key VALUE containing `|` would
- * corrupt the tree — the engine offers no escaping, so that stays a
- * documented limit rather than a translated one.
+ * splits where the engine joined. A pivot key VALUE containing `|` is folded
+ * to `¦` by the engine before joining, so a value cannot forge field
+ * boundaries (plan §12 T7).
  */
 export const SSRM_PIVOT_FIELD_SEPARATOR = '|';
 
-/**
- * Suffix of the numeric shadow column the plane stamps next to every date
- * column at ingest (`Date.parse` of the stored string, or null). The engine
- * orders numbers but only tests strings for equality, so date range filters
- * and date sorts run against the shadow, never the string.
- */
-export const SSRM_EPOCH_SUFFIX = '__epoch';
-
-export function ssrmEpochColumn(column: string): string {
-  return `${column}${SSRM_EPOCH_SUFFIX}`;
-}
 
 export interface SsrmViewSpec {
   /** ANDed together. */
@@ -145,6 +171,10 @@ export interface SsrmViewSpec {
   aggregates?: Record<string, string>;
   columns?: string[];
   depth?: number;
+  /** Engine-computed columns (`[{as, expr}]`, contract wire form v1). */
+  computed?: Array<{ as: string; expr: SsrmExprNode }>;
+  /** Membership watch — the engine reports entered/left keys per revision. */
+  watch?: boolean;
 }
 
 /**
@@ -162,7 +192,9 @@ export interface SsrmRowCountResult {
 }
 
 /** One aggregation the status bar (or a grouped view) can ask the engine for. */
-export type SsrmAggFn = 'sum' | 'avg' | 'min' | 'max' | 'count';
+export type SsrmAggFn =
+  | 'sum' | 'avg' | 'min' | 'max' | 'count'
+  | 'median' | 'stdev' | 'variance' | 'distinct_count';
 
 export interface SsrmAggSpec {
   column: string;

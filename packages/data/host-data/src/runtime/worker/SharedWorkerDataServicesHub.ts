@@ -38,6 +38,8 @@ import type {
   SsrmAggregatesWireRequest,
   SsrmRowCountWireRequest,
   SsrmWatchGroupsWireRequest,
+  SsrmWatchPredicateWireRequest,
+  SsrmUnwatchPredicateWireRequest,
   SsrmApplyEditsWireRequest,
   SsrmRpcEvent,
   SsrmTickEvent,
@@ -163,6 +165,8 @@ export class SharedWorkerDataServicesHub {
       case 'ssrm-row-count': void this.handleSsrmRowCount(port, req); return;
       case 'ssrm-aggregates': void this.handleSsrmAggregates(port, req); return;
       case 'ssrm-watch-groups': void this.handleSsrmWatchGroups(port, req); return;
+      case 'ssrm-watch-predicate': void this.handleSsrmWatchPredicate(port, req); return;
+      case 'ssrm-unwatch-predicate': void this.handleSsrmUnwatchPredicate(port, req); return;
       case 'ssrm-apply-edits': void this.handleSsrmApplyEdits(port, req); return;
     }
   }
@@ -466,9 +470,9 @@ export class SharedWorkerDataServicesHub {
     this.maybeStopStatsSampler();
 
     const stopResult = slot.handle.stop();
-    // Drop the plane's anchor subscription with the provider — the engine
-    // frees the datasource cache when its last session lets go.
-    if (isSsrmProviderType(slot.cfg.providerType)) this.ssrmPlane.releaseAnchor(providerId);
+    // Drop the engine's ingest retention pin with the provider — the table
+    // then frees with its last session (T2 lifecycle).
+    if (isSsrmProviderType(slot.cfg.providerType)) this.ssrmPlane.dropTable(providerId);
     this.maybeStopSsrmTicker();
     this.maybeStopSubscriberSweeper();
     if (stopResult instanceof Promise) await stopResult;
@@ -741,6 +745,23 @@ export class SharedWorkerDataServicesHub {
     });
   }
 
+  private handleSsrmWatchPredicate(port: PortLike, req: SsrmWatchPredicateWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, async () => {
+      await this.ssrmPlane.watchPredicate(req.subId, req.providerId, {
+        ruleId: req.ruleId,
+        expr: req.expr,
+      });
+      return { ok: true };
+    });
+  }
+
+  private handleSsrmUnwatchPredicate(port: PortLike, req: SsrmUnwatchPredicateWireRequest): Promise<void> {
+    return this.replySsrmRpc(port, req, async () => {
+      this.ssrmPlane.unwatchPredicate(req.subId, req.ruleId);
+      return { ok: true };
+    });
+  }
+
   private ensureSsrmTicker(): void {
     if (this.ssrmTickTimer !== null) return;
     const windowMs = [...this.providers.values()].reduce((min, slot) => {
@@ -771,6 +792,9 @@ export class SharedWorkerDataServicesHub {
       const dead: string[] = [];
       for (const tick of ticks) {
         for (const l of listeners.values()) {
+          // A viewDelta belongs to the ONE subscriber whose rule it is —
+          // broadcasting it would fire the same alert once per window.
+          if (tick.kind === 'viewDelta' && tick.watchSubId && tick.watchSubId !== l.subId) continue;
           const event: SsrmTickEvent = { kind: 'ssrm-tick', subId: l.subId, payload: tick };
           try {
             l.port.postMessage(event);

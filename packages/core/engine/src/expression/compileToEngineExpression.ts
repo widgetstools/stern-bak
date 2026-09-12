@@ -52,15 +52,14 @@ const ENGINE_AGG_FNS: Record<string, SsrmExprAggFn> = {
   COUNT: 'count',
   MIN: 'min',
   MAX: 'max',
+  // T4: the engine computes these over the view's filtered rows with the
+  // client's own fold semantics — no longer the loaded-blocks tier-3 trap.
+  MEDIAN: 'median',
+  STDEV: 'stdev',
+  VARIANCE: 'variance',
+  DISTINCT_COUNT: 'distinct_count',
 };
 
-/**
- * Aggregates with no engine equivalent even at T4 — computing them over
- * loaded blocks and presenting the result as a book statistic is the §5.3
- * tier-3 trap, so their presence classifies the whole expression
- * `unsupported`.
- */
-const LOADED_ROW_AGG_FNS = new Set(['MEDIAN', 'STDEV', 'VARIANCE', 'DISTINCT_COUNT']);
 
 /** Scalar functions in wire grammar v1, keyed by DSL name. */
 const SCALAR_FNS = new Set<SsrmExprScalarFn>([
@@ -96,7 +95,6 @@ function isAggregateForm(node: CallNode): boolean {
 class Compiler {
   readonly requires = new Set<SsrmExprRequirement>();
   readonly untranslatable: string[] = [];
-  readonly loadedRowAggregates: string[] = [];
   readonly engineAggregates: string[] = [];
 
   private refuse(reason: string): null {
@@ -177,17 +175,17 @@ class Compiler {
   private compileCall(node: CallNode): SsrmExprNode | null {
     const name = node.name.toUpperCase();
 
-    if (LOADED_ROW_AGG_FNS.has(name)) {
-      this.loadedRowAggregates.push(name);
-      return this.refuse(`${name}([col]) has no engine aggregate — loaded-blocks-as-book is the tier-3 trap`);
-    }
-
     const aggFn = ENGINE_AGG_FNS[name];
     if (aggFn && isAggregateForm(node)) {
       this.requires.add('aggregates');
       this.engineAggregates.push(name);
       const col = node.args[0];
       return { k: 'agg', fn: aggFn, col: col.type === 'columnRef' ? col.columnId : '' };
+    }
+    if (aggFn && !SCALAR_FNS.has(name as SsrmExprScalarFn)) {
+      // MEDIAN(1, 2, 3)-style varargs: only the `FN([col])` aggregate form is
+      // in wire grammar v1 for the statistical set.
+      return this.refuse(`${name}() outside its aggregate form ${name}([col])`);
     }
 
     if (!SCALAR_FNS.has(name as SsrmExprScalarFn)) {
@@ -226,7 +224,7 @@ export function toComputedColumnSpec(as: string, ast: unknown): SsrmComputedColu
 
 // ─── The three-tier SSRM classifier (Rust plan §5.3 / §12 T1) ─────────────
 
-export type SsrmExpressionTier = 'compiled' | 'materialized' | 'unsupported';
+export type SsrmExpressionTier = 'compiled' | 'materialized';
 
 export interface SsrmExpressionClassification {
   /**
@@ -240,10 +238,8 @@ export interface SsrmExpressionClassification {
    */
   tier: SsrmExpressionTier;
   requires: SsrmExprRequirement[];
-  /** Engine-total aggregates used (SUM/AVG/COUNT/MIN/MAX over a column). */
+  /** Engine-total aggregates used (`FN([col])` — the full T4 set). */
   engineAggregates: string[];
-  /** Loaded-rows-only aggregates used — the reason for `unsupported`. */
-  loadedRowAggregates: string[];
   untranslatable: string[];
 }
 
@@ -255,16 +251,13 @@ export function classifySsrmExpression(ast: unknown): SsrmExpressionClassificati
   } catch {
     compiler.untranslatable.push('malformed AST');
   }
-  const tier: SsrmExpressionTier = compiler.loadedRowAggregates.length > 0
-    ? 'unsupported'
-    : compiler.untranslatable.length === 0 && expr !== null
-      ? 'compiled'
-      : 'materialized';
+  const tier: SsrmExpressionTier = compiler.untranslatable.length === 0 && expr !== null
+    ? 'compiled'
+    : 'materialized';
   return {
     tier,
     requires: [...compiler.requires],
     engineAggregates: [...new Set(compiler.engineAggregates)],
-    loadedRowAggregates: [...new Set(compiler.loadedRowAggregates)],
     untranslatable: compiler.untranslatable,
   };
 }

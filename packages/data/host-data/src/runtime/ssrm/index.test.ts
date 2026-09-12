@@ -4,9 +4,7 @@ import {
   FLATTEN_SEPARATOR,
   flattenRow,
   flattenRows,
-  SSRM_EPOCH_SUFFIX,
   SSRM_PIVOT_FIELD_SEPARATOR,
-  ssrmEpochColumn,
   toViewSpec,
 } from './index.js';
 
@@ -15,8 +13,6 @@ describe('ssrm runtime barrel', () => {
     expect(flattenRow).toEqual(expect.any(Function));
     expect(flattenRows).toEqual(expect.any(Function));
     expect(toViewSpec).toEqual(expect.any(Function));
-    expect(ssrmEpochColumn).toEqual(expect.any(Function));
-    expect(SSRM_EPOCH_SUFFIX).toBe('__epoch');
     expect(SSRM_PIVOT_FIELD_SEPARATOR).toBe('|');
     expect(FLATTEN_SEPARATOR).toBe('_');
     expect(FLATTEN_MAX_DEPTH).toBe(6);
