@@ -17,6 +17,7 @@ import type {
   ExpressionEngineLike,
 } from '../../../platform/types';
 import type { ExpressionNode } from '../../../expression/types';
+import { attachAggregateContext, ruleUsesAggregates } from './aggregateContext';
 import { valueFormatterFromTemplate } from '../../../colDef';
 import { getValueByPath } from '@wellsfargo-starui/types';
 import { cssEscapeColId } from '../column-customization/transforms';
@@ -738,11 +739,15 @@ function buildCellClassPredicate(
   }
 
   const hasDiffRefs = /\.[ \t]*(old|new)\]/i.test(rule.expression);
+  // Aggregate-bearing rules (`[px] > AVG([px])`) must take the function form:
+  // AG's string grammar has no aggregates, and the function context below is
+  // what carries the book-wide resolution.
+  const usesAggregates = ruleUsesAggregates(engine, rule.expression);
   // Try the AG-string optimisation path — v3 engine exposes `tryCompileToAgString`
   // on the concrete class; ExpressionEngineLike is intentionally narrow, so we
   // fall through to the function form when the helper isn't there.
   const tryCompile = (engine as { tryCompileToAgString?: (ast: unknown) => string | null }).tryCompileToAgString;
-  if (!hasDiffRefs && typeof tryCompile === 'function') {
+  if (!hasDiffRefs && !usesAggregates && typeof tryCompile === 'function') {
     try {
       const ast = engine.parse(rule.expression);
       const agString = tryCompile(ast);
@@ -774,15 +779,12 @@ function buildCellClassPredicate(
     const columns = diffKeys !== null
       ? buildScopedColumnsContext(data, rowDiffs, diffKeys)
       : buildColumnsContext(data, rowDiffs);
+    const ctx = { x: params.value, value: params.value, data, columns };
+    // Book-wide thresholds: engine totals under SSRM, the row snapshot
+    // under CSRM. Row-local rules skip the attach entirely.
+    if (usesAggregates) attachAggregateContext(ctx, params.api);
     try {
-      return Boolean(
-        evalRule({
-          x: params.value,
-          value: params.value,
-          data,
-          columns,
-        }),
-      );
+      return Boolean(evalRule(ctx));
     } catch {
       return false;
     }
@@ -809,6 +811,7 @@ export function buildRowClassPredicate(
   // Compile once — reused for every row this rule paints.
   const evalRule = engine.compile(rule.expression);
   const hasDiffRefs = /\.[ \t]*(old|new)\]/i.test(rule.expression);
+  const usesAggregates = ruleUsesAggregates(engine, rule.expression);
   const diffKeys = hasDiffRefs ? buildRuleDiffKeys(engine, rule.expression) : [];
   return (params: RowClassParams) => {
     const data = params.data ?? {};
@@ -841,15 +844,12 @@ export function buildRowClassPredicate(
     const columns = diffKeys !== null
       ? buildScopedColumnsContext(data, rowDiffs, diffKeys)
       : buildColumnsContext(data, rowDiffs);
+    const ctx = { x: null, value: null, data, columns };
+    if (usesAggregates) {
+      attachAggregateContext(ctx, (params as RowClassParams & { api?: unknown }).api);
+    }
     try {
-      return Boolean(
-        evalRule({
-          x: null,
-          value: null,
-          data,
-          columns,
-        }),
-      );
+      return Boolean(evalRule(ctx));
     } catch {
       return false;
     }

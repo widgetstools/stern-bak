@@ -139,8 +139,10 @@ export function AlertsSettingsBand({ settings, onChange }: AlertsSettingsBandPro
               className="text-xs text-[color:var(--ds-text-muted)] py-1"
               data-testid="alerts-ssrm-visible-only"
             >
-              Server-side grids evaluate alerts on loaded (visible) rows only,
-              not the full filtered book.
+              Data-change rules whose condition compiles to the engine
+              expression grammar watch the WHOLE book — a row that has never
+              loaded still fires. Relative-change, column-scoped and
+              old/new-value rules evaluate on loaded (visible) rows only.
             </p>
           ) : null}
         </Band>

@@ -17,6 +17,7 @@
  */
 
 import type { PlatformHandle } from '@wellsfargo-starui/core';
+import { attachAggregateContext, ruleUsesAggregates } from '@wellsfargo-starui/core';
 import { cssEscapeColId } from '../../column-customization/transforms';
 import type { ConditionalRule, ConditionalStylingState } from '../state';
 import type { DiffCacheByApi } from '../transforms';
@@ -123,6 +124,7 @@ export function createHeaderPainter(
       } catch {
         return false;
       }
+      const usesAggregates = ruleUsesAggregates(engine, rule.expression);
       let match = false;
       api.forEachNodeAfterFilter((node) => {
         if (match) return;
@@ -131,8 +133,12 @@ export function createHeaderPainter(
           data,
           rowDiffCache?.get(node as object),
         );
+        const ctx = { x: null, value: null, data, columns };
+        // Book-wide thresholds (engine totals under SSRM, snapshot under
+        // CSRM) — a header badge must agree with the cells it summarises.
+        if (usesAggregates) attachAggregateContext(ctx, api);
         try {
-          if (fn({ x: null, value: null, data, columns })) {
+          if (fn(ctx)) {
             match = true;
           }
         } catch { /* swallow per-row */ }

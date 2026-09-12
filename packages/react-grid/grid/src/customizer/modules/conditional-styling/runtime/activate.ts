@@ -21,6 +21,7 @@
  */
 
 import type { Module, PlatformHandle } from '@wellsfargo-starui/core';
+import { invalidateStylingAggregates, ruleUsesAggregates } from '@wellsfargo-starui/core';
 import {
   CONDITIONAL_DIFF_CACHE_KEY,
   CONDITIONAL_TIMED_RULE_CACHE_KEY,
@@ -94,10 +95,45 @@ export function activateConditionalStyling(
   // frame triggers ONE pass, not one per tick. The delta payload is passed
   // through: timed activations touch ONLY the rows the flush changed
   // (falling back to a full walk on structural `full` changes).
+  // Aggregate-threshold rules (`[px] > AVG([px])`): the threshold moves with
+  // the DATA, not with any one cell, so a flush must drop the snapshot and
+  // repaint everything the rules touch. Memoized on the rules array identity
+  // (state is immutable) so rule-less and row-local grids pay one reference
+  // check per flush.
+  let aggMemoRules: ReturnType<typeof platform.getState>['rules'] | null = null;
+  let aggMemoAnswer = false;
+  const hasAggregateRules = (): boolean => {
+    const rules = platform.getState().rules;
+    if (aggMemoRules === rules) return aggMemoAnswer;
+    const engine = platform.resources.expression();
+    aggMemoRules = rules;
+    aggMemoAnswer = rules.some((r) => r.enabled && ruleUsesAggregates(engine, r.expression));
+    return aggMemoAnswer;
+  };
+
   disposers.push(platform.rows.subscribe((change) => {
+    if (hasAggregateRules()) {
+      invalidateStylingAggregates(platform.api.api);
+      // rAF-debounced full refreshCells({force}) — one repaint per frame no
+      // matter how many flushes land in it; cell classes AND per-rule value
+      // formatters re-evaluate against the moved threshold. (Row-scope rules
+      // re-evaluate as their rows update — AG re-applies rowClassRules on
+      // row data changes, not on refreshCells.)
+      refresh.scheduleRefresh();
+    }
     timed.processTimedActivations(change);
     if (hasHeaderPaintRules(platform.getState())) {
       headerPainter.evaluate();
+    }
+  }));
+  // A user edit changes the book too — cellValueChanged does not always ride
+  // the rows bus (CSRM edits mutate in place). Invalidation only; the edited
+  // cell's own repaint re-evaluates its rules, and the next flush repaints
+  // the rest.
+  disposers.push(platform.api.on('cellValueChanged', () => {
+    if (hasAggregateRules()) {
+      invalidateStylingAggregates(platform.api.api);
+      refresh.scheduleRefresh();
     }
   }));
   disposers.push(platform.api.on('filterChanged', () => {

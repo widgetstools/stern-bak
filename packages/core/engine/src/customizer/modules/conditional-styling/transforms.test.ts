@@ -12,6 +12,7 @@ import {
   type TimedRuleStateByApi,
 } from './transforms.js';
 import type { ConditionalRule } from './state.js';
+import { invalidateStylingAggregates } from './aggregateContext.js';
 
 const engine = new ExpressionEngine();
 
@@ -592,5 +593,74 @@ describe('buildCellClassPredicate — ag-string fast path', () => {
     const body = css.rules.get('conditional-r1') ?? '';
     expect(body).toContain('[data-theme="dark"]');
     expect(body).toContain('::after');
+  });
+});
+
+describe('aggregate thresholds in styling rules', () => {
+  const SSRM_EXPR_AGG_KEY = '__ssrmExprAgg';
+  /** A fake grid whose rows the CSRM `allRows` snapshot walks. */
+  function apiWithRows(rows: Array<Record<string, unknown>>): object {
+    return {
+      forEachNode: (cb: (node: { data?: Record<string, unknown> }) => void) => {
+        for (const data of rows) cb({ data });
+      },
+    };
+  }
+
+  it('cell rule `[px] > AVG([px])` compares against the book average (CSRM snapshot)', () => {
+    const api = apiWithRows([{ px: 10 }, { px: 20 }, { px: 90 }]); // avg 40
+    const defs = [{ colId: 'px', field: 'px' }];
+    const out = applyCellRulesToDefs(defs, [rule({
+      scope: { type: 'cell', columns: ['px'] },
+      expression: '[px] > AVG([px])',
+    })], engine) as Array<{ cellClassRules?: Record<string, unknown> }>;
+    const predicate = out[0]?.cellClassRules?.['ds-rule-r1'];
+    // Aggregate rules must NOT take the AG-string path — the string grammar
+    // has no aggregates and the function context carries the resolution.
+    expect(typeof predicate).toBe('function');
+    const evalCell = predicate as (p: unknown) => boolean;
+    expect(evalCell({ api, value: 90, data: { px: 90 } })).toBe(true);
+    expect(evalCell({ api, value: 10, data: { px: 10 } })).toBe(false);
+  });
+
+  it('resolves through the SSRM aggregate session when one is attached (engine total wins)', () => {
+    const resolve = vi.fn().mockReturnValue(500); // the BOOK average, not loaded blocks
+    const api = Object.assign(apiWithRows([{ px: 1 }, { px: 2 }]), {
+      [SSRM_EXPR_AGG_KEY]: { resolve },
+    });
+    const out = applyCellRulesToDefs([{ colId: 'px', field: 'px' }], [rule({
+      scope: { type: 'cell', columns: ['px'] },
+      expression: '[px] > AVG([px])',
+    })], engine) as Array<{ cellClassRules?: Record<string, unknown> }>;
+    const evalCell = out[0]?.cellClassRules?.['ds-rule-r1'] as (p: unknown) => boolean;
+    // Loaded rows average 1.5 — but the engine says 500, so 600 passes and 400 fails.
+    expect(evalCell({ api, value: 600, data: { px: 600 } })).toBe(true);
+    expect(evalCell({ api, value: 400, data: { px: 400 } })).toBe(false);
+    expect(resolve).toHaveBeenCalledWith('AVG', 'px');
+  });
+
+  it('row rule aggregates resolve the same way', () => {
+    const api = apiWithRows([{ qty: 1 }, { qty: 3 }, { qty: 8 }]); // avg 4
+    const predicate = buildRowClassPredicate(engine, rule({
+      scope: { type: 'row' },
+      expression: '[qty] >= AVG([qty])',
+    }));
+    expect(predicate({ api, data: { qty: 8 } } as never)).toBe(true);
+    expect(predicate({ api, data: { qty: 1 } } as never)).toBe(false);
+  });
+
+  it('invalidateStylingAggregates drops the snapshot so the next read sees new rows', () => {
+    const rows = [{ px: 10 }, { px: 20 }]; // avg 15
+    const api = apiWithRows(rows);
+    const out = applyCellRulesToDefs([{ colId: 'px', field: 'px' }], [rule({
+      scope: { type: 'cell', columns: ['px'] },
+      expression: '[px] > AVG([px])',
+    })], engine) as Array<{ cellClassRules?: Record<string, unknown> }>;
+    const evalCell = out[0]?.cellClassRules?.['ds-rule-r1'] as (p: unknown) => boolean;
+    expect(evalCell({ api, value: 16, data: { px: 16 } })).toBe(true);
+    rows.push({ px: 100 }); // avg now 43.3 — but the snapshot memoized 15
+    expect(evalCell({ api, value: 16, data: { px: 16 } })).toBe(true);
+    invalidateStylingAggregates(api);
+    expect(evalCell({ api, value: 16, data: { px: 16 } })).toBe(false);
   });
 });

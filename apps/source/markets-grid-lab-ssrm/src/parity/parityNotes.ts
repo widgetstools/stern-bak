@@ -98,9 +98,10 @@ export const PARITY: ParityEntry[] = [
     tabId: 'conditional',
     label: 'Conditional Styling',
     status: 'partial',
-    summary: 'Rules style what is on screen — loaded rows only, which is correct but narrower.',
+    summary: 'Rules paint what is on screen; aggregate thresholds read the whole book.',
     notes: [
       'Styling rules and indicators evaluate on rendered rows: viewport-scoped is the honest semantic (they paint what you see).',
+      'Aggregate thresholds — [px] > AVG([px]) and friends — resolve engine-wide over the current filter (the same getAggregates session calculated columns use), so the THRESHOLD is the book value even though only loaded rows get painted. Under CSRM the same rule reads the full row snapshot.',
       'Rules never see unloaded rows, so a "count of rows matching a style" intuition does not transfer; use engine-backed counts instead.',
       'Transaction-first ticks keep flash/timed activations working (asyncTransactionsFlushed fires).',
     ],
