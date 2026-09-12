@@ -907,17 +907,35 @@ Engine phases have two halves: the rangrez change (specified here, built there) 
 stern-bak landing (re-vendor + pin + client unlock). Where the halves are both substantial
 they are separate sessions.
 
-| # | Phase | Where | Depends on |
-| --- | --- | --- | --- |
-| **T1** | Expression wire contract + tier compiler | stern-bak only | — |
-| **T2** | Table lifecycle: delete / truncate / replace, retention decoupled from subscribers | rangrez → re-vendor | — |
-| **T3** | Computed columns on views (incremental recompute) | rangrez → re-vendor | T1 |
-| **T4** | Aggregate scalars in expressions + full aggregate set | rangrez → re-vendor | T3 |
-| **T5** | Per-view membership deltas + alert bridge | rangrez → re-vendor | T1 |
-| **T6** | Typed date/timestamp columns; retire the `__epoch` shadows | rangrez → re-vendor | — |
-| **T7** | Pivot completeness (group-less pivot, separator safety) | rangrez → re-vendor | — |
-| **C1** | Write-path rebuild: Bulk Update, Plus/Minus, Shortcuts on `ssrm-apply-edits` | stern-bak only | — |
-| **C2** | SSRM undo/redo: journal inverse-edits through `applyEdits` | stern-bak only | C1 |
+| # | Phase | Where | Depends on | Status |
+| --- | --- | --- | --- | --- |
+| **T1** | Expression wire contract + tier compiler | stern-bak only | — | **DONE 2026-09-11** |
+| **T2** | Table lifecycle: delete / truncate / replace, retention decoupled from subscribers | rangrez → re-vendor | — | open |
+| **T3** | Computed columns on views (incremental recompute) | rangrez → re-vendor | T1 | open |
+| **T4** | Aggregate scalars in expressions + full aggregate set | rangrez → re-vendor | T3 | open |
+| **T5** | Per-view membership deltas + alert bridge | rangrez → re-vendor | T1 | open |
+| **T6** | Typed date/timestamp columns; retire the `__epoch` shadows | rangrez → re-vendor | — | open |
+| **T7** | Pivot completeness (group-less pivot, separator safety) | rangrez → re-vendor | — | open |
+| **C1** | Write-path rebuild: Bulk Update, Plus/Minus, Shortcuts, Smart Edit on `ssrm-apply-edits` | stern-bak only | — | **DONE 2026-09-11** |
+| **C2** | SSRM undo/redo: journal inverse-edits through `applyEdits` | stern-bak only | C1 | **DONE 2026-09-11** (same seam) |
+
+**T1 landed as:** `SsrmExprNode` wire grammar v1 + `SsrmComputedColumnSpec` in
+`@wellsfargo-starui/types` (`shared-types/src/ssrmExpression.ts`);
+`compileToEngineExpression` / `classifySsrmExpression` / `toComputedColumnSpec` in
+`packages/core/engine/src/expression/compileToEngineExpression.ts`; 45 golden fixtures
+(`ssrmExpressionContract.fixtures.json`) pinning the CLIENT evaluator's semantics — the
+corpus the Rust side must reproduce at T3; the customizer's SSRM TIER chip now reports the
+real tier (ENGINE-READY / GRID / LOADED ROWS) with the phases each column awaits.
+
+**C1/C2 landed as:** an editing-core GridApi brand (`SSRM_EDIT_WRITER_KEY`,
+`attachSsrmEditWriter` / `lookupSsrmEditWriter` — the `SSRM_EXPR_AGG_KEY` pattern) that the
+SSRM surface binds to `ISsrmDataProvider.applyEdits`; `applyPatches` persists through it
+alongside the local server-side transaction (whole rows + per-row edited columns for the
+worker overlay). Because Bulk Update, Plus/Minus, Shortcuts, Smart Edit AND
+`EditJournal.undo/redo/undoTo` all funnel through `applyPatches`, one seam closed all of
+them: the honesty disables now lift exactly when a writer is attached, and an undo persists
+as an ordinary engine write of the old values. The parity lab's three Gap rows and the
+Editing partial are green.
 
 **T1 — Expression wire contract + tier compiler.**
 *Entry:* none. *Deliverable:* a versioned `SsrmExpressionSpec` JSON wire form (ops from
@@ -1007,11 +1025,11 @@ undo of a paste restores engine values in a second window.
 
 | Gap (parity lab / handoff) | Phase |
 | --- | --- |
-| Calculated: sort/filter/group locked (parity: partial) | T1 + T3 (row-local), T4 (cross-row) |
+| Calculated: sort/filter/group locked (parity: partial) | T1 **(done)** + T3 (row-local), T4 (cross-row) |
 | Renderers: synthetic valueGetter columns locked | T3 |
 | Alerts: loaded rows only | T5 (diff-refs: named follow-up) |
-| Bulk Update / Plus-Minus / Shortcuts: gap | C1 |
-| Editing: journal/undo CSRM-only | C2 |
+| Bulk Update / Plus-Minus / Shortcuts: gap | C1 **(done — closed)** |
+| Editing: journal/undo CSRM-only | C2 **(done — closed)** |
 | Handoff §5.1 — engine cannot delete rows; anchor workaround | T2 |
 | Date `__epoch` shadow hack | T6 |
 | Pivot needs row groups; `\|` collision | T7 |
