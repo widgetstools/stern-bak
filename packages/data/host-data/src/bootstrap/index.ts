@@ -44,3 +44,4 @@ export type { AppDataBootstrapManifest } from './PlatformBootstrapConfig.js';
 export type { EnsureHubOpts, ResolvedDataServicesHubBundle } from '../hub/ensureDataServicesHub.js';
 export { ensureDataServicesHub } from '../hub/ensureDataServicesHub.js';
 export { SnapshotReassembler, type SnapshotReassemblerCallbacks } from '../hub/SnapshotReassembler.js';
+export { mergeHubIntrospect } from '../hub/mergeHubIntrospect.js';

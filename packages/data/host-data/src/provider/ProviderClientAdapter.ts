@@ -5,7 +5,14 @@ import type { IDataProvider, Unsubscribe } from './IDataProvider.js';
 import type { ProviderCapabilities } from './ProviderCapabilities.js';
 
 export interface ProviderClientAdapterOpts {
+  /** Data-plane client: attach / subscribe / stop ride this port. */
   client: SharedWorkerDataServicesClient;
+  /**
+   * Client whose worker serves the config catalog (the platform-services
+   * worker since the split — worker-split W1c). Defaults to `client` for
+   * single-worker wirings (tests, bespoke installs).
+   */
+  catalogClient?: SharedWorkerDataServicesClient;
   providerId: string;
   /** Draft cfg when the provider row is not in the catalog yet. */
   inlineCfg?: ProviderConfig;
@@ -59,6 +66,8 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
   readonly id: string;
 
   private readonly client: SharedWorkerDataServicesClient;
+
+  private readonly catalogClient: SharedWorkerDataServicesClient;
   private readonly inlineCfg?: ProviderConfig;
   private resolvedConfig: ProviderConfig | null = null;
   private handle: SubscribeHandle<T> | null = null;
@@ -74,6 +83,7 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
   constructor(opts: ProviderClientAdapterOpts) {
     this.id = opts.providerId;
     this.client = opts.client;
+    this.catalogClient = opts.catalogClient ?? opts.client;
     this.inlineCfg = opts.inlineCfg;
   }
 
@@ -101,7 +111,7 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
       // the worker (cached or a single-row read) — no need to gate on the full
       // catalog preload. The worker caches the row, so the attach below finds
       // it synchronously.
-      const row = await this.client.getProviderConfig(this.id);
+      const row = await this.catalogClient.getProviderConfig(this.id);
       if (!row?.config) {
         throw new Error(
           `[ProviderClientAdapter] No config for providerId=${this.id}. ` +
@@ -137,7 +147,7 @@ export class ProviderClientAdapter<T = Record<string, unknown>> implements IData
     });
     this.detach();
     if (!this.resolvedConfig && !this.inlineCfg) {
-      const row = await this.client.getProviderConfig(this.id);
+      const row = await this.catalogClient.getProviderConfig(this.id);
       if (!row?.config) {
         throw new Error(`[ProviderClientAdapter] No config for providerId=${this.id}`);
       }

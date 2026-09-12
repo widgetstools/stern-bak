@@ -4,13 +4,16 @@
  * ConfigManager is built from) and hand them over without losing anything
  * the client already sent.
  *
- * `hub-ready` is the probe: the hub answers it unconditionally with a
- * `config-snapshot` carrying the same `reqId`, so a reply on the far end of
- * a real MessageChannel proves the request was dispatched.
+ * `provider-running` is the probe: the data hub answers it unconditionally
+ * with a `config-snapshot` carrying the same `reqId` (catalog RPCs such as
+ * `hub-ready` moved to the platform-services host — worker-split W1c), so a
+ * reply on the far end of a real MessageChannel proves the request was
+ * dispatched.
  */
 
 import { describe, expect, it } from 'vitest';
-import { installSharedWorkerHub } from './entry.js';
+import { installPlatformServicesHost, installSharedWorkerHub } from './entry.js';
+import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 type Snapshot = { kind: string; reqId?: string };
 
@@ -47,7 +50,7 @@ describe('installSharedWorkerHub — adoptPorts', () => {
     await installSharedWorkerHub({
       selfRef: { onconnect: null },
       adoptPorts: [
-        { port: channel.port2, buffered: [{ kind: 'hub-ready', reqId: 'early-1' }] },
+        { port: channel.port2, buffered: [{ kind: 'provider-running', reqId: 'early-1', providerId: 'probe' }] },
       ],
     });
 
@@ -67,9 +70,9 @@ describe('installSharedWorkerHub — adoptPorts', () => {
         {
           port: channel.port2,
           buffered: [
-            { kind: 'hub-ready', reqId: 'first' },
-            { kind: 'hub-ready', reqId: 'second' },
-            { kind: 'hub-ready', reqId: 'third' },
+            { kind: 'provider-running', reqId: 'first', providerId: 'probe' },
+            { kind: 'provider-running', reqId: 'second', providerId: 'probe' },
+            { kind: 'provider-running', reqId: 'third', providerId: 'probe' },
           ],
         },
       ],
@@ -89,7 +92,7 @@ describe('installSharedWorkerHub — adoptPorts', () => {
       adoptPorts: [
         {
           port: channel.port2,
-          buffered: [{ kind: 'not-a-request' }, null, 'garbage', { kind: 'hub-ready', reqId: 'ok' }],
+          buffered: [{ kind: 'not-a-request' }, null, 'garbage', { kind: 'provider-running', reqId: 'ok', providerId: 'probe' }],
         },
       ],
     });
@@ -110,7 +113,7 @@ describe('installSharedWorkerHub — adoptPorts', () => {
       adoptPorts: [{ port: channel.port2, buffered: [] }],
     });
 
-    channel.port1.postMessage({ kind: 'hub-ready', reqId: 'after-handover' });
+    channel.port1.postMessage({ kind: 'provider-running', reqId: 'after-handover', providerId: 'probe' });
     await waitForCount(received, 1);
 
     expect(received).toHaveLength(1);
@@ -127,9 +130,75 @@ describe('installSharedWorkerHub — adoptPorts', () => {
     const received = collect(channel.port1);
     selfRef.onconnect?.({ ports: [channel.port2] });
 
-    channel.port1.postMessage({ kind: 'hub-ready', reqId: 'via-onconnect' });
+    channel.port1.postMessage({ kind: 'provider-running', reqId: 'via-onconnect', providerId: 'probe' });
     await waitForCount(received, 1);
 
     expect(received[0]).toMatchObject({ reqId: 'via-onconnect' });
+  });
+});
+
+describe('installPlatformServicesHost — adopted ports during hydrate (WORKLOG 14 class)', () => {
+  /** A ConfigManager whose FIRST indexed list (the catalog hydrate) is held open until released. */
+  function deferredConfigManager(): { configManager: ConfigManager; release: () => void } {
+    let release: () => void = () => {};
+    let calls = 0;
+    const configManager = {
+      getAppId: () => 'TestApp',
+      getIdentity: () => ({ userId: 'worker' }),
+      getConfigsByComponentTypesUnfiltered: () => {
+        calls += 1;
+        if (calls === 1) return new Promise<never[]>((resolve) => { release = () => resolve([]); });
+        return Promise.resolve([]);
+      },
+      getConfig: async () => undefined,
+    } as unknown as ConfigManager;
+    return { configManager, release: () => release() };
+  }
+
+  it('does not lose a request that arrives on an adopted (already started) port while hydrate is pending', async () => {
+    const channel = new MessageChannel();
+    const received = collect(channel.port1);
+    // `defaultEntry.capture()` starts the port to receive the bootstrap
+    // handshake; a started port with no listener drops messages, which is
+    // exactly the gap the installer must close.
+    channel.port2.start();
+    const { configManager, release } = deferredConfigManager();
+
+    const installing = installPlatformServicesHost({
+      selfRef: { onconnect: null },
+      configManager,
+      adoptPorts: [{ port: channel.port2, buffered: [{ kind: 'hub-ready', reqId: 'buffered' }] }],
+    });
+    // Sent mid-hydrate: the window's AppData attach / hub-ready / get-config land here in production.
+    channel.port1.postMessage({ kind: 'hub-ready', reqId: 'mid-hydrate' });
+    await settle();
+    expect(received).toHaveLength(0); // nothing answered before the host is ready
+
+    release();
+    await installing;
+    await waitForCount(received, 2);
+
+    // Per-port order: the pre-handover buffer first, then the mid-hydrate request.
+    expect(received.map((m) => m.reqId)).toEqual(['buffered', 'mid-hydrate']);
+    expect(received[1]).toMatchObject({ kind: 'config-snapshot', ready: true });
+  });
+
+  it('a port connecting through onconnect during hydrate is served after hydrate, in order', async () => {
+    const selfRef: { onconnect: ((ev: { ports: readonly MessagePort[] }) => void) | null } = { onconnect: null };
+    const { configManager, release } = deferredConfigManager();
+    const installing = installPlatformServicesHost({ selfRef, configManager });
+
+    const channel = new MessageChannel();
+    const received = collect(channel.port1);
+    selfRef.onconnect!({ ports: [channel.port2] });
+    channel.port1.postMessage({ kind: 'hub-ready', reqId: 'first' });
+    channel.port1.postMessage({ kind: 'provider-running', reqId: 'second', providerId: 'p' });
+    await settle();
+    expect(received).toHaveLength(0);
+
+    release();
+    await installing;
+    await waitForCount(received, 2);
+    expect(received.map((m) => m.reqId)).toEqual(['first', 'second']);
   });
 });

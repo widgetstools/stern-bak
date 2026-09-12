@@ -180,7 +180,9 @@ const GET_CONFIG_ATTEMPT_TIMEOUT_MS = 2_500;
 const GET_CONFIG_ATTEMPTS = 3;
 
 export function useDataProviderConfig(providerId: string | null | undefined): DataProviderConfigView {
-  const { client } = useDataServicesContext();
+  // Catalog RPCs ride the platform-services worker (worker-split W1c) — the
+  // data hub no longer answers `get-config`.
+  const { platformClient: client } = useDataServicesContext();
   const [view, setView] = useState<DataProviderConfigView>({ cfg: null, loading: Boolean(providerId) });
   const [tick, setTick] = useState(0);
   // Which providerId the current `view.cfg` was actually loaded for.
@@ -284,7 +286,7 @@ export interface DataProvidersListView {
 export function useDataProvidersList(
   opts: { subtype?: ProviderConfig['providerType']; includeAppData?: boolean } = {},
 ): DataProvidersListView {
-  const { client } = useDataServicesContext();
+  const { platformClient: client } = useDataServicesContext();
   const [view, setView] = useState<{ configs: readonly DataProviderConfig[]; loading: boolean; error?: string }>(
     { configs: [], loading: true },
   );

@@ -84,10 +84,9 @@ function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
     seedConfigUrl: opts.seedConfigUrl,
     seedConfigReload: opts.seedConfigReload,
   };
-  // Platform-services worker FIRST: it owns seeding + catalog serving, and
-  // tool windows gate on it alone. (During W1 staging both workers still
-  // run seedIfEmpty — it is in-lock idempotent, so the loser's check is a
-  // no-op; W1c makes the services worker the sole seeder.)
+  // Platform-services worker FIRST: it is the sole seeder and the catalog +
+  // AppData server, and tool windows gate on it alone. The data worker's
+  // ConfigManager attaches read-only (worker-split W1c).
   const platformWorker = createPlatformServicesWorker(opts.workerScriptUrl, workerOpts);
   const worker = createDataServicesWorker(opts.workerScriptUrl, workerOpts);
   const connection: HubConnection = {
@@ -155,6 +154,7 @@ function adaptDataServicesToHubBundle(
     getProvider(providerId: string): IDataProvider {
       return new ProviderClientAdapter({
         client: services.client,
+        catalogClient: platformClient,
         providerId,
       });
     },

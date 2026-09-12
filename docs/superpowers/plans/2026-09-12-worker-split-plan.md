@@ -301,20 +301,53 @@ renderer threads only, the SharedWorker thread cannot be throttled from
 Playwright, so worker-side costs (ingest, encode, fan-out posting) still
 ran at M4 speed in every `THROTTLE=4` row.
 
-| probe | native (M4 Max) | THROTTLE=4 (Windows proxy, worker unthrottled) | after (W3/W4) |
-|---|---|---|---|
-| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | 0.1 / 0.5 ms | — |
-| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | 0.2 / 0.6 ms | — |
-| config RPC DURING 20k snapshot re-stream — p99 / MAX | 0.8 / 1.4 ms | 1.0 / **103.8 ms** | — |
-| Fresh window open mid-storm: wall→rows / `platform-ready` | 225–267 / 70–88 ms | **924 / 219 ms** | — |
-| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | 3 683 ms¹ | — |
-| 10 CSRM windows × 20k: 9 joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | 2 642 → **5 437 ms** (p50 4 539) | — |
-| 10 CSRM windows × 20k: joiner spread / last÷first | 1 246 ms / 2.14× | **2 795 ms** / 2.06× | — |
-| Joiner `platform-ready` during the fan-out | 138–220 ms | 235–494 ms | — |
-| Hub-thread ms consumed by the fan-out (encode + post) | needs worker-side timing (W4 adds it) | — | — |
+| probe | native (M4 Max) | THROTTLE=4 (Windows proxy, worker unthrottled) | Windows native² (W1b HEAD) | after (W3/W4) |
+|---|---|---|---|---|
+| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | 0.1 / 0.5 ms | 0.3 / 0.6 ms | — |
+| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | 0.2 / 0.6 ms | 0.3 / 0.7 ms | — |
+| config RPC DURING 20k snapshot re-stream — p99 / MAX | 0.8 / 1.4 ms | 1.0 / **103.8 ms** | 0.7 / **53.5 ms** | — |
+| Fresh window open mid-storm: wall→rows / `platform-ready` | 225–267 / 70–88 ms | **924 / 219 ms** | 762 / 187 ms | — |
+| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | 3 683 ms¹ | 4 343 ms | — |
+| 10 CSRM windows × 20k: 9 joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | 2 642 → **5 437 ms** (p50 4 539) | 2 400 → 3 225 ms (p50 2 579) | — |
+| 10 CSRM windows × 20k: joiner spread / last÷first | 1 246 ms / 2.14× | **2 795 ms** / 2.06× | 825 ms / 1.34× | — |
+| Joiner `platform-ready` during the fan-out | 138–220 ms | 235–494 ms | 466–754 ms | — |
+| Hub-thread ms consumed by the fan-out (encode + post) | needs worker-side timing (W4 adds it) | — | — | — |
 
 ¹ broker-paced (network dominates), and the second C run rides the prior
 run's warmed broker snapshot cache — not comparable across runs.
+
+² **Windows 11 target box, 2026-09-12** (`worker-baseline.mjs`,
+`TAG=win-w0-w1b`, raw JSON `out/win-w0-w1b-*.json`), run on the W1b HEAD
+as the handoff's first task. Two caveats make it a *pre-W1c/W2/W4*
+column rather than a pristine "before": the dual worker was already
+spawned, and the harness's catalog probe rode `ports[0]` — since W1a that
+is the PLATFORM port, so the A-rows here already show queueing isolation
+(the 53.5 ms max during the re-stream is on the platform worker, most
+plausibly the re-save `config-invalidate` Dexie read + AppData resync
+landing under the probe, not ingest — W3 re-probes both ports by name).
+The B/C rows are untouched by W1: on this box the joiner ladder is
+1.34× (target ≤ 1.5×) and the spread 825 ms — the W4 gate must move from
+here, not from the Mac numbers.
+
+**W1c landed (2026-09-12, Windows native, `TAG=win-w1c`, raw
+`out/win-w1c-*.json`; the harness now probes BOTH ports by worker name —
+`hub-ready` / `list-configs` on the platform port, the scalar
+`provider-running` on the data port).** Config probe unchanged-or-better
+on every row: idle 0.3 / 0.5 ms, storm 0.3 / 0.6 ms, during the 20k
+re-stream p99 0.4 ms / **max 0.6 ms** (the W1b column's 53.5 ms max did
+not recur); the data-port probe stays at p99 0.4–0.5 ms / max 0.5 ms
+across idle, storm and re-stream — on this box the SSRM ingest macrotasks
+are short enough that even the data plane answers a scalar RPC within a
+millisecond. Fresh window mid-storm 614 ms wall→rows, `platform-ready`
+157 ms (was 762 / 187). The live probe that gated this phase also
+uncovered a first-window message-loss race in the worker installer
+(WORKLOG item 14's forensic cause, fixed in the same change): before it,
+a cold first window's `appdata-ready` / `catalog-ready` /
+`platform-ready` marks never fired. 10-window CSRM: joiners
+1 993 → 3 322 ms (p50 2 576, spread 1 329 ms, last÷first 1.67×) — same
+band as the W1b column within run-to-run noise; the first window read
+12.7 s on this run against 4.3 s before, a broker-paced outlier
+(footnote ¹) re-sampled in W3/W4.
 
 ### W0 findings — what reproduced and what did not
 

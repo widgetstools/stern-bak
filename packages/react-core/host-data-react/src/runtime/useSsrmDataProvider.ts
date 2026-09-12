@@ -24,7 +24,7 @@ export function useSsrmDataProvider(
   providerId: string | null | undefined,
   opts: UseSsrmDataProviderOpts = {},
 ): UseSsrmDataProviderResult {
-  const { client } = useDataServicesContext();
+  const { client, platformClient } = useDataServicesContext();
   const { inlineCfg, autoStart = true, trackStatus = true } = opts;
 
   const [status, setStatus] = useState<ProviderStatus>('loading');
@@ -32,8 +32,8 @@ export function useSsrmDataProvider(
 
   const provider = useMemo(() => {
     if (!providerId) return null;
-    return new SsrmProviderClientAdapter({ client, providerId, inlineCfg });
-  }, [client, providerId, inlineCfg]);
+    return new SsrmProviderClientAdapter({ client, catalogClient: platformClient, providerId, inlineCfg });
+  }, [client, platformClient, providerId, inlineCfg]);
 
   const providerRef = useRef(provider);
   providerRef.current = provider;

@@ -73,8 +73,14 @@ export interface BootstrapDataServicesOpts {
 }
 
 export interface DataServices {
-  /** Live data subscription client. Wraps the SharedWorker port. */
+  /** Live data subscription client. Wraps the data-hub SharedWorker port. */
   client: SharedWorkerDataServicesClient;
+  /**
+   * Client whose worker serves the config catalog + AppData (the
+   * platform-services worker since the split — worker-split W1c). Absent
+   * on bundles built for a single worker; consumers fall back to `client`.
+   */
+  platformClient?: SharedWorkerDataServicesClient;
   /** App-wide AppDataMirror. Sync reads, async writes. */
   appData: AppDataMirror;
   /** ConfigManager passed in at bootstrap time. */
@@ -117,6 +123,7 @@ export function bootstrapDataServices(opts: BootstrapDataServicesOpts): DataServ
 
   const services: DataServices = {
     client,
+    platformClient: appDataClient,
     appData,
     configManager: opts.configManager,
     ready: appData.ready(),

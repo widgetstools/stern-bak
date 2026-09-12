@@ -10,6 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInPageWiring, SharedWorkerDataServicesClient } from './SharedWorkerDataServicesClient';
+import { PlatformServicesHost } from '../worker/PlatformServicesHost.js';
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub';
 import { registerProvider } from '../providers/registry';
 import { isAppDataRequest, isRequest } from '../protocol';
@@ -78,9 +79,41 @@ function attachPortToHub(hub: SharedWorkerDataServicesHub): (port: MessagePort) 
     const portLike: PortLike = { postMessage: (m) => port.postMessage(m) };
     port.addEventListener('message', (ev: MessageEvent) => {
       if (isRequest(ev.data)) hub.handleRequest(portLike, ev.data);
-      else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(portLike, ev.data);
     });
     port.start();
+  };
+}
+
+/** Catalog + AppData live on the platform-services host since the split (W1c). */
+interface PlatformWiring {
+  host: PlatformServicesHost;
+  client: SharedWorkerDataServicesClient;
+  close(): void;
+}
+
+function attachPortToHost(host: PlatformServicesHost): (port: MessagePort) => void {
+  return (port) => {
+    const portLike: PortLike = { postMessage: (m) => port.postMessage(m) };
+    port.addEventListener('message', (ev: MessageEvent) => {
+      if (isRequest(ev.data)) host.handleRequest(portLike, ev.data);
+      else if (isAppDataRequest(ev.data)) host.handleAppDataRequest(portLike, ev.data);
+    });
+    port.start();
+  };
+}
+
+function wirePlatform(opts: { configManager?: ConfigManager } = {}): PlatformWiring {
+  const host = new PlatformServicesHost({
+    ...(opts.configManager ? { configManager: opts.configManager } : {}),
+  });
+  const wiring = createInPageWiring(attachPortToHost(host), { disablePageHideClose: true });
+  return {
+    host,
+    client: wiring.client,
+    close: () => {
+      wiring.close();
+      void host.dispose();
+    },
   };
 }
 
@@ -133,9 +166,9 @@ describe('port-close protocol — clean window close releases the hub-side port'
     const wiringA = createInPageWiring(attach, { disablePageHideClose: true });
     const wiringB = createInPageWiring(attach, { disablePageHideClose: true });
 
-    // Both ports register on first traffic.
-    await wiringA.client.isCatalogReady();
-    await wiringB.client.isCatalogReady();
+    // Both ports register on first traffic (a scalar probe the data hub answers).
+    await wiringA.client.isProviderRunning('p0');
+    await wiringB.client.isProviderRunning('p0');
     expect(hub.buildIntrospectSnapshot().connectedPorts).toBe(2);
 
     // Clean close: without the explicit port-close goodbye the hub can
@@ -151,20 +184,20 @@ describe('port-close protocol — clean window close releases the hub-side port'
     await hub.dispose();
   });
 
-  it('port-close also releases AppData listeners (no heartbeat covers them)', async () => {
-    const hub = new SharedWorkerDataServicesHub({});
-    const attach = attachPortToHub(hub);
+  it('port-close also releases AppData listeners on the platform host (no heartbeat covers them)', async () => {
+    const host = new PlatformServicesHost({});
+    const attach = attachPortToHost(host);
     const wiring = createInPageWiring(attach, { disablePageHideClose: true });
 
     const mirror = wiring.client.attachAppData({ userId: 'u1' });
     await mirror.attach();
     await flush();
-    expect(hub.buildIntrospectSnapshot().appData.listenerCount).toBe(1);
+    expect(host.buildIntrospectSnapshot().appData.listenerCount).toBe(1);
 
     wiring.client.close();
     await flush();
-    expect(hub.buildIntrospectSnapshot().appData.listenerCount).toBe(0);
-    await hub.dispose();
+    expect(host.buildIntrospectSnapshot().appData.listenerCount).toBe(0);
+    await host.dispose();
   });
 });
 
@@ -516,11 +549,11 @@ describe('SharedWorkerDataServicesClient', () => {
 });
 
 describe('SharedWorkerDataServicesClient — attachAppData', () => {
-  let w: Wiring;
+  let w: PlatformWiring;
   let cm: ReturnType<typeof stubConfigManager>;
   beforeEach(() => {
     cm = stubConfigManager();
-    w = wire({ configManager: cm });
+    w = wirePlatform({ configManager: cm });
   });
   afterEach(() => w.close());
 
@@ -533,7 +566,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
       createdBy: 'alice', updatedBy: 'alice',
       creationTime: '0', updatedTime: '0',
     } as AppConfigRow);
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
 
     const mirror = w.client.attachAppData({ userId: 'alice' });
     await mirror.attach();
@@ -543,7 +576,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
   });
 
   it('two mirrors converge on a write', async () => {
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
     const a = w.client.attachAppData({ userId: 'alice', subId: 'a' });
     const b = w.client.attachAppData({ userId: 'alice', subId: 'b' });
     await a.attach();
@@ -555,7 +588,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
   });
 
   it('detachAppData stops further deltas reaching the mirror', async () => {
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
     const a = w.client.attachAppData({ userId: 'alice', subId: 'a' });
     const b = w.client.attachAppData({ userId: 'alice', subId: 'b' });
     await a.attach();
@@ -571,7 +604,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
   });
 
   it('close() clears AppData mirror routing', async () => {
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
     const a = w.client.attachAppData({ userId: 'alice', subId: 'a' });
     await a.attach();
     await a.ready();
@@ -609,11 +642,11 @@ function mockProviderRow(id: string, testKey = 'c-1'): AppConfigRow {
 }
 
 describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
-  it('waitForCatalogReady resolves when the hub catalog is hydrated', async () => {
+  it('waitForCatalogReady resolves when the platform host catalog is hydrated', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
     await w.client.waitForCatalogReady();
     w.close();
   });
@@ -621,8 +654,8 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
   it('onCatalogChange fires with scoped detail after row invalidate', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
 
     const details: Array<{ providerId?: string; full?: boolean }> = [];
     const off = w.client.onCatalogChange((detail) => { details.push(detail); });
@@ -633,12 +666,12 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
     w.close();
   });
 
-  it('getProviderConfig and listProviderConfigs round-trip through the hub', async () => {
+  it('getProviderConfig and listProviderConfigs round-trip through the platform host', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
     cm._rows.set('p2', mockProviderRow('p2', 'c-2'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
 
     const one = await w.client.getProviderConfig('p1');
     expect(one?.providerId).toBe('p1');
@@ -649,11 +682,10 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
     w.close();
   });
 
-  it('cfg-free subscribe starts a provider from the worker catalog', async () => {
+  it('cfg-free subscribe starts a provider from an on-demand IndexedDB read (no catalog in the data hub)', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
     const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
 
     const handle = w.client.subscribe<{ id: string }>('p1');
     await flush();
@@ -671,9 +703,6 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
     const dual = wireTwoClients({ configManager: cm });
-    await dual.hub.hydrateCatalog();
-    await dual.clientA.waitForCatalogReady();
-    await dual.clientB.waitForCatalogReady();
 
     const primer = dual.clientA.subscribe('p1', cfg());
     await flush();
@@ -726,8 +755,8 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
   it('configStore.save() invalidates the worker catalog so getProviderConfig sees updates', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
 
     const store = new DataProviderConfigStore(
       cm,
@@ -984,8 +1013,8 @@ describe('SharedWorkerDataServicesClient — edge cases and error paths', () => 
   it('onCatalogChange isolates throwing listeners', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const local = wire({ configManager: cm });
-    await local.hub.hydrateCatalog();
+    const local = wirePlatform({ configManager: cm });
+    await local.host.hydrateCatalog();
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const good = vi.fn();
@@ -1183,8 +1212,8 @@ describe('SharedWorkerDataServicesClient — direct port events', () => {
 
   it('routes appdata-ack events to every attached mirror', async () => {
     const cm = stubConfigManager();
-    const local = wire({ configManager: cm });
-    await local.hub.hydrateAppData('alice');
+    const local = wirePlatform({ configManager: cm });
+    await local.host.hydrateAppData('alice');
     const a = local.client.attachAppData({ userId: 'alice', subId: 'a' });
     const b = local.client.attachAppData({ userId: 'alice', subId: 'b' });
     await a.attach();

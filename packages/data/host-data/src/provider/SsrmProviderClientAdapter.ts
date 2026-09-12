@@ -22,7 +22,13 @@ import type {
 } from '../runtime/ssrm/ssrmTypes.js';
 
 export interface SsrmProviderClientAdapterOpts {
+  /** Data-plane client: attach / RPCs / ticks ride this port. */
   client: SharedWorkerDataServicesClient;
+  /**
+   * Client whose worker serves the config catalog (the platform-services
+   * worker since the split — worker-split W1c). Defaults to `client`.
+   */
+  catalogClient?: SharedWorkerDataServicesClient;
   providerId: string;
   inlineCfg?: ProviderConfig;
 }
@@ -30,6 +36,7 @@ export interface SsrmProviderClientAdapterOpts {
 export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   readonly id: string;
   private readonly client: SharedWorkerDataServicesClient;
+  private readonly catalogClient: SharedWorkerDataServicesClient;
   private readonly inlineCfg?: ProviderConfig;
   private resolvedConfig: ProviderConfig | null = null;
   private subId: string | null = null;
@@ -50,6 +57,7 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
   constructor(opts: SsrmProviderClientAdapterOpts) {
     this.id = opts.providerId;
     this.client = opts.client;
+    this.catalogClient = opts.catalogClient ?? opts.client;
     this.inlineCfg = opts.inlineCfg;
   }
 
@@ -66,7 +74,7 @@ export class SsrmProviderClientAdapter implements ISsrmDataProvider {
     if (this.inlineCfg) {
       this.resolvedConfig = this.inlineCfg;
     } else {
-      const row = await this.client.getProviderConfig(this.id);
+      const row = await this.catalogClient.getProviderConfig(this.id);
       if (!row?.config) {
         throw new Error(
           `[SsrmProviderClientAdapter] No config for providerId=${this.id}.`,

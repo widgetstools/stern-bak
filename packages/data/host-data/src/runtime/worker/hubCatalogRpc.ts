@@ -20,12 +20,19 @@ import type {
 import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import type { PortLike } from './hubTypes.js';
 
-export interface CatalogRpcContext {
+/**
+ * The two diagnostics RPCs both worker brains answer — the data hub for its
+ * providers, the platform host for its catalog + AppData.
+ */
+export interface IntrospectRpcContext {
+  buildIntrospect(): HubIntrospectSnapshot;
+  isProviderRunning(providerId: string): boolean;
+}
+
+export interface CatalogRpcContext extends IntrospectRpcContext {
   catalog: ConfigCatalogCache | null;
   broadcastCatalogEvent(event: CatalogEvent): void;
   resyncAppData(): Promise<void>;
-  buildIntrospect(): HubIntrospectSnapshot;
-  isProviderRunning(providerId: string): boolean;
 }
 
 function reply(port: PortLike, snapshot: ConfigSnapshotEvent): void {
@@ -108,7 +115,7 @@ export function handleHubReady(ctx: CatalogRpcContext, port: PortLike, req: HubR
 }
 
 export function handleHubIntrospect(
-  ctx: CatalogRpcContext,
+  ctx: IntrospectRpcContext,
   port: PortLike,
   req: HubIntrospectRequest,
 ): void {
@@ -122,7 +129,7 @@ export function handleHubIntrospect(
 
 /** O(1) scalar probe — never serializes hub state (unlike introspect). */
 export function handleProviderRunning(
-  ctx: CatalogRpcContext,
+  ctx: IntrospectRpcContext,
   port: PortLike,
   req: ProviderRunningRequest,
 ): void {

@@ -1,6 +1,6 @@
 /**
  * AppDataMirror tests — wire two mirrors against ONE in-process
- * SharedWorkerDataServicesHub via direct calls (no MessageChannel
+ * PlatformServicesHost via direct calls (no MessageChannel
  * needed; the hub doesn't care where the request came from). The
  * test verifies cross-mirror convergence: a write on mirror A is
  * visible on mirror B after the broadcast round-trip.
@@ -8,7 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppDataMirror } from './AppDataMirror';
-import { SharedWorkerDataServicesHub } from '../worker/SharedWorkerDataServicesHub';
+import { PlatformServicesHost } from '../worker/PlatformServicesHost';
 import type { AppDataEvent, AppDataRequest, PortLike } from '../worker/index';
 import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 
@@ -34,7 +34,7 @@ function stubConfigManager(): ConfigManager & { _rows: Map<string, AppConfigRow>
 // ─── Test rig — wires N mirrors to one hub ─────────────────────────
 
 interface Rig {
-  hub: SharedWorkerDataServicesHub;
+  hub: PlatformServicesHost;
   cm: ConfigManager & { _rows: Map<string, AppConfigRow> };
   /**
    * Re-hydrate the hub from the ConfigManager (used by tests that
@@ -49,7 +49,7 @@ interface Rig {
 
 function buildRig(): Rig {
   const cm = stubConfigManager();
-  const hub = new SharedWorkerDataServicesHub({ configManager: cm });
+  const hub = new PlatformServicesHost({ configManager: cm });
   const ports = new Map<AppDataMirror, PortLike>();
 
   return {

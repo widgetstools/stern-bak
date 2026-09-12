@@ -722,9 +722,26 @@ features, but each carries pre-collapse names/paths. One pass, per file:
 - `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
   `@wellsfargo-starui/data`.
 
-## 14. First-run catalog read stalled once — class closed, forensic cause unproven
+## 14. First-run catalog read stalled once — closed; forensic cause found 2026-09-12
 
-**Area:** `packages/data/host-data` (worker) · **Blocked on:** recurrence
+**Area:** `packages/data/host-data` (worker) · **Blocked on:** nothing — closed
+
+**Forensic cause found (2026-09-12, worker-split W1c live probe on the
+Windows target):** not a Dexie stall — a port-adoption gap in the shared
+worker installer. `defaultEntry` must `start()` each port to receive the
+bootstrap handshake; on handover it removed its capture listener, and
+`install()` only attached the host's listener AFTER the catalog + AppData
+hydrate awaits. A started port with no listener drops messages, so every
+request a first window sent in that window (its `appdata-attach`,
+`hub-ready`, the first `get-config`) vanished — the window's readiness
+promises never settled, the grid's `get-config` only succeeded on the
+client-side retry. A port trace (`apps/scripts/ssrm-perf`, headless
+Chromium, fresh profile) showed six unanswered requests followed by
+answered retries. Fixed in `entry.ts`: every port is attached the moment
+it is known and dispatch is backlogged, in arrival order, until the host
+is ready; pinned by two regression tests in `entry.adoptPorts.test.ts`
+(adopted-port mid-hydrate, onconnect-port mid-hydrate). The bounded-reply
+backstops below stay.
 
 Observed once (2026-08-02, first-run cold boot of `stomp-marketsgrid-minimal`):
 the worker's first ConfigManager read (`ConfigCatalogCache.ensure` →
@@ -834,9 +851,16 @@ mid-storm window open 225→924 ms, joiner ladder to 5.4 s. Dev rig is an
 M4 Max; deployment target is Windows 11 32 GB — all exit gates run native
 AND throttled, final acceptance on the real target box. W1a+W1b landed
 (dual worker + slim PlatformServicesHost behind a self.name branch); W1c
-(data hub stops serving config/AppData, on-demand reads, sole seeder,
-<800 lines), W2 (thin windows + warmPlatform + boot ordering / WORKLOG-14),
-W3, W4 remain — continued on the Windows target box per the operator
+landed on the Windows target (2026-09-12): the data hub serves no catalog /
+AppData (routes deleted, `ProviderLifecycleReads` re-reads IndexedDB at
+create / restart / reconfigure, platform worker is the sole seeder, data
+worker inits read-only attach mode, hub at the 800-line ceiling after
+`HubSsrmRpc` + `HubStatsSampler` extraction); React hooks + adapters were
+stragglers still issuing catalog RPCs on the DATA client and were
+re-pointed at `platformClient`; the inspector merges both workers'
+introspect. Windows-native W0 numbers (W1b HEAD) are in plan §5. W2 (thin
+windows + warmPlatform + boot ordering / WORKLOG-14), W3, W4 remain —
+continued on the Windows target box per the operator
 handoff [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 

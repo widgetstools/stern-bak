@@ -15,7 +15,7 @@
  */
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
-import type { AppDataRequest, CatalogEvent, Request } from '../protocol.js';
+import type { AppDataRequest, CatalogEvent, HubIntrospectSnapshot, Request } from '../protocol.js';
 import { HubAppDataService } from './HubAppDataService.js';
 import {
   handleConfigInvalidate,
@@ -51,16 +51,21 @@ export class PlatformServicesHost {
       catalog: this.configCatalog,
       broadcastCatalogEvent: (event) => this.broadcastCatalogEvent(event),
       resyncAppData: () => this.appDataSvc.resync(),
-      buildIntrospect: () => buildIntrospectSnapshot({
-        providers: new Map(),
-        subscribers: this.subscribers,
-        configCatalog: this.configCatalog,
-        connectedPortCount: this.connectedPorts.size,
-        appDataListenerCount: this.appDataSvc.listenerCount,
-        appDataRows: this.appDataSvc.snapshotRows(),
-      }),
+      buildIntrospect: () => this.buildIntrospectSnapshot(),
       isProviderRunning: () => false,
     };
+  }
+
+  /** This worker's diagnostics: catalog + AppData, zero providers. */
+  buildIntrospectSnapshot(): HubIntrospectSnapshot {
+    return buildIntrospectSnapshot({
+      providers: new Map(),
+      subscribers: this.subscribers,
+      configCatalog: this.configCatalog,
+      connectedPortCount: this.connectedPorts.size,
+      appDataListenerCount: this.appDataSvc.listenerCount,
+      appDataRows: this.appDataSvc.snapshotRows(),
+    });
   }
 
   handleRequest(port: PortLike, req: Request): void {

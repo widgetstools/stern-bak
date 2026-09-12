@@ -1,10 +1,13 @@
 // W0 of the worker-split plan (docs/superpowers/plans/2026-09-12-worker-split-plan.md):
 // pin the single-SharedWorker bottleneck with numbers BEFORE any code moves.
 //
-//   A. config-RPC latency (hub-ready / list-configs) against the shared worker,
-//      idle vs a rate=10000 SSRM storm — the tool-window starvation number.
-//      The probe INJECTS synthetic catalog RPCs on the hooked worker port from
-//      a second window, so no app changes are needed.
+//   A. config-RPC latency (hub-ready / list-configs) against the PLATFORM
+//      worker port — the plane a tool window's config requests ride — plus
+//      the scalar `provider-running` probe on the DATA worker port (pure
+//      queueing behind ingest), idle vs a rate=10000 SSRM storm: the
+//      tool-window starvation number, and the data-plane latency it no
+//      longer shares. The probe INJECTS synthetic RPCs on the hooked worker
+//      ports from a second window, so no app changes are needed.
 //   B. a fresh window's boot mid-storm: goto → first rows, plus the platform's
 //      own `starui:*` load-mark ladder (config-ready … platform-ready).
 //   C. the W4 baseline: 10 CSRM windows × 20k-row snapshot — per-window
@@ -43,8 +46,14 @@ const THROTTLE = Math.max(1, Number(process.env.THROTTLE) || 1);
 const src = readFileSync(join(HERE, 'ssrm-validate.mjs'), 'utf8');
 const INIT_SSRM = src.slice(src.indexOf('const INIT = `') + 'const INIT = `'.length, src.indexOf('`;\n\n//'));
 // …extended: record config-snapshot replies and expose a synthetic-RPC probe.
+// Since the worker split there are TWO SharedWorkers per window; the probe
+// targets one by name — 'platform' (mkt-platform-services:*, the plane a tool
+// window's config requests ride) or 'data' (mkt-data-services:*, whose only
+// catalog-shaped reply left is the scalar `provider-running`, so a probe there
+// measures pure queueing behind ingest). Pre-split single-worker runs have one
+// port under the data name; both selectors fall back to it.
 const INIT_CONFIG = `(() => {
-  const C = window.__cfgProbe = { replies: new Map(), seq: 0 };
+  const C = window.__cfgProbe = { replies: new Map(), seq: 0, named: [] };
   const armed = new Set();
   const arm = (port) => {
     if (!port || armed.has(port)) return; armed.add(port);
@@ -56,9 +65,23 @@ const INIT_CONFIG = `(() => {
       }
     });
   };
-  // The ssrm INIT hook stashes every hooked port on window.__ssrm.ports.
-  window.__cfgRpc = (kind, extra) => {
-    const S = window.__ssrm; const port = S && S.ports && S.ports[0];
+  // Wrap the (already hooked) SharedWorker constructor once more to learn
+  // each port's worker name; the ssrm INIT hook keeps its own port list.
+  const Hooked = window.SharedWorker;
+  const Named = function SharedWorker(...args) {
+    const w = new Hooked(...args);
+    C.named.push({ name: String((args[1] && args[1].name) || ''), port: w.port });
+    return w;
+  };
+  Named.prototype = Hooked.prototype;
+  window.SharedWorker = Named;
+  const pick = (which) => {
+    const prefix = which === 'platform' ? 'mkt-platform-services:' : 'mkt-data-services:';
+    const hit = C.named.find((p) => p.name.startsWith(prefix)) || C.named[0];
+    return hit && hit.port;
+  };
+  window.__cfgRpc = (kind, extra, which) => {
+    const port = pick(which || 'platform');
     if (!port) return Promise.reject(new Error('no hooked worker port'));
     arm(port);
     const reqId = 'probe-' + (C.seq += 1) + '-' + Math.random().toString(36).slice(2, 8);
@@ -92,16 +115,23 @@ const readMarks = (page) => page.evaluate((names) => {
   return out;
 }, LOAD_MARKS);
 
-/** N config-RPC samples of each kind from one page, every `gapMs`. */
+/** One round of the three probes: two catalog RPCs on the platform port + the scalar probe on the data port. */
+async function probeOnce(page, into) {
+  try { into.hubReady.push(await page.evaluate(() => window.__cfgRpc('hub-ready', null, 'platform'))); } catch { into.hubReady.push(15000); }
+  try { into.listConfigs.push(await page.evaluate(() => window.__cfgRpc('list-configs', null, 'platform'))); } catch { into.listConfigs.push(15000); }
+  try { into.dataProviderRunning.push(await page.evaluate(() => window.__cfgRpc('provider-running', { providerId: 'probe' }, 'data'))); } catch { into.dataProviderRunning.push(15000); }
+}
+const newProbe = () => ({ hubReady: [], listConfigs: [], dataProviderRunning: [] });
+const probeStats = (p) => ({ hubReady: stats(p.hubReady), listConfigs: stats(p.listConfigs), dataProviderRunning: stats(p.dataProviderRunning) });
+
+/** N samples of each probe from one page, every `gapMs`. */
 async function probeConfig(page, samples, gapMs) {
-  const hubReady = [];
-  const listConfigs = [];
+  const acc = newProbe();
   for (let i = 0; i < samples; i += 1) {
-    try { hubReady.push(await page.evaluate(() => window.__cfgRpc('hub-ready'))); } catch { hubReady.push(15000); }
-    try { listConfigs.push(await page.evaluate(() => window.__cfgRpc('list-configs'))); } catch { listConfigs.push(15000); }
+    await probeOnce(page, acc);
     await sleep(gapMs);
   }
-  return { hubReady: stats(hubReady), listConfigs: stats(listConfigs) };
+  return probeStats(acc);
 }
 
 const PHASES = (process.env.PHASES ?? 'AB,C').split(',');
@@ -149,20 +179,18 @@ async function throttlePage(ctx, page) {
     // The reload flips rate back (config differs → re-save → restart), and
     // the probe hammers concurrently at 100 ms gaps from the tool window.
     {
-      const hubReady = [];
-      const listConfigs = [];
+      const acc = newProbe();
       const probeLoop = (async () => {
         const t0 = Date.now();
         while (Date.now() - t0 < 12_000) {
-          try { hubReady.push(await toolIdle.evaluate(() => window.__cfgRpc('hub-ready'))); } catch { hubReady.push(15000); }
-          try { listConfigs.push(await toolIdle.evaluate(() => window.__cfgRpc('list-configs'))); } catch { listConfigs.push(15000); }
+          await probeOnce(toolIdle, acc);
           await sleep(100);
         }
       })();
       await blotter.goto(`${SSRM_URL}?rate=9999`, { waitUntil: 'domcontentloaded' });
       await waitForSsrmRows(blotter);
       await probeLoop;
-      out.scenarios.configRpcDuringSnapshotRestream = { hubReady: stats(hubReady), listConfigs: stats(listConfigs) };
+      out.scenarios.configRpcDuringSnapshotRestream = probeStats(acc);
       console.log('\n[A3 config RPC, during snapshot re-stream]', JSON.stringify(out.scenarios.configRpcDuringSnapshotRestream));
     }
 

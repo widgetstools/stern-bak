@@ -56,6 +56,7 @@ export {
   ensurePlatformReady,
   ensureDataServicesHub,
   SnapshotReassembler,
+  mergeHubIntrospect,
   runAppDataBootstrap,
   createAppDataBootstrapContext,
   markConfigReady,

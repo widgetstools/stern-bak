@@ -9,7 +9,6 @@ import type { ProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus, WireEncoding, AppDataEvent, SubscriberMeta } from '../protocol.js';
 import type { ProviderHandle } from '../providers/Provider.js';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 
 /**
  * Maximum rows shipped in a single late-join replay `postMessage`.
@@ -196,19 +195,15 @@ export type AppDataDeltaEventMutable = Extract<AppDataEvent, { kind: 'appdata-de
 
 export interface SharedWorkerDataServicesHubOpts {
   /**
-   * ConfigManager backing AppData persistence. The hub becomes the
-   * sole IndexedDB writer for AppData rows — main-thread mirrors no
-   * longer touch ConfigManager. Optional only for back-compat with
-   * tests that don't exercise the AppData path; production callers
-   * (the SharedWorker entry script) MUST pass one.
+   * READ-ONLY ConfigManager for provider-lifecycle reads (worker-split
+   * W1c): resolving a cfg-free attach's provider row and the `{{name.key}}`
+   * AppData tokens in a cfg, re-read from IndexedDB at create / restart /
+   * reconfigure. The data hub never writes through it and never seeds —
+   * catalog RPCs and AppData live on the platform-services worker.
+   * Optional for tests that pass cfg inline; the SharedWorker entry MUST
+   * pass one.
    */
   configManager?: ConfigManager;
-
-  /**
-   * Preloaded data-provider catalog. When omitted but `configManager`
-   * is set, the hub constructs one automatically.
-   */
-  configCatalog?: ConfigCatalogCache;
 
   /** Tick interval for the stats sampler (default 1000ms). */
   statsIntervalMs?: number;
