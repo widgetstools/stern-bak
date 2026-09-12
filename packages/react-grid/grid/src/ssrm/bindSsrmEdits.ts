@@ -48,6 +48,9 @@ export function bindSsrmEdits(
 
   const flushMs = options.flushMs ?? 16;
   const pending = new Map<string, Row>();
+  /** Columns the user actually touched, per pending row — the engine-side
+   *  overlay holds ONLY these over the feed (see ISsrmDataProvider.applyEdits). */
+  const pendingCols = new Map<string, Set<string>>();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let unbound = false;
 
@@ -62,9 +65,12 @@ export function bindSsrmEdits(
     if (timer != null) clearTimeout(timer);
     timer = null;
     if (unbound || pending.size === 0) return;
-    const rows = [...pending.values()].map((row) => ({ ...row }));
+    const ids = [...pending.keys()];
+    const rows = ids.map((id) => ({ ...pending.get(id)! }));
+    const editedColumns = ids.map((id) => [...(pendingCols.get(id) ?? [])]);
     pending.clear();
-    void applyEdits({ rows }).catch((err: unknown) => {
+    pendingCols.clear();
+    void applyEdits({ rows, editedColumns }).catch((err: unknown) => {
       const error = err instanceof Error ? err : new Error(String(err));
       if (options.onError) options.onError(error);
       else {
@@ -84,6 +90,14 @@ export function bindSsrmEdits(
     // The node's data already carries the new value; send the whole row so
     // the engine's upsert does not blank the columns it did not receive.
     pending.set(id, node.data as Row);
+    // Column method through the column object — a detached getColId is the
+    // AG Grid 36 paste-abort trap (see timedActivations regression test).
+    const colId = safe(() => event.column?.getColId(), undefined);
+    if (colId) {
+      const cols = pendingCols.get(id) ?? new Set<string>();
+      cols.add(colId);
+      pendingCols.set(id, cols);
+    }
     if (timer == null) timer = setTimeout(flush, flushMs);
   };
 

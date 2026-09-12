@@ -28,8 +28,15 @@ function provider(applyEdits?: (req: { rows: unknown[] }) => Promise<{ applied: 
   return { applyEdits } as unknown as ISsrmDataProvider;
 }
 
-const edit = (id: string, data: Record<string, unknown>, oldValue: unknown, newValue: unknown) => ({
+const edit = (
+  id: string,
+  data: Record<string, unknown>,
+  oldValue: unknown,
+  newValue: unknown,
+  colId = 'px',
+) => ({
   node: { id, data, group: false },
+  column: { getColId: () => colId },
   oldValue,
   newValue,
 });
@@ -43,12 +50,17 @@ describe('bindSsrmEdits', () => {
     const row = { id: 'r1', px: 2, qty: 5 };
     grid.fire('cellValueChanged', edit('r1', row, 1, 2));
     row.qty = 7;
-    grid.fire('cellValueChanged', edit('r1', row, 5, 7));
+    grid.fire('cellValueChanged', edit('r1', row, 5, 7, 'qty'));
     grid.fire('cellValueChanged', edit('r2', { id: 'r2', px: 3 }, 2, 3));
     expect(applyEdits).not.toHaveBeenCalled();
     vi.advanceTimersByTime(10);
     expect(applyEdits).toHaveBeenCalledTimes(1);
-    expect(applyEdits).toHaveBeenCalledWith({ rows: [{ id: 'r1', px: 2, qty: 7 }, { id: 'r2', px: 3 }] });
+    // Whole rows so the engine's upsert blanks nothing, PLUS the edited
+    // columns so the worker holds exactly those over the feed.
+    expect(applyEdits).toHaveBeenCalledWith({
+      rows: [{ id: 'r1', px: 2, qty: 7 }, { id: 'r2', px: 3 }],
+      editedColumns: [['px', 'qty'], ['px']],
+    });
   });
 
   it('flushes at once when a paste finishes', () => {

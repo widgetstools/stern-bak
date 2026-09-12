@@ -6,6 +6,7 @@ import {
   ssrmExportRequestFromApi,
 } from './drainSsrmRows.js';
 import { getSsrmSession } from './ssrmSession.js';
+import { filterRowsByGroupSelection, isGroupSelectionState } from './ssrmGroupSelection.js';
 
 export function filterSsrmExportSelection(
   api: GridApi,
@@ -19,6 +20,13 @@ export function filterSsrmExportSelection(
     | undefined;
   const idOf = (row: Record<string, unknown>): string =>
     (getRowId ? String(getRowId({ data: row })) : String(row.id ?? ''));
+  if (isGroupSelectionState(state)) {
+    // `groupSelects` tree: each drained row's group chain decides whether
+    // the row inherits its deepest toggled ancestor's state.
+    const groupCols = (api.getRowGroupColumns?.() ?? []).map((c) => c.getColId());
+    const filtered = filterRowsByGroupSelection(rows, state, groupCols, idOf);
+    if (filtered !== null) return filtered;
+  }
   if (state?.selectAll) {
     // Header select-all with rows the user un-ticked afterwards: those ids
     // are the exclusions, and an export that ignores them ships rows the

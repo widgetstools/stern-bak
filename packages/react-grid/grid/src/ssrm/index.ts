@@ -35,7 +35,15 @@ export { lockSsrmExpressionColumns } from './lockSsrmExpressionColumns.js';
 export { withSsrmSelectAll } from './withSsrmSelectAll.js';
 export { sendSsrmClipboard } from './sendSsrmClipboard.js';
 export { wrapSsrmContextMenu } from './wrapSsrmContextMenu.js';
-export { exportSsrmVisualExcel, exportDrainedRowsAsExcel } from './exportSsrmExcel.js';
+export { exportSsrmVisualExcel, exportDrainedRowsAsExcel, filterSsrmExportSelection } from './exportSsrmExcel.js';
+export {
+  countGroupSelection,
+  filterRowsByGroupSelection,
+  isGroupSelectionState,
+  leafCountLookupFromApi,
+  type LeafCountLookup,
+  type SsrmGroupSelectionNode,
+} from './ssrmGroupSelection.js';
 export {
   withSsrmSetFilterValues,
   withSsrmSetFilterDefaults,

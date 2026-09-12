@@ -1,6 +1,12 @@
+import * as React from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SSRM_COUNT_REFRESH_MS, useSsrmFilterCounts } from './useSsrmFilterCounts';
+import {
+  SSRM_COUNT_REFRESH_MS,
+  SsrmTickProvider,
+  useSsrmFilterCounts,
+  type SsrmTickSubscribe,
+} from './useSsrmFilterCounts';
 import type { SavedFilter } from './types';
 
 function pill(id: string, filterModel: Record<string, unknown> = {}): SavedFilter {
@@ -90,5 +96,32 @@ describe('useSsrmFilterCounts', () => {
     unmount();
     await tick(SSRM_COUNT_REFRESH_MS * 3);
     expect(counter).toHaveBeenCalledTimes(1);
+  });
+
+  it('with a tick source, re-reads only after the engine moved — idle costs zero RPCs', async () => {
+    let n = 1;
+    const counter = vi.fn(async () => n++);
+    let fireTick: () => void = () => undefined;
+    const subscribe: SsrmTickSubscribe = (handler) => {
+      fireTick = handler;
+      return () => undefined;
+    };
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(SsrmTickProvider, { value: subscribe }, children);
+
+    const { result } = renderHook(() => useSsrmFilterCounts([pill('a')], counter), { wrapper });
+    await tick();
+    expect(result.current).toEqual({ a: 1 });
+
+    // Idle: intervals elapse, no tick arrived — no RPC.
+    await tick(SSRM_COUNT_REFRESH_MS * 3);
+    expect(counter).toHaveBeenCalledTimes(1);
+
+    // A tick arms exactly the next interval read.
+    act(() => { fireTick(); });
+    await tick(SSRM_COUNT_REFRESH_MS);
+    expect(result.current).toEqual({ a: 2 });
+    await tick(SSRM_COUNT_REFRESH_MS * 2);
+    expect(counter).toHaveBeenCalledTimes(2);
   });
 });

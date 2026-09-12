@@ -14,6 +14,11 @@ import { useEffect, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
 import { SSRM_COUNT_REFRESH_MS } from '../widget/useSsrmFilterCounts';
+import {
+  countGroupSelection,
+  isGroupSelectionState,
+  leafCountLookupFromApi,
+} from './ssrmGroupSelection.js';
 
 const AGG_FUNCS = ['count', 'sum', 'min', 'max', 'avg'] as const;
 
@@ -24,6 +29,12 @@ export interface SsrmStatusModel {
   /** `column_fn` → value, matching the engine's `as` keys. */
   aggregates: Record<string, number>;
   aggregateColumn: string | null;
+  /**
+   * False until the engine has answered a count at least once. Panels render
+   * a dash instead of the confidently-wrong `0` the EMPTY model would show —
+   * the trap the Rust plan calls out for status bars.
+   */
+  loaded: boolean;
 }
 
 const EMPTY: SsrmStatusModel = {
@@ -32,6 +43,7 @@ const EMPTY: SsrmStatusModel = {
   selected: 0,
   aggregates: {},
   aggregateColumn: null,
+  loaded: false,
 };
 
 type Listener = (model: SsrmStatusModel) => void;
@@ -47,7 +59,7 @@ const sessions = new WeakMap<GridApi, Session>();
 
 function modelsEqual(a: SsrmStatusModel, b: SsrmStatusModel): boolean {
   if (a.total !== b.total || a.filtered !== b.filtered || a.selected !== b.selected) return false;
-  if (a.aggregateColumn !== b.aggregateColumn) return false;
+  if (a.aggregateColumn !== b.aggregateColumn || a.loaded !== b.loaded) return false;
   const keys = Object.keys(a.aggregates);
   if (keys.length !== Object.keys(b.aggregates).length) return false;
   return keys.every((k) => a.aggregates[k] === b.aggregates[k]);
@@ -70,8 +82,9 @@ function selectedColumn(api: GridApi): string | null {
  * selected nodes: `getSelectedNodes` sees only the loaded blocks (or nothing
  * at all once `selectAll` is set). Count from the state — `selectAll` with
  * exclusions is the filtered total minus the toggled ids; otherwise the
- * toggled ids ARE the selection. Group-selection state (object entries) has
- * no row count to offer, so it falls back to the node walk.
+ * toggled ids ARE the selection. Group-selection state (a `groupSelects`
+ * tree) is counted through the loaded group rows' engine `__count`s; only
+ * when a toggled group's row is not loaded does this fall back to the walk.
  */
 function selectedCount(api: GridApi, filtered: number): number {
   const state = api.getServerSideSelectionState?.() as
@@ -86,6 +99,10 @@ function selectedCount(api: GridApi, filtered: number): number {
   ) {
     const toggled = state.toggledNodes.length;
     return state.selectAll ? Math.max(0, filtered - toggled) : toggled;
+  }
+  if (isGroupSelectionState(state)) {
+    const counted = countGroupSelection(state, filtered, leafCountLookupFromApi(api));
+    if (counted !== null) return counted;
   }
   return api.getSelectedNodes?.()?.length ?? 0;
 }
@@ -114,18 +131,22 @@ async function loadModel(
     ? AGG_FUNCS.map((fn) => ({ column, fn, as: `${column}_${fn}` }))
     : [];
   const [total, filtered, aggregates] = await Promise.all([
-    provider.getRowCount({}).then((r) => r.rowCount).catch(() => prev.total),
-    provider.getRowCount(filteredReq).then((r) => r.rowCount).catch(() => prev.filtered),
+    provider.getRowCount({}).then((r) => r.rowCount).catch(() => null),
+    provider.getRowCount(filteredReq).then((r) => r.rowCount).catch(() => null),
     specs.length === 0
       ? Promise.resolve({ values: prev.aggregates })
       : provider.getAggregates({ ...filteredReq, specs }).catch(() => ({ values: prev.aggregates })),
   ]);
+  const filteredCount = filtered ?? prev.filtered;
   return {
-    total,
-    filtered,
-    selected: selectedCount(api, filtered),
+    total: total ?? prev.total,
+    filtered: filteredCount,
+    selected: selectedCount(api, filteredCount),
     aggregates: aggregates.values,
     aggregateColumn: column,
+    // Loaded only once a count RPC has actually answered — a failed first
+    // poll keeps the dash rather than promoting EMPTY's zeros to numbers.
+    loaded: prev.loaded || total !== null || filtered !== null,
   };
 }
 
@@ -156,20 +177,41 @@ function startSession(provider: ISsrmDataProvider, api: GridApi): Session {
   };
 
   const onChange = (): void => { void refresh(); };
+
+  // The engine only changes between ticks, so the cadence poll runs ONLY
+  // when one arrived since the last read — an idle blotter costs zero RPCs.
+  // Grid-side changes (filter, selection) refresh immediately below.
+  let tickDirty = false;
+  const markDirty = (): void => { tickDirty = true; };
+  // Optional-called so partial test doubles without the listeners still work.
+  const offTick = provider.onSsrmTick?.(markDirty) ?? ((): void => undefined);
+  const offRefresh = provider.onRefresh?.(markDirty) ?? ((): void => undefined);
+  const offStatus = provider.onStatus?.(markDirty) ?? ((): void => undefined);
+
   void refresh();
-  const timer = setInterval(onChange, SSRM_COUNT_REFRESH_MS);
+  const timer = setInterval(() => {
+    // Keep retrying while the bar still shows dashes — a failed first poll
+    // on an idle feed would otherwise never be retried (no tick, no retry).
+    if (!tickDirty && session.model.loaded) return;
+    tickDirty = false;
+    onChange();
+  }, SSRM_COUNT_REFRESH_MS);
+  // No `quickFilterChanged` here: AG Grid has no such event — quick filter
+  // updates arrive as the `filterChanged` this already listens for.
   const events = [
     'filterChanged',
     'selectionChanged',
     'cellSelectionChanged',
     'firstDataRendered',
-    'quickFilterChanged',
   ] as const;
   type GridEvt = Parameters<GridApi['addEventListener']>[0];
   for (const evt of events) api.addEventListener?.(evt as GridEvt, onChange);
   session.stop = () => {
     alive = false;
     clearInterval(timer);
+    offTick();
+    offRefresh();
+    offStatus();
     for (const evt of events) api.removeEventListener?.(evt as GridEvt, onChange);
   };
   return session;

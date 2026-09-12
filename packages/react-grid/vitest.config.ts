@@ -33,6 +33,13 @@ export default defineConfig({
         resolve: {
           dedupe: ['react', 'react-dom'],
           alias: [
+            // Value imports from @wellsfargo-starui/data/runtime pull its barrel, whose
+            // RustHubHost imports the worker-only WASM module — stub it the
+            // same way packages/data's own vitest config does.
+            {
+              find: '@starui/dshub',
+              replacement: resolve(__dirname, '../data/host-data/src/runtime/ssrm/dshub.vitest-stub.ts'),
+            },
             {
               find: '@wellsfargo-starui/design-system/adapters/ag-grid',
               replacement: resolve(__dirname, '../design-system/design-system/dist/adapters/agGrid.js'),

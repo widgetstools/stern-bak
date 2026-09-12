@@ -30,9 +30,10 @@ export interface SsrmExprAggSession extends SsrmExprAggLookup {
 
 type ApiWithSession = GridApi & { [SSRM_EXPR_AGG_KEY]?: SsrmExprAggSession };
 
+// No `quickFilterChanged`: AG Grid has no such event — quick filter updates
+// arrive as the `filterChanged` this already listens for.
 const GRID_EVENTS = [
   'filterChanged',
-  'quickFilterChanged',
   'firstDataRendered',
 ] as const;
 

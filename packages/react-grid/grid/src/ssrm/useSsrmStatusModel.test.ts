@@ -120,8 +120,8 @@ describe('useSsrmStatusModel', () => {
     expect(grouped.result.current.selected).toBe(2);
   });
 
-  it('re-reads on the live-feed interval', async () => {
-    const ticks: Array<() => void> = [];
+  it('re-reads on the interval only after a provider tick — idle costs zero RPCs', async () => {
+    const intervalFns: Array<() => void> = [];
     const nativeSetInterval = globalThis.setInterval;
     const intervalSpy = vi.spyOn(globalThis, 'setInterval').mockImplementation(((
       fn: TimerHandler,
@@ -129,22 +129,39 @@ describe('useSsrmStatusModel', () => {
       ...args: unknown[]
     ) => {
       if (ms === SSRM_COUNT_REFRESH_MS) {
-        ticks.push(fn as () => void);
+        intervalFns.push(fn as () => void);
         return 1 as unknown as ReturnType<typeof setInterval>;
       }
       return nativeSetInterval(fn, ms, ...args);
     }) as typeof setInterval);
     let n = 1;
+    let fireTick: () => void = () => undefined;
     const p = {
       getRowCount: vi.fn(async () => ({ rowCount: n++ })),
       getAggregates: vi.fn(async () => ({ values: {} })),
+      onSsrmTick: (h: () => void) => { fireTick = h; return () => undefined; },
     } as unknown as ISsrmDataProvider;
     const { result } = mount(p, api());
     await waitFor(() => expect(result.current.total).toBeGreaterThan(0));
     const first = result.current.total;
-    ticks[0]();
+    const calls = (p.getRowCount as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // Idle: interval fires, but no tick arrived — no RPC.
+    intervalFns[0]();
+    expect(p.getRowCount).toHaveBeenCalledTimes(calls);
+
+    // A tick arms the next interval read.
+    fireTick();
+    intervalFns[0]();
     await waitFor(() => expect(result.current.total).toBeGreaterThan(first));
     intervalSpy.mockRestore();
+  });
+
+  it('starts unloaded and reports loaded after the first engine answer', async () => {
+    const p = provider();
+    const { result } = mount(p, api());
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.total).toBe(1000);
   });
 
   it('shares one poll across every panel on the same grid', async () => {

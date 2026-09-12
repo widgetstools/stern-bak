@@ -30,7 +30,12 @@ import { TooltipProvider } from '@wellsfargo-starui/react';
 import { resolveGridDensity } from '@wellsfargo-starui/design-system/adapters/ag-grid';
 import type { AnyModule, StorageAdapter } from '@wellsfargo-starui/core';
 import type { AdminAction, MarketsGridHandle, MarketsGridProps } from './types';
-import { SsrmRowCountProvider, type SsrmRowCounter } from './useSsrmFilterCounts';
+import {
+  SsrmRowCountProvider,
+  SsrmTickProvider,
+  type SsrmRowCounter,
+  type SsrmTickSubscribe,
+} from './useSsrmFilterCounts';
 import { FormattingToolbar } from './FormattingToolbar';
 import { EditingToolbar } from './editingToolbar/EditingToolbar';
 import type { EditingToolbarHostProps } from './editingToolbar/resolveEditingToolbarAllow';
@@ -277,9 +282,26 @@ function MarketsGridHostInner<TData>({
     [ssrm],
   );
 
+  // "The engine may have moved" — pill badges re-count only after a tick or
+  // a refresh, so an idle blotter's pills cost zero RPCs at idle.
+  const ssrmTickSubscribe = useMemo<SsrmTickSubscribe | null>(
+    () => (ssrm
+      ? (handler) => {
+        const offTick = ssrm.provider.onSsrmTick(handler);
+        const offRefresh = ssrm.provider.onRefresh(handler);
+        return () => {
+          offTick();
+          offRefresh();
+        };
+      }
+      : null),
+    [ssrm],
+  );
+
   return (
     <GridChromeProvider value={chromeState}>
     <SsrmRowCountProvider value={ssrmRowCounter}>
+    <SsrmTickProvider value={ssrmTickSubscribe}>
     <TooltipProvider delayDuration={200}>
     <div
       className={className}
@@ -438,6 +460,7 @@ function MarketsGridHostInner<TData>({
       )}
     </div>
     </TooltipProvider>
+    </SsrmTickProvider>
     </SsrmRowCountProvider>
     </GridChromeProvider>
   );

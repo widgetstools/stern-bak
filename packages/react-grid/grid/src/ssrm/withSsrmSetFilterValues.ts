@@ -31,7 +31,10 @@ interface SetFilterValuesFuncParams {
   success: (values: unknown[]) => void;
   column?: { getColId?: () => string };
   colDef?: { colId?: string; field?: string };
-  api?: { getFilterModel?: () => Record<string, unknown> };
+  api?: {
+    getFilterModel?: () => Record<string, unknown>;
+    getGridOption?: (key: string) => unknown;
+  };
 }
 
 interface AnyFilterParams {
@@ -158,11 +161,19 @@ function makeValuesGetter(
       succeed([]);
     }, timeoutMs);
 
-    // Honour the other columns' filters so the list only offers values that
-    // are actually reachable — AG Grid re-invokes this on filter changes.
+    // Honour the other columns' filters — and the quick filter — so the list
+    // only offers values that are actually reachable. AG Grid re-invokes
+    // this on filter changes and each time the list opens.
     const filterModel = params.api?.getFilterModel?.() ?? null;
+    const rawQuick = params.api?.getGridOption?.('quickFilterText');
+    const quickFilterText = typeof rawQuick === 'string' && rawQuick ? rawQuick : undefined;
     void provider
-      .getColumnValues({ column, filterModel, ...(limit ? { limit } : {}) })
+      .getColumnValues({
+        column,
+        filterModel,
+        ...(limit ? { limit } : {}),
+        ...(quickFilterText ? { quickFilterText } : {}),
+      })
       .then((result) => { succeed([...result.values]); })
       .catch((err: unknown) => {
         // eslint-disable-next-line no-console

@@ -3,6 +3,7 @@ import {
   applyGridState,
   captureGridState,
   captureGridStateInto,
+  restoredExpandedGroupIds,
 } from './helpers';
 import type { SavedGridState } from './state';
 import { GRID_STATE_SCHEMA_VERSION } from './state';
@@ -162,5 +163,52 @@ describe('captureGridStateInto', () => {
     expect(passed.filter?.filterModel?.side?.filterModels?.[0]).toBeNull();
     expect(passed.filter?.filterModel?.side?.filterModels?.[1]).toBeTruthy();
     warn.mockRestore();
+  });
+});
+
+describe('SSRM group expansion', () => {
+  it('derives expanded-group ids from loaded nodes when getState omits them', () => {
+    const api = makeApi({
+      forEachNode: (fn: (node: unknown) => void) => {
+        fn({ group: true, expanded: true, id: 'Rates' });
+        fn({ group: true, expanded: false, id: 'Credit' });
+        fn({ group: true, expanded: true, id: '1:Rates:NY' });
+        fn({ group: false, expanded: true, id: 'leaf-1' });
+      },
+    });
+    const saved = captureGridState(api as never);
+    expect(
+      (saved.gridState as { rowGroupExpansion?: { expandedRowGroupIds?: string[] } })
+        .rowGroupExpansion?.expandedRowGroupIds,
+    ).toEqual(['Rates', '1:Rates:NY']);
+  });
+
+  it('keeps the ids getState already reported', () => {
+    const api = makeApi({
+      getState: vi.fn(() => ({ rowGroupExpansion: { expandedRowGroupIds: ['FromGetState'] } })),
+      forEachNode: vi.fn(),
+    });
+    const saved = captureGridState(api as never);
+    expect(
+      (saved.gridState as { rowGroupExpansion?: { expandedRowGroupIds?: string[] } })
+        .rowGroupExpansion?.expandedRowGroupIds,
+    ).toEqual(['FromGetState']);
+    expect(api.forEachNode).not.toHaveBeenCalled();
+  });
+
+  it('stashes restored expansion ids on the api for the SSRM surface', () => {
+    const api = makeApi();
+    const saved: SavedGridState = {
+      schemaVersion: GRID_STATE_SCHEMA_VERSION,
+      savedAt: 'now',
+      gridState: { rowGroupExpansion: { expandedRowGroupIds: ['Rates', '1:Rates:NY'] } } as never,
+      viewportAnchor: { firstRowIndex: 0, leftColId: null, horizontalPixel: 0 },
+    };
+    applyGridState(api as never, saved);
+    expect(restoredExpandedGroupIds(api as never)).toEqual(new Set(['Rates', '1:Rates:NY']));
+
+    // A snapshot without expansion clears a previous stash.
+    applyGridState(api as never, { ...saved, gridState: {} as never });
+    expect(restoredExpandedGroupIds(api as never)).toBeUndefined();
   });
 });

@@ -23,8 +23,12 @@ export interface SsrmStatusPanelParams {
 
 function formatCount(
   n: number,
+  loaded: boolean,
   format?: (params: { value: number }) => string,
 ): string {
+  // Dash until the engine has answered once — `0` before the first answer
+  // reads as "the book is empty", which is confidently wrong.
+  if (!loaded) return '\u2013';
   return format ? format({ value: n }) : n.toLocaleString();
 }
 
@@ -46,38 +50,40 @@ function usePanelModel(params: SsrmStatusPanelParams): SsrmStatusModel {
 }
 
 export function SsrmTotalAndFilteredStatusPanel(params: SsrmStatusPanelParams): ReactElement {
-  const { total, filtered } = usePanelModel(params);
+  const { total, filtered, loaded } = usePanelModel(params);
   return (
     <div className="ag-status-panel ag-status-panel-total-and-filtered-row-count" role="status">
-      <NameValue name="Filtered" value={formatCount(filtered, params.valueFormatter)} />
-      <NameValue name="Total" value={formatCount(total, params.valueFormatter)} />
+      <NameValue name="Filtered" value={formatCount(filtered, loaded, params.valueFormatter)} />
+      <NameValue name="Total" value={formatCount(total, loaded, params.valueFormatter)} />
     </div>
   );
 }
 
 export function SsrmFilteredStatusPanel(params: SsrmStatusPanelParams): ReactElement {
-  const { filtered } = usePanelModel(params);
+  const { filtered, loaded } = usePanelModel(params);
   return (
     <div className="ag-status-panel ag-status-panel-filtered-row-count" role="status">
-      <NameValue name="Filtered" value={formatCount(filtered, params.valueFormatter)} />
+      <NameValue name="Filtered" value={formatCount(filtered, loaded, params.valueFormatter)} />
     </div>
   );
 }
 
 export function SsrmTotalStatusPanel(params: SsrmStatusPanelParams): ReactElement {
-  const { total } = usePanelModel(params);
+  const { total, loaded } = usePanelModel(params);
   return (
     <div className="ag-status-panel ag-status-panel-total-row-count" role="status">
-      <NameValue name="Total Rows" value={formatCount(total, params.valueFormatter)} />
+      <NameValue name="Total Rows" value={formatCount(total, loaded, params.valueFormatter)} />
     </div>
   );
 }
 
 export function SsrmSelectedStatusPanel(params: SsrmStatusPanelParams): ReactElement {
+  // Selection is grid-side state: a 0 here is honest even before the first
+  // engine answer, so it never renders the dash.
   const { selected } = usePanelModel(params);
   return (
     <div className="ag-status-panel ag-status-panel-selected-row-count" role="status">
-      <NameValue name="Selected" value={formatCount(selected, params.valueFormatter)} />
+      <NameValue name="Selected" value={formatCount(selected, true, params.valueFormatter)} />
     </div>
   );
 }

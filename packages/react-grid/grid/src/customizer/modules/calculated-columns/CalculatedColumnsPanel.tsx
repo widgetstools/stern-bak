@@ -21,9 +21,12 @@
  * settings sheet as `module.ListPane` + `module.EditorPane`. All
  * `cc-*` test-ids are preserved character-for-character.
  */
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { astUsesAggregateFunctions, ExpressionEngine } from '@wellsfargo-starui/core';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';
+import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
+import { useGridApi } from '../../hooks/useGridApi';
 import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
@@ -48,6 +51,38 @@ import { Tooltip } from '../../ui/HoverTooltip';
 import type { CalculatedColumnsState, VirtualColumnDef } from './state';
 
 const MODULE_ID = 'calculated-columns';
+
+// Shared parse-only engine for the tier readout — same lazy-singleton shape
+// as the ExpressionEditor's linter.
+let _tierEngine: ExpressionEngine | null = null;
+function tierEngine(): ExpressionEngine {
+  return (_tierEngine ??= new ExpressionEngine());
+}
+
+/**
+ * Which SSRM tier this column's expression lands in (Rust plan §5.3):
+ * `compiled` — a real engine column (none today: the vendored WASM has no
+ * expression support); `materialized` — computed in the grid per loaded row,
+ * with sort/filter/group locked by `lockSsrmExpressionColumns`. Cross-row
+ * SUM/AVG/MIN/MAX/COUNT read engine-wide totals through the aggregates RPC,
+ * so they are flagged rather than left to read as loaded-block statistics.
+ * Under CSRM there are no tiers — returns null.
+ */
+function ssrmExpressionTier(
+  ssrm: boolean,
+  expression: string | undefined,
+): { tier: 'materialized'; usesAggregates: boolean } | null {
+  if (!ssrm) return null;
+  let usesAggregates = false;
+  if (expression) {
+    try {
+      usesAggregates = astUsesAggregateFunctions(tierEngine().parse(expression));
+    } catch {
+      usesAggregates = false;
+    }
+  }
+  return { tier: 'materialized', usesAggregates };
+}
 
 /** Base-36 id with a stable `vcol_` prefix — collision-safe for reasonable
  *  lists. Kept plain so new items sort last by creation order. */
@@ -225,6 +260,9 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
     [baseCols],
   );
 
+  const api = useGridApi();
+  const ssrm = isSsrmGrid(api);
+
   const { draft, setDraft, dirty, save, discard, missing } = useModuleDraft<
     CalculatedColumnsState,
     VirtualColumnDef
@@ -237,6 +275,11 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
       virtualColumns: state.virtualColumns.map((c) => (c.colId === colId ? next : c)),
     }),
   });
+
+  const tier = useMemo(
+    () => ssrmExpressionTier(ssrm, draft?.expression),
+    [ssrm, draft?.expression],
+  );
 
   if (missing || !draft) return null;
 
@@ -316,7 +359,32 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
               value={<Mono>{draft.initialWidth ? `${draft.initialWidth}px` : 'AUTO'}</Mono>}
               tone={draft.initialWidth ? 'info' : 'neutral'}
             />
+            {tier ? (
+              <SummaryChip
+                label="SSRM TIER"
+                tone="warning"
+                data-testid={`cc-virtual-ssrm-tier-${colId}`}
+                value={
+                  <Mono color="var(--ds-accent-warning)">
+                    {tier.usesAggregates ? 'GRID + ENGINE AGG' : 'GRID'}
+                  </Mono>
+                }
+                title="Server-side grid: this column is computed in the grid, not the engine."
+              />
+            ) : null}
           </div>
+          {tier ? (
+            <div
+              className="w-full mt-1 text-xs text-muted-foreground"
+              data-testid={`cc-virtual-ssrm-note-${colId}`}
+            >
+              SERVER-SIDE GRID — computed in the grid per loaded row; sort, filter and
+              row-group are locked (the engine has no expression support).
+              {tier.usesAggregates
+                ? ' SUM / AVG / MIN / MAX / COUNT read engine-wide totals, not the loaded blocks.'
+                : ''}
+            </div>
+          ) : null}
           <div className="w-full mt-2 flex items-center gap-2">
             <Caps size="2xs">COLUMN ID</Caps>
             <IconInput

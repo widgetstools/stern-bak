@@ -70,6 +70,28 @@ function sanitizeFilterEntry(entry: unknown, colId: string): unknown {
 }
 
 /**
+ * Where {@link applyGridState} stashes the restored expanded-group ids on the
+ * live api. Under SSRM `api.setState` cannot re-expand groups — the group
+ * rows have not loaded yet when the state is applied — so the SSRM surface's
+ * `isServerSideGroupOpenByDefault` reads this stash as each group row loads
+ * instead. Group node ids are derived from data (level:parents:key), so they
+ * are stable across reloads.
+ */
+export const RESTORED_EXPANDED_GROUP_IDS_KEY = '__staruiRestoredExpandedGroupIds' as const;
+
+type ApiWithExpandedStash = GridApi & {
+  [RESTORED_EXPANDED_GROUP_IDS_KEY]?: ReadonlySet<string>;
+};
+
+/** The expanded-group ids the last {@link applyGridState} restored, if any. */
+export function restoredExpandedGroupIds(
+  api: GridApi | null | undefined,
+): ReadonlySet<string> | undefined {
+  if (!api) return undefined;
+  return (api as ApiWithExpandedStash)[RESTORED_EXPANDED_GROUP_IDS_KEY];
+}
+
+/**
  * Read the current grid state off a live api. Safe to call any time after
  * `onGridReady`. Never throws — on API shape drift returns a minimal
  * snapshot with empty gridState so the caller can still persist *something*.
@@ -82,6 +104,22 @@ export function captureGridState(api: GridApi): SavedGridState {
       return {} as ReturnType<GridApi['getState']>;
     }
   })();
+
+  // AG Grid's own state module does not report row-group expansion for the
+  // server-side row model. Derive it from the loaded group nodes (the only
+  // ones that CAN be expanded) so a saved profile can restore them.
+  try {
+    const state = gridState as { rowGroupExpansion?: { expandedRowGroupIds?: string[] } };
+    if (!state.rowGroupExpansion?.expandedRowGroupIds?.length) {
+      const expanded: string[] = [];
+      api.forEachNode((node) => {
+        if (node.group && node.expanded && typeof node.id === 'string') expanded.push(node.id);
+      });
+      if (expanded.length > 0) state.rowGroupExpansion = { expandedRowGroupIds: expanded };
+    }
+  } catch {
+    /* best-effort — leave whatever getState reported */
+  }
 
   // Viewport anchor — persisted so the user returns to the row + column they
   // were looking at. Persisting a colId rather than raw pixels survives
@@ -149,6 +187,19 @@ export function applyGridState(api: GridApi, saved: SavedGridState): void {
     api.setState(cleanedState as Parameters<typeof api.setState>[0]);
   } catch (err) {
     console.warn('[grid-state] api.setState failed:', err);
+  }
+
+  // Stash the expanded-group ids for the SSRM surface: `setState` cannot
+  // expand groups whose rows have not loaded yet, so the surface answers
+  // `isServerSideGroupOpenByDefault` from this as each group row arrives.
+  try {
+    const expandedIds = (saved.gridState as {
+      rowGroupExpansion?: { expandedRowGroupIds?: string[] };
+    }).rowGroupExpansion?.expandedRowGroupIds;
+    (api as ApiWithExpandedStash)[RESTORED_EXPANDED_GROUP_IDS_KEY] =
+      expandedIds?.length ? new Set(expandedIds) : undefined;
+  } catch {
+    /* non-blocking */
   }
 
   // Explicit column-state restore — AG-Grid's `setState` silently drops

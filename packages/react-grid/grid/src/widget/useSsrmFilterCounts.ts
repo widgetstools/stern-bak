@@ -31,6 +31,18 @@ export function useSsrmRowCounter(): SsrmRowCounter | null {
 }
 
 /**
+ * Subscribe to "the engine may have moved" — provider ticks and refreshes.
+ * When provided, the badge poll below runs only after one fired since the
+ * last read, so an idle blotter costs zero counting RPCs. Without it the
+ * poll runs on the plain cadence (the pre-gating behaviour).
+ */
+export type SsrmTickSubscribe = (handler: () => void) => () => void;
+
+const SsrmTickContext = createContext<SsrmTickSubscribe | null>(null);
+
+export const SsrmTickProvider = SsrmTickContext.Provider;
+
+/**
  * How often to re-read the counts. Fast enough to feel live on a streaming
  * blotter, slow enough that N pills don't open N views per publish window.
  */
@@ -52,6 +64,7 @@ export function useSsrmFilterCounts(
 ): Record<string, number> {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const countsRef = useRef<Record<string, number>>({});
+  const subscribeTicks = useContext(SsrmTickContext);
 
   // Restart polling when the pills change, not when the caller happens to hand
   // over a fresh array. Keying on identity would re-arm the interval on every
@@ -99,13 +112,26 @@ export function useSsrmFilterCounts(
       }
     };
 
+    // With a tick source, the cadence poll only fires after the engine
+    // actually moved — an idle blotter's pills cost zero RPCs. The initial
+    // read (and every pills change, via this effect's deps) is immediate.
+    let tickDirty = !subscribeTicks;
+    const offTicks = subscribeTicks?.(() => { tickDirty = true; });
+
     void refresh();
-    const timer = setInterval(() => { void refresh(); }, SSRM_COUNT_REFRESH_MS);
+    const timer = setInterval(() => {
+      if (subscribeTicks) {
+        if (!tickDirty) return;
+        tickDirty = false;
+      }
+      void refresh();
+    }, SSRM_COUNT_REFRESH_MS);
     return () => {
       alive = false;
+      offTicks?.();
       clearInterval(timer);
     };
-  }, [counter, signature]);
+  }, [counter, signature, subscribeTicks]);
 
   return counts;
 }

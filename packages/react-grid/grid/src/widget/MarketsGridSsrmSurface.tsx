@@ -15,6 +15,8 @@ import type {
   ProcessDataFromClipboardParams,
 } from 'ag-grid-community';
 import type { ISsrmDataProvider } from '@wellsfargo-starui/data';
+import { SSRM_PIVOT_FIELD_SEPARATOR } from '@wellsfargo-starui/data/runtime';
+import { restoredExpandedGroupIds } from '@wellsfargo-starui/core';
 import type { MarketsGridProps } from './types';
 import { stripSurfaceManagedGridOptions } from './gridSurfaceOptions';
 import { buildStreamSafeComponents } from './buildStreamSafeComponents';
@@ -179,6 +181,23 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
     [ssrm.keyColumn],
   );
 
+  // Profile restore: `api.setState` cannot re-expand SSRM groups — their
+  // rows have not loaded when the grid-state module applies the snapshot —
+  // so each group row asks here as it loads, against the ids the restore
+  // stashed on the api (see RESTORED_EXPANDED_GROUP_IDS_KEY in core). Group
+  // node ids derive from data (level:parents:key), so a reload's groups
+  // carry the same ids the save captured.
+  const innerGroupOpen = pipelineGridOptions.isServerSideGroupOpenByDefault as
+    ((params: { rowNode: { id?: string | null } }) => boolean) | undefined;
+  const isServerSideGroupOpenByDefault = useCallback(
+    (params: { rowNode: { id?: string | null } }) => {
+      const restored = restoredExpandedGroupIds(gridRef.current?.api);
+      if (restored?.has(params.rowNode.id ?? '')) return true;
+      return innerGroupOpen ? innerGroupOpen(params) : false;
+    },
+    [gridRef, innerGroupOpen],
+  );
+
   // A paste over block placeholders writes nothing and says nothing. Refuse
   // it whole rather than land a partial paste that looks complete.
   const innerClipboardHook = pipelineGridOptions.processDataFromClipboard as ClipboardHook | undefined;
@@ -286,6 +305,10 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         serverSideDatasource={datasource}
         getRowId={getRowId}
         getChildCount={ssrmChildCount}
+        isServerSideGroupOpenByDefault={isServerSideGroupOpenByDefault as never}
+        // The engine joins pivot key paths with `|` (probed) — AG Grid must
+        // split the derived pivotResultFields where the engine joined.
+        serverSidePivotResultFieldSeparator={SSRM_PIVOT_FIELD_SEPARATOR}
         processDataFromClipboard={processDataFromClipboard}
         maintainColumnOrder
         cellSelection={true}

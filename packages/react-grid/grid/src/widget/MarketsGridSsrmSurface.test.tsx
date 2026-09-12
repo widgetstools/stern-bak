@@ -110,7 +110,39 @@ describe('MarketsGridSsrmSurface', () => {
     expect(onGridReady).toHaveBeenCalled();
     expect(p.onSsrmTick).toHaveBeenCalled();
     expect(p.watchGroups).toHaveBeenCalled();
+    // Pivot fields come back `key|valueCol`, so AG Grid must split on `|`.
+    expect(lastGridProps.current?.serverSidePivotResultFieldSeparator).toBe('|');
     unmount();
+  });
+
+  it('answers isServerSideGroupOpenByDefault from the profile-restored expansion stash', () => {
+    const p = provider();
+    const gridRef = { current: { api: readyApi } };
+    render(
+      <MarketsGridSsrmSurface
+        gridRef={gridRef as never}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'id' }]}
+        sideBar={undefined}
+        statusBar={undefined}
+        defaultColDef={undefined}
+        onGridReady={vi.fn()}
+        onGridPreDestroyed={vi.fn()}
+        ssrm={{ provider: p, keyColumn: 'id' }}
+      />,
+    );
+    const isOpen = lastGridProps.current?.isServerSideGroupOpenByDefault as
+      (params: { rowNode: { id?: string } }) => boolean;
+    expect(isOpen({ rowNode: { id: 'Rates' } })).toBe(false);
+    // The grid-state module stashes restored ids on the api (see core's
+    // RESTORED_EXPANDED_GROUP_IDS_KEY); group rows then re-open as they load.
+    (readyApi as Record<string, unknown>).__staruiRestoredExpandedGroupIds = new Set(['Rates', '1:Rates:NY']);
+    expect(isOpen({ rowNode: { id: 'Rates' } })).toBe(true);
+    expect(isOpen({ rowNode: { id: '1:Rates:NY' } })).toBe(true);
+    expect(isOpen({ rowNode: { id: 'Credit' } })).toBe(false);
+    delete (readyApi as Record<string, unknown>).__staruiRestoredExpandedGroupIds;
   });
 
   it('defaults cacheBlockSize and keyColumn and applies every host override', () => {
