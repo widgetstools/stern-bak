@@ -832,7 +832,12 @@ thread NOT throttleable, so numbers understate Windows): the starvation
 mechanism appears — 103.8 ms hub-ready stall during snapshot re-stream,
 mid-storm window open 225→924 ms, joiner ladder to 5.4 s. Dev rig is an
 M4 Max; deployment target is Windows 11 32 GB — all exit gates run native
-AND throttled, final acceptance on the real target box. Honest limits stated in the plan: same-plane
+AND throttled, final acceptance on the real target box. W1a+W1b landed
+(dual worker + slim PlatformServicesHost behind a self.name branch); W1c
+(data hub stops serving config/AppData, on-demand reads, sole seeder,
+<800 lines), W2 (thin windows + warmPlatform + boot ordering / WORKLOG-14),
+W3, W4 remain — continued on the Windows target box per the operator
+handoff [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere
