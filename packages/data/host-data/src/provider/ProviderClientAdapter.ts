@@ -16,6 +16,7 @@ export function resolveProviderCapabilities(providerType: ProviderType): Provide
     case 'stomp':
     case 'stomp-ssrm':
     case 'mock':
+    case 'mock-ssrm':
       return {
         providerType,
         streaming: true,

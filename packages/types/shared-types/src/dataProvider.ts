@@ -11,10 +11,25 @@ export const PROVIDER_TYPES = {
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
   MOCK: 'mock',
+  MOCK_SSRM: 'mock-ssrm',
   APPDATA: 'appdata'
 } as const;
 
 export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
+
+/**
+ * Provider types whose rows live in the SharedWorker's SSRM WASM engine
+ * (blocks over RPC) rather than the CSRM row cache (snapshot + deltas).
+ * The hub, emit router and client adapters branch on this — never on a
+ * literal — so a new engine-fed transport is one entry here.
+ */
+export type SsrmProviderType = typeof PROVIDER_TYPES.STOMP_SSRM | typeof PROVIDER_TYPES.MOCK_SSRM;
+
+export function isSsrmProviderType(
+  providerType: ProviderType | string | undefined,
+): providerType is SsrmProviderType {
+  return providerType === PROVIDER_TYPES.STOMP_SSRM || providerType === PROVIDER_TYPES.MOCK_SSRM;
+}
 
 /**
  * Provider type to ComponentSubType mapping
@@ -26,6 +41,7 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
   [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
   [PROVIDER_TYPES.SOCKETIO]: 'socketio',
   [PROVIDER_TYPES.MOCK]: 'mock',
+  [PROVIDER_TYPES.MOCK_SSRM]: 'mock-ssrm',
   [PROVIDER_TYPES.APPDATA]: 'appdata'
 };
 
@@ -39,6 +55,7 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'websocket': PROVIDER_TYPES.WEBSOCKET,
   'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
+  'mock-ssrm': PROVIDER_TYPES.MOCK_SSRM,
   'appdata': PROVIDER_TYPES.APPDATA,
   // Capitalized (backward compatibility)
   'Stomp': PROVIDER_TYPES.STOMP,
@@ -47,6 +64,7 @@ export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = 
   'WebSocket': PROVIDER_TYPES.WEBSOCKET,
   'SocketIO': PROVIDER_TYPES.SOCKETIO,
   'Mock': PROVIDER_TYPES.MOCK,
+  'MockSsrm': PROVIDER_TYPES.MOCK_SSRM,
   'AppData': PROVIDER_TYPES.APPDATA
 };
 
@@ -348,6 +366,30 @@ export interface MockProviderConfig {
 }
 
 /**
+ * Mock SSRM Provider Configuration — the worker's rich mock generator
+ * (positions / trades) ingested into the SSRM WASM engine instead of the
+ * CSRM row cache. The parity twin of `stomp-ssrm` with no broker: same
+ * generator the CSRM mock provider streams, so a CSRM and an SSRM grid on
+ * the same dataType render the same book and differences are attributable
+ * to the row model alone (what markets-grid-lab-ssrm exists to surface).
+ */
+export interface MockSsrmProviderConfig extends Omit<MockProviderConfig, 'providerType'> {
+  providerType: 'mock-ssrm';
+  /** AG Grid `cacheBlockSize`. Default 200. */
+  blockSize?: number;
+  /** WASM tick / shared-delta poll window in ms. Default 100. */
+  publishWindowMs?: number;
+  /** Columns included in worker quick-filter matching. */
+  searchColumns?: readonly string[];
+  /**
+   * Engine boot schema — same role as on StompSsrmProviderConfig: a
+   * column's `cellDataType` decides its engine type (`number` → f64,
+   * `boolean` → bool, else string; date columns get an epoch shadow).
+   */
+  columnDefinitions?: ColumnDefinition[];
+}
+
+/**
  * AppData Variable
  */
 export interface AppDataVariable {
@@ -392,7 +434,15 @@ export type ProviderConfig =
   | WebSocketProviderConfig
   | SocketIOProviderConfig
   | MockProviderConfig
+  | MockSsrmProviderConfig
   | AppDataProviderConfig;
+
+/**
+ * Configs the SSRM WASM plane can boot a datasource from — the fields the
+ * engine schema is derived from (`keyColumn`, `columnDefinitions`,
+ * `searchColumns`, `publishWindowMs`) exist on every member.
+ */
+export type SsrmProviderConfig = StompSsrmProviderConfig | MockSsrmProviderConfig;
 
 /**
  * Provider capabilities
@@ -554,6 +604,18 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     updateInterval: 2000,
     rowCount: 20,
     enableUpdates: true
+  },
+  'mock-ssrm': {
+    providerType: 'mock-ssrm',
+    dataType: 'positions',
+    updateIntervalMs: 500,
+    rowCount: 500,
+    enableUpdates: true,
+    keyColumn: 'id',
+    blockSize: 200,
+    publishWindowMs: 100,
+    searchColumns: [],
+    columnDefinitions: []
   },
   appdata: {
     providerType: 'appdata',

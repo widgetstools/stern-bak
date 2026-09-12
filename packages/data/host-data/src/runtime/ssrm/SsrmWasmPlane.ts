@@ -1,4 +1,4 @@
-import type { StompSsrmProviderConfig } from '@wellsfargo-starui/types';
+import type { SsrmProviderConfig } from '@wellsfargo-starui/types';
 import { flattenRows } from './flattenRow.js';
 import { RustHubHost, type RustHubFactory, type RustHubLike } from './RustHubHost.js';
 import type {
@@ -107,7 +107,7 @@ function viewSignature(sessionId: string, providerId: string, spec: SsrmViewSpec
 
 export interface SsrmPlaneBootCfg {
   providerId: string;
-  cfg: StompSsrmProviderConfig;
+  cfg: SsrmProviderConfig;
 }
 
 interface SsrmReadWindow {
@@ -185,7 +185,7 @@ const NON_TEXT_TYPES = new Set(['number', 'boolean']);
  * none configured every non-numeric, non-boolean column is searched — the
  * behaviour of AG Grid's own quick filter, which the search bar promises.
  */
-export function resolveSearchColumns(cfg: StompSsrmProviderConfig): readonly string[] {
+export function resolveSearchColumns(cfg: SsrmProviderConfig): readonly string[] {
   if (cfg.searchColumns?.length) return cfg.searchColumns;
   return (cfg.columnDefinitions ?? [])
     .filter((c) => typeof c.field === 'string' && !NON_TEXT_TYPES.has(String(c.cellDataType ?? 'text')))
@@ -193,20 +193,20 @@ export function resolveSearchColumns(cfg: StompSsrmProviderConfig): readonly str
 }
 
 /** Columns declared as dates — their filter bounds need the storage shape. */
-export function dateColumnsOf(cfg: StompSsrmProviderConfig): readonly string[] {
+export function dateColumnsOf(cfg: SsrmProviderConfig): readonly string[] {
   return (cfg.columnDefinitions ?? [])
     .filter((c) => typeof c.field === 'string' && (c.cellDataType === 'date' || c.cellDataType === 'dateString'))
     .map((c) => c.field as string);
 }
 
 /** Key column(s) rows are upserted by — the overlay keys rows the same way. */
-export function keyColumnsOf(cfg: StompSsrmProviderConfig): string[] {
+export function keyColumnsOf(cfg: SsrmProviderConfig): string[] {
   const keyCol = cfg.keyColumn;
   if (typeof keyCol === 'string') return [keyCol];
   return keyCol && keyCol.length > 0 ? [...keyCol] : ['positionId'];
 }
 
-function bootJson(providerId: string, cfg: StompSsrmProviderConfig): string {
+function bootJson(providerId: string, cfg: SsrmProviderConfig): string {
   const keyColumns = keyColumnsOf(cfg);
   const columns = (cfg.columnDefinitions ?? []).map((c) => ({
     name: c.field,
@@ -271,7 +271,7 @@ export class SsrmWasmPlane {
     this.host = new RustHubHost(factory);
   }
 
-  async boot(providerId: string, cfg: StompSsrmProviderConfig): Promise<void> {
+  async boot(providerId: string, cfg: SsrmProviderConfig): Promise<void> {
     const hub = await this.host.ensure();
     // Views held over a re-boot point at a datasource that no longer exists.
     this.dropViews((v) => v.providerId === providerId);
@@ -311,7 +311,7 @@ export class SsrmWasmPlane {
     }
   }
 
-  async reset(providerId: string, cfg: StompSsrmProviderConfig): Promise<void> {
+  async reset(providerId: string, cfg: SsrmProviderConfig): Promise<void> {
     this.booted.delete(providerId);
     await this.boot(providerId, cfg);
   }

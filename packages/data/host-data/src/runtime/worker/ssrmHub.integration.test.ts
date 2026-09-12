@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SharedWorkerDataServicesHub, type PortLike } from './SharedWorkerDataServicesHub.js';
 import { registerProvider } from '../providers/registry.js';
 import type { RustHubLike } from '../ssrm/RustHubHost.js';
-import type { StompSsrmProviderConfig } from '@wellsfargo-starui/types';
+import type { MockSsrmProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
 import type { SsrmRpcEvent } from '../protocol.js';
 
 registerProvider('stomp-ssrm', (_cfg, emit) => {
@@ -134,7 +134,7 @@ describe('hub stomp-ssrm', () => {
     await new Promise((r) => setTimeout(r, 20));
     const bad = port.messages.find((m) => (m as SsrmRpcEvent).reqId === 'e2') as SsrmRpcEvent | undefined;
     expect(bad?.ok).toBe(false);
-    expect(bad?.error).toMatch(/not a running stomp-ssrm provider/);
+    expect(bad?.error).toMatch(/not a running SSRM provider/);
   });
 
   it('answers ssrm-column-values so a set filter can populate its list', async () => {
@@ -221,5 +221,77 @@ describe('hub stomp-ssrm', () => {
 
     expect(trace.disposed).toEqual(['v1']);
     expect(trace.disconnected).toEqual(['s1']);
+  });
+});
+
+describe('hub mock-ssrm', () => {
+  // The REAL mock generator (registry maps mock-ssrm -> startMock), routed
+  // into the plane by provider-type classification instead of the CSRM
+  // cache - the parity twin markets-grid-lab-ssrm runs on.
+  const mockCfg: MockSsrmProviderConfig = {
+    providerType: 'mock-ssrm',
+    dataType: 'positions',
+    rowCount: 5,
+    enableUpdates: false,
+    keyColumn: 'id',
+    columnDefinitions: [
+      { field: 'id' },
+      { field: 'cusip' },
+      { field: 'marketValue', cellDataType: 'number' },
+    ],
+  };
+
+  it('ingests the mock snapshot into the engine and serves blocks over RPC', async () => {
+    const hub = new SharedWorkerDataServicesHub({ createRustHub: () => fakeHub() });
+    const port = makePort();
+    hub.handleRequest(port, {
+      kind: 'attach',
+      subId: 's1',
+      providerId: 'mock-ssrm-1',
+      mode: 'ssrm',
+      cfg: mockCfg,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    // No CSRM replay for an ssrm-mode attach...
+    expect(port.messages.filter((m) => (m as { kind?: string }).kind === 'delta')).toHaveLength(0);
+
+    // ...the snapshot went into the plane instead: a block read returns it.
+    hub.handleRequest(port, {
+      kind: 'ssrm-get-rows',
+      reqId: 'm1',
+      providerId: 'mock-ssrm-1',
+      subId: 's1',
+      request: { startRow: 0, endRow: 10 },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const rpc = port.messages.find((m) => (m as SsrmRpcEvent).reqId === 'm1') as SsrmRpcEvent | undefined;
+    expect(rpc?.ok).toBe(true);
+    const result = rpc?.result as { rowCount: number; rowData: Array<Record<string, unknown>> };
+    expect(result.rowCount).toBe(5);
+    // Real generator rows, flattened for the engine: keyed by id, with the
+    // rich position fields present.
+    expect(String(result.rowData[0].id)).toMatch(/^POS-/);
+    expect(typeof result.rowData[0].cusip).toBe('string');
+    expect(typeof result.rowData[0].marketValue).toBe('number');
+  });
+
+  it('mock-ssrm edits ride the same apply-edits path as stomp-ssrm', async () => {
+    const hub = new SharedWorkerDataServicesHub({ createRustHub: () => fakeHub() });
+    const port = makePort();
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'mock-ssrm-2', mode: 'ssrm', cfg: mockCfg });
+    await new Promise((r) => setTimeout(r, 20));
+    hub.handleRequest(port, {
+      kind: 'ssrm-apply-edits',
+      reqId: 'me1',
+      providerId: 'mock-ssrm-2',
+      subId: 's1',
+      rows: [{ id: 'POS-X', trader: 'EDITED' }],
+      editedColumns: [['trader']],
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const edit = port.messages.find((m) => (m as SsrmRpcEvent).reqId === 'me1') as SsrmRpcEvent | undefined;
+    expect(edit?.ok).toBe(true);
+    expect(edit?.result).toEqual({ applied: 1 });
   });
 });

@@ -8,6 +8,7 @@
  * {@link ProviderEmitContext} so this module stays free of hub state.
  */
 
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
 import type { Event, RowPatch } from '../protocol.js';
 import type { ProviderEmitEvent } from '../providers/Provider.js';
 import { diffTopLevel } from '../wire/rowDiff.js';
@@ -68,7 +69,7 @@ export function applyProviderEmit(
       slot.snapshotFetchMs = Date.now() - slot.snapshotFetchStartedAt;
       slot.snapshotReady = true;
       slot.publishWindowSeconds = 0;
-      if (slot.cfg.providerType === 'stomp-ssrm') ctx.warmSsrm?.(providerId);
+      if (isSsrmProviderType(slot.cfg.providerType)) ctx.warmSsrm?.(providerId);
     }
     slot.status = event.status;
     if (event.status === 'error') {
@@ -125,7 +126,7 @@ function applyRows(
   slot: ProviderSlot,
   event: Extract<ProviderEmitEvent, { rows: readonly unknown[] }>,
 ): void {
-  if (slot.cfg.providerType === 'stomp-ssrm') {
+  if (isSsrmProviderType(slot.cfg.providerType)) {
     ctx.ingestSsrm?.(providerId, event.rows, Boolean(event.replace));
     slot.lastMessageAt = Date.now();
     slot.msgCount += 1;

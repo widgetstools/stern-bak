@@ -20,7 +20,8 @@
  *   - `hubIntrospect.ts` / `hubStats.ts` — diagnostics snapshots
  */
 
-import type { ProviderConfig, StompProviderConfig, StompSsrmProviderConfig } from '@wellsfargo-starui/types';
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
+import type { ProviderConfig, SsrmProviderConfig, StompProviderConfig } from '@wellsfargo-starui/types';
 import type {
   AttachRequest,
   DetachRequest,
@@ -467,7 +468,7 @@ export class SharedWorkerDataServicesHub {
     const stopResult = slot.handle.stop();
     // Drop the plane's anchor subscription with the provider — the engine
     // frees the datasource cache when its last session lets go.
-    if (slot.cfg.providerType === 'stomp-ssrm') this.ssrmPlane.releaseAnchor(providerId);
+    if (isSsrmProviderType(slot.cfg.providerType)) this.ssrmPlane.releaseAnchor(providerId);
     this.maybeStopSsrmTicker();
     this.maybeStopSubscriberSweeper();
     if (stopResult instanceof Promise) await stopResult;
@@ -568,8 +569,8 @@ export class SharedWorkerDataServicesHub {
       slot.handle = startProvider(cfg, emit, {
         appDataLookup: (name, key) => this.appDataSvc.get(name, key),
       });
-      if (cfg.providerType === 'stomp-ssrm') {
-        void this.ssrmPlane.boot(providerId, cfg as StompSsrmProviderConfig);
+      if (isSsrmProviderType(cfg.providerType)) {
+        void this.ssrmPlane.boot(providerId, cfg as SsrmProviderConfig);
         this.ensureSsrmTicker();
       }
     } catch (err) {
@@ -644,8 +645,8 @@ export class SharedWorkerDataServicesHub {
     this.subscribers.attach(providerId, subId, port, 'ssrm');
     this.ensureSubscriberSweeper();
     void this.ssrmPlane.attachSession(subId);
-    if (slot.cfg.providerType === 'stomp-ssrm') {
-      void this.ssrmPlane.boot(providerId, slot.cfg as StompSsrmProviderConfig);
+    if (isSsrmProviderType(slot.cfg.providerType)) {
+      void this.ssrmPlane.boot(providerId, slot.cfg as SsrmProviderConfig);
       this.ensureSsrmTicker();
       // Late joiner on a snapshot that already landed: build its root view
       // now rather than on its first block read.
@@ -721,8 +722,8 @@ export class SharedWorkerDataServicesHub {
   private handleSsrmApplyEdits(port: PortLike, req: SsrmApplyEditsWireRequest): Promise<void> {
     return this.replySsrmRpc(port, req, async () => {
       const slot = this.providers.get(req.providerId);
-      if (!slot || slot.cfg.providerType !== 'stomp-ssrm') {
-        throw new Error(`[ssrm] ${req.providerId} is not a running stomp-ssrm provider`);
+      if (!slot || !isSsrmProviderType(slot.cfg.providerType)) {
+        throw new Error(`[ssrm] ${req.providerId} is not a running SSRM provider`);
       }
       if (req.rows.length === 0) return { applied: 0 };
       const applied = await this.ssrmPlane.applyEdits(req.providerId, req.rows, req.editedColumns);
@@ -743,14 +744,14 @@ export class SharedWorkerDataServicesHub {
   private ensureSsrmTicker(): void {
     if (this.ssrmTickTimer !== null) return;
     const windowMs = [...this.providers.values()].reduce((min, slot) => {
-      if (slot.cfg.providerType !== 'stomp-ssrm') return min;
-      return Math.min(min, publishWindowMsOf(slot.cfg as StompSsrmProviderConfig));
+      if (!isSsrmProviderType(slot.cfg.providerType)) return min;
+      return Math.min(min, publishWindowMsOf(slot.cfg as SsrmProviderConfig));
     }, 100);
     this.ssrmTickTimer = this.setTimer(() => this.flushSsrmTicks(), windowMs);
   }
 
   private maybeStopSsrmTicker(): void {
-    const anySsrm = [...this.providers.values()].some((s) => s.cfg.providerType === 'stomp-ssrm')
+    const anySsrm = [...this.providers.values()].some((s) => isSsrmProviderType(s.cfg.providerType))
       && [...this.providers.keys()].some((id) => this.subscribers.dataCount(id) > 0);
     if (anySsrm || this.ssrmTickTimer === null) return;
     this.clearTimer(this.ssrmTickTimer);
@@ -763,7 +764,7 @@ export class SharedWorkerDataServicesHub {
     // whichever provider polled first.
     for (const [providerId, ticks] of this.ssrmPlane.pollAllTicks()) {
       const slot = this.providers.get(providerId);
-      if (!slot || slot.cfg.providerType !== 'stomp-ssrm') continue;
+      if (!slot || !isSsrmProviderType(slot.cfg.providerType)) continue;
       if (ticks.length === 0) continue;
       const listeners = this.subscribers.dataListeners(providerId);
       if (!listeners) continue;

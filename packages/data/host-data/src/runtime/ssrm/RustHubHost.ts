@@ -42,6 +42,7 @@ export async function loadVendoredRustHub(): Promise<RustHubLike> {
 
 export class RustHubHost {
   private hub: RustHubLike | null = null;
+  private hubPromise: Promise<RustHubLike> | null = null;
   private readonly factory: RustHubFactory;
 
   constructor(factory: RustHubFactory = loadVendoredRustHub) {
@@ -49,8 +50,17 @@ export class RustHubHost {
   }
 
   async ensure(): Promise<RustHubLike> {
-    if (this.hub) return this.hub;
-    this.hub = await this.factory();
+    // Memoise the IN-FLIGHT creation, not just the result: `boot()` and the
+    // first `ingest()` race in the same tick (a mock-ssrm provider emits its
+    // snapshot on a microtask right after create), and a `this.hub = await
+    // factory()` here would build TWO engines — the ingest lands on the one
+    // that loses the assignment and the data silently vanishes. The default
+    // vendored loader happens to memoise globally, which masked this for
+    // every injected factory.
+    if (!this.hubPromise) {
+      this.hubPromise = Promise.resolve(this.factory());
+    }
+    this.hub = await this.hubPromise;
     return this.hub;
   }
 

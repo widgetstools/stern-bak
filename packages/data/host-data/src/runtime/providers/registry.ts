@@ -22,6 +22,9 @@ export type ProviderFactory<T extends ProviderConfig = ProviderConfig> = (
 
 const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>> = {
   mock: startMock as ProviderFactory,
+  // Same generator as `mock` — the hub routes its rows into the SSRM WASM
+  // plane instead of the CSRM cache (see providerEmit.applyRows).
+  'mock-ssrm': startMock as ProviderFactory,
   stomp: startStomp as ProviderFactory,
   'stomp-ssrm': startStomp as ProviderFactory,
   rest: startRest as ProviderFactory,
