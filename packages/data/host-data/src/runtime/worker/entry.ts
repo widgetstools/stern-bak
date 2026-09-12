@@ -28,6 +28,7 @@ import {
   type SharedWorkerDataServicesHubOpts,
   type PortLike,
 } from './SharedWorkerDataServicesHub.js';
+import { PlatformServicesHost, type PlatformServicesHostOpts } from './PlatformServicesHost.js';
 import { isRequest, isAppDataRequest } from '../protocol.js';
 
 interface SharedWorkerLike {
@@ -81,9 +82,55 @@ export interface InstalledWorker {
   stop(): Promise<void>;
 }
 
+/**
+ * The request surface `install()` needs — satisfied by both the full data
+ * hub and the platform-services host, so one attach/dispatch/hydrate path
+ * serves both worker kinds (worker-split plan W1b).
+ */
+interface InstallableHost {
+  handleRequest(port: PortLike, req: never): void;
+  handleAppDataRequest(port: PortLike, req: never): void;
+  hydrateCatalog?(): Promise<void>;
+  hydrateAppData?(userId?: string): Promise<void>;
+  onPortClosed(port: PortLike): void;
+  dispose(): Promise<void>;
+}
+
+export interface InstalledPlatformServices {
+  host: PlatformServicesHost;
+  stop(): Promise<void>;
+}
+
+/**
+ * Install the PLATFORM-SERVICES host on this worker global — catalog RPCs
+ * + AppData only (worker-split plan W1b). Same port lifecycle as
+ * {@link installSharedWorkerHub}, different brain.
+ */
+export async function installPlatformServicesHost(
+  opts: PlatformServicesHostOpts & Pick<InstallOpts, 'selfRef' | 'hydrateUserId' | 'adoptPorts'> = {},
+): Promise<InstalledPlatformServices> {
+  const host = new PlatformServicesHost(opts);
+  await install(host as InstallableHost, opts, Boolean(opts.configManager));
+  return { host, stop: () => host.dispose() };
+}
+
 export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<InstalledWorker> {
   const hub = new SharedWorkerDataServicesHub(opts);
 
+  await install(hub as unknown as InstallableHost, opts, Boolean(opts.configManager), opts.hydrateUserId);
+  return {
+    hub,
+    stop: () => hub.dispose(),
+  };
+}
+
+/** Shared port-lifecycle install for both worker brains. */
+async function install(
+  host: InstallableHost,
+  opts: Pick<InstallOpts, 'selfRef' | 'adoptPorts'>,
+  hydrate: boolean,
+  hydrateUserId?: string,
+): Promise<void> {
   const globalRef = (opts.selfRef ?? globalThis) as
     Partial<SharedWorkerLike> & Partial<DedicatedWorkerLike>;
 
@@ -91,13 +138,13 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   let attachPort: ((port: MessagePort) => void) | null = null;
 
   const dispatch = (target: PortLike, data: unknown) => {
-    if (isRequest(data)) hub.handleRequest(target, data);
-    else if (isAppDataRequest(data)) hub.handleAppDataRequest(target, data);
+    if (isRequest(data)) host.handleRequest(target, data as never);
+    else if (isAppDataRequest(data)) host.handleAppDataRequest(target, data as never);
   };
 
   const attach = (port: MessagePort): PortLike => {
     const onMessage = (ev: MessageEvent) => dispatch(portLike, ev.data);
-    const onError = () => hub.onPortClosed(portLike);
+    const onError = () => host.onPortClosed(portLike);
     const portLike: PortLike = {
       postMessage: (m) => port.postMessage(m),
       dispose: () => {
@@ -131,9 +178,9 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   // Hydrate catalog + AppData from IndexedDB before handling port traffic.
   // No-op when no ConfigManager was supplied (e.g. test installs that
   // don't exercise persistence).
-  if (opts.configManager) {
-    await hub.hydrateCatalog();
-    await hub.hydrateAppData(opts.hydrateUserId ?? 'worker');
+  if (hydrate) {
+    await host.hydrateCatalog?.();
+    await host.hydrateAppData?.(hydrateUserId ?? 'worker');
   }
 
   attachPort = attach;
@@ -153,14 +200,6 @@ export async function installSharedWorkerHub(opts: InstallOpts = {}): Promise<In
   if ('onmessage' in globalRef && 'postMessage' in globalRef) {
     const dw = globalRef as DedicatedWorkerLike;
     const fakePort: PortLike = { postMessage: (m) => dw.postMessage(m) };
-    dw.onmessage = (ev: MessageEvent) => {
-      if (isRequest(ev.data)) hub.handleRequest(fakePort, ev.data);
-      else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(fakePort, ev.data);
-    };
+    dw.onmessage = (ev: MessageEvent) => dispatch(fakePort, ev.data);
   }
-
-  return {
-    hub,
-    stop: () => hub.dispose(),
-  };
 }

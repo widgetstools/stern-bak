@@ -124,11 +124,20 @@ narrows the data hub to on-demand reads), and the bundle exposes
 `starui:*` marks incl. catalog/appdata served by the platform worker,
 probe on the platform port max 1.3 ms during a snapshot re-stream. Both
 workers still run `seedIfEmpty` (in-lock idempotent) during staging.
-Remaining in W1: **W1b** — dedicated slim `platformServicesEntry` (no
-STOMP/WASM graph) + `platform-services-worker.mjs` second build asset +
-spawn swap; **W1c** — delete catalog/AppData serving from the data hub
-(read-only stores for provider-lifecycle template resolution), services
-worker becomes sole seeder, hub under the 800-line ceiling.
+**W1b landed (2026-09-12): the slim host.** `PlatformServicesHost` —
+catalog RPC handlers + `HubAppDataService` + `ConfigCatalogCache`,
+nothing of the data plane — installed by the SAME bundled asset via a
+`self.name` branch in `defaultEntry` (`mkt-platform-services:*` → slim
+host; else full hub). One asset, zero app churn, no second `?url`
+import; the platform instance never executes the lazy stompjs/WASM
+graph. `entry.ts` gained one shared port-lifecycle `install()` serving
+both brains. Introspection RPCs answer honestly for the services worker
+(zero providers). Live-verified: catalog + AppData served by the slim
+host, probes healthy through a snapshot re-stream. (A dedicated slim
+ASSET remains an optional size optimization, no longer a phase gate.)
+Remaining in W1: **W1c** — delete catalog/AppData serving from the data
+hub (read-only stores for provider-lifecycle template resolution),
+services worker becomes sole seeder, hub under the 800-line ceiling.
 
 - New entry `runtime/worker/platformServicesEntry.ts` + built asset
   `platform-services-worker.mjs` (second entry in the package's worker

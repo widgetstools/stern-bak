@@ -22,7 +22,7 @@
  * call `installSharedWorkerHub({...})` directly.
  */
 
-import { installSharedWorkerHub, type AdoptedPort } from './index.js';
+import { installPlatformServicesHost, installSharedWorkerHub, type AdoptedPort } from './index.js';
 import { createConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   isWorkerBootstrapRequest,
@@ -141,18 +141,31 @@ async function boot(): Promise<void> {
   // wiped IndexedDB. See docs/CONFIG_SERVICE_BASELINE.md §4.5.
   await configManager.init();
 
-  // Must stay in one synchronous turn: `installSharedWorkerHub` reassigns
-  // `onconnect` before its first await, so no port can connect between
-  // handover and the hub taking over.
-  const adoptPorts = takeCapturedPorts();
-  await installSharedWorkerHub({ configManager, adoptPorts });
+  // ONE bundled asset serves BOTH worker kinds (worker-split plan W1b):
+  // the SharedWorker's own name says which brain to install. The platform
+  // instance never touches the provider/SSRM graph — stompjs is a lazy
+  // import and the WASM engine only loads on first SSRM boot, so the
+  // shared bundle costs the platform worker nothing at runtime.
+  const isPlatformServices =
+    String((globalThis as { name?: unknown }).name ?? '').startsWith('mkt-platform-services:');
 
+  // Must stay in one synchronous turn: the installer reassigns `onconnect`
+  // before its first await, so no port can connect between handover and
+  // the host taking over.
+  const adoptPorts = takeCapturedPorts();
+  if (isPlatformServices) {
+    await installPlatformServicesHost({ configManager, adoptPorts });
+  } else {
+    await installSharedWorkerHub({ configManager, adoptPorts });
+  }
+
+  const label = isPlatformServices ? 'platform-services worker' : 'data worker';
   // eslint-disable-next-line no-console
   console.info(
-    `[@wellsfargo-starui/data worker] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
+    `[@wellsfargo-starui/data ${label}] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
   );
   // eslint-disable-next-line no-console
-  console.info('[@wellsfargo-starui/data worker] catalog + AppData hydrated; hub waiting for ports');
+  console.info(`[@wellsfargo-starui/data ${label}] catalog + AppData hydrated; waiting for ports`);
 }
 
 boot().catch((err) => {

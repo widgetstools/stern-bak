@@ -10,10 +10,13 @@ export {
   type PortLike,
 } from './SharedWorkerDataServicesHub.js';
 export { WorkerAppDataStore, type AppDataListener } from './WorkerAppDataStore.js';
+export { PlatformServicesHost, type PlatformServicesHostOpts } from './PlatformServicesHost.js';
 export {
   installSharedWorkerHub,
+  installPlatformServicesHost,
   type InstallOpts,
   type InstalledWorker,
+  type InstalledPlatformServices,
   type AdoptedPort,
 } from './entry.js';
 export { registerProvider, startProvider, type ProviderFactory } from '../providers/registry.js';
