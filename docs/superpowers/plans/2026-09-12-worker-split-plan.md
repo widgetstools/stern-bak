@@ -113,8 +113,43 @@ tool-window time-to-interactive (lab window open during the storm).
 unchanged (bootstrap wires both clients); the hub file shrinks below the
 800-line ceiling as the moved sections leave.
 
-### W2 — Boot rework + ordering hardening
+### W2 — Boot rework, app-load warm-up, ordering hardening
 
+- **`warmPlatform()` — the one-line app-load call.** Today the worker is
+  created when the first hosted grid MOUNTS (`DataHubProvider` defaults to
+  `mode: 'lazy'` → `ensurePlatformReady` on mount), so the first grid's
+  paint pays the whole platform boot. New public API:
+
+  ```ts
+  // index.html / app entry / OpenFin dock bootstrap — fire and forget:
+  warmPlatform(bootstrapConfig, {
+    workerScriptUrl?,          // same resolution rules as ensurePlatformReady
+    providers?: 'autoStart' | string[],  // hydrate + start these once the hub is up
+  });
+  ```
+
+  Semantics: returns a promise nobody needs to await; kicks the worker
+  spawn(s) + catalog/AppData hydrate + the named providers' starts, all
+  off the UI thread. It is `ensurePlatformReady` + provider warm-up under
+  a deliberate name — and it MERGES with the lazy path through the
+  existing per-`appId` promise maps (`configReadyPromises` /
+  `platformPromises` / `hubPromises`), so the grid-mount fallback stays
+  exactly as it is: whichever caller runs first owns the flight, the
+  other attaches to it, nothing double-boots. Repeat calls are no-ops.
+  Post-W1 the call is genuinely non-blocking: `seedIfEmpty` and hydrate
+  live in the services worker, so the main thread holds promises and
+  nothing else (today `createConfigManager` + Dexie open/seed run on the
+  MAIN thread — the split is what makes "async and off-thread" true
+  rather than aspirational).
+  Provider warm-up uses the late-join machinery the container already has
+  (`isProviderRunning` / `waitForProviderRunning`): a grid mounting after
+  `warmPlatform` attaches to a RUNNING provider and paints from cache.
+- **OpenFin:** the dock/workspace bootstrap calls `warmPlatform` while
+  the dock loads, so by the time a user launches a blotter view the hub
+  is up and its `autoStart` providers are streaming. Note the existing
+  `acquireBackgroundFreezeExemption` in `ensurePlatformReady` — the warm
+  call typically runs in a hidden/background window, exactly the case
+  that lock exists for; W2 verifies it covers the dock-boot path.
 - `ensurePlatformReady` spawns the services worker FIRST and gates
   window-interactive on it alone; the data worker spawn + provider warm
   happen behind it without blocking config consumers.
@@ -129,7 +164,10 @@ unchanged (bootstrap wires both clients); the hub file shrinks below the
   lock reviewed for two-worker reality.
 
 *Exit:* cold-start trace shows tool-window config readiness independent of
-data-plane state; WORKLOG 14 closed or reduced to a pinned regression test.
+data-plane state; WORKLOG 14 closed or reduced to a pinned regression test;
+a demo app calls `warmPlatform` from its entry (grid mounts measurably
+faster than the lazy path — number recorded in §5) while a second demo
+keeps the lazy-only path to prove the fallback still boots everything.
 
 ### W3 — Re-measure, soak, document
 
@@ -162,3 +200,4 @@ orphaned.
 | `list-configs` p50 / p99, rate=10000 storm | — | — |
 | AppData attach→snapshot, storm | — | — |
 | Tool-window time-to-interactive, storm | — | — |
+| First hosted-grid mount → first paint: lazy vs `warmPlatform` at app load | — | — |

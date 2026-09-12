@@ -809,7 +809,11 @@ self-contained modules) into a second `«appId»-platform` SharedWorker; the
 data hub keeps a read-only ConfigManager and re-reads shared IndexedDB at
 provider lifecycle moments (no worker↔worker bridge). Phases W0
 measure → W1 extract → W2 boot rework (also the WORKLOG-14 hydrate-order
-class) → W3 re-measure + soak. Honest limits stated in the plan: same-plane
+class, plus `warmPlatform()` — the one-line fire-and-forget app-load /
+OpenFin-dock warm-up that spawns the workers and starts autoStart
+providers off the UI thread; the existing lazy create-on-first-grid-mount
+path stays as the fallback, merged through the same per-appId promise
+maps) → W3 re-measure + soak. Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere
