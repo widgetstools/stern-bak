@@ -793,6 +793,25 @@ must not silently lose either way), E6 batch-ack status panel. One phase
 per session; the app's stores/wrapper are deleted as each phase absorbs
 them.
 
+## 17. Single SharedWorker starves config/AppData under streaming load (2026-09-12)
+
+**Area:** `packages/data/host-data/src/runtime/worker`, `bootstrap` ·
+**Branch:** `feature/worker-hub-config-refactor` · plan at
+[`superpowers/plans/2026-09-12-worker-split-plan.md`](superpowers/plans/2026-09-12-worker-split-plan.md)
+
+One SharedWorker hosts three planes over one event loop: high-frequency
+data (STOMP ingest → WASM, SSRM ticks, CSRM fan-out) plus low-frequency
+config catalog RPCs and AppData. A worker cannot preempt a running ingest
+macrotask, so tool windows opening mid-storm queue their config requests
+behind the data plane — in-worker prioritization is structurally a
+non-fix. Plan: split catalog RPC + HubAppDataService (already
+self-contained modules) into a second `«appId»-platform` SharedWorker; the
+data hub keeps a read-only ConfigManager and re-reads shared IndexedDB at
+provider lifecycle moments (no worker↔worker bridge). Phases W0
+measure → W1 extract → W2 boot rework (also the WORKLOG-14 hydrate-order
+class) → W3 re-measure + soak. Honest limits stated in the plan: same-plane
+SSRM contention and CPU saturation are not fixed by this.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
