@@ -167,6 +167,11 @@ async function bootstrapPlatformOnce(
     mainThreadConfigManager: configManager,
   });
 
+  // Catalog invalidations reach BOTH workers: the platform-services worker
+  // serves catalog RPCs (its cache must be fresh for every window), and the
+  // data hub still reads ITS catalog at provider start/restart. W1c narrows
+  // the data-hub side to on-demand Dexie reads; until then, invalidate both.
+  wireWorkerCatalogSync(configManager, bundle.platformClient);
   wireWorkerCatalogSync(configManager, bundle.client);
 
   // Phase 2: return once config + hub connection are established. Full

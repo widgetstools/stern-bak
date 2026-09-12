@@ -112,6 +112,24 @@ provider — per-window time-to-full-paint and the FIRST→LAST spread (the
 
 ### W1 — Extract the platform-services worker
 
+**W1a landed (2026-09-12): dual-worker wiring.** `createPlatformServicesWorker`
+spawns `mkt-platform-services:«appId»` FIRST (staging: same worker bundle —
+a second instance whose provider machinery never receives an attach);
+`HubConnection` carries both workers + both clients (the client class is
+port-generic); AppData attaches through the platform client
+(`bootstrapDataServices.appDataClient`), catalog readiness gates on the
+platform client, catalog invalidations go to both workers (until W1c
+narrows the data hub to on-demand reads), and the bundle exposes
+`platformClient`. Live-verified: rows from the data worker, all five
+`starui:*` marks incl. catalog/appdata served by the platform worker,
+probe on the platform port max 1.3 ms during a snapshot re-stream. Both
+workers still run `seedIfEmpty` (in-lock idempotent) during staging.
+Remaining in W1: **W1b** — dedicated slim `platformServicesEntry` (no
+STOMP/WASM graph) + `platform-services-worker.mjs` second build asset +
+spawn swap; **W1c** — delete catalog/AppData serving from the data hub
+(read-only stores for provider-lifecycle template resolution), services
+worker becomes sole seeder, hub under the 800-line ceiling.
+
 - New entry `runtime/worker/platformServicesEntry.ts` + built asset
   `platform-services-worker.mjs` (second entry in the package's worker
   build; `staruiEnsureBuiltAssetsPlugin` learns to check both).

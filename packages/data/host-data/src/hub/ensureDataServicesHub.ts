@@ -3,7 +3,10 @@ import type { PlatformBootstrapConfig } from '../bootstrap/PlatformBootstrapConf
 import { resolveConfigServiceRestUrl } from '../bootstrap/PlatformBootstrapConfig.js';
 import type { DataServices } from '../runtime/bootstrap/bootstrap.js';
 import { bootstrapDataServices } from '../runtime/bootstrap/bootstrap.js';
-import { createDataServicesWorker } from '../runtime/bootstrap/createDataServicesWorker.js';
+import {
+  createDataServicesWorker,
+  createPlatformServicesWorker,
+} from '../runtime/bootstrap/createDataServicesWorker.js';
 import { SharedWorkerDataServicesClient } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import type { DataServicesHubBundle } from '../provider/IDataProvider.js';
 import type { IDataProvider } from '../provider/IDataProvider.js';
@@ -17,6 +20,12 @@ import {
 /** Hub bundle including legacy {@link DataServices} handles for migration. */
 export interface ResolvedDataServicesHubBundle extends DataServicesHubBundle {
   readonly client: DataServices['client'];
+  /**
+   * The platform-services worker's client (worker-split plan W1): config
+   * catalog RPCs + AppData ride THIS port, isolated from the data plane.
+   * Providers / SSRM stay on {@link client}.
+   */
+  readonly platformClient: SharedWorkerDataServicesClient;
   readonly appData: DataServices['appData'];
   readonly configManager: ConfigManager;
 }
@@ -34,10 +43,18 @@ export interface EnsureHubOpts extends PlatformBootstrapConfig {
   mainThreadConfigManager: ConfigManager;
 }
 
-/** The window's single SharedWorker port + client for one `appId`. */
+/**
+ * The window's SharedWorker ports for one `appId` — TWO workers since the
+ * worker split (plan W1): the data hub (providers, CSRM deltas, SSRM) and
+ * the platform-services worker (config catalog + AppData). One client per
+ * port; the same client class serves both (it is port-generic — only the
+ * traffic differs).
+ */
 export interface HubConnection {
   worker: SharedWorker;
   client: SharedWorkerDataServicesClient;
+  platformWorker: SharedWorker;
+  platformClient: SharedWorkerDataServicesClient;
 }
 
 /** Options for {@link warmHubConnection} — hub opts minus the ConfigManager. */
@@ -59,17 +76,25 @@ function getOrCreateHubConnection(opts: WarmHubConnectionOpts): HubConnection {
   const existing = hubConnections.get(opts.appId);
   if (existing) return existing;
 
-  const worker = createDataServicesWorker(opts.workerScriptUrl, {
+  const workerOpts = {
     appName: opts.appId,
     configServiceRestUrl: resolveConfigServiceRestUrl(opts),
     appId: opts.appId,
     userId: opts.userId,
     seedConfigUrl: opts.seedConfigUrl,
     seedConfigReload: opts.seedConfigReload,
-  });
+  };
+  // Platform-services worker FIRST: it owns seeding + catalog serving, and
+  // tool windows gate on it alone. (During W1 staging both workers still
+  // run seedIfEmpty — it is in-lock idempotent, so the loser's check is a
+  // no-op; W1c makes the services worker the sole seeder.)
+  const platformWorker = createPlatformServicesWorker(opts.workerScriptUrl, workerOpts);
+  const worker = createDataServicesWorker(opts.workerScriptUrl, workerOpts);
   const connection: HubConnection = {
     worker,
     client: new SharedWorkerDataServicesClient(worker.port),
+    platformWorker,
+    platformClient: new SharedWorkerDataServicesClient(platformWorker.port),
   };
   hubConnections.set(opts.appId, connection);
   return connection;
@@ -96,13 +121,15 @@ interface HubReadiness {
   catalogReady: Promise<void>;
 }
 
-function buildReadiness(services: DataServices): HubReadiness {
+function buildReadiness(services: DataServices, platformClient: SharedWorkerDataServicesClient): HubReadiness {
   const appDataReady = (async () => {
     await services.ready;
     markAppDataReady();
   })();
+  // Catalog answers come from the platform-services worker — the whole
+  // point of the split: this readiness is independent of data-plane load.
   const catalogReady = (async () => {
-    await services.client.waitForCatalogReady();
+    await platformClient.waitForCatalogReady();
     markCatalogReady();
   })();
   const ready = Promise.all([appDataReady, catalogReady]).then(() => undefined);
@@ -119,6 +146,7 @@ function adaptDataServicesToHubBundle(
   services: DataServices,
   appId: string,
   readiness: HubReadiness,
+  platformClient: SharedWorkerDataServicesClient,
 ): ResolvedDataServicesHubBundle {
   return {
     ready: readiness.ready,
@@ -140,6 +168,7 @@ function adaptDataServicesToHubBundle(
       hubConnections.delete(appId);
     },
     client: services.client,
+    platformClient,
     appData: services.appData,
     configManager: services.configManager,
   };
@@ -151,14 +180,17 @@ async function bootstrapHubOnce(opts: EnsureHubOpts): Promise<ResolvedDataServic
     appName: opts.appId,
     worker: connection.worker,
     client: connection.client,
+    // AppData attaches to the PLATFORM-services worker (worker-split plan
+    // W1): its snapshot and every set/upsert ride the low-frequency plane.
+    appDataClient: connection.platformClient,
     configManager: opts.mainThreadConfigManager,
     userId: opts.userId,
   });
   markHubConnected();
   // Return as soon as the hub connection is established — the AppData snapshot
   // and catalog preload resolve in the background via the readiness promises.
-  const readiness = buildReadiness(services);
-  return adaptDataServicesToHubBundle(services, opts.appId, readiness);
+  const readiness = buildReadiness(services, connection.platformClient);
+  return adaptDataServicesToHubBundle(services, opts.appId, readiness, connection.platformClient);
 }
 
 /**
@@ -187,6 +219,7 @@ export function _resetEnsureDataServicesHubForTests(): void {
   hubPromises.clear();
   for (const connection of hubConnections.values()) {
     try { connection.client.close(); } catch { /* best-effort */ }
+    try { connection.platformClient.close(); } catch { /* best-effort */ }
   }
   hubConnections.clear();
 }

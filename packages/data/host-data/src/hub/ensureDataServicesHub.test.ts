@@ -8,10 +8,24 @@ import {
 } from './ensureDataServicesHub.js';
 
 const createDataServicesWorkerMock = vi.fn();
+const createPlatformServicesWorkerMock = vi.fn();
 const bootstrapDataServicesMock = vi.fn();
+const clientInstances: Array<{ waitForCatalogReady: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }> = [];
 
 vi.mock('../runtime/bootstrap/createDataServicesWorker.js', () => ({
   createDataServicesWorker: (...args: unknown[]) => createDataServicesWorkerMock(...args),
+  createPlatformServicesWorker: (...args: unknown[]) => createPlatformServicesWorkerMock(...args),
+}));
+
+// The connection wraps BOTH worker ports in real client instances; stub the
+// class so catalog readiness (now answered by the PLATFORM client) resolves
+// without a live port protocol.
+vi.mock('../runtime/client/SharedWorkerDataServicesClient.js', () => ({
+  SharedWorkerDataServicesClient: class {
+    waitForCatalogReady = vi.fn().mockResolvedValue(undefined);
+    close = vi.fn();
+    constructor() { clientInstances.push(this as never); }
+  },
 }));
 
 vi.mock('../runtime/bootstrap/bootstrap.js', () => ({
@@ -26,9 +40,8 @@ describe('ensureDataServicesHub', () => {
   beforeEach(() => {
     waitForCatalogReady = vi.fn().mockResolvedValue(undefined);
     dispose = vi.fn();
-    // Real MessagePort surface — getOrCreateHubConnection wraps the port in
-    // a real SharedWorkerDataServicesClient before bootstrap is invoked.
-    createDataServicesWorkerMock.mockReturnValue({
+    clientInstances.length = 0;
+    const fakeWorker = () => ({
       port: {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
@@ -37,6 +50,8 @@ describe('ensureDataServicesHub', () => {
         close: vi.fn(),
       },
     });
+    createDataServicesWorkerMock.mockImplementation(fakeWorker);
+    createPlatformServicesWorkerMock.mockImplementation(fakeWorker);
     bootstrapDataServicesMock.mockImplementation(() => ({
       client: { waitForCatalogReady, stop: vi.fn() },
       appData: {},
@@ -66,14 +81,29 @@ describe('ensureDataServicesHub', () => {
       seedConfigUrl: undefined,
       seedConfigReload: undefined,
     });
+    // The platform-services worker is created alongside, with the same opts.
+    expect(createPlatformServicesWorkerMock).toHaveBeenCalledWith('/worker.mjs', {
+      appName: 'TestApp',
+      configServiceRestUrl: undefined,
+      appId: 'TestApp',
+      userId: 'dev1',
+      seedConfigUrl: undefined,
+      seedConfigReload: undefined,
+    });
     expect(bootstrapDataServicesMock).toHaveBeenCalledWith({
       appName: 'TestApp',
       worker: expect.any(Object),
       client: expect.any(Object),
+      appDataClient: expect.any(Object),
       configManager: fakeCm,
       userId: 'dev1',
     });
-    expect(waitForCatalogReady).toHaveBeenCalledTimes(1);
+    // Catalog readiness is answered by the PLATFORM client, not by the data
+    // client — the split's whole point.
+    const platform = bundle.platformClient as unknown as { waitForCatalogReady: ReturnType<typeof vi.fn> };
+    const dataClient = bundle.client as unknown as { waitForCatalogReady: ReturnType<typeof vi.fn> };
+    expect(platform.waitForCatalogReady).toHaveBeenCalledTimes(1);
+    expect(dataClient.waitForCatalogReady).not.toHaveBeenCalled();
     await bundle.ready;
   });
 
