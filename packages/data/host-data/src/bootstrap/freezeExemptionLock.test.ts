@@ -8,10 +8,17 @@ import {
 
 type LockGrant = (cb: () => Promise<void>) => Promise<void>;
 
+/**
+ * `request(name, options, cb)` — the mock receives the real three-argument
+ * form and hands the callback to `impl`, so existing cases stay
+ * two-argument while the options are asserted separately.
+ */
 function installLocksMock(impl: (name: string, cb: () => Promise<void>) => Promise<void>) {
+  const request = vi.fn((name: string, options: unknown, cb?: () => Promise<void>) =>
+    impl(name, (typeof options === 'function' ? options : cb) as () => Promise<void>));
   Object.defineProperty(navigator, 'locks', {
     configurable: true,
-    value: { request: vi.fn(impl) },
+    value: { request },
   });
   return navigator.locks.request as ReturnType<typeof vi.fn>;
 }
@@ -65,6 +72,12 @@ describe('acquireBackgroundFreezeExemption', () => {
     // No further retries once granted.
     await vi.advanceTimersByTimeAsync(10_000);
     expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  it('requests the lock in SHARED mode so every data window holds its own exemption', () => {
+    const request = installLocksMock((_n, cb) => { void cb(); return new Promise<void>(() => {}); });
+    acquireBackgroundFreezeExemption();
+    expect(request).toHaveBeenCalledWith(FREEZE_EXEMPTION_LOCK_NAME, { mode: 'shared' }, expect.any(Function));
   });
 
   it('is a no-op without the Web Locks API and never throws', () => {

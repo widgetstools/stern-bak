@@ -456,6 +456,35 @@ p95 328 / max 423 ms — 1.75× the two-page figure, which is the
 same-plane SSRM contention §4 states this split does not remove — and
 the cross-window edit lands in all six.
 
+**The deployment shape, measured live (2026-09-12, star-demo in OpenFin
+43.142 on this box, twelve SSRM blotter views streaming `stomp-ssrm1`,
+probed over CDP :9091 from the provider window with fresh same-name
+ports, 30 samples each at 100 ms):**
+
+| RPC | port | p50 | p99 |
+|---|---|---|---|
+| `hub-ready` | platform-services | 0.3 ms | 0.5 ms |
+| `list-configs` (20 rows) | platform-services | 4.3 ms | 7.3 ms |
+| `provider-running` (scalar) | data | **54.9 ms** | **190.4 ms** |
+
+This is the starvation the plan hypothesised, seen directly: with twelve
+views on one SSRM provider the data worker's queue holds a scalar RPC for
+55 ms at the median and 190 ms at p99, while the platform worker — the
+port every tool window's config requests now ride — answers in a third of
+a millisecond. Before the split a window's `hub-ready` / `get-config` /
+AppData attach paid that data-worker queue; after it they pay 0.3 ms. The
+single-worker harness on this box never showed it (one blotter's ingest
+macrotasks are short); twelve views did. The provider window's own ladder
+in OpenFin: `config-ready` 4 792 → `platform-ready` 4 803 ms (11 ms; the
+4.8 s before it is the OpenFin provider page's own load). Also seen live:
+the data port ignores `hub-ready` (route deleted), and `config-save` from
+the provider window persisted `test.dp`'s `autoStart` through the single
+writer (14 ms round trip) and re-read it; `warmPlatform(config,
+{ providers: 'autoStart' })` called through the provider page's own module
+instance merged with its existing flight (resolved in 6 ms) and the data
+worker reported `test.dp` running with a stats-mode subscriber within
+250 ms — the warm state a later blotter view attaches to.
+
 ### W0 findings — what reproduced and what did not
 
 **Reproduced: the W4 fan-out ladder.** Nine windows attaching at once to a

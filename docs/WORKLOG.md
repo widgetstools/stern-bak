@@ -900,6 +900,44 @@ the settings button; the demo apps' render-blocking Google Fonts; the
 SharedArrayBuffer fan-out stretch. Item 14 is closed with its cause. [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
+## 18. OpenFin live verification of the worker split (2026-09-12) — one defect fixed, one leak characterized
+
+**Area:** `packages/data/host-data/src/bootstrap/freezeExemptionLock.ts`, worker port lifecycle · **Blocked on:** the port-leak cause
+
+Probed the running star-demo platform (OpenFin 43.142, twelve SSRM views
+streaming) over CDP from the provider window — numbers in the worker-split
+plan §5 ("the deployment shape, measured live"): platform-port config RPCs
+0.3 ms p50 while the data port's scalar probe waited 55 ms p50 / 190 ms
+p99 behind ingest; `config-save` through the single writer and
+`warmPlatform` from the provider page both verified live.
+
+**Fixed:** `acquireBackgroundFreezeExemption` requested its Web Lock in
+exclusive mode under one origin-wide name, so the provider window held it
+and all twelve views sat in `navigator.locks.query().pending` — a queued
+request neither rejects nor retries, so no warning either. Now `{ mode:
+'shared' }` (test pinned). Windows loaded before this fix still hold /
+queue the exclusive lock until the platform restarts — restart the
+provider to verify with `navigator.locks.query()` in a view
+(`held` should list `starui-background-freeze-exemption` in every data
+window).
+
+**Open — dead ports in the workers:** with 13 live pages the platform
+worker reported 59 connected ports and 58 AppData listeners, the data
+worker 58–59 ports (data subscribers are heartbeat-swept and were exactly
+right). Every AppData delta is posted to each dead listener (silent
+no-op per port, but ~45× the work) and the PortLike closures are retained.
+Controlled experiments over CDP: opening and closing a config-only
+window, opening and closing a blotter view, and reloading a live view all
+returned the counts to baseline — `pagehide` → `port-close` works for
+those lifecycles. The leaked entries accumulated earlier in the session
+(~94 min, many view duplications and several `dist` rebuilds that
+triggered Vite full reloads) and their originating lifecycle was not
+reproduced. Proposed fix regardless of cause: liveness for platform-port
+consumers — the client already heartbeats data subscriptions on the data
+port; add a per-port `ping` on the platform port and let both hosts sweep
+ports (and their AppData listeners) silent for the hidden-grace window,
+mirroring the data hub's subscriber sweep.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
