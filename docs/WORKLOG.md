@@ -772,6 +772,27 @@ structured clone — only matters past ~1 grid / 20k rows, block RPC is
 (`ssrm-multiwindow.mjs` ran at PAGES=2; `PAGES=6` at `?rate=10000` has not);
 LF-in-CRLF line endings (harmless, owner's call).
 
+## 16. Edit lifecycle, staged batches, file import — CSRM + SSRM (2026-09-12)
+
+**Area:** `packages/data/host-data/src/provider`, `packages/core/engine/src/customizer/modules/editing-core`, grid customizer ·
+**Blocked on:** nothing — phases are independent of the engine work; plan at
+[`superpowers/plans/2026-09-12-edit-lifecycle-plan.md`](superpowers/plans/2026-09-12-edit-lifecycle-plan.md)
+
+`apps/source/spg-pricing-blotter` proved the shape app-side: one wrapper
+over `applyEdits` gives every grid write path a real commit lifecycle
+(amber staged → yellow pending → cleared on server ack → red refused),
+plus validated CSV import staged before save. The plan platformizes it in
+six phases — E1 write contract + edit-ack lifecycle module (also closes
+the CSRM hole where edits are local transactions the next tick reverts:
+`IDataProvider` has NO write method today), E2 worker-side upstream
+write-back (`editEndpoint` config; one POST per book, not per window),
+E3 staged overlay tiers (reload-safe drafts; Discard = drop the tier),
+E4 file-import customizer module (deletes the app's dialog), E5
+write-conflict signal (pending cell ticked to a DIFFERENT upstream value
+must not silently lose either way), E6 batch-ack status panel. One phase
+per session; the app's stores/wrapper are deleted as each phase absorbs
+them.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
