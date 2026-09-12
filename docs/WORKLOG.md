@@ -885,8 +885,19 @@ deltas deferred per port until its `ready`), with hub-thread accounting on
 1 204 → 272–939 ms), hub thread ≈ 0.6–0.9 s encode + 0.45–0.6 s posting
 per 9-port episode — the posting floor is structured-clone per port, so
 the SharedArrayBuffer stretch (needs `crossOriginIsolated`) is the next
-lever there and was NOT built. W3 (final re-measure, soak, docs, orphan
-sweep) is the closing pass — see the handoff [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
+lever there and was NOT built. W3 closed the pass (2026-09-12): final
+Windows-native column in plan §5 (re-stream config max 53.5 → 2.2 ms;
+window ladder 6 ms; six-window `?rate=10000` soak green with SSRM block
+p50 254 ms vs 145 at two pages — the same-plane contention the plan
+excludes), the single-worker bootstrap helpers deleted
+(`createDataServicesClient`, `bootstrapDataServicesWithWorkerAsset`,
+`createAppDataServices` — no consumers, and they attached AppData on the
+data port, which no longer answers), `wireWorkerCatalogSync` deleted,
+docs aligned. **Open**, per the handoff §6: REST-mode re-probe against a
+real config service; OpenFin-runtime verification of the provider-window
+warm-up + freeze exemption; customizer-open timing on an app that renders
+the settings button; the demo apps' render-blocking Google Fonts; the
+SharedArrayBuffer fan-out stretch. Item 14 is closed with its cause. [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
 SSRM contention and CPU saturation are not fixed by this.
 
 ## Pre-existing, tracked elsewhere

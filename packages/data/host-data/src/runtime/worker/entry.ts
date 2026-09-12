@@ -12,8 +12,9 @@
  *     await installSharedWorkerHub({ configManager: cm });
  *
  * The colocated `new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url))`
- * lives in `createDataServicesClient()` — apps should not duplicate a worker
- * entry unless they need bespoke hub wiring.
+ * lives in `createDataServicesWorker()` / `createPlatformServicesWorker()`
+ * behind `ensurePlatformReady` — apps should not duplicate a worker entry
+ * unless they need bespoke hub wiring.
  *
  * `installSharedWorkerHub` and `installPlatformServicesHost` share one
  * port-lifecycle `install()`. The SharedWorker `onconnect` handler is

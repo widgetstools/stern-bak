@@ -193,10 +193,11 @@ await ensurePlatformReady(config, { workerScriptUrl: workerUrl });
 | Blank page / infinite loading on data routes | `appData.ready()` never resolves → `ConfigManager.init()` hangs — check the worker actually booted |
 | React context errors from the data hooks (`must be inside <…Provider>`) | Vite prebundled a duplicate copy of the data runtime — add the `optimizeDeps.exclude` line above |
 
-**Do not** use `createDataServicesClient()` in Vite apps — its
-`new URL(..., import.meta.url)` lives inside the library and breaks once
-Vite prebundles the package into `.vite/deps/`. Use `ensurePlatformReady`
-with the packaged worker asset instead.
+Boot through `ensurePlatformReady` (or `warmPlatform`) with the packaged
+worker asset; the former single-worker `createDataServicesClient()` /
+`bootstrapDataServicesWithWorkerAsset()` helpers were deleted with the
+worker split — there are two SharedWorkers now, and only the platform
+bootstrap spawns both.
 
 ## 5. Publishing (maintainers)
 

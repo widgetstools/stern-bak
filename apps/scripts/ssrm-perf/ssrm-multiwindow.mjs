@@ -43,6 +43,9 @@ const waitForRows = (page) => page.waitForFunction(
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 850 } });
+  // The demo page blocks DOMContentLoaded on Google Fonts (0.1–16 s on a proxied
+  // box) — a page cost, not a platform one. Same isolation as worker-baseline.mjs.
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
   await ctx.addInitScript(INIT);
 
   // ── cold, page by page: page 1 pays the snapshot; late joiners must ride

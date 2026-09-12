@@ -330,15 +330,15 @@ ran at M4 speed in every `THROTTLE=4` row.
 
 | probe | native (M4 Max) | THROTTLE=4 (Windows proxy, worker unthrottled) | Windows native² (W1b HEAD) | after (W3/W4) |
 |---|---|---|---|---|
-| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | 0.1 / 0.5 ms | 0.3 / 0.6 ms | — |
-| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | 0.2 / 0.6 ms | 0.3 / 0.7 ms | — |
-| config RPC DURING 20k snapshot re-stream — p99 / MAX | 0.8 / 1.4 ms | 1.0 / **103.8 ms** | 0.7 / **53.5 ms** | — |
-| Fresh window open mid-storm: wall→rows / `platform-ready` | 225–267 / 70–88 ms | **924 / 219 ms** | 762 / 187 ms | — |
-| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | 3 683 ms¹ | 4 343 ms | — |
-| 10 CSRM windows × 20k: 9 joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | 2 642 → **5 437 ms** (p50 4 539) | 2 400 → 3 225 ms (p50 2 579) | — |
-| 10 CSRM windows × 20k: joiner spread / last÷first | 1 246 ms / 2.14× | **2 795 ms** / 2.06× | 825 ms / 1.34× | — |
-| Joiner `platform-ready` during the fan-out | 138–220 ms | 235–494 ms | 466–754 ms | — |
-| Hub-thread ms consumed by the fan-out (encode + post) | needs worker-side timing (W4 adds it) | — | — | — |
+| `list-configs` p50 / p99, idle | 0.2–0.3 / 0.4–0.5 ms | 0.1 / 0.5 ms | 0.3 / 0.6 ms | 0.3 / 0.5 ms |
+| `list-configs` p50 / p99, rate=10000 storm (steady state) | 0.1–0.2 / 0.9–2.1 ms | 0.2 / 0.6 ms | 0.3 / 0.7 ms | 0.2 / 0.4 ms |
+| config RPC DURING 20k snapshot re-stream — p99 / MAX | 0.8 / 1.4 ms | 1.0 / **103.8 ms** | 0.7 / **53.5 ms** | 0.7 / **2.2 ms** (data port 0.3 / 0.3) |
+| Fresh window open mid-storm: wall→rows / `platform-ready` | 225–267 / 70–88 ms | **924 / 219 ms** | 762 / 187 ms | 660 / **194 ms** (`config-ready` 188 — a 6 ms ladder) |
+| 10 CSRM windows × 20k: first window (pays broker snapshot) | 4 806 ms | 3 683 ms¹ | 4 343 ms | 1 354 ms³ (`platform-ready` 219, 57 ms after spawn) |
+| 10 CSRM windows × 20k: 9 joiners, per-window full paint | 1 091 → 2 337 ms (p50 1 950) | 2 642 → **5 437 ms** (p50 4 539) | 2 400 → 3 225 ms (p50 2 579) | 2 278 → 3 599 ms (p50 3 254)⁴ |
+| 10 CSRM windows × 20k: joiner spread / last÷first | 1 246 ms / 2.14× | **2 795 ms** / 2.06× | 825 ms / 1.34× | 272–1 321 ms / **1.09–1.58×** over three W4 runs⁴ |
+| Joiner `platform-ready` during the fan-out | 138–220 ms | 235–494 ms | 466–754 ms | 686–1 046 ms |
+| Hub-thread ms consumed by the fan-out (encode + post) | needs worker-side timing (W4 adds it) | — | — | 0.56–1.06 s encode + 0.32–0.58 s posting per 9-port fan-out |
 
 ¹ broker-paced (network dominates), and the second C run rides the prior
 run's warmed broker snapshot cache — not comparable across runs.
@@ -427,6 +427,34 @@ port (360 posts), the structured-clone floor that only a
 (≈ 7–10×) and cannot be on this transport; the joiner wall time on this
 box is client-bound (ten renderers decoding + painting 20k rows on one
 CPU), not hub-bound.
+
+**W3 — final re-measure + soak (2026-09-12, Windows native, fonts
+isolated; `TAG=win-final`, `win-soak2b`, `win-soak6`).** The "after" column
+above is the final run on the committed tree. Config probe: idle 0.3 /
+0.5 ms, storm 0.2 / 0.4 ms, re-stream p99 0.7 / max 2.2 ms (data-port
+scalar 0.3 / 0.3 ms). Fresh window mid-storm: `config-ready` 188 →
+`platform-ready` 194 ms, wall→rows 660 ms (spawn at 176; the rest is
+page + grid). ³ First CSRM window: 1 354 ms, `platform-ready` 219 ms.
+⁴ The final fan-out run landed the nine attaches in TWO scheduler
+episodes (the joiners' own boots spread over ~360 ms; the last episode
+served 5 ports / 200 chunks in 184 ms of posting), so its spread is
+arrival-timing plus client paint, not hub serialization: the early
+group painted at 2 278–2 504 ms — faster than any pre-W4 joiner — and
+the late group at 3 254–3 599. Across the three W4 runs the ladder is
+1.09×, 1.36× and 1.58× (spread 272 / 939 / 1 321 ms) against 1.34–1.47×
+(825–1 329 ms) on the three pre-W4 runs; the ≤ 1.5× target holds when
+the attaches share an episode and the hub-thread accounting (posting
+≤ 0.58 s per nine ports) shows the hub is no longer what spreads them.
+**Soak** (`ssrm-multiwindow.mjs`, fonts isolated): PAGES=2 — page 1 cold
+2 042 ms (pays the broker snapshot), page 2 669 ms on the warm cache, zero
+idle block RPCs on both pages (tick-gated pollers), page 1 pays nothing
+while page 2 scrolls (0 RPCs, 0 long tasks; the scroller's blocks p50 145
+/ p95 257 ms), cross-window edit lands in both pages. PAGES=6 at `?rate=10000` (the deferred run): cold 1 960 ms then
+695–777 ms per joiner, zero idle block RPCs on all six, sibling-scroll
+isolation holds on all five idle pages, the scroller's blocks p50 254 /
+p95 328 / max 423 ms — 1.75× the two-page figure, which is the
+same-plane SSRM contention §4 states this split does not remove — and
+the cross-window edit lands in all six.
 
 ### W0 findings — what reproduced and what did not
 
