@@ -1,245 +1,631 @@
-# Refactor plan — grid data-apply, mount stack, hidden views, worker ingest, resilience (2026-09-13)
+# Refactor plan — grid data-apply, mount stack, hidden views, worker ingest, resilience (2026-09-13, revised the same day)
 
-Written from the measurements of 2026-09-12/13 (WORKLOG 14–21). Every phase
-below carries the number that motivates it, the number that proves it, and a
-single switch that turns it off. The rule of the week applies throughout:
-**rewrite a subsystem when its measured problem is its design; fix in place
-when the problem is a mechanism.** Two subsystems qualify for a rewrite (the
-grid data-apply layer, the mount stack); everything else is in-place work
-behind existing interfaces.
+Written from the measurements of 2026-09-12/13 (WORKLOG 18–21). Every phase
+below carries the number that motivates it, the number that proves it, its
+entry and exit criteria, and the command that verifies it. Each phase is one
+session and one commit. The rule of the week applies throughout: **rewrite a
+subsystem when its measured problem is its design; fix in place when the
+problem is a mechanism** — and the measurement that decides which is taken
+before the rewrite, not after.
 
-Not in scope: the data hub, the SSRM WASM plane, the customizer modules,
-persistence, the OpenFin platform layer. They are the "components that already
-work" — recently measured, instrumented, and fixed where needed.
+Not in scope: the data hub's fan-out design, the SSRM WASM plane's query path,
+the customizer modules, persistence storage, the OpenFin platform layer. They
+are the components that already work — recently measured, instrumented, and
+fixed where needed. Handoff §6 items that stay open and are NOT picked up
+here: the REST-mode re-probe, the demo apps' render-blocking Google Fonts, the
+SharedArrayBuffer fan-out stretch, the `ssrm-blocks-dropped` hint and the
+scroll-aware tick hold from WORKLOG 19.
+
+## Revision note (what changed from the first draft, and the evidence)
+
+1. **Phase B0 added, before any rewrite.** The two timers per updated row are
+   now named from the installed AG Grid 36.1 bundles: ag-grid-react's
+   `RenderStatusService` (one `setTimeout` per `rowNodeDataChanged`, present
+   whenever the column-autosize bean exists) and ag-grid-enterprise's
+   `FindService` (`_debounce`: one `clearTimeout` + one `setTimeout` per event,
+   registered on every CSRM grid whether or not Find is used). The census
+   fits: 2 × 94 726 is within 40 of 189 490. Find is used nowhere in this
+   repo; nothing calls `autoSizeColumns`; the only consumer of the autosize
+   module is the opt-in `sizeColumnsToFitOnReady` (default false). Both arrive
+   through the default `AllEnterpriseModule` in
+   `packages/react-grid/grid/src/widget/ensureAgGridModules.ts:16`. An explicit
+   module list removes the whole timer storm with transactions unchanged.
+   B0 measures that; its number decides B1.
+2. **Phase B's `refreshCells({ force: true })` removed.** AG Grid 36.1's
+   `refreshCell` computes `dataNeedsUpdating = forceRefresh || valuesDifferent`
+   and flashes inside that branch, so `force: true` flashes every rendered
+   cell of a changed row, not the 4.4 fields that changed. B1 calls it without
+   `force`; the in-place patch already makes changed cells differ from their
+   cached value.
+3. **Phase B's switch removed; B is one implementation behind the existing
+   port.** `ApplyProviderToGridState`
+   (`packages/react-grid/widgets-react/src/container/markets-grid-container/applyProviderToGrid.ts:27`)
+   is the port; it has two constructors today
+   (`useProviderDataWiring.ts:132`, `blotter/hooks/useBlotterDataConnection.ts:59`)
+   and the first draft covered only one. The transaction update branch is
+   deleted in the same change (CLAUDE.md pre-implementation rule 7, handoff
+   rule 3 — the first draft's "old path stays a release" contradicted both).
+4. **Phase B now names the consumers the transaction path feeds** besides
+   `RowChangeBus`: calculated columns on `rowDataUpdated`, conditional styling
+   on `modelUpdated`, the event bridge's `grid:rowDataUpdated`. Each moves in B2.
+5. **Phase C is opt-in only (owner decision 2026-09-13: Option 2).**
+   `packages/react-grid/widgets-react/src/container/markets-grid-container/useProviderDataWiring.ts:196-202`
+   records that hidden-pause + refresh-on-visible was removed deliberately so
+   hidden blotters keep alerting. Pausing fan-out at the hub reverses that.
+   The compatible form (no DOM work while hidden, bus still fed) is B3. C's
+   SSRM branch also relied on the count check, which only refreshes on a
+   count mismatch (`bindSsrmTicks.ts:231`); it now uses a reset tick.
+6. **The hidden signal is an entry criterion, not an assumption.**
+   `meta.hidden` derives from `document.hidden`
+   (`SharedWorkerDataServicesClient.ts:969`); no probe this week recorded
+   `visibilityState` for an inactive docked tab. G1's liveness probe records it.
+7. **Phase F2/F3 re-scoped to the mechanism.** The worker URL is already
+   content-hashed in production (`createDataServicesWorker.ts:111`; star-demo's
+   dist carries `data-services-worker-BBFYs2zw.mjs`) and an `error` listener
+   already exists at line 117 (it only logs). What is missing is a bound on
+   `configManager.init({ mode: 'attach' })`, a visible failure state, a build id
+   in introspect, and a check of the rolling-reload window.
+8. **Phase E1 dropped.** Conflation is the transport's
+   (`providers/transports/stomp.ts:338-359`) and the hub hands the engine the
+   same batch it caches (`providerEmit.ts:130`). A provider that does not
+   conflate is a config change (`throttleMs` + `conflateByKey`), not code.
+9. **Phase D gets a profile-first gate.** "57 fibers", "three persistence
+   layers" and "≤ 25 fibers" were unrecorded; WORKLOG 20's placeholder grid is
+   already fixed (70239b3); the 2.5 s cold reload is an SSRM number of which
+   1.1 s is `platform-ready`. D0 attributes the remaining ~1.4 s before any
+   component is rewritten. `MarketsGridContainer.tsx` is 1058 lines today.
+10. **Phase A is complete** (merged as 558c789; the manifest carries
+    `viewProcessAffinityStrategy: "different"`). Only the target-hardware
+    decision remains.
+11. **Phase E2 rewritten as a cost measurement** (owner, 2026-09-13):
+    columnar ingest has its own encode cost, the engine may have to transpose
+    it back to rows, and any columnar payload that reaches a window is
+    reassembled on the main thread. E2 now decomposes today's ingest by stage
+    and benchmarks both sides of every candidate before any engine entry
+    point is requested; E3 states its client cost as a field merge.
 
 ---
 
-## 0. Configuration contract: one switch per behaviour, no code reverts
+## 0. Binding constraints (override the phase text)
 
-Every phase that changes runtime behaviour ships behind exactly one setting.
-Turning a phase off is an edit to that setting, a rebuild where the setting is
-compiled in, and a restart where it is read at start. Never a code revert in
-several files. The switches:
+1. **One phase per session, one commit per phase**, conventional prefix,
+   `Co-Authored-By` trailer, full gate green before commit
+   (`npx turbo typecheck build test` + `npm run lint:all`).
+2. **Superseded code is deleted in the same change as its replacement**
+   (CLAUDE.md rule 7). One sanctioned exception: Phase D is a three-session
+   strangler; `HostedMarketsGrid` and `MarketsGridContainer` survive D1–D2 and
+   are deleted in D3. No adapter outlives D3.
+3. **A switch exists only where both behaviours are legitimate products**
+   (§1). A switch is never a way to keep a superseded implementation.
+4. **≤ 800 lines per file, ≤ 80 per function — enforced mechanically** from G1
+   by `npm run check:loc` (`scripts/check-file-size.mjs`, wired into
+   `lint:all` next to `check:rtl`). Its allowlist names each file already over
+   the ceiling and the phase that removes it (`MarketsGridContainer.tsx` → D3);
+   a listed file may not grow and no new file may cross.
+5. **Measure on the production build, on the target box.** Scrolling and
+   rendering numbers from `vite dev` are not evidence (7–9× slower on that
+   path, WORKLOG 19). A phase without a target-box number in §2 is not done.
+6. **No dist rebuilds under a dev-served OpenFin platform**; restart workers by
+   quitting the dock (`npm run client`) or `self.close()` over CDP; verify
+   served bytes before trusting a worker-side measurement (WORKLOG 19).
+7. **`docs/current-features.md` and WORKLOG updated with every phase.** Closed
+   WORKLOG items are deleted, not struck through.
+8. **Regression targets — behaviours that are correct today and must stay so:**
+   - cells flash only where a value changed, on visible rows only;
+   - alerts, conditional styling, calculated columns and data-change history
+     see every changed row once per frame (via `RowChangeBus` or AG Grid's
+     own events, see B2);
+   - selection, editing and paste survive live updates (edits write through
+     the engine and return as patches);
+   - sort / filter / group positions and aggregates update within the
+     provider's throttle window;
+   - SSRM: loaded blocks reconcile after a purge, a reset, and a hidden period;
+   - hidden blotters keep alerting (owner decision 2026-09-13: Option 2;
+     Phase C is opt-in only);
+   - one AG Grid instance per blotter per load (WORKLOG 20's test);
+   - popouts share the main window's renderer (`popoutWindow.ts`; Phase A
+     touches views, not windows).
+
+## 1. Configuration contract: the switches that remain
 
 | Behaviour | Switch | Where it is read | Off = |
 |---|---|---|---|
-| Per-view renderer isolation (Phase A) | `platform.viewProcessAffinityStrategy` in `apps/source/star-demo/public/platform/manifest.fin.json` | OpenFin itself at app start, and once by the platform override (`workspacePersistence.ts`) | key absent or `"same"` → OpenFin's default grouping; the override takes its legacy path; the removed seed pins stay removed (a view without a tag shares its app's renderer, which is what the pin produced) |
-| Grid data-apply mode (Phase B) | `MarketsGridProps.dataApply: 'transactions' \| 'rendered'` (default `'transactions'` until Phase B's numbers land, then `'rendered'`) | `MarketsGridContainer` → the apply layer | `'transactions'` = today's `applyTransactionAsync` path, untouched |
-| Hidden-subscriber pause (Phase C) | provider config `pauseHiddenSubscribers?: boolean` (default off) with a hub-wide default in `PlatformBootstrapConfig` | data hub fan-out | off = fan out to every subscriber as today |
-| Worker ingest path (Phase E) | provider config `wireFormat` already selects `json \| columnar` for fan-out; ingest adds `ingestFormat: 'json' \| 'columnar'` (default `json`) | `SsrmWasmPlane.ingest` / CSRM ingest | `json` = today |
-| Worker asset versioning (Phase F3) | none needed — additive; a mismatch only logs and respawns | `ensureDataServicesHub` | n/a |
+| Per-view renderer isolation (A) | `platform.viewProcessAffinityStrategy` in `apps/source/star-demo/public/platform/manifest.fin.json` | OpenFin at app start; once by the platform override (`workspacePersistence.ts`) | key absent or `"same"` → OpenFin's default grouping; the override takes its legacy path |
+| Hidden-subscriber pause (C, opt-in only) | provider config `pauseHiddenSubscribers?: boolean` (default off) | data hub fan-out | fan out to every subscriber (today) |
+| Worker ingest format (E2, only if its measurement says so) | provider config `ingestFormat: 'json' \| 'columnar'` (default `json`) | `SsrmWasmPlane.ingest` | `json` = today |
+| SSRM tick column patches (E3) | per-session capability `tickPatches` advertised by the grid | `HubSsrmRpc.flushTicks` / `SsrmSessionWindows` | a session that does not advertise it keeps full rows |
 
-Phase A is the only switch that needs a dock restart. Phases B, C, E are
-per-provider or per-grid settings that take effect on the next attach / mount.
+**Phase B has no switch.** Its update path is the single implementation behind
+`ApplyProviderToGridState`; turning it off is `git revert` of the B1 commit,
+which constraint 1 guarantees is one commit. **Phase D has no switch**:
+consumers migrate in D2–D3 and the old components are deleted in D3.
+
+Phase A is the only switch that needs a dock restart. C and E are per-provider
+settings that take effect on the next attach.
 
 ---
 
-## 1. Measured baseline (the numbers each phase is judged against)
+## 2. Measured baseline (the numbers each phase is judged against)
 
 Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 `docs/openfin-view-process-isolation-experiment.md`.
 
-| Measurement | Value |
-|---|---|
-| CSRM feed on the demo provider (20 000 rows, 372 columns, thin deltas, throttle 250 ms, conflate by key) | ~5 000 patched rows/s per view, 4.4 changed fields per row, 564 kB/s on the wire |
-| AG Grid per-row update path, one view, 10 s | 189 490 `setTimeout` + 94 726 `clearTimeout` (two timers per updated row via `rowNodeDataChanged`: ag-grid-react `RenderStatusService`, an enterprise debounce); 74 841 timers ran as separate tasks; batched flushes 867 ms |
-| Six CSRM views docked in one renderer | lag 338 ms p50 / 737 ms p95, later 1.4–5.5 s; 4–5 fps; hidden tabs as busy as visible ones |
-| Same six views, one renderer per view (branch `feature/openfin-view-process-isolation`) | lag 0 / 96–153 / 150–226 ms; 60 fps; 505–644 MB per view (~3.4 GB vs 2.9 GB shared) |
-| Data worker thread at the demo SSRM rate | ingest 35–60 % of the thread (58 ms p50 per batch, ~100 µs/row), tick flush 16–17 %; block reads queue 39 ms p50 / 980 ms p99 behind them, engine 7–17 ms |
-| SSRM tick bytes per view after per-session trimming | 4.3 MB/s → 0.10 MB/s (95 % of upserts withheld) |
-| Fling fill on the production dock, 400-row blocks | 543 ms (seven reads, three for passed-over ranges, two at a time) |
-| Grid mount depth | 57 fibers from root to the AG Grid element; three persistence layers (grid-level data, profiles, view customData) |
-| Platform worker ports for 13 pages | 59 connected, 58 AppData listeners (dead listeners still receive every delta) |
-| Dev vs production fling on the same app and feed | 1.3–1.7 s vs 0.19–0.25 s |
+| Measurement | Value | Source |
+|---|---|---|
+| CSRM feed on the demo provider (20 000 rows, 372 columns, thin deltas, throttle 250 ms, conflate by key) | ~5 000 patched rows/s per view, 4.4 changed fields per row, 564 kB/s on the wire | WORKLOG 21 |
+| AG Grid per-row update path, one view, 10 s | 189 490 `setTimeout` + 94 726 `clearTimeout`; 74 841 timers ran as separate tasks; batched flushes 867 ms | WORKLOG 21 |
+| The two timers | `RenderStatusService` (ag-grid-react, autosize bean) + `FindService` `_debounce` (enterprise, CSRM only); both from `AllEnterpriseModule` | this revision, installed bundles |
+| Six CSRM views docked in one renderer | lag 338 ms p50 / 737 ms p95, later 1.4–5.5 s; 4–5 fps; hidden tabs as busy as visible ones | WORKLOG 21 |
+| Same six views, one renderer per view | lag 0 / 96–153 / 150–226 ms; 60 fps; 505–644 MB per view (~3.4 GB vs 2.9 GB shared) | experiment doc §4 |
+| Data worker thread at the demo SSRM rate | ingest 35 % of the thread (58 ms p50 per batch, ~100 µs/row), tick flush 17 %; block reads queue 39 ms p50 / 980 ms p99 behind them, engine 7–17 ms | WORKLOG 19 |
+| SSRM tick bytes per view after per-session trimming | 4.5 MB/s → 0.10 MB/s (95 % of upserts withheld) | WORKLOG 19 |
+| Fling fill on the production dock, 400-row blocks | 543 ms (seven reads, three for passed-over ranges, two at a time) | WORKLOG 19 |
+| Cold reload → rows, production dock, one SSRM blotter | 2.5 s, of which `platform-ready` 1.1 s and the first block 97 ms; the remaining ~1.4 s is unattributed | WORKLOG 19; D0 attributes it |
+| Grid mount depth and persistence layers | unrecorded — D0 records fiber depth and the three loads (grid-level data, profiles, view customData) | D0 |
+| Platform worker ports for 13 pages | 59 connected, 58 AppData listeners (dead listeners still receive every delta) | WORKLOG 18 |
+| Dev vs production fling on the same app and feed | 1.3–1.7 s vs 0.19–0.25 s | WORKLOG 19 |
+
+Every phase appends its before/after row here.
 
 ---
 
-## 2. Phases
+## 3. Phases
 
-### Phase A — Adopt or shelve per-view renderer isolation (decision, not code)
+Each phase: Why · What · Entry · Out of scope · Exit · Verify · Off switch.
 
-**Why.** Docked blotters share one renderer by default; isolation removed the
-shared-thread lag entirely (§1). OpenFin's caveat stands: "no guarantee that a
-different affinity value will create a different process, under the hood
-Chromium can enforce its own process management".
+### G1 — Instruments and the size gate (one session, first)
 
-**What.** Nothing further in code. The branch is complete: manifest switch,
-seed unpinned, override strips persisted tags while the switch is on, tests for
-both branches. Decide with numbers from the target hardware, not this box.
+**Why.** The probes that found this week's issues exist only as CDP snippets
+in the WORKLOG dev-rig notes; nothing in the repo runs them
+(`apps/scripts/ssrm-perf/` holds the SSRM harness; `apps/e2e-openfin/fixtures/cdp.ts`
+is the only CDP helper). Every acceptance number below needs them.
 
-**Acceptance (run on a target-class machine, `cdp-process-map` + `cdp-mainthread-load` from Phase G).**
-- one PID per docked view with the switch on; lag p95 < 150 ms per view under the demo feed;
-- total renderer memory for the standard layout within the machine's budget (here +15 % over shared);
-- hidden tabs keep firing 100 ms timers (≥ 70 of 80) — the earlier revert's failure mode stays absent.
+**What.** In `apps/scripts/ssrm-perf/`, one script each, with a README row:
+`cdp-timer-census.mjs` (wrap `setTimeout`/`clearTimeout` by callback source —
+WORKLOG 21), `cdp-fiber-remount.mjs` (DevTools hook via
+`Page.addScriptToEvaluateOnNewDocument`, ancestor-chain diff per commit —
+WORKLOG 20), `cdp-process-map.mjs` (`fin.View.getProcessInfo` from the provider
+page — WORKLOG 21), `cdp-mainthread-load.mjs` (event-loop lag, frame gaps, long
+tasks per view — experiment doc §3 step 6), `cdp-hidden-liveness.mjs` (100 ms
+interval per view **and `document.visibilityState`** — the C entry criterion),
+`csrm-frame-counter.mjs`. The block/fling probe is `ssrm-validate.mjs` already.
+Plus `scripts/check-file-size.mjs` → `npm run check:loc` (constraint 4), seeded
+with the current over-ceiling census, wired into `lint:all`.
 
-**Off switch.** Remove `viewProcessAffinityStrategy` (or set `"same"`), `npm run build` in star-demo, restart the dock. No code changes. Merge the branch either way: with the key absent the code is inert.
+**Entry.** None. **Out of scope.** Any product code.
+**Exit.** The census script reproduces WORKLOG 21's one-view numbers within
+10 % on the production dock; `npm run check:loc` is green with its allowlist.
+**Verify.** `node apps/scripts/ssrm-perf/cdp-timer-census.mjs` against the
+dock; `npm run lint:all`.
 
-### Phase B — Rewrite the grid data-apply layer (subsystem rewrite, strangler)
+### B0 — Explicit AG Grid module list, then the census (one session)
 
-**Why.** Rows are now patched in place (WORKLOG 21), so AG Grid's node data is
-current before the grid hears anything, yet the container still hands every
-changed row to `applyTransactionAsync`, and AG Grid turns each into a
-`rowNodeDataChanged` event with two timers. Two timers per row × 5 000 rows/s
-is the per-view cost that isolation only spreads across cores.
+**Why.** Revision note 1. If the timer storm is a registration artefact, the
+per-row cost that remains is the 867 ms of flush + listener work, and that
+number decides whether B1 is a design rewrite or unnecessary.
 
-**What.** A new module behind the container's existing interface (same props,
-same `onDelta` entry point), selected by `dataApply: 'rendered'`:
+**What.** Replace the `AllEnterpriseModule` default in
+`packages/react-grid/grid/src/widget/ensureAgGridModules.ts` with the explicit
+list the grid and customizer use (derive it by running the grid suite and the
+customizer e2e with the list and adding every module AG Grid names in its
+"module not registered" error). `FindModule` is not in the list. The autosize
+module is added by `ensureAgGridModules` only when the caller passes
+`sizeColumnsToFitOnReady` (the call site is `MarketsGrid.tsx:88`). `modules`
+stays a prop for consumers that need more. Then, on the production dock, the
+census on one view and the six-blotter measurement WITHOUT isolation (manifest
+key removed for the run).
 
-1. **Rendered rows**: for changed rows whose node is currently rendered,
-   `api.refreshCells({ rowNodes, force: true })` — with flash when the grid's
-   flash setting is on. ~20 rows a frame instead of ~3 500.
-2. **Model-affecting changes**: if a changed field is a sort, filter, group or
-   aggregation column (the same rule `bindSsrmTicks` applies for SSRM),
-   schedule one throttled `refreshClientSideRowModel` (`'filter'` /
-   `'sort'` / `'aggregate'` as needed) — never per row.
-3. **Adds and removes**: still transactions (they change the row set).
-4. **Row-change bus**: hand the changed nodes to `RowChangeBus` directly
-   (a new `noteRowsChanged(nodes)` entry) so alerts and conditional styling keep
-   seeing exactly the rows that changed without a transaction flush.
-5. **Hidden views**: no DOM work at all while `document.hidden`; on
-   visibility, one full `refreshCells` of the rendered rows plus one model
-   refresh.
-6. **Unchanged contract**: `getRowId`, selection, editing/paste (which write
-   through the engine and come back as patches), profile persistence.
+**Entry.** G1. **Out of scope.** The apply path.
+**Exit.** Census on one view: `setTimeout` < 5 000 per 10 s, `clearTimeout` ≈ 0,
+with transactions unchanged; flush + listener time per 10 s and six-docked-view
+lag p95 recorded in §2. **Decision rule for B1:** B1–B3 proceed unless six
+docked views without isolation reach lag p95 < 250 ms AND flush + listener
+time ≤ 200 ms per 10 s — in which case B1–B3 are shelved and WORKLOG 21 records
+the number. The expected outcome is that B1 proceeds: the flush cost is
+independent of timers.
+**Verify.** `npx turbo test --filter=@wellsfargo-starui/grid`; `apps/e2e`
+customizer smoke; no AG Grid error #200 in the console; the census script.
+**Off switch.** None needed: a missing module is a visible error, and `modules`
+restores any list.
 
-**Tests.** Unit tests for the classifier (rendered / model-affecting / add /
-remove), for hidden-view deferral, and for the bus feed; the container's
-existing tests keep passing with `dataApply: 'transactions'`; a stub-grid test
-asserting the number of `applyTransactionAsync` calls per frame drops to the
-add/remove count.
+### B1 — Rendered-row apply behind the port, no `force` (one session)
 
-**Acceptance (production build, one view, `cdp-timer-census` 10 s).**
-- `setTimeout` calls < 5 000 (from 189 490); timers run as tasks < 2 000;
-- flush + refresh time per 10 s < 200 ms (from 867 ms) with the same feed;
-- flashing behaves as before on visible rows; sort/filter positions update within the throttle window;
-- six docked views WITHOUT isolation: lag p95 < 250 ms (from 737 ms+).
+**Why.** Rows are patched in place (WORKLOG 21), so node data is current
+before the grid hears anything, yet every changed row still goes through
+`applyTransactionAsync` (`applyProviderToGrid.ts:252, 275`) and AG Grid turns
+each into a `rowNodeDataChanged` event, a row-controller refresh, and the
+listener work of every service subscribed to it.
 
-**Off switch.** `dataApply: 'transactions'` on the grid. The old path is not
-deleted until the new one has held for a full release.
+**What.** Inside `createApplyProviderToGridState` (the one implementation of
+`ApplyProviderToGridState`, constructed at `useProviderDataWiring.ts:132` and
+`useBlotterDataConnection.ts:59`), the update branch becomes:
 
-### Phase C — Pause fan-out to hidden subscribers (in place)
+1. classify as today (`splitProviderRowsForGrid`), and keep `{ add, remove }`
+   as transactions — they change the row set;
+2. for updates, index `api.getRenderedNodes()` once per tick (by id when
+   `rowIdField` is set, by data object otherwise) and call
+   `api.refreshCells({ rowNodes })` for the changed rows that are rendered —
+   **no `force`**: `refreshCell` refreshes and flashes only where
+   `valuesDifferent`, which the in-place patch guarantees for changed cells and
+   for computed columns whose inputs changed; unchanged cells cost one
+   value-getter read;
+3. rows whose delivered object is not the node's object (providers without
+   `thinDeltas`) get the changed fields assigned onto `node.data` in place
+   first — the same contract `mergeThinPatches` established — so the node is
+   current before the refresh;
+4. delete the transaction update branch and its tests' "update transaction"
+   expectations in the same change.
 
-**Why.** Two of six docked views were hidden tabs and burned as much as the
-visible ones (9–14 s of JavaScript per 10 s each). The hub already knows:
-every subscription carries `meta.hidden`.
+**Entry.** B0's decision rule says proceed. **Out of scope.** Model-affecting
+changes, the bus, hidden views (B2, B3); SSRM (`bindSsrmTicks` keeps
+`applyServerSideTransactionAsync` — its per-row cost after B0 is the autosize
+timer only, since `FindService` bails out for non-CSRM grids; measure it in B3
+and open a follow-up if it matters).
+**Exit.** Stub-grid unit tests: `applyTransactionAsync` is called only with
+`add`/`remove`; `refreshCells` receives exactly the rendered changed nodes and
+never `force`; both constructors covered. Census on one view, 10 s: flush +
+refresh time < 200 ms (from 867 ms). E2E on a visible blotter: only changed
+cells flash.
+**Verify.** `npx turbo test --filter=@wellsfargo-starui/grid`; the census
+script; `apps/e2e` flash spec.
+**Off switch.** `git revert` of this commit.
 
-**What.** In the data hub's fan-out (`ReplayScheduler` / delta broadcast):
-skip ports whose subscription is hidden and mark them stale; on the client's
-visibility ping flipping to visible, replay from the cache for that subscriber
-(the attach replay already exists: `sub-init` + full replay for thin
-subscriptions, `delta` with `replace` otherwise). SSRM: the per-session tick
-trimming already keeps hidden sessions cheap; skip `rowDelta` ticks for hidden
-sessions and let the grid's count check re-sync on visibility.
+### B2 — Model-affecting changes and the consumers (one session)
 
-**Tests.** Hub tests: a hidden subscriber receives no deltas, receives exactly
-one replay on visibility, and its cache view is consistent afterwards.
-
-**Acceptance.** Hidden views' long tasks ≈ 0 per 10 s; hub fan-out `chunksPosted` drops by the hidden share; a tab switched to visible shows current data within one replay (< 300 ms for 20 000 rows, measured with the ReplayScheduler's `hub-introspect.fanout`).
-
-**Off switch.** `pauseHiddenSubscribers: false` (default until measured).
-
-### Phase D — Collapse the mount stack (subsystem rewrite, strangler)
-
-**Why.** 57 fibers from root to the grid; hosted wrapper → container → grid →
-host → surface, each with its own loading gates; the placeholder-grid branch
-produced a throwaway AG Grid on every load (WORKLOG 20). Three persistence
-layers resolve at different times.
-
-**What.** One `BlotterHost` component with explicit, ordered phases and one
-state machine: identity → storage → provider selection → provider config →
-grid. It renders exactly one grid, only when the config it needs is present,
-and never a placeholder that a later phase replaces. `MarketsGrid` and the
-customizer stay as they are; `HostedMarketsGrid` and `MarketsGridContainer`
-become thin adapters over `BlotterHost` and are removed when star-demo and the
-lab apps have migrated.
-
-**Tests.** The fiber-level "one grid per load" check becomes an e2e assertion
-(count AG Grid licence banners = 1 per blotter in a production build); the
-container's provider-selection, persistence and admin-action tests move to
-`BlotterHost` unchanged in intent.
-
-**Acceptance.** Depth to the grid ≤ 25 fibers; one AgGridReact instance per
-load; cold reload → rows on the production dock ≤ 2.0 s (from 2.5 s).
-
-**Off switch.** The adapters keep the old components' names and props; an app
-opts in by importing `BlotterHost`; nothing changes for apps that don't.
-
-### Phase E — Worker ingest cost (in place, engine boundary)
-
-**Why.** Ingest is 35–60 % of the data worker's thread at the demo rate
-(flatten + `JSON.stringify` + WASM JSON parse + apply, ~100 µs/row); SSRM block
-reads queue up to 980 ms p99 behind it.
+**Why.** Without transactions, a changed sort / filter / group / aggregation
+column no longer moves the row, and the modules that listened to AG Grid's own
+data events no longer hear updates.
 
 **What.**
-1. Conflate a batch by key before the engine when the provider conflates (the
-   hub currently conflates for CSRM fan-out but hands the engine every row).
-2. A columnar ingest path (`ingestFormat: 'columnar'`) using the existing
-   `columnarCodec` frames end-to-end into `apply_message_json`'s sibling entry
-   point — needs the engine (Rust) to accept the frame; scope it with the
-   engine owners.
-3. SSRM tick rows are full width; add column-level patches (the CSRM
-   `delta-patch` shape) to the tick so the remaining bytes shrink by the
-   changed-column ratio.
+1. Lift the key-column rule from `bindSsrmTicks.ts:146-155` (`sort`, `filter`,
+   `group` column ids) into a shared helper, add aggregation columns, and in
+   the apply implementation schedule **one** throttled
+   `api.refreshClientSideRowModel(step)` at the lowest necessary step
+   (`'filter'` / `'sort'` / `'aggregate'`) when a changed field is one of them —
+   never per row. This is a full model pass over 20 000 rows where the
+   transaction path recomputed only the `changedPath`; the grouped acceptance
+   below is where that cost shows.
+2. `RowChangeBus.noteRowsChanged(nodes)`
+   (`packages/core/engine/src/platform/RowChangeBus.ts:32`): feeds
+   `pendingUpdated` and `schedule()`, so alerts, conditional styling and
+   data-change history keep receiving the same frame-coalesced `RowChange`.
+   The apply implementation calls it with the changed nodes (rendered or not).
+3. The consumers on AG Grid's own events: calculated columns
+   (`customizer/modules/calculated-columns/index.ts:127-129`, `rowDataUpdated`),
+   conditional styling (`conditional-styling/runtime/activate.ts:94`,
+   `modelUpdated`), the event bridge (`events/useMarketsGridEventBridge.ts:16`,
+   `grid:rowDataUpdated`). Each is moved to the bus or given the equivalent
+   signal, with a test per consumer.
 
-**Acceptance (`hub-introspect.ssrm`, default feed, 12 views).** Ingest share of
-the worker thread < 15 %; block read queue p99 < 100 ms; tick flush p50 < 10 ms.
+**Entry.** B1. **Out of scope.** Hidden views; SSRM.
+**Exit.** Tests per consumer; sort / filter / group positions and aggregates
+update within the throttle window; grouped acceptance (two group levels, one
+aggregated column, 20 000 rows, demo feed): model refresh cost per throttle
+window recorded in §2 and ≤ the transaction path's flush cost for the same feed.
+**Verify.** `npx turbo test --filter=@wellsfargo-starui/grid
+--filter=@wellsfargo-starui/core`; the census script on a grouped blotter.
+**Off switch.** `git revert` of this commit (B1 stays; positions go stale
+until B2 is fixed forward).
 
-**Off switch.** `ingestFormat: 'json'`; tick patches negotiated per session
-(a session that does not advertise `tickPatches` keeps full rows).
+### B3 — Hidden views without pausing the feed, and the six-blotter number (one session)
 
-### Phase F — Resilience (in place)
+**Why.** Two of six docked views were hidden tabs and burned as much as the
+visible ones. Hidden blotters must keep alerting
+(`useProviderDataWiring.ts:196-202`), so the DOM work is what stops, not the feed.
 
-1. **Platform-port liveness.** Per-port ping on the platform port and a sweep
-   in both hosts for ports silent past the hidden-grace window, mirroring the
-   data hub's subscriber sweep. Acceptance: `connectedPorts` equals live pages
-   after open/close/reload cycles (13 pages → 13, not 59).
-2. **Fail fast on a dead worker at first connect.** `ensureConfigReady` /
-   `ensurePlatformReady` attach a worker `error` handler and a bounded
-   first-message timeout; on failure surface a visible state and retry with
-   backoff instead of hanging without marks (WORKLOG 18).
-3. **Worker asset versioning.** Stamp the worker URL with the build hash and
-   have the client compare the worker's reported build id on attach; on
-   mismatch log loudly and force a respawn path (the SharedWorker must be
-   closed by its last client — document the sequence). Kills the "reload
-   joined the old worker" and "dev server pinned a stale bundle" classes.
-4. **Hook state audit.** Apply the `forId` stamp pattern from
-   `useDataProviderConfig` to `useDataProvidersList` and `useResolvedCfg`; add
-   a render-log test to each (no render reports "loaded" for an id it has not
-   loaded).
+**What.** In the apply implementation: while `document.hidden`, skip
+`refreshCells` and the throttled model refresh, still call
+`noteRowsChanged`; on `visibilitychange` to visible, one `refreshCells` of the
+rendered nodes plus one model refresh. Then the acceptance run on the
+production dock: six CSRM blotters docked as four panes + two tabs, WITHOUT
+isolation.
 
-### Phase G — Tooling and gate (in place)
+**Entry.** B2; G1's `cdp-hidden-liveness.mjs` has recorded
+`document.visibilityState` for an inactive docked tab. If it reads `visible`,
+the hidden branch is inert in OpenFin tab stacks and this phase records that
+instead of claiming the saving.
+**Out of scope.** Hub-side pausing (C).
+**Exit.** Six docked views without isolation: lag p95 < 250 ms (from 737 ms+);
+hidden tabs' long tasks per 10 s and the census recorded in §2; alerts fire on
+a hidden tab (e2e: rule on a hidden view, assertion on its toast/bus output).
+**Verify.** `cdp-mainthread-load.mjs`, `cdp-hidden-liveness.mjs`, the census;
+`apps/e2e-openfin` hidden-alert spec.
+**Off switch.** `git revert` of this commit.
 
-1. Move the probes that found this week's issues into
-   `apps/scripts/ssrm-perf/` with a README: timer census, fiber remount diff,
-   process map, main-thread load, hidden liveness, block/fling probe, CSRM
-   frame counter. They are the acceptance instruments for every phase above.
-2. Gate flakiness: the two grid tests that time out at 5 s under load get a
-   longer timeout or isolation; investigate the one grid-suite stall.
-3. Measurement rule, written into CLAUDE.md: scrolling and rendering numbers
-   are taken on production builds only; the dev server is 7–9× slower on
-   that path and is not evidence.
+### C — Pause fan-out to hidden subscribers (opt-in only; decided 2026-09-13)
+
+**The fork.** `useProviderDataWiring.ts:196-202`: the earlier hidden-pause +
+refresh-on-visible was removed deliberately — "hidden/minimized blotters must
+stay current (window-local alerting, instant correctness on restore)". Pausing
+at the hub means a hidden blotter's alerts and relative-change rules see no
+transitions until it is shown; a cache replay restores end state only.
+
+| Option | Hidden-blotter CPU | Hidden-blotter alerting |
+|---|---|---|
+| 1. Hub pause (`pauseHiddenSubscribers`) | ≈ 0 while hidden | stops; rules evaluate only after the replay on visibility |
+| 2. B3 only (no DOM work, bus fed) | deserialisation + in-place merge + bus — the merge is ~5 % of the thread (WORKLOG 21); the rest is measured in B3 | continues |
+
+**Decision (owner, 2026-09-13): Option 2.** B3 is the platform's hidden
+behaviour; the feed is never paused by default. Option 1 is built only as an
+opt-in per-provider setting for blotters that carry no window-local rules, and
+only if a hidden view still costs more than 1.0 s of JavaScript per 10 s on the
+target box after B3 (WORKLOG 21 measured 9–14 s on the shared thread).
+
+**Entry.** (a) B3's hidden number on the target box exceeds the threshold
+above; (b) G1's probe shows
+`document.visibilityState === 'hidden'` for an inactive docked tab — otherwise
+`meta.hidden` (`SharedWorkerDataServicesClient.ts:969`) never flips and this
+phase has no trigger.
+
+**What.** In `ReplayScheduler` / the delta broadcast
+(`SharedWorkerDataServicesHub.ts:115` already exposes `isHidden(subId)`), skip
+ports whose subscription is hidden and mark them stale; on the client's
+visibility ping (`SharedWorkerDataServicesClient.ts:983-991`) replay from the
+cache for that subscriber (the attach replay: `sub-init` + full replay for thin
+subscriptions, `delta` with `replace` otherwise). SSRM: keep a `dirty` flag per
+hidden session and skip its `rowDelta` ticks; on visibility send one tick with
+`reset: true`, which `bindSsrmTicks.ts:303` already routes to a fast refresh of
+loaded blocks — the count check (`bindSsrmTicks.ts:231`) only refreshes on a
+count mismatch and would leave loaded rows stale.
+
+**Exit.** Hub tests: a hidden subscriber receives no deltas, exactly one replay
+on visibility, cache view consistent afterwards; SSRM: one reset tick on
+visibility. Hidden views' long tasks ≈ 0 per 10 s; `chunksPosted` drops by the
+hidden share; a tab switched to visible shows current data within one replay
+(< 300 ms for 20 000 rows, `hub-introspect.fanout`).
+**Verify.** `npx turbo test --filter=@wellsfargo-starui/data`; the hidden
+liveness probe. **Off switch.** `pauseHiddenSubscribers: false`.
+
+### A — Per-view renderer isolation: decide on target hardware (no code)
+
+**Status.** Merged (558c789): manifest switch on, seed unpinned, override
+strips persisted tags while the switch is on, tests for both branches.
+OpenFin's caveat stands: "no guarantee that a different affinity value will
+create a different process".
+
+**Entry.** G1's `cdp-process-map.mjs` and `cdp-mainthread-load.mjs`; a
+target-class machine.
+**Exit (acceptance).** One PID per docked view with the switch on; lag p95
+< 150 ms per view under the demo feed; total renderer memory for the standard
+layout within the machine's budget (here +15 % over shared); hidden tabs keep
+firing 100 ms timers (≥ 70 of 80). Re-run after B3: isolation buys cores, B
+buys less work; the decision is whether the memory is worth what B leaves.
+**Off switch.** Remove `viewProcessAffinityStrategy` (or set `"same"`),
+`npm run build` in star-demo, restart the dock.
+
+### D0 — Where the cold reload goes (one session)
+
+**Why.** The mount-stack rewrite was motivated by unrecorded numbers and a bug
+that is already fixed (WORKLOG 20). The recorded number is 2.5 s cold reload →
+rows with `platform-ready` at 1.1 s and the first block at 97 ms; ~1.4 s is
+unattributed.
+
+**What.** Production dock, one blotter, cold reload, CDP profile from
+navigation to first rows, attributed across: widget mount (fiber commits from
+`cdp-fiber-remount.mjs`, depth recorded), the three gated loads (grid-level
+data, profiles, view customData — name each hook), AG Grid init (module
+registration, licence check), first render. Record the table in §2.
+
+**Entry.** G1. **Out of scope.** Any code change.
+**Exit.** The §2 row is filled. **Decision rule:** D1–D3 proceed only if the
+mount stack (fiber commits + gated-load waiting, not network) accounts for
+≥ 300 ms of the 1.4 s; otherwise D is shelved with the number in WORKLOG.
+**Verify.** The profile JSON in `apps/scripts/ssrm-perf/out/`.
+
+### D1 — `BlotterHost` (one session)
+
+**What.** One component in `packages/react-grid/widgets-react/src/blotter/`
+with an explicit state machine in its own file (`blotterHostMachine.ts`):
+identity → storage → provider selection → provider config → grid. It renders
+exactly one `MarketsGrid`, only when the config it needs is present, never a
+placeholder a later phase replaces; the three persistence loads resolve behind
+one gate. `MarketsGrid` and the customizer are unchanged. The container's
+provider-selection, persistence and admin-action tests move over unchanged in
+intent; WORKLOG 20's "stub grid mounts exactly once" test moves here.
+
+**Entry.** D0's decision rule. **Out of scope.** Consumers (D2, D3).
+**Exit.** Unit tests green; both files under the ceiling. **Verify.**
+`npx turbo test --filter=@wellsfargo-starui/grid`; `npm run check:loc`.
+
+### D2 — Migrate star-demo (one session)
+
+**What.** star-demo's three container/hosted-grid call sites move to
+`BlotterHost`. E2E under `apps/e2e-openfin`: one AG Grid licence banner per
+blotter in the production build.
+**Entry.** D1. **Exit.** star-demo e2e green; cold reload → rows on the
+production dock ≤ 2.0 s (from 2.5 s) and the D0 table re-recorded.
+**Verify.** `apps/e2e-openfin`; `cdp-fiber-remount.mjs`.
+
+### D3 — Migrate the remaining consumers and delete the old components (one session)
+
+**What.** `stomp-marketsgrid-minimal` (five call sites) and `stomp-ssrm-minimal`
+(two) move to `BlotterHost`; `HostedMarketsGrid`, `MarketsGridContainer` and the
+hooks `BlotterHost` absorbed are deleted; `MarketsGridContainer.tsx` leaves the
+`check:loc` allowlist; `docs/current-features.md` updated.
+**Entry.** D2. **Exit.** No references remain; `apps/e2e` green; the allowlist
+is shorter. **Verify.** `grep -r MarketsGridContainer packages apps/source`
+returns nothing; full gate.
+
+### E2 — Ingest serialisation cost: measure both sides before changing the format (one session; engine repo only if the numbers say so)
+
+**Why.** Ingest is 35 % of the data worker's thread at the demo rate (58 ms
+p50 per batch, ~100 µs/row: `flattenRows` + `JSON.stringify` +
+`apply_message_json`, WORKLOG 19) and block reads queue up to 980 ms p99 behind
+it — but that time is not split by stage, and the first draft proposed columnar
+ingest as if the saving were free. It is not:
+
+- **worker-side encode** is a per-row, per-column walk like `flattenRows` plus
+  typed-array writes. `columnarCodec` carries only numbers as raw `f64` and
+  booleans as bitmaps; string and nested columns are still `JSON.stringify`'d
+  per column (`runtime/wire/columnarCodec.ts:7-26`). A 372-column blotter row's
+  type mix decides how much of it is "zero parse" at all;
+- **engine-side decode**: hub-rust's storage layout is not recorded in the
+  handoff §3. If it stores rows, a columnar frame is transposed back into rows
+  inside WASM — the same worker thread paying a second time;
+- **any columnar payload that reaches a window** must be reassembled into row
+  objects for AG Grid on the main thread — the worst place to spend. Ingest is
+  worker → engine on one thread and never touches a window, so E2 does not add
+  that cost; the paths that would are the existing opt-in CSRM
+  `wireFormat: 'columnar'` (the client decodes, `docs/hub-fanout-optimizations.md`
+  §9) and a columnar SSRM block payload (engine plan §6.5), which this plan does
+  not introduce.
+
+**What (this session, no engine change).**
+1. Per-stage timing in `SsrmWasmPlane.ingest` (`SsrmWasmPlane.ts:358`) reported
+   through `hub-introspect.ssrm`: `flattenRows`, `JSON.stringify`,
+   `apply_message_json` (the engine's parse + apply; split further only if
+   rangrez exposes its own counters).
+2. A worker-side micro-benchmark in `apps/scripts/ssrm-perf/` on a captured
+   demo batch (3 500 rows × 372 columns, the real type mix): (a) today's JSON
+   path; (b) COL1 encode + decode + row rebuild in JS as an upper bound for the
+   engine's transpose; (c) numbers as typed arrays with strings left as one
+   JSON column. Every candidate is counted on both sides.
+3. The demo row's type mix (numeric / boolean / string / nested column counts)
+   recorded in §2.
+
+**Entry.** G1. **Out of scope.** Any wire or engine change.
+**Exit.** The per-stage split, the type mix and the benchmark table in §2.
+**Decision rule.** A rangrez entry point (T8) is requested only if a candidate's
+end-to-end cost (encode + decode/transpose + apply) is < 50 % of today's
+per-row cost AND the split shows serialisation, not the engine's apply, as the
+majority. Otherwise E2 closes with its numbers and the ingest lever is either
+the engine's apply path (a rangrez item) or feed-side width (`projectFields`,
+which is config). If the format does ship later: `ingestFormat: 'columnar'`,
+off = `'json'`, acceptance `hub-introspect.ssrm` at the default feed, 12 views:
+ingest share < 15 %, block read queue p99 < 100 ms.
+**Verify.** `ssrm-multiwindow.mjs` `[hubSsrm]`; the benchmark script.
+
+### E3 — Column-level SSRM tick patches (engine repo first; one session here)
+
+**What.** `poll_shared_delta` returns full rows; the engine adds a
+changed-column mask per upsert (rangrez T9; not yet on the engine plan —
+T1–T7 and C1–C2 have all landed); `SsrmSessionWindows.trim`
+(`SsrmSessionWindows.ts:81-95`) forwards patches for sessions that advertise
+`tickPatches`. **Client cost is a merge, not a reassembly:** `bindSsrmTicks`
+assigns the patch's fields onto the node's existing row (`Object.assign`, as
+`mergeThinPatches` does for CSRM) before the transaction — a transaction with a
+partial object would drop the row's other fields.
+**Entry.** Engine support vendored into `packages/data/host-data/vendor/dshub/`;
+B3 done. **Exit.** Tick flush p50 < 10 ms with 13 sessions (from 24 ms); tick
+bytes per view drop by the changed-column ratio; a patched row keeps every
+unpatched field (test). **Off switch.** A session that does not advertise
+`tickPatches` keeps full rows.
+
+### F1 — Platform-port liveness (one session)
+
+**Why.** 13 pages, 59 connected ports, 58 AppData listeners (WORKLOG 18).
+`PlatformServicesHost` adds a port on every request
+(`PlatformServicesHost.ts:87, 105`) and removes it only on `port-close`; the
+data hub sweeps subscribers (`SharedWorkerDataServicesHub.ts:417-433`,
+`SubscriberRegistry.collectStale`, `SUBSCRIBER_SWEEP_INTERVAL_MS`).
+
+**What.** The client sends a `ping` on the platform port at the data heartbeat
+cadence, carrying the same `meta.hidden`
+(`SharedWorkerDataServicesClient.ts:969`); the host keeps `lastSeen` per port
+and sweeps ports silent past the hidden-grace window, dropping their
+`HubAppDataService` listeners with them.
+**Exit.** `connectedPorts` equals live pages after open / close / reload cycles
+(13 → 13); tests: silent port evicted, live port kept, hidden port kept within
+grace. **Verify.** `npx turbo test --filter=@wellsfargo-starui/data`;
+`hub-introspect` on the dock.
+
+### F2 — Fail fast on a dead worker at first connect (one session)
+
+**Why.** WORKLOG 18: a page that fetched a truncated worker asset sat with no
+marks and an empty body. `bootstrapConfigOnce` (`ensurePlatformReady.ts`)
+awaits `configManager.init({ mode: 'attach' })` unbounded alongside
+`awaitServicesWorker`, whose 20 s deadline (line 153) only warns; the
+`error` listener at `createDataServicesWorker.ts:117` only logs.
+
+**What.** Reproduce first (serve a truncated worker asset to a fresh profile,
+console captured) and confirm which await blocks. Then: the same deadline on
+`init`; the worker `error` event rejects the pending readiness; on failure a
+visible state (`starui:platform-failed` mark + a status the host renders) and
+a retry with backoff. **Exit.** The reproduction fails visibly within the
+deadline; tests for the deadline and error paths. **Verify.**
+`npx turbo test --filter=@wellsfargo-starui/data`; the reproduction.
+
+### F3 — Worker build identity (one session)
+
+**What is already true.** The worker URL is `new URL(..., import.meta.url)`
+(`createDataServicesWorker.ts:111`); Vite content-hashes it in production, so a
+new build spawns a new SharedWorker and a same-build reload joining the
+running worker is correct. The dev-server staleness is constraint 6.
+
+**What.** (1) A build id (Vite `define`) reported in `hub-ready` and
+`hub-introspect`, shown by the inspector and logged by the client on attach.
+(2) The rolling-reload window — old and new platform-services workers alive,
+both ConfigManager writers on one IndexedDB — checked once with two previews;
+the ConfigManager's cross-context change notifier is expected to make it
+benign; if not, a Web Lock (the `freezeExemptionLock.ts` pattern) serialises
+writers. **Exit.** Introspect shows the build id; the rolling-reload result is
+recorded in WORKLOG 18 (and item 18 closed if nothing remains).
+
+### F4 — Hook state audit (one session)
+
+**What.** The `forId` stamp from `useDataProviderConfig`
+(`packages/react-core/host-data-react/src/runtime/index.tsx:186-285`) applied to
+`useDataProvidersList` (line 308) and `useResolvedCfg` (line 354); a render-log
+test for each: no render reports "loaded" for an id it has not loaded.
+**Verify.** `npx turbo test --filter=@wellsfargo-starui/react`.
+
+### G2 — Name and fix the slow tests (one session)
+
+**What.** Run the grid suite three times with the verbose reporter, record
+every test over 4 s and any stall; fix each by isolation or a scoped timeout
+that states its reason. `docs/COVERAGE_PLAN.md:327` (fake-timer hang to the 5 s
+limit) and `:370` (one-in-three flake) are the two already named; include them.
+**Verify.** `npx vitest run --reporter=verbose` in `packages/react-grid` ×3.
+
+### G3 — Measurement rule in CLAUDE.md (with G2's commit)
+
+Scrolling and rendering numbers are taken on production builds only; the dev
+server is 7–9× slower on that path and is not evidence.
 
 ---
 
-## 3. Order and dependencies
+## 4. Order and dependencies
 
-1. **G1** first (a day): the instruments make every later claim checkable.
-2. **B** (the apply layer) — largest per-view win, independent of the OpenFin decision, benefits single windows too.
-3. **C** (hidden pause) — small, independent, compounds with B.
-4. **A** decision — measured on target hardware with G's probes; no code.
-5. **F1–F4** — independent of the above; can run alongside.
-6. **D** (mount stack) — after B, so the new host is written against the new apply layer, not the old one.
-7. **E** — engine-boundary work; scope with the engine owners after B and C have shown what per-view cost remains.
+1. **G1** — instruments and the size gate; everything else is unverifiable without them.
+2. **B0** — the mechanism test; its number decides B1.
+3. **B1 → B2 → B3** — the apply path, in that order.
+4. **C** — only if B3's hidden number on the target box exceeds its threshold,
+   and only after G1's visibility check; opt-in per provider.
+5. **A decision** — target hardware, after B3 (so it measures what B leaves).
+6. **F1–F4** — independent of the above; any time after G1.
+7. **D0**, then **D1 → D2 → D3** only if D0's rule says so.
+8. **E2** measurement any time after G1; its format change (if any) and **E3**
+   engine repo first, here after B3.
+9. **G2 + G3** — any time after G1.
 
-## 4. Discipline (binding, from the worker-split handoff)
+## 5. Traceability
 
-- One phase per commit, conventional prefix, `Co-Authored-By` trailer; full gate green before commit; ≤ 800 lines per file, ≤ 80 per function.
-- Before/after numbers for every phase, from the production build, recorded in the plan's §1 table and WORKLOG.
-- Every behaviour change behind its single switch from §0; the old path stays until the new one has held for a release.
-- No dist rebuilds under a dev-served OpenFin platform; restart workers by quitting the dock (`npm run client`) or `self.close()` over CDP; verify served bytes before trusting a worker-side measurement (WORKLOG 19 dev-rig notes).
+| Source | Finding | Phase |
+|---|---|---|
+| WORKLOG 18 | dead platform ports / AppData listeners | F1 |
+| WORKLOG 18 | hung windows on a truncated worker asset | F2 |
+| WORKLOG 18 | dev rebuild under a dev-served platform | constraint 6, F3 |
+| WORKLOG 19 | full-width tick rows | E3 |
+| WORKLOG 19 | ingest share of the worker thread | E2 |
+| WORKLOG 19 | dev vs production numbers | G3 |
+| WORKLOG 19 | `ssrm-blocks-dropped`, scroll-aware tick hold, `autoStart` on `stomp-ssrm1` | out of scope (stated above) |
+| WORKLOG 20 | placeholder grid — fixed | D0 (only depth remains) |
+| WORKLOG 20 | hook returned a stale view for one render | F4 |
+| WORKLOG 21 | per-row timer storm | B0, B1 |
+| WORKLOG 21 | hidden tabs as busy as visible | B3, C |
+| WORKLOG 21 | docked views share one renderer | A (done) |
+| Handoff §6 | REST re-probe, fonts, SAB fan-out, customizer-open timing, soak | out of scope (stated above) |
+| Review 2026-09-13 | findings 1–10 | revision note |
 
-## 5. What this plan does not promise
+## 6. What this plan does not promise
 
-- Chromium's process management (Phase A) is outside our control; the switch and the measurement are what we own.
-- Phase E's columnar ingest depends on the Rust engine accepting a new entry point; until then item 1 (pre-engine conflation) is the only ingest gain.
-- Phase D changes component names for consumers that migrate; the adapters keep old consumers working but do not make them faster.
+- Chromium's process management (A) is outside our control; the switch and the
+  measurement are what we own.
+- B0's decision rule may shelve B1–B3; the plan says so rather than presuming
+  the rewrite.
+- Hub-side pausing (C) is opt-in and conditional; the platform's hidden
+  behaviour is B3 (owner decision 2026-09-13).
+- D0's decision rule may shelve D1–D3.
+- E2's format change and E3 depend on the Rust engine accepting new entry
+  points; only E2's measurement session runs before those are vendored, and
+  E2 may close with no format change at all.

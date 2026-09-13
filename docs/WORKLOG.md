@@ -1165,7 +1165,7 @@ that needs a row's previous values copies it. Measured on the dock it
 did NOT relieve the freeze: the merge was ~5 % of the thread, the AG
 Grid per-row update path is the rest.
 
-**Next (not done — needs a direction):**
+**Next — planned in [`superpowers/plans/2026-09-13-grid-apply-and-mount-refactor-plan.md`](superpowers/plans/2026-09-13-grid-apply-and-mount-refactor-plan.md) (B0–B3 for item 1, A for item 2, C opt-in only for item 3):**
 1. Stop handing AG Grid every changed row. With in-place patches the
    node data is already current, so the grid only needs: rendered rows'
    cells refreshed (with flash) — ~20 rows, not 5 000; a throttled model

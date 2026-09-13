@@ -2,7 +2,7 @@
 
 Branch: `feature/openfin-view-process-isolation` (off `feature/worker-hub-config-refactor`)
 Commits: `6375e51` (code + manifest + seed + tests), `6a11d68` (measurements in WORKLOG 21)
-Date: 2026-09-13 · Runtime measured: OpenFin 43.142.101.2 · Status: **experiment, not merged**
+Date: 2026-09-13 · Runtime measured: OpenFin 43.142.101.2 · Status: **merged 2026-09-13 (558c789); switch on in the manifest; target-hardware decision per the refactor plan, Phase A**
 
 Everything below was either changed in this branch, read in OpenFin's own
 documentation (quoted, with links), or measured on the live dock. Nothing else.
