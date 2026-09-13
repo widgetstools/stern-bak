@@ -680,3 +680,81 @@ server is 7–9× slower on that path and is not evidence.
 - E2's format change and E3 depend on the Rust engine accepting new entry
   points; only E2's measurement session runs before those are vendored, and
   E2 may close with no format change at all.
+
+---
+
+## 7. Windows target — verification loop and next steps (added 2026-09-13)
+
+Every number in §2 so far is from the M4 Max dev rig (36 GB, 10 performance
++ 4 efficiency cores). Constraint 5 says a phase is not done without a
+target-box number; this is the loop for the Windows 11 / 32 GB box. The Mac
+rows stay as lower bounds.
+
+### 7.1 Set up once
+
+1. Node 22 or newer — the probes use the global `WebSocket` (the repo's
+   `engines` floor of 20 is for the packages, not the probes).
+2. `git checkout feature/grid-apply-and-mount-refactor`, then at the root
+   `npm install` and `npm run build:packages` (fresh `packages/*/dist`).
+3. `cd apps && npm install` — `postinstall` creates the platform junction
+   (in-repo apps need no `STARUI_PLATFORM`).
+4. Broker: `cd apps/source/stomp-view-server && npm run dev` (port 8081).
+5. Production dock, in `apps/source/star-demo`:
+   `set STARUI_SKIP_ENSURE_BUILD=1 && npm run build`, then
+   `npx vite preview --port 5175 --strictPort`, then in a second shell
+   `npm run client` (OpenFin's RVM fetches runtime 43.142.104.2 on first
+   launch, so the box needs the RVM cache or internet once). CDP is on
+   `localhost:9091` from the manifest's `--remote-debugging-port`.
+6. Confirm production bytes before trusting anything: the shared workers in
+   `http://localhost:9091/json/list` must be under `/assets/…-<hash>.mjs`,
+   never `/@fs/…`.
+7. Open the WORKLOG 21 layout: six CSRM blotters docked as four panes + two
+   tabs in ONE Browser window. The twelve-view layout used on the Mac is a
+   fine second run, but the six-view one is what the baselines compare to.
+
+### 7.2 The runs (from `apps/scripts/ssrm-perf`; PowerShell needs double quotes around `--url`)
+
+| # | Command | Records | Pass line |
+|---|---|---|---|
+| 1 | `node cdp-process-map.mjs` | PIDs, memory per view (isolation state) | A: one PID per view; memory within the box's budget |
+| 2 | `node cdp-hidden-liveness.mjs --url "localhost:5175/?instanceId" --all --seconds 8` | hidden tabs alive and reporting `hidden` | A: ≥ 70 of 80 ticks; C/B3: `visibilityState` = `hidden` |
+| 3 | `node cdp-mainthread-load.mjs --url "localhost:5175/?instanceId" --all --seconds 10` | lag p50/p95/max, fps, long tasks per view | A (isolation on): p95 < 150 ms; B3 (isolation off): p95 < 250 ms |
+| 4 | `node cdp-timer-census.mjs --url "localhost:5175/?instanceId" --all --seconds 10` | timers per view | B1: `setTimeout` < 5 000, tasks < 2 000 (Mac: 22–46) |
+| 5 | `node cdp-cpu-profile.mjs --url "localhost:5175/?instanceId" --all --seconds 10` | busy %, flush + refresh, `mergeThinPatches` hidden vs visible | B1: flush + `refreshCells` < 200 ms (Mac: ≤ 20); B3: is the hidden-tab 10× gap there on Windows too? |
+| 6 | isolation OFF — delete `viewProcessAffinityStrategy` and its `$comment-…` key from `apps/source/star-demo/public/platform/manifest.fin.json`, rebuild star-demo, restart the dock, same layout; repeat 1, 3, 4 | the owed six-view no-isolation lag | B0/B1 confirmation: p95 < 250 ms |
+| 7 | by eye on a visible blotter | only cells whose value changed flash; sort by a ticking column → rows re-order (that view's census rises: expected, B1's transaction rule); group by a static column with an aggregated ticking value → aggregates move | B1 exit; B2 inputs |
+
+Every probe writes its JSON to `apps/scripts/ssrm-perf/out/` (gitignored);
+paste the console tables into §2 as "Windows native" rows beside the Mac
+rows and attach the JSON to the branch's pull request.
+
+### 7.3 Reading the results
+
+- Mac numbers are the lower bound. Expect Windows timer counts to match
+  (they count events, not time) and every time number to be larger.
+- With isolation, Task Manager shows one process per view; without, one
+  process near 100 % of one core is the shared-thread signature.
+- Intel 12th-generation and later CPUs have efficiency cores and Windows 11
+  schedules background processes onto them, so the Mac's hidden-tab result
+  (`mergeThinPatches` 320–567 ms hidden vs 31–33 ms visible) may reproduce.
+  If it does, B3's saving is bounded by scheduling, not by DOM work, and
+  the visible number is the one to quote for hidden cost.
+- Demo pages block `DOMContentLoaded` on Google Fonts (handoff §6.4). On a
+  box without internet the first paint can wait 10 s or more; that is the
+  fonts, not the platform.
+- Reloading a page never restarts the SharedWorkers; quit the dock and run
+  `npm run client` again. Never rebuild `packages/*/dist` under a dev-served
+  dock (constraint 6) — the production preview is immune, it is bundled.
+
+### 7.4 What to do next, in order
+
+1. Record the Windows rows in §2 (runs 1–7). Decide Phase A on them: keep
+   the manifest key if the lag win is worth the per-view memory on the
+   target, otherwise delete it; either way close A in this plan.
+2. **B2** — the five sorted / grouped / filtered measurements and the
+   toolbar-date external filter declaring its column.
+3. **B3** — hidden views, starting with the scheduling question above.
+4. Housekeeping: `check:design-system-deps` is red on eight `apps/source`
+   packages (pre-existing); decide "skip `apps/`" or declare the dependency,
+   and open the pull request for the branch.
+5. Then **D0** (profile-first) and **F1–F4** in any order.
