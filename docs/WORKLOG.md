@@ -1175,10 +1175,20 @@ Grid per-row update path is the rest.
    for alerts / conditional styling. Cuts the per-row event and timer
    storm ~50× and helps single windows too. A real change to
    `applyProviderToGrid` + the controller + the bus, with tests.
-2. Per-view renderer isolation for docked views (`processAffinity` per
-   view), re-measuring both halves the revert note asks for — the hidden
-   -view freeze that caused the revert is now handled by
-   `backgroundThrottling: false` + the runtime flags.
+2. Per-view renderer isolation for docked views — IN PROGRESS on branch
+   `feature/openfin-view-process-isolation`: not per-view stamping this
+   time but OpenFin's platform-level `viewProcessAffinityStrategy:
+   "different"` in the manifest ("The views in the same domain will have
+   their own renderer processes"), the seed's `processAffinity:
+   "star-demo"` pins removed, and the createView/createWindow overrides
+   stripping every persisted affinity while the strategy is active.
+   OpenFin's caveat: "no guarantee that a different affinity value will
+   create a different process, under the hood Chromium can enforce its own
+   process management". To re-measure per the revert note: PIDs per view,
+   per-process memory vs the 2.9 GB shared renderer, event-loop lag per
+   view, and hidden-view liveness (the hidden-view freeze that caused the
+   revert is now handled by `backgroundThrottling: false` + the runtime
+   flags).
 3. Pause fan-out to hidden subscribers in the hub (it already knows
    `meta.hidden`) and replay from cache on visibility.
 

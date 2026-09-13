@@ -32,10 +32,12 @@ import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/c
 import { COMPONENT_TYPES } from '@wellsfargo-starui/types';
 import { injectRenameMenuItem } from './internal/viewTabRename';
 import {
-  stripLegacyViewIsolationAffinity,
-  stripLegacyViewIsolationFromLayout,
+  applyViewProcessAffinityPolicy,
+  applyViewProcessAffinityPolicyToLayout,
   disableBackgroundThrottling,
   disableBackgroundThrottlingInLayout,
+  type ViewProcessAffinityPolicy,
+  type ViewProcessAffinityStrategy,
 } from './stripLegacyViewIsolationAffinity';
 
 const WS_PREFIX = 'WS_';
@@ -328,6 +330,14 @@ export function createWorkspacePersistenceOverride(
       // Do not reintroduce affinity stamping without re-measuring both
       // halves (per-process overhead AND per-contents lifecycle).
       //
+      // 2026-09-13 (WORKLOG 21): the OPPOSITE lever is being measured — the
+      // manifest's platform-level `viewProcessAffinityStrategy: "different"`
+      // (one renderer per same-origin view, OpenFin's documented switch)
+      // instead of per-view stamping. While that strategy is active the
+      // overrides strip EVERY persisted `processAffinity` (seed pins and
+      // saved layouts alike) so nothing regroups the views; without it the
+      // legacy cleanup below still applies.
+      //
       // The overrides below do the opposite: pages/workspaces SAVED while
       // the isolation experiment was live carry persisted `view-iso-…`
       // affinities in their layouts, so restoring them re-created the solo
@@ -343,10 +353,30 @@ export function createWorkspacePersistenceOverride(
           return undefined;
         }
       }
+      /** Manifest `platform.viewProcessAffinityStrategy`, read once; undefined when unset or unreadable. */
+      private affinityStrategyPromise: Promise<ViewProcessAffinityStrategy | undefined> | null = null;
+      private affinityStrategy(): Promise<ViewProcessAffinityStrategy | undefined> {
+        if (!this.affinityStrategyPromise) {
+          this.affinityStrategyPromise = (async () => {
+            try {
+              const app = fin?.Application?.getCurrentSync?.();
+              const manifest = app ? await app.getManifest() : null;
+              const s = manifest?.platform?.viewProcessAffinityStrategy;
+              return s === 'different' || s === 'same' ? s : undefined;
+            } catch {
+              return undefined;
+            }
+          })();
+        }
+        return this.affinityStrategyPromise;
+      }
+      private async affinityPolicy(): Promise<ViewProcessAffinityPolicy> {
+        return { strategy: await this.affinityStrategy(), sharedAffinity: this.legacySharedAffinity() };
+      }
 
       async createView(payload: any, callerIdentity?: any): Promise<any> {
         if (payload?.opts) {
-          stripLegacyViewIsolationAffinity(payload.opts, this.legacySharedAffinity());
+          applyViewProcessAffinityPolicy(payload.opts, await this.affinityPolicy());
           // Manifest defaultViewOptions is NOT sufficient: saved layouts
           // persist resolved options (backgroundThrottling: true baked
           // in pre-policy) and explicit options beat launch defaults —
@@ -358,12 +388,12 @@ export function createWorkspacePersistenceOverride(
       }
 
       async createWindow(payload: any, identity?: any): Promise<any> {
-        const shared = this.legacySharedAffinity();
+        const policy = await this.affinityPolicy();
         const windowOptions = (
           payload as { windowOptions?: { layout?: unknown; backgroundThrottling?: boolean } }
         )?.windowOptions;
-        stripLegacyViewIsolationFromLayout(payload?.layout, shared);
-        stripLegacyViewIsolationFromLayout(windowOptions?.layout, shared);
+        applyViewProcessAffinityPolicyToLayout(payload?.layout, policy);
+        applyViewProcessAffinityPolicyToLayout(windowOptions?.layout, policy);
         disableBackgroundThrottlingInLayout(payload?.layout);
         disableBackgroundThrottlingInLayout(windowOptions?.layout);
         if (payload && typeof payload === 'object') disableBackgroundThrottling(payload);
