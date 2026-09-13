@@ -1189,6 +1189,22 @@ Grid per-row update path is the rest.
    view, and hidden-view liveness (the hidden-view freeze that caused the
    revert is now handled by `backgroundThrottling: false` + the runtime
    flags).
+   **Measured 2026-09-13 (this branch, production bundle, same six CSRM
+   blotters docked as four panes + two tabs in ONE Browser window):**
+
+   | | shared renderer (before) | one renderer per view (this branch) |
+   |---|---|---|
+   | processes | 1 (pid 10932), 2.9 GB | 6, 505–644 MB each (~3.4 GB) |
+   | event-loop lag per view p50 / p95 / max | 338 ms / 737 ms / 778 ms (later 1.4–5.5 s) | **0 / 96–153 / 150–226 ms** |
+   | frame gap on visible views p50 / p95 | 200–250 ms / 350–800 ms (4–5 fps) | **17 ms / 67 ms (60 fps)** |
+   | long tasks per view per 10 s | 2–6 (thread saturated by sub-50 ms tasks) | 12–22, 0.9–2.0 s (the AG Grid per-row update work, now on its own core) |
+   | hidden tabs | share the saturated thread | 100 ms timers fire 70–73 of 80, lag ≤ 180 ms — alive, still processing updates |
+
+   OpenFin stamped a unique affinity per view (`fin.View.getProcessInfo`
+   shows distinct PIDs) — Chromium did not consolidate on this box (16
+   renderers alive during the run). Memory per view is ~15 % higher than
+   its share of the single process. The docked freeze is gone; what
+   remains per view is the AG Grid per-row update cost (next item 1).
 3. Pause fan-out to hidden subscribers in the hub (it already knows
    `meta.hidden`) and replay from cache on visibility.
 
