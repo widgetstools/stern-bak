@@ -159,6 +159,17 @@ export interface RowChangeSignal {
   subscribe(fn: (change: RowChange) => void): () => void;
 }
 
+/**
+ * The producer side of {@link RowChangeSignal}: a data-apply path that
+ * updates row nodes WITHOUT an AG Grid transaction (rows patched in place,
+ * rendered cells refreshed) hands the changed nodes here so subscribers still
+ * see exactly the rows that changed. Coalesced with the transaction flushes
+ * of the same frame.
+ */
+export interface RowChangeFeed {
+  noteRowsChanged(nodes: ReadonlyArray<IRowNode>): void;
+}
+
 // ─── Resource scope ───────────────────────────────────────────────────────
 
 export interface CssHandle {

@@ -30,6 +30,7 @@ export type {
   PlatformHandle,
   ResourceScope as IResourceScope,
   RowChange,
+  RowChangeFeed,
   RowChangeSignal,
   SerializedState,
   SettingsPanelProps,

@@ -35,7 +35,7 @@ export const MARKETS_GRID_EVENT_CATALOG: readonly MarketsGridEventCatalogEntry[]
   { id: 'provider:dataStale', label: 'Data stale', description: 'Connection lost or provider error — grid data may be stale', category: 'provider' },
   { id: 'toolbar:dateChanged', label: 'Toolbar date changed', description: 'User picked a new as-of date', category: 'toolbar' },
   { id: 'grid:firstDataRendered', label: 'First data rendered', description: 'AG-Grid rendered rows for the first time', category: 'grid' },
-  { id: 'grid:rowDataUpdated', label: 'Row data updated', description: 'Underlying row model changed', category: 'grid' },
+  { id: 'grid:rowDataUpdated', label: 'Row data updated', description: 'Row data replaced, or rows added/removed (streaming value updates refresh in place and do not fire this)', category: 'grid' },
   { id: 'grid:cellClicked', label: 'Cell clicked', description: 'User clicked a cell', category: 'grid' },
   { id: 'grid:cellValueChanged', label: 'Cell value changed', description: 'User edited a cell value', category: 'grid' },
   { id: 'grid:filterChanged', label: 'Filter changed', description: 'Column filter model changed', category: 'grid' },

@@ -257,84 +257,90 @@ customizer smoke; no AG Grid error #200 in the console; the census script.
 **Off switch.** None needed: a missing module is a visible error, and `modules`
 restores any list.
 
-### B1 — Rendered-row apply behind the port, no `force` (one session)
+### B1 — Rendered-row apply behind the port, no `force` (one session) — built 2026-09-13
 
 **Why.** Rows are patched in place (WORKLOG 21), so node data is current
-before the grid hears anything, yet every changed row still goes through
-`applyTransactionAsync` (`applyProviderToGrid.ts:252, 275`) and AG Grid turns
-each into a `rowNodeDataChanged` event, a row-controller refresh, and the
-listener work of every service subscribed to it.
+before the grid hears anything, yet every changed row still went through
+`applyTransactionAsync` (`applyProviderToGrid.ts`) and AG Grid turned each
+into a `rowNodeDataChanged` event, a row-controller refresh, and the listener
+work of every service subscribed to it — 61 000 timer macrotasks per 10 s per
+view after B0.
 
-**What.** Inside `createApplyProviderToGridState` (the one implementation of
-`ApplyProviderToGridState`, constructed at `useProviderDataWiring.ts:132` and
-`useBlotterDataConnection.ts:59`), the update branch becomes:
+**What (as built).** Inside `createApplyProviderToGridState` — the one
+implementation of `ApplyProviderToGridState`, constructed at
+`useProviderDataWiring.ts` and `blotter/hooks/useBlotterDataConnection.ts` —
+the update branch is `renderedRowUpdates.ts`:
 
-1. classify as today (`splitProviderRowsForGrid`), and keep `{ add, remove }`
-   as transactions — they change the row set;
-2. for updates, index `api.getRenderedNodes()` once per tick (by id when
-   `rowIdField` is set, by data object otherwise) and call
-   `api.refreshCells({ rowNodes })` for the changed rows that are rendered —
-   **no `force`**: `refreshCell` refreshes and flashes only where
-   `valuesDifferent`, which the in-place patch guarantees for changed cells and
-   for computed columns whose inputs changed; unchanged cells cost one
-   value-getter read;
-3. rows whose delivered object is not the node's object (providers without
-   `thinDeltas`) get the changed fields assigned onto `node.data` in place
-   first — the same contract `mergeThinPatches` established — so the node is
-   current before the refresh;
-4. delete the transaction update branch and its tests' "update transaction"
-   expectations in the same change.
+1. adds still ride `applyTransactionAsync` (they change the row set);
+2. every updated row's node is looked up (`getRenderedNodes` index, else
+   `getRowNode`, O(1) under the client-side model); a delivered object that is
+   not the node's (full-row providers) is synced onto it in place with the
+   transaction's replace semantics (`syncRowInPlace`);
+3. rows whose sort / filter / group / aggregated-value column changed value —
+   detected per node against the key values seen after the previous tick
+   (`api.getCellValue`, so value getters and calculated columns count; the
+   first touch after a key-set change rides once and heals the snapshot) —
+   still ride `applyTransactionAsync({ update })`. That is what AG Grid needs
+   to re-sort / re-filter / re-aggregate along the changed path with
+   `keepRenderedRows` and `keepEditingRows`; `refreshClientSideRowModel` (the
+   first draft's throttled model refresh) recycles rows but has no changed
+   path and no editing guard, so it was dropped. This is the rule
+   `bindSsrmTicks` already applies for SSRM. Quick filter, pivot mode, the
+   advanced filter and an external filter cannot be attributed to columns:
+   while any is active every updated row is a transaction, as before;
+4. every other updated row: rendered ones are refreshed in one
+   `refreshCells({ rowNodes })` per `asyncTransactionWaitMillis` window (the
+   grid's MAX UPDATES / SEC keeps its meaning), never `force` — AG Grid
+   refreshes and flashes only cells whose value differs; all of them are
+   handed to `RowChangeBus.noteRowsChanged` (new on the bus; counts as a flush
+   for the frame's delta / full classification);
+5. calculated columns subscribe to the bus instead of `rowDataUpdated`, which
+   now fires only for a snapshot / add / remove (`grid:rowDataUpdated` in the
+   event catalog says so); conditional styling and alerts were on the bus
+   already;
+6. the transaction update branch is gone. Without a `rowIdField` the grid
+   cannot address nodes, so that legacy path keeps its plain update
+   transaction.
 
-**Entry.** B0's decision rule says proceed. **Out of scope.** Model-affecting
-changes, the bus, hidden views (B2, B3); SSRM (`bindSsrmTicks` keeps
-`applyServerSideTransactionAsync` — its per-row cost after B0 is the autosize
-timer only, since `FindService` bails out for non-CSRM grids; measure it in B3
-and open a follow-up if it matters).
-**Exit.** Stub-grid unit tests: `applyTransactionAsync` is called only with
-`add`/`remove`; `refreshCells` receives exactly the rendered changed nodes and
-never `force`; both constructors covered. Census on one view, 10 s: flush +
-refresh time < 200 ms (from 867 ms). E2E on a visible blotter: only changed
-cells flash.
-**Verify.** `npx turbo test --filter=@wellsfargo-starui/grid`; the census
-script; `apps/e2e` flash spec.
-**Off switch.** `git revert` of this commit.
+**Entry.** B0's decision rule said proceed. **Out of scope.** Hidden views
+(B3); SSRM (`bindSsrmTicks` keeps `applyServerSideTransactionAsync`);
+attributing the toolbar-date external filter to its column (B2).
+**Exit.** Unit tests: `renderedRowUpdates` (rendered-only refresh, no
+`force`, bus feed, key detection incl. first touch and key-set change,
+quick / pivot / external / advanced → transactions, full-row sync, clear /
+dispose), the apply state (no transaction for value updates, sorted key
+change rides one, dispose), both seams, the bus (`noteRowsChanged` is a
+delta), calculated columns on the bus — green. Dock census after a rebuild:
+`setTimeout` < 5 000 per 10 s on the default view; flush + refresh
+(`executeBatchUpdateRowData` + `refreshCells`) < 200 ms per 10 s; flashing
+only on changed cells (e2e).
+**Verify.** `npx vitest run` in `packages/react-grid` and `packages/core`;
+`cdp-timer-census.mjs` and `cdp-cpu-profile.mjs` on the dock.
+**Off switch.** `git revert` of the B1 commit.
 
-### B2 — Model-affecting changes and the consumers (one session)
+### B2 — Sorted / grouped / filtered cost, and the external filter (one session)
 
-**Why.** Without transactions, a changed sort / filter / group / aggregation
-column no longer moves the row, and the modules that listened to AG Grid's own
-data events no longer hear updates.
+**Why.** B1's transaction rule means a blotter sorted or grouped on a ticking
+column pays the old per-row cost for exactly those rows, and a blotter with
+the toolbar-date row exclusion active pays it for every row, because an
+external filter cannot be attributed to a column.
 
 **What.**
-1. Lift the key-column rule from `bindSsrmTicks.ts:146-155` (`sort`, `filter`,
-   `group` column ids) into a shared helper, add aggregation columns, and in
-   the apply implementation schedule **one** throttled
-   `api.refreshClientSideRowModel(step)` at the lowest necessary step
-   (`'filter'` / `'sort'` / `'aggregate'`) when a changed field is one of them —
-   never per row. This is a full model pass over 20 000 rows where the
-   transaction path recomputed only the `changedPath`; the grouped acceptance
-   below is where that cost shows.
-2. `RowChangeBus.noteRowsChanged(nodes)`
-   (`packages/core/engine/src/platform/RowChangeBus.ts:32`): feeds
-   `pendingUpdated` and `schedule()`, so alerts, conditional styling and
-   data-change history keep receiving the same frame-coalesced `RowChange`.
-   The apply implementation calls it with the changed nodes (rendered or not).
-3. The consumers on AG Grid's own events: calculated columns
-   (`customizer/modules/calculated-columns/index.ts:127-129`, `rowDataUpdated`),
-   conditional styling (`conditional-styling/runtime/activate.ts:94`,
-   `modelUpdated`), the event bridge (`events/useMarketsGridEventBridge.ts:16`,
-   `grid:rowDataUpdated`). Each is moved to the bus or given the equivalent
-   signal, with a test per consumer.
+1. Measure on the production dock, census + `cdp-cpu-profile` each: the
+   default view; sorted by a ticking column; grouped by a static column with
+   an aggregated ticking value (two group levels); filtered on a static
+   column; the toolbar-date exclusion on. Record all five in §2.
+2. Let the external filter declare its columns: the toolbar-date module
+   registers the column it excludes on (a platform resource the apply path
+   can read), and `readKeyColumns` treats it as a key column instead of
+   `all`. Test: exclusion on, non-date update → in place.
+3. Grouped aggregates over a ticking value already use AG Grid's changed
+   path through the transaction rows; nothing further unless (1) says so.
 
-**Entry.** B1. **Out of scope.** Hidden views; SSRM.
-**Exit.** Tests per consumer; sort / filter / group positions and aggregates
-update within the throttle window; grouped acceptance (two group levels, one
-aggregated column, 20 000 rows, demo feed): model refresh cost per throttle
-window recorded in §2 and ≤ the transaction path's flush cost for the same feed.
-**Verify.** `npx turbo test --filter=@wellsfargo-starui/grid
---filter=@wellsfargo-starui/core`; the census script on a grouped blotter.
-**Off switch.** `git revert` of this commit (B1 stays; positions go stale
-until B2 is fixed forward).
+**Entry.** B1. **Out of scope.** Hidden views. **Exit.** The five numbers in
+§2; the external-filter attribution with its test.
+**Verify.** The two probes; `npx vitest run` in `packages/react-grid`.
+**Off switch.** `git revert` of the B2 commit.
 
 ### B3 — Hidden views without pausing the feed, and the six-blotter number (one session)
 

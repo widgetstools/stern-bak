@@ -44,6 +44,7 @@ export type {
   PlatformEventMap,
   PlatformHandle,
   RowChange,
+  RowChangeFeed,
   RowChangeSignal,
   SerializedState,
   SettingsPanelProps,

@@ -63,6 +63,17 @@ function makeGridApi(): GridApi & {
     flushAsyncTransactions: vi.fn(),
     getRowNode: vi.fn(() => null),
     getDisplayedRowCount: vi.fn(() => 2),
+    // rendered-row update path (plan B1)
+    getRenderedNodes: vi.fn(() => []),
+    refreshCells: vi.fn(),
+    getGridOption: vi.fn(() => undefined),
+    isPivotMode: () => false,
+    getAdvancedFilterModel: () => null,
+    getColumnState: () => [],
+    getFilterModel: () => ({}),
+    getRowGroupColumns: () => [],
+    getValueColumns: () => [],
+    getCellValue: () => undefined,
   } as unknown as GridApi & {
     setGridOption: ReturnType<typeof vi.fn>;
     applyTransactionAsync: ReturnType<typeof vi.fn>;
@@ -158,8 +169,8 @@ describe('useBlotterDataConnection', () => {
     expect(result.current.rowCount).toBe(3);
   });
 
-  it('applies live ticks via applyTransactionAsync when getRowId is set', async () => {
-    gridApi.getRowNode.mockImplementation((id: string) => (id === 'r1' ? { id } : null));
+  it('adds ride a transaction while value updates refresh in place when getRowId is set', async () => {
+    gridApi.getRowNode.mockImplementation((id: string) => (id === 'r1' ? { id, data: { id: 'r1', x: 1 } } : null));
 
     renderHook(() =>
       useBlotterDataConnection({
@@ -174,7 +185,7 @@ describe('useBlotterDataConnection', () => {
     provider.emitTick([{ id: 'r1', x: 2 }, { id: 'r2', x: 1 }]);
     expect(gridApi.applyTransactionAsync).toHaveBeenCalledWith({
       add: [{ id: 'r2', x: 1 }],
-      update: [{ id: 'r1', x: 2 }],
+      update: [],
     }, expect.any(Function));
   });
 
@@ -245,11 +256,12 @@ describe('useBlotterDataConnection', () => {
     expect(gridApi.setGridOption).toHaveBeenCalledWith('rowData', [{ id: 'r1' }]);
   });
 
-  it('applies ticks without getRowId using the default id field', async () => {
-    gridApi.getRowNode.mockImplementation((id: string) => (id === 'r1' ? { id } : null));
+  it('classifies ticks without getRowId by the default id field and updates in place', async () => {
+    gridApi.getRowNode.mockImplementation((id: string) => (id === 'r1' ? { id, data: { id: 'r1', x: 0 } } : null));
     renderHook(() => useBlotterDataConnection({ gridApi, provider }));
     await waitFor(() => expect(provider.start).toHaveBeenCalled());
     provider.emitTick([{ id: 'r1', x: 1 }]);
-    expect(gridApi.applyTransactionAsync).toHaveBeenCalled();
+    expect(gridApi.getRowNode).toHaveBeenCalledWith('r1');
+    expect(gridApi.applyTransactionAsync).not.toHaveBeenCalled();
   });
 });

@@ -10,9 +10,19 @@ type Row = { id: string; price?: number };
 
 function makeGridApi(opts: {
   existingIds?: Set<string>;
+  /** Node data per existing id (defaults to `{ id }`); the object identity matters for the in-place path. */
+  data?: Map<string, Row>;
+  rendered?: string[];
+  sort?: string[];
   onApply?: (tx: { add?: Row[]; update?: Row[] }, cb?: (result: { add: { id: string }[] }) => void) => void;
-} = {}): GridApi<Row> {
+} = {}): GridApi<Row> & { refreshCells: ReturnType<typeof vi.fn> } {
   const existing = opts.existingIds ?? new Set<string>();
+  const nodes = new Map<string, { id: string; data: Row; group: boolean }>();
+  const nodeFor = (id: string) => {
+    let n = nodes.get(id);
+    if (!n) { n = { id, data: opts.data?.get(id) ?? { id }, group: false }; nodes.set(id, n); }
+    return n;
+  };
   const applyTransactionAsync = vi.fn((
     tx: { add?: Row[]; update?: Row[] },
     cb?: (result: { add: { id: string }[] }) => void,
@@ -26,8 +36,19 @@ function makeGridApi(opts: {
 
   return {
     applyTransactionAsync,
-    getRowNode: (id: string) => (existing.has(id) ? { id } as never : null),
-  } as unknown as GridApi<Row>;
+    getRowNode: (id: string) => (existing.has(id) ? nodeFor(id) as never : null),
+    getRenderedNodes: () => (opts.rendered ?? []).filter((id) => existing.has(id)).map(nodeFor),
+    refreshCells: vi.fn(),
+    getGridOption: () => undefined,
+    isPivotMode: () => false,
+    getAdvancedFilterModel: () => null,
+    getColumnState: () => (opts.sort ?? []).map((colId) => ({ colId, sort: 'asc' })),
+    getFilterModel: () => ({}),
+    getRowGroupColumns: () => [],
+    getValueColumns: () => [],
+    getCellValue: ({ rowNode, colKey }: { rowNode: { data: Row }; colKey: string }) =>
+      (rowNode.data as unknown as Record<string, unknown>)[colKey],
+  } as unknown as GridApi<Row> & { refreshCells: ReturnType<typeof vi.fn> };
 }
 
 describe('splitProviderRowsForGrid', () => {
@@ -194,18 +215,61 @@ describe('createApplyProviderToGridState', () => {
     expect(state.getPendingAddCount()).toBe(0);
   });
 
-  it('markSnapshotLoaded enables getRowNode-free live ticks', () => {
-    const state = createApplyProviderToGridState();
-    const getRowNode = vi.fn(() => null);
-    const api = { applyTransactionAsync: vi.fn(), getRowNode } as unknown as GridApi<Row>;
+  it('after the snapshot, value updates refresh rendered rows in place instead of riding a transaction', () => {
+    const r1: Row = { id: 'r1', price: 1 };
+    const r2: Row = { id: 'r2', price: 2 };
+    const timers: Array<() => void> = [];
+    const noteRowsChanged = vi.fn();
+    const state = createApplyProviderToGridState({
+      getRowChangeFeed: () => ({ noteRowsChanged }),
+      setTimer: (fn) => { timers.push(fn); return 1; },
+    });
+    const api = makeGridApi({
+      existingIds: new Set(['r1', 'r2']),
+      data: new Map([['r1', r1], ['r2', r2]]),
+      rendered: ['r1'],
+    });
 
-    state.markSnapshotLoaded([{ id: 'r1' }, { id: 'r2' }], 'id');
-    state.applyTick(api, [{ id: 'r1', price: 9 }, { id: 'r2', price: 8 }], 'id');
+    state.markSnapshotLoaded([r1, r2], 'id');
+    r1.price = 9; r2.price = 8; // patched in place before the tick, as thin deltas do
+    const result = state.applyTick(api, [r1, r2], 'id');
 
-    expect(getRowNode).not.toHaveBeenCalled();
-    expect(api.applyTransactionAsync).toHaveBeenCalledWith({
-      add: [],
-      update: [{ id: 'r1', price: 9 }, { id: 'r2', price: 8 }],
-    }, expect.any(Function));
+    expect(result).toEqual({ coalescedPending: 0, addCount: 0, updateCount: 2 });
+    expect(api.applyTransactionAsync).not.toHaveBeenCalled();
+    expect(noteRowsChanged).toHaveBeenCalledTimes(1);
+    expect((noteRowsChanged.mock.calls[0][0] as { id: string }[]).map((n) => n.id)).toEqual(['r1', 'r2']);
+    timers.splice(0).forEach((fn) => fn());
+    expect(api.refreshCells).toHaveBeenCalledTimes(1);
+    const params = api.refreshCells.mock.calls[0][0] as { rowNodes: { id: string }[]; force?: boolean };
+    expect(params.rowNodes.map((n) => n.id)).toEqual(['r1']);
+    expect(params).not.toHaveProperty('force');
+  });
+
+  it('an update that changes a sorted column still rides a transaction', () => {
+    const r1: Row = { id: 'r1', price: 1 };
+    const state = createApplyProviderToGridState({ setTimer: () => 1 });
+    const api = makeGridApi({ existingIds: new Set(['r1']), data: new Map([['r1', r1]]), sort: ['price'] });
+
+    state.markSnapshotLoaded([r1], 'id');
+    state.applyTick(api, [r1], 'id'); // first touch under a sort: snapshot taken via a transaction
+    expect(api.applyTransactionAsync).toHaveBeenLastCalledWith({ add: [], update: [r1] }, expect.any(Function));
+
+    state.applyTick(api, [r1], 'id'); // unchanged key → in place
+    expect(api.applyTransactionAsync).toHaveBeenCalledTimes(1);
+
+    r1.price = 5;
+    state.applyTick(api, [r1], 'id');
+    expect(api.applyTransactionAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('dispose cancels a pending rendered-row refresh', () => {
+    const r1: Row = { id: 'r1' };
+    const clearTimer = vi.fn();
+    const state = createApplyProviderToGridState({ setTimer: () => 42, clearTimer });
+    const api = makeGridApi({ existingIds: new Set(['r1']), data: new Map([['r1', r1]]), rendered: ['r1'] });
+    state.markSnapshotLoaded([r1], 'id');
+    state.applyTick(api, [r1], 'id');
+    state.dispose();
+    expect(clearTimer).toHaveBeenCalledWith(42);
   });
 });

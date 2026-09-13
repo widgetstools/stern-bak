@@ -15,6 +15,7 @@
 import { useEffect, useRef } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import type { IDataProvider } from '@wellsfargo-starui/data';
+import type { RowChangeFeed } from '@wellsfargo-starui/core';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import { createApplyProviderToGridState } from './applyProviderToGrid.js';
 import type { ProviderMode } from './gridLevelState.js';
@@ -47,6 +48,8 @@ export interface UseProviderDataWiringParams<TData extends Record<string, unknow
   restartProvider: (extra?: Record<string, unknown>) => Promise<void>;
   onError?: (error: Error) => void;
   containerEventBus: ContainerEventBus;
+  /** The grid platform's row-change bus (`handle.platform.rows`); rendered-row updates report changed nodes here. */
+  rowChangeFeed?: RowChangeFeed | null;
   setLoadRowCount: (count: number | undefined) => void;
   setProviderDisconnected: (disconnected: boolean) => void;
   setDisconnectDetail: (detail: string | undefined) => void;
@@ -76,6 +79,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
     restartProvider,
     onError,
     containerEventBus,
+    rowChangeFeed,
     setLoadRowCount,
     setProviderDisconnected,
     setDisconnectDetail,
@@ -103,6 +107,9 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
   toolbarDateRef.current = toolbarDate;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  // The handle (and so the bus) can land after this effect ran; read it per tick.
+  const rowChangeFeedRef = useRef(rowChangeFeed);
+  rowChangeFeedRef.current = rowChangeFeed;
 
   useEffect(() => {
     if (!liveApi || !provider || !activeId) {
@@ -129,7 +136,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
     }
 
     let cancelled = false;
-    const gridApply = createApplyProviderToGridState();
+    const gridApply = createApplyProviderToGridState({ getRowChangeFeed: () => rowChangeFeedRef.current });
     const providerStatusRef = { current: 'loading' as 'loading' | 'ready' | 'error' };
 
     // rAF-coalesced: progressive snapshot counts arrive per streamed
@@ -332,6 +339,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
       unsubTick();
       unsubStatus();
       unsubError();
+      gridApply.dispose();
       if (DEBUG) {
         // eslint-disable-next-line no-console
         console.log(`[v2/grid] %cunwire provider%c provider=%s (effect cleanup, +${(performance.now() - t0).toFixed(0)}ms)`,
