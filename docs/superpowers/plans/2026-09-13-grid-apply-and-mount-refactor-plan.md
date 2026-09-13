@@ -544,9 +544,21 @@ data, profiles, view customData — name each hook), AG Grid init (module
 registration, licence check), first render. Record the table in §2.
 
 **Entry.** G1. **Out of scope.** Any code change.
-**Exit.** The §2 row is filled. **Decision rule:** D1–D3 proceed only if the
-mount stack (fiber commits + gated-load waiting, not network) accounts for
-≥ 300 ms of the 1.4 s; otherwise D is shelved with the number in WORKLOG.
+**Exit.** The §2 row is filled. **Decision rule (revised by the owner,
+2026-09-13):** D1–D3 proceed on maintainability grounds whatever the profile
+says — the layering already cost two fixes this week (WORKLOG 20's placeholder
+mount was a stale render in one layer feeding another; B2 had to plumb one
+value through the container, two wiring hooks and the two constructors of
+the apply state), and the container is 1 058 lines with a function over the
+ceiling that nothing else in the plan removes. D0 is therefore the BASELINE
+for D2's exit (cold reload ≤ 2.0 s needs a measured before) and the
+attribution of the other ~1.4 s, not a gate. The original rule (proceed only
+if the mount stack accounts for ≥ 300 ms) is kept here for the record.
+**Landing order (explicit):** D1 adds `BlotterHost` next to the existing
+exports, D2 switches call sites, D3 deletes — at every commit the old path
+still works and the container's tests still run. D is the riskiest phase in
+the plan; it runs on its own branch off the B2 branch so the review stays
+readable.
 **Verify.** The profile JSON in `apps/scripts/ssrm-perf/out/`.
 
 ### D1 — `BlotterHost` (one session)
@@ -851,5 +863,15 @@ rows and attach the JSON to the branch's pull request.
    see §B3 for what stays unbuilt.*
 4. Housekeeping: `check:design-system-deps` is red on eight `apps/source`
    packages (pre-existing); decide "skip `apps/`" or declare the dependency,
-   and open the pull request for the branch.
+   and open the pull request for the branch. *Done 2026-09-13: the check
+   scanned the pre-reorganisation package roots (none exist) plus `apps/`,
+   so it verified no library package and only ever flagged the demo apps,
+   which declare no `@wellsfargo-starui/*` dependency at all (they consume
+   the platform through the postinstall symlink). It now scans the
+   `packages/` buckets as npm units (member sources count towards their
+   bucket, build shims skipped) and leaves `apps/` out by design; the one
+   real finding — `@wellsfargo-starui/core` injects CSS over `--ds-*`
+   tokens without declaring design-system — is declared. Pull request
+   opened against `feature/worker-hub-config-refactor` (the stack's parent,
+   which has no PR of its own yet).*
 5. Then **D0** (profile-first) and **F1–F4** in any order.
