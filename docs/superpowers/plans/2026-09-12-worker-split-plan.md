@@ -485,6 +485,44 @@ instance merged with its existing flight (resolved in 6 ms) and the data
 worker reported `test.dp` running with a stats-mode subscriber within
 250 ms — the warm state a later blotter view attaches to.
 
+**Where the data worker's thread goes with twelve SSRM grids on one
+provider** (`hub-introspect.ssrm`, added after the live probe; harness
+`ssrm-multiwindow.mjs` PAGES=12, Windows native):
+
+| | default feed rate (36 s window) | `?rate=10000` storm (39 s) |
+|---|---|---|
+| block read (`ssrm-get-rows`) engine time | 2.8 ms p50 / 4.8 ms max (110 reads) | 2.6 ms p50 / 11.7 ms max |
+| block read queue wait in the worker | **0 ms p50 / 6 ms p99** (max 793) | **78 ms p50 / 592 ms p99** (max 825) |
+| other SSRM RPCs (aggregates, counts: ~30/s from 12 grids) queue wait | 1 ms p50 / 5 ms p99 | 48 ms p50 / 326 ms p99 |
+| tick flush (12 sessions) | 2.7 ms p50, 917 ms total = 2.5% of thread | 0.3 ms p50 / 105 ms p99 / 149 max |
+| ingest batch | 3 ms p50 (snapshot phase dominates the total) | **158 ms p50 / 828 ms p99** |
+| scroller's block wall latency (page side) | 169 ms p50 / 308 p95 | 238 ms p50 / 412 p95 |
+
+At the demo's default rate the worker is not the bottleneck for reads:
+the engine answers a block in ~3 ms and the queue is empty. Under the
+storm the ingest batches saturate the thread and every read waits behind
+them — the same-plane contention §4 excludes from this split. The live
+OpenFin platform runs at ~26 msg/s, so its 0.9–1.5 s block latency
+(measured from a hooked view) is not worker time — see the OpenFin
+process-model note that follows.
+
+**What the view's own thread was doing** (CDP `Profiler` on a hooked
+thirteenth view; WORKLOG 19): of a 44 s cold load, 11.8 s inside the data
+client's `handleMessage` and 19 s in native `(program)` — structured-clone
+deserialisation of port messages; of a 13.9 s fling window, 3.2 s + 5.3 s.
+One view's data port at rest carried 31 `rowDelta` ticks in 10 s, 45 MB,
+38 000 full rows (4.5 MB/s) — the whole table's churn, posted identically
+to all twelve sessions, for a grid holding two blocks. Per-session tick
+trimming (`SsrmSessionWindows`) is the fix; block-read concurrency was
+not (four in flight: 4.1 s vs 3.8 s fill).
+
+| hooked 13th view, live platform | before (full ticks) | after (trimmed ticks) |
+|---|---|---|
+| tick bytes received at rest | 4.5 MB/s (31 ticks / 10 s, ≤3.2 MB each) | 0.10 MB/s (62 ticks / 10 s, ≤31 kB each) |
+| upsert rows received at rest | 38 000 / 10 s | 794 / 10 s (worker withheld 95 %) |
+| fling: scroll-stop → rows filled | 3.8 s (long tasks on the view: 12, 3.2 s) | 1.8 s (long tasks on the view: 10, 3.0 s) |
+| cold: first block wall latency | 1.0–1.5 s | 0.76 s; first block issued at 12.6 s after reload (was 20–28 s) |
+
 ### W0 findings — what reproduced and what did not
 
 **Reproduced: the W4 fan-out ladder.** Nine windows attaching at once to a

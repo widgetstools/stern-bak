@@ -32,6 +32,8 @@ vi.mock('ag-grid-react', () => ({
         data-testid="ag-grid-ssrm"
         data-row-model={String(props.rowModelType)}
         data-block-size={String(props.cacheBlockSize)}
+        data-max-concurrent={String(props.maxConcurrentDatasourceRequests)}
+        data-block-debounce={String(props.blockLoadDebounceMillis)}
       />
     );
   }),
@@ -503,6 +505,52 @@ describe('MarketsGridSsrmSurface', () => {
     const cols = lastGridProps.current?.columnDefs as Array<Record<string, unknown>>;
     expect(cols[1].sortable).toBe(false);
     expect(cols[1].filter).toBe(false);
+    unmount();
+  });
+});
+
+describe('MarketsGridSsrmSurface — block request concurrency', () => {
+  it('leaves concurrency and debounce to AG Grid by default (passes neither)', () => {
+    const p = provider();
+    const { getByTestId, unmount } = render(
+      <MarketsGridSsrmSurface
+        gridRef={{ current: { api: readyApi } } as never}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'positionId' }]}
+        sideBar={false}
+        defaultColDef={{}}
+        onGridReady={vi.fn()}
+        onGridPreDestroyed={vi.fn()}
+        ssrm={{ provider: p, keyColumn: 'id' }}
+      />,
+    );
+    const grid = getByTestId('ag-grid-ssrm');
+    expect(grid.getAttribute('data-max-concurrent')).toBe('undefined');
+    expect(grid.getAttribute('data-block-debounce')).toBe('undefined');
+    unmount();
+  });
+
+  it('forwards explicit concurrency and debounce', () => {
+    const p = provider();
+    const { getByTestId, unmount } = render(
+      <MarketsGridSsrmSurface
+        gridRef={{ current: { api: readyApi } } as never}
+        gridOptions={{}}
+        hostOverrideKeys={new Set()}
+        theme={undefined}
+        columnDefs={[{ field: 'positionId' }]}
+        sideBar={false}
+        defaultColDef={{}}
+        onGridReady={vi.fn()}
+        onGridPreDestroyed={vi.fn()}
+        ssrm={{ provider: p, keyColumn: 'id', maxConcurrentDatasourceRequests: 6, blockLoadDebounceMillis: 50 }}
+      />,
+    );
+    const grid = getByTestId('ag-grid-ssrm');
+    expect(grid.getAttribute('data-max-concurrent')).toBe('6');
+    expect(grid.getAttribute('data-block-debounce')).toBe('50');
     unmount();
   });
 });

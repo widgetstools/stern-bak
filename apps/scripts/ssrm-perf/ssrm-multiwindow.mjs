@@ -113,5 +113,27 @@ const waitForRows = (page) => page.waitForFunction(
   console.log('\n[crossWindowEdit]', JSON.stringify(out.scenarios.crossWindowEdit));
 
   writeFileSync(join(OUT, `ssrm-multiwindow-${TAG}.json`), JSON.stringify(out, null, 2));
+  // Hub-thread accounting for the run (data hub `hub-introspect.ssrm`, read
+  // on the DATA port — hooked ports are [platform, data] since the split).
+  try {
+    out.scenarios.hubSsrm = await pages[0].evaluate(() => new Promise((resolve, reject) => {
+      const ports = window.__ssrm.ports;
+      const port = ports[ports.length - 1];
+      const reqId = 'soak-introspect-' + Math.random().toString(36).slice(2);
+      const timer = setTimeout(() => reject(new Error('introspect timed out')), 15000);
+      port.addEventListener('message', function onMsg(ev) {
+        const d = ev.data;
+        if (d && d.kind === 'config-snapshot' && d.reqId === reqId) {
+          port.removeEventListener('message', onMsg); clearTimeout(timer);
+          resolve(d.introspect ? { ssrm: d.introspect.ssrm ?? null, fanout: d.introspect.fanout ?? null } : null);
+        }
+      });
+      port.postMessage({ kind: 'hub-introspect', reqId });
+    }));
+    console.log('\n[hubSsrm]', JSON.stringify(out.scenarios.hubSsrm));
+  } catch (err) {
+    console.warn('[hubSsrm] not read:', String(err).slice(0, 120));
+  }
+
   await browser.close();
 })().catch((e) => { console.error('MULTIWINDOW FAILED', e); writeFileSync(join(OUT, `ssrm-multiwindow-${TAG}.json`), JSON.stringify({ ...out, error: String(e) }, null, 2)); process.exit(1); });

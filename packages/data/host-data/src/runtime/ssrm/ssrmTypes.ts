@@ -77,6 +77,13 @@ export interface SsrmTickPayload {
   upserts?: readonly Record<string, unknown>[];
   removals?: readonly string[];
   reset?: boolean;
+  /**
+   * rowDelta, trimmed per session: how many further upserts / removals this
+   * tick touched on rows the session has NOT loaded (they are omitted from
+   * `upserts` / `removals`). The worker trims once a session has read a flat
+   * block; the grid uses the counts for its count check / positional refresh.
+   */
+  unloaded?: { upserts: number; removals: number };
   groups?: readonly Record<string, unknown>[];
   removed?: readonly string[];
   /** viewDelta: the watched predicate this delta belongs to. */

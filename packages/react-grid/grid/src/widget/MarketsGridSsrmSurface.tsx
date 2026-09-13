@@ -46,6 +46,21 @@ export interface MarketsGridSsrmConfig {
   provider: ISsrmDataProvider;
   keyColumn?: string | readonly string[];
   cacheBlockSize?: number;
+  /**
+   * AG Grid `maxConcurrentDatasourceRequests`, passed through when set
+   * (AG Grid's own default is 2). Raising it lets a fling's three or four
+   * new blocks be in flight together instead of queuing two at a time —
+   * but on a twelve-view platform it changed nothing (4.1 s vs 3.8 s to
+   * fill), because the page's own rendering, not the round trips, is the
+   * wait. Opt in for hosts whose views are lighter than that.
+   */
+  maxConcurrentDatasourceRequests?: number;
+  /**
+   * AG Grid `blockLoadDebounceMillis`. Unset by default: it delays EVERY
+   * block, the first paint included. Opt in for very fast flings where the
+   * grid otherwise requests blocks it scrolls straight past.
+   */
+  blockLoadDebounceMillis?: number;
 }
 
 export interface MarketsGridSsrmSurfaceProps<TData> {
@@ -102,6 +117,8 @@ function ssrmSurfacePropsEqual<TData>(
     && prev.ssrm.provider === next.ssrm.provider
     && prev.ssrm.keyColumn === next.ssrm.keyColumn
     && prev.ssrm.cacheBlockSize === next.ssrm.cacheBlockSize
+    && prev.ssrm.maxConcurrentDatasourceRequests === next.ssrm.maxConcurrentDatasourceRequests
+    && prev.ssrm.blockLoadDebounceMillis === next.ssrm.blockLoadDebounceMillis
   );
 }
 
@@ -329,6 +346,8 @@ export const MarketsGridSsrmSurface = memo(function MarketsGridSsrmSurface<TData
         suppressServerSideFullWidthLoadingRow
         loadingCellRenderer={SsrmBlankLoadingCellRenderer}
         cacheBlockSize={ssrm.cacheBlockSize ?? 200}
+        {...(ssrm.maxConcurrentDatasourceRequests !== undefined ? { maxConcurrentDatasourceRequests: ssrm.maxConcurrentDatasourceRequests } : {})}
+        {...(ssrm.blockLoadDebounceMillis !== undefined ? { blockLoadDebounceMillis: ssrm.blockLoadDebounceMillis } : {})}
         serverSideDatasource={datasource}
         getRowId={getRowId}
         getChildCount={ssrmChildCount}

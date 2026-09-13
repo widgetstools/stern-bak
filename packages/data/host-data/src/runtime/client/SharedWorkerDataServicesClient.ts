@@ -446,6 +446,9 @@ export class SharedWorkerDataServicesClient {
       return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
     }
     const reqId = crypto.randomUUID();
+    // Epoch stamp so the hub can report how long this request waited in
+    // its queue (`hub-introspect.ssrm.getRows.queueMs`).
+    const sentAt = Date.now();
     return new Promise((resolve, reject) => {
       const timer = this.ssrmRpcTimeoutMs > 0
         ? setTimeout(() => {
@@ -456,7 +459,7 @@ export class SharedWorkerDataServicesClient {
         }, this.ssrmRpcTimeoutMs)
         : undefined;
       this.ssrmPending.set(reqId, { resolve, reject, timer });
-      this.send({ ...req, reqId } as Request);
+      this.send({ ...req, reqId, sentAt } as Request);
     });
   }
 

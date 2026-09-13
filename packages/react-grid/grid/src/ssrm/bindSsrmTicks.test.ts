@@ -407,6 +407,33 @@ describe('bindSsrmTicks — row-count reconciliation', () => {
     expect(grid.refreshServerSide).toHaveBeenCalledWith({ purge: false });
   });
 
+  it('counts rows the worker withheld as unloaded — trimmed ticks still drive the count check', async () => {
+    vi.useFakeTimers();
+    const p = provider(2);
+    const grid = api({}, { 1: { id: '1' } });
+    bindSsrmTicks(p, grid as never, { countCheckMs: 10 });
+    p.emitTick({ kind: 'rowDelta', upserts: [], removals: [], unloaded: { upserts: 3, removals: 0 } });
+    expect(grid.applyServerSideTransactionAsync).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(11);
+    expect(p.getRowCount).toHaveBeenCalledTimes(1);
+    expect(grid.refreshServerSide).toHaveBeenCalledWith({ purge: false });
+  });
+
+  it('an unloaded removal under a filter takes the positional refresh', async () => {
+    vi.useFakeTimers();
+    const p = provider(5);
+    const grid = api({
+      getFilterModel: () => ({ desk: { filterType: 'text', type: 'equals', filter: 'A' } }),
+      getColumnState: () => [],
+      getRowNode: () => undefined,
+    }, {});
+    bindSsrmTicks(p, grid as never, { countCheckMs: 10, positionalRefreshMs: 5 });
+    p.emitTick({ kind: 'rowDelta', upserts: [], removals: [], unloaded: { upserts: 0, removals: 1 } });
+    await vi.advanceTimersByTimeAsync(11);
+    expect(p.getRowCount).not.toHaveBeenCalled();
+    expect(grid.refreshServerSide).toHaveBeenCalledWith({ purge: false });
+  });
+
   it('skips the count check while grouped and after a purge', async () => {
     vi.useFakeTimers();
     const p = provider(9);

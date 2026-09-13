@@ -189,6 +189,7 @@ export class SharedWorkerDataServicesHub {
       appDataListenerCount: 0,
       appDataRows: this.lifecycle.snapshotRows(),
       fanout: this.replay.snapshotStats(),
+      ssrm: this.ssrm.snapshotStats(),
     });
   }
 

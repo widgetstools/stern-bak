@@ -921,6 +921,25 @@ provider to verify with `navigator.locks.query()` in a view
 (`held` should list `starui-background-freeze-exemption` in every data
 window).
 
+**Cause found — a `dist` rebuild under a dev-served platform reloads every
+page mid-write.** star-demo runs on `vite dev` in source mode, which
+serves `packages/*/dist` through `/@fs/` and watches it: any package
+rebuild (`rimraf dist && tsc`) fires a full reload of EVERY open OpenFin
+page while the files are half-written. Pages that catch that window fetch
+a truncated worker asset (HTTP 200), no SharedWorker target ever appears,
+and provider + views sit with no `starui:*` marks and an empty body — the
+provider route's config gate never resolves, `fin.Platform.init` never
+runs, no dock. Seen twice in one session (a data rebuild during a platform
+restart; a grid rebuild with the platform live). Reloading each page once
+the files are whole recovers it (10 ms ladder). Rule: do not rebuild
+`dist` while a dev-served OpenFin platform is up — or test OpenFin against
+a production preview. Still open underneath: the thin tier's 20 s catalog
+deadline did not surface in the hung windows, so something earlier in
+`ensureConfigReady` blocks when the worker is dead at first connect
+(`ConfigManager.init({ mode: 'attach' })` is the suspect); reproduce by
+serving a truncated worker asset to a fresh profile with the console
+captured.
+
 **Open — dead ports in the workers:** with 13 live pages the platform
 worker reported 59 connected ports and 58 AppData listeners, the data
 worker 58–59 ports (data subscribers are heartbeat-swept and were exactly
@@ -937,6 +956,82 @@ consumers — the client already heartbeats data subscriptions on the data
 port; add a per-port `ping` on the platform port and let both hosts sweep
 ports (and their AppData listeners) silent for the hidden-grace window,
 mirroring the data hub's subscriber sweep.
+
+## 19. SSRM tick fan-out shipped the whole table's churn to every view (2026-09-12) — fixed
+
+**Symptoms (user, live OpenFin, twelve SSRM blotters on `stomp-ssrm1`):**
+rows appear seconds after the busy indicator clears; after a fling the
+blank rows take a couple of seconds to fill.
+
+**What it was not.** The data worker: at the demo's feed rate a block read
+costs ~3 ms of engine time with an empty queue (`hub-introspect.ssrm`,
+plan §5). Request serialisation: letting AG Grid keep four block reads in
+flight instead of two changed nothing (4.1 s vs 3.8 s fill) — the option
+stays opt-in. The event loop of the views was idle (p95 lag 13 ms).
+
+**What it was.** A CDP CPU profile of one hooked view: during a 44 s cold
+load the main thread spent 11.8 s inside the data client's
+`handleMessage` and 19 s in native `(program)` (structured-clone
+deserialisation of incoming port messages); during a 13.9 s fling window
+3.2 s + 5.3 s. AG Grid and React were a distant second. Counting the
+messages on one view's data port over 10 s at rest: 31 `ssrm-tick`
+`rowDelta` events, 45 MB in total (up to 3.2 MB each, 4.5 MB/s), carrying
+38 000 full-width rows — for a grid holding two blocks of 200. The engine's
+`poll_shared_delta` returns the whole table's churn once per flush and
+`HubSsrmRpc.flushTicks` posted that identical payload to every session of
+the provider: twelve views × 4.5 MB/s of structured clones, each view
+deserialising rows it immediately discarded as "not loaded"
+(`bindSsrmTicks` walks its loaded nodes per tick). During a fling the
+deserialisation competes with row rendering; on a cold load it stretches
+the widget mount (first block issued 11 s after `platform-ready`).
+
+**Fix.** `SsrmSessionWindows` in the data hub: every flat block a session
+reads registers its leaf keys; each `rowDelta` tick is trimmed per session
+to the rows it holds plus `unloaded: { upserts, removals }` counts, which
+`bindSsrmTicks` feeds into the same count check / positional refresh an
+unknown upsert takes. Sessions that never read a flat block, grouped
+sessions and sessions past 50 000 keys keep receiving the full delta (never
+withhold a row the grid might hold; stale keys after a purge only cost
+bytes). `hub-introspect.ssrm.tickFlush.upsertsPosted / upsertsWithheld`
+count the effect. Measured after, same hooked thirteenth
+view: 62 ticks in 10 s, 0.96 MB, 794 rows (0.10 MB/s, ≤31 kB each);
+worker counters `upsertsPosted` 0.67 M vs `upsertsWithheld` 12.0 M (95 %
+withheld); fling scroll-stop → rows filled 1.8 s (was 3.8–4.3 s; the
+view's own long tasks during the fling are still ~3 s, so what remains is
+rendering); cold reload → rows 13.7 s with the first block issued at
+12.6 s and answered in 0.76 s (was 20–28 s / 1.0–1.6 s). Tick flush in
+the worker rose from ~15 ms to 24 ms p50 with 13 sessions (keying ~3.6 k
+rows per tick + thirteen filtered posts, versus thirteen 3 MB clones) —
+~15 % of the worker thread at six flushes a second; the engine's delta
+JSON parse is most of it.
+
+**Trap met on the way (dev rig).** `vite dev` serves the worker asset
+through its transform cache and did NOT notice the rebuilt
+`dist/assets/data-services-worker.mjs` (file changed at 19:48, server
+kept serving the 18:44 bytes; `touch` did not help, `?t=` is stripped
+before the module lookup). Fresh SharedWorkers therefore ran old code
+until the dev server itself was restarted — check the served bytes
+(`curl .../@fs/.../data-services-worker.mjs | grep <new symbol>`) before
+trusting any worker-side measurement on this rig.
+
+**Still open.**
+- Rows in a tick are full width; a column-level patch from the engine
+  (the CSRM `delta-patch` shape) would cut the remaining bytes by the
+  changed-column ratio.
+- The grid does not tell the hub when it purges blocks, so a session's key
+  set only grows (bounded by the 50 000 cap, after which the session falls
+  back to full ticks). A `ssrm-blocks-dropped` hint, or `maxBlocksInCache`
+  on the grid, would keep long-scrolling sessions trimmed.
+- All numbers are from `vite dev` (development React, unminified AG Grid);
+  a production build of the views should be measured before quoting them.
+- Cold path: the 11 s between `platform-ready` and the first block read on
+  a thirteenth view is widget mount time under the tick flood; re-measure
+  now that the flood is gone, then profile what remains.
+- `stomp-ssrm1` is not `autoStart`-flagged, so the dock warms only
+  `test.dp`; flag it if the SSRM feed should be pre-started at dock load.
+- Restarting the workers: page reloads never do it (the new document joins
+  the old worker before it dies). Quit the dock and `npm run client`, or
+  `Runtime.evaluate` `self.close()` in each `shared_worker` CDP target.
 
 ## Pre-existing, tracked elsewhere
 

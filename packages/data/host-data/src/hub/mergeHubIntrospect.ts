@@ -39,5 +39,6 @@ export function mergeHubIntrospect(
     providers,
     appData: platform.appData,
     ...(data.fanout ? { fanout: data.fanout } : {}),
+    ...(data.ssrm ? { ssrm: data.ssrm } : {}),
   };
 }

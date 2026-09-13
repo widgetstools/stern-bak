@@ -46,6 +46,10 @@ export interface MarketsGridProps<TData = unknown> {
     provider: ISsrmDataProvider;
     keyColumn?: string | readonly string[];
     cacheBlockSize?: number;
+    /** AG Grid `maxConcurrentDatasourceRequests` — opt-in, see `MarketsGridSsrmConfig`. */
+    maxConcurrentDatasourceRequests?: number;
+    /** AG Grid `blockLoadDebounceMillis` — opt-in, see `MarketsGridSsrmConfig`. */
+    blockLoadDebounceMillis?: number;
   };
   /** Base column definitions — modules can transform them. */
   columnDefs: ColDef<TData>[];

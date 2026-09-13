@@ -251,7 +251,10 @@ export function bindSsrmTicks(
     const grouped = isGrouped();
     const structural = keys.length > 0 || grouped;
     const update: Row[] = [];
-    let unknown = 0;
+    // Rows the worker withheld as not loaded here count as unknown: same
+    // count check / positional refresh as an upsert we cannot find a node for.
+    let unknown = payload.unloaded?.upserts ?? 0;
+    const removedUnloaded = payload.unloaded?.removals ?? 0;
     let keyChanged = false;
     const upserts = payload.upserts ?? [];
     const lookup = upserts.length > 0 && canLookUp ? indexLoaded() : null;
@@ -289,8 +292,8 @@ export function bindSsrmTicks(
 
     if (keyChanged) scheduleRefresh(throttleMs);
     if (structural) {
-      if (unknown > 0 || remove.length > 0 || grouped) scheduleRefresh(positionalMs);
-    } else if (unknown > 0 || remove.length > 0) {
+      if (unknown > 0 || remove.length > 0 || removedUnloaded > 0 || grouped) scheduleRefresh(positionalMs);
+    } else if (unknown > 0 || remove.length > 0 || removedUnloaded > 0) {
       scheduleCountCheck();
     }
   };

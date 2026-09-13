@@ -9,7 +9,7 @@
  * access through {@link SsrmRpcContext} and keeps ownership of both.
  */
 
-import { isSsrmProviderType } from '@wellsfargo-starui/types';
+import { composeRowId, isSsrmProviderType } from '@wellsfargo-starui/types';
 import type { ProviderConfig, SsrmProviderConfig } from '@wellsfargo-starui/types';
 import type {
   Request,
@@ -26,8 +26,15 @@ import type {
 } from '../protocol.js';
 import type { RustHubFactory } from '../ssrm/RustHubHost.js';
 import { SsrmWasmPlane, publishWindowMsOf } from '../ssrm/SsrmWasmPlane.js';
+import type { SsrmGetRowsResult } from '../ssrm/ssrmTypes.js';
+import { SsrmSessionWindows } from './SsrmSessionWindows.js';
+import type { HubSsrmIntrospect, SsrmRpcTiming } from '../protocol.js';
 import type { PortLike, ProviderSlot } from './hubTypes.js';
+import { LatencyReservoir } from './latencyReservoir.js';
 import type { SubscriberRegistry } from './SubscriberRegistry.js';
+
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const NO_KEYS: readonly (string | null)[] = [];
 
 /** What the hub lends the SSRM slice. */
 export interface SsrmRpcContext {
@@ -42,6 +49,21 @@ export interface SsrmRpcContext {
 export class HubSsrmRpc {
   private readonly plane: SsrmWasmPlane;
   private tickTimer: unknown = null;
+  /** Loaded keys per session — ticks are trimmed to what each grid holds. */
+  private readonly windows = new SsrmSessionWindows();
+  // Hub-thread accounting (`hub-introspect.ssrm`): where the data worker's
+  // thread goes when N grids share one provider.
+  private readonly startedAt = now();
+  private readonly getRowsQueue = new LatencyReservoir();
+  private readonly getRowsEngine = new LatencyReservoir();
+  private readonly otherQueue = new LatencyReservoir();
+  private readonly otherEngine = new LatencyReservoir();
+  private readonly tickFlushMs = new LatencyReservoir();
+  private tickSessions = 0;
+  private ticksPosted = 0;
+  private upsertsPosted = 0;
+  private upsertsWithheld = 0;
+  private readonly ingestMs = new LatencyReservoir();
 
   constructor(
     private readonly ctx: SsrmRpcContext,
@@ -52,6 +74,7 @@ export class HubSsrmRpc {
 
   /** Dispatch an `ssrm-*` request. Returns false for any other kind. */
   handleRequest(port: PortLike, req: Request): boolean {
+    if (req.kind.startsWith('ssrm-')) this.recordQueueWait(req as SsrmRpcTiming & { kind: string });
     switch (req.kind) {
       case 'ssrm-get-rows': void this.getRows(port, req); return true;
       case 'ssrm-column-values': void this.columnValues(port, req); return true;
@@ -67,7 +90,35 @@ export class HubSsrmRpc {
 
   /** Flattened upstream rows → engine cache (no CSRM cache). */
   ingest(providerId: string, rows: readonly unknown[], replace: boolean): void {
-    void this.plane.ingest(providerId, rows, replace);
+    const t0 = now();
+    void this.plane.ingest(providerId, rows, replace).then(
+      () => this.ingestMs.record(now() - t0),
+      () => this.ingestMs.record(now() - t0),
+    );
+  }
+
+  /** Hub-thread accounting for `hub-introspect`. */
+  snapshotStats(): HubSsrmIntrospect {
+    return {
+      windowSeconds: Math.round((now() - this.startedAt) / 1000),
+      getRows: { queueMs: this.getRowsQueue.summary(), engineMs: this.getRowsEngine.summary() },
+      otherRpc: { queueMs: this.otherQueue.summary(), engineMs: this.otherEngine.summary() },
+      tickFlush: {
+        ...this.tickFlushMs.summary(),
+        sessions: this.tickSessions,
+        ticksPosted: this.ticksPosted,
+        upsertsPosted: this.upsertsPosted,
+        upsertsWithheld: this.upsertsWithheld,
+      },
+      ingest: this.ingestMs.summary(),
+    };
+  }
+
+  /** Queue wait: the client stamps `sentAt` (epoch ms); we are handling it now. */
+  private recordQueueWait(req: SsrmRpcTiming & { kind: string }): void {
+    if (typeof req.sentAt !== 'number') return;
+    const wait = Math.max(0, Date.now() - req.sentAt);
+    (req.kind === 'ssrm-get-rows' ? this.getRowsQueue : this.otherQueue).record(wait);
   }
 
   /** Boot the engine table for an SSRM provider (no-op for other types) and arm the ticker. */
@@ -99,6 +150,7 @@ export class HubSsrmRpc {
   }
 
   detachSession(subId: string): void {
+    this.windows.drop(subId);
     void this.plane.detachSession(subId);
   }
 
@@ -132,6 +184,9 @@ export class HubSsrmRpc {
   }
 
   private flushTicks(): void {
+    const t0 = now();
+    let sessions = 0;
+    let posted = 0;
     // One engine drain per flush: `tick()` returns every session's group
     // deltas at once, so polling per provider handed provider B's deltas to
     // whichever provider polled first.
@@ -141,15 +196,26 @@ export class HubSsrmRpc {
       if (ticks.length === 0) continue;
       const listeners = this.ctx.subscribers.dataListeners(providerId);
       if (!listeners) continue;
+      const keyColumn = (slot.cfg as SsrmProviderConfig).keyColumn;
       const dead: string[] = [];
       for (const tick of ticks) {
+        // Keyed once per tick, matched per session: the row delta is the whole
+        // table's churn, and each grid holds only its loaded blocks of it.
+        const upsertKeys = tick.kind === 'rowDelta' && tick.upserts
+          ? tick.upserts.map((r) => composeRowId(r, keyColumn))
+          : NO_KEYS;
         for (const l of listeners.values()) {
           // A viewDelta belongs to the ONE subscriber whose rule it is —
           // broadcasting it would fire the same alert once per window.
           if (tick.kind === 'viewDelta' && tick.watchSubId && tick.watchSubId !== l.subId) continue;
-          const event: SsrmTickEvent = { kind: 'ssrm-tick', subId: l.subId, payload: tick };
+          const payload = this.windows.trim(l.subId, tick, upsertKeys);
+          if (payload === null) continue;
+          this.upsertsPosted += payload.upserts?.length ?? 0;
+          this.upsertsWithheld += payload.unloaded?.upserts ?? 0;
+          const event: SsrmTickEvent = { kind: 'ssrm-tick', subId: l.subId, payload };
           try {
             l.port.postMessage(event);
+            posted += 1;
           } catch {
             dead.push(l.subId);
           }
@@ -157,16 +223,26 @@ export class HubSsrmRpc {
       }
       this.ctx.pruneDeadDataListeners(providerId, dead);
     }
+    // Sessions the engine drained for, whether or not they produced ticks.
+    for (const [providerId, slot] of this.ctx.providers) {
+      if (isSsrmProviderType(slot.cfg.providerType)) sessions += this.ctx.subscribers.dataCount(providerId);
+    }
+    this.tickFlushMs.record(now() - t0);
+    this.tickSessions = sessions;
+    this.ticksPosted += posted;
   }
 
   /** Run one SSRM RPC and post its `ssrm-rpc` reply, ok or error. */
   private async reply(
     port: PortLike,
-    req: { reqId: string; subId: string },
+    req: { kind: string; reqId: string; subId: string },
     run: () => Promise<unknown>,
   ): Promise<void> {
+    const engine = req.kind === 'ssrm-get-rows' ? this.getRowsEngine : this.otherEngine;
+    const t0 = now();
     try {
       const result = await run();
+      engine.record(now() - t0);
       port.postMessage({
         kind: 'ssrm-rpc',
         reqId: req.reqId,
@@ -175,6 +251,7 @@ export class HubSsrmRpc {
         result,
       } satisfies SsrmRpcEvent);
     } catch (err) {
+      engine.record(now() - t0);
       port.postMessage({
         kind: 'ssrm-rpc',
         reqId: req.reqId,
@@ -186,7 +263,19 @@ export class HubSsrmRpc {
   }
 
   private getRows(port: PortLike, req: SsrmGetRowsWireRequest): Promise<void> {
-    return this.reply(port, req, () => this.plane.getRows(req.subId, req.providerId, req.request));
+    return this.reply(port, req, async () => {
+      const result = await this.plane.getRows(req.subId, req.providerId, req.request);
+      this.noteBlock(req, result);
+      return result;
+    });
+  }
+
+  /** Remember the block's leaf keys: this session's ticks are trimmed to rows it holds. */
+  private noteBlock(req: SsrmGetRowsWireRequest, result: SsrmGetRowsResult): void {
+    const slot = this.ctx.providers.get(req.providerId);
+    if (!slot || !isSsrmProviderType(slot.cfg.providerType)) return;
+    const keyColumn = (slot.cfg as SsrmProviderConfig).keyColumn;
+    this.windows.noteBlock(req.subId, req.request, result.rowData.map((r) => composeRowId(r, keyColumn)));
   }
 
   private columnValues(port: PortLike, req: SsrmColumnValuesWireRequest): Promise<void> {

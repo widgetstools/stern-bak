@@ -285,6 +285,35 @@ export interface HubFanoutIntrospect {
   lastEpisode: { ports: number; chunksPosted: number; encodeMs: number; hubThreadMs: number; wallMs: number } | null;
 }
 
+/** One accounted operation class: count, total ms and recent percentiles. */
+export interface HubLatencyIntrospect {
+  n: number;
+  totalMs: number;
+  p50: number | null;
+  p99: number | null;
+  max: number | null;
+}
+
+/**
+ * Hub-thread accounting of the SSRM plane (data hub only): where the data
+ * worker's thread goes when N grids share one provider. Block reads carry
+ * two figures — how long a request WAITED in the worker's queue before the
+ * hub picked it up (from the client's `sentAt`), and how long the engine
+ * took to answer it.
+ */
+export interface HubSsrmIntrospect {
+  /** Seconds since the hub started accounting. */
+  windowSeconds: number;
+  /** `ssrm-get-rows`: queue wait vs engine time. */
+  getRows: { queueMs: HubLatencyIntrospect; engineMs: HubLatencyIntrospect };
+  /** Every other `ssrm-*` RPC, together. */
+  otherRpc: { queueMs: HubLatencyIntrospect; engineMs: HubLatencyIntrospect };
+  /** One tick flush = one engine `pollAllTicks` for every session + the posts. */
+  tickFlush: HubLatencyIntrospect & { sessions: number; ticksPosted: number; upsertsPosted: number; upsertsWithheld: number };
+  /** Upstream batches ingested into the engine. */
+  ingest: HubLatencyIntrospect;
+}
+
 export interface HubIntrospectSnapshot {
   connectedPorts: number;
   catalogReady: boolean;
@@ -297,6 +326,8 @@ export interface HubIntrospectSnapshot {
   };
   /** Present on the data hub's answer only. */
   fanout?: HubFanoutIntrospect;
+  /** Present on the data hub's answer only. */
+  ssrm?: HubSsrmIntrospect;
 }
 
 /** Query live hub diagnostics (providers, subscribers, cache sizes). */
@@ -405,7 +436,16 @@ export interface WorkerBootstrapRequest {
   payload: WorkerBootstrapPayload;
 }
 
-export interface SsrmGetRowsWireRequest {
+/**
+ * Client-side send stamp on every SSRM RPC (`Date.now()` — epoch ms, so the
+ * worker can subtract it despite a different `performance.timeOrigin`).
+ * The hub reports the queue wait it implies through `hub-introspect.ssrm`.
+ */
+export interface SsrmRpcTiming {
+  sentAt?: number;
+}
+
+export interface SsrmGetRowsWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-get-rows';
   reqId: string;
   providerId: string;
@@ -414,7 +454,7 @@ export interface SsrmGetRowsWireRequest {
 }
 
 /** Distinct column values for an AG Grid set filter list. */
-export interface SsrmColumnValuesWireRequest {
+export interface SsrmColumnValuesWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-column-values';
   reqId: string;
   providerId: string;
@@ -423,7 +463,7 @@ export interface SsrmColumnValuesWireRequest {
 }
 
 /** Matched row count for a filter the grid hasn't applied (pill badges). */
-export interface SsrmRowCountWireRequest {
+export interface SsrmRowCountWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-row-count';
   reqId: string;
   providerId: string;
@@ -432,7 +472,7 @@ export interface SsrmRowCountWireRequest {
 }
 
 /** Dataset-level aggregations for the SSRM status bar. */
-export interface SsrmAggregatesWireRequest {
+export interface SsrmAggregatesWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-aggregates';
   reqId: string;
   providerId: string;
@@ -440,7 +480,7 @@ export interface SsrmAggregatesWireRequest {
   request: import('./ssrm/ssrmTypes.js').SsrmAggregatesRequest;
 }
 
-export interface SsrmWatchGroupsWireRequest {
+export interface SsrmWatchGroupsWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-watch-groups';
   reqId: string;
   providerId: string;
@@ -450,7 +490,7 @@ export interface SsrmWatchGroupsWireRequest {
 }
 
 /** Watch a compiled boolean predicate over the whole dataset (viewDelta ticks). */
-export interface SsrmWatchPredicateWireRequest {
+export interface SsrmWatchPredicateWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-watch-predicate';
   reqId: string;
   providerId: string;
@@ -460,7 +500,7 @@ export interface SsrmWatchPredicateWireRequest {
 }
 
 /** Drop one watched predicate. */
-export interface SsrmUnwatchPredicateWireRequest {
+export interface SsrmUnwatchPredicateWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-unwatch-predicate';
   reqId: string;
   providerId: string;
@@ -469,7 +509,7 @@ export interface SsrmUnwatchPredicateWireRequest {
 }
 
 /** Grid edits (paste / cell edit) written into the engine cache. */
-export interface SsrmApplyEditsWireRequest {
+export interface SsrmApplyEditsWireRequest extends SsrmRpcTiming {
   kind: 'ssrm-apply-edits';
   reqId: string;
   providerId: string;
