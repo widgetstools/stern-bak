@@ -1208,6 +1208,24 @@ Grid per-row update path is the rest.
 3. Pause fan-out to hidden subscribers in the hub (it already knows
    `meta.hidden`) and replay from cache on visibility.
 
+**B0 measured (2026-09-13, plan B0, commit acd4b23):** with `Find` dropped
+from the registered modules (unused; its `FindService` debounce was the
+`clearTimeout` + `setTimeout` pair), one docked view per 10 s went from
+189 490 `setTimeout` + 94 726 `clearTimeout` to ≈ 61 250 + ≈ 17. Every
+remaining timer is ag-grid-react's `RenderStatusService`
+(`processResizeOperations`, one per updated row), which stays because the
+column menu's Autosize items need the autosize module. Hidden docked tabs
+report `document.visibilityState === 'hidden'`, keep their 100 ms timers
+(80 of 80) and do the same per-row work as visible views — the hidden
+signal for item 3 exists; the platform keeps feeding hidden views (owner
+decision, plan Phase C). Measured on the dev-served dock with isolation on. CPU profile per view
+per 10 s: busy 1.05–1.81 s, of which `(program)` 0.71–1.51 s (the 61 000
+timer macrotasks' dispatch plus message deserialisation),
+`executeBatchUpdateRowData` 99–186 ms (was 867 ms), `mergeThinPatches`
+66–106 ms. Six such views on one thread would be 6.3–10.9 s busy per 10 s,
+so plan B1 (rendered-row apply, no per-row transaction) proceeds; the
+no-isolation lag run is owed to the plan's §2 as confirmation.
+
 **Dev-rig notes:** `fin.View.getProcessInfo()` from the provider page maps
 views to PIDs; wrapping `setTimeout`/`clearTimeout` in an init script and
 bucketing by callback source finds timer storms that CPU profiles only

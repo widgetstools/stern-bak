@@ -155,6 +155,11 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | CSRM feed on the demo provider (20 000 rows, 372 columns, thin deltas, throttle 250 ms, conflate by key) | ~5 000 patched rows/s per view, 4.4 changed fields per row, 564 kB/s on the wire | WORKLOG 21 |
 | AG Grid per-row update path, one view, 10 s | 189 490 `setTimeout` + 94 726 `clearTimeout`; 74 841 timers ran as separate tasks; batched flushes 867 ms | WORKLOG 21 |
 | The two timers | `RenderStatusService` (ag-grid-react, autosize bean) + `FindService` `_debounce` (enterprise, CSRM only); both from `AllEnterpriseModule` | this revision, installed bundles |
+| B0 shipped list (Find out), dev-served dock, isolation on, 12 docked CSRM views (4 visible + 8 hidden tabs), 10 s, per view | `setTimeout` 61 229–61 262 (from 189 490), `clearTimeout` 12–22 (from 94 726), timers run as tasks ≈ 61 240 (from 74 841); the one remaining bucket is `colAutosize.processResizeOperations` at 61 169 = one per updated row; 12 batch flushes | B0, 2026-09-13 |
+| Same run, main thread per view | lag p50 0–0.3 ms / p95 1.7–8 ms / max 19–38 ms; visible views 118–119 fps; long tasks 0 per 10 s — WITH isolation, dev server; the no-isolation number is still owed | B0 |
+| Same run, hidden docked tabs | `document.visibilityState === 'hidden'` on all 8 inactive tabs; 100 ms timers 80 of 80; 0 rAF frames; timer census identical to the visible views | B0 — C entry (b) met |
+| Same run, renderer processes | 12 views → 12 PIDs, 444–505 MB working set each, 2–30 % CPU | B0 |
+| Same run, CPU profile per view (`cdp-cpu-profile`, 250 µs sampling) | busy 1.05–1.81 s per 10 s (10–17 %), of which `(program)` 0.71–1.51 s (native: task dispatch for the 61 000 autosize timers, message deserialisation); `executeBatchUpdateRowData` inclusive 99–186 ms (from 867 ms); data client `handleMessage` 82–119 ms, `mergeThinPatches` self 66–106 ms; GC 5–136 ms; the autosize timers themselves ≤ 19 ms when they run | B0 |
 | Six CSRM views docked in one renderer | lag 338 ms p50 / 737 ms p95, later 1.4–5.5 s; 4–5 fps; hidden tabs as busy as visible ones | WORKLOG 21 |
 | Same six views, one renderer per view | lag 0 / 96–153 / 150–226 ms; 60 fps; 505–644 MB per view (~3.4 GB vs 2.9 GB shared) | experiment doc §4 |
 | Data worker thread at the demo SSRM rate | ingest 35 % of the thread (58 ms p50 per batch, ~100 µs/row), tick flush 17 %; block reads queue 39 ms p50 / 980 ms p99 behind them, engine 7–17 ms | WORKLOG 19 |
@@ -234,6 +239,19 @@ shelved and WORKLOG 21 records the number. If only (ii) meets it, the lever is
 an upstream fix to `RenderStatusService` (one queued timer, not one per
 event), which is a report to AG Grid, not a platform change. The expected
 outcome is that B1 proceeds: the flush cost is independent of timers.
+**Measured 2026-09-13, (i) on the dev-served dock with isolation on (12
+views):** `clearTimeout` 94 726 → 12–22 and `setTimeout` 189 490 → ≈ 61 250 per
+view per 10 s; every remaining timer is `RenderStatusService`'s
+`processResizeOperations`, one per updated row. Hidden tabs do exactly the
+same timer work as visible ones. The flush is measured: `executeBatchUpdateRowData` 99–186 ms per view
+per 10 s, under B1's 200 ms line already; what the 61 000 autosize macrotasks
+cost sits in `(program)`, 0.7–1.5 s per view per 10 s, and each view is busy
+1.05–1.81 s per 10 s in total. **Decision (2026-09-13): B1 proceeds.** Six of
+these views on one shared renderer thread would carry 6.3–10.9 s of busy time
+per 10 s — saturation — so the no-isolation lag run cannot pass the rule; it
+is still owed to §2 as confirmation (manifest key removed, dock restarted).
+(ii) needs a throwaway build on a production preview, never under the
+dev-served dock (constraint 6). Code: commit acd4b23.
 **Verify.** `npx turbo test --filter=@wellsfargo-starui/grid`; `apps/e2e`
 customizer smoke; no AG Grid error #200 in the console; the census script.
 **Off switch.** None needed: a missing module is a visible error, and `modules`
@@ -331,10 +349,9 @@ rendered nodes plus one model refresh. Then the acceptance run on the
 production dock: six CSRM blotters docked as four panes + two tabs, WITHOUT
 isolation.
 
-**Entry.** B2; G1's `cdp-hidden-liveness.mjs` has recorded
-`document.visibilityState` for an inactive docked tab. If it reads `visible`,
-the hidden branch is inert in OpenFin tab stacks and this phase records that
-instead of claiming the saving.
+**Entry.** B2. G1's `cdp-hidden-liveness.mjs` recorded
+`document.visibilityState === 'hidden'` on every inactive docked tab
+(2026-09-13, 8 of 12 views), so the hidden branch has its signal.
 **Out of scope.** Hub-side pausing (C).
 **Exit.** Six docked views without isolation: lag p95 < 250 ms (from 737 ms+);
 hidden tabs' long tasks per 10 s and the census recorded in §2; alerts fire on
@@ -366,7 +383,8 @@ target box after B3 (WORKLOG 21 measured 9–14 s on the shared thread).
 above; (b) G1's probe shows
 `document.visibilityState === 'hidden'` for an inactive docked tab — otherwise
 `meta.hidden` (`SharedWorkerDataServicesClient.ts:969`) never flips and this
-phase has no trigger.
+phase has no trigger. **(b) met 2026-09-13:** `cdp-hidden-liveness` on the
+dock read `hidden` on all 8 inactive docked tabs, timers 80 of 80.
 
 **What.** In `ReplayScheduler` / the delta broadcast
 (`SharedWorkerDataServicesHub.ts:115` already exposes `isHidden(subId)`), skip
