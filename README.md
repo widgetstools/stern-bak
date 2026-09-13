@@ -131,7 +131,7 @@ and [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 | `npm test` | turbo Vitest across `packages/` |
 | `npm run test:coverage` | instrumented run; merges per-bucket LCOV → `coverage/lcov.info` (Sonar) |
 | `npm run check:coverage` | the **70%-per-file** gate (lines, statements, functions, branches) |
-| `npm run lint:all` | ESLint + dependency cycles + design-system dep rules + RTL enforcement |
+| `npm run lint:all` | ESLint + dependency cycles + design-system dep rules + RTL enforcement + file/function size ratchet (`check:loc`) |
 | `npm run check:ds-tokens` | no-hardcoded-hex token policy scan |
 | `npm run pack:npm` | pack each package as a real npm tarball → `dist-npm/` |
 | `npm run verify:external` | prove the tarballs install with `packages/` hidden |

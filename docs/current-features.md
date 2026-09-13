@@ -1770,6 +1770,11 @@ tracks — source and tarball — are described in
 `@wellsfargo-starui/mcp-scaffold` (`tools/mcp-scaffold`) was **deleted**;
 recover from git history if it is ever revived.
 
+### Gates
+
+- `npm run check:loc` (`scripts/check-file-size.mjs`, part of `lint:all`) — the complexity ceilings (800 logical lines per file, 80 per function) as a ratchet: runs ESLint's own `max-lines` / `max-lines-per-function` rules alone with the options and test carve-outs read from `eslint.config.mjs`, and compares against `scripts/file-size-baseline.json`. A file not in the baseline may not exceed either ceiling; a listed file may not grow; entries only go down (`--update` lowers, `--update --allow-growth` is the deliberate exception) and each names the refactor-plan phase that removes it.
+- `apps/scripts/ssrm-perf/cdp-*.mjs` + `csrm-frame-counter.mjs` — the dock probes behind WORKLOG 19–21 as scripts over raw CDP against the running OpenFin dock (`cdpDock.mjs`): timer census by callback source, main-thread lag / frame gaps / long tasks, hidden-tab liveness + `document.visibilityState`, view → renderer PID map, AG Grid instances per load + fiber depth, and frames / rows / bytes per message kind on the data port. README rows in `apps/scripts/ssrm-perf/README.md`.
+
 ### Consumer documentation
 
 - `docs/MARKETSGRID_USAGE_GUIDE.md` — scenario matrix for MarketsGrid (`MarketsGrid` / `MarketsGridContainer` / `HostedMarketsGrid`), hub bootstrap, OpenFin vs browser, persistence, customizer UI (§22), troubleshooting

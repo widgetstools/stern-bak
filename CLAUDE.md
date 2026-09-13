@@ -250,7 +250,8 @@ Run mentally before writing code for any feature add / update / remove:
 3. **Reuse before new** — search for existing implementations first
 4. **Anti-pattern refuse list** — no native `<input>`/`<textarea>`/`<select>`
    (use shadcn), no per-panel re-exploration of settled UI
-5. **Complexity ceilings** — 800 LOC / file, 80 LOC / function
+5. **Complexity ceilings** — 800 LOC / file, 80 LOC / function (enforced as a
+   ratchet by `npm run check:loc`; a file over the ceiling may not grow)
 6. **Test coverage** — unit for logic, e2e for interaction
 7. **No versioned code** — never `v1/`, `v2/`, `legacy/` in paths or
    doc phasing; superseded code is deleted in the same change as its
