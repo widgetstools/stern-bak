@@ -4,7 +4,7 @@
   "$comment-scrollbars": "Native scrollbars use the platform default (Win11 Fluent: thin rounded thumb that expands on hover) — fully composited, and AG Grid gutters self-size via the grid's runtime scrollbarWidth probe either way. To switch to the classic always-thick square style instead, append FluentScrollbar,FluentOverlayScrollbar,OverlayScrollbar to the ONE comma-separated --disable-features flag (repeated flags don't merge). Arbitrary widths would require ::-webkit-scrollbar styling, which forces main-thread painted scrollbars — deliberately ruled out (see design-system styles/scrollbar.css AG exemption).",
   "runtime": {
     "arguments": "--enable-mesh --security-realm=star-demo --remote-debugging-port=9091 --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --disable-features=IntensiveWakeUpThrottling,Freezing",
-    "version": "43.142.101.2"
+    "version": "43.142.104.2"
   },
   "$comment-devtools": "devtools_port + --remote-debugging-port together expose the OpenFin runtime to Chrome DevTools. Open chrome://inspect#devices in a separate Chrome window and click 'Configure...' → add 'localhost:9091', then SharedWorkers (data-services) appear under 'Other'.",
   "devtools_port": 9091,
