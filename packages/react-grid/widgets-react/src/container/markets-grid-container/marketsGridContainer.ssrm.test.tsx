@@ -7,7 +7,7 @@ import type { StorageAdapter } from '@wellsfargo-starui/core';
 const PROVIDER_ID = 'dp-ssrm';
 
 interface StubMarketsGridProps {
-  ssrm?: { provider: { id: string }; cacheBlockSize?: number };
+  ssrm?: { provider: { id: string }; cacheBlockSize?: number; blockLoadDebounceMillis?: number; maxConcurrentDatasourceRequests?: number };
   adminActions?: { id: string; onClick: () => void }[];
 }
 
@@ -21,6 +21,8 @@ const RESOLVED_CFG = {
   providerType: 'stomp-ssrm',
   keyColumn: 'positionId',
   blockSize: 175,
+  blockLoadDebounceMillis: 120,
+  maxConcurrentDatasourceRequests: 4,
   columnDefinitions: [{ field: 'positionId' }, { field: 'desk' }],
 };
 
@@ -163,6 +165,8 @@ describe('MarketsGridContainer — stomp-ssrm auto-pick', () => {
     renderContainer();
     await waitFor(() => expect(lastMarketsGridProps.current?.ssrm?.provider.id).toBe(PROVIDER_ID));
     expect(lastMarketsGridProps.current?.ssrm?.cacheBlockSize).toBe(175);
+    expect(lastMarketsGridProps.current?.ssrm?.blockLoadDebounceMillis).toBe(120);
+    expect(lastMarketsGridProps.current?.ssrm?.maxConcurrentDatasourceRequests).toBe(4);
   });
 
   it('keeps the ssrm config referentially stable across re-renders', async () => {

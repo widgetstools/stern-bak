@@ -668,7 +668,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `RestFields` — URL, headers, auth, body template
 - `StompFields` — broker URL, login, subscribe topics, parsing
-- `StompSsrmFields` — `StompFields` plus SSRM knobs (`blockSize`, `publishWindowMs`, `searchColumns`); Behaviour tab reconnect-only (no CSRM thin-deltas / wireFormat / projectFields)
+- `StompSsrmFields` — `StompFields` plus SSRM knobs (`blockSize`, `blockLoadDebounceMillis` "Block load debounce", `maxConcurrentDatasourceRequests` "Block reads in flight", `publishWindowMs`, `searchColumns`); the two block-read knobs live on `StompSsrmProviderConfig` / `MockSsrmProviderConfig` and `MarketsGridContainer` passes them to the grid's `ssrm` config with `blockSize` → `cacheBlockSize`; Behaviour tab reconnect-only (no CSRM thin-deltas / wireFormat / projectFields)
 - `MockFields` — seed data, latency, mutation playback
 - `AppDataFields` — read from `@wellsfargo-starui/data` AppData
 - `BehaviourFields` — per-transport behaviour knobs. Every transport: a **Start-up** section with the `autoStart` switch ("Start with the platform") — the OpenFin dock / app warm-up (`warmPlatform(..., { providers: 'autoStart' })`) starts the provider in the data worker before any view asks for it; STOMP: reconnect initial delay, realtime throttle (on/off switch + ms) + conflation (on/off switch + conflate-by-key), "Thin field-level deltas" switch (`thinDeltas`), snapshot chunk size, "Wire format" select (`wireFormat`: JSON / Columnar), "Keep only column fields" projection switch (`projectFields`) (all written to `cfg`, also settable in code)

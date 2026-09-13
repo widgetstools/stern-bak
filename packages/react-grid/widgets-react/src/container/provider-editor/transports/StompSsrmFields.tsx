@@ -30,6 +30,48 @@ export function StompSsrmFields({ cfg, onChange }: StompSsrmFieldsProps) {
           </p>
         </div>
         <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Block load debounce (ms)</Label>
+          <Input
+            type="number"
+            className="h-8 text-sm"
+            min={0}
+            max={2000}
+            step={10}
+            placeholder="0 — AG Grid default (no debounce)"
+            value={cfg.blockLoadDebounceMillis ?? ''}
+            onChange={(e) => {
+              const v = Math.floor(Number(e.target.value) || 0);
+              onChange({ blockLoadDebounceMillis: v > 0 ? v : undefined });
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            AG Grid <code className="bg-muted px-1 rounded text-[10px]">blockLoadDebounceMillis</code> — wait this long
+            after the viewport last moved before reading blocks, so a thumb drag or fling reads only the blocks it
+            stops on. Try 100. Empty = read every block the viewport crosses.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Block reads in flight</Label>
+          <Input
+            type="number"
+            className="h-8 text-sm"
+            min={1}
+            max={8}
+            step={1}
+            placeholder="2 — AG Grid default"
+            value={cfg.maxConcurrentDatasourceRequests ?? ''}
+            onChange={(e) => {
+              const v = Math.floor(Number(e.target.value) || 0);
+              onChange({ maxConcurrentDatasourceRequests: v > 0 ? v : undefined });
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            AG Grid <code className="bg-muted px-1 rounded text-[10px]">maxConcurrentDatasourceRequests</code> — block
+            reads the grid keeps in flight at once. Raise to 4 when the worker answers faster than the page renders,
+            so a fling&apos;s blocks load together instead of two at a time.
+          </p>
+        </div>
+        <div className="space-y-1.5">
           <Label className="text-xs font-medium text-muted-foreground">Publish window (ms)</Label>
           <Input
             type="number"

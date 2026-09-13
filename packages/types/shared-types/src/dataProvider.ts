@@ -271,6 +271,19 @@ export interface StompSsrmProviderConfig extends Omit<StompProviderConfig, 'prov
   providerType: 'stomp-ssrm';
   /** AG Grid `cacheBlockSize`. Default 200. */
   blockSize?: number;
+  /**
+   * AG Grid `blockLoadDebounceMillis`: wait this long after the viewport
+   * last moved before reading blocks, so a thumb drag or fling reads only
+   * the blocks it stops on instead of every block it crossed. Unset = AG
+   * Grid's default (no debounce). Applied by `MarketsGridContainer`.
+   */
+  blockLoadDebounceMillis?: number;
+  /**
+   * AG Grid `maxConcurrentDatasourceRequests`: block reads in flight at
+   * once. Unset = AG Grid's default (2). Raise it when the worker answers
+   * faster than the page renders, so a fling's blocks load together.
+   */
+  maxConcurrentDatasourceRequests?: number;
   /** WASM tick / shared-delta poll window in ms. Default 100. */
   publishWindowMs?: number;
   /** Columns included in worker quick-filter matching. */
@@ -392,6 +405,19 @@ export interface MockSsrmProviderConfig extends Omit<MockProviderConfig, 'provid
   providerType: 'mock-ssrm';
   /** AG Grid `cacheBlockSize`. Default 200. */
   blockSize?: number;
+  /**
+   * AG Grid `blockLoadDebounceMillis`: wait this long after the viewport
+   * last moved before reading blocks, so a thumb drag or fling reads only
+   * the blocks it stops on instead of every block it crossed. Unset = AG
+   * Grid's default (no debounce). Applied by `MarketsGridContainer`.
+   */
+  blockLoadDebounceMillis?: number;
+  /**
+   * AG Grid `maxConcurrentDatasourceRequests`: block reads in flight at
+   * once. Unset = AG Grid's default (2). Raise it when the worker answers
+   * faster than the page renders, so a fling's blocks load together.
+   */
+  maxConcurrentDatasourceRequests?: number;
   /** WASM tick / shared-delta poll window in ms. Default 100. */
   publishWindowMs?: number;
   /** Columns included in worker quick-filter matching. */

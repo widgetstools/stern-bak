@@ -922,6 +922,10 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
         provider: ssrmProvider,
         keyColumn: rowIdField ?? undefined,
         cacheBlockSize: (activeCfg as { blockSize?: number } | null)?.blockSize,
+        // Block-read shape from the provider editor's SSRM section; unset
+        // leaves AG Grid's defaults (no debounce, two reads in flight).
+        blockLoadDebounceMillis: (activeCfg as { blockLoadDebounceMillis?: number } | null)?.blockLoadDebounceMillis,
+        maxConcurrentDatasourceRequests: (activeCfg as { maxConcurrentDatasourceRequests?: number } | null)?.maxConcurrentDatasourceRequests,
       }
       : undefined),
     [isSsrm, ssrmProvider, rowIdField, activeCfg],

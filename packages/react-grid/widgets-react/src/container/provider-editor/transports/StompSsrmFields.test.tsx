@@ -24,6 +24,23 @@ describe('StompSsrmFields', () => {
     expect(screen.getByText('Search columns')).toBeInTheDocument();
   });
 
+  it('writes block load debounce and reads-in-flight, and unsets them when cleared', async () => {
+    const onChange = vi.fn();
+    render(<StompSsrmFields cfg={{ ...base, blockLoadDebounceMillis: 130, maxConcurrentDatasourceRequests: 4 }} onChange={onChange} />);
+    expect(screen.getByText('Block load debounce (ms)')).toBeInTheDocument();
+    expect(screen.getByText('Block reads in flight')).toBeInTheDocument();
+    const debounce = screen.getByDisplayValue('130');
+    await userEvent.clear(debounce);
+    expect(onChange).toHaveBeenLastCalledWith({ blockLoadDebounceMillis: undefined });
+    await userEvent.type(debounce, '5');
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ blockLoadDebounceMillis: expect.any(Number) }));
+    const inFlight = screen.getByDisplayValue('4');
+    await userEvent.clear(inFlight);
+    expect(onChange).toHaveBeenLastCalledWith({ maxConcurrentDatasourceRequests: undefined });
+    await userEvent.type(inFlight, '3');
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ maxConcurrentDatasourceRequests: expect.any(Number) }));
+  });
+
   it('edits blockSize', async () => {
     const onChange = vi.fn();
     render(<StompSsrmFields cfg={base} onChange={onChange} />);
