@@ -333,7 +333,7 @@ Per-renderer config types (`PillRendererConfig`,
 - `MarketsGridHandle` — imperative ref (grid API + platform methods, `exportVisualExcel`)
 - `MarketsGridProps` — host context, storage factory, module overrides, callbacks;
   perf props: `sizeColumnsToFitOnReady` (default `false`), `includeAllStreamSafeFilters` (default `true`),
-  `agGridModules` (optional subset registration; default full enterprise);
+  `agGridModules` (optional subset registration; default `platformAgGridModules()` — every `AllEnterpriseModule` member except `Find`, which is unused and armed a debounce timer per updated row; the provider editor's embedded grids register the same list);
   streaming: keep `rowData` referentially stable and push live deltas via `applyTransactionAsync`;
   editing chrome: `showEditingToolbar`, legacy `showSmartEditToolbar` /
   `showBulkUpdateToolbar` / `showEditHistoryToolbar`, `showVisualExcelExport`,

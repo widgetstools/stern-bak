@@ -32,7 +32,7 @@ import { ExpressionEngine } from '@wellsfargo-starui/core';
 import type { ColumnDefinition } from '@wellsfargo-starui/types/shared';
 import { normalizeKeyColumns } from '@wellsfargo-starui/types/shared';
 import { MultiSelect } from '../MultiSelect.js';
-import { ensureProviderEditorAgGridModules } from '../ensureProviderEditorAgGridModules.js';
+import { ensureAgGridModules } from '@wellsfargo-starui/grid';
 import { exportColumnDefs, parseColumnDefsImport } from '../columnDefsIo.js';
 import { useAgGridTheme } from '../../../theme/useAgGridTheme.js';
 
@@ -58,7 +58,7 @@ export interface ColumnsTabProps {
 }
 
 export function ColumnsTab({ columns, onChange, keyColumn, onKeyColumnChange }: ColumnsTabProps) {
-  ensureProviderEditorAgGridModules();
+  ensureAgGridModules();
   const { theme: gridTheme } = useAgGridTheme();
 
   const defaultColDef = useMemo<ColDef>(() => ({

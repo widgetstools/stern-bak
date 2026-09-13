@@ -7,6 +7,7 @@
  */
 
 export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES, MINIMAL_MODULES } from './widget/MarketsGrid.js';
+export { ensureAgGridModules, platformAgGridModules, EXCLUDED_AG_GRID_MODULES } from './widget/ensureAgGridModules.js';
 export {
   createSsrmDatasource,
   ssrmGetRowId,

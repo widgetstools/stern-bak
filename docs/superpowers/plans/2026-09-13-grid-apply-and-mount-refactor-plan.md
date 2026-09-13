@@ -204,25 +204,36 @@ dock; `npm run lint:all`.
 per-row cost that remains is the 867 ms of flush + listener work, and that
 number decides whether B1 is a design rewrite or unnecessary.
 
-**What.** Replace the `AllEnterpriseModule` default in
-`packages/react-grid/grid/src/widget/ensureAgGridModules.ts` with the explicit
-list the grid and customizer use (derive it by running the grid suite and the
-customizer e2e with the list and adding every module AG Grid names in its
-"module not registered" error). `FindModule` is not in the list. The autosize
-module is added by `ensureAgGridModules` only when the caller passes
-`sizeColumnsToFitOnReady` (the call site is `MarketsGrid.tsx:88`). `modules`
-stays a prop for consumers that need more. Then, on the production dock, the
-census on one view and the six-blotter measurement WITHOUT isolation (manifest
-key removed for the run).
+**What.** Register the modules explicitly: `ensureAgGridModules` unpacks
+`AllEnterpriseModule` / `AllCommunityModule` one level and registers every
+member except an exclusion list (`platformAgGridModules()` in
+`packages/react-grid/grid/src/widget/ensureAgGridModules.ts`). `Find` is
+excluded — nothing in the repo uses it and its `FindService` debounce is one
+of the two timers. The column-autosize module STAYS: ag-grid-react's
+`RenderStatusService` timer is gated on it, but so are the column menu's
+"Autosize This Column / All Columns" items (the `ColumnMenu` item factory
+checks for the service), so dropping it is a feature change, not a
+measurement. The provider editor's own `AllEnterpriseModule` registration
+(`ensureProviderEditorAgGridModules.ts`) is replaced by the same call —
+`ModuleRegistry` is global, so it would put Find back for every grid.
+`agGridModules` stays a prop for consumers that need more. Then, on the
+production dock, two census runs: (i) the shipped list; (ii) a throwaway local
+build with `ColumnAutoSize` added to the exclusion — the zero-timer floor,
+measured and not committed. Plus the six-blotter measurement WITHOUT
+isolation (manifest key removed for the run) on (i).
 
 **Entry.** G1. **Out of scope.** The apply path.
-**Exit.** Census on one view: `setTimeout` < 5 000 per 10 s, `clearTimeout` ≈ 0,
-with transactions unchanged; flush + listener time per 10 s and six-docked-view
-lag p95 recorded in §2. **Decision rule for B1:** B1–B3 proceed unless six
+**Exit.** Census on one view, transactions unchanged: (i) `clearTimeout` ≈ 0
+and `setTimeout` about half of 189 490 (the FindService pair gone; the
+`RenderStatusService` timer remains); (ii) `setTimeout` < 5 000 and timers run
+as tasks < 2 000 — the floor. Flush + listener time per 10 s and the
+six-docked-view lag p95 on (i) recorded in §2. **Decision rule for B1:** B1–B3 proceed unless six
 docked views without isolation reach lag p95 < 250 ms AND flush + listener
-time ≤ 200 ms per 10 s — in which case B1–B3 are shelved and WORKLOG 21 records
-the number. The expected outcome is that B1 proceeds: the flush cost is
-independent of timers.
+time ≤ 200 ms per 10 s on the shipped list (i) — in which case B1–B3 are
+shelved and WORKLOG 21 records the number. If only (ii) meets it, the lever is
+an upstream fix to `RenderStatusService` (one queued timer, not one per
+event), which is a report to AG Grid, not a platform change. The expected
+outcome is that B1 proceeds: the flush cost is independent of timers.
 **Verify.** `npx turbo test --filter=@wellsfargo-starui/grid`; `apps/e2e`
 customizer smoke; no AG Grid error #200 in the console; the census script.
 **Off switch.** None needed: a missing module is a visible error, and `modules`
