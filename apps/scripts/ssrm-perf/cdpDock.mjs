@@ -21,7 +21,7 @@ export function parseArgs(argv, defaults = {}) {
   const args = {
     cdp: process.env.CDP_URL ?? 'http://127.0.0.1:9091',
     url: '', all: false, reload: false, bytes: false,
-    seconds: 10, warmup: 3, top: 15, tag: '', help: false,
+    seconds: 10, warmup: 3, top: 15, tag: '', help: false, match: '', interval: 250,
     ...defaults,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -38,6 +38,8 @@ export function parseArgs(argv, defaults = {}) {
       case '--warmup': args.warmup = Number(next()); break;
       case '--top': args.top = Number(next()); break;
       case '--tag': args.tag = next(); break;
+      case '--match': args.match = next(); break;
+      case '--interval': args.interval = Number(next()); break;
       case '--help': case '-h': args.help = true; break;
       default: throw new Error(`unknown argument ${a} (try --help)`);
     }

@@ -10,14 +10,16 @@
 //      (SharedWorkerDataServicesClient.ts:969). If an inactive OpenFin tab
 //      reports `visibilityState === 'visible'`, hub-side pausing never
 //      triggers for exactly its target case. This prints it per view, next
-//      to OpenFin's own `View.isShowing()` when `fin` is present.
+//      to whether `fin` is present (OpenFin views expose no isShowing()).
 //
 //   node cdp-hidden-liveness.mjs --url blotter --all --seconds 8
 import { COMMON_FLAGS, evaluate, forEachPage, pageLabel, parseArgs, round, run, writeResult } from './cdpDock.mjs';
 
 const PROBE = (seconds) => `(async () => {
-  const vis = { visibilityState: document.visibilityState, hidden: document.hidden, hasFocus: document.hasFocus(), fin: typeof fin !== 'undefined', finShowing: null };
-  if (vis.fin) { try { vis.finShowing = await fin.View.getCurrentSync().isShowing(); } catch (e) { vis.finShowing = 'n/a: ' + String(e && e.message || e); } }
+  // OpenFin views expose no isShowing(); document.visibilityState is the
+  // signal the hub's meta.hidden derives from, and it reads 'hidden' for an
+  // inactive docked tab (measured 2026-09-13, 8 of 12 views).
+  const vis = { visibilityState: document.visibilityState, hidden: document.hidden, hasFocus: document.hasFocus(), fin: typeof fin !== 'undefined' };
   return new Promise((resolve) => {
     const expected = Math.round(${seconds} * 1000 / 100);
     let fired = 0, maxGap = 0, last = performance.now(), rafFrames = 0, rafOn = true;
@@ -36,9 +38,9 @@ run(async () => {
     return;
   }
   const results = await forEachPage(args, async (session, target) => ({ page: pageLabel(target), ...(await evaluate(session, PROBE(args.seconds))) }));
-  console.log('\nvisibilityState  hidden  fin.isShowing  ticks fired/expected  max gap ms  rAF frames  page');
+  console.log('\nvisibilityState  hidden  fin  ticks fired/expected  max gap ms  rAF frames  page');
   for (const r of results) {
-    console.log(`${r.visibilityState.padEnd(15)}  ${String(r.hidden).padEnd(6)}  ${String(r.fin ? r.finShowing : '(no fin)').padEnd(13)}  ${String(r.fired).padStart(5)}/${String(r.expected).padEnd(9)}  ${String(round(r.maxGap, 0)).padStart(10)}  ${String(r.rafFrames).padStart(10)}  ${r.page}`);
+    console.log(`${r.visibilityState.padEnd(15)}  ${String(r.hidden).padEnd(6)}  ${(r.fin ? 'yes' : 'no ').padEnd(3)}  ${String(r.fired).padStart(5)}/${String(r.expected).padEnd(9)}  ${String(round(r.maxGap, 0)).padStart(10)}  ${String(r.rafFrames).padStart(10)}  ${r.page}`);
   }
   console.log(`\nwrote ${writeResult('cdp-hidden-liveness', args.tag, { args, results })}`);
 });

@@ -8,7 +8,7 @@
 // Runs on the OpenFin PROVIDER page (it owns the platform's windows):
 //   node cdp-process-map.mjs                       # default --url /platform/provider
 //   node cdp-process-map.mjs --url provider --tag isolated
-// Prints one row per view (window, view, pid, memory, affinity tag, showing)
+// Prints one row per view (window, view, pid, memory, affinity tag)
 // and a PID summary; the raw `fin.System.getAllProcessInfo()` tree goes to
 // the JSON. Not an OpenFin page → says so and exits 1.
 import { COMMON_FLAGS, evaluate, forEachPage, pageLabel, parseArgs, round, run, writeResult } from './cdpDock.mjs';
@@ -25,7 +25,6 @@ const MAP = `(async () => {
       const row = { window: w.identity.name, view: v.identity.name };
       try { const o = await v.getOptions(); row.url = o.url; row.processAffinity = o.processAffinity ?? null; row.backgroundThrottling = o.backgroundThrottling ?? null; } catch (e) { row.optionsError = String(e); }
       try { row.process = await v.getProcessInfo(); } catch (e) { row.processError = String(e); }
-      try { row.showing = await v.isShowing(); } catch {}
       views.push(row);
     }
   }
@@ -48,13 +47,13 @@ run(async () => {
   const rows = result.views.map((v) => ({
     window: v.window, view: v.view, pid: v.process?.pid ?? null,
     workingSetMB: mb(v.process?.workingSetSize), privateMB: mb(v.process?.privateSetSize),
-    cpu: v.process?.cpuUsage ?? null, affinity: v.processAffinity, showing: v.showing ?? null,
+    cpu: v.process?.cpuUsage ?? null, affinity: v.processAffinity,
     url: v.url, error: v.processError ?? v.optionsError ?? null,
   }));
   console.log(`\n${result.page}\n${result.windows.length} child window(s), ${rows.length} view(s)\n`);
-  console.log('pid      workingSet MB  private MB  cpu   showing  affinity        window / view');
+  console.log('pid      workingSet MB  private MB  cpu   affinity        window / view');
   for (const r of rows) {
-    console.log(`${String(r.pid ?? '?').padEnd(8)} ${String(r.workingSetMB ?? '?').padStart(13)}  ${String(r.privateMB ?? '?').padStart(10)}  ${String(r.cpu ?? '?').padStart(4)}  ${String(r.showing ?? '?').padEnd(7)}  ${String(r.affinity ?? '(none)').padEnd(15)} ${r.window} / ${r.view}${r.error ? `   ! ${r.error}` : ''}`);
+    console.log(`${String(r.pid ?? '?').padEnd(8)} ${String(r.workingSetMB ?? '?').padStart(13)}  ${String(r.privateMB ?? '?').padStart(10)}  ${String(r.cpu ?? '?').padStart(4)}  ${String(r.affinity ?? '(none)').padEnd(15)} ${r.window} / ${r.view}${r.error ? `   ! ${r.error}` : ''}`);
   }
   const byPid = new Map();
   for (const r of rows) { if (r.pid == null) continue; byPid.set(r.pid, (byPid.get(r.pid) ?? 0) + 1); }
