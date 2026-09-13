@@ -1074,6 +1074,52 @@ opt-in; worker-side, a 400-row read costs the engine 17 ms and queues
   the old worker before it dies). Quit the dock and `npm run client`, or
   `Runtime.evaluate` `self.close()` in each `shared_worker` CDP target.
 
+## 20. Every blotter built its AG Grid twice (2026-09-13) — fixed
+
+**Symptom (user, production build):** the AG Grid Enterprise licence
+banner printed twice per blotter, CSRM and SSRM alike.
+
+**Cause, measured on the production dock over CDP (a DevTools hook
+installed before the app ran, fiber tree diffed per commit):** the first
+`AgGridReact` instance belonged to `MarketsGridContainer`'s
+`key="__no_provider__"` placeholder grid, the second to the real grid
+keyed `csrm::<providerId>::<rowIdField>`, ~80 ms later. The container's
+identity props (userId, appId, instanceId, storage) were stable and the
+grid-level data loaded once. The sequence was: `loaded` and the persisted
+selection landed together; on that same render `useDataProviderConfig`
+still returned its previous, null-provider view `{ cfg: null,
+loading: false }` — its effect re-syncs `loading` only one render later —
+so the container's "provider chosen but config loading" guard missed,
+fell through to the no-provider branch and mounted a full MarketsGrid
+(AG Grid + enterprise modules, licence check) for one commit. The next
+render said `loading: true`, the config arrived, and the keyed grid
+replaced the placeholder.
+
+**Fix.** `useDataProviderConfig` stamps each stored view with the
+providerId it describes and derives the returned view synchronously: a
+view for another id (or none) reports `{ cfg: null, loading: true }` on
+the very render the new id appears. `MarketsGridContainer` additionally
+treats "provider chosen, no cfg, no error" as loading regardless of the
+flag. Regression tests: the hook's render log never contains
+`{ cfg: null, loading: false }` for a provider whose config has not
+landed; the container mounts the stub grid exactly once across the
+pending → loaded transition and still offers the no-provider grid when
+the config fetch has failed.
+
+**Cost of the bug** was a full grid boot per blotter on every load (in
+production ~80 ms of main-thread work plus the second licence check; in
+`vite dev` several hundred ms), on top of StrictMode's dev-only double
+mount.
+
+**Dev-rig notes (how it was found):** `console` stacks name the creator
+of each banner (`Runtime.consoleAPICalled` carries call frames); a
+minimal `__REACT_DEVTOOLS_GLOBAL_HOOK__` installed by
+`Page.addScriptToEvaluateOnNewDocument` receives every commit from
+production React, which lets one diff the ancestor chains of two grid
+instances and read hook state per commit. A `.ag-root-wrapper` appended
+straight under `document.body` is `measureNativeScrollbarWidth`'s probe,
+not a grid.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

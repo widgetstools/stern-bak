@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import type { ProviderStatus } from '@wellsfargo-starui/data/runtime';
 import type { StorageAdapter } from '@wellsfargo-starui/core';
@@ -65,10 +66,26 @@ const ssrmHookResult = {
   restart: vi.fn().mockResolvedValue(undefined),
 };
 
+const hoisted = vi.hoisted(() => ({
+  mounts: { count: 0 },
+  configHookResult: {
+    cfg: {
+      providerType: 'stomp-ssrm',
+      keyColumn: 'positionId',
+      blockSize: 175,
+      columnDefinitions: [{ field: 'positionId' }, { field: 'desk' }],
+    } as unknown,
+    loading: false,
+    error: undefined as string | undefined,
+  },
+}));
+
 vi.mock('@wellsfargo-starui/grid', () => ({
   MarketsGrid: (props: StubMarketsGridProps) => {
     lastMarketsGridProps.current = props;
-    return <div data-testid="markets-grid-stub" />;
+    // One increment per mount: the container must never build a throwaway grid.
+    useEffect(() => { hoisted.mounts.count += 1; }, []);
+    return <div data-testid="markets-grid-stub" data-key={String((props as { rowIdField?: unknown }).rowIdField)} />;
   },
   createMarketsGridContainerEventBus: () => ({
     emit: vi.fn(),
@@ -95,15 +112,7 @@ vi.mock('@wellsfargo-starui/react/data/runtime', () => ({
   }),
   useSsrmDataProvider: () => ssrmHookResult,
   useAppDataStore: () => ({ store: { set: vi.fn(), get: vi.fn() } }),
-  useDataProviderConfig: () => ({
-    cfg: {
-      providerType: 'stomp-ssrm',
-      keyColumn: 'positionId',
-      blockSize: 175,
-      columnDefinitions: [{ field: 'positionId' }, { field: 'desk' }],
-    },
-    loading: false,
-  }),
+  useDataProviderConfig: () => hoisted.configHookResult,
   // Stable identity, like the real hook (it memoizes on cfg + template refs).
   useResolvedCfg: () => RESOLVED_CFG,
   useDataProvidersList: () => ({
@@ -152,6 +161,54 @@ function renderContainer() {
 function adminAction(id: string) {
   return lastMarketsGridProps.current?.adminActions?.find((a) => a.id === id);
 }
+
+describe('MarketsGridContainer — no throwaway grid while the provider config is pending', () => {
+  const loadedCfg = hoisted.configHookResult.cfg;
+  const restore = () => {
+    lastMarketsGridProps.current = null;
+    hoisted.mounts.count = 0;
+    hoisted.configHookResult.cfg = loadedCfg;
+    hoisted.configHookResult.loading = false;
+    hoisted.configHookResult.error = undefined;
+  };
+  beforeEach(restore);
+  afterEach(restore);
+
+  it('shows the loading placeholder, not the no-provider grid, when a chosen provider has no cfg yet even with loading:false', async () => {
+    // The stale render the config hook used to produce for one commit after
+    // `activeId` changed: no cfg, loading:false, no error.
+    hoisted.configHookResult.cfg = null;
+    hoisted.configHookResult.loading = false;
+    const view = renderContainer();
+    await waitFor(() => expect(view.getByText(/Loading/)).toBeInTheDocument());
+    expect(view.queryByTestId('markets-grid-stub')).toBeNull();
+    expect(hoisted.mounts.count).toBe(0);
+    // cfg lands → the real grid mounts exactly once.
+    hoisted.configHookResult.cfg = loadedCfg;
+    view.rerender(
+      <MarketsGridContainer
+        gridId="g-ssrm"
+        instanceId="inst-ssrm"
+        appId="app-1"
+        userId="u1"
+        storage={makeStorage() as never}
+        defaultLiveProviderId={PROVIDER_ID}
+      />,
+    );
+    await waitFor(() => expect(view.getByTestId('markets-grid-stub')).toBeInTheDocument());
+    expect(hoisted.mounts.count).toBe(1);
+    expect(lastMarketsGridProps.current?.ssrm?.provider.id).toBe(PROVIDER_ID);
+  });
+
+  it('still offers the no-provider grid when the config fetch failed (error set)', async () => {
+    hoisted.configHookResult.cfg = null;
+    hoisted.configHookResult.loading = false;
+    hoisted.configHookResult.error = 'get-config failed';
+    const view = renderContainer();
+    await waitFor(() => expect(view.getByTestId('markets-grid-stub')).toBeInTheDocument());
+    expect(view.getByTestId('markets-grid-stub').getAttribute('data-key')).toBe('__none__');
+  });
+});
 
 describe('MarketsGridContainer — stomp-ssrm auto-pick', () => {
   beforeEach(() => {

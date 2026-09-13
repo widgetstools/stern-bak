@@ -950,8 +950,13 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
 
   // Provider id chosen but catalog row still loading — avoid mounting a
   // throwaway MarketsGrid shell (AG Grid + enterprise modules) that would
-  // immediately unmount when cfg arrives.
-  if (activeId && activeRow.loading) {
+  // immediately unmount when cfg arrives. A chosen provider with no cfg and
+  // no error is "still loading" whatever `loading` says: the config hook
+  // re-syncs one render after `activeId` changes, and that one render used
+  // to fall through to the no-provider grid below — every blotter built its
+  // AG Grid twice (WORKLOG 20).
+  const cfgPending = Boolean(activeId) && activeRow.cfg === null && !activeRow.error;
+  if (activeId && (activeRow.loading || cfgPending)) {
     return (
       <>
         <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
