@@ -172,6 +172,13 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | Platform worker ports for 13 pages | 59 connected, 58 AppData listeners (dead listeners still receive every delta) | WORKLOG 18 |
 | Dev vs production fling on the same app and feed | 1.3–1.7 s vs 0.19–0.25 s | WORKLOG 19 |
 
+| **Windows native, runs 1–5 (2026-09-13, 20:27 UTC): Windows 11, 32 GB, OpenFin 43.142.101.2, production preview on :5175 (hashed worker asset), isolation on, 12 docked CSRM views (4 visible + 8 hidden tabs)** | | §7.2 |
+| Run 1 — renderer processes | 13 distinct PIDs for 13 views (12 blotters + find-in-page); working set 314–462 MB, private 257–406 MB per blotter view; per-process CPU 4.9–33.8 % | `cdp-process-map` |
+| Run 2 — hidden liveness | every view 80 of 80 ticks, max gap 120–155 ms; all 8 inactive tabs report `visibilityState === 'hidden'`, `fin` present; visible views 480–483 rAF frames in 8 s | `cdp-hidden-liveness` |
+| Run 3 — main thread per view | lag p50 0 / p95 4.9–13.5 / max 17.8–49.6 ms; visible views 60 fps (gap p50 16.7, p95 17.1–17.5 ms); long tasks 0 on all 12 | `cdp-mainthread-load` — **A pass line met on target (p95 < 150 ms)** |
+| Run 4 — timer census per view per 10 s | `setTimeout` 35–72 (Mac 22–46; 189 490 before this plan), `clearTimeout` 0–3, ran as tasks 34–69; the largest bucket is the 200 ms refresh window (17–18 per 10 s) | `cdp-timer-census` — **B1 pass line met on target** |
+| Run 5 — CPU profile per view per 10 s | busy 1.32–2.65 s (12–25 %), `(program)` 0.76–2.13 s, GC 23–253 ms; `executeBatchUpdateRowData` 0 ms, `refreshCells` 4.9–19.5 ms; `mergeThinPatches` visible views 269–333 ms, hidden tabs 472–564 ms (1.5–2×, not the Mac's 10×) | `cdp-cpu-profile` — **B1 flush + refresh < 200 ms met on target**; B3 input: the hidden-tab gap is small on Windows |
+
 Every phase appends its before/after row here.
 
 ---
