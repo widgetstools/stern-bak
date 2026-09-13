@@ -535,8 +535,7 @@
                           },
                           "componentName": "view",
                           "uuid": "star-demo",
-                          "initialUrl": "http://localhost:5175/#/blotters/marketsgrid",
-                          "processAffinity": "star-demo"
+                          "initialUrl": "http://localhost:5175/#/blotters/marketsgrid"
                         },
                         "isClosable": true,
                         "reorderEnabled": true,
@@ -732,8 +731,7 @@
                               },
                               "componentName": "view",
                               "uuid": "star-demo",
-                              "initialUrl": "http://localhost:5175/#/blotters/marketsgrid",
-                              "processAffinity": "star-demo"
+                              "initialUrl": "http://localhost:5175/#/blotters/marketsgrid"
                             },
                             "isClosable": true,
                             "reorderEnabled": true,
@@ -939,8 +937,7 @@
                                 },
                                 "componentName": "view",
                                 "uuid": "star-demo",
-                                "initialUrl": "http://localhost:5175/#/blotters/marketsgrid",
-                                "processAffinity": "star-demo"
+                                "initialUrl": "http://localhost:5175/#/blotters/marketsgrid"
                               },
                               "isClosable": true,
                               "reorderEnabled": true,

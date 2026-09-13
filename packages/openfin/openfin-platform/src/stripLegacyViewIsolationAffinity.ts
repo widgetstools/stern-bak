@@ -118,3 +118,58 @@ export function stripLegacyViewIsolationFromLayout(
     for (const child of content) stripLegacyViewIsolationFromLayout(child, sharedAffinity);
   }
 }
+
+// ─── Platform-level process-affinity policy ────────────────────────────
+//
+// The manifest's `platform.viewProcessAffinityStrategy` ("same" |
+// "different") decides how same-origin views are grouped into renderer
+// processes. When it is "different" (one renderer per view — the WORKLOG 21
+// experiment for blotters docked into one Browser window), any explicit
+// `processAffinity` on a view would regroup views again: the seed used to
+// pin `"star-demo"` on every view and saved pages / workspaces persist each
+// view's fully-resolved options, so old layouts still carry it. The policy
+// strips EVERY affinity (legacy `view-iso-*` and the shared group alike) so
+// the strategy governs; without the strategy it is the legacy cleanup above.
+
+export type ViewProcessAffinityStrategy = 'same' | 'different';
+
+export interface ViewProcessAffinityPolicy {
+  /** Manifest `platform.viewProcessAffinityStrategy`; undefined = not set. */
+  strategy?: ViewProcessAffinityStrategy;
+  /** Shared per-app group for legacy cleanup when no strategy is set. */
+  sharedAffinity?: string;
+}
+
+/** Apply the policy to one view/window options object. Mutates and returns `opts`. */
+export function applyViewProcessAffinityPolicy<T extends AffinityCarrier>(
+  opts: T,
+  policy: ViewProcessAffinityPolicy,
+): T {
+  if (policy.strategy === 'different') {
+    delete opts.processAffinity;
+    return opts;
+  }
+  return stripLegacyViewIsolationAffinity(opts, policy.sharedAffinity);
+}
+
+/** Layout-tree twin of {@link applyViewProcessAffinityPolicy}. */
+export function applyViewProcessAffinityPolicyToLayout(
+  layout: unknown,
+  policy: ViewProcessAffinityPolicy,
+): void {
+  if (policy.strategy !== 'different') {
+    stripLegacyViewIsolationFromLayout(layout, policy.sharedAffinity);
+    return;
+  }
+  if (!layout || typeof layout !== 'object') return;
+  const node = layout as Record<string, unknown>;
+  if ('processAffinity' in node) delete node.processAffinity;
+  const componentState = node.componentState;
+  if (componentState && typeof componentState === 'object') {
+    applyViewProcessAffinityPolicyToLayout(componentState, policy);
+  }
+  const content = node.content;
+  if (Array.isArray(content)) {
+    for (const child of content) applyViewProcessAffinityPolicyToLayout(child, policy);
+  }
+}

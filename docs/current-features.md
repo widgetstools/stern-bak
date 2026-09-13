@@ -1624,8 +1624,7 @@ of importing `@openfin/*` directly (architecture boundary).
   (`stripLegacyViewIsolationAffinity.ts`) — contaminated saved pages/workspaces
   otherwise keep restoring solo renderers that Chromium freezes when the tab is
   inactive (blank blotters)
-- Renderer process grouping is left to OpenFin/Chromium defaults — the platform
-  override does **not** stamp `processAffinity`. Per-view isolation was tried and
+- Renderer process grouping: `applyViewProcessAffinityPolicy` / `…ToLayout` (`stripLegacyViewIsolationAffinity.ts`) read the manifest's `platform.viewProcessAffinityStrategy` once (via `fin.Application.getManifest()`); with `"different"` (OpenFin's documented one-renderer-per-same-origin-view switch — the WORKLOG 21 experiment on branch `feature/openfin-view-process-isolation`) every restore path strips EVERY persisted `processAffinity` (seed pins and saved layouts alike) so nothing regroups the views; with no strategy the legacy cleanup below applies unchanged. The platform override still does **not** stamp per-view `processAffinity`. Per-view isolation was tried and
   reverted: a view alone in its renderer is throttled and then frozen by Chromium
   once hidden, occluded, or inactive for a while, so blotters returned blank or
   with content lost. See [`openfin-process-isolation.md`](archive/openfin-process-isolation.md)
