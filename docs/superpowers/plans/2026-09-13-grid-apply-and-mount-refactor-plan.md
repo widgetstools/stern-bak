@@ -160,6 +160,8 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | Same run, hidden docked tabs | `document.visibilityState === 'hidden'` on all 8 inactive tabs; 100 ms timers 80 of 80; 0 rAF frames; timer census identical to the visible views | B0 — C entry (b) met |
 | Same run, renderer processes | 12 views → 12 PIDs, 444–505 MB working set each, 2–30 % CPU | B0 |
 | Same run, CPU profile per view (`cdp-cpu-profile`, 250 µs sampling) | busy 1.05–1.81 s per 10 s (10–17 %), of which `(program)` 0.71–1.51 s (native: task dispatch for the 61 000 autosize timers, message deserialisation); `executeBatchUpdateRowData` inclusive 99–186 ms (from 867 ms); data client `handleMessage` 82–119 ms, `mergeThinPatches` self 66–106 ms; GC 5–136 ms; the autosize timers themselves ≤ 19 ms when they run | B0 |
+| B1 (rendered-row apply), production preview, isolation on, 12 docked CSRM views (4 visible + 8 hidden tabs), per view per 10 s | `setTimeout` 22–46 (from 61 250 after B0 and 189 490 before), `clearTimeout` 0–5, timers run as tasks 19–38; `executeBatchUpdateRowData` 0 ms — no update transactions on the unsorted view — and `refreshCells` 0.6–20 ms; visible views busy 0.50–0.81 s (5–8 %), lag p50 0 / p95 0.5–1.4 / max 1.1–6.9 ms, 120 fps, 0 long tasks; AG Grid's `advanceAnimations` timers still fire on visible views (cells flash) | B1, 2026-09-13 |
+| Same run, hidden tabs | busy 1.12–1.48 s (11–14 %): `mergeThinPatches` 320–567 ms against 31–33 ms on the visible views for the same feed, GC 43–297 ms, 2–3 long tasks of 71–102 ms, lag max 51–79 ms. Same code, same frames — the hidden renderer processes run slower per instruction (background priority / efficiency cores on this Apple-silicon rig). A B3 input, not a B1 cost | B1 |
 | Six CSRM views docked in one renderer | lag 338 ms p50 / 737 ms p95, later 1.4–5.5 s; 4–5 fps; hidden tabs as busy as visible ones | WORKLOG 21 |
 | Same six views, one renderer per view | lag 0 / 96–153 / 150–226 ms; 60 fps; 505–644 MB per view (~3.4 GB vs 2.9 GB shared) | experiment doc §4 |
 | Data worker thread at the demo SSRM rate | ingest 35 % of the thread (58 ms p50 per batch, ~100 µs/row), tick flush 17 %; block reads queue 39 ms p50 / 980 ms p99 behind them, engine 7–17 ms | WORKLOG 19 |
@@ -314,6 +316,14 @@ delta), calculated columns on the bus — green. Dock census after a rebuild:
 `setTimeout` < 5 000 per 10 s on the default view; flush + refresh
 (`executeBatchUpdateRowData` + `refreshCells`) < 200 ms per 10 s; flashing
 only on changed cells (e2e).
+**Measured 2026-09-13, production preview, isolation on (12 views):** exit
+met — `setTimeout` 22–46 per 10 s per view (189 490 before this plan),
+flush 0 ms + `refreshCells` ≤ 20 ms (867 ms before), visible views 5–8 %
+busy at 120 fps with no long tasks. Still owed: a look at a visible blotter
+to confirm only changed cells flash; the six-view no-isolation lag
+(manifest key removed) — from the visible views' 0.5–0.8 s busy per 10 s,
+four visible + two hidden on one thread is about 4 s per 10 s, well inside
+the 250 ms p95 line. Code: commit 24abcb1.
 **Verify.** `npx vitest run` in `packages/react-grid` and `packages/core`;
 `cdp-timer-census.mjs` and `cdp-cpu-profile.mjs` on the dock.
 **Off switch.** `git revert` of the B1 commit.
@@ -358,6 +368,12 @@ isolation.
 **Entry.** B2. G1's `cdp-hidden-liveness.mjs` recorded
 `document.visibilityState === 'hidden'` on every inactive docked tab
 (2026-09-13, 8 of 12 views), so the hidden branch has its signal.
+B1's production run adds a question B3 answers first: hidden tabs spent
+10× longer in `mergeThinPatches` than visible ones for the same frames
+(320–567 vs 31–33 ms per 10 s) — measure whether that is background
+scheduling of the hidden renderer process (`cdp-cpu-profile` on a hidden
+tab before and after making it visible), because if it is, no DOM saving
+changes it and the number to quote for hidden cost is the visible one.
 **Out of scope.** Hub-side pausing (C).
 **Exit.** Six docked views without isolation: lag p95 < 250 ms (from 737 ms+);
 hidden tabs' long tasks per 10 s and the census recorded in §2; alerts fire on
