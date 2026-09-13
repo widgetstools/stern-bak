@@ -397,7 +397,21 @@ compared backslash paths with its POSIX baseline keys and reported every
 baseline file as new (fixed in the same commit).
 **Off switch.** `git revert` of the B2 commit.
 
-### B3 — Hidden views without pausing the feed, and the six-blotter number (one session)
+### B3 — Hidden views without pausing the feed, and the six-blotter number (one session) — skipped (owner, 2026-09-13)
+
+**Status.** Not built. The owner skipped B3 after the Windows target rows in
+§2: hidden docked tabs cost 1.5–2× the visible ones in the same merge
+(`mergeThinPatches` 472–564 vs 269–333 ms per 10 s), not the Mac's 10×;
+they keep 80 of 80 timer ticks with lag p95 ≤ 13.5 ms; with isolation on
+their DOM work runs on their own core; and the six-view no-isolation number
+this phase owed is already recorded by run 6 (p95 197–221 ms, under the
+250 ms line). What is NOT done: the hidden branch of the apply path
+(skip `refreshCells` while `document.hidden`, one refresh on
+`visibilitychange`), the hidden-tab census / long-task rows, and the
+hidden-alert e2e. Reopen B3 if a target layout ever runs docked views
+without isolation, or if hidden-tab busy time on the target exceeds what
+the owner will pay (run 5: 1.8–2.0 s per 10 s per hidden tab, each on its
+own renderer process).
 
 **Why.** Two of six docked views were hidden tabs and burned as much as the
 visible ones. Hidden blotters must keep alerting
@@ -447,7 +461,12 @@ only if a hidden view still costs more than 1.0 s of JavaScript per 10 s on the
 target box after B3 (WORKLOG 21 measured 9–14 s on the shared thread).
 
 **Entry.** (a) B3's hidden number on the target box exceeds the threshold
-above; (b) G1's probe shows
+above — B3 was skipped (owner, 2026-09-13), so the number available is §2
+run 5 on the isolated dock: hidden tabs busy 1.8–2.0 s per 10 s, above the
+1.0 s line, but each on its own renderer process rather than the shared
+thread the line was written for; whether that is worth an opt-in that
+silences the hidden blotter's alerting is the owner's call, not triggered
+by this plan; (b) G1's probe shows
 `document.visibilityState === 'hidden'` for an inactive docked tab — otherwise
 `meta.hidden` (`SharedWorkerDataServicesClient.ts:969`) never flips and this
 phase has no trigger. **(b) met 2026-09-13:** `cdp-hidden-liveness` on the
@@ -507,9 +526,9 @@ The B0/B1 apply-path work is what made the OFF numbers survivable (p95
 ~220 ms against 737 ms before B0/B1 on the Mac); isolation is what turns
 40 fps into 60 fps and ~220 ms into ≤ 14 ms on the visible views.
 **Recommendation: keep the switch on** for the docked layout; the cost is
-half a gigabyte of private memory across 12 views. The exit rule above still
-says re-run after B3; nothing in B3 changes the visible-view numbers, so the
-owner can close A on these rows or wait for B3 — owner's call.
+half a gigabyte of private memory across 12 views. The exit rule above said
+re-run after B3; B3 was skipped (owner, 2026-09-13), so these rows are the
+final ones and A closes on them.
 
 ### D0 — Where the cold reload goes (one session)
 
@@ -706,14 +725,17 @@ server is 7–9× slower on that path and is not evidence.
 
 1. **G1** — instruments and the size gate; everything else is unverifiable without them.
 2. **B0** — the mechanism test; its number decides B1.
-3. **B1 → B2 → B3** — the apply path, in that order.
+3. **B1 → B2 → B3** — the apply path, in that order. *B1 and B2 built; B3
+   skipped by the owner (2026-09-13).*
 4. **C** — only if B3's hidden number on the target box exceeds its threshold,
-   and only after G1's visibility check; opt-in per provider.
+   and only after G1's visibility check; opt-in per provider. *With B3
+   skipped, see §C entry (a): owner's call.*
 5. **A decision** — target hardware, after B3 (so it measures what B leaves).
+   *Measured; closes on the §A rows.*
 6. **F1–F4** — independent of the above; any time after G1.
 7. **D0**, then **D1 → D2 → D3** only if D0's rule says so.
 8. **E2** measurement any time after G1; its format change (if any) and **E3**
-   engine repo first, here after B3.
+   engine repo first, here after B2.
 9. **G2 + G3** — any time after G1.
 
 ## 5. Traceability
@@ -824,6 +846,9 @@ rows and attach the JSON to the branch's pull request.
    toolbar-date external filter declaring its column. *Done 2026-09-13
    (§B2, §2).*
 3. **B3** — hidden views, starting with the scheduling question above.
+   *Skipped (owner, 2026-09-13): the Windows rows answered the scheduling
+   question (1.5–2×, not 10×) and run 6 supplied the no-isolation number;
+   see §B3 for what stays unbuilt.*
 4. Housekeeping: `check:design-system-deps` is red on eight `apps/source`
    packages (pre-existing); decide "skip `apps/`" or declare the dependency,
    and open the pull request for the branch.

@@ -1256,7 +1256,12 @@ ag-grid-react's autosize flush (`setTimeout(processResizeOperations, 0)`
 once per `rowNodeDataChanged`); their cost is the re-sort / re-aggregate per
 flush window, paid only for rows whose key changed. `npm run check:loc`
 compared backslash paths with its POSIX baseline on Windows and reported
-every baseline file as new — fixed.
+every baseline file as new — fixed. **B3 (hidden views: skip DOM work while
+hidden) skipped by the owner on 2026-09-13:** on the Windows target hidden
+docked tabs cost 1.5–2× the visible ones in the merge (not the Mac's 10×),
+stay alive at 80 of 80 ticks with lag p95 ≤ 13.5 ms, and run on their own
+renderer with isolation on; the no-isolation lag the phase owed came from
+run 6 (p95 197–221 ms). Reopen if docked views ever run without isolation.
 
 **Dev-rig notes:** `fin.View.getProcessInfo()` from the provider page maps
 views to PIDs; wrapping `setTimeout`/`clearTimeout` in an init script and
