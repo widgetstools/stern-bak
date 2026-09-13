@@ -1120,6 +1120,75 @@ instances and read hook state per commit. A `.ag-root-wrapper` appended
 straight under `document.body` is `measureNativeScrollbarWidth`'s probe,
 not a grid.
 
+## 21. CSRM blotters freeze when docked into one OpenFin Browser window (2026-09-13) — diagnosed, partial fix
+
+**Symptom (user):** with six 20 000-row CSRM blotters docked as panes /
+tabs of ONE OpenFin Browser window, updates appear to freeze the grid and
+cell flashes stay lit for seconds; separate windows are fine.
+
+**Process layout (measured via `fin.View.getProcessInfo`):** all six
+views share one renderer process (pid 10932, 2.9 GB) because every view
+carries `processAffinity: "star-demo"` (the shared per-app group the
+reverted isolation experiment left behind, see
+`docs/archive/openfin-process-isolation.md`). One process = one main
+thread: every view measured the same event-loop lag (338 ms p50 / 737 ms
+p95 at first, 1.4–5.5 s later in the session), visible grids painted at
+4–5 fps, and the two hidden tabs burned as much as the visible ones.
+
+**Where the thread goes (per view, 10 s, timer census + CPU profiles):**
+- The feed patches ~5 000 rows/s per view (3 500 rows per 250 ms throttle
+  window, 4.4 changed fields per row, 372 columns, thin deltas on,
+  conflation on; 564 kB/s on the wire). Throttling already caps the frame
+  rate; conflation already collapses same-key repeats.
+- AG Grid's transaction path fires `rowNodeDataChanged` once per updated
+  row, and two listeners schedule a timer per event: ag-grid-react's
+  `RenderStatusService` (`setTimeout(processResizeOperations)`, present
+  whenever the ColumnAutoSize module is registered — `AllEnterpriseModule`
+  is) and an enterprise debounce that clears + re-arms. Measured:
+  **189 490 `setTimeout` + 94 726 `clearTimeout` in 10 s on one view**,
+  74 841 of those timers ran as separate macrotasks. The batched
+  transaction flushes (`executeBatchUpdateRowData`, every 200 ms) cost
+  867 ms per 10 s per view. Six views → ~115 000 timer operations a
+  second on one thread.
+- The data client's thin-patch merge copied the whole 372-column row for
+  every 4-field patch: 16.4 ms per 3 500-row frame vs 2 ms in place.
+
+**Done here:** `mergeThinPatches` now patches the mirrored row in place
+(`Object.assign` of the changed fields; the mirror row is the very object
+the consumer and AG Grid's node hold), delivering that same object.
+Change detection downstream is by value (cells compare against what they
+last rendered; `RowChangeBus` reads changed nodes from AG Grid's flush
+event), verified by reading every old-vs-new row consumer. Saves ~14 ms
+per frame per view (21–58 ms/s per view at 1.5–4 frames/s). Tests pinned
+the old "new object per patch" contract and were flipped; a consumer
+that needs a row's previous values copies it. Measured on the dock it
+did NOT relieve the freeze: the merge was ~5 % of the thread, the AG
+Grid per-row update path is the rest.
+
+**Next (not done — needs a direction):**
+1. Stop handing AG Grid every changed row. With in-place patches the
+   node data is already current, so the grid only needs: rendered rows'
+   cells refreshed (with flash) — ~20 rows, not 5 000; a throttled model
+   refresh when a sort / filter / group column changed (the rule
+   `bindSsrmTicks` already applies for SSRM); adds and removes as
+   transactions; and the changed nodes handed to `RowChangeBus` directly
+   for alerts / conditional styling. Cuts the per-row event and timer
+   storm ~50× and helps single windows too. A real change to
+   `applyProviderToGrid` + the controller + the bus, with tests.
+2. Per-view renderer isolation for docked views (`processAffinity` per
+   view), re-measuring both halves the revert note asks for — the hidden
+   -view freeze that caused the revert is now handled by
+   `backgroundThrottling: false` + the runtime flags.
+3. Pause fan-out to hidden subscribers in the hub (it already knows
+   `meta.hidden`) and replay from cache on visibility.
+
+**Dev-rig notes:** `fin.View.getProcessInfo()` from the provider page maps
+views to PIDs; wrapping `setTimeout`/`clearTimeout` in an init script and
+bucketing by callback source finds timer storms that CPU profiles only
+show as native self time; concurrent per-isolate CPU profiles on a shared
+thread over-attribute wall time (sum across views exceeded the window
+12×) — use them for ranking within a view, never for absolute cost.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

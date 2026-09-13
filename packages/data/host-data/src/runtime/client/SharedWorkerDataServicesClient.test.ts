@@ -814,7 +814,7 @@ describe('SharedWorkerDataServicesClient — thin field-level deltas end-to-end'
     handle.unsubscribe();
   });
 
-  it('the merged row is a NEW object — the previous row value is never mutated', async () => {
+  it('patches the row the consumer already holds in place — same object, no full-row copy', async () => {
     const handle = await settledThinHandle();
     const snapshotRow = (await handle.snapshot)[0];
     const updates: Array<readonly Record<string, unknown>[]> = [];
@@ -823,8 +823,10 @@ describe('SharedWorkerDataServicesClient — thin field-level deltas end-to-end'
     controllers.get('c-1')!.emit({ rows: [{ id: 'r1', px: 2, qty: 10, note: 'keep' }] });
     await flush();
 
-    expect(updates[0][0]).not.toBe(snapshotRow);
-    expect(snapshotRow).toEqual({ id: 'r1', px: 1, qty: 10, note: 'keep' });
+    // Identity-stable: the delivered row IS the snapshot row, now carrying
+    // the patched value (a 372-column row no longer gets rebuilt per patch).
+    expect(updates[0][0]).toBe(snapshotRow);
+    expect(snapshotRow).toEqual({ id: 'r1', px: 2, qty: 10, note: 'keep' });
     handle.unsubscribe();
   });
 
@@ -856,7 +858,8 @@ describe('SharedWorkerDataServicesClient — thin field-level deltas end-to-end'
   it('chains patches across ticks (mirror tracks the merged row)', async () => {
     const handle = await settledThinHandle();
     const updates: Array<readonly Record<string, unknown>[]> = [];
-    handle.onUpdate((rows) => updates.push(rows));
+    // Rows are patched in place, so a consumer keeping history copies them.
+    handle.onUpdate((rows) => updates.push(rows.map((r) => ({ ...r }))));
 
     controllers.get('c-1')!.emit({ rows: [{ id: 'r1', px: 2, qty: 10, note: 'keep' }] });
     await flush();

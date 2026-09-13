@@ -1187,11 +1187,19 @@ export class SharedWorkerDataServicesClient {
   }
 
   /**
-   * Apply a `delta-patch` frame: merge each patch into the mirrored
-   * previous row, producing NEW full-row objects (the previous row is
-   * never mutated — consumers may still hold it). Full rows under `f`
-   * (inserts / fallbacks) pass through as-is. Returns the merged rows
-   * in patch order, ready for the ordinary `onDelta` path.
+   * Apply a `delta-patch` frame: merge each patch INTO the mirrored row in
+   * place and hand that same object on. The mirror row is the object the
+   * consumer already holds (the replay delivered it), so AG Grid's row node
+   * data is patched without rebuilding the row. It used to copy the whole
+   * row per patch — a 372-column row for a 4-field patch, ~5 000 rows a
+   * second per view, and six views docked into one renderer thread spent
+   * half their time in that copy (WORKLOG 21). Downstream change detection
+   * is by value, not identity: cells compare against what they last
+   * rendered, and the row-change bus reads changed nodes from AG Grid's
+   * flush event. A consumer that needs a row's previous values must copy
+   * them before the patch lands. Full rows under `f` (inserts / fallbacks)
+   * replace the mirror entry as-is. Returns the patched rows in patch
+   * order, ready for the ordinary `onDelta` path.
    */
   private mergeThinPatches(event: DeltaPatchEvent): unknown[] {
     const state = this.thinSubs.get(event.subId);
@@ -1210,12 +1218,11 @@ export class SharedWorkerDataServicesClient {
         out.push(p.f);
         continue;
       }
-      const prev = state.rows.get(p.k);
-      if (!prev || typeof prev !== 'object') continue;
-      const next: Record<string, unknown> = { ...(prev as Record<string, unknown>), ...(p.s ?? {}) };
-      if (p.d) for (const name of p.d) delete next[name];
-      state.rows.set(p.k, next);
-      out.push(next);
+      const row = state.rows.get(p.k);
+      if (!row || typeof row !== 'object') continue;
+      if (p.s) Object.assign(row as Record<string, unknown>, p.s);
+      if (p.d) for (const name of p.d) delete (row as Record<string, unknown>)[name];
+      out.push(row);
     }
     return out;
   }
