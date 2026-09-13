@@ -8,14 +8,40 @@ afterEach(() => {
 });
 
 describe('BehaviourFields', () => {
-  it('shows a no-settings message for non-stomp transports', () => {
+  it('shows only the start-up switch for transports without behaviour knobs', () => {
     render(
       <BehaviourFields
-        cfg={{ providerType: 'rest', baseUrl: 'https://x', endpoint: '/a' }}
+        cfg={{ providerType: 'rest', baseUrl: 'https://x', endpoint: '/a', method: 'GET' }}
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByText(/No behaviour settings for REST/)).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /Start with the platform/i })).not.toBeChecked();
+    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByText(/Thin field-level deltas/i)).toBeNull();
+  });
+
+  it('toggles autoStart on (true) and off (unset) for any transport', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { unmount } = render(
+      <BehaviourFields
+        cfg={{ providerType: 'stomp-ssrm', websocketUrl: 'ws://x', listenerTopic: '/t', snapshotEndToken: 'Success', requestBody: '' }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('switch', { name: /Start with the platform/i }));
+    expect(onChange).toHaveBeenLastCalledWith({ autoStart: true });
+    unmount();
+    render(
+      <BehaviourFields
+        cfg={{ providerType: 'mock', dataType: 'positions', autoStart: true }}
+        onChange={onChange}
+      />,
+    );
+    const on = screen.getByRole('switch', { name: /Start with the platform/i });
+    expect(on).toBeChecked();
+    await user.click(on);
+    expect(onChange).toHaveBeenLastCalledWith({ autoStart: undefined });
   });
 
   it('updates stomp reconnect delay', async () => {

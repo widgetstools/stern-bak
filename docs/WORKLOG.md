@@ -1014,6 +1014,40 @@ until the dev server itself was restarted — check the served bytes
 (`curl .../@fs/.../data-services-worker.mjs | grep <new symbol>`) before
 trusting any worker-side measurement on this rig.
 
+**Where the rest of the fling goes (single blotter, 2026-09-12 late).**
+With one SSRM blotter on the dev-served OpenFin dock a fling still filled
+in 5.0 s, the view's main thread saturated (17 long tasks, 8.6 s, one of
+1.0 s); a CDP profile put 2.8 s of a 6.5 s window as self time inside
+React's development-mode `createElement` (one per AG Grid cell component,
+stack captured per element), the worker client at 6 ms. Same SSRM app
+(`stomp-ssrm-minimal`), same feed, same Chromium, three flings each:
+**production build 190 / 206 / 247 ms** (block reads ~100–150 ms p50,
+~300 ms of long tasks) vs **`vite dev` 1 728 / 1 681 / 1 314 ms** (block
+reads 630–740 ms p50 against the SAME worker — the reply waits for the
+busy page; 2.5–3.2 s of long tasks). Perf judgements about scrolling must
+be made on a production build; the dev server is 7–9× slower on this path.
+Second, smaller factor, from the data worker's own accounting over 21 min
+at the default feed rate: ingest 8 538 batches, 58 ms p50 / 245 ms p99,
+**35 % of the worker thread** (`flattenRows` + `JSON.stringify` +
+`apply_message_json`); tick flush 21 ms p50, 17 %; block reads therefore
+queue **39 ms p50 / 980 ms p99 / 3.1 s max** behind them (engine time
+7 ms). Third: the blotter reads 100-row blocks, so a fling issues 7–9
+reads two at a time (AG Grid's default), each paying that queue; 200-row
+blocks halve the count and `blockLoadDebounceMillis` skips the blocks a
+thumb drag passes over. The engine's per-row ingest cost (~100 µs/row) is
+the worker-side lever.
+
+**Production dock, confirmed live (user's build on :5175, one blotter +
+probe, 400-row blocks):** cold reload → rows 2.5 s (`platform-ready` 1.1 s,
+first block 97 ms); fling scroll-stop → filled **543 ms** (dev server:
+5.0 s) with 0.9 s of long tasks on the view; seven block reads of 400 rows
+at 97–351 ms, three of them issued before the scroll stopped for ranges
+the thumb passed over, the rest two at a time. Next levers on that
+blotter: `blockLoadDebounceMillis` (~100 ms) and
+`maxConcurrentDatasourceRequests` (4) on the grid's `ssrm` config, both
+opt-in; worker-side, a 400-row read costs the engine 17 ms and queues
+37 ms p50 / 420 ms p99 behind ingest.
+
 **Still open.**
 - Rows in a tick are full width; a column-level patch from the engine
   (the CSRM `delta-patch` shape) would cut the remaining bytes by the
@@ -1027,8 +1061,15 @@ trusting any worker-side measurement on this rig.
 - Cold path: the 11 s between `platform-ready` and the first block read on
   a thirteenth view is widget mount time under the tick flood; re-measure
   now that the flood is gone, then profile what remains.
+- Ticks keep flowing at the feed's cadence while a grid scrolls (measured
+  on a hooked view: 5.8 ticks/s scrolling vs 5.9 idle, trimmed payloads);
+  the worker's flush is a timer, and the grid only holds its positional
+  refreshes 150 ms past the last scroll event while tick transactions
+  still land mid-scroll. If scroll smoothness matters more than mid-scroll
+  freshness, a scroll-aware hold on tick transactions (queue, apply when
+  scrolling stops) is the follow-up.
 - `stomp-ssrm1` is not `autoStart`-flagged, so the dock warms only
-  `test.dp`; flag it if the SSRM feed should be pre-started at dock load.
+  `test.dp`; the provider editor's Behaviour tab now has the switch.
 - Restarting the workers: page reloads never do it (the new document joins
   the old worker before it dies). Quit the dock and `npm run client`, or
   `Runtime.evaluate` `self.close()` in each `shared_worker` CDP target.

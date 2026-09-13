@@ -68,7 +68,7 @@ async function resolveWarmProviderIds(
   if (providers !== 'autoStart') return [...providers];
   const rows = await bundle.platformClient.listProviderConfigs();
   return rows
-    .filter((row) => Boolean(row.providerId) && (row.config as { autoStart?: boolean } | undefined)?.autoStart === true)
+    .filter((row) => Boolean(row.providerId) && row.config?.autoStart === true)
     .map((row) => row.providerId as string);
 }
 

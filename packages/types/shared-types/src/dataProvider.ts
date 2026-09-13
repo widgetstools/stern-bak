@@ -122,9 +122,25 @@ export interface ColumnDefinition {
 }
 
 /**
+ * Platform warm-up flag every transport shares.
+ */
+export interface ProviderWarmupConfig {
+  /**
+   * Start this provider in the data worker when the platform warms —
+   * `warmPlatform(config, { providers: 'autoStart' })` at app load, which
+   * the OpenFin provider window runs while the dock loads — so the first
+   * view that opens attaches to a RUNNING provider and paints from the
+   * worker cache instead of paying connect + snapshot itself. Off by
+   * default: the first view to use the provider starts it. Set from the
+   * provider editor's Behaviour tab ("Start with the platform").
+   */
+  autoStart?: boolean;
+}
+
+/**
  * STOMP Provider Configuration
  */
-export interface StompProviderConfig {
+export interface StompProviderConfig extends ProviderWarmupConfig {
   providerType: 'stomp';
   websocketUrl: string;
   listenerTopic: string;
@@ -143,7 +159,6 @@ export interface StompProviderConfig {
   dataType?: 'positions' | 'trades' | 'orders' | 'custom';
   messageRate?: number;
   batchSize?: number;
-  autoStart?: boolean;
   heartbeat?: {
     outgoing?: number;
     incoming?: number;
@@ -265,7 +280,7 @@ export interface StompSsrmProviderConfig extends Omit<StompProviderConfig, 'prov
 /**
  * REST Provider Configuration
  */
-export interface RestProviderConfig {
+export interface RestProviderConfig extends ProviderWarmupConfig {
   providerType: 'rest';
   baseUrl: string;
   endpoint: string;
@@ -306,7 +321,7 @@ export interface RestProviderConfig {
 /**
  * WebSocket Provider Configuration
  */
-export interface WebSocketProviderConfig {
+export interface WebSocketProviderConfig extends ProviderWarmupConfig {
   providerType: 'websocket';
   url: string;
   protocol?: string;
@@ -321,7 +336,7 @@ export interface WebSocketProviderConfig {
 /**
  * Socket.IO Provider Configuration
  */
-export interface SocketIOProviderConfig {
+export interface SocketIOProviderConfig extends ProviderWarmupConfig {
   providerType: 'socketio';
   url: string;
   namespace?: string;
@@ -341,7 +356,7 @@ export interface SocketIOProviderConfig {
 /**
  * Mock Provider Configuration
  */
-export interface MockProviderConfig {
+export interface MockProviderConfig extends ProviderWarmupConfig {
   providerType: 'mock';
   dataType: 'positions' | 'trades' | 'orders' | 'custom';
   updateInterval?: number;
@@ -419,7 +434,7 @@ export interface AppDataVariable {
 /**
  * AppData Provider Configuration
  */
-export interface AppDataProviderConfig {
+export interface AppDataProviderConfig extends ProviderWarmupConfig {
   providerType: 'appdata';
   variables: Record<string, AppDataVariable>;
 }
