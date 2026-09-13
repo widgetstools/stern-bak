@@ -1213,10 +1213,14 @@ Grid per-row update path is the rest.
    stamps a bare-uuid `processAffinity` per view under `"different"`,
    `getSnapshot()` persists it, and the no-strategy cleanup only knew
    `view-iso-*`. Fixed in `stripLegacyViewIsolationAffinity.ts` (uuid
-   affinities are isolation artefacts too, tests added); the OFF measurement
-   is re-run with that fix built in. Also measured: `view.getOptions()`
-   reports `backgroundThrottling: true` even for a view created with `false`
-   — judge throttling by liveness, not by that option.
+   affinities are isolation artefacts too, tests added). Re-run with the fix
+   built in, same saved layout: 2 renderer PIDs for 13 views (all 12
+   blotters in one, private 3 346 MB vs 3 837 MB summed over the 12 isolated
+   processes, +15 %); lag p95 197–221 ms and 39–40 fps on the visible views
+   against 4.9–13.5 ms and 60 fps isolated; timers 38–74 per view per 10 s
+   either way. Phase A decision inputs are in the plan's §A. Also measured:
+   `view.getOptions()` reports `backgroundThrottling: true` even for a view
+   created with `false` — judge throttling by liveness, not by that option.
 3. Pause fan-out to hidden subscribers in the hub (it already knows
    `meta.hidden`) and replay from cache on visibility.
 

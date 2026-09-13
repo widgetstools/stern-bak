@@ -75,8 +75,10 @@ scroll-aware tick hold from WORKLOG 19.
    1.1 s is `platform-ready`. D0 attributes the remaining ~1.4 s before any
    component is rewritten. `MarketsGridContainer.tsx` is 1058 lines today.
 10. **Phase A is complete** (merged as 558c789; the manifest carries
-    `viewProcessAffinityStrategy: "different"`). Only the target-hardware
-    decision remains.
+    `viewProcessAffinityStrategy: "different"`). Measured on the target on
+    2026-09-13 (§A table, §2 runs 1–6); the off switch needed fix 1fe0ec6 to
+    clear the uuid affinities the runtime persists into saved layouts.
+    Recommendation recorded in §A: keep; the owner closes it.
 11. **Phase E2 rewritten as a cost measurement** (owner, 2026-09-13):
     columnar ingest has its own encode cost, the engine may have to transpose
     it back to rows, and any columnar payload that reaches a window is
@@ -179,6 +181,10 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | Run 4 — timer census per view per 10 s | `setTimeout` 35–72 (Mac 22–46; 189 490 before this plan), `clearTimeout` 0–3, ran as tasks 34–69; the largest bucket is the 200 ms refresh window (17–18 per 10 s) | `cdp-timer-census` — **B1 pass line met on target** |
 | Run 5 — CPU profile per view per 10 s | busy 1.32–2.65 s (12–25 %), `(program)` 0.76–2.13 s, GC 23–253 ms; `executeBatchUpdateRowData` 0 ms, `refreshCells` 4.9–19.5 ms; `mergeThinPatches` visible views 269–333 ms, hidden tabs 472–564 ms (1.5–2×, not the Mac's 10×) | `cdp-cpu-profile` — **B1 flush + refresh < 200 ms met on target**; B3 input: the hidden-tab gap is small on Windows |
 | Run 6, first attempt (manifest key removed, star-demo rebuilt, dock relaunched, the saved 12-view layout restored) | **Not an isolation-off measurement**: 13 distinct PIDs for 13 views again, the same per-view affinity uuids as run 1. The saved layout carried 36 runtime-assigned uuid `processAffinity` values (one per view; `view.getOptions()` shows a fresh uuid per view under `"different"`, `getSnapshot()` persists it) and the no-strategy cleanup only knew `view-iso-*`. The numbers it produced are a second isolation-on sample: lag p95 8.9–13.5 ms, 60 fps visible, 0 long tasks, 35–72 `setTimeout` per view per 10 s | `cdp-process-map` — fix: `stripLegacyViewIsolationAffinity.ts` treats bare-uuid affinities as isolation artefacts when the strategy is off (5 tests). Run 6 is re-run with the fix built in; Phase A cannot be judged before that |
+| **Run 6, valid (2026-09-13, 21:25 UTC): isolation OFF, fix 1fe0ec6 built in, packages + star-demo rebuilt, the same saved layout (uuid affinities inside) restored** | | §7.2 |
+| Run 6.1 — renderer processes | 2 distinct PIDs for 13 views: all 12 blotters in one renderer (private 3 346 MB, working set 3 372 MB) plus find-in-page. Isolation on, same views: 12 processes, private 250–406 MB (sum 3 837 MB, +15 %), working set 304–462 MB (sum 4 505 MB, +34 %) | `cdp-process-map` — **the switch works**: the persisted uuids were neutralised by the cleanup |
+| Run 6.3 — main thread per view | lag p50 0–0.3 / p95 197–221 / max 262–275 ms; visible views 39–40 fps (gap p95 102–110 ms); long tasks 0 on all 12. Isolation on: p95 4.9–13.5 ms, 60 fps | `cdp-mainthread-load` — **run-6 pass line met (p95 < 250 ms)**; A's win on target: p95 ~220 → ≤ 14 ms, 40 → 60 fps |
+| Run 6.4 — timer census per view per 10 s | `setTimeout` 38–74, `clearTimeout` 0–3 (isolation on: 35–72) | `cdp-timer-census` — B1 holds with or without isolation |
 
 Every phase appends its before/after row here.
 
@@ -450,7 +456,29 @@ layout within the machine's budget (here +15 % over shared); hidden tabs keep
 firing 100 ms timers (≥ 70 of 80). Re-run after B3: isolation buys cores, B
 buys less work; the decision is whether the memory is worth what B leaves.
 **Off switch.** Remove `viewProcessAffinityStrategy` (or set `"same"`),
-`npm run build` in star-demo, restart the dock.
+`npm run build` in star-demo, restart the dock. The restore-time cleanup
+must also neutralise the uuid affinities the runtime wrote into every saved
+layout while the switch was on (fix 1fe0ec6, found by run 6 — without it the
+switch did nothing for restored layouts). Confirm OFF with run 1: one
+renderer PID for the blotters.
+
+**Measured on the target (Windows 11, 32 GB, 43.142.101.2, 12 docked CSRM
+views, §2 runs 1–6, 2026-09-13):**
+
+| Exit criterion | Isolation on | Isolation off | Met |
+|---|---|---|---|
+| One PID per docked view | 13 for 13 | 2 for 13 (all blotters in one) | yes |
+| Lag p95 per view < 150 ms | 4.9–13.5 ms, 60 fps | 197–221 ms, 39–40 fps | yes |
+| Renderer memory within budget | 12 × 250–406 MB private, sum 3 837 MB | one process, 3 346 MB private | +15 % private (+491 MB), +34 % working set — within a 32 GB box |
+| Hidden tabs ≥ 70 of 80 ticks | 80 of 80, all report `hidden` | not re-measured | yes |
+
+The B0/B1 apply-path work is what made the OFF numbers survivable (p95
+~220 ms against 737 ms before B0/B1 on the Mac); isolation is what turns
+40 fps into 60 fps and ~220 ms into ≤ 14 ms on the visible views.
+**Recommendation: keep the switch on** for the docked layout; the cost is
+half a gigabyte of private memory across 12 views. The exit rule above still
+says re-run after B3; nothing in B3 changes the visible-view numbers, so the
+owner can close A on these rows or wait for B3 — owner's call.
 
 ### D0 — Where the cold reload goes (one session)
 
@@ -759,6 +787,8 @@ rows and attach the JSON to the branch's pull request.
 1. Record the Windows rows in §2 (runs 1–7). Decide Phase A on them: keep
    the manifest key if the lag win is worth the per-view memory on the
    target, otherwise delete it; either way close A in this plan.
+   *Status 2026-09-13: runs 1–6 recorded (run 7 by eye still owed). The
+   numbers for the decision are in §A; recommendation: keep.*
 2. **B2** — the five sorted / grouped / filtered measurements and the
    toolbar-date external filter declaring its column.
 3. **B3** — hidden views, starting with the scheduling question above.

@@ -210,9 +210,12 @@ those uuids were honoured: the first isolation-off run of the refactor plan's
 The restore-time cleanup (`stripLegacyViewIsolationAffinity`) now treats a
 bare-uuid affinity like a legacy `view-iso-*` one and normalises it to the shared
 per-app group, so switching the key off also switches restored layouts back. No
-data migration is needed; a layout self-heals on its next restore. Until that
-fix is built into the app you run, level A alone does not switch isolation off
-for restored layouts — check with run 1 of the plan's §7.2 (one renderer PID).
+data migration is needed; a layout self-heals on its next restore. Verified the
+same day with the fix built in: the same saved layout, key removed, restored
+into one shared renderer (2 PIDs for 13 views — the 12 blotters together plus
+find-in-page). Until that fix is built into the app you run, level A alone does
+not switch isolation off for restored layouts — check with run 1 of the plan's
+§7.2 (one renderer PID for the blotters).
 
 ## 6. Gotchas — read before relying on this
 
@@ -282,9 +285,14 @@ for restored layouts — check with run 1 of the plan's §7.2 (one renderer PID)
     keep it. Remove the manifest key and restore such a layout, and you are
     still isolated (measured: 13 PIDs for 13 views, same uuids). The cleanup in
     `stripLegacyViewIsolationAffinity.ts` therefore treats a uuid-shaped
-    affinity as an isolation artefact when the strategy is off. If you copy the
-    policy into another platform, copy that rule too, and always confirm the
-    OFF state with a process map, never by reading the manifest.
+    affinity as an isolation artefact when the strategy is off (verified: with
+    the fix built in the same layout restored into one shared renderer). If
+    you copy the policy into another platform, copy that rule too, and always
+    confirm the OFF state with a process map, never by reading the manifest.
+    The same-day comparison on 12 docked CSRM views, Windows 11: shared
+    renderer private 3 346 MB, visible views 39–40 fps with lag p95
+    197–221 ms; isolated 12 × 250–406 MB private (+15 %), 60 fps, p95
+    4.9–13.5 ms.
 14. **`view.getOptions().backgroundThrottling` is not a measurement.** On
     43.142.101.2 a view created with `backgroundThrottling: false` reads back
     `true` (probe 2026-09-13: both `false` and `true` were asked, both reported
