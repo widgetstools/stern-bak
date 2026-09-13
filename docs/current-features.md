@@ -1618,13 +1618,15 @@ of importing `@openfin/*` directly (architecture boundary).
 - `WorkspacePlatformOverrideCallback` — workspace lifecycle hooks
 - `workspace.options` — platform settings (name, icon, theme, notifications, dock)
 - `workspacePersistence` — save/load workspace (pinned windows, dock, layouts);
-  restore paths (`createView` / `createWindow`) strip legacy `view-iso-*`
-  `processAffinity` values persisted by the reverted per-view isolation
-  experiment back to the shared per-app renderer group
-  (`stripLegacyViewIsolationAffinity.ts`) — contaminated saved pages/workspaces
-  otherwise keep restoring solo renderers that Chromium freezes when the tab is
-  inactive (blank blotters)
-- Renderer process grouping: `applyViewProcessAffinityPolicy` / `…ToLayout` (`stripLegacyViewIsolationAffinity.ts`) read the manifest's `platform.viewProcessAffinityStrategy` once (via `fin.Application.getManifest()`); with `"different"` (OpenFin's documented one-renderer-per-same-origin-view switch — the WORKLOG 21 experiment on branch `feature/openfin-view-process-isolation`) every restore path strips EVERY persisted `processAffinity` (seed pins and saved layouts alike) so nothing regroups the views; with no strategy the legacy cleanup below applies unchanged. The platform override still does **not** stamp per-view `processAffinity`. Per-view isolation was tried and
+  restore paths (`createView` / `createWindow`) strip isolation artefacts from
+  persisted `processAffinity` values — legacy `view-iso-*` stamps from the
+  reverted per-view experiment and the bare uuids OpenFin itself assigns per
+  view under `viewProcessAffinityStrategy: "different"` (persisted by
+  `getSnapshot()`, measured 2026-09-13) — back to the shared per-app renderer
+  group (`stripLegacyViewIsolationAffinity.ts`); readable explicit tags are
+  kept. Without it, layouts saved under isolation keep restoring solo renderers
+  after the manifest key is removed
+- Renderer process grouping: `applyViewProcessAffinityPolicy` / `…ToLayout` (`stripLegacyViewIsolationAffinity.ts`) read the manifest's `platform.viewProcessAffinityStrategy` once (via `fin.Application.getManifest()`); with `"different"` (OpenFin's documented one-renderer-per-same-origin-view switch — the WORKLOG 21 experiment on branch `feature/openfin-view-process-isolation`) every restore path strips EVERY persisted `processAffinity` (seed pins and saved layouts alike) so nothing regroups the views; with no strategy (or `"same"`) the cleanup below applies and also normalises the runtime-assigned uuid affinities, which is what makes the manifest key a real switch for layouts saved under isolation. The platform override still does **not** stamp per-view `processAffinity`. Per-view isolation was tried and
   reverted: a view alone in its renderer is throttled and then frozen by Chromium
   once hidden, occluded, or inactive for a while, so blotters returned blank or
   with content lost. See [`openfin-process-isolation.md`](archive/openfin-process-isolation.md)

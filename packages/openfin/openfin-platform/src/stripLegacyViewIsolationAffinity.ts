@@ -1,23 +1,36 @@
 /**
- * Cleanup for the reverted per-view renderer isolation experiment.
+ * Cleanup for per-view renderer isolation artefacts in saved layouts.
  *
- * While isolation was active, every view creation was stamped with a
- * unique `processAffinity: "view-iso-…"` — and those values were then
- * PERSISTED into saved pages and workspace snapshots. Reverting the
- * stamping alone is not enough: contaminated layouts keep restoring
- * views into solo renderer processes, which Chromium throttles and
- * then freezes once the view is hidden, occluded, or on an inactive
- * tab — the "blotter goes blank until you switch tabs" symptom.
+ * Two generations of isolation leave `processAffinity` values behind in
+ * saved pages and workspace snapshots (OpenFin persists each view's
+ * fully-resolved options):
  *
- * These helpers run at restore time (platform `createView` /
- * `createWindow` overrides) and normalize any legacy `view-iso-*`
- * affinity back to the shared per-app group, so every contaminated
- * snapshot self-heals on its next restore. Non-legacy affinities
- * (e.g. an explicit seed value or a deliberate future grouping) are
- * left untouched.
+ * - the reverted stamping experiment wrote a unique
+ *   `processAffinity: "view-iso-…"` on every view creation;
+ * - the manifest switch `platform.viewProcessAffinityStrategy: "different"`
+ *   makes the RUNTIME stamp every view with a bare uuid affinity
+ *   (measured 2026-09-13 on OpenFin 43.142.101.2: `view.getOptions()`
+ *   reports a fresh uuid per view, and `Platform.getSnapshot()` carries
+ *   it in every view's `componentState`).
+ *
+ * Either kind, restored on a platform where the strategy is off, keeps
+ * re-creating one renderer per view — so removing the manifest key alone
+ * does not switch isolation off for restored layouts. These helpers run
+ * at restore time (platform `createView` / `createWindow` overrides) and
+ * normalize both kinds back to the shared per-app group, so every
+ * contaminated snapshot self-heals on its next restore. Other explicit
+ * affinities (e.g. a readable seed value or a deliberate future grouping)
+ * are left untouched.
  */
 
 export const LEGACY_VIEW_ISOLATION_AFFINITY_PREFIX = 'view-iso-';
+
+/**
+ * A bare uuid is what the runtime assigns per view under
+ * `viewProcessAffinityStrategy: "different"`; nothing in this repo sets a
+ * uuid-shaped affinity on purpose.
+ */
+const RUNTIME_ASSIGNED_AFFINITY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface AffinityCarrier {
   processAffinity?: string;
@@ -64,18 +77,19 @@ export function disableBackgroundThrottlingInLayout(layout: unknown): void {
   }
 }
 
+/** Legacy `view-iso-*` stamp or a runtime-assigned uuid: both are isolation artefacts. */
 function isLegacy(value: unknown): value is string {
   return (
     typeof value === 'string'
-    && value.startsWith(LEGACY_VIEW_ISOLATION_AFFINITY_PREFIX)
+    && (value.startsWith(LEGACY_VIEW_ISOLATION_AFFINITY_PREFIX) || RUNTIME_ASSIGNED_AFFINITY.test(value))
   );
 }
 
 /**
- * Replace a legacy isolation affinity on one options object with the
- * shared group (or drop it entirely when no shared value is supplied —
- * OpenFin then applies its default same-app grouping). Mutates and
- * returns `opts`.
+ * Replace an isolation artefact affinity (legacy `view-iso-*` or a
+ * runtime-assigned uuid) on one options object with the shared group (or
+ * drop it entirely when no shared value is supplied — OpenFin then applies
+ * its default same-app grouping). Mutates and returns `opts`.
  *
  * `sharedAffinity` should be a single stable per-app value (the
  * platform uuid) so cleaned views land in the SAME renderer group as
@@ -129,7 +143,10 @@ export function stripLegacyViewIsolationFromLayout(
 // pin `"star-demo"` on every view and saved pages / workspaces persist each
 // view's fully-resolved options, so old layouts still carry it. The policy
 // strips EVERY affinity (legacy `view-iso-*` and the shared group alike) so
-// the strategy governs; without the strategy it is the legacy cleanup above.
+// the strategy governs. Without the strategy it is the cleanup above, which
+// also normalizes the uuid affinities the runtime stamped while the strategy
+// was "different" — that is what makes removing the manifest key a real
+// switch for layouts saved under isolation.
 
 export type ViewProcessAffinityStrategy = 'same' | 'different';
 

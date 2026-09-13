@@ -98,7 +98,7 @@ gained, at the end of the file:
 |---|---|
 | `type ViewProcessAffinityStrategy = 'same' \| 'different'` | the manifest value |
 | `interface ViewProcessAffinityPolicy { strategy?, sharedAffinity? }` | the decision inputs |
-| `applyViewProcessAffinityPolicy(opts, policy)` | strategy `"different"` → **deletes any** `processAffinity` on the options object (shared tag, legacy `view-iso-*`, anything). No strategy or `"same"` → calls the existing `stripLegacyViewIsolationAffinity` (only legacy `view-iso-*` values are touched, as before). Mutates and returns `opts`. |
+| `applyViewProcessAffinityPolicy(opts, policy)` | strategy `"different"` → **deletes any** `processAffinity` on the options object (shared tag, legacy `view-iso-*`, anything). No strategy or `"same"` → calls the existing `stripLegacyViewIsolationAffinity`, which normalises legacy `view-iso-*` values and — since the 2026-09-13 fix, see §5 C and gotcha 13 — the bare-uuid affinities the runtime stamps while the strategy is `"different"`; readable explicit tags are left alone. Mutates and returns `opts`. |
 | `applyViewProcessAffinityPolicyToLayout(layout, policy)` | same rule walked over a layout tree: every node, its `componentState`, and each child in `content`. Without `"different"` it calls the existing legacy walk. Tolerates `null` and non-objects. |
 
 File: `packages/openfin/openfin-platform/src/workspacePersistence.ts` (the platform
@@ -198,11 +198,21 @@ Application", which is the same one-renderer outcome the pin produced.
 branch; the base branch `feature/worker-hub-config-refactor` never had these
 changes.
 
-**C. What about layouts saved while the experiment was on?** They were saved
-with no `processAffinity` on their views (the override stripped it before
-creation, and OpenFin persists the resolved options). Restored on a manifest
-without the strategy, such views get OpenFin's default grouping — the
-pre-experiment behaviour. No data migration is needed either way.
+**C. What about layouts saved while the experiment was on?** They carry the
+isolation with them, and this was measured the hard way on 2026-09-13
+(runtime 43.142.101.2, Windows 11): while the strategy is `"different"` the
+runtime stamps every view's options with a fresh uuid `processAffinity`
+(`view.getOptions()` shows it, and it is a new value after every relaunch), and
+`Platform.getSnapshot()` persists it in each view's `componentState` — 36 of 36
+views in the saved layout had one. Restored on a manifest without the strategy,
+those uuids were honoured: the first isolation-off run of the refactor plan's
+§7.2 came up with 13 renderer processes for 13 views, the same uuids as before.
+The restore-time cleanup (`stripLegacyViewIsolationAffinity`) now treats a
+bare-uuid affinity like a legacy `view-iso-*` one and normalises it to the shared
+per-app group, so switching the key off also switches restored layouts back. No
+data migration is needed; a layout self-heals on its next restore. Until that
+fix is built into the app you run, level A alone does not switch isolation off
+for restored layouts — check with run 1 of the plan's §7.2 (one renderer PID).
 
 ## 6. Gotchas — read before relying on this
 
@@ -223,9 +233,13 @@ pre-experiment behaviour. No data migration is needed either way.
    walk only sees `payload.layout` and `windowOptions.layout`. OpenFin
    workspace windows also carry `layoutSnapshot.layouts[...]`; when a snapshot
    was applied whose views still had the tag, the views nevertheless came up
-   with distinct affinities — every view creation passes through the provider's
-   `createView`, where the tag is stripped from `opts`. That is what was
-   observed; it is not a documented guarantee.
+   with distinct affinities. On 2026-09-13 a probe showed why that proves less
+   than it seems: a view created through `Platform.createView` with an explicit
+   `processAffinity: "starui-probe-tag"` under `"different"` still came back
+   with a runtime uuid affinity and its own PID — on this runtime the strategy
+   wins over an explicit tag anyway. So in the ON direction the strip is belt
+   and braces; it is the OFF direction (gotcha 13) where the cleanup matters.
+   None of this is a documented guarantee.
 5. **Snapshots restore from `layoutSnapshot`, not `layout`.** Editing
    `window.layout.content` in a saved snapshot and re-applying it was ignored;
    the window restored its `layoutSnapshot` views. To open a specific docked
@@ -262,6 +276,21 @@ pre-experiment behaviour. No data migration is needed either way.
 12. **Reading Task Manager.** With isolation, per-view CPU shows per process;
     without it one process near 100 % of one core with low total CPU is the
     signature of the shared-thread problem.
+13. **The runtime writes its uuid affinity into your saved layouts.** Under
+    `"different"` every view's resolved options carry a bare-uuid
+    `processAffinity`, and `getSnapshot()` / saved pages / saved workspaces
+    keep it. Remove the manifest key and restore such a layout, and you are
+    still isolated (measured: 13 PIDs for 13 views, same uuids). The cleanup in
+    `stripLegacyViewIsolationAffinity.ts` therefore treats a uuid-shaped
+    affinity as an isolation artefact when the strategy is off. If you copy the
+    policy into another platform, copy that rule too, and always confirm the
+    OFF state with a process map, never by reading the manifest.
+14. **`view.getOptions().backgroundThrottling` is not a measurement.** On
+    43.142.101.2 a view created with `backgroundThrottling: false` reads back
+    `true` (probe 2026-09-13: both `false` and `true` were asked, both reported
+    `true`), and every docked view reports `true` although the override forces
+    `false`. Judge throttling by liveness — plan §7.2 run 2, hidden tabs firing
+    80 of 80 timer ticks — never by the reported option.
 
 ## 7. What this experiment did NOT verify
 

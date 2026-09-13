@@ -1205,6 +1205,18 @@ Grid per-row update path is the rest.
    renderers alive during the run). Memory per view is ~15 % higher than
    its share of the single process. The docked freeze is gone; what
    remains per view is the AG Grid per-row update cost (next item 1).
+   **Windows target verification (2026-09-13, plan §7.2, 12 docked CSRM
+   views, runtime 43.142.101.2):** isolation on — 13 renderer PIDs for 13
+   views, 314–462 MB working set each, hidden tabs 80 of 80 ticks, lag p95
+   4.9–13.5 ms at 60 fps, no long tasks. The isolation-OFF run (manifest key
+   removed, same saved layout restored) came up isolated again: the runtime
+   stamps a bare-uuid `processAffinity` per view under `"different"`,
+   `getSnapshot()` persists it, and the no-strategy cleanup only knew
+   `view-iso-*`. Fixed in `stripLegacyViewIsolationAffinity.ts` (uuid
+   affinities are isolation artefacts too, tests added); the OFF measurement
+   is re-run with that fix built in. Also measured: `view.getOptions()`
+   reports `backgroundThrottling: true` even for a view created with `false`
+   — judge throttling by liveness, not by that option.
 3. Pause fan-out to hidden subscribers in the hub (it already knows
    `meta.hidden`) and replay from cache on visibility.
 
