@@ -15,7 +15,7 @@
 import { useEffect, useRef } from 'react';
 import type { GridApi } from 'ag-grid-community';
 import type { IDataProvider } from '@wellsfargo-starui/data';
-import type { RowChangeFeed } from '@wellsfargo-starui/core';
+import type { ExternalFilterColumns, RowChangeFeed } from '@wellsfargo-starui/core';
 import { isHistoricalToolbarDate } from '@wellsfargo-starui/grid/customizer';
 import { createApplyProviderToGridState } from './applyProviderToGrid.js';
 import type { ProviderMode } from './gridLevelState.js';
@@ -50,6 +50,8 @@ export interface UseProviderDataWiringParams<TData extends Record<string, unknow
   containerEventBus: ContainerEventBus;
   /** The grid platform's row-change bus (`handle.platform.rows`); rendered-row updates report changed nodes here. */
   rowChangeFeed?: RowChangeFeed | null;
+  /** The grid platform's external-filter column declarations (`handle.platform.externalFilters`), so an attributed external filter keeps rendered-row updates in place. */
+  externalFilterColumns?: ExternalFilterColumns | null;
   setLoadRowCount: (count: number | undefined) => void;
   setProviderDisconnected: (disconnected: boolean) => void;
   setDisconnectDetail: (detail: string | undefined) => void;
@@ -80,6 +82,7 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
     onError,
     containerEventBus,
     rowChangeFeed,
+    externalFilterColumns,
     setLoadRowCount,
     setProviderDisconnected,
     setDisconnectDetail,
@@ -110,6 +113,8 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
   // The handle (and so the bus) can land after this effect ran; read it per tick.
   const rowChangeFeedRef = useRef(rowChangeFeed);
   rowChangeFeedRef.current = rowChangeFeed;
+  const externalFilterColumnsRef = useRef(externalFilterColumns);
+  externalFilterColumnsRef.current = externalFilterColumns;
 
   useEffect(() => {
     if (!liveApi || !provider || !activeId) {
@@ -136,7 +141,10 @@ export function useProviderDataWiring<TData extends Record<string, unknown>>(
     }
 
     let cancelled = false;
-    const gridApply = createApplyProviderToGridState({ getRowChangeFeed: () => rowChangeFeedRef.current });
+    const gridApply = createApplyProviderToGridState({
+      getRowChangeFeed: () => rowChangeFeedRef.current,
+      getExternalFilterColumns: () => externalFilterColumnsRef.current,
+    });
     const providerStatusRef = { current: 'loading' as 'loading' | 'ready' | 'error' };
 
     // rAF-coalesced: progressive snapshot counts arrive per streamed

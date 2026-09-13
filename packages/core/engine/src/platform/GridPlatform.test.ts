@@ -71,6 +71,25 @@ describe('GridPlatform lifecycle and persistence', () => {
     expect(out[0].headerName).toBe('5');
   });
 
+  it('hands modules the external-filter registry and forgets declarations on destroy', () => {
+    let seen: unknown = null;
+    const declaring: Module<CounterState> = {
+      ...counterModule(),
+      activate(handle) {
+        seen = handle.externalFilters;
+        handle.externalFilters.declare('counter', ['ccy']);
+        return () => {};
+      },
+    };
+    const platform = new GridPlatform({ gridId: 'ext', modules: [declaring] });
+    expect(platform.externalFilters.columns()).toBeNull();
+    platform.onGridReady({} as Parameters<GridPlatform['onGridReady']>[0]);
+    expect(seen).toBe(platform.externalFilters);
+    expect(platform.externalFilters.columns()).toEqual(['ccy']);
+    platform.destroy();
+    expect(platform.externalFilters.columns()).toBeNull();
+  });
+
   it('onGridReady activates modules once and destroy is idempotent', () => {
     const platform = new GridPlatform({ gridId: 'life', modules: [counterModule()] });
     const api = {} as Parameters<GridPlatform['onGridReady']>[0];

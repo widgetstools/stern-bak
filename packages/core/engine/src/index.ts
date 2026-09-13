@@ -21,6 +21,7 @@ export {
   topoSortModules,
   ApiHub,
   RowChangeBus,
+  ExternalFilterColumnRegistry,
   ResourceScope,
   CssInjector,
   PipelineRunner,
@@ -34,6 +35,7 @@ export type {
   CssHandle,
   EditorPaneProps,
   ExpressionEngineLike,
+  ExternalFilterColumns,
   GridApi,
   GridOptions,
   GetRowIdFunc,
@@ -122,6 +124,7 @@ export {
   classifySsrmExpression,
   compileToEngineExpression,
   toComputedColumnSpec,
+  collectColumnRefs,
 } from './expression';
 export type {
   CompileToEngineExpressionResult,

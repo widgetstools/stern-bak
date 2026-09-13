@@ -129,6 +129,38 @@ describe('createRenderedRowUpdater', () => {
     }
   });
 
+  // Plan B2: the toolbar-date row exclusion is an external filter; once its
+  // module declares the columns it reads, only rows whose declared columns
+  // changed ride a transaction — every other update stays in place.
+  describe('an external filter whose installer declared its columns', () => {
+    const registry = (cols: readonly string[] | null) => ({ declare: () => {}, columns: () => cols });
+
+    it('keeps non-declared updates in place and sends declared-column changes through a transaction', () => {
+      const a = { id: 'a', px: 1, extra: 'USD' };
+      const { api, refreshCells } = makeApi({ nodes: [a], rendered: ['a'], external: true, wait: 0 });
+      const timers = makeTimers();
+      const u = createRenderedRowUpdater<Row>({ ...timers, getExternalFilterColumns: () => registry(['extra']) });
+      expect(u.apply(api, [a], ['a'])).toEqual([a]); // first touch heals the key snapshot
+      a.px = 2;
+      expect(u.apply(api, [a], ['a'])).toEqual([]);
+      timers.runAll();
+      expect(refreshCells).toHaveBeenCalledTimes(1);
+      a.extra = 'INR';
+      expect(u.apply(api, [a], ['a'])).toEqual([a]);
+    });
+
+    it('falls back to a transaction per row when nothing is declared, and ignores declarations while no external filter is active', () => {
+      const a = { id: 'a', px: 1 };
+      const { api } = makeApi({ nodes: [a], external: true });
+      const u = createRenderedRowUpdater<Row>({ setTimer: () => 1, getExternalFilterColumns: () => registry(null) });
+      expect(u.apply(api, [a], ['a'])).toEqual([a]);
+      expect(u.apply(api, [a], ['a'])).toEqual([a]);
+      expect(readKeyColumns(makeApi({ external: true }).api, registry(['extra']))).toEqual({ all: false, cols: ['extra'], signature: '["extra"]' });
+      expect(readKeyColumns(makeApi({ sort: ['px'] }).api, registry(['extra']))).toEqual({ all: false, cols: ['px'], signature: '["px"]' });
+      expect(readKeyColumns(makeApi({ external: true }).api, null).all).toBe(true);
+    });
+  });
+
   it('syncs a full-row object onto the node data and keeps the node object', () => {
     const nodeRow: Row = { id: 'a', px: 1, extra: 'old' };
     const { api, nodes } = makeApi({ nodes: [nodeRow] });

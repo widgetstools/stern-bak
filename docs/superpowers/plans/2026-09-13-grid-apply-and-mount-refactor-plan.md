@@ -185,6 +185,17 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | Run 6.1 — renderer processes | 2 distinct PIDs for 13 views: all 12 blotters in one renderer (private 3 346 MB, working set 3 372 MB) plus find-in-page. Isolation on, same views: 12 processes, private 250–406 MB (sum 3 837 MB, +15 %), working set 304–462 MB (sum 4 505 MB, +34 %) | `cdp-process-map` — **the switch works**: the persisted uuids were neutralised by the cleanup |
 | Run 6.3 — main thread per view | lag p50 0–0.3 / p95 197–221 / max 262–275 ms; visible views 39–40 fps (gap p95 102–110 ms); long tasks 0 on all 12. Isolation on: p95 4.9–13.5 ms, 60 fps | `cdp-mainthread-load` — **run-6 pass line met (p95 < 250 ms)**; A's win on target: p95 ~220 → ≤ 14 ms, 40 → 60 fps |
 | Run 6.4 — timer census per view per 10 s | `setTimeout` 38–74, `clearTimeout` 0–3 (isolation on: 35–72) | `cdp-timer-census` — B1 holds with or without isolation |
+| **B2 step 1 (2026-09-13, 22:0x UTC): one CSRM view (20 000 rows, 372 columns, 15 ticking) in its own window on the production dock, isolation on, B1 code — census + CPU profile per state, 10 s each** | | §B2 |
+| default view | `setTimeout` 71 (18 × 200 ms refresh window, 18 × bus flush); busy 22 %; `executeBatchUpdateRowData` 0 ms, `refreshCells` 15 ms | `b2-measure` (scratchpad driver over `cdp-timer-census` / `cdp-cpu-profile`) |
+| sorted by `pnl` (ticking) | `setTimeout` 23 387 — 23 237 of them `processResizeOperations` at 0 ms; busy 42 %; `executeBatchUpdateRowData` 2 522 ms, `refreshCells` 4 ms | B1's transaction rule, as predicted: every `pnl` tick moves a row |
+| grouped `desk` › `trader`, `sum(marketValue)`, `sum(pnl)` (collapsed, 8 group rows displayed) | `setTimeout` 23 545 — 23 398 `processResizeOperations`; busy 20 %; `executeBatchUpdateRowData` 795 ms, `refreshCells` 0 | aggregated ticking values ride transactions; cheaper than sorted because nothing rendered moves |
+| filtered on `desk` (set filter, 5 000 rows displayed) | `setTimeout` ≈ 3 300 — 3 208 `processResizeOperations`; busy 27 %; `executeBatchUpdateRowData` 1 002 ms, `refreshCells` 17 ms | static key column: the transactions are the first-touch snapshot healing of 20 000 rows still draining |
+| toolbar-date exclusion `[currency] == "AUD"` (17 142 rows displayed), external filter unattributed | `setTimeout` 44 689 — 44 539 `processResizeOperations`; busy 38 %; `executeBatchUpdateRowData` 1 579 ms, `refreshCells` 0 | **the B2 target**: every updated row is a transaction while the exclusion is on |
+| **B2 step 2 built, same view reopened on the rebuilt bundle (22:1x UTC)** | | |
+| toolbar-date exclusion `[currency] == "AUD"`, module declares `currency` | `setTimeout` 2 117 (1 916 `processResizeOperations` — the first-touch snapshot healing still draining, as in the filtered state); busy 25 %; `executeBatchUpdateRowData` 64 ms, `refreshCells` 22 ms | **B2 exit met**: 44 689 → 2 117 timers, 1 579 → 64 ms of transaction work; updates to other columns stay in place |
+| default view (control) | `setTimeout` 78; busy 22 %; `executeBatchUpdateRowData` 0, `refreshCells` 16 ms | unchanged |
+| sorted by `pnl` (control) | `setTimeout` 44 723 (44 539 `processResizeOperations`); busy 39 %; `executeBatchUpdateRowData` 1 854 ms | unchanged by design (23 387 in the first run: the count follows how many `pnl` ticks land in the window) |
+| Attribution of `processResizeOperations` | ag-grid-react's autosize bean (`queueResizeOperationsForTick` in `ag-grid-react-*.js`) listens to `rowNodeDataChanged` / `cellValueChanged` / `rowDataUpdated` / expansion events and schedules `setTimeout(() => colAutosize.processResizeOperations(), 0)` on every one — one macrotask per transaction-updated row, no coalescing. Its own work is nil (the operation queue is empty); the cost in the sorted / grouped states is `executeBatchUpdateRowData` (the re-sort / re-aggregate per flush window), 0.8–2.5 s per 10 s | B2 step 3: nothing further in B2 — that is the price of keeping sort order and aggregates live, paid only for rows whose key changed |
 
 Every phase appends its before/after row here.
 
@@ -342,28 +353,48 @@ the 250 ms p95 line. Code: commit 24abcb1.
 `cdp-timer-census.mjs` and `cdp-cpu-profile.mjs` on the dock.
 **Off switch.** `git revert` of the B1 commit.
 
-### B2 — Sorted / grouped / filtered cost, and the external filter (one session)
+### B2 — Sorted / grouped / filtered cost, and the external filter (one session) — built 2026-09-13
 
 **Why.** B1's transaction rule means a blotter sorted or grouped on a ticking
 column pays the old per-row cost for exactly those rows, and a blotter with
 the toolbar-date row exclusion active pays it for every row, because an
 external filter cannot be attributed to a column.
 
-**What.**
-1. Measure on the production dock, census + `cdp-cpu-profile` each: the
-   default view; sorted by a ticking column; grouped by a static column with
-   an aggregated ticking value (two group levels); filtered on a static
-   column; the toolbar-date exclusion on. Record all five in §2.
-2. Let the external filter declare its columns: the toolbar-date module
-   registers the column it excludes on (a platform resource the apply path
-   can read), and `readKeyColumns` treats it as a key column instead of
-   `all`. Test: exclusion on, non-date update → in place.
-3. Grouped aggregates over a ticking value already use AG Grid's changed
-   path through the transaction rows; nothing further unless (1) says so.
+**What (as built).**
+1. Measured on the production dock (one CSRM view, 20 000 rows, 372 columns,
+   isolation on), census + `cdp-cpu-profile` each — all five in §2: default
+   71 timers per 10 s; sorted by a ticking column 23–45 k; grouped two
+   levels with ticking aggregates 23.5 k; filtered on a static column ≈ 3.3 k
+   (a draining first-touch tail); the exclusion on 44.7 k.
+2. The external filter declares its columns. `GridPlatform.externalFilters`
+   (`ExternalFilterColumnRegistry`, interface `ExternalFilterColumns`, on
+   every module's `PlatformHandle`) holds `declare(owner, cols | null)` /
+   `columns()`; the toolbar-date module's `activateRowExclusion` declares
+   `collectColumnRefs(parse(expression))` on activation and on every
+   expression change, withdraws on an empty expression and on dispose; the
+   container hands `handle.platform.externalFilters` to the apply path next
+   to the bus (`getExternalFilterColumns` seam) and `readKeyColumns` adds the
+   declared columns to the key set while `isExternalFilterPresent()` is true
+   — with nothing declared it is still `all`. Tests: registry, collector,
+   platform handle, module (declare / re-declare / withdraw), apply path
+   (exclusion on: non-declared update in place, declared-column change rides
+   a transaction).
+3. Sorted / grouped: nothing further. The tens of thousands of timers are
+   ag-grid-react's autosize flush scheduled once per `rowNodeDataChanged`
+   (attribution in §2); the cost that matters is the re-sort / re-aggregate
+   per flush window (`executeBatchUpdateRowData` 0.8–2.5 s per 10 s), paid
+   only for rows whose key changed — the price of a live sort order.
 
 **Entry.** B1. **Out of scope.** Hidden views. **Exit.** The five numbers in
 §2; the external-filter attribution with its test.
-**Verify.** The two probes; `npx vitest run` in `packages/react-grid`.
+**Measured 2026-09-13, same view on the rebuilt bundle:** exclusion on
+44 689 → 2 117 timers per 10 s, `executeBatchUpdateRowData` 1 579 → 64 ms,
+rendered rows refreshed in place (`refreshCells` 22 ms); default and sorted
+unchanged. Exit met.
+**Verify.** The two probes; `npx vitest run` in `packages/react-grid` and
+`packages/core`. `npm run check:loc` now passes on Windows too — the ratchet
+compared backslash paths with its POSIX baseline keys and reported every
+baseline file as new (fixed in the same commit).
 **Off switch.** `git revert` of the B2 commit.
 
 ### B3 — Hidden views without pausing the feed, and the six-blotter number (one session)
@@ -790,7 +821,8 @@ rows and attach the JSON to the branch's pull request.
    *Status 2026-09-13: runs 1–6 recorded (run 7 by eye still owed). The
    numbers for the decision are in §A; recommendation: keep.*
 2. **B2** — the five sorted / grouped / filtered measurements and the
-   toolbar-date external filter declaring its column.
+   toolbar-date external filter declaring its column. *Done 2026-09-13
+   (§B2, §2).*
 3. **B3** — hidden views, starting with the scheduling question above.
 4. Housekeeping: `check:design-system-deps` is red on eight `apps/source`
    packages (pre-existing); decide "skip `apps/`" or declare the dependency,

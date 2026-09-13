@@ -28,16 +28,21 @@
  * the previous tick (`api.getCellValue`, so value getters and calculated
  * columns count). A node with no snapshot yet — first touch after a sort /
  * filter / group change — rides a transaction once, which heals the snapshot
- * without a 20 000-row scan. Quick filter, pivot mode, the advanced filter
- * and an external filter cannot be attributed to columns: while any is
- * active every updated row is a transaction, as before.
+ * without a 20 000-row scan. Quick filter, pivot mode and the advanced
+ * filter cannot be attributed to columns: while any is active every updated
+ * row is a transaction, as before. An external filter is attributed through
+ * the platform's `ExternalFilterColumns` registry (plan B2): its installer
+ * declares the columns it reads and those become key columns; with nothing
+ * declared it is unattributable like the others.
  */
 import type { GridApi, IRowNode } from 'ag-grid-community';
-import type { RowChangeFeed } from '@wellsfargo-starui/core';
+import type { ExternalFilterColumns, RowChangeFeed } from '@wellsfargo-starui/core';
 
 export interface RenderedRowUpdaterOptions {
   /** Row-change bus; resolved per call so a grid handle that arrives after the wiring effect still reaches it. */
   getRowChangeFeed?: () => RowChangeFeed | null | undefined;
+  /** The platform's external-filter column declarations (`handle.platform.externalFilters`); resolved per call like the bus. */
+  getExternalFilterColumns?: () => ExternalFilterColumns | null | undefined;
   /** Test seams for the flush timer. */
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (id: unknown) => void;
@@ -65,20 +70,25 @@ function safe<T>(fn: () => T, fallback: T): T {
   try { return fn(); } catch { return fallback; }
 }
 
-export function readKeyColumns<TData>(api: GridApi<TData>): KeyColumns {
+export function readKeyColumns<TData>(
+  api: GridApi<TData>,
+  externalFilters?: ExternalFilterColumns | null,
+): KeyColumns {
   const quick = safe(() => api.getGridOption('quickFilterText'), undefined);
   const pivot = safe(() => api.isPivotMode(), false);
   const advanced = safe(() => api.getAdvancedFilterModel?.() ?? null, null);
   const isExternal = safe(() => api.getGridOption('isExternalFilterPresent'), undefined);
   const external = typeof isExternal === 'function' && safe(() => isExternal({ api } as never) === true, false);
-  if ((typeof quick === 'string' && quick.length > 0) || pivot || advanced !== null || external) {
+  // An active external filter is attributable only through its installer's declaration.
+  const declared = external ? safe(() => externalFilters?.columns() ?? null, null) : [];
+  if ((typeof quick === 'string' && quick.length > 0) || pivot || advanced !== null || declared === null) {
     return { all: true, cols: [], signature: '*' };
   }
   const sort = safe(() => (api.getColumnState() ?? []).filter((c) => c.sort != null).map((c) => c.colId), [] as string[]);
   const filter = safe(() => Object.keys(api.getFilterModel() ?? {}), [] as string[]);
   const groups = safe(() => api.getRowGroupColumns().map((c) => c.getColId()), [] as string[]);
   const values = groups.length > 0 ? safe(() => api.getValueColumns().map((c) => c.getColId()), [] as string[]) : [];
-  const cols = [...new Set([...sort, ...filter, ...groups, ...values])];
+  const cols = [...new Set([...sort, ...filter, ...groups, ...values, ...declared])];
   return { all: false, cols, signature: JSON.stringify(cols) };
 }
 
@@ -137,7 +147,7 @@ export function createRenderedRowUpdater<TData>(opts: RenderedRowUpdaterOptions 
 
   const apply = (api: GridApi<TData>, rows: readonly TData[], ids: readonly string[]): TData[] => {
     lastApi = api;
-    const keys = readKeyColumns(api);
+    const keys = readKeyColumns(api, opts.getExternalFilterColumns?.());
     if (keys.signature !== keySignature) {
       keySignature = keys.signature;
       keySnapshot.clear();

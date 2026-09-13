@@ -170,6 +170,21 @@ export interface RowChangeFeed {
   noteRowsChanged(nodes: ReadonlyArray<IRowNode>): void;
 }
 
+/**
+ * The columns an AG Grid EXTERNAL filter reads, declared by whoever installs
+ * one (refactor plan B2). AG Grid cannot say which columns
+ * `doesExternalFilterPass` looks at, so while an external filter is active
+ * the rendered-row apply path has to treat every updated row as a possible
+ * position change — a transaction per row — unless the installer declares
+ * the columns here; then only rows whose declared columns changed ride one.
+ */
+export interface ExternalFilterColumns {
+  /** Declare (replace) the columns `owner`'s external filter depends on; `null` withdraws the declaration. */
+  declare(owner: string, columns: readonly string[] | null): void;
+  /** Union of every declaration, or `null` when nothing is declared (the filter cannot be attributed). */
+  columns(): readonly string[] | null;
+}
+
 // ─── Resource scope ───────────────────────────────────────────────────────
 
 export interface CssHandle {
@@ -278,6 +293,8 @@ export interface PlatformHandle<S> {
   /** Shared, rAF-coalesced row-change signal. Subscribe here instead of
    *  wiring a private `modelUpdated` listener that walks every row per tick. */
   readonly rows: RowChangeSignal;
+  /** Where a module that installs an external filter declares the columns it reads. */
+  readonly externalFilters: ExternalFilterColumns;
   /** Read + write THIS module's state. */
   getState(): S;
   setState(updater: (prev: S) => S): void;

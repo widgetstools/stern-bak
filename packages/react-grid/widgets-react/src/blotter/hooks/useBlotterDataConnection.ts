@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GridApi } from 'ag-grid-community';
-import type { RowChangeFeed } from '@wellsfargo-starui/core';
+import type { ExternalFilterColumns, RowChangeFeed } from '@wellsfargo-starui/core';
 import type { IDataProvider } from '@wellsfargo-starui/data';
 import { useDataProvider } from '@wellsfargo-starui/react/data/runtime';
 import { createApplyProviderToGridState } from '../../container/markets-grid-container/applyProviderToGrid.js';
@@ -14,6 +14,8 @@ export interface UseBlotterDataConnectionOptions {
   getRowId?: (row: Record<string, unknown>) => string;
   /** The grid platform's row-change bus (`handle.platform.rows`), so rendered-row updates still reach alerts and styling. */
   rowChangeFeed?: RowChangeFeed | null;
+  /** The grid platform's external-filter column declarations (`handle.platform.externalFilters`). */
+  externalFilterColumns?: ExternalFilterColumns | null;
 }
 
 export interface UseBlotterDataConnectionResult {
@@ -34,9 +36,12 @@ export function useBlotterDataConnection({
   provider: explicitProvider,
   getRowId,
   rowChangeFeed,
+  externalFilterColumns,
 }: UseBlotterDataConnectionOptions): UseBlotterDataConnectionResult {
   const rowChangeFeedRef = useRef(rowChangeFeed);
   rowChangeFeedRef.current = rowChangeFeed;
+  const externalFilterColumnsRef = useRef(externalFilterColumns);
+  externalFilterColumnsRef.current = externalFilterColumns;
   const { provider: hubProvider } = useDataProvider(
     explicitProvider ? null : (providerId ?? null),
     // status is unused here — the connection consumes provider events
@@ -62,7 +67,10 @@ export function useBlotterDataConnection({
       );
     }
 
-    const gridApply = createApplyProviderToGridState({ getRowChangeFeed: () => rowChangeFeedRef.current });
+    const gridApply = createApplyProviderToGridState({
+      getRowChangeFeed: () => rowChangeFeedRef.current,
+      getExternalFilterColumns: () => externalFilterColumnsRef.current,
+    });
     let cancelled = false;
 
     const commitSnapshot = (rows: readonly Record<string, unknown>[]) => {

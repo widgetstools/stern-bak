@@ -26,7 +26,7 @@
  *   node scripts/check-file-size.mjs --update --allow-growth   # seed, or accept growth deliberately (say why in the commit)
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { ESLint } from 'eslint';
 import repoConfig from '../eslint.config.mjs';
 
@@ -68,7 +68,8 @@ const eslint = new ESLint({
 const current = new Map(); // rel path → { lines: number | null, longFunctions: number }
 for (const r of await eslint.lintFiles(['packages/**/*.{ts,tsx}'])) {
   if (r.messages.length === 0) continue;
-  const rel = relative(REPO_ROOT, r.filePath);
+  // Baseline keys are POSIX paths; on Windows `relative` yields backslashes.
+  const rel = relative(REPO_ROOT, r.filePath).split(sep).join('/');
   const entry = { lines: null, longFunctions: 0 };
   for (const m of r.messages) {
     if (m.fatal) throw new Error(`${rel}: ${m.message}`);

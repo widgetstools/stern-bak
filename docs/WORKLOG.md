@@ -1240,6 +1240,24 @@ receiving the feed (owner decision, plan Phase C); they spend 10× longer in
 scheduling of the hidden process, to be confirmed in plan B3. The
 no-isolation six-view lag run is owed to the plan's §2 as confirmation.
 
+**B2 measured and built (2026-09-13):** one CSRM view (20 000 rows, 372
+columns, 15 ticking) on the production dock, census + CPU profile per grid
+state, 10 s each — default 71 `setTimeout`; sorted by a ticking column
+23–45 k; grouped two levels with ticking aggregates 23.5 k; filtered on a
+static column ≈ 3.3 k (first-touch tail); the toolbar-date row exclusion on
+44.7 k with 1.6 s of `executeBatchUpdateRowData`, because an external
+filter could not be attributed to columns and every updated row rode a
+transaction. Now the toolbar-date module declares the columns its expression
+reads on `GridPlatform.externalFilters` (`ExternalFilterColumnRegistry`,
+`collectColumnRefs`) and the apply path treats them as key columns: the
+same state measures 2 117 timers and 64 ms, rendered rows refreshed in
+place. The remaining tens of thousands in the sorted / grouped states are
+ag-grid-react's autosize flush (`setTimeout(processResizeOperations, 0)`
+once per `rowNodeDataChanged`); their cost is the re-sort / re-aggregate per
+flush window, paid only for rows whose key changed. `npm run check:loc`
+compared backslash paths with its POSIX baseline on Windows and reported
+every baseline file as new — fixed.
+
 **Dev-rig notes:** `fin.View.getProcessInfo()` from the provider page maps
 views to PIDs; wrapping `setTimeout`/`clearTimeout` in an init script and
 bucketing by callback source finds timer storms that CPU profiles only

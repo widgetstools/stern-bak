@@ -8,6 +8,8 @@ import { compileToFunction, type CompiledExpression } from './compileToFunction'
 import { createFunctionRegistry, getAllFunctions } from './functions';
 import { validateCallSites } from './validateCalls';
 
+export { collectColumnRefs } from './collectColumnRefs';
+
 /**
  * Max distinct expression strings whose parsed AST we keep. Real grids have a
  * small, stable set of rule/column/alert expressions (tens, maybe low hundreds),

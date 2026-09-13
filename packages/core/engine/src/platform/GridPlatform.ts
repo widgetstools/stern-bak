@@ -3,6 +3,7 @@ import { composeRowId } from '@wellsfargo-starui/types';
 import { createGridStore } from '../store/createGridStore';
 import { ApiHub } from './ApiHub';
 import { EventBus } from './EventBus';
+import { ExternalFilterColumnRegistry } from './ExternalFilterColumnRegistry';
 import { PipelineRunner } from './PipelineRunner';
 import { ResourceScope } from './ResourceScope';
 import { RowChangeBus } from './RowChangeBus';
@@ -57,6 +58,8 @@ export class GridPlatform {
   readonly resources: ResourceScope;
   readonly events: EventBus<PlatformEventMap>;
   readonly rows: RowChangeBus;
+  /** Columns declared by modules that install an external filter (plan B2). */
+  readonly externalFilters: ExternalFilterColumnRegistry;
 
   private readonly pipeline: PipelineRunner;
   private readonly modules: AnyModule[];
@@ -79,6 +82,7 @@ export class GridPlatform {
     this.events = new EventBus<PlatformEventMap>();
     this.api = new ApiHub();
     this.rows = new RowChangeBus(this.api);
+    this.externalFilters = new ExternalFilterColumnRegistry();
     this.resources = new ResourceScope(opts.gridId, { appData: opts.appData });
     this.pipeline = new PipelineRunner();
 
@@ -116,6 +120,7 @@ export class GridPlatform {
       try { dispose(); } catch { /* swallow — teardown must complete */ }
     }
     this.rows.dispose();
+    this.externalFilters.clear();
     this.api.detach();
     this.pipeline.dispose();
     this.resources.dispose();
@@ -183,6 +188,7 @@ export class GridPlatform {
       resources: this.resources,
       events: this.events,
       rows: this.rows,
+      externalFilters: this.externalFilters,
       getState: () => this.store.getModuleState<S>(module.id),
       setState: (updater) => this.store.setModuleState<S>(module.id, updater),
       getModuleState: <T,>(id: string) => this.store.getModuleState<T>(id),

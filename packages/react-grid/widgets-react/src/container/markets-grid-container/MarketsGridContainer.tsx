@@ -626,6 +626,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     liveApi,
     provider: isSsrm ? null : provider,
     rowChangeFeed: gridHandle?.platform.rows ?? null,
+    externalFilterColumns: gridHandle?.platform.externalFilters ?? null,
     activeId,
     subscriptionKey,
     rowIdField,
