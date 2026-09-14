@@ -854,6 +854,45 @@ recorded in WORKLOG 18 (and item 18 closed if nothing remains).
 test for each: no render reports "loaded" for an id it has not loaded.
 **Verify.** `npx turbo test --filter=@wellsfargo-starui/react`.
 
+### F5 — The workspace snapshot's customData safety net misses docked views (one session)
+
+**Why.** Per-view state round-trips through workspace save/restore on
+`customData` — `activeProfileId` (the profile a blotter reopens on,
+`openfinViewProfile.ts`, `docs/PROFILE_PERSISTENCE.md` §4–5) and `savedTitle`.
+Two mechanisms carry it: `Platform.getSnapshot()` reading live view options,
+and `augmentSnapshotWithLiveCustomData` re-reading live `customData` per view
+as a defence against the first lagging a recent `updateOptions` write.
+
+The defence is inert for docked windows. Its walk, `collectViewNodes`
+(`packages/openfin/openfin-platform/src/workspacePersistence.ts`), recurses
+`views` / `windows` / `children` / `layout` / `content` — but OpenFin workspace
+windows carry their views under `layoutSnapshot.layouts[<name>]`, a
+*keyed object*, not one of those. `layoutSnapshot` appears nowhere in the repo;
+`docs/openfin-view-process-isolation-experiment.md` gotcha 5 recorded that
+restores come from `layoutSnapshot`, not `layout`. So for the six-blotter
+docked window the walk collects zero views and merges nothing.
+
+Round-trip works today (verified live 2026-09-14, CSRM and SSRM: each view
+reopened on its own profile) because the primary capture is enough. The cost
+of the gap is that the documented backstop is absent exactly where the product
+is docked, so an OpenFin timing change would take profile restore down
+silently.
+
+**What.** Recurse keyed-object containers in `collectViewNodes` — at minimum
+`layoutSnapshot.layouts`, generally any object whose values are layout nodes —
+keeping the "a node with `name` + `url` is a view" test. `instanceIdsFromSnapshot`
+uses a parallel walk (`collectInstanceIds`) with the same blind spot; fix both
+or give them one walk.
+
+**Entry.** None. **Out of scope.** Any change to the pointer itself.
+**Exit.** A test builds a snapshot shaped the way OpenFin saves a docked
+window (views under `layoutSnapshot.layouts`, not `layout`) and asserts the
+augmentation reaches them and that live `activeProfileId` wins over a stale
+snapshot value; the existing `layout`-shaped tests keep passing.
+**Verify.** `npx turbo test --filter=@wellsfargo-starui/openfin`; on the dock,
+save a workspace with two blotters on different profiles, quit, reopen, and
+read `customData.activeProfileId` from each restored view.
+
 ### G2 — Name and fix the slow tests (one session)
 
 **What.** Run the grid suite three times with the verbose reporter, record
@@ -880,7 +919,7 @@ server is 7–9× slower on that path and is not evidence.
    skipped, see §C entry (a): owner's call.*
 5. **A decision** — target hardware, after B3 (so it measures what B leaves).
    *Measured; closes on the §A rows.*
-6. **F1–F4** — independent of the above; any time after G1.
+6. **F1–F5** — independent of the above; any time after G1.
 7. **D0**, then **D1 → D2 → D3** only if D0's rule says so.
 8. **E2** measurement any time after G1; its format change (if any) and **E3**
    engine repo first, here after B2.
@@ -904,6 +943,7 @@ server is 7–9× slower on that path and is not evidence.
 | WORKLOG 21 | docked views share one renderer | A (done) |
 | Handoff §6 | REST re-probe, fonts, SAB fan-out, customizer-open timing, soak | out of scope (stated above) |
 | Review 2026-09-13 | findings 1–10 | revision note |
+| Profile round-trip investigation 2026-09-14 | docked views miss the snapshot customData defence | F5 |
 
 ## 6. What this plan does not promise
 
@@ -1010,4 +1050,4 @@ rows and attach the JSON to the branch's pull request.
    tokens without declaring design-system — is declared. Pull request
    opened against `feature/worker-hub-config-refactor` (the stack's parent,
    which has no PR of its own yet).*
-5. Then **D0** (profile-first) and **F1–F4** in any order.
+5. Then **D0** (profile-first) and **F1–F5** in any order.
