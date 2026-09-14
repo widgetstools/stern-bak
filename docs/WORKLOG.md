@@ -1111,6 +1111,18 @@ production ~80 ms of main-thread work plus the second licence check; in
 `vite dev` several hundred ms), on top of StrictMode's dev-only double
 mount.
 
+**Mount stack measured (plan D0, 2026-09-14, `cdp-cold-reload.mjs` on the
+production dock):** from `starui:platform-ready` to the grid being created
+takes 617–717 ms on a CSRM blotter and 627–634 ms on an SSRM one, with
+3–12 ms idle — 326–557 React commits before the grid mounts at fiber depth
+67, AG Grid code running before any grid exists (module registration on
+first use, the column-definition pipeline, 180–300 ms), the container's
+hooks and renders (105–135 ms) and native work. First rows: SSRM
+2.9–3.3 s, CSRM 20 000 × 372 4.3–5.5 s, of which script fetch + parse is
+0.7–1.1 s and the data (first block / snapshot + client-side model) 1.0 s /
+1.6–3.4 s. Plan D (`BlotterHost`) proceeds; D2's exit is re-based on these
+rows.
+
 **Dev-rig notes (how it was found):** `console` stacks name the creator
 of each banner (`Runtime.consoleAPICalled` carries call frames); a
 minimal `__REACT_DEVTOOLS_GLOBAL_HOOK__` installed by
