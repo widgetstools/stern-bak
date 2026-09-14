@@ -636,11 +636,31 @@ exported — D2 switches the call sites, D3 deletes.
 80 lines, react-grid typecheck green. **Verify.**
 `npx turbo test --filter=@wellsfargo-starui/grid`; `npm run check:loc`.
 
-### D2 — Migrate star-demo (one session)
+### D2 — Migrate star-demo (one session) — in progress 2026-09-14
 
 **What.** star-demo's three container/hosted-grid call sites move to
 `BlotterHost`. E2E under `apps/e2e-openfin`: one AG Grid licence banner per
 blotter in the production build.
+
+**As built so far.** Both route views (`BlottersMarketsGrid`,
+`BlottersSsrmMarketsGrid`) render `BlotterHost` from
+`@wellsfargo-starui/grid/widgets` with their props unchanged; the third call
+site was the test double in `staruiVitestMocks.ts`, now a `BlotterHost` stub
+(`data-testid="blotter-host"`) and the view / main tests read it. New spec
+`apps/e2e-openfin/specs/blotter-single-grid.openfin.spec.ts`: installs a
+console counter before a reload and asserts one `.ag-root-wrapper` and one
+"AG Grid Enterprise License" banner (two under the Vite dev build, where
+StrictMode mounts effects twice). star-demo typecheck and production build
+green. Two pre-existing star-demo test facts, unrelated to D2 and reproduced
+at HEAD: `platformBootstrap.test.ts › initConfigBootstrap resolves json
+config in browser` fails, and the Provider prefetch tests take 3.4 s of their
+5 s timeout alone (`import()` of every tool-window chunk), so they trip when
+the suite runs in parallel — the `@wellsfargo-starui/data` test mock also
+lacks `warmPlatform`, which surfaces as an unhandled error there.
+**Owed:** the e2e run (the harness boots its own OpenFin runtime on the same
+CDP port as the dock, so it needs a dock-free box) and the D0 table
+re-recorded on the production dock — the dock was closed when D2 reached that
+step.
 **Entry.** D1. **Exit.** star-demo e2e green; on the production dock the
 D0 table re-recorded with platform-ready → grid created ≤ 300 ms and
 ≤ 50 commits before the grid, first rows 0.4 s earlier than D0's rows on

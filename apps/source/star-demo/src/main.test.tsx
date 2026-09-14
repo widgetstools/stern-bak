@@ -113,7 +113,7 @@ describe('main', () => {
     await waitFor(() => {
       expect(mockOpenFinRuntimeCreate).toHaveBeenCalled();
     });
-    await waitFor(() => expect(getOneByTestId('hosted-markets-grid')).toBeInTheDocument());
+    await waitFor(() => expect(getOneByTestId('blotter-host')).toBeInTheDocument());
   });
 
   it('executes ag-grid warm-up branch for blotter pathname', async () => {
