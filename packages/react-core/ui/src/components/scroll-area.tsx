@@ -12,7 +12,18 @@ const ScrollArea = React.forwardRef<
     className={cn('relative overflow-hidden', className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+    {/*
+      `[&>div]:!block` — Radix renders the viewport's content wrapper as
+      `display: table` (its own width-measuring trick). A table box shrink-wraps
+      to its content, so the wrapper ignores the scroll area's width and every
+      child sizes to the WIDEST row instead: `truncate` has no width to
+      truncate against and anything pinned to the right of a row is pushed
+      outside the visible box. Forcing `block` restores the constraint. Every
+      ScrollArea in this repo is a vertical list, so this is the behaviour all
+      of them want. Horizontal scrolling still works — it comes from the
+      content's own min-width, not from the wrapper's display.
+    */}
+    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] [&>div]:!block">
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

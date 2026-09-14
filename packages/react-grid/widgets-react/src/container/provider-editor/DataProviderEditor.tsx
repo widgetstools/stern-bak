@@ -349,13 +349,17 @@ function SidebarRow({
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === 'Enter') onSelect(); }}
       className={[
-        'group rounded-md px-2 py-1.5 cursor-pointer flex items-center gap-2 text-xs',
+        // Three tracks: icon · name · a RESERVED action gutter (2 × h-6 + gap-1).
+        // The gutter is always present, so the name truncates to the same width
+        // whether or not the row is hovered and nothing shifts under the pointer.
+        'group rounded-md px-2 py-1.5 cursor-pointer grid grid-cols-[20px_minmax(0,1fr)_52px] items-center gap-2 text-xs',
         selected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
       ].join(' ')}
     >
       <Icon className={`h-3.5 w-3.5 ${selected ? 'text-accent-foreground' : 'text-muted-foreground'}`} />
-      <div className="flex-1 min-w-0">
-        <div className="font-medium truncate">{cfg.name}</div>
+      <div className="min-w-0">
+        {/* `title` so a name the gutter clipped is still readable on hover. */}
+        <div className="font-medium truncate" title={cfg.name}>{cfg.name}</div>
         <div className={`text-[10px] flex items-center gap-1.5 ${selected ? 'text-accent-foreground/80' : 'text-muted-foreground'}`}>
           <span>{meta.label}</span>
           {isDraft && (
@@ -376,26 +380,46 @@ function SidebarRow({
           )}
         </div>
       </div>
-      {!isDraft && (
+      <RowActions selected={selected} isDraft={isDraft} onClone={onClone} onDelete={onDelete} />
+    </li>
+  );
+}
+
+
+/**
+ * The row's reserved action gutter.
+ *
+ * Rendered for EVERY row, drafts included, so the 52px track in
+ * {@link ProviderRow}'s grid is always occupied and the name beside it
+ * truncates to one stable width. The buttons themselves fade in on hover or
+ * selection; the SPACE never moves.
+ */
+function RowActions({ selected, isDraft, onClone, onDelete }: {
+  selected: boolean;
+  isDraft?: boolean;
+  onClone(): void;
+  onDelete(): void;
+}) {
+  if (isDraft) return <div />;
+  const reveal = 'opacity-0 group-hover:opacity-100 group-data-[selected=true]:opacity-100';
+  const tone = selected
+    ? 'text-accent-foreground/80 hover:text-accent-foreground hover:bg-accent-foreground/10'
+    : 'text-muted-foreground hover:text-foreground';
+  return (
+    <div className="flex items-center justify-end gap-1">
       <Button
         size="icon"
         variant="ghost"
-        className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 group-data-[selected=true]:opacity-100 ${
-          selected
-            ? 'text-accent-foreground/80 hover:text-accent-foreground hover:bg-accent-foreground/10'
-            : 'text-muted-foreground hover:text-foreground'
-        }`}
+        className={`h-6 w-6 p-0 ${reveal} ${tone}`}
         onClick={(e) => { e.stopPropagation(); onClone(); }}
         title="Duplicate"
       >
         <Copy className="h-3 w-3" />
       </Button>
-      )}
-      {!isDraft && (
       <Button
         size="icon"
         variant="ghost"
-        className={`h-6 w-6 p-0 opacity-0 group-hover:opacity-100 group-data-[selected=true]:opacity-100 hover:text-destructive ${
+        className={`h-6 w-6 p-0 ${reveal} hover:text-destructive ${
           selected ? 'text-accent-foreground/80 hover:bg-accent-foreground/10' : 'text-muted-foreground'
         }`}
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -403,8 +427,7 @@ function SidebarRow({
       >
         <Trash2 className="h-3 w-3" />
       </Button>
-      )}
-    </li>
+    </div>
   );
 }
 

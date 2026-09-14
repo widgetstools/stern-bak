@@ -34,7 +34,16 @@ import { ColumnsTab } from './tabs/ColumnsTab.js';
 import { DiagnosticsTab } from './tabs/DiagnosticsTab.js';
 import { BehaviourFields } from './transports/BehaviourFields.js';
 
-const SAVING_PULSE_MS = 1200;
+const SAVING_PULSE_MS = 1600;
+/**
+ * Floor on how briefly the saving state may show.
+ *
+ * A ConfigManager write lands in IndexedDB in single-digit milliseconds, so
+ * the spinner used to mount and unmount inside one frame: the click looked
+ * like it did nothing. Holding the state for this long costs nothing on a
+ * slow save and makes a fast one legible.
+ */
+const SAVING_FLOOR_MS = 400;
 
 export interface EditorFormProps {
   /** Initial DataProviderConfig — `providerId` is null for "new". */
@@ -144,6 +153,7 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
   const currentKeyColumn = readKeyColumn(provider.config);
 
   const onSave = async () => {
+    const startedAt = Date.now();
     setSaving(true);
     setSaveError(null);
     try {
@@ -161,6 +171,10 @@ export function EditorForm({ initial, userId, onCancel, onSaved, onClone }: Edit
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < SAVING_FLOOR_MS) {
+        await new Promise((resolve) => setTimeout(resolve, SAVING_FLOOR_MS - elapsed));
+      }
       setSaving(false);
     }
   };
@@ -411,9 +425,18 @@ function Footer({
             Update Columns
           </Button>
         )}
+        {/*
+          The footer's left side already reported the outcome, but it sits a
+          pane-width away from the button the user just clicked and clears on a
+          timer — so a successful save read as no feedback at all. The button
+          reports its own result: spinner while writing, a check for
+          SAVING_PULSE_MS after, and a label that invites a second attempt when
+          the write failed.
+        */}
         <Button size="sm" onClick={onSave} disabled={saving} className="h-8 text-xs min-w-[180px]">
           {saving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-          {saving ? 'Saving…' : saveLabel}
+          {!saving && savedAt ? <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> : null}
+          {saving ? 'Saving…' : savedAt ? 'Saved' : saveError ? 'Retry update' : saveLabel}
         </Button>
       </div>
     </footer>

@@ -88,6 +88,40 @@ describe('EditorForm', () => {
     });
   });
 
+  it('confirms a successful save on the button, not only in the far corner', async () => {
+    // A ConfigManager write lands in a few ms, so before this the spinner and
+    // the footer's green text both came and went without registering — the
+    // click read as "nothing happened".
+    const user = userEvent.setup();
+    render(<EditorForm initial={{ ...initial, providerId: 'p-1' }} userId="dev" />);
+
+    const button = screen.getByRole('button', { name: /Update DataProvider/i });
+    await user.click(button);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Saved/i })).toBeInTheDocument());
+    // …and the button is the one reporting it, not just the status line.
+    expect(screen.getByRole('button', { name: /Saved/i })).toBe(button);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  });
+
+  it('offers a retry on the button when the save failed', async () => {
+    const user = userEvent.setup();
+    save.mockRejectedValueOnce(new Error('version conflict'));
+    render(<EditorForm initial={{ ...initial, providerId: 'p-1' }} userId="dev" />);
+
+    await user.click(screen.getByRole('button', { name: /Update DataProvider/i }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Retry update/i })).toBeInTheDocument());
+    expect(screen.getByText(/version conflict/i)).toBeInTheDocument();
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  });
+
   it('shows diagnostics only for saved providers', async () => {
     const user = userEvent.setup();
     render(
