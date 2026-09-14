@@ -590,7 +590,7 @@ the baseline was an SSRM number on a different day and is superseded.
 (`--target <id>` when several views share a URL); the JSON in
 `apps/scripts/ssrm-perf/out/`.
 
-### D1 — `BlotterHost` (one session)
+### D1 — `BlotterHost` (one session) — built 2026-09-14
 
 **What.** One component in `packages/react-grid/widgets-react/src/blotter/`
 with an explicit state machine in its own file (`blotterHostMachine.ts`):
@@ -601,8 +601,39 @@ one gate. `MarketsGrid` and the customizer are unchanged. The container's
 provider-selection, persistence and admin-action tests move over unchanged in
 intent; WORKLOG 20's "stub grid mounts exactly once" test moves here.
 
+**As built.** `blotterHostMachine.ts` is pure: `resolveBlotterHostStep(facts)`
+returns `identity | storage | selection | config | grid(data, key) |
+grid(empty, reason)`, and a chosen provider whose row is neither present nor
+failed is `config` whatever a stale `loading` flag says — WORKLOG 20's
+combination is unrepresentable. `BlotterHost.tsx` is the outer host (the
+hosted-view features, the data-plane provider, the full-bleed layout; it
+mounts the body only once identity and storage are settled) plus the body,
+which gathers the remaining facts and renders what the step says: one loading
+note, or one `MarketsGrid` keyed `csrm|ssrm::provider::keyColumn`, or the
+empty grid. The orchestration is split into hooks under `blotter/host/` so
+every function stays under the 80-line ceiling: view features (identity, tab
+title, linking, document title, legacy cleanup), grid-level persistence and
+caption, toolbar date, active provider, data feed and its actions, admin
+actions and the two Custom Settings host APIs. The wiring modules it reuses
+(`useGridLevelPersistence`, `useProviderDataWiring`, `useSsrmProviderWiring`,
+`buildColumnDefs`, the dialogs, the overlay) stay in the container folder
+until D3 moves or deletes them. Props are `HostedMarketsGridProps` plus an
+optional explicit `storage` factory (wins over the ConfigService-backed one),
+so D2 is a rename at the call sites and the container's tests could move with
+their intent intact. Tests moved: loading gate (WORKLOG 20), SSRM (no
+throwaway grid, auto-pick, stable ssrm config, refresh/reload routing), admin
+actions and host APIs, toolbar historical mode and save-and-switch, provider
+stale state, caption persistence (the OpenFin rename now arrives the way it
+does in production: `customData.savedTitle` + `options-changed`); plus the
+hosted gates (connecting note while storage is pending, explicit storage,
+document title, data-plane wrapper) and the machine's own table.
+`MarketsGridContainer` and `HostedMarketsGrid` are untouched and still
+exported — D2 switches the call sites, D3 deletes.
+
 **Entry.** D0's decision rule. **Out of scope.** Consumers (D2, D3).
-**Exit.** Unit tests green; both files under the ceiling. **Verify.**
+**Exit.** Unit tests green; both files under the ceiling. **Met:** 52 tests in
+`widgets-react/src/blotter`, `check:loc` green with every new function under
+80 lines, react-grid typecheck green. **Verify.**
 `npx turbo test --filter=@wellsfargo-starui/grid`; `npm run check:loc`.
 
 ### D2 — Migrate star-demo (one session)

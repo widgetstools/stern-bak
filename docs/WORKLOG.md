@@ -1121,7 +1121,9 @@ hooks and renders (105–135 ms) and native work. First rows: SSRM
 2.9–3.3 s, CSRM 20 000 × 372 4.3–5.5 s, of which script fetch + parse is
 0.7–1.1 s and the data (first block / snapshot + client-side model) 1.0 s /
 1.6–3.4 s. Plan D (`BlotterHost`) proceeds; D2's exit is re-based on these
-rows.
+rows. **D1 built (2026-09-14):** `BlotterHost` + `blotterHostMachine.ts` in
+`widgets-react/src/blotter/`, the container's tests moved over (52 in the
+folder), the old stack untouched until D2 switches the call sites.
 
 **Dev-rig notes (how it was found):** `console` stacks name the creator
 of each banner (`Runtime.consoleAPICalled` carries call frames); a
