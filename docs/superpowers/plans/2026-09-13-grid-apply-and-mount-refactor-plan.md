@@ -203,6 +203,12 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | root mounted → first header cell (AG Grid column / header init) | 492–793 ms, all busy (372 columns) | 316–340 ms |
 | first header → first rows | 1 607–3 354 ms: busy 787–2 690 (`ag-grid-community` 190–950, native 850–920 = snapshot deserialisation + client-side model, `index.js` 270–340 ingest), idle 445–820 (waiting for the 20 000-row snapshot) | 1 011–1 070 ms: busy 543–889, idle 122–527 (first block from the engine) |
 | **first rows on screen** | **4.29–5.47 s** | **2.87–3.26 s** |
+| **D2 (2026-09-14, 01:2x–02:0x UTC): same dock and layout, star-demo on `BlotterHost`; two passes** | CSRM | SSRM |
+| First pass, entry unchanged (`React.lazy` route under the route Suspense) — platform-ready → grid created; commits before the grid | 618–647 ms; 640–697 commits, of which ~480 root-only retry-lane commits while the root showed "Loading…" (BlotterHost's own components rendered 7×) | not measured separately |
+| Second pass, entry waits for the route chunk before the first render — commits before the grid | **9** | **9** |
+| Second pass — platform-ready → BlotterHost body mounted (`starui:blotter-body`) | 322 ms, all busy: AG Grid chunk evaluating (`ag-grid-community` 120–159, enterprise 51, native 44–67 ms) | 320–325 ms, same shape (`ag-grid-community` 89–123, enterprise 75) |
+| Second pass — body mounted → grid created (banner) → grid step (`starui:blotter-grid`) | ≈ 100 ms → +50 ms; AG Grid root in the DOM +70 ms; first header +350–380 ms | 89–93 ms → +58–60 ms; first header +258–334 ms |
+| Second pass — first rows on screen | **3.84–3.98 s** (−0.4 to −0.7 s) | **2.40–2.81 s** (−0.5 s) |
 | Attribution of `processResizeOperations` | ag-grid-react's autosize bean (`queueResizeOperationsForTick` in `ag-grid-react-*.js`) listens to `rowNodeDataChanged` / `cellValueChanged` / `rowDataUpdated` / expansion events and schedules `setTimeout(() => colAutosize.processResizeOperations(), 0)` on every one — one macrotask per transaction-updated row, no coalescing. Its own work is nil (the operation queue is empty); the cost in the sorted / grouped states is `executeBatchUpdateRowData` (the re-sort / re-aggregate per flush window), 0.8–2.5 s per 10 s | B2 step 3: nothing further in B2 — that is the price of keeping sort order and aggregates live, paid only for rows whose key changed |
 
 Every phase appends its before/after row here.
@@ -657,10 +663,38 @@ config in browser` fails, and the Provider prefetch tests take 3.4 s of their
 5 s timeout alone (`import()` of every tool-window chunk), so they trip when
 the suite runs in parallel — the `@wellsfargo-starui/data` test mock also
 lacks `warmPlatform`, which surfaces as an unhandled error there.
+**Measured 2026-09-14, first pass (BlotterHost, star-demo entry unchanged):**
+the mount stack did not move — platform-ready → grid created 618–647 ms of
+pure compute, 640–697 React commits before the grid. The commit count was
+attributed with a per-commit fiber diff (which fibers are new objects
+against the previous committed tree; the deepest ones are the update's
+origin) after three sampled methods misled: 481 of 489 pre-grid commits
+happened while the root showed the route Suspense fallback ("Loading..."),
+touched only the host root, and carried two pending RETRY lanes on every
+commit — React retrying the `React.lazy` blotter route against its still
+pending chunk, ~0.5 ms apart in bursts. Every instrument that slowed the
+page (pausing breakpoints, even conditional logpoints) made the storm
+vanish, which is why it needed the non-perturbing diff. BlotterHost's own
+components rendered 7 times.
+
+**Fix (star-demo entry, `main.tsx`):** a blotter window waits for its route
+chunk (bounded at 5 s) before the first `root.render` and renders the route
+component directly; the lazy path stays for in-window navigation and for a
+slow chunk. **Second pass:** pre-grid commits **9**; platform-ready →
+BlotterHost body 322 ms, all of it the AG Grid chunk evaluating
+(`ag-grid-community` 120–159 ms, enterprise 51, native 44–67 — the chunk lands
+after platform-ready because its fetch is longer than the warm bootstrap);
+body → grid created ≈ 100 ms (the host's own share); first rows 3.84–3.98 s
+(from 4.29–5.47 s). Exit: commits and first rows met; "platform-ready → grid
+created ≤ 300 ms" not met as written (587–612 ms) because it bundles the
+chunk evaluation no host change can remove — the host's share is ~100 ms.
+Owner to accept the criterion as "body mounted → grid created ≤ 300 ms" or
+keep the original and take the star-demo follow-up: `modulepreload` the AG
+Grid chunks from `index.html` so they fetch alongside the entry, which is
+the only lever left on that 322 ms.
+
 **Owed:** the e2e run (the harness boots its own OpenFin runtime on the same
-CDP port as the dock, so it needs a dock-free box) and the D0 table
-re-recorded on the production dock — the dock was closed when D2 reached that
-step.
+CDP port as the dock, so it needs a dock-free box).
 **Entry.** D1. **Exit.** star-demo e2e green; on the production dock the
 D0 table re-recorded with platform-ready → grid created ≤ 300 ms and
 ≤ 50 commits before the grid, first rows 0.4 s earlier than D0's rows on

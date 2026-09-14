@@ -13,7 +13,7 @@
  * to attach. Before that there is one loading note, never a grid that a later
  * phase replaces (WORKLOG 20). `MarketsGrid` and the customizer are unchanged.
  */
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import type { AppDataLookup } from '@wellsfargo-starui/core';
 import { MarketsGrid, createMarketsGridContainerEventBus, useMarketsGridEventBridge } from '@wellsfargo-starui/grid';
@@ -180,8 +180,26 @@ function BlotterHostDialogs({ admin, userId }: { admin: BlotterAdminActions; use
   );
 }
 
+/** Load-timing marks (measurement only): the body mounted; the step first reached `grid`. */
+function useBlotterLoadMarks(step: BlotterHostStep): void {
+  const marked = useRef(false);
+  useEffect(() => { markOnce('starui:blotter-body'); }, []);
+  useEffect(() => {
+    if (marked.current || !isGridStep(step)) return;
+    marked.current = true;
+    markOnce('starui:blotter-grid');
+  }, [step]);
+}
+function markOnce(name: string): void {
+  try {
+    if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return;
+    if (performance.getEntriesByName(name, 'mark').length === 0) performance.mark(name);
+  } catch { /* measurement must never break the host */ }
+}
+
 function BlotterHostBody<TData extends Record<string, unknown>>(p: BlotterBodyProps<TData>): ReactNode {
   const { step, gridLevel, toolbar, active, feed, admin, apis, appDataLookup, handleReady } = useBlotterBody(p);
+  useBlotterLoadMarks(step);
   const { view, storage, instanceId, appId, userId, componentName } = p;
   const dialogs = <BlotterHostDialogs admin={admin} userId={userId} />;
   if (!isGridStep(step)) {

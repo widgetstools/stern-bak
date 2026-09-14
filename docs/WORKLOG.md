@@ -1124,6 +1124,19 @@ hooks and renders (105–135 ms) and native work. First rows: SSRM
 rows. **D1 built (2026-09-14):** `BlotterHost` + `blotterHostMachine.ts` in
 `widgets-react/src/blotter/`, the container's tests moved over (52 in the
 folder), the old stack untouched until D2 switches the call sites.
+**D2 (2026-09-14):** star-demo's blotter routes render `BlotterHost`. The
+first measurement showed the mount stack unchanged and 640–697 commits
+before the grid; a per-commit fiber diff (new fiber objects vs the previous
+committed tree — the "PerformedWork" flag is not a per-commit signal, it
+persists until the fiber is cloned) showed ~480 of them were root-only
+commits carrying retry lanes while the root showed the route's Suspense
+fallback: React retrying the `React.lazy` blotter route against its still
+pending chunk. Any instrument that slowed the page made it vanish. star-demo's
+entry now waits for the blotter route chunk (bounded at 5 s) before the
+first render and renders the route directly: 9 commits before the grid,
+first rows 3.84–3.98 s (from 4.29–5.47 s). What remains between
+platform-ready and the host body (322 ms) is the AG Grid chunk evaluating;
+the host's own share to grid created is ~100 ms.
 
 **Dev-rig notes (how it was found):** `console` stacks name the creator
 of each banner (`Runtime.consoleAPICalled` carries call frames); a
