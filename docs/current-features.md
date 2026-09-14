@@ -1610,7 +1610,7 @@ of importing `@openfin/*` directly (architecture boundary).
 - `.` — main platform API (workspace init, config, dock, launch)
 - `./config` — config-only entry (no runtime deps, browser-safe)
 - `./plugin` — `openFinPlatformPlugin` factory (OpenFin workspace plugin entry; `StarGridPlugin` contract lives in `@wellsfargo-starui/core/host`)
-- `./test-bridge` — test utilities
+- `./test-bridge` — `installTestBridge()`: the `marketsui-test-bridge` IAB channel for out-of-runtime e2e code (installed by a DEV provider window, or any build whose provider URL carries `?e2eBridge=1`). Ops: WorkspacePlatform.Storage `saveWorkspace` / `getWorkspaces` / `getWorkspace` / `deleteWorkspace`, `ping`, `listRegistry()` (the live Component Registry entries — id, displayName, type/subtype, hostUrl, singleton), `launchComponent({ entryId, asWindow? })` (the platform's own `launchRegisteredComponent` — minted `instanceId`, template row cloned, identity stamped; a View by default, since a same-app Window shares the provider's renderer and a loaded blotter there stalls every platform API call — replying `{ uuid, name, kind, instanceId, url }`) and `deleteConfig({ configId })` (drops the per-instance clone a launch created). Every reply is `{ ok, data } | { ok: false, error }`. Drives `apps/e2e-openfin`.
 - `./dock-editor` — icon helpers only (`ICON_OPTIONS`, `iconIdToSvgUrl`, `iconIdToThemedUrls`, `parseIconUrl`); dock editor React UI lives in `@wellsfargo-starui/react/workspace-setup`
 
 #### Workspace initialization

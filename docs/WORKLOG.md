@@ -49,8 +49,9 @@ whether the split caused that or it was already red.
 app was deleted) and diff. Nobody has.
 
 **Also here:** `e2e-openfin/` came across pointing at `e2e-openfin-workspace`,
-which was deleted. star-demo is itself an OpenFin app with a `launch.mjs` and
-manifest, so retargeting is plausible but unverified. And
+which was deleted. Retargeted at star-demo and green on 2026-09-14 (item 22:
+it had also drifted on routing, AG Grid 36 selectors and how a blotter gets
+its provider). And
 `apps/e2e/visual-reference-capture.spec.ts` is demo-react-bound too (boots via
 the `demo-blotter-v2` selector) and its default output path
 (`process.cwd()/docs/visual-reference/v1`) is wrong now that Playwright runs
@@ -1296,6 +1297,64 @@ bucketing by callback source finds timer storms that CPU profiles only
 show as native self time; concurrent per-isolate CPU profiles on a shared
 thread over-attribute wall time (sum across views exceeded the window
 12×) — use them for ranking within a view, never for absolute cost.
+
+## 22. The OpenFin e2e harness runs against star-demo again (2026-09-14) — fixed; two platform findings open
+
+**Symptom:** `apps/e2e-openfin` (plan D2's exit) had never run against this
+star-demo. Five of seven specs failed with no grid header ever appearing.
+
+**Harness drift, fixed:** (1) blotters were opened by path
+(`/blotters/marketsgrid?instanceId=`) — star-demo routes by hash, so the
+window landed on the home route; (2) row selectors were AG Grid 35's
+`.ag-center-cols-container` — 36 puts body rows under
+`.ag-grid-scrolling-rows` (the browser suite under `apps/e2e` still carries
+the old selector in five specs); (3) the config's webServer commands named
+scripts that don't exist; (4) a bare `Platform.createWindow` with a fresh
+`instanceId` has no config row, and both the old container and
+`BlotterHost` render the "no provider" grid (one `.ag-root-wrapper`, no
+columns, "Rows : 0") — the dock never does this because
+`launchRegisteredComponent` mints the id and clones the template row first.
+The test bridge (`@wellsfargo-starui/openfin/test-bridge`) now exposes
+`listRegistry`, `launchComponent` (that platform launch; a View by default)
+and `deleteConfig`; the fixture picks the registry entry by its blotter
+`hostUrl` (the live registry's ids differ from the seed's — here
+`grid-position-2`), launches views, sizes the view after its grid mounts
+(a launched view sits in an 800×500 window and does not follow window
+resize/maximize; `view.setBounds` after load does, and without it only seven
+static columns render so "rows tick" can never see a change), samples ticks
+with one `textContent` read + `expect.poll` (each evaluate on a loaded
+20k-row view queues 1–5 s behind long tasks), waits for destroyed views to
+leave the CDP target list (a `connectOverCDP` attaching to a lingering one
+stalled 15 s) and deletes the cloned rows. The bridge installs in a
+production build when the provider URL carries `?e2eBridge=1`, so the run
+works against the dock's `vite preview` with a manifest copy in `dist/`.
+Result: 7 of 7, 3.1 min.
+
+**Finding A — a blotter launched `asWindow` shares the provider's renderer
+(open).** Same-app OpenFin windows share a renderer unless given a
+`processAffinity`; the manifest's `viewProcessAffinityStrategy` covers views
+only. With one loaded 20 000-row blotter window open, the provider's next
+`platform.createWindow` took 27 s (0.4 s cold), with two 66 s, `getOptions`
+up to 11 s and the template clone 3.7–8.8 s — a CPU profile of the provider
+target was 100 % busy in the blotter's grid code (its isolate is the
+provider's), and the runtime core sat under 1 %. The dock's registry entries
+carry an `asWindow` option, so this is reachable from the UI. Fix candidate:
+a per-window `processAffinity` in `createComponentInstance` when
+`asWindow`; the isolation experiment's note 9 says popouts rely on sharing
+the opener's process, so re-test them first. `launch.ts` now logs one info
+line per launch (`window … ms, template clone … ms`).
+
+**Finding B — conditional-styling timed activations dominate a loaded CSRM
+view (open).** Source-mapped profile of a freshly loaded `Position-2` view
+(20 000 rows, 15 ticking columns, isolation on): 11.25 s busy of 11.25 s,
+7.8 s self time in `getValueByPath` (`types/rowPath.ts`) called from
+`conditional-styling/runtime/timedActivations.ts` `node` ← `change` ←
+`activate.ts` `change` ← the engine's `flush`; a further 1.2 s in
+`buildColumnsContextFromDiffs` and 0.85 s in `timedActivations` itself. The
+B1/B2 apply path is not in the picture (`renderedRowUpdates` 13 ms). Worth
+a look at what `timedActivations.change` walks per flush and whether it can
+be bounded to the changed rows' rule columns. Recipe: scratchpad
+`e2e-provider-profile.mjs` against a `vite build --sourcemap` dist.
 
 ## Pre-existing, tracked elsewhere
 

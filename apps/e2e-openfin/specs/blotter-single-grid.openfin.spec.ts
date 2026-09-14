@@ -15,7 +15,7 @@ const BANNER = 'AG Grid Enterprise License';
 
 test.describe('star-demo — one grid per blotter per load', () => {
   test('a cold load creates exactly one AG Grid instance', async ({ platform }) => {
-    const page = await platform.openBlotter('single-grid-1');
+    const page = await platform.openBlotter();
     await expect(page.locator('.ag-header-cell').first()).toBeVisible({ timeout: 45_000 });
 
     await page.addInitScript((marker: string) => {

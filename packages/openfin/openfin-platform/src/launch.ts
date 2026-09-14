@@ -268,6 +268,11 @@ async function cloneTemplateRowForInstance(
   }
 }
 
+/** One info line per launch: how long the OS window and the template clone each took. */
+function logLaunchTiming(entryId: string, instanceId: string, t0: number, windowDone: number, cloneDone: number): void {
+  console.info(`[launch] ${entryId} → ${instanceId}: window ${windowDone - t0}ms, template clone ${cloneDone - t0}ms`);
+}
+
 /**
  * Create the actual View or Window for a registry entry. Extracted from
  * launchRegisteredComponent so the singleton path can both reuse it AND
@@ -306,9 +311,13 @@ async function createComponentInstance(
   // renderer boots far enough to read the row (see
   // cloneTemplateRowForInstance). Singletons skip this — instanceId
   // === templateId, the view IS the template.
-  const clonePromise = singletonId
+  const t0 = Date.now();
+  let cloneDone = t0;
+  let windowDone = t0;
+  const clonePromise = (singletonId
     ? Promise.resolve()
-    : cloneTemplateRowForInstance(templateId, instanceId, entry);
+    : cloneTemplateRowForInstance(templateId, instanceId, entry)
+  ).then(() => { cloneDone = Date.now(); });
 
   const customData = {
     instanceId,
@@ -339,9 +348,10 @@ async function createComponentInstance(
         defaultHeight: 800,
         autoShow: true,
         customData,
-      }),
+      }).then((w) => { windowDone = Date.now(); return w; }),
       clonePromise,
     ]);
+    logLaunchTiming(entry.id, instanceId, t0, windowDone, cloneDone);
     return win;
   }
 
@@ -350,8 +360,9 @@ async function createComponentInstance(
     platform.createView({
       url: resolvedUrl,
       customData,
-    } as unknown as Parameters<ReturnType<typeof getCurrentSync>["createView"]>[0]),
+    } as unknown as Parameters<ReturnType<typeof getCurrentSync>["createView"]>[0]).then((v) => { windowDone = Date.now(); return v; }),
     clonePromise,
   ]);
+  logLaunchTiming(entry.id, instanceId, t0, windowDone, cloneDone);
   return view;
 }

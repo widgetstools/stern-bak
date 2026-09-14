@@ -693,8 +693,28 @@ keep the original and take the star-demo follow-up: `modulepreload` the AG
 Grid chunks from `index.html` so they fetch alongside the entry, which is
 the only lever left on that 322 ms.
 
-**Owed:** the e2e run (the harness boots its own OpenFin runtime on the same
-CDP port as the dock, so it needs a dock-free box).
+**E2E (2026-09-14, dock closed, production preview on :5175):**
+`apps/e2e-openfin` **7 of 7 green** (3.1 min; the bridge installs in a
+production build when the provider URL carries `?e2eBridge=1`, so the run
+points `OPENFIN_MANIFEST_URL` at a manifest copy in `dist/`). The harness had
+never run against this star-demo: it opened blotters by path (star-demo
+routes by hash), waited on AG Grid 35 selectors (`.ag-center-cols-container`;
+36 puts body rows under `.ag-grid-scrolling-rows`), declared webServer
+scripts that don't exist, and created bare windows whose fresh instanceId
+has no config row — `BlotterHost` then renders the "no provider" grid (no
+columns), exactly as the old container did. It now launches through the
+test bridge's new `launchComponent`, the platform's own
+`launchRegisteredComponent` (minted instanceId, template row cloned, the
+entry found by its blotter `hostUrl` via `listRegistry` because the live
+registry's ids differ from the seed's), as views, sized after the grid
+mounts so the ticking columns render; cloned rows are deleted on close. The
+one-grid-per-load spec passes: one `.ag-root-wrapper`, one licence banner on
+a cold reload, 7–9 s. Two platform findings on the way, WORKLOG 22: a blotter
+launched `asWindow` shares the provider's renderer and stalls every platform
+API call the provider makes (`createWindow` 0.4 s → 27 s → 66 s with one,
+two, three such windows open), and a loaded 20 000-row CSRM view spends
+~70 % of its main thread in the conditional-styling module's timed
+activations.
 **Entry.** D1. **Exit.** star-demo e2e green; on the production dock the
 D0 table re-recorded with platform-ready → grid created ≤ 300 ms and
 ≤ 50 commits before the grid, first rows 0.4 s earlier than D0's rows on

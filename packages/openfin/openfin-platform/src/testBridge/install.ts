@@ -3,10 +3,12 @@ declare const fin: any;
 
 /**
  * Test bridge — exposes a small set of WorkspacePlatform.Storage
- * operations over an OpenFin Channel so out-of-runtime test code
- * (vitest specs in `e2e-openfin/` driven via `@openfin/node-adapter`)
- * can drive saved-workspace lifecycle without needing direct access
- * to the in-runtime `@openfin/workspace-platform` module.
+ * operations, plus the platform's own registered-component launch, over an
+ * OpenFin Channel so out-of-runtime test code (the Playwright specs in
+ * `apps/e2e-openfin/` driven via `@openfin/node-adapter`) can drive
+ * saved-workspace lifecycle and open blotters the way a dock click does,
+ * without direct access to the in-runtime `@openfin/workspace-platform`
+ * module.
  *
  * Loaded lazily ONLY in dev/test builds (callers gate on
  * `import.meta.env.DEV` or equivalent). Code-split out of any
@@ -31,6 +33,41 @@ declare const fin: any;
 const CHANNEL_NAME = 'marketsui-test-bridge';
 
 type Reply<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/** `launchComponent` payload — a Component Registry entry id, as a dock button carries it. */
+export interface LaunchComponentPayload {
+  entryId: string;
+  /**
+   * A View in a platform Browser window (default — what a dock click does)
+   * or a standalone Window. Same-app windows share the provider's renderer
+   * unless given a `processAffinity`, so a heavy blotter launched as a
+   * window stalls every platform API call the provider makes (measured:
+   * `createWindow` 0.4 s → 27 s → 66 s with one, two, three such windows
+   * open); views are isolated by `viewProcessAffinityStrategy`.
+   */
+  asWindow?: boolean;
+}
+
+/** One live Component Registry entry, as `listRegistry` reports it. */
+export interface RegistryEntrySummary {
+  id: string;
+  displayName: string;
+  componentType: string;
+  componentSubType: string;
+  hostUrl: string;
+  singleton: boolean;
+}
+
+/** What `launchComponent` reports back: the OpenFin identity plus the launch identity the platform stamped. */
+export interface LaunchedComponent {
+  uuid: string;
+  name: string;
+  /** What the platform created — a View (`fin.View.wrapSync(...).destroy()`) or a Window (`.close()`). */
+  kind: 'view' | 'window';
+  /** The minted per-instance id (`customData.instanceId`), or `null` if the platform stamped none. */
+  instanceId: string | null;
+  url: string | null;
+}
 
 async function safe<T>(fn: () => Promise<T>): Promise<Reply<T>> {
   try {
@@ -86,6 +123,62 @@ export async function installTestBridge(): Promise<void> {
     safe(async () => {
       const platform = WP.getCurrentSync();
       await platform.Storage.deleteWorkspace(payload.id);
+      return null;
+    }),
+  );
+
+  // The live Component Registry. Entry ids differ per environment (the seed's
+  // ids only hold on a fresh profile), so a harness picks an entry by its
+  // route rather than by a hard-coded id.
+  provider.register('listRegistry', async () =>
+    safe(async (): Promise<RegistryEntrySummary[]> => {
+      const { loadRegistryConfig } = await import('../db.js');
+      const registry = await loadRegistryConfig();
+      return (registry?.entries ?? []).map((e) => ({
+        id: e.id,
+        displayName: e.displayName ?? '',
+        componentType: e.componentType,
+        componentSubType: e.componentSubType,
+        hostUrl: e.hostUrl ?? '',
+        singleton: e.singleton === true,
+      }));
+    }),
+  );
+
+  // Launch a registered component exactly as a dock click does: the
+  // platform mints the instanceId, clones the template's config row onto
+  // it (profiles + provider selection) and stamps the identity on the URL
+  // and customData — so an e2e blotter carries a provider like the dock's
+  // own views. A bare `Platform.createWindow` would open a row-less blotter
+  // that renders the "no provider" grid.
+  provider.register('launchComponent', async (payload: LaunchComponentPayload) =>
+    safe(async (): Promise<LaunchedComponent> => {
+      const { launchRegisteredComponent } = await import('../launch.js');
+      const t0 = Date.now();
+      const owner = await launchRegisteredComponent(payload.entryId, { asWindow: payload.asWindow === true });
+      if (!owner) throw new Error(`registry entry '${payload.entryId}' not found`);
+      const o = owner as any;
+      const tLaunched = Date.now();
+      const options = await o.getOptions();
+      // eslint-disable-next-line no-console
+      console.info(`[test-bridge] launchComponent ${payload.entryId}: launch ${tLaunched - t0}ms, getOptions ${Date.now() - tLaunched}ms`);
+      return {
+        uuid: o.identity?.uuid ?? '',
+        name: o.identity?.name ?? '',
+        kind: typeof o.destroy === 'function' ? 'view' : 'window',
+        instanceId: typeof options?.customData?.instanceId === 'string' ? options.customData.instanceId : null,
+        url: typeof options?.url === 'string' ? options.url : null,
+      };
+    }),
+  );
+
+  // Remove a config row — the per-instance clone a launch created — so test
+  // runs don't accumulate rows in the shared config DB.
+  provider.register('deleteConfig', async (payload: { configId: string }) =>
+    safe(async () => {
+      const { getConfigManager } = await import('../db.js');
+      const cm = await getConfigManager();
+      await cm.deleteConfig(payload.configId);
       return null;
     }),
   );
