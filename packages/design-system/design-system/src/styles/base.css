@@ -34,8 +34,14 @@
     outline-offset: 2px;
   }*/
 
+  /* Selection must read as selected on BOTH grounds. 0.16 alpha over the
+     dark theme's oklch(0.176) ground lands around oklch(0.24) — within a
+     hair of the card surface at oklch(0.203), which is why highlighted
+     text looked unhighlighted. 0.40 clears both grounds while leaving the
+     text's own colour alone, so a destructive or accent run stays itself
+     when selected. */
   ::selection {
-    background-color: oklch(var(--primary) / 0.16);
+    background-color: oklch(var(--primary) / 0.40);
   }
 
   /* Tabular numerics for cell-monospace and any numeric column.
