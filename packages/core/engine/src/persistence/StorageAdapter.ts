@@ -12,6 +12,15 @@ export interface ProfileSnapshot {
   state: Record<string, SerializedState>;
   createdAt: number;
   updatedAt: number;
+  /**
+   * A template profile — authored in Workspace Setup's "Configure
+   * Component" launch (`ProfileManager` in template-authoring mode marks
+   * every profile it saves). Launched instances share the row and see
+   * these profiles, but a save from an instance lands on a non-template
+   * copy named `<name> (copy)`; the template itself is read-only there.
+   * Absent on profiles written before the flag existed (treated as plain).
+   */
+  isTemplate?: boolean;
 }
 
 /**

@@ -102,6 +102,8 @@ interface HostCustomData {
   componentSubType?: string;
   isTemplate?: boolean;
   singleton?: boolean;
+  /** Workspace Setup's "Configure Component" launch — profiles saved become templates. */
+  templateAuthoring?: boolean;
 }
 
 /** Synchronously derive `instanceId` from URL query params. */
@@ -262,6 +264,7 @@ export function useHostedIdentity(args: UseHostedIdentityArgs): UseHostedIdentit
   const [registeredIdentity, setRegisteredIdentity] = useState<RegisteredComponentMetadata | null>(
     null,
   );
+  const [templateAuthoring, setTemplateAuthoring] = useState(false);
 
   const appId =
     platformIdentity?.appId
@@ -291,6 +294,7 @@ export function useHostedIdentity(args: UseHostedIdentityArgs): UseHostedIdentit
         }
         const reg = toRegisteredIdentity(cd);
         if (reg) setRegisteredIdentity(reg);
+        setTemplateAuthoring(cd?.templateAuthoring === true);
       })
       .catch((err) => {
         console.error(`[useHostedIdentity:${componentName}] identity resolution failed:`, err);
@@ -344,8 +348,9 @@ export function useHostedIdentity(args: UseHostedIdentityArgs): UseHostedIdentit
       userId,
       configManager: resolvedConfigManager,
       storage,
+      templateAuthoring,
     }),
-    [instanceId, appId, userId, resolvedConfigManager, storage],
+    [instanceId, appId, userId, resolvedConfigManager, storage, templateAuthoring],
   );
 
   const ready = !identityPending && instanceId !== null;

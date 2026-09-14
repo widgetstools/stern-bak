@@ -181,6 +181,15 @@ export interface MarketsGridProps<TData = unknown> {
   userId?: string;
 
   /**
+   * Template-authoring mode for profiles — true only in Workspace Setup's
+   * "Configure Component" launch of a registered component. Profiles saved
+   * there are marked as template profiles; a launched instance (sharing the
+   * same config row) sees them in the picker but a save on one lands on a
+   * non-template copy named `<name> (copy)`. See `ProfileManagerOptions.templateAuthoring`.
+   */
+  profileTemplateAuthoring?: boolean;
+
+  /**
    * Storage adapter factory. When provided, takes precedence over
    * `storageAdapter`. Called internally with
    * `{ instanceId, appId, userId, gridId }` — consumers using

@@ -92,6 +92,9 @@ export function useProfileManager(opts: {
   /** Optional higher-priority active-id pointer (e.g. OpenFin view
    *  customData). See `ActiveIdSource` in `@wellsfargo-starui/core`. */
   activeIdSource?: ActiveIdSource;
+  /** Workspace Setup's template-authoring launch — see
+   *  `ProfileManagerOptions.templateAuthoring` in `@wellsfargo-starui/core`. */
+  templateAuthoring?: boolean;
 }): UseProfileManagerResult {
   const platform = useGridPlatform();
 
@@ -105,6 +108,7 @@ export function useProfileManager(opts: {
     autoSaveDebounceMs: optsRef.current.autoSaveDebounceMs,
     disableAutoSave: optsRef.current.disableAutoSave,
     activeIdSource: optsRef.current.activeIdSource,
+    templateAuthoring: optsRef.current.templateAuthoring,
   });
 
   // Subscribe via useSyncExternalStore for tear-free concurrent reads. The

@@ -217,6 +217,10 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
       // The `isTemplate: true` flag on customData tells the
       // component-host saver to keep the AppConfigRow flagged as a
       // template (and to set `singleton` from the entry).
+      // `templateAuthoring: true` is what makes THIS launch different from
+      // a dock launch of the same row: the grid's ProfileManager marks
+      // every profile saved here as a template profile, while an instance
+      // saving to one of those lands on "<name> (copy)".
       const templateId = entry.configId || deriveTemplateConfigId(
         entry.componentType,
         entry.componentSubType,
@@ -231,6 +235,7 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
         // Test-launch marker: tells component-host that any save
         // from this view is the template/initial-settings save.
         isTemplate: true,
+        templateAuthoring: true,
         singleton: entry.singleton,
         // v2: forward the appId + configServiceUrl the component will
         // target. For usesHostConfig === true this equals hostEnv; for

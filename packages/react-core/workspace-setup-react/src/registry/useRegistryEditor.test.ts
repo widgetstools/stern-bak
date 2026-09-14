@@ -333,6 +333,9 @@ describe('useRegistryEditor — test launch', () => {
     expect(customData.instanceId).toBe('grid-credit');
     expect(customData.templateId).toBe('grid-credit');
     expect(customData.isTemplate).toBe(true);
+    // Only this launch authors template profiles; dock launches of the same
+    // row leave the flag off and save to "<name> (copy)".
+    expect(customData.templateAuthoring).toBe(true);
     expect(customData.singleton).toBe(true);
     expect(customData.appId).toBe('star-demo');
   });

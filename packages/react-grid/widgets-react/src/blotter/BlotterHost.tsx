@@ -212,6 +212,7 @@ function BlotterHostBody<TData extends Record<string, unknown>>(p: BlotterBodyPr
   const common = {
     ...(gridProps as unknown as MarketsGridProps<TData>),
     instanceId, appId, userId, componentName, storage: storage ?? undefined, theme: view.agTheme, tabsHidden: view.tabsHidden,
+    profileTemplateAuthoring: view.identity.templateAuthoring === true,
     rowData: EMPTY as TData[], appData: appDataLookup, providerGridHost: apis.providerGridHost, gridEventBindingsHost: apis.gridEventBindingsHost,
     caption: gridLevel.effectiveCaption, onCaptionChange: gridLevel.handleCaptionChange,
     toolbarDate: toolbar.toolbarDate, onToolbarDateChange: toolbar.handleToolbarDateChange, toolbarDateHistoryEnabled: toolbar.toolbarDateHistoryEnabled,

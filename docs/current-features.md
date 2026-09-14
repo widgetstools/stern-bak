@@ -402,7 +402,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Profile management UI
 
-- `ProfileSelector` — switch/create/rename/delete profiles
+- `ProfileSelector` — switch/create/rename/delete profiles; template layouts (`ProfileMeta.isTemplate`, authored in Workspace Setup) render their name in `--ds-accent-info` with a `LayoutTemplate` badge, and outside template authoring (`templateAuthoring` prop) they show no rename / delete — the badge title says a save lands on `<name> (copy)`
 - `TemplateManager` — column-template library (save/apply/manage). Compact (toolbar popover) variant is a scrolling row list; **panel (popped-out) variant is a shadcn `Select`** (pick = apply) + an action cluster (update / rename / delete) for the chosen template, so the Templates section stays a fixed-height control as templates accumulate instead of growing
 - `UnsavedSwitchDialog` — guard for dirty profile switch
 - `SettingsSheet` — shadcn right-rail `Drawer` host for all customizer modules;
@@ -678,7 +678,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `HostedMarketsGrid` — hosted wrapper; accepts `platform` (hub bundle) or legacy `dataServices`; composes `MarketsGridContainer`. Flushes grid state on `workspace-saving`, `beforeunload` / `pagehide`, OpenFin view `destroyed`, and React unmount (covers workspace drag/move without a workspace save). Opt-in `contextLink` prop wires grid-to-grid linking (interop transport preferred; `rowIdField` auto-derived from the provider `keyColumn` via the container's `onRowIdFieldChange`; `notify` posts Notification Center messages). See `useGridContextLink` + [`docs/OPENFIN_GRID_LINKING.md`](./OPENFIN_GRID_LINKING.md)
 - `useHostedView` — window identity & lifecycle
-- `useHostedIdentity` — resolve current view identity. URL `?instanceId=` / `?id=` wins synchronously; bare OpenFin views start `instanceId: null` and `ready: false` until `fin.me.getOptions().customData` settles (3s hard timeout → `defaultInstanceId`). Browser paths seed `defaultInstanceId` on first paint. Host ConfigManager resolution is peek-first (`peekConfigManager()`) then a slow-warned (8s) `getConfigManager()` fallback. Gate grid mount on `ready` plus `identity.configManager` / `identity.storage`
+- `useHostedIdentity` — resolve current view identity. URL `?instanceId=` / `?id=` wins synchronously; bare OpenFin views start `instanceId: null` and `ready: false` until `fin.me.getOptions().customData` settles (3s hard timeout → `defaultInstanceId`). Browser paths seed `defaultInstanceId` on first paint. Host ConfigManager resolution is peek-first (`peekConfigManager()`) then a slow-warned (8s) `getConfigManager()` fallback. Gate grid mount on `ready` plus `identity.configManager` / `identity.storage`. `identity.templateAuthoring` mirrors `customData.templateAuthoring` (Workspace Setup's "Configure Component" launch) — the hosts pass it to the grid as `profileTemplateAuthoring`
 - `useFdc3Channel` — FDC3 channel subscription
 - `useOpenFinChannel` — OpenFin IAB subscription
 - `useIab` — generic Inter-App Bus pub/sub
@@ -819,7 +819,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useRegistryEditor` — component-registry state manager
 - Registry browser + property editor + config validation
 - `RegistryEntry` — registered component instance metadata
-- Inspector "Host as" picker — per-component default host surface: docked as a view in the OpenFin Workspace browser window (default) vs. a standalone OpenFin platform window (`RegistryEntry.asWindow`). Seeds the `asWindow` customData when the component is added to the dock (a one-time snapshot, like icon/name) and drives whether "Configure Component" test-launches via `createView` or `createWindow`
+- Inspector "Host as" picker — per-component default host surface: docked as a view in the OpenFin Workspace browser window (default) vs. a standalone OpenFin platform window (`RegistryEntry.asWindow`). Seeds the `asWindow` customData when the component is added to the dock (a one-time snapshot, like icon/name) and drives whether "Configure Component" test-launches via `createView` or `createWindow`. That launch stamps `templateAuthoring: true` on the customData (alongside `isTemplate: true`), which puts the grid's ProfileManager in template-authoring mode — profiles saved there are template profiles; a dock launch of the same row leaves the flag off, so its saves on a template land on `<name> (copy)`
 
 ---
 
@@ -856,7 +856,7 @@ modules).
 
 #### Persistence
 
-- `ProfileSnapshot` — `id, gridId, name, state, createdAt, updatedAt`
+- `ProfileSnapshot` — `id, gridId, name, state, createdAt, updatedAt, isTemplate?` (template profiles are authored in Workspace Setup; absent on rows written before the flag)
 - `AppDataLookup` — `(name, key) => unknown`
 - `AppDataSnapshot` — revision counter + lookup
 
@@ -916,11 +916,11 @@ modules).
 
 #### Profile manager
 
-- `ProfileManager` — framework-agnostic profile orchestration
+- `ProfileManager` — framework-agnostic profile orchestration. Template profiles: in `templateAuthoring` mode (Workspace Setup's "Configure Component" launch) every profile saved, created, cloned or imported is marked `isTemplate`, and Default is created as one; outside it a `save()` on a template profile lands on the non-template copy `<name> (copy)` (created on the first save, overwritten after) which becomes the active profile, new profiles are plain, and `rename`/`remove` of a template throw
 - `ProfileManagerState` — `activeId, profiles, isLoading, isDirty`
-- `ProfileManagerOptions` — `platform, adapter, autoSave, activeIdSource`
+- `ProfileManagerOptions` — `platform, adapter, autoSave, activeIdSource, templateAuthoring`
 - `ActiveIdSource` — pluggable active-profile pointer
-- `ProfileMeta` — metadata
+- `ProfileMeta` — metadata (`id, name, createdAt, updatedAt, isDefault, isTemplate`)
 - `ExportedProfilePayload` — JSON export format; `schemaVersion: 2` bundles
   the grid-level data blob (provider selection, caption, event bindings)
   alongside the profile so an export/import is a complete grid-view

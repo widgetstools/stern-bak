@@ -7,6 +7,8 @@ export interface ProfileMeta {
   createdAt: number;
   updatedAt: number;
   isDefault: boolean;
+  /** Authored in Workspace Setup — see `ProfileSnapshot.isTemplate`. */
+  isTemplate: boolean;
 }
 
 /**

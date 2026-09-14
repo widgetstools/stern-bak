@@ -1387,6 +1387,32 @@ the seed still ships `dev1grid-test-…` instance rows. The e2e harness
 tells instances apart by view name now that they share a URL, and no
 longer deletes rows on close.
 
+## 24. Template profiles — Workspace Setup authors them, instances save to a copy (2026-09-14) — done
+
+**Ask (owner):** profiles set up through Workspace Setup are templates; an
+instance saving to one (Default or any other) must write `<name> (copy)`
+instead, and the selector must show template profiles in a different text
+colour.
+
+**Change:** `ProfileSnapshot.isTemplate` and `ProfileMeta.isTemplate`;
+`ProfileManager` gains `templateAuthoring`. Workspace Setup's "Configure
+Component" launch stamps `customData.templateAuthoring: true` (the only
+launch that does), read by `useHostedIdentity` into
+`HostedContext.templateAuthoring`, passed by `BlotterHost` /
+`HostedMarketsGrid` as `MarketsGridProps.profileTemplateAuthoring` down to
+the manager. Authoring marks every saved / created / cloned / imported
+profile (and a freshly created Default) as a template and may rename or
+delete them. A launched instance saving on a template writes the
+non-template `<name> (copy)` — created on the first save, overwritten on
+later ones — and switches to it, so the view's `activeProfileId` pointer
+and later saves follow the copy; it creates plain profiles, and rename /
+delete of a template throw (the selector hides those affordances).
+`ProfileSelector` renders template rows in `--ds-accent-info` with a
+`LayoutTemplate` badge whose title explains the copy rule. Tests: engine
+(`ProfileManager.templates.test.ts`), selector, hosted identity, registry
+editor launch. Profiles written before the flag are plain; re-save them
+from Workspace Setup to make them templates.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

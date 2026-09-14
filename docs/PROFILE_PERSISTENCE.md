@@ -338,6 +338,40 @@ scope would mix users together.
 
 ---
 
+## 9a. Template profiles
+
+Since every instance of a registered component shares the template's row
+(§9), the profiles an admin authors in Workspace Setup and the profiles a
+user saves from a launched blotter live in the same list. Two flags keep
+them apart:
+
+- **`customData.templateAuthoring`** — stamped only by Workspace Setup's
+  "Configure Component" launch (`useRegistryEditor.testComponent`). It
+  reaches the grid as `MarketsGridProps.profileTemplateAuthoring` (via
+  `HostedContext.templateAuthoring`) and puts `ProfileManager` in
+  template-authoring mode.
+- **`ProfileSnapshot.isTemplate`** — set on every profile the authoring
+  session saves, creates, clones or imports (Default included). The
+  selector renders these rows in the info colour with a badge.
+
+Behaviour in a launched instance (no `templateAuthoring`):
+
+| Action | Result |
+|---|---|
+| Save while a template profile is active | Written to `<name> (copy)` — created on the first save, overwritten after — which becomes the active profile (the view's `customData.activeProfileId` follows it). The template is untouched. |
+| Save while a plain profile is active | Written in place, as before. |
+| Create / clone / import | A plain profile. |
+| Rename / delete a template profile | Refused (`ProfileManager` throws; the selector hides the affordances). |
+
+Behaviour while authoring in Workspace Setup: every save marks the
+profile as a template, and template profiles can be renamed and deleted.
+
+Source: [`packages/core/engine/src/profiles/ProfileManager.ts`](../packages/core/engine/src/profiles/ProfileManager.ts)
+(`templateAuthoring`, `saveTemplateAsCopy`),
+[`packages/react-grid/grid/src/widget/ProfileSelector.tsx`](../packages/react-grid/grid/src/widget/ProfileSelector.tsx).
+
+---
+
 ## 10. Anti-patterns
 
 Things that look reasonable but break the contract:

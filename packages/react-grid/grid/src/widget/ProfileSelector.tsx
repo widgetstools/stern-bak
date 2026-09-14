@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, memo } from 'react';
-import { ChevronDown, Check, Plus, Trash2, Lock, User, Download, Upload, Copy, Pencil, X } from 'lucide-react';
+import { ChevronDown, Check, Plus, Trash2, Lock, User, Download, Upload, Copy, Pencil, X, LayoutTemplate } from 'lucide-react';
 import { RESERVED_DEFAULT_PROFILE_ID, type ProfileMeta } from '@wellsfargo-starui/core';
 // styles stay inline (see ProfileSelector.css for rationale).
 import './ProfileSelector.css';
@@ -54,6 +54,14 @@ export interface ProfileSelectorProps {
    * manager's importProfile. Omit to hide the import affordance.
    */
   onImport?: (file: File) => void | Promise<unknown>;
+  /**
+   * Workspace Setup's template-authoring launch. Template layouts
+   * (`ProfileMeta.isTemplate`) are shown in the info colour with a badge
+   * either way; only while authoring can they be renamed or deleted — in a
+   * launched instance they are read-only and a save on one lands on
+   * `<name> (copy)`.
+   */
+  templateAuthoring?: boolean;
 }
 
 /**
@@ -72,6 +80,7 @@ export function ProfileSelectorInner({
   onRename,
   onExport,
   onImport,
+  templateAuthoring = false,
 }: ProfileSelectorProps) {
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -242,6 +251,13 @@ export function ProfileSelectorInner({
               const isActive = p.id === activeProfileId;
               const isReserved = p.id === RESERVED_DEFAULT_PROFILE_ID;
               const isRenaming = renamingId === p.id;
+              const isTemplate = p.isTemplate === true;
+              // A template is read-only outside Workspace Setup: no rename /
+              // delete, and a save on it goes to "<name> (copy)".
+              const templateLocked = isTemplate && !templateAuthoring;
+              const rowTitle = templateLocked
+                ? `${p.name} — template layout; saving lands on "${p.name} (copy)"`
+                : isTemplate ? `${p.name} — template layout` : p.name;
               return (
                 <div
                   key={p.id}
@@ -251,6 +267,7 @@ export function ProfileSelectorInner({
                   data-row-hover-target=""
                   className="ds-ps-row"
                   data-active={isActive ? 'true' : undefined}
+                  data-template={isTemplate ? 'true' : undefined}
                   onClick={() => { if (!isRenaming) { onLoad(p.id); setOpen(false); } }}
                   onKeyDown={(e) => { if (!isRenaming && e.key === 'Enter') { onLoad(p.id); setOpen(false); } }}
                 >
@@ -284,8 +301,22 @@ export function ProfileSelectorInner({
                       data-active={isActive ? 'true' : undefined}
                     />
                   ) : (
-                    <span className="ds-ps-row-name" title={p.name}>
+                    <span className="ds-ps-row-name" title={rowTitle}>
                       {p.name}
+                    </span>
+                  )}
+
+                  {/* Template badge — a status indicator like the Default
+                      lock; the info colour on the name carries the same
+                      meaning for sighted users. */}
+                  {isTemplate && !isRenaming && (
+                    <span
+                      title={templateLocked ? 'Template layout (from Workspace Setup) — saving creates a copy' : 'Template layout'}
+                      aria-label="template layout"
+                      className="ds-ps-row-template"
+                      data-testid={`profile-template-${p.id}`}
+                    >
+                      <LayoutTemplate size={12} strokeWidth={2.25} />
                     </span>
                   )}
 
@@ -336,8 +367,9 @@ export function ProfileSelectorInner({
                   {!isRenaming && (onRename || onClone || onExport || !isReserved) && (
                     <div className="ds-ps-row-actions" aria-hidden={false}>
                       {/* Per-row rename — switches the row into inline-edit
-                          mode. Hidden for the reserved Default profile. */}
-                      {onRename && !isReserved && (
+                          mode. Hidden for the reserved Default profile and
+                          for template layouts outside Workspace Setup. */}
+                      {onRename && !isReserved && !templateLocked && (
                         <GhostIconButton
                           onClick={(e) => {
                             e.stopPropagation();
@@ -386,8 +418,9 @@ export function ProfileSelectorInner({
                         </GhostIconButton>
                       )}
 
-                      {/* Per-row delete (never for the reserved Default). */}
-                      {!isReserved && (
+                      {/* Per-row delete (never for the reserved Default, nor
+                          for a template layout outside Workspace Setup). */}
+                      {!isReserved && !templateLocked && (
                         <GhostIconButton
                           variant="destructive"
                           onClick={(e) => {
