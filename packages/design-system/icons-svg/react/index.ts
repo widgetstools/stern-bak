@@ -17,7 +17,7 @@ export type { LucideIcon, LucideProps } from 'lucide-react';
 
 // Dynamic icon component — renders a Lucide icon from a string ID.
 // Drop-in replacement for @iconify/react's <Icon> component.
-export { DynamicIcon } from './DynamicIcon';
+export { DynamicIcon, hasInlineLucideIcon, lucideIconToSvg } from './DynamicIcon';
 
 // ─── File & Document ─────────────────────────────────────────────────
 export {

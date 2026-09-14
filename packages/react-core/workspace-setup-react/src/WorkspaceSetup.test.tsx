@@ -106,7 +106,7 @@ async function mount() {
   return view;
 }
 
-const componentRow = (name: string) => screen.getByText(name).closest('button')!;
+const componentRow = (name: string) => screen.getByText(name).closest('[role="button"]') as HTMLElement;
 const dockRow = (label: string) => screen.getByText(label).closest('div.group')!;
 
 beforeEach(() => {
@@ -288,7 +288,7 @@ describe('WorkspaceSetup — component CRUD', () => {
 
     await userEvent.click(within(componentRow('Credit blotter')).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(screen.getByText('③ WORKSPACE SETUP')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Overview')).toBeDefined());
   });
 });
 
@@ -299,7 +299,7 @@ describe('WorkspaceSetup — dock authoring', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Add to your dock/ }));
 
-    expect(await screen.findByText('③ DOCK ITEM')).toBeDefined();
+    expect(await screen.findByText('Dock item')).toBeDefined();
     expect(screen.getByLabelText('Label')).toHaveProperty('value', 'Credit blotter');
   });
 
@@ -335,11 +335,11 @@ describe('WorkspaceSetup — dock authoring', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     await mount();
     await userEvent.click(screen.getByText('Credit'));
-    expect(screen.getByText('③ DOCK ITEM')).toBeDefined();
+    expect(screen.getByText('Dock item')).toBeDefined();
 
     await userEvent.click(within(dockRow('Credit')).getByRole('button', { name: 'Remove from dock' }));
 
-    await waitFor(() => expect(screen.getByText('③ WORKSPACE SETUP')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Overview')).toBeDefined());
   });
 
   it('removing a menu item clears the inspector when it was the subject', async () => {
@@ -353,7 +353,7 @@ describe('WorkspaceSetup — dock authoring', () => {
 
     await userEvent.click(within(dockRow('Risk')).getByRole('button', { name: 'Remove from menu' }));
 
-    await waitFor(() => expect(screen.getByText('③ WORKSPACE SETUP')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Overview')).toBeDefined());
   });
 
   it('reorders top-level buttons', async () => {
@@ -378,7 +378,7 @@ describe('WorkspaceSetup — dock authoring', () => {
 
     // Per-placement override semantics: the registry entry keeps its name.
     await waitFor(() => expect(screen.getByText('Credit!')).toBeDefined());
-    const catalogRow = screen.getByText('GRID / CREDIT').closest('button')!;
+    const catalogRow = screen.getByText('GRID / CREDIT').closest('[role="button"]')!;
     expect(within(catalogRow).getByText('Credit blotter')).toBeDefined();
   });
 
@@ -484,6 +484,6 @@ describe('WorkspaceSetup — save and discard', () => {
     // user's catalog — it must never touch storage.
     expect(clearRegistryConfig).not.toHaveBeenCalled();
     expect(clearDockConfig).not.toHaveBeenCalled();
-    expect(screen.getByText('③ WORKSPACE SETUP')).toBeDefined();
+    expect(screen.getByText('Overview')).toBeDefined();
   });
 });

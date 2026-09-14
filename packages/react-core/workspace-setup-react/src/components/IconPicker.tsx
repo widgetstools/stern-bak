@@ -3,17 +3,21 @@
 /**
  * IconPicker — searchable grid of icons for selecting dock button icons.
  *
- * Displays curated Lucide icons + market icons from @wellsfargo-starui/icons-svg.
- * Uses DynamicIcon from @wellsfargo-starui/icons-svg/react for rendering.
+ * One catalog, one entry per icon: the curated `ICON_OPTIONS` (market +
+ * lucide, in display order) plus any market icon from `ICON_META` the
+ * curated list does not carry. Every icon renders inline through
+ * `DynamicIcon` (bundled lucide components, embedded market SVGs) — no
+ * network — and each cell is memoised, so typing in the search box only
+ * touches the cells that enter or leave the grid.
  *
  * Emits an iconId ("mkt:bond" or "lucide:settings") so callers can
- * persist a stable identifier and re-render the icon under either
- * theme via iconIdToSvgUrl(). Also passes the resolved SVG data URL
- * for callers that want to write it directly to a dock-config field.
+ * persist a stable identifier, plus a self-contained SVG data URL for
+ * callers that snapshot a coloured variant into a dock-config field.
  */
 
-import { useState, useMemo } from "react";
-import { DynamicIcon as Icon } from "@wellsfargo-starui/design-system/icons/react";
+import { memo, useDeferredValue, useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { DynamicIcon, lucideIconToSvg } from "@wellsfargo-starui/design-system/icons/react";
 import { MARKET_ICON_SVGS, svgToDataUrl } from "@wellsfargo-starui/design-system/icons/all-icons";
 import { ICON_META } from "@wellsfargo-starui/design-system/icons";
 import { Input, ScrollArea, cn } from "@wellsfargo-starui/react";
@@ -23,14 +27,15 @@ import { ICON_OPTIONS } from "./dock-editor/icons";
 
 interface IconPickerProps {
   /**
-   * Called with the iconId ("mkt:bond" or "lucide:settings") and the
-   * resolved SVG data URL. Persist the iconId; the URL is convenience
-   * for dock configs that snapshot a colored variant.
+   * Called with the iconId ("mkt:bond" or "lucide:settings") and a
+   * self-contained SVG data URL in the requested colour. Persist the
+   * iconId; the URL is convenience for dock configs that snapshot a
+   * coloured variant.
    */
   onSelect: (iconId: string, svgDataUrl: string) => void;
   /** Currently selected iconId (e.g. "mkt:bond"). */
   selectedIcon?: string;
-  /** Color for the SVG data URL (default "var(--ds-text-primary)" for dark theme) */
+  /** Colour written into the emitted data URL (default: the text token). */
   color?: string;
 }
 
@@ -40,114 +45,120 @@ interface IconEntry {
   source: "lucide" | "market";
 }
 
-// ─── Build the full icon list ────────────────────────────────────────
+// ─── The catalog ─────────────────────────────────────────────────────
 
 function buildIconList(): IconEntry[] {
+  const seen = new Set<string>();
   const icons: IconEntry[] = [];
-
-  // Market icons from the single source of truth
+  const push = (id: string, name: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    icons.push({ id, name, source: id.startsWith("mkt:") ? "market" : "lucide" });
+  };
+  // Curated order first — the market set, then the generic lucide glyphs.
+  for (const opt of ICON_OPTIONS) push(opt.icon, opt.name);
+  // Any market icon the curated list does not carry (system icons stay
+  // out unless the curated list names them).
   for (const [key, meta] of Object.entries(ICON_META)) {
-    // Skip system icons (wrench, code, etc.) — those aren't user-selectable
     if (meta.category === "system") continue;
-    icons.push({
-      id: `mkt:${key}`,
-      name: meta.name,
-      source: "market",
-    });
+    push(`mkt:${key}`, meta.name);
   }
-
-  // Lucide icons from the curated list
-  for (const opt of ICON_OPTIONS) {
-    icons.push({
-      id: opt.icon,
-      name: opt.name,
-      source: "lucide",
-    });
-  }
-
   return icons;
 }
 
 const ALL_ICONS = buildIconList();
 
+/** Self-contained data URL for an icon, in `color`. */
+function iconDataUrl(icon: IconEntry, color: string): string {
+  if (icon.source === "market") {
+    const svg = MARKET_ICON_SVGS[icon.id.replace("mkt:", "")];
+    return svg ? svgToDataUrl(svg, color) : "";
+  }
+  const svg = lucideIconToSvg(icon.id, { size: 24 });
+  if (svg) return svgToDataUrl(svg, color);
+  const [prefix, name] = icon.id.split(":");
+  return `https://api.iconify.design/${prefix}/${name}.svg?color=${encodeURIComponent(color)}&height=24`;
+}
+
+// ─── Cells ───────────────────────────────────────────────────────────
+
+const IconCell = memo(function IconCell({
+  icon,
+  selected,
+  onPick,
+}: {
+  icon: IconEntry;
+  selected: boolean;
+  onPick: (icon: IconEntry) => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={icon.name}
+      aria-pressed={selected}
+      onClick={() => onPick(icon)}
+      className={cn(
+        "flex h-8 w-8 items-center justify-center rounded-[var(--ds-radius-sm,2px)] border transition-colors",
+        "text-[var(--ds-text-secondary)] hover:text-foreground hover:bg-[var(--ds-surface-tertiary)] hover:border-[var(--ds-border-secondary)]",
+        selected
+          ? "border-primary bg-[var(--ds-primary-soft)] text-foreground"
+          : "border-transparent",
+      )}
+    >
+      <DynamicIcon icon={icon.id} style={{ width: 16, height: 16 }} />
+    </button>
+  );
+});
+
 // ─── Component ──────────────────────────────────────────────────────
 
 export function IconPicker({ onSelect, selectedIcon, color = "var(--ds-text-primary)" }: IconPickerProps) {
   const [search, setSearch] = useState("");
+  // Filtering 200-odd cells is cheap; deferring keeps the input itself
+  // responsive when a keystroke lands mid-render.
+  const deferredSearch = useDeferredValue(search);
 
-  // Filter icons based on search query
   const filteredIcons = useMemo(() => {
-    if (!search.trim()) return ALL_ICONS;
-    const query = search.toLowerCase();
-    return ALL_ICONS.filter((icon) => icon.name.toLowerCase().includes(query));
-  }, [search]);
+    const query = deferredSearch.trim().toLowerCase();
+    if (!query) return ALL_ICONS;
+    return ALL_ICONS.filter((icon) => icon.name.toLowerCase().includes(query) || icon.id.includes(query));
+  }, [deferredSearch]);
 
-  function handleSelect(icon: IconEntry) {
-    if (icon.source === "market") {
-      const key = icon.id.replace("mkt:", "");
-      const svg = MARKET_ICON_SVGS[key];
-      if (svg) {
-        onSelect(icon.id, svgToDataUrl(svg, color));
-      }
-    } else {
-      // Lucide icons — build an Iconify CDN URL
-      const [prefix, name] = icon.id.split(":");
-      if (prefix && name) {
-        const url = `https://api.iconify.design/${prefix}/${name}.svg?color=${encodeURIComponent(color)}&height=24`;
-        onSelect(icon.id, url);
-      }
-    }
-  }
+  const handlePick = useMemo(
+    () => (icon: IconEntry) => onSelect(icon.id, iconDataUrl(icon, color)),
+    [onSelect, color],
+  );
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Search */}
       <div className="relative">
-        <Icon icon="lucide:search" style={{ width: 14, height: 14 }} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search icons…"
-          className="pl-8 h-8 text-xs"
+          autoFocus
+          className="h-8 pl-7 text-xs"
         />
       </div>
 
-      {/* Icon grid */}
-      <ScrollArea className="h-48">
+      <ScrollArea className="h-56">
         <div className="grid grid-cols-8 gap-1 p-1">
           {filteredIcons.length === 0 && (
-            <div className="col-span-8 text-center text-xs text-muted-foreground py-4">
+            <div className="col-span-8 py-6 text-center text-xs text-muted-foreground">
               No icons found
             </div>
           )}
           {filteredIcons.map((icon) => (
-            <button
-              key={icon.id}
-              type="button"
-              title={icon.name}
-              onClick={() => handleSelect(icon)}
-              className={cn(
-                "w-8 h-8 flex items-center justify-center rounded border cursor-pointer",
-                "hover:bg-accent hover:border-accent transition-colors",
-                selectedIcon === icon.id && "bg-accent border-primary",
-              )}
-            >
-              {icon.source === "market" ? (
-                <span
-                  className="text-foreground w-4 h-4 flex items-center justify-center"
-                  dangerouslySetInnerHTML={{
-                    __html: MARKET_ICON_SVGS[icon.id.replace("mkt:", "")]
-                      ?.replace(/width="24"/g, 'width="16"')
-                      .replace(/height="24"/g, 'height="16"') ?? "",
-                  }}
-                />
-              ) : (
-                <Icon icon={icon.id} style={{ width: 16, height: 16 }} className="text-muted-foreground" />
-              )}
-            </button>
+            <IconCell key={icon.id} icon={icon} selected={selectedIcon === icon.id} onPick={handlePick} />
           ))}
         </div>
       </ScrollArea>
+
+      <div className="flex items-center justify-between px-1 text-[10px] text-muted-foreground">
+        <span>{filteredIcons.length === ALL_ICONS.length ? `${ALL_ICONS.length} icons` : `${filteredIcons.length} of ${ALL_ICONS.length} icons`}</span>
+        {selectedIcon && <span className="truncate font-mono">{selectedIcon}</span>}
+      </div>
     </div>
   );
 }

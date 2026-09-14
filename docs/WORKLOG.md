@@ -1423,6 +1423,56 @@ output, which had not been rebuilt, so it stamped no `templateAuthoring`
 at all — the dev rig's "rebuild every package the app bundles" rule
 applies to the workspace-setup chunk too.
 
+## 25. Workspace Setup: sluggish typing, hanging icon picker, icons that "never applied" (2026-09-14) — fixed
+
+**Ask (owner):** typing in the component editor lagged badly, the icon
+picker hung most of the time, and a picked icon did not show on the menu
+item or the component. Separately: fixed header and footer, three
+independently scrolling columns, and a design pass.
+
+**Cause — one function.** `iconIdToSvgUrl` / `iconIdToThemedUrls`
+resolve their default colour through
+`buildOpenFinPalettesFromDesignSystem()`, which flips the document's
+`data-theme` to dark and to light and reads ~40 computed colours — a full
+style recalculation of the whole page, twice. Every row in all three
+panes called it on every render (`<img src={iconIdToSvgUrl(iconId)}>`),
+nothing was memoised, and every keystroke in the inspector produced a new
+`entries` array, so one keystroke re-themed the page 2 × (rows) times.
+The icon picker paid the same per cell (~280 cells), and its `lucide:`
+cells pointed `<img>` tags at the Iconify CDN — unreachable on a
+locked-down desktop, so cells never painted and the popover looked hung.
+"Not applied" was the same defect seen from the other side: the id *was*
+written, but the preview `<img>` used a CDN URL (never loads) or a data
+URL with `currentColor` left in it (resolves to black inside an image
+document — invisible on the dark theme).
+
+**Change:**
+- `@wellsfargo-starui/openfin/dock-editor` `iconUtils`: the palette colours
+  are resolved once per document and cached; `lucide:` ids render offline
+  through the new `lucideIconToSvg` (design-system `icons/react`,
+  `react-dom/server`) into a data URL, CDN only for an id outside the
+  bundled set. The workspace-setup copy of `iconUtils` is deleted; the
+  package re-exports the openfin one.
+- Workspace Setup panes render icons inline through `DynamicIcon` (no URL
+  generation in render at all); `ComponentsPane`, `DockPane`,
+  `InspectorPane` and every row are `memo`ised; the shell keeps registry /
+  dock / selection in refs so its callbacks are referentially stable;
+  `DockPane` rows take a stable set of entry ids rather than the entries
+  array. `IconPicker` uses one de-duplicated catalog, memoised cells, a
+  deferred search value, and emits data URLs for both icon sources.
+- Shell layout: `fixed inset-0` column with a 48px header (title, scope,
+  counts, unsaved-changes indicator), a three-column grid whose panes
+  each own their scroll, and a 48px footer (Discard / Save). The star-demo
+  `body { padding: 10px }` no longer leaks into the window.
+- Copy: "In dock / Not in dock", "Component deleted", "Overview",
+  "Dock item", "Launches component", "Add to your dock"; row actions carry
+  accessible names.
+
+Tests: `iconUtils.test.ts` (offline data URLs, palette resolved once),
+`IconPicker.test.tsx` (data URLs for both sources, dedupe, search), pane
+and shell tests updated to the new markup. Design canvas of the reworked
+screen published alongside (see the conversation link).
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

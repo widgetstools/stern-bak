@@ -206,7 +206,7 @@ Per-renderer config types (`PillRendererConfig`,
 **Public exports:**
 
 - `./icons` — `ICON_PATHS`, `ICON_META`, helpers
-- `./icons/react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component)
+- `./icons/react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component); `hasInlineLucideIcon(id)` and `lucideIconToSvg(id, {size, color, strokeWidth})` render a bundled `lucide:` icon to an SVG string (via `react-dom/server`) so dock icons resolve offline
 - `./icons/angular` — `@lucide/angular` bindings: `LucideComponent`, `provideLucideIcons`, `provideLucideConfig`, `LUCIDE_ICONS`, `LUCIDE_CONFIG`, and per-icon standalone components (aliased to friendly names, e.g. `FileText`, `Home`)
 - `./icons/all-icons` — `MARKET_ICON_SVGS`, `svgToDataUrl`, `marketIconToDataUrl`, named SVG constants, plus full icon-id enumeration
 - `./icons/svg/*` — direct SVG file access
@@ -798,18 +798,18 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Workspace shell
 
-- `WorkspaceSetup` — 3-pane editor (Dock / Inspector / Components+Registry); embeds `ComponentsPane`, `DockPane`, `InspectorPane`, `IconPicker` internally (not separately importable)
+- `WorkspaceSetup` — 3-pane editor (Components / Dock layout / Inspector); embeds `ComponentsPane`, `DockPane`, `InspectorPane`, `IconPicker` internally (not separately importable). Fixed shell: a 48px header (title, scope chip, component / dock-button counts, unsaved-changes indicator) and a 48px footer (Discard / Save) pinned to the window, with the three columns (`minmax(260px,320px) / 1fr / minmax(340px,400px)`) scrolling independently. Panes and rows are memoised; the shell holds the registry / dock / selection in refs so its callbacks are stable across keystrokes
 - `ImportConfig` — standalone import-config utility window
 - `ComponentsPane` — browse registered components, drag to dock; per-row hover actions: configure (test-launch), **clone**, delete. Clone (`WorkspaceSetup.handleClone`) duplicates a registry entry into a fresh draft — deep-copies all definition fields, gives it a de-duplicated `(copy)` display name and a unique `componentSubType` (`<sub>-copy`) so its derived `${type}-${subtype}` id can't collide with the source on save, resets `id`/`configId` (re-derived at save), and selects it for immediate editing in the inspector. **`cloneRegistryTemplateConfig`** (`@wellsfargo-starui/openfin`) deep-clones the source template **AppConfigRow** (profiles, grid options, styling, theme via `structuredClone` on `payload`) onto the clone's derived template id immediately on clone (retried at save if the first attempt failed)
 - `DEFAULT_ICON` — fallback icon id for dock/registry entries
-- `DockPane` — dock toolbar editor (buttons, folders, menus, icons, actions)
-- `InspectorPane` — selected dock-item property editor
-- `IconPicker` — themed icon selector with search
+- `DockPane` — dock toolbar editor (buttons, folders, menus, icons, actions); rows render their icon inline through `DynamicIcon`, flag a deleted component ("Component deleted"), and expose Move up / Move down / Remove on hover; "New menu" creates a dropdown, the per-dropdown "Add" popover lists the catalog
+- `InspectorPane` — context panel: Overview (counts) / Component form (name, type, sub-type, host URL, icon, singleton, open-as-window, "Configure Component", "Add to your dock", where it sits in the dock) / Dock item form (per-placement label + icon overrides, type, link to the launched component)
+- `IconPicker` — searchable icon grid over one de-duplicated catalog (`ICON_OPTIONS` first, then the rest of `ICON_META`); every cell renders inline and every emitted URL is a self-contained data URL (market and lucide alike — no CDN, so the picker works offline); search is deferred (`useDeferredValue`) so typing never blocks on the grid
 
 #### Dock editor state & icons
 
 - `useDockEditor` — dock-config state manager
-- `iconIdToSvgUrl` — icon id → data URL
+- `iconIdToSvgUrl` — icon id → self-contained data URL for `mkt:` and bundled `lucide:` ids (Iconify CDN only for an id outside the bundled set); the default colour comes from the design-system palette, resolved once per document (re-exported from `@wellsfargo-starui/openfin/dock-editor`)
 - `parseIconUrl` — parse SVG/PNG/asset-library URLs
 - `iconIdToThemedUrls` — dark/light icon URLs
 - `ICON_OPTIONS`, `findIconByName`, `IconOption` — icon library + lookup

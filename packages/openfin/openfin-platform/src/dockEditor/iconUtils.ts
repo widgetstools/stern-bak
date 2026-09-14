@@ -1,23 +1,45 @@
 /**
  * Icon utilities for the dock editor.
  *
- * Supports two icon sources:
- * 1. Lucide icons via Iconify CDN — iconId format: "lucide:icon-name"
- * 2. Custom market icons from @wellsfargo-starui/icons-svg — iconId format: "mkt:icon-name"
+ * Supports two icon sources, both resolved OFFLINE:
+ * 1. Lucide icons bundled with the design system — iconId format:
+ *    "lucide:icon-name" — rendered to an SVG string and inlined as a data
+ *    URL. Ids outside the bundled set fall back to the Iconify CDN.
+ * 2. Custom market icons from @wellsfargo-starui/icons-svg — iconId format:
+ *    "mkt:icon-name" — embedded SVG strings.
  *
- * Custom market icons are embedded as SVG strings and converted to data URLs
- * with the requested color applied (replacing currentColor).
+ * Both are converted to data URLs with the requested color applied
+ * (replacing currentColor).
  */
 
-import { marketIconToDataUrl } from "@wellsfargo-starui/design-system/icons/all-icons";
+import { marketIconToDataUrl, svgToDataUrl } from "@wellsfargo-starui/design-system/icons/all-icons";
+import { lucideIconToSvg } from "@wellsfargo-starui/design-system/icons/react";
 import { buildOpenFinPalettesFromDesignSystem } from "../openfinPalette";
 
+// Resolving the palette flips the document's theme attribute to dark and
+// to light and reads ~40 computed colours — a full style recalculation of
+// the whole page, twice. The result is a function of the design-system
+// tokens, which never change at runtime, so compute it once per document.
+// (Before this cache the editor paid it once per icon per render: every
+// keystroke in Workspace Setup re-themed the page dozens of times.)
+let themedIconColorsCache: { dark: string; light: string } | null = null;
+
 function resolveThemedIconColors(): { dark: string; light: string } {
+  if (themedIconColorsCache) return themedIconColorsCache;
   const palettes = buildOpenFinPalettesFromDesignSystem();
-  return {
+  const colors = {
     dark: palettes.dark.textDefault ?? "#FFFFFF",
     light: palettes.light.textDefault ?? "#1E1F23",
   };
+  // Only remember a real resolution; without a document the builder returns
+  // its fallbacks, which must not shadow the tokens once the DOM exists.
+  if (typeof document !== "undefined" && document.body) themedIconColorsCache = colors;
+  return colors;
+}
+
+/** Test-only: forget the cached palette colours. */
+export function __resetThemedIconColorsForTests(): void {
+  themedIconColorsCache = null;
 }
 
 // The rendered height of each icon in pixels.
@@ -30,24 +52,31 @@ const DEFAULT_ICON_ID   = "lucide:file-text";
 /**
  * Build an SVG URL for the given icon ID and color.
  *
- * - "lucide:home"   → Iconify CDN URL
+ * - "lucide:home"   → inline data URL from the bundled lucide set
+ *                     (Iconify CDN only for an id outside the set)
  * - "mkt:bond"      → inline data URL from @wellsfargo-starui/icons-svg
  *
  * @param iconId - Icon ID in "prefix:name" format
- * @param color  - Hex color for the icon stroke/fill (default: white)
+ * @param color  - Hex color for the icon stroke/fill (default: the dark
+ *                 theme's text colour)
  */
 export function iconIdToSvgUrl(iconId: string, color?: string): string {
-  const defaultDark = resolveThemedIconColors().dark;
-  const resolvedColor = color ?? defaultDark;
   const [prefix, name] = iconId.split(":");
   if (!prefix || !name) return "";
+  const resolvedColor = color ?? resolveThemedIconColors().dark;
 
   // Custom market icons — resolve from embedded SVG strings
   if (prefix === "mkt") {
     return marketIconToDataUrl(name, resolvedColor);
   }
 
-  // Iconify CDN icons (lucide, etc.)
+  // Bundled lucide icons — no network; the dock renders offline.
+  if (prefix === "lucide") {
+    const svg = lucideIconToSvg(iconId, { size: ICON_HEIGHT });
+    if (svg) return svgToDataUrl(svg, resolvedColor);
+  }
+
+  // Iconify CDN for anything else (an id outside the bundled set)
   return `https://api.iconify.design/${prefix}/${name}.svg?color=${encodeURIComponent(resolvedColor)}&height=${ICON_HEIGHT}`;
 }
 

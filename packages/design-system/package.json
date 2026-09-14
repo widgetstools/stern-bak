@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/design-system",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI design system — primitives, semantic tokens, themes, framework adapters, and framework-agnostic SVG icons. Consolidates fi-trading-terminal tokens + star UI wrappers + icons-svg.",
+  "description": "MarketsUI design system â€” primitives, semantic tokens, themes, framework adapters, and framework-agnostic SVG icons. Consolidates fi-trading-terminal tokens + star UI wrappers + icons-svg.",
   "type": "module",
   "main": "./design-system/dist/index.js",
   "module": "./design-system/dist/index.js",
@@ -86,6 +86,7 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
+    "react-dom": "^19.2.5",
     "ag-grid-community": "^36.1.0",
     "tailwindcss": "^3.4.1",
     "react": "^19.2.5"
