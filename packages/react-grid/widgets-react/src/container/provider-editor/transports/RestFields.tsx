@@ -58,22 +58,30 @@ export function RestFields({ cfg, onChange }: RestFieldsProps) {
       </Card>
 
       <Card title="Payload">
-        <KeyValueEditor
-          label="Query Parameters" wide
-          description="URL query string."
-          value={cfg.queryParams ?? {}}
-          onChange={(v) => onChange({ queryParams: v })}
-          keyPlaceholder="Parameter"
-          valuePlaceholder="Value"
-        />
-        <KeyValueEditor
-          label="Custom Headers" wide
-          description="Sent with every request."
-          value={cfg.headers ?? {}}
-          onChange={(v) => onChange({ headers: v })}
-          keyPlaceholder="Header"
-          valuePlaceholder="Value"
-        />
+        {/* A key/value table needs the full card width; it is not a `Field`,
+            so it spans the grid itself rather than taking `wide`. */}
+        <div className="lg:col-span-2">
+          <KeyValueEditor
+            label="Query Parameters"
+            description="URL query string."
+            value={cfg.queryParams ?? {}}
+            onChange={(v) => onChange({ queryParams: v })}
+            keyPlaceholder="Parameter"
+            valuePlaceholder="Value"
+          />
+        </div>
+        {/* A key/value table needs the full card width; it is not a `Field`,
+            so it spans the grid itself rather than taking `wide`. */}
+        <div className="lg:col-span-2">
+          <KeyValueEditor
+            label="Custom Headers"
+            description="Sent with every request."
+            value={cfg.headers ?? {}}
+            onChange={(v) => onChange({ headers: v })}
+            keyPlaceholder="Header"
+            valuePlaceholder="Value"
+          />
+        </div>
         {cfg.method === 'POST' && (
           <Field label="Request Body (JSON)" wide>
             <Textarea
