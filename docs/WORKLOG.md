@@ -1413,6 +1413,16 @@ delete of a template throw (the selector hides those affordances).
 editor launch. Profiles written before the flag are plain; re-save them
 from Workspace Setup to make them templates.
 
+**Follow-up (same day, found on the owner's dock):** the mark was written
+but never read — `profileBundle.normalizeSnapshot` (config-service rows)
+and `LocalStorageBundleAdapter`'s normaliser + `parseBundle` rebuild each
+profile from a fixed field list and dropped `isTemplate`; both now carry
+the tri-state flag through (round-trip tests added). And the running
+dock's Workspace Setup launch came from the react-core package's built
+output, which had not been rebuilt, so it stamped no `templateAuthoring`
+at all — the dev rig's "rebuild every package the app bundles" rule
+applies to the workspace-setup chunk too.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see
