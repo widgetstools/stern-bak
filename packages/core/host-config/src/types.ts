@@ -91,23 +91,21 @@ export interface AppConfigRow {
    * `configId` MUST equal `deriveTemplateConfigId(componentType,
    * componentSubType)` (i.e. `${componentType}-${componentSubType}`
    * lowercase). There is at most ONE template per
-   * (componentType, componentSubType) pair. Per-instance rows carry
-   * an arbitrary UUID as `configId` but inherit the same
-   * `componentType` + `componentSubType` from the template they
-   * cloned.
+   * (componentType, componentSubType) pair, and every launched
+   * instance of the component runs on it (its `instanceId` is the
+   * template id) — per-view state rides on the view's customData.
+   * Rows keyed by a per-instance id predate that model.
    */
   isTemplate: boolean;
 
   /**
-   * True when the registered component is a **singleton** — i.e. only
-   * one config row ever exists for it, and every launch resolves to
-   * the template row (no per-instance clones). For non-singletons,
-   * the dock spawns a fresh instance on every click and clones the
-   * template into a new UUID-keyed row.
+   * True when the registered component is a **singleton** — a second
+   * launch focuses the existing instance instead of opening another.
+   * Every launch, singleton or not, resolves to the template row.
    *
    * Mirrors `RegistryEntry.singleton` for the matching registry row;
-   * stored on the AppConfigRow so component-host can decide the
-   * clone-vs-reuse behaviour without round-tripping the registry.
+   * stored on the AppConfigRow so it stays self-describing without
+   * round-tripping the registry.
    *
    * Optional for back-compat — rows written before this field
    * existed default to `undefined` and are treated as non-singleton.

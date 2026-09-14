@@ -149,30 +149,43 @@ describe('launchRegisteredComponent', () => {
     expect(console.warn).toHaveBeenCalled();
   });
 
-  it('creates a view for a non-singleton entry and clones the template row', async () => {
+  it('creates a view for a non-singleton entry on the template row — no per-instance row', async () => {
     loadRegistryConfig.mockResolvedValue({ version: 1, entries: [entry], updatedAt: '' });
-    const saveConfig = vi.fn().mockResolvedValue(undefined);
-    getConfigManager.mockResolvedValue({
-      getConfig: vi.fn().mockResolvedValue({
-        configId: 'grid-trade',
-        displayText: 'Grid',
-        payload: { x: 1 },
-      }),
-      saveConfig,
-    });
 
     const view = await launchRegisteredComponent('e1');
     expect(view).toMatchObject({ kind: 'view' });
     expect(createView).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: expect.stringContaining('http://resolved/grid?instanceId='),
-        customData: expect.objectContaining({
+        url: 'http://resolved/grid?instanceId=grid-trade',
+        customData: {
+          instanceId: 'grid-trade',
           templateId: 'grid-trade',
+          componentType: 'grid',
+          componentSubType: 'trade',
+          appId: 'TestApp',
+          configServiceUrl: 'http://cfg',
+          isTemplate: true,
           singleton: false,
-        }),
+        },
       }),
     );
-    expect(saveConfig).toHaveBeenCalled();
+    // Nothing is cloned or written at launch: the view reads the template row itself.
+    expect(getConfigManager).not.toHaveBeenCalled();
+  });
+
+  it('every launch of a non-singleton entry opens another view on the same row', async () => {
+    loadRegistryConfig.mockResolvedValue({ version: 1, entries: [entry], updatedAt: '' });
+    createView.mockImplementation(async () => ({
+      kind: 'view',
+      focus: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn().mockResolvedValue(undefined),
+    }));
+    const first = await launchRegisteredComponent('e1');
+    const second = await launchRegisteredComponent('e1');
+    expect(createView).toHaveBeenCalledTimes(2);
+    expect(first).not.toBe(second);
+    const ids = createView.mock.calls.map((c) => (c[0] as { customData: { instanceId: string } }).customData.instanceId);
+    expect(ids).toEqual(['grid-trade', 'grid-trade']);
   });
 
   it('creates a window when asWindow is true', async () => {
@@ -239,30 +252,6 @@ describe('launchRegisteredComponent', () => {
     );
   });
 
-  it('swallows template clone failures and still launches', async () => {
-    loadRegistryConfig.mockResolvedValue({ version: 1, entries: [entry], updatedAt: '' });
-    getConfigManager.mockResolvedValue({
-      getConfig: vi.fn().mockRejectedValue(new Error('db down')),
-      saveConfig: vi.fn(),
-    });
-    await expect(launchRegisteredComponent('e1')).resolves.toMatchObject({ kind: 'view' });
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('template clone failed'),
-      expect.anything(),
-    );
-  });
-
-  it('skips template clone when the template row does not exist yet', async () => {
-    loadRegistryConfig.mockResolvedValue({ version: 1, entries: [entry], updatedAt: '' });
-    const saveConfig = vi.fn();
-    getConfigManager.mockResolvedValue({
-      getConfig: vi.fn().mockResolvedValue(null),
-      saveConfig,
-    });
-    await launchRegisteredComponent('e1');
-    expect(saveConfig).not.toHaveBeenCalled();
-  });
-
   it('generates a templateId when the registry entry has no configId', async () => {
     const noConfig = { ...entry, configId: undefined };
     loadRegistryConfig.mockResolvedValue({ version: 1, entries: [noConfig], updatedAt: '' });
@@ -274,7 +263,8 @@ describe('launchRegisteredComponent', () => {
     expect(createView).toHaveBeenCalledWith(
       expect.objectContaining({
         customData: expect.objectContaining({
-          templateId: expect.stringContaining('grid'),
+          templateId: 'grid-trade',
+          instanceId: 'grid-trade',
         }),
       }),
     );

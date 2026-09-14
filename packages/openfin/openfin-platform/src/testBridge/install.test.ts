@@ -11,16 +11,12 @@ vi.mock('@openfin/workspace-platform', () => ({
   getCurrentSync: () => ({ Storage: storage }),
 }));
 
-const { launchMock, deleteConfigMock, loadRegistryMock } = vi.hoisted(() => ({
+const { launchMock, loadRegistryMock } = vi.hoisted(() => ({
   launchMock: vi.fn(),
-  deleteConfigMock: vi.fn(),
   loadRegistryMock: vi.fn(),
 }));
 vi.mock('../launch.js', () => ({ launchRegisteredComponent: launchMock }));
-vi.mock('../db.js', () => ({
-  getConfigManager: async () => ({ deleteConfig: deleteConfigMock }),
-  loadRegistryConfig: loadRegistryMock,
-}));
+vi.mock('../db.js', () => ({ loadRegistryConfig: loadRegistryMock }));
 
 const { __resetTestBridgeForTests, installTestBridge } = await import('./install.js');
 
@@ -38,7 +34,6 @@ describe('installTestBridge', () => {
     });
     Object.values(storage).forEach((fn) => fn.mockReset());
     launchMock.mockReset();
-    deleteConfigMock.mockReset();
     loadRegistryMock.mockReset();
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
@@ -63,7 +58,6 @@ describe('installTestBridge', () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledWith('marketsui-test-bridge');
     expect(Object.keys(handlers).sort()).toEqual([
-      'deleteConfig',
       'deleteWorkspace',
       'getWorkspace',
       'getWorkspaces',
@@ -142,19 +136,6 @@ describe('installTestBridge', () => {
     });
   });
 
-  it('deleteConfig removes a row through the host ConfigManager', async () => {
-    vi.stubGlobal('fin', {
-      InterApplicationBus: { Channel: { create } },
-    });
-    await installTestBridge();
-
-    deleteConfigMock.mockResolvedValue(undefined);
-    await expect(handlers.deleteConfig({ configId: 'abc' })).resolves.toEqual({ ok: true, data: null });
-    expect(deleteConfigMock).toHaveBeenCalledWith('abc');
-
-    deleteConfigMock.mockRejectedValue(new Error('locked'));
-    await expect(handlers.deleteConfig({ configId: 'abc' })).resolves.toEqual({ ok: false, error: 'locked' });
-  });
 
   it('ping returns a structured ok reply', async () => {
     vi.stubGlobal('fin', {

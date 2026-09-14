@@ -17,10 +17,12 @@
  * │  rows — costs a few KB per stale instance, no functional impact. │
  * └──────────────────────────────────────────────────────────────────┘
  *
- * The intended rule (when re-enabled): per-instance clones are ephemeral
+ * The intended rule (when re-enabled): per-instance rows are ephemeral
  * until claimed by a saved workspace; everything that represents a
  * registered component (singleton row, non-singleton template) is
- * permanent and never reaped.
+ * permanent and never reaped. Since 2026-09-14 launches create no
+ * per-instance rows at all — every instance runs on its template row —
+ * so the only candidates left are rows written before that.
  *
  * Preservation rules (any one is enough to keep a row):
  *   1. componentType === 'workspace'           — workspace rows themselves

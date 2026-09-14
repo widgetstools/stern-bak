@@ -1356,6 +1356,37 @@ a look at what `timedActivations.change` walks per flush and whether it can
 be bounded to the changed rows' rule columns. Recipe: scratchpad
 `e2e-provider-profile.mjs` against a `vite build --sourcemap` dist.
 
+## 23. Every instance of a template component runs on the template's row (2026-09-14) — done
+
+**Ask (owner):** instances of a template blotter must share the template's
+config as set up in Workspace Setup; per-instance rows were orphans unless
+a saved workspace claimed them (workspace GC deletion is off, item 22
+found seven `dev1grid-position-2-…` clones on this box from one evening).
+
+**Change:** `launchRegisteredComponent` (dock buttons, menu items) no
+longer mints an id or clones the template row. Every launch stamps the
+entry's template config id (`componenttype-subcomponenttype`, the entry's
+`configId`) as `customData.instanceId` = `templateId`, with
+`isTemplate: true` and the entry's `singleton` — exactly what Workspace
+Setup's "Configure Component" test launch already did — so the view's
+storage reads and writes the template row and every save keeps it flagged
+as the template. Singleton entries differ only in focus-or-open.
+`mintRegisteredInstanceId` and the clone are deleted. Per-view state stays
+per view: the active profile on `customData.activeProfileId`
+(`openfinViewProfile`, `docs/PROFILE_PERSISTENCE.md` §4–5) and the tab
+title on `customData.savedTitle`, both carried by the workspace snapshot,
+so a restored view reopens on the profile it had. What is now shared by
+design: profiles, the grid-level provider selection, caption and event
+bindings. Concurrent saves from two instances go through the
+profile-bundle's OCC retry for grid-level data and version-checked profile
+writes; a clash surfaces as a save error in one view.
+
+**Not done:** the existing per-instance rows are not removed (delete them
+in the Config Browser, or arm `workspaceGc` once its rules are audited);
+the seed still ships `dev1grid-test-…` instance rows. The e2e harness
+tells instances apart by view name now that they share a URL, and no
+longer deletes rows on close.
+
 ## Pre-existing, tracked elsewhere
 
 Not repeated here to avoid two lists drifting — see

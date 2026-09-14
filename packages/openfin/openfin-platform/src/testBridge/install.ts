@@ -64,7 +64,7 @@ export interface LaunchedComponent {
   name: string;
   /** What the platform created — a View (`fin.View.wrapSync(...).destroy()`) or a Window (`.close()`). */
   kind: 'view' | 'window';
-  /** The minted per-instance id (`customData.instanceId`), or `null` if the platform stamped none. */
+  /** `customData.instanceId` — the entry's template config id, shared by every instance — or `null` if the platform stamped none. */
   instanceId: string | null;
   url: string | null;
 }
@@ -145,12 +145,12 @@ export async function installTestBridge(): Promise<void> {
     }),
   );
 
-  // Launch a registered component exactly as a dock click does: the
-  // platform mints the instanceId, clones the template's config row onto
-  // it (profiles + provider selection) and stamps the identity on the URL
-  // and customData — so an e2e blotter carries a provider like the dock's
-  // own views. A bare `Platform.createWindow` would open a row-less blotter
-  // that renders the "no provider" grid.
+  // Launch a registered component exactly as a dock click does: the view
+  // runs on the entry's template config row (profiles + provider
+  // selection) with the identity stamped on the URL and customData — so
+  // an e2e blotter carries a provider like the dock's own views. A bare
+  // `Platform.createWindow` would open a row-less blotter that renders the
+  // "no provider" grid.
   provider.register('launchComponent', async (payload: LaunchComponentPayload) =>
     safe(async (): Promise<LaunchedComponent> => {
       const { launchRegisteredComponent } = await import('../launch.js');
@@ -169,17 +169,6 @@ export async function installTestBridge(): Promise<void> {
         instanceId: typeof options?.customData?.instanceId === 'string' ? options.customData.instanceId : null,
         url: typeof options?.url === 'string' ? options.url : null,
       };
-    }),
-  );
-
-  // Remove a config row — the per-instance clone a launch created — so test
-  // runs don't accumulate rows in the shared config DB.
-  provider.register('deleteConfig', async (payload: { configId: string }) =>
-    safe(async () => {
-      const { getConfigManager } = await import('../db.js');
-      const cm = await getConfigManager();
-      await cm.deleteConfig(payload.configId);
-      return null;
     }),
   );
 

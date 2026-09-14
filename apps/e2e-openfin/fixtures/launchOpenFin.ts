@@ -14,19 +14,19 @@
  *     once the WorkspacePlatform module is live).
  *   • Blotters are launched through the bridge's `launchComponent`, i.e. the
  *     platform's own `launchRegisteredComponent` — what a dock button runs,
- *     as a VIEW in a platform Browser window. The platform mints the
- *     `instanceId`, clones the registry entry's template config row
- *     (profiles + provider selection) onto it and stamps `?instanceId=` on
- *     the URL, so each blotter has its own row AND a provider, exactly like
- *     a dock-launched view. Two things never to do here: a bare
- *     `Platform.createWindow` opens a row-less blotter that renders the
- *     "no provider" grid (no columns, no rows); and `asWindow: true` puts
- *     the blotter in the provider's renderer (same-app windows share it
- *     unless given a processAffinity), where one loaded 20k-row blotter
- *     saturates the thread the platform API runs on — the next launch then
- *     took 27 s, the one after 66 s. Views are isolated per the manifest's
- *     `viewProcessAffinityStrategy`. The cloned rows are deleted again when
- *     the blotters are closed.
+ *     as a VIEW in a platform Browser window. Every instance runs on the
+ *     registry entry's template config row (profiles + provider selection):
+ *     `customData.instanceId` and the URL's `?instanceId=` are the template
+ *     id for all of them, so a blotter always has a provider, exactly like
+ *     a dock-launched view, and the harness tells instances apart by view
+ *     name. Two things never to do here: a bare `Platform.createWindow`
+ *     opens a row-less blotter that renders the "no provider" grid (no
+ *     columns, no rows); and `asWindow: true` puts the blotter in the
+ *     provider's renderer (same-app windows share it unless given a
+ *     processAffinity), where one loaded 20k-row blotter saturates the
+ *     thread the platform API runs on — the next launch then took 27 s,
+ *     the one after 66 s. Views are isolated per the manifest's
+ *     `viewProcessAffinityStrategy`.
  *   • The bridge installs in a Vite DEV build, or in any build when the
  *     provider URL carries `?e2eBridge=1` — against a production preview,
  *     point `OPENFIN_MANIFEST_URL` at a manifest copy whose `providerUrl`
@@ -101,8 +101,6 @@ export interface BridgeClient {
   deleteWorkspace(id: string): Promise<BridgeReply<null>>;
   /** The platform's registered-component launch (a dock click): a View by default, a standalone Window with `asWindow`. */
   launchComponent(payload: { entryId: string; asWindow?: boolean }): Promise<BridgeReply<LaunchedComponent>>;
-  /** Remove a config row — used to drop the per-instance clones launches create. */
-  deleteConfig(configId: string): Promise<BridgeReply<null>>;
 }
 
 export interface PlatformHandle {
@@ -118,19 +116,57 @@ export interface PlatformHandle {
    */
   openBlotter: () => Promise<Page>;
   /**
-   * Destroy every blotter view opened so far (and its CDP connection) and
-   * delete the config rows their launches cloned. Called automatically
-   * after each test so blotters don't accumulate and load the shared hub
-   * across the run.
+   * Destroy every blotter view opened so far (and its CDP connection).
+   * Called automatically after each test so blotters don't accumulate and
+   * load the shared hub across the run.
    */
   closeOpenedBlotters: () => Promise<void>;
 }
 
-async function findPageByUrlPart(browser: Browser, urlPart: string): Promise<Page | undefined> {
+/** The CDP target id behind a Playwright page — answered by the browser process, so cheap even for a busy page. */
+async function targetIdOf(page: Page): Promise<string | undefined> {
+  try {
+    const session = await page.context().newCDPSession(page);
+    const { targetInfo } = (await session.send('Target.getTargetInfo')) as { targetInfo: { targetId: string } };
+    await session.detach();
+    return targetInfo.targetId;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Every instance of a component shares its URL (`?instanceId=<template id>`),
+ * so the launched view is found among the pages with that URL that this
+ * harness has not claimed yet (by target id). One unclaimed candidate is
+ * the launch; several (a restored layout, say) are told apart by the
+ * view's OpenFin name, read from the page — a page still booting answers
+ * nothing yet, and the caller polls.
+ */
+async function findLaunchedPage(
+  browser: Browser,
+  urlPart: string,
+  viewName: string,
+  claimed: ReadonlySet<string>,
+): Promise<{ page: Page; targetId: string } | undefined> {
+  const candidates: Array<{ page: Page; targetId: string }> = [];
   for (const ctx of browser.contexts()) {
-    for (const p of ctx.pages()) {
-      if (p.url().includes(urlPart)) return p;
+    for (const page of ctx.pages()) {
+      if (!page.url().includes(urlPart)) continue;
+      const targetId = await targetIdOf(page);
+      if (!targetId || claimed.has(targetId)) continue;
+      candidates.push({ page, targetId });
     }
+  }
+  if (candidates.length === 1) return candidates[0];
+  for (const candidate of candidates) {
+    const name = await Promise.race([
+      candidate.page
+        .evaluate(() => (globalThis as unknown as { fin?: { me?: { name?: string } } }).fin?.me?.name)
+        .catch(() => undefined),
+      sleep(3_000).then(() => undefined),
+    ]);
+    if (name === viewName) return candidate;
   }
   return undefined;
 }
@@ -201,15 +237,16 @@ async function launchPlatform(): Promise<{ handle: PlatformHandle; dispose: () =
     deleteWorkspace: (id) => rawBridge.dispatch('deleteWorkspace', { id }) as Promise<BridgeReply<null>>,
     launchComponent: (payload) =>
       rawBridge.dispatch('launchComponent', payload) as Promise<BridgeReply<LaunchedComponent>>,
-    deleteConfig: (configId) =>
-      rawBridge.dispatch('deleteConfig', { configId }) as Promise<BridgeReply<null>>,
   };
 
   await waitForPlatformReady(bridge, BOOT_TIMEOUT_MS);
 
   const openedBrowsers: Browser[] = [];
   const openedEntities: Array<{ name: string; kind: 'view' | 'window' }> = [];
-  const openedInstanceIds: string[] = [];
+  /** Targets of the blotters still open in the current test (teardown waits for them to leave the runtime). */
+  const openedTargetIds: string[] = [];
+  /** Every target this run has ever attached to — a lingering destroyed view is never mistaken for a new launch. */
+  const claimedTargetIds = new Set<string>();
 
   // The platform opens a launched view in an 800×500 window and AG Grid 36
   // renders only the columns that fit — the ticking columns sit to the right
@@ -275,7 +312,6 @@ async function launchPlatform(): Promise<{ handle: PlatformHandle; dispose: () =
     }
     const { name, kind, instanceId } = launchedData;
     openedEntities.push({ name, kind });
-    openedInstanceIds.push(instanceId);
 
     const urlPart = `instanceId=${encodeURIComponent(instanceId)}`;
     const deadline = Date.now() + OPEN_BLOTTER_TIMEOUT_MS;
@@ -297,9 +333,12 @@ async function launchPlatform(): Promise<{ handle: PlatformHandle; dispose: () =
       }
       const connectMs = Date.now() - tConnect;
       const pageCount = browser.contexts().reduce((n, c) => n + c.pages().length, 0);
-      const page = await findPageByUrlPart(browser, urlPart);
-      if (page) {
+      const found = await findLaunchedPage(browser, urlPart, name, claimedTargetIds);
+      if (found) {
+        const { page, targetId } = found;
         openedBrowsers.push(browser);
+        claimedTargetIds.add(targetId);
+        openedTargetIds.push(targetId);
         // Size the view only once its grid has mounted: the platform re-applies
         // the view's bounds while the page is still loading, so an earlier
         // setBounds is undone. AG Grid re-lays out on the container resize.
@@ -327,22 +366,16 @@ async function launchPlatform(): Promise<{ handle: PlatformHandle; dispose: () =
         else await fin.Window.wrapSync({ uuid: platformUuid, name }).close(true);
       } catch { /* gone */ }
     }
-    const instanceIds = openedInstanceIds.splice(0);
+    const targetIds = new Set(openedTargetIds.splice(0));
     // A destroyed blotter's target lingers on the runtime for a moment and a
     // `connectOverCDP` that attaches to it can stall, so wait for the targets
     // to leave the list before the next launch attaches (the attach loop's
     // retry still covers the stalls this does not prevent).
     const gone = Date.now() + 10_000;
-    while (Date.now() < gone) {
+    while (targetIds.size > 0 && Date.now() < gone) {
       const targets = await fetchCdpTargets(CDP_PORT).catch(() => []);
-      if (!targets.some((t) => instanceIds.some((id) => t.url.includes(id)))) break;
+      if (!targets.some((t) => targetIds.has(t.id))) break;
       await sleep(250);
-    }
-    // Drop the per-instance config rows the launches cloned, so runs don't
-    // pile rows into the platform's config DB (the dock's own launches rely
-    // on workspace GC for this; the harness knows exactly what it made).
-    for (const instanceId of instanceIds) {
-      try { await bridge.deleteConfig(instanceId); } catch { /* best effort */ }
     }
   };
 

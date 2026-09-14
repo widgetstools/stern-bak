@@ -244,10 +244,10 @@ describe('createConfigServiceStorage — read contract for pre-cloned instance r
     expect(cm.rows.size).toBe(0);                             // adapter never auto-creates
   });
 
-  it('reads the launcher-cloned row verbatim — profiles AND gridLevelData', async () => {
-    // Simulate what `createComponentInstance` does at launch: copy
-    // the template row's payload onto a fresh UUID-keyed row with
-    // isTemplate: false. The view then reads its own row directly.
+  it('reads a per-instance row verbatim — profiles AND gridLevelData', async () => {
+    // A row keyed by a per-instance id (launches created these before
+    // every instance ran on its template row; an explicit copy still
+    // can). The view reads its own row directly.
     cm.rows.set('inst-cloned', {
       configId: 'inst-cloned',
       appId: 'TestApp',
@@ -343,8 +343,7 @@ describe('createConfigServiceStorage — read contract for pre-cloned instance r
     });
     await tAdapter.saveProfile(snapshot('Default', 'blotter-positions'));
 
-    // Simulate launcher clone: copy the template row's payload onto
-    // a per-instance UUID-keyed row with isTemplate: false.
+    // A per-instance copy of the template row (isTemplate: false).
     const tplRow = cm.rows.get('blotter-positions')!;
     cm.rows.set('inst-1', {
       ...tplRow,

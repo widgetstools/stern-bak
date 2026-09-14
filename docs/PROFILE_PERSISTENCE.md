@@ -318,6 +318,14 @@ scoped by `(appId, userId, instanceId)`. This is what makes
 `instanceId`s (or two users with different `userId`s) cannot see each
 other's profiles.
 
+Every instance of a **registered template component** launched from the
+dock, a menu item or Workspace Setup's test launch shares one row: the
+platform stamps the template's config id (`componenttype-subcomponenttype`)
+as every instance's `instanceId`, so all of them read and write the same
+profiles and provider selection, and no per-instance rows are created.
+What differs per view — the active profile (§4) and the tab title — lives
+on the view's `customData`, which the workspace snapshot round-trips (§5).
+
 `HostedMarketsGrid` derives these from OpenFin view `customData` or
 from `defaultAppId`/`defaultUserId`/`defaultInstanceId` props in
 browser mode. See

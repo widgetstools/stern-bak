@@ -1610,7 +1610,7 @@ of importing `@openfin/*` directly (architecture boundary).
 - `.` — main platform API (workspace init, config, dock, launch)
 - `./config` — config-only entry (no runtime deps, browser-safe)
 - `./plugin` — `openFinPlatformPlugin` factory (OpenFin workspace plugin entry; `StarGridPlugin` contract lives in `@wellsfargo-starui/core/host`)
-- `./test-bridge` — `installTestBridge()`: the `marketsui-test-bridge` IAB channel for out-of-runtime e2e code (installed by a DEV provider window, or any build whose provider URL carries `?e2eBridge=1`). Ops: WorkspacePlatform.Storage `saveWorkspace` / `getWorkspaces` / `getWorkspace` / `deleteWorkspace`, `ping`, `listRegistry()` (the live Component Registry entries — id, displayName, type/subtype, hostUrl, singleton), `launchComponent({ entryId, asWindow? })` (the platform's own `launchRegisteredComponent` — minted `instanceId`, template row cloned, identity stamped; a View by default, since a same-app Window shares the provider's renderer and a loaded blotter there stalls every platform API call — replying `{ uuid, name, kind, instanceId, url }`) and `deleteConfig({ configId })` (drops the per-instance clone a launch created). Every reply is `{ ok, data } | { ok: false, error }`. Drives `apps/e2e-openfin`.
+- `./test-bridge` — `installTestBridge()`: the `marketsui-test-bridge` IAB channel for out-of-runtime e2e code (installed by a DEV provider window, or any build whose provider URL carries `?e2eBridge=1`). Ops: WorkspacePlatform.Storage `saveWorkspace` / `getWorkspaces` / `getWorkspace` / `deleteWorkspace`, `ping`, `listRegistry()` (the live Component Registry entries — id, displayName, type/subtype, hostUrl, singleton), `launchComponent({ entryId, asWindow? })` (the platform's own `launchRegisteredComponent` — the view runs on the entry's template row, identity stamped; a View by default, since a same-app Window shares the provider's renderer and a loaded blotter there stalls every platform API call — replying `{ uuid, name, kind, instanceId, url }`). Every reply is `{ ok, data } | { ok: false, error }`. Drives `apps/e2e-openfin`.
 - `./dock-editor` — icon helpers only (`ICON_OPTIONS`, `iconIdToSvgUrl`, `iconIdToThemedUrls`, `parseIconUrl`); dock editor React UI lives in `@wellsfargo-starui/react/workspace-setup`
 
 #### Workspace initialization
@@ -1640,7 +1640,7 @@ of importing `@openfin/*` directly (architecture boundary).
 #### Launch
 
 - `launchApp()` — launch registered app by id (config overrides supported)
-- `launchRegisteredComponent()` — create registered-component instance in new view; stamps `?instanceId=` and `?id=` on the launch URL (`appendLaunchIdentityParams`) so reloads and workspace GC resolve the per-instance id from the query string; the template→instance config clone runs concurrently with `createWindow` / `createView` (window appears immediately; clone lands before the view's first config read)
+- `launchRegisteredComponent()` — open a registered component in a new view (or window with `asWindow`); every instance runs on the entry's **template** config row: `customData.instanceId` = `templateId` = the entry's configId (`componenttype-subcomponenttype`), with `isTemplate: true` and the entry's `singleton` on the customData so saves keep the row a template, and `?instanceId=` / `?id=` stamped on the launch URL (`appendLaunchIdentityParams`). No per-instance rows are written — all instances share the template's profiles and provider selection; per-view state (`activeProfileId`, `savedTitle`) rides on the view's customData through workspace save/restore. Singleton entries additionally focus the existing instance instead of opening another. One `[launch]` info line per launch with the view/window creation time
 - `LaunchRegisteredComponentOptions` — instance config (layout, properties, parent)
 
 #### Dock management
@@ -1689,7 +1689,7 @@ of importing `@openfin/*` directly (architecture boundary).
 
 - `RegistryEditorConfig` — registered-component list with instance configs
 - `RegistryEntry` — `id, componentId, name, properties`
-- `deriveTemplateConfigId`, `mintRegisteredInstanceId` — id generators
+- `deriveTemplateConfigId` — the template config id (`componenttype-subcomponenttype`, lowercase), which is also every instance's `instanceId`
 - `cloneRegistryTemplateConfig` — deep-clone a registered component's template AppConfigRow (profiles, customizer state, styling) onto a new `${type}-${subtype}` template id when Workspace Setup clones an entry
 - `validateEntry` — runtime config validation
 - `validateSingletonUniqueness` — duplicate detection

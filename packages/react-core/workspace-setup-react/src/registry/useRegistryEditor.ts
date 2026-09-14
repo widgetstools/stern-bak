@@ -207,20 +207,16 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
         return;
       }
 
-      // Test launch policy: the spawned view operates DIRECTLY on the
-      // template row. Pass the template configId AS the `instanceId`
-      // so when the user saves, the write lands on
-      // `${componentType}-${componentSubType}` (the canonical
-      // template id) — overwriting initial settings rather than
-      // creating a per-launch UUID-keyed clone.
+      // The spawned view operates DIRECTLY on the template row: the
+      // template configId IS the `instanceId`, so a save lands on
+      // `${componentType}-${componentSubType}` (the canonical template
+      // id). Dock and menu launches (`launchRegisteredComponent`) do the
+      // same — every instance of a component shares its template row,
+      // and per-view state rides on the view's customData.
       //
       // The `isTemplate: true` flag on customData tells the
-      // component-host saver to mark the resulting AppConfigRow as
-      // a template (and to set `singleton` from the entry).
-      //
-      // Non-test launches (dock menu) use a different flow — a fresh
-      // UUID instanceId, then component-host clones the template
-      // payload into that UUID-keyed row, with isTemplate=false.
+      // component-host saver to keep the AppConfigRow flagged as a
+      // template (and to set `singleton` from the entry).
       const templateId = entry.configId || deriveTemplateConfigId(
         entry.componentType,
         entry.componentSubType,

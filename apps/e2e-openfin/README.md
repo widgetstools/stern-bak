@@ -66,10 +66,11 @@ layout the dock last saved alongside the e2e blotter windows.
      launch, what a dock button runs. The entry is looked up in the live
      registry (`listRegistry`) as the one whose `hostUrl` is the blotter
      route — entry ids differ per profile, the seed's only hold on a fresh
-     one — or set by `OPENFIN_BLOTTER_ENTRY`. The platform mints the `instanceId`,
-     clones the entry's template config row (profiles + provider selection)
-     onto it and stamps `?instanceId=` on the view URL, so each blotter has
-     its own row **and a provider**, like a dock-launched view. Two things
+     one — or set by `OPENFIN_BLOTTER_ENTRY`. Every instance runs on the
+     entry's template config row (profiles + provider selection): the
+     `instanceId` on the view URL and customData is the template id for all
+     of them, so a blotter always has **a provider**, like a dock-launched
+     view, and the fixture tells instances apart by view name. Two things
      the harness must not do: a bare `Platform.createWindow` opens a
      row-less blotter that renders the "no provider" grid with no columns;
      and launching `asWindow` puts the blotter in the provider's renderer
@@ -80,11 +81,9 @@ layout the dock last saved alongside the e2e blotter windows.
      `Page` attached to the view.
    - `platform.bridge` exposes the WorkspacePlatform.Storage ops
      (`saveWorkspace` / `getWorkspace` / `getWorkspaces` /
-     `deleteWorkspace` / `ping`) plus `listRegistry`, `launchComponent` and
-     `deleteConfig`.
-   Blotter windows opened during a test are auto-closed after it (so the
-   shared hub isn't loaded down across the run) and their cloned config
-   rows deleted.
+     `deleteWorkspace` / `ping`) plus `listRegistry` and `launchComponent`.
+   Blotter views opened during a test are auto-closed after it (so the
+   shared hub isn't loaded down across the run).
 
 > New top-level OpenFin windows don't surface on an already-attached
 > Playwright CDP connection, so `openBlotter` reconnects fresh to resolve
