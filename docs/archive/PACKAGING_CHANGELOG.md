@@ -279,11 +279,22 @@ What the browser checks actually established:
 
 ## Open items
 
-1. **Duplicate worker chunk in demo output** — in-repo demos still pass an
-   explicit `?url`, so their build emits both that asset and the new fallback
-   chunk (~249 KB duplicate). Demo output only, never consumer output. Fix by
-   dropping the `?url` import from the demos, but star-demo runs under OpenFin
-   so that wants runtime testing.
+1. **Duplicate worker chunk in demo output** — FIXED 2026-09-14, and the fix
+   prescribed here was the wrong way round. Cause: every source-mode app build
+   emitted BOTH the `?url` asset and Vite's own bundle of the library's
+   zero-config fallback (the literal `new SharedWorker(new URL('…/data-services-worker.mjs',
+   import.meta.url))` in `createDataServicesWorker`), each with its own copy of
+   the 631 KB engine WASM — about 0.9 MB per app, not 249 KB, once the SSRM
+   engine landed. Dropping the `?url` imports, as suggested above, would have
+   moved every app onto a path no app in this repo has ever executed: all six
+   hub-using apps pass `workerScriptUrl`, and the three that don't never
+   construct a hub. So the dead FALLBACK is stripped instead, by a `transform`
+   in `staruiHostDataWorkerAssetPlugin` (`scripts/staruiConsumerAliases.mjs`)
+   that replaces the URL expression with a throwing IIFE and asserts the site
+   count, so a library change fails the build instead of silently restoring the
+   duplicate. External consumers keep zero-config: the tarball track has its own
+   Vite config and never loads the plugin. Measured on `stomp-ssrm-minimal`,
+   worker + WASM output 2 210 350 → 1 305 504 bytes.
 2. **Test coverage / Sonar LCOV** — deferred by explicit instruction
    ("lets worry about coverage later lets finish with packaging"). None of it
    exists yet: no `sonar-project.properties`, no `run-test-coverage.mjs`, no

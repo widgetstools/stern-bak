@@ -353,6 +353,17 @@ export function resolveHostDataWorkerAssetUrl(source, appDir) {
  * Vite plugin — keeps `?url` asset handling for the bundled SharedWorker.
  * @param {string} appDir absolute path to the app root
  */
+/**
+ * The library's zero-config fallback, verbatim in `createDataServicesWorker`.
+ * Written as a literal so a bundler recognises it as a worker entry — which is
+ * exactly the problem in this repo, see the plugin below.
+ */
+const HOST_DATA_WORKER_FALLBACK_URL =
+  "new URL('../../assets/data-services-worker.mjs', import.meta.url)";
+const HOST_DATA_WORKER_FALLBACK_SITES = 2;
+/** `createDataServicesWorker` in either resolution mode (dist first, src fallback). */
+const CREATE_WORKER_MODULE_RE = /[/\\]host-data[/\\](?:dist|src)[/\\]runtime[/\\]bootstrap[/\\]createDataServicesWorker\.(?:js|ts)$/;
+
 export function staruiHostDataWorkerAssetPlugin(appDir) {
   const wasmPath = join(REPO_ROOT, HOST_DATA_WASM_REL);
   return {
@@ -360,6 +371,49 @@ export function staruiHostDataWorkerAssetPlugin(appDir) {
     enforce: 'pre',
     resolveId(source) {
       return resolveHostDataWorkerAssetUrl(source, appDir);
+    },
+    /**
+     * Drop the never-taken zero-config worker fallback.
+     *
+     * `createDataServicesWorker` picks between an explicit `workerScriptUrl`
+     * and a literal `new SharedWorker(new URL('…/data-services-worker.mjs',
+     * import.meta.url))`. The literal exists so an EXTERNAL consumer's bundler
+     * finds the worker with no config — that is the shipped contract and the
+     * tarball track keeps it (it has its own Vite config and never loads this
+     * plugin).
+     *
+     * In THIS repo the branch is dead: every app that boots the hub passes
+     * `workerScriptUrl` from the `?url` import, and the apps that don't pass
+     * one never construct a hub at all. Vite still statically matches the
+     * literal and emits a whole second worker bundle plus its own copy of the
+     * 631 KB engine WASM — about 0.9 MB of output per app that nothing loads.
+     * (The prescribed fix in PACKAGING_CHANGELOG "Open items" was the reverse,
+     * dropping the `?url` imports; that would move every app onto a path no
+     * app here has ever executed.)
+     *
+     * Replacing the URL expression with a throwing IIFE keeps the branch valid
+     * JavaScript, stops Vite seeing a worker entry, and makes a future app that
+     * forgets `workerScriptUrl` fail loudly instead of silently restoring the
+     * duplicate. The site count is asserted so a library edit surfaces here
+     * rather than quietly reintroducing the second bundle.
+     */
+    transform(code, id) {
+      const file = id.split('?')[0];
+      if (!CREATE_WORKER_MODULE_RE.test(file)) return null;
+      const sites = code.split(HOST_DATA_WORKER_FALLBACK_URL).length - 1;
+      if (sites !== HOST_DATA_WORKER_FALLBACK_SITES) {
+        this.error(
+          `[starui-host-data-worker-asset-url] expected ${HOST_DATA_WORKER_FALLBACK_SITES} `
+            + `zero-config worker fallback site(s) in ${file}, found ${sites}. `
+            + 'The library changed shape: re-check this transform, or the app build '
+            + 'will ship a duplicate worker bundle + engine WASM again.',
+        );
+        return null;
+      }
+      const thrower = "(() => { throw new Error('[@wellsfargo-starui/data] no workerScriptUrl "
+        + "supplied. In-repo apps must pass the `?url` worker asset; the zero-config "
+        + "fallback is stripped from this build.'); })()";
+      return { code: code.split(HOST_DATA_WORKER_FALLBACK_URL).join(thrower), map: null };
     },
     generateBundle() {
       if (!existsSync(wasmPath)) return;

@@ -1478,9 +1478,8 @@ screen published alongside (see the conversation link).
 Not repeated here to avoid two lists drifting — see
 [`PACKAGING_CHANGELOG.md` § Open items](archive/PACKAGING_CHANGELOG.md#open-items):
 
-1. Duplicate worker chunk in demo output (~249 KB; demo output only)
-2. Test coverage / Sonar LCOV — none of the tooling exists yet
-3. ESLint `unicorn/filename-case` per-bucket enforcement
+1. Test coverage / Sonar LCOV — none of the tooling exists yet
+2. ESLint `unicorn/filename-case` per-bucket enforcement
 
-Item 1 there refers to "in-repo demos", which now live under `apps/source/` —
-the fix belongs in those apps.
+The duplicate worker chunk listed there is fixed (2026-09-14) — see that
+item for why the fix went the opposite way to the one it proposed.
