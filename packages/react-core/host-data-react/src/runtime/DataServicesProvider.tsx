@@ -30,7 +30,14 @@ function readConfigManagerUserId(configManager: ConfigManager | undefined): stri
 }
 
 export interface ContextValue {
+  /** Data-plane client (providers, CSRM deltas, SSRM RPCs). */
   client: SharedWorkerDataServicesClient;
+  /**
+   * Client whose worker serves the config catalog + AppData — the
+   * platform-services worker (worker-split W1c). Same object as `client`
+   * for single-worker bundles.
+   */
+  platformClient: SharedWorkerDataServicesClient;
   appData: AppDataMirror;
   configStore: DataProviderConfigStore;
 }
@@ -76,14 +83,18 @@ export function DataServicesProvider({
   const effectiveUserId = userId ?? LOGGED_IN_USER_ID;
   const effectiveAppId = appId ?? readConfigManagerAppId(services.configManager) ?? DEV_PLATFORM_BOOTSTRAP.appId;
 
-  const value = useMemo<ContextValue>(() => ({
-    client: services.client,
-    appData: services.appData,
-    configStore: new DataProviderConfigStore(
-      services.configManager,
-      (providerId) => services.client.invalidateConfig(providerId),
-    ),
-  }), [services]);
+  const value = useMemo<ContextValue>(() => {
+    const platformClient = services.platformClient ?? services.client;
+    return {
+      client: services.client,
+      platformClient,
+      appData: services.appData,
+      configStore: new DataProviderConfigStore(
+        services.configManager,
+        (providerId) => platformClient.invalidateConfig(providerId),
+      ),
+    };
+  }, [services]);
 
   return (
     <DataServicesContext.Provider value={value}>

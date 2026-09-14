@@ -3,8 +3,10 @@
  *
  * tsc emits `defaultEntry.js` with bare `@wellsfargo-starui/*` imports that the
  * browser cannot resolve when loaded as a standalone worker script.
- * esbuild inlines host-data, host-config, dexie, and optional stomp
- * into `dist/assets/data-services-worker.mjs` for Vite `?url` imports.
+ * esbuild inlines host-data, host-config, dexie, stomp, and vendored
+ * `@starui/dshub` into `dist/assets/data-services-worker.mjs` for Vite
+ * `?url` imports. `dshub_bg.wasm` is copied next to that asset so
+ * `new URL('./dshub_bg.wasm', import.meta.url)` resolves in the worker.
  */
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
@@ -32,6 +34,7 @@ await esbuild.build({
   conditions: ['import', 'module', 'default'],
   alias: {
     '@stomp/stompjs': path.join(pkgRoot, '../../../node_modules/@stomp/stompjs/esm6/index.js'),
+    '@starui/dshub': path.join(pkgRoot, 'vendor/dshub/dshub.js'),
   },
   legalComments: 'none',
 });
@@ -41,6 +44,12 @@ const RENAMES = [['defaultEntry.js', 'data-services-worker.mjs']];
 
 for (const [srcName, destName] of RENAMES) {
   publishWorkerAsset(outDir, srcName, destName);
+}
+
+const wasmSrc = path.join(pkgRoot, 'vendor/dshub/dshub_bg.wasm');
+const wasmDest = path.join(outDir, 'dshub_bg.wasm');
+if (fs.existsSync(wasmSrc)) {
+  fs.copyFileSync(wasmSrc, wasmDest);
 }
 
 /**

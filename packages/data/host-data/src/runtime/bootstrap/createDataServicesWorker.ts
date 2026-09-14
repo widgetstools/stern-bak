@@ -130,3 +130,51 @@ export function createDataServicesWorker(
 
   return worker;
 }
+
+/**
+ * Construct the PLATFORM-SERVICES SharedWorker (worker-split plan W1) —
+ * the low-frequency plane: config catalog RPCs + AppData, isolated from
+ * the data hub's ingest/tick event loop so a tool window's config request
+ * never queues behind a streaming blotter.
+ *
+ * W1 staging note: this boots the SAME worker bundle as the data hub —
+ * a second instance under its own SharedWorker name is a full catalog +
+ * AppData server whose provider machinery simply never receives an
+ * attach. W1b gives it a dedicated slim entry (no STOMP / WASM graph);
+ * the spawn seam here is what the rest of the platform wires against.
+ */
+export function createPlatformServicesWorker(
+  workerScriptUrl: string | undefined,
+  opts: CreateDataServicesWorkerOpts,
+): SharedWorker {
+  if (typeof SharedWorker === 'undefined') {
+    throw new Error(
+      '[@wellsfargo-starui/data] SharedWorker is not available in this '
+        + 'environment. The platform-services worker requires a browser; '
+        + 'guard your bootstrap call for SSR/Node rendering.',
+    );
+  }
+
+  const name = `mkt-platform-services:${opts.appName}`;
+  const worker = workerScriptUrl
+    ? new SharedWorker(resolveWorkerScriptUrl(workerScriptUrl), { type: 'module', name })
+    : new SharedWorker(new URL('../../assets/data-services-worker.mjs', import.meta.url), {
+        type: 'module',
+        name,
+      });
+
+  worker.addEventListener('error', (ev) => {
+    // eslint-disable-next-line no-console
+    console.error('[@wellsfargo-starui/data] platform-services SharedWorker error event', ev);
+  });
+
+  sendWorkerBootstrap(worker.port, {
+    appId: opts.appId ?? opts.appName,
+    userId: opts.userId,
+    seedConfigUrl: opts.seedConfigUrl,
+    seedConfigReload: opts.seedConfigReload,
+    configServiceRestUrl: opts.configServiceRestUrl,
+  });
+
+  return worker;
+}

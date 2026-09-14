@@ -72,3 +72,54 @@ describe('allRowsColumnCache', () => {
     expect(engine.parseAndEvaluate('SUM([price])', ctx)).toBe(3);
   });
 });
+
+describe('resolveAggregate', () => {
+  const allRows = [{ price: 10 }, { price: 20 }];
+
+  it('uses the resolver for SUM/COUNT and does not reduce allRows', () => {
+    const resolveAggregate = (fn: string, columnId: string): unknown => {
+      if (fn === 'SUM' && columnId === 'price') return 1000;
+      if (fn === 'COUNT' && columnId === 'price') return 50;
+      return undefined;
+    };
+    const ctx = {
+      x: null,
+      value: null,
+      data: { price: 10 },
+      columns: { price: 10 },
+      allRows,
+      resolveAggregate,
+    };
+    expect(engine.parseAndEvaluate('SUM([price])', ctx)).toBe(1000);
+    expect(engine.parseAndEvaluate('COUNT([price])', ctx)).toBe(50);
+    expect(engine.parseAndEvaluate('[price] / SUM([price])', ctx)).toBe(0.01);
+    expect(engine.compile('SUM([price])')(ctx)).toBe(1000);
+    expect(engine.compile('COUNT([price])')(ctx)).toBe(50);
+  });
+
+  it('treats a pending null as the result so allRows is not used', () => {
+    const ctx = {
+      x: null,
+      value: null,
+      data: { price: 10 },
+      columns: {},
+      allRows,
+      resolveAggregate: () => null,
+    };
+    expect(engine.parseAndEvaluate('SUM([price])', ctx)).toBeNull();
+    expect(engine.parseAndEvaluate('[price] / SUM([price])', ctx)).toBeNull();
+  });
+
+  it('falls through to allRows when the resolver returns undefined', () => {
+    const ctx = {
+      x: null,
+      value: null,
+      data: {},
+      columns: {},
+      allRows,
+      resolveAggregate: () => undefined,
+    };
+    expect(engine.parseAndEvaluate('SUM([price])', ctx)).toBe(30);
+    expect(engine.parseAndEvaluate('MEDIAN([price])', ctx)).toBe(15);
+  });
+});

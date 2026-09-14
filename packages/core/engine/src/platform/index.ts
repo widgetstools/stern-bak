@@ -4,6 +4,7 @@ export { EventBus } from './EventBus';
 export { topoSortModules } from './topoSort';
 export { ApiHub } from './ApiHub';
 export { RowChangeBus } from './RowChangeBus';
+export { ExternalFilterColumnRegistry } from './ExternalFilterColumnRegistry';
 export { ResourceScope } from './ResourceScope';
 export { CssInjector } from './CssInjector';
 export { DirtyBus } from './DirtyBus';
@@ -20,6 +21,7 @@ export type {
   EditorPaneProps,
   EventBus as IEventBus,
   ExpressionEngineLike,
+  ExternalFilterColumns,
   GridApi,
   GridOptions,
   GetRowIdFunc,
@@ -30,6 +32,7 @@ export type {
   PlatformHandle,
   ResourceScope as IResourceScope,
   RowChange,
+  RowChangeFeed,
   RowChangeSignal,
   SerializedState,
   SettingsPanelProps,

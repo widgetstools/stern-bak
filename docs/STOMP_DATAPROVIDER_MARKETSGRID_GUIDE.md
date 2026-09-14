@@ -502,7 +502,7 @@ my-stomp-app/
 ├── tsconfig.json
 └── src/
     ├── main.tsx            # DataServicesProvider
-    ├── dataServices.ts     # bootstrapDataServicesWithWorkerAsset
+    ├── bootstrap.ts        # ensurePlatformReady (spawns both SharedWorkers)
     ├── App.tsx             # routes / layout
     ├── providers/
     │   └── positionsStomp.ts   # StompProviderConfig draft (optional)

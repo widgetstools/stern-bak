@@ -36,14 +36,18 @@ import { EditorForm } from './EditorForm.js';
 
 const PROVIDER_TYPE_META: Record<ProviderType, { label: string; description: string; icon: typeof Database }> = {
   stomp: { label: 'STOMP', description: 'WebSocket streaming with snapshot + delta semantics.', icon: Radio },
+  'stomp-ssrm': { label: 'STOMP SSRM', description: 'Shared WASM cache + AG Grid server-side row model.', icon: Radio },
   rest: { label: 'REST', description: 'One-shot HTTP fetch — no live updates.', icon: Globe },
   websocket: { label: 'WebSocket', description: 'Raw WebSocket, framed by you.', icon: Radio },
   socketio: { label: 'Socket.IO', description: 'Socket.IO event-driven channel.', icon: Radio },
   mock: { label: 'Mock', description: 'In-memory dummy stream — for dev/tests.', icon: TestTube2 },
+  // Seeded programmatically (markets-grid-lab-ssrm); no editor form yet, so
+  // it stays out of SUPPORTED_TYPES — this entry only labels catalog rows.
+  'mock-ssrm': { label: 'Mock SSRM', description: 'Worker mock generator ingested into the SSRM WASM engine.', icon: TestTube2 },
   appdata: { label: 'AppData', description: 'Key/value store referenced by other providers via {{name.key}}.', icon: Database },
 };
 
-const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'rest', 'mock', 'appdata'];
+const SUPPORTED_TYPES: ProviderType[] = ['stomp', 'stomp-ssrm', 'rest', 'mock', 'appdata'];
 
 export interface DataProviderEditorProps {
   userId: string;

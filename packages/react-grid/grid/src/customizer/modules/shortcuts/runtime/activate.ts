@@ -1,5 +1,6 @@
 import type { GridApi } from 'ag-grid-community';
 import type { PlatformHandle } from '@wellsfargo-starui/core';
+import { lookupSsrmEditWriter } from '@wellsfargo-starui/core';
 import {
   SHORTCUTS_MODULE_ID,
   type ShortcutsState,
@@ -27,6 +28,8 @@ export function activateShortcuts(platform: PlatformHandle<ShortcutsState>): () 
     const onCellKeyDown = async (e: { event?: Event | null }) => {
       const state = platform.getState();
       if (!state.settings.enabled) return;
+      // SSRM: only with the engine write hook (plan §12 C1).
+      if (api.getGridOption?.('rowModelType') === 'serverSide' && !lookupSsrmEditWriter(api)) return;
 
       const ke = e.event as KeyboardEvent | undefined;
       if (!ke) return;

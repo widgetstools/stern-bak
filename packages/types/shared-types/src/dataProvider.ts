@@ -6,24 +6,42 @@
  */
 export const PROVIDER_TYPES = {
   STOMP: 'stomp',
+  STOMP_SSRM: 'stomp-ssrm',
   REST: 'rest',
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
   MOCK: 'mock',
+  MOCK_SSRM: 'mock-ssrm',
   APPDATA: 'appdata'
 } as const;
 
 export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
 
 /**
+ * Provider types whose rows live in the SharedWorker's SSRM WASM engine
+ * (blocks over RPC) rather than the CSRM row cache (snapshot + deltas).
+ * The hub, emit router and client adapters branch on this — never on a
+ * literal — so a new engine-fed transport is one entry here.
+ */
+export type SsrmProviderType = typeof PROVIDER_TYPES.STOMP_SSRM | typeof PROVIDER_TYPES.MOCK_SSRM;
+
+export function isSsrmProviderType(
+  providerType: ProviderType | string | undefined,
+): providerType is SsrmProviderType {
+  return providerType === PROVIDER_TYPES.STOMP_SSRM || providerType === PROVIDER_TYPES.MOCK_SSRM;
+}
+
+/**
  * Provider type to ComponentSubType mapping
  */
 export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = {
   [PROVIDER_TYPES.STOMP]: 'stomp',
+  [PROVIDER_TYPES.STOMP_SSRM]: 'stomp-ssrm',
   [PROVIDER_TYPES.REST]: 'rest',
   [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
   [PROVIDER_TYPES.SOCKETIO]: 'socketio',
   [PROVIDER_TYPES.MOCK]: 'mock',
+  [PROVIDER_TYPES.MOCK_SSRM]: 'mock-ssrm',
   [PROVIDER_TYPES.APPDATA]: 'appdata'
 };
 
@@ -32,17 +50,21 @@ export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = 
  */
 export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = {
   'stomp': PROVIDER_TYPES.STOMP,
+  'stomp-ssrm': PROVIDER_TYPES.STOMP_SSRM,
   'rest': PROVIDER_TYPES.REST,
   'websocket': PROVIDER_TYPES.WEBSOCKET,
   'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
+  'mock-ssrm': PROVIDER_TYPES.MOCK_SSRM,
   'appdata': PROVIDER_TYPES.APPDATA,
   // Capitalized (backward compatibility)
   'Stomp': PROVIDER_TYPES.STOMP,
+  'StompSsrm': PROVIDER_TYPES.STOMP_SSRM,
   'Rest': PROVIDER_TYPES.REST,
   'WebSocket': PROVIDER_TYPES.WEBSOCKET,
   'SocketIO': PROVIDER_TYPES.SOCKETIO,
   'Mock': PROVIDER_TYPES.MOCK,
+  'MockSsrm': PROVIDER_TYPES.MOCK_SSRM,
   'AppData': PROVIDER_TYPES.APPDATA
 };
 
@@ -100,9 +122,25 @@ export interface ColumnDefinition {
 }
 
 /**
+ * Platform warm-up flag every transport shares.
+ */
+export interface ProviderWarmupConfig {
+  /**
+   * Start this provider in the data worker when the platform warms —
+   * `warmPlatform(config, { providers: 'autoStart' })` at app load, which
+   * the OpenFin provider window runs while the dock loads — so the first
+   * view that opens attaches to a RUNNING provider and paints from the
+   * worker cache instead of paying connect + snapshot itself. Off by
+   * default: the first view to use the provider starts it. Set from the
+   * provider editor's Behaviour tab ("Start with the platform").
+   */
+  autoStart?: boolean;
+}
+
+/**
  * STOMP Provider Configuration
  */
-export interface StompProviderConfig {
+export interface StompProviderConfig extends ProviderWarmupConfig {
   providerType: 'stomp';
   websocketUrl: string;
   listenerTopic: string;
@@ -121,7 +159,6 @@ export interface StompProviderConfig {
   dataType?: 'positions' | 'trades' | 'orders' | 'custom';
   messageRate?: number;
   batchSize?: number;
-  autoStart?: boolean;
   heartbeat?: {
     outgoing?: number;
     incoming?: number;
@@ -227,9 +264,36 @@ export interface StompProviderConfig {
 }
 
 /**
+ * STOMP + AG Grid SSRM. Same wire destinations as {@link StompProviderConfig};
+ * the SharedWorker keeps one WASM cache and answers `getRows` blocks.
+ */
+export interface StompSsrmProviderConfig extends Omit<StompProviderConfig, 'providerType'> {
+  providerType: 'stomp-ssrm';
+  /** AG Grid `cacheBlockSize`. Default 200. */
+  blockSize?: number;
+  /**
+   * AG Grid `blockLoadDebounceMillis`: wait this long after the viewport
+   * last moved before reading blocks, so a thumb drag or fling reads only
+   * the blocks it stops on instead of every block it crossed. Unset = AG
+   * Grid's default (no debounce). Applied by `MarketsGridContainer`.
+   */
+  blockLoadDebounceMillis?: number;
+  /**
+   * AG Grid `maxConcurrentDatasourceRequests`: block reads in flight at
+   * once. Unset = AG Grid's default (2). Raise it when the worker answers
+   * faster than the page renders, so a fling's blocks load together.
+   */
+  maxConcurrentDatasourceRequests?: number;
+  /** WASM tick / shared-delta poll window in ms. Default 100. */
+  publishWindowMs?: number;
+  /** Columns included in worker quick-filter matching. */
+  searchColumns?: readonly string[];
+}
+
+/**
  * REST Provider Configuration
  */
-export interface RestProviderConfig {
+export interface RestProviderConfig extends ProviderWarmupConfig {
   providerType: 'rest';
   baseUrl: string;
   endpoint: string;
@@ -270,7 +334,7 @@ export interface RestProviderConfig {
 /**
  * WebSocket Provider Configuration
  */
-export interface WebSocketProviderConfig {
+export interface WebSocketProviderConfig extends ProviderWarmupConfig {
   providerType: 'websocket';
   url: string;
   protocol?: string;
@@ -285,7 +349,7 @@ export interface WebSocketProviderConfig {
 /**
  * Socket.IO Provider Configuration
  */
-export interface SocketIOProviderConfig {
+export interface SocketIOProviderConfig extends ProviderWarmupConfig {
   providerType: 'socketio';
   url: string;
   namespace?: string;
@@ -305,7 +369,7 @@ export interface SocketIOProviderConfig {
 /**
  * Mock Provider Configuration
  */
-export interface MockProviderConfig {
+export interface MockProviderConfig extends ProviderWarmupConfig {
   providerType: 'mock';
   dataType: 'positions' | 'trades' | 'orders' | 'custom';
   updateInterval?: number;
@@ -327,6 +391,43 @@ export interface MockProviderConfig {
    * `'tradeId'` for trades, `'id'` for orders.
    */
   keyColumn?: string | readonly string[];
+}
+
+/**
+ * Mock SSRM Provider Configuration — the worker's rich mock generator
+ * (positions / trades) ingested into the SSRM WASM engine instead of the
+ * CSRM row cache. The parity twin of `stomp-ssrm` with no broker: same
+ * generator the CSRM mock provider streams, so a CSRM and an SSRM grid on
+ * the same dataType render the same book and differences are attributable
+ * to the row model alone (what markets-grid-lab-ssrm exists to surface).
+ */
+export interface MockSsrmProviderConfig extends Omit<MockProviderConfig, 'providerType'> {
+  providerType: 'mock-ssrm';
+  /** AG Grid `cacheBlockSize`. Default 200. */
+  blockSize?: number;
+  /**
+   * AG Grid `blockLoadDebounceMillis`: wait this long after the viewport
+   * last moved before reading blocks, so a thumb drag or fling reads only
+   * the blocks it stops on instead of every block it crossed. Unset = AG
+   * Grid's default (no debounce). Applied by `MarketsGridContainer`.
+   */
+  blockLoadDebounceMillis?: number;
+  /**
+   * AG Grid `maxConcurrentDatasourceRequests`: block reads in flight at
+   * once. Unset = AG Grid's default (2). Raise it when the worker answers
+   * faster than the page renders, so a fling's blocks load together.
+   */
+  maxConcurrentDatasourceRequests?: number;
+  /** WASM tick / shared-delta poll window in ms. Default 100. */
+  publishWindowMs?: number;
+  /** Columns included in worker quick-filter matching. */
+  searchColumns?: readonly string[];
+  /**
+   * Engine boot schema — same role as on StompSsrmProviderConfig: a
+   * column's `cellDataType` decides its engine type (`number` → f64,
+   * `boolean` → bool, else string; date columns get an epoch shadow).
+   */
+  columnDefinitions?: ColumnDefinition[];
 }
 
 /**
@@ -359,7 +460,7 @@ export interface AppDataVariable {
 /**
  * AppData Provider Configuration
  */
-export interface AppDataProviderConfig {
+export interface AppDataProviderConfig extends ProviderWarmupConfig {
   providerType: 'appdata';
   variables: Record<string, AppDataVariable>;
 }
@@ -369,11 +470,20 @@ export interface AppDataProviderConfig {
  */
 export type ProviderConfig =
   | StompProviderConfig
+  | StompSsrmProviderConfig
   | RestProviderConfig
   | WebSocketProviderConfig
   | SocketIOProviderConfig
   | MockProviderConfig
+  | MockSsrmProviderConfig
   | AppDataProviderConfig;
+
+/**
+ * Configs the SSRM WASM plane can boot a datasource from — the fields the
+ * engine schema is derived from (`keyColumn`, `columnDefinitions`,
+ * `searchColumns`, `publishWindowMs`) exist on every member.
+ */
+export type SsrmProviderConfig = StompSsrmProviderConfig | MockSsrmProviderConfig;
 
 /**
  * Provider capabilities
@@ -486,6 +596,25 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     inferredFields: [],
     columnDefinitions: []
   },
+  'stomp-ssrm': {
+    providerType: 'stomp-ssrm',
+    listenerTopic: '',
+    websocketUrl: '',
+    snapshotEndToken: 'Success',
+    requestBody: '',
+    snapshotTimeoutMs: 60000,
+    dataType: 'positions',
+    autoStart: false,
+    heartbeat: {
+      outgoing: 4000,
+      incoming: 4000
+    },
+    inferredFields: [],
+    columnDefinitions: [],
+    blockSize: 200,
+    publishWindowMs: 100,
+    searchColumns: []
+  },
   rest: {
     providerType: 'rest',
     baseUrl: '',
@@ -517,6 +646,18 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
     rowCount: 20,
     enableUpdates: true
   },
+  'mock-ssrm': {
+    providerType: 'mock-ssrm',
+    dataType: 'positions',
+    updateIntervalMs: 500,
+    rowCount: 500,
+    enableUpdates: true,
+    keyColumn: 'id',
+    blockSize: 200,
+    publishWindowMs: 100,
+    searchColumns: [],
+    columnDefinitions: []
+  },
   appdata: {
     providerType: 'appdata',
     variables: {}
@@ -542,8 +683,9 @@ export function validateProviderConfig(config: ProviderConfig): ProviderValidati
   }
 
   switch (config.providerType) {
-    case 'stomp': {
-      const stompConfig = config as StompProviderConfig;
+    case 'stomp':
+    case 'stomp-ssrm': {
+      const stompConfig = config as StompProviderConfig | StompSsrmProviderConfig;
       if (stompConfig.websocketUrl && !stompConfig.websocketUrl.startsWith('ws://') && !stompConfig.websocketUrl.startsWith('wss://')) {
         warnings.push('WebSocket URL should typically start with ws:// or wss://');
       }

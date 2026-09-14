@@ -1,17 +1,26 @@
 /**
- * applyProviderToGrid — split live provider ticks into AG Grid add vs
- * update transactions with pending-add deduplication.
+ * applyProviderToGrid — route live provider ticks into an AG Grid client-side
+ * model: ADDS ride `applyTransactionAsync` (they change the row set, with
+ * pending-add deduplication); UPDATES go through {@link createRenderedRowUpdater}
+ * — node data is already current, so rendered cells are refreshed in one
+ * batch and only rows whose sort / filter / group / aggregate key changed
+ * still ride a transaction (refactor plan B1, WORKLOG 21). Without a
+ * `rowIdField` the grid cannot address nodes, so that path keeps the plain
+ * update transaction.
  *
- * Extracted from MarketsGridContainer so Task 5.2 can wire
- * `IDataProvider.onTick` without duplicating the classifier.
+ * Extracted from MarketsGridContainer so `IDataProvider.onTick` can be
+ * wired without duplicating the classifier.
  */
 
 import type { GridApi, IRowNode } from 'ag-grid-community';
 import { composeRowId } from '@wellsfargo-starui/types/shared';
+import { createRenderedRowUpdater, type RenderedRowUpdaterOptions } from './renderedRowUpdates.js';
 
 export interface SplitProviderRowsResult<TData> {
   adds: TData[];
   updates: TData[];
+  /** Row id of each entry in `updates`, same order. */
+  updateIds: string[];
   /**
    * Rows coalesced because an add for the same id is already queued.
    * Latest payload is retained and applied once the add transaction lands.
@@ -52,6 +61,8 @@ export interface ApplyProviderToGridState {
     rows: readonly TData[],
     resolveId: (row: TData) => string | null,
   ): ApplyProviderTickResult;
+  /** Cancel pending rendered-row refreshes; call from the wiring effect's cleanup. */
+  dispose(): void;
 }
 
 /** Clear pending-add bookkeeping after AG Grid applies an add transaction. */
@@ -73,6 +84,7 @@ function classifyRow<TData>(
   id: string,
   adds: TData[],
   updates: TData[],
+  updateIds: string[],
   pendingAddIds: Set<string>,
   pendingAddLatest: Map<string, unknown> | undefined,
   knownRowIds: ReadonlySet<string> | undefined,
@@ -81,6 +93,7 @@ function classifyRow<TData>(
   if (knownRowIds && knownRowIds.size > 0) {
     if (knownRowIds.has(id)) {
       updates.push(row);
+      updateIds.push(id);
       return 0;
     }
     if (pendingAddIds.has(id)) {
@@ -95,6 +108,7 @@ function classifyRow<TData>(
   // Before the snapshot id index exists, fall back to AG Grid lookup.
   if (gridApi.getRowNode(id)) {
     updates.push(row);
+    updateIds.push(id);
     return 0;
   }
   if (pendingAddIds.has(id)) {
@@ -122,6 +136,7 @@ export function splitProviderRowsForGrid<TData>(
 ): SplitProviderRowsResult<TData> {
   const adds: TData[] = [];
   const updates: TData[] = [];
+  const updateIds: string[] = [];
   let coalescedPending = 0;
 
   for (const row of rows) {
@@ -133,6 +148,7 @@ export function splitProviderRowsForGrid<TData>(
       id,
       adds,
       updates,
+      updateIds,
       pendingAddIds,
       pendingAddLatest,
       knownRowIds,
@@ -140,7 +156,7 @@ export function splitProviderRowsForGrid<TData>(
     );
   }
 
-  return { adds, updates, coalescedPending };
+  return { adds, updates, updateIds, coalescedPending };
 }
 
 export function splitProviderRowsWithResolver<TData>(
@@ -153,6 +169,7 @@ export function splitProviderRowsWithResolver<TData>(
 ): SplitProviderRowsResult<TData> {
   const adds: TData[] = [];
   const updates: TData[] = [];
+  const updateIds: string[] = [];
   let coalescedPending = 0;
 
   for (const row of rows) {
@@ -164,6 +181,7 @@ export function splitProviderRowsWithResolver<TData>(
       id,
       adds,
       updates,
+      updateIds,
       pendingAddIds,
       pendingAddLatest,
       knownRowIds,
@@ -171,13 +189,14 @@ export function splitProviderRowsWithResolver<TData>(
     );
   }
 
-  return { adds, updates, coalescedPending };
+  return { adds, updates, updateIds, coalescedPending };
 }
 
-export function createApplyProviderToGridState(): ApplyProviderToGridState {
+export function createApplyProviderToGridState(opts: RenderedRowUpdaterOptions = {}): ApplyProviderToGridState {
   const pendingAddIds = new Set<string>();
   const pendingAddLatest = new Map<string, unknown>();
   const knownRowIds = new Set<string>();
+  const updater = createRenderedRowUpdater<unknown>(opts);
 
   const applyCoalescedAfterAdds = <TData>(gridApi: GridApi<TData>, added: IRowNode[]) => {
     if (pendingAddLatest.size === 0) return;
@@ -195,11 +214,36 @@ export function createApplyProviderToGridState(): ApplyProviderToGridState {
     }
   };
 
+  /**
+   * Adds (and the updates whose key column changed) ride one transaction;
+   * every other update is a rendered-row refresh plus a bus note.
+   */
+  const commit = <TData>(
+    gridApi: GridApi<TData>,
+    adds: TData[],
+    updates: TData[],
+    updateIds: string[],
+    coalescedPending: number,
+  ): ApplyProviderTickResult => {
+    const txUpdates = updater.apply(gridApi as GridApi<unknown>, updates, updateIds) as TData[];
+    if (adds.length > 0 || txUpdates.length > 0) {
+      gridApi.applyTransactionAsync({ add: adds, update: txUpdates }, (result) => {
+        clearPendingAddsFromTransaction(pendingAddIds, result, knownRowIds);
+        applyCoalescedAfterAdds(gridApi, result.add);
+      });
+    }
+    return { coalescedPending, addCount: adds.length, updateCount: updates.length };
+  };
+
   return {
     clearPendingAdds() {
       pendingAddIds.clear();
       pendingAddLatest.clear();
       knownRowIds.clear();
+      updater.clear();
+    },
+    dispose() {
+      updater.dispose();
     },
     getPendingAddCount() {
       return pendingAddIds.size;
@@ -236,7 +280,7 @@ export function createApplyProviderToGridState(): ApplyProviderToGridState {
         return { coalescedPending: 0, addCount: 0, updateCount: rows.length };
       }
 
-      const { adds, updates, coalescedPending } = splitProviderRowsForGrid(
+      const { adds, updates, updateIds, coalescedPending } = splitProviderRowsForGrid(
         rows,
         rowIdField,
         gridApi,
@@ -244,22 +288,12 @@ export function createApplyProviderToGridState(): ApplyProviderToGridState {
         pendingAddLatest,
         knownRowIds,
       );
-
-      if (adds.length === 0 && updates.length === 0) {
-        return { coalescedPending, addCount: 0, updateCount: 0 };
-      }
-
-      gridApi.applyTransactionAsync({ add: adds, update: updates }, (result) => {
-        clearPendingAddsFromTransaction(pendingAddIds, result, knownRowIds);
-        applyCoalescedAfterAdds(gridApi, result.add);
-      });
-
-      return { coalescedPending, addCount: adds.length, updateCount: updates.length };
+      return commit(gridApi, adds, updates, updateIds, coalescedPending);
     },
     applyTickWithResolver(gridApi, rows, resolveId) {
       if (rows.length === 0) return { coalescedPending: 0, addCount: 0, updateCount: 0 };
 
-      const { adds, updates, coalescedPending } = splitProviderRowsWithResolver(
+      const { adds, updates, updateIds, coalescedPending } = splitProviderRowsWithResolver(
         rows,
         resolveId,
         gridApi,
@@ -267,17 +301,7 @@ export function createApplyProviderToGridState(): ApplyProviderToGridState {
         pendingAddLatest,
         knownRowIds,
       );
-
-      if (adds.length === 0 && updates.length === 0) {
-        return { coalescedPending, addCount: 0, updateCount: 0 };
-      }
-
-      gridApi.applyTransactionAsync({ add: adds, update: updates }, (result) => {
-        clearPendingAddsFromTransaction(pendingAddIds, result, knownRowIds);
-        applyCoalescedAfterAdds(gridApi, result.add);
-      });
-
-      return { coalescedPending, addCount: adds.length, updateCount: updates.length };
+      return commit(gridApi, adds, updates, updateIds, coalescedPending);
     },
   };
 }

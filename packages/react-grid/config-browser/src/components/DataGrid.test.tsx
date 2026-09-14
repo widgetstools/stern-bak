@@ -70,7 +70,9 @@ describe('DataGrid', () => {
     const pk = cells().configId;
     expect(pk.style.fontFamily).toBe('var(--ds-font-mono)');
     expect(pk.style.fontWeight).toBe('600');
-    expect(document.querySelector('.ag-pinned-left-cols-container')?.contains(pk)).toBe(true);
+    // AG Grid 36 sticky pin sections use `.ag-grid-pinned-left-cells`
+    // (the 35 `.ag-pinned-left-cols-container` class is gone).
+    expect(pk.closest('.ag-grid-pinned-left-cells')).not.toBeNull();
   });
 
   it('renders an object cell as a budgeted JSON preview, not the full payload', async () => {

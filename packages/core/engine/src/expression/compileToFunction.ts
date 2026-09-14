@@ -15,6 +15,7 @@ import {
   applyUnary,
   buildCallArgs,
   invokeFunction,
+  tryResolvedAggregate,
   isTruthy,
   resolveColumnRef,
   resolveVariable,
@@ -104,6 +105,8 @@ export function compileToFunction(
       const argNodes = node.args;
       const argFns = argNodes.map((arg) => compileToFunction(arg, functions));
       return (ctx) => {
+        const resolved = tryResolvedAggregate(fn, argNodes, ctx);
+        if (resolved.ok) return resolved.value;
         const args = buildCallArgs(fn, argNodes, ctx, (_arg, i) => argFns[i](ctx));
         return invokeFunction(fn, name, args, ctx);
       };

@@ -12,6 +12,7 @@
  */
 
 import type { DataProviderConfig, ProviderConfig, ProviderStatus, ProviderType } from '@wellsfargo-starui/types';
+import type { AppConfigRow } from '@wellsfargo-starui/core/host/config';
 
 // ─── AppData row shape (mirrors AppDataConfig from probes/appdata) ─
 
@@ -103,8 +104,9 @@ export interface AttachRequest {
   /**
    * `'data'` (default) — listener receives `delta` + `status` events.
    * `'stats'` — listener receives a `stats` event at 1 Hz.
+   * `'ssrm'` — keep-alive + status; no CSRM cache replay (WASM via RPC).
    */
-  mode: 'data' | 'stats';
+  mode: 'data' | 'stats' | 'ssrm';
   /**
    * Required on FIRST attach when `providerId` is not in the hub catalog.
    * Optional when the worker has preloaded the provider row via
@@ -195,6 +197,26 @@ export interface ConfigInvalidateRequest {
   providerId?: string;
 }
 
+/**
+ * Persist one `appConfig` row through the platform-services worker — the
+ * single writer for config rows (worker-split plan W2). Replies with the
+ * row as stored; a stale `expectedUpdatedTime` answers `ok: false` with
+ * `code: 'optimistic-lock'` and the current row.
+ */
+export interface ConfigSaveRequest {
+  kind: 'config-save';
+  reqId: string;
+  row: AppConfigRow;
+  expectedUpdatedTime?: string;
+}
+
+/** Delete one `appConfig` row through the platform-services worker. */
+export interface ConfigDeleteRequest {
+  kind: 'config-delete';
+  reqId: string;
+  configId: string;
+}
+
 /** Replay hub row cache to one subscriber without upstream I/O. */
 export interface RefreshProviderRequest {
   kind: 'refresh-provider';
@@ -202,10 +224,10 @@ export interface RefreshProviderRequest {
   providerId: string;
 }
 
-/** One attached hub subscriber (data or stats mode). */
+/** One attached hub subscriber (data, stats, or ssrm mode). */
 export interface HubSubscriberIntrospectRow {
   subId: string;
-  mode: 'data' | 'stats';
+  mode: 'data' | 'stats' | 'ssrm';
   attachedAt: number;
   lastPingAt: number;
   /** True when `lastPingAt` is older than the hub ping timeout. */
@@ -251,6 +273,47 @@ export interface HubAppDataIntrospectRow {
   values: Record<string, unknown>;
 }
 
+/** Hub-thread accounting of late-join replay fan-out (data hub only — W4). */
+export interface HubFanoutIntrospect {
+  passes: number;
+  replays: number;
+  chunksPosted: number;
+  /** Hub-thread ms encoding dirty buckets (once per attach). */
+  encodeMs: number;
+  /** Hub-thread ms inside replay passes (posting). */
+  hubThreadMs: number;
+  lastEpisode: { ports: number; chunksPosted: number; encodeMs: number; hubThreadMs: number; wallMs: number } | null;
+}
+
+/** One accounted operation class: count, total ms and recent percentiles. */
+export interface HubLatencyIntrospect {
+  n: number;
+  totalMs: number;
+  p50: number | null;
+  p99: number | null;
+  max: number | null;
+}
+
+/**
+ * Hub-thread accounting of the SSRM plane (data hub only): where the data
+ * worker's thread goes when N grids share one provider. Block reads carry
+ * two figures — how long a request WAITED in the worker's queue before the
+ * hub picked it up (from the client's `sentAt`), and how long the engine
+ * took to answer it.
+ */
+export interface HubSsrmIntrospect {
+  /** Seconds since the hub started accounting. */
+  windowSeconds: number;
+  /** `ssrm-get-rows`: queue wait vs engine time. */
+  getRows: { queueMs: HubLatencyIntrospect; engineMs: HubLatencyIntrospect };
+  /** Every other `ssrm-*` RPC, together. */
+  otherRpc: { queueMs: HubLatencyIntrospect; engineMs: HubLatencyIntrospect };
+  /** One tick flush = one engine `pollAllTicks` for every session + the posts. */
+  tickFlush: HubLatencyIntrospect & { sessions: number; ticksPosted: number; upsertsPosted: number; upsertsWithheld: number };
+  /** Upstream batches ingested into the engine. */
+  ingest: HubLatencyIntrospect;
+}
+
 export interface HubIntrospectSnapshot {
   connectedPorts: number;
   catalogReady: boolean;
@@ -261,6 +324,10 @@ export interface HubIntrospectSnapshot {
     listenerCount: number;
     rows: readonly HubAppDataIntrospectRow[];
   };
+  /** Present on the data hub's answer only. */
+  fanout?: HubFanoutIntrospect;
+  /** Present on the data hub's answer only. */
+  ssrm?: HubSsrmIntrospect;
 }
 
 /** Query live hub diagnostics (providers, subscribers, cache sizes). */
@@ -369,6 +436,89 @@ export interface WorkerBootstrapRequest {
   payload: WorkerBootstrapPayload;
 }
 
+/**
+ * Client-side send stamp on every SSRM RPC (`Date.now()` — epoch ms, so the
+ * worker can subtract it despite a different `performance.timeOrigin`).
+ * The hub reports the queue wait it implies through `hub-introspect.ssrm`.
+ */
+export interface SsrmRpcTiming {
+  sentAt?: number;
+}
+
+export interface SsrmGetRowsWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-get-rows';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmGetRowsRequest;
+}
+
+/** Distinct column values for an AG Grid set filter list. */
+export interface SsrmColumnValuesWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-column-values';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmColumnValuesRequest;
+}
+
+/** Matched row count for a filter the grid hasn't applied (pill badges). */
+export interface SsrmRowCountWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-row-count';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmRowCountRequest;
+}
+
+/** Dataset-level aggregations for the SSRM status bar. */
+export interface SsrmAggregatesWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-aggregates';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  request: import('./ssrm/ssrmTypes.js').SsrmAggregatesRequest;
+}
+
+export interface SsrmWatchGroupsWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-watch-groups';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  groupBy: readonly string[];
+  aggregates?: Record<string, string>;
+}
+
+/** Watch a compiled boolean predicate over the whole dataset (viewDelta ticks). */
+export interface SsrmWatchPredicateWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-watch-predicate';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  ruleId: string;
+  expr: import('./ssrm/ssrmTypes.js').SsrmExprNode;
+}
+
+/** Drop one watched predicate. */
+export interface SsrmUnwatchPredicateWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-unwatch-predicate';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  ruleId: string;
+}
+
+/** Grid edits (paste / cell edit) written into the engine cache. */
+export interface SsrmApplyEditsWireRequest extends SsrmRpcTiming {
+  kind: 'ssrm-apply-edits';
+  reqId: string;
+  providerId: string;
+  subId: string;
+  rows: readonly Record<string, unknown>[];
+  /** Index-aligned with `rows` — see {@link import('./ssrm/ssrmTypes.js').SsrmApplyEditsRequest}. */
+  editedColumns?: ReadonlyArray<readonly string[]>;
+}
+
 export type Request =
   | AttachRequest
   | DetachRequest
@@ -379,9 +529,34 @@ export type Request =
   | GetConfigRequest
   | ListConfigsRequest
   | ConfigInvalidateRequest
+  | ConfigSaveRequest
+  | ConfigDeleteRequest
   | RefreshProviderRequest
   | HubIntrospectRequest
-  | ProviderRunningRequest;
+  | ProviderRunningRequest
+  | SsrmGetRowsWireRequest
+  | SsrmColumnValuesWireRequest
+  | SsrmRowCountWireRequest
+  | SsrmAggregatesWireRequest
+  | SsrmWatchGroupsWireRequest
+  | SsrmWatchPredicateWireRequest
+  | SsrmUnwatchPredicateWireRequest
+  | SsrmApplyEditsWireRequest;
+
+export interface SsrmRpcEvent {
+  kind: 'ssrm-rpc';
+  reqId: string;
+  subId: string;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+export interface SsrmTickEvent {
+  kind: 'ssrm-tick';
+  subId: string;
+  payload: import('./ssrm/ssrmTypes.js').SsrmTickPayload;
+}
 
 // ─── Worker → Client events ────────────────────────────────────────
 
@@ -560,6 +735,12 @@ export interface ConfigSnapshotEvent {
   introspect?: HubIntrospectSnapshot;
   /** Response to `provider-running`. */
   running?: boolean;
+  /** Response to `config-save`: the row as persisted by the writer. */
+  row?: AppConfigRow;
+  /** `ok: false` refinement — a stale `expectedUpdatedTime` on `config-save`. */
+  code?: 'optimistic-lock';
+  /** With `code: 'optimistic-lock'`: the row currently stored (null when unknown). */
+  conflictRow?: AppConfigRow | null;
 }
 
 export type CatalogEvent = CatalogReadyEvent | ConfigSnapshotEvent;
@@ -640,10 +821,26 @@ export function isRequest(value: unknown): value is Request {
     k === 'get-config' ||
     k === 'list-configs' ||
     k === 'config-invalidate' ||
+    k === 'config-save' ||
+    k === 'config-delete' ||
     k === 'refresh-provider' ||
     k === 'hub-introspect' ||
-    k === 'provider-running'
+    k === 'provider-running' ||
+    k === 'ssrm-get-rows' ||
+    k === 'ssrm-column-values' ||
+    k === 'ssrm-row-count' ||
+    k === 'ssrm-aggregates' ||
+    k === 'ssrm-watch-groups' ||
+    k === 'ssrm-apply-edits'
   );
+}
+
+export function isSsrmRpcEvent(value: unknown): value is SsrmRpcEvent {
+  return Boolean(value && typeof value === 'object' && (value as { kind?: string }).kind === 'ssrm-rpc');
+}
+
+export function isSsrmTickEvent(value: unknown): value is SsrmTickEvent {
+  return Boolean(value && typeof value === 'object' && (value as { kind?: string }).kind === 'ssrm-tick');
 }
 
 export function isEvent(value: unknown): value is Event {

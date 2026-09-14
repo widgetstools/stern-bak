@@ -10,6 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub.js';
+import { PlatformServicesHost } from '../worker/PlatformServicesHost.js';
 import { isAppDataRequest, isRequest } from '../protocol.js';
 import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import { bootstrapDataServices, _resetBootstrapRegistryForTests } from './bootstrap.js';
@@ -25,6 +26,7 @@ function stubConfigManager(): ConfigManager & { _rows: Map<string, AppConfigRow>
   return {
     _rows: rows,
     getAppId() { return 'TestApp'; },
+    onConfigChanged() { return () => {}; },
     async getConfigsByUser(userId: string) {
       return [...rows.values()].filter((r) => r.userId === userId);
     },
@@ -37,21 +39,24 @@ function stubConfigManager(): ConfigManager & { _rows: Map<string, AppConfigRow>
   } as unknown as ConfigManager & { _rows: Map<string, AppConfigRow> };
 }
 
+const CATALOG_KINDS = new Set(['hub-ready', 'get-config', 'list-configs', 'config-invalidate']);
+
 /**
- * Build a MessageChannel-backed worker stub wired to an in-process
- * hub. When a ConfigManager is supplied, the hub uses it for
- * persistence + hydration — mirrors how a real SharedWorker entry
- * script constructs its own ConfigManager + awaits hydrateAppData()
- * before installing the connect handler.
+ * Build a MessageChannel-backed worker stub wired to BOTH in-process brains
+ * behind one port (the split, W1c): AppData + catalog RPCs go to the
+ * platform host, everything else to the data hub. When a ConfigManager is
+ * supplied, the platform host hydrates AppData from it first — mirrors how
+ * the real entry awaits hydration before adopting ports.
  */
 async function makeFakeWorker(configManager?: ConfigManager): Promise<FakeWorker> {
   const channel = new MessageChannel();
   const hub = new SharedWorkerDataServicesHub(configManager ? { configManager } : {});
-  if (configManager) await hub.hydrateAppData('alice');
+  const host = new PlatformServicesHost(configManager ? { configManager } : {});
+  if (configManager) await host.hydrateAppData('alice');
   const portLike: PortLike = { postMessage: (m) => channel.port2.postMessage(m) };
   channel.port2.addEventListener('message', (ev: MessageEvent) => {
-    if (isRequest(ev.data)) hub.handleRequest(portLike, ev.data);
-    else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(portLike, ev.data);
+    if (isAppDataRequest(ev.data)) host.handleAppDataRequest(portLike, ev.data);
+    else if (isRequest(ev.data)) (CATALOG_KINDS.has(ev.data.kind) ? host : hub).handleRequest(portLike, ev.data);
   });
   channel.port2.start();
   return {

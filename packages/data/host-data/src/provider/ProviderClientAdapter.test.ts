@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppConfigRow } from '@wellsfargo-starui/core/host/config';
+import type { AppConfigRow, ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { ProviderConfig } from '@wellsfargo-starui/types';
 import { createInPageWiring, SharedWorkerDataServicesClient } from '../runtime/client/SharedWorkerDataServicesClient.js';
 import { SharedWorkerDataServicesHub, type PortLike } from '../runtime/worker/SharedWorkerDataServicesHub.js';
 import { registerProvider } from '../runtime/providers/registry.js';
 import { isAppDataRequest, isRequest } from '../runtime/protocol.js';
 import type { ProviderHandle, ProviderEmit } from '../runtime/providers/Provider.js';
-import { ConfigCatalogCache } from '../hub/ConfigCatalogCache.js';
+import { PlatformServicesHost } from '../runtime/worker/PlatformServicesHost.js';
 import { ProviderClientAdapter, resolveProviderCapabilities } from './ProviderClientAdapter.js';
 
 interface TestController {
@@ -65,6 +65,8 @@ function mockConfigManager(rows: AppConfigRow[]) {
   const map = new Map(rows.map((r) => [r.configId, r]));
   return {
     getAppId() { return 'TestApp'; },
+    onConfigChanged() { return () => {}; },
+
     async getAllConfigsUnfiltered() { return [...map.values()]; },
     async getConfigsByComponentTypesUnfiltered(types: string[]) { return [...map.values()].filter((r) => types.includes(r.componentType)); },
     async getConfig(id: string) { return map.get(id); },
@@ -77,17 +79,24 @@ interface Wiring {
   close(): void;
 }
 
+const CATALOG_KINDS = new Set(['hub-ready', 'get-config', 'list-configs', 'config-invalidate']);
+
+/**
+ * Two workers since the split (W1c) behind ONE test port: catalog RPCs go
+ * to the platform host, everything else to the data hub, which reads the
+ * same ConfigManager on demand at provider lifecycle moments.
+ */
 function wireCatalog(rows: AppConfigRow[], opts: { preload?: boolean } = {}): Wiring {
   const { preload = true } = opts;
-  const cm = mockConfigManager(rows);
-  const cache = new ConfigCatalogCache(cm as never);
-  const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
-  if (preload) void cache.loadAll();
+  const cm = mockConfigManager(rows) as unknown as ConfigManager;
+  const hub = new SharedWorkerDataServicesHub({ configManager: cm });
+  const host = new PlatformServicesHost({ configManager: cm });
+  if (preload) void host.hydrateCatalog();
   const wiring = createInPageWiring((port) => {
     const portLike: PortLike = { postMessage: (m) => port.postMessage(m) };
     port.addEventListener('message', (ev: MessageEvent) => {
-      if (isRequest(ev.data)) hub.handleRequest(portLike, ev.data);
-      else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(portLike, ev.data);
+      if (isAppDataRequest(ev.data)) host.handleAppDataRequest(portLike, ev.data);
+      else if (isRequest(ev.data)) (CATALOG_KINDS.has(ev.data.kind) ? host : hub).handleRequest(portLike, ev.data);
     });
     port.start();
   }, { disablePageHideClose: true });
@@ -97,6 +106,7 @@ function wireCatalog(rows: AppConfigRow[], opts: { preload?: boolean } = {}): Wi
     close: () => {
       wiring.close();
       void hub.dispose();
+      void host.dispose();
     },
   };
 }
@@ -109,6 +119,11 @@ async function flush(): Promise<void> {
 
 describe('resolveProviderCapabilities', () => {
   it('maps provider types to streaming/restart capabilities', () => {
+    expect(resolveProviderCapabilities('stomp-ssrm')).toMatchObject({
+      streaming: true,
+      realtime: true,
+      supportsRestart: true,
+    });
     expect(resolveProviderCapabilities('rest')).toMatchObject({
       streaming: false,
       realtime: false,

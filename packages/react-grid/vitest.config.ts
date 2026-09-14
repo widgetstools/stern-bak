@@ -33,6 +33,13 @@ export default defineConfig({
         resolve: {
           dedupe: ['react', 'react-dom'],
           alias: [
+            // Value imports from @wellsfargo-starui/data/runtime pull its barrel, whose
+            // RustHubHost imports the worker-only WASM module — stub it the
+            // same way packages/data's own vitest config does.
+            {
+              find: '@starui/dshub',
+              replacement: resolve(__dirname, '../data/host-data/src/runtime/ssrm/dshub.vitest-stub.ts'),
+            },
             {
               find: '@wellsfargo-starui/design-system/adapters/ag-grid',
               replacement: resolve(__dirname, '../design-system/design-system/dist/adapters/agGrid.js'),
@@ -60,6 +67,7 @@ export default defineConfig({
             { find: '@wellsfargo-starui/types/shared/configuration', replacement: resolve(__dirname, '../types/shared-types/src/configuration.ts') },
             { find: '@wellsfargo-starui/types/shared/dataProvider', replacement: resolve(__dirname, '../types/shared-types/src/dataProvider.ts') },
             { find: '@wellsfargo-starui/types/shared/fieldSelector', replacement: resolve(__dirname, '../types/shared-types/src/fieldSelector.ts') },
+            { find: '@wellsfargo-starui/types/shared/ssrmExpression', replacement: resolve(__dirname, '../types/shared-types/src/ssrmExpression.ts') },
             { find: '@wellsfargo-starui/types/shared', replacement: resolve(__dirname, '../types/shared-types/src/index.ts') },
             { find: '@wellsfargo-starui/types', replacement: resolve(__dirname, '../types/types/src/index.ts') },
             { find: '@wellsfargo-starui/openfin/host', replacement: resolve(__dirname, '../openfin/host-openfin/src/index.ts') },

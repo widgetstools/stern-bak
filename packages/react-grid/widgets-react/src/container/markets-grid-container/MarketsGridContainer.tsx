@@ -32,6 +32,7 @@ import {
   createMarketsGridContainerEventBus,
   useMarketsGridEventBridge,
 } from '@wellsfargo-starui/grid';
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
 import type { StompProviderConfig } from '@wellsfargo-starui/types';
 import { traceStompProviderCfg } from '@wellsfargo-starui/data/runtime';
 import type { AppDataLookup, StorageAdapter } from '@wellsfargo-starui/core';
@@ -41,10 +42,12 @@ import {
   useDataProvidersList,
   useAppDataStore,
   useDataProvider,
+  useSsrmDataProvider,
   useDataServices,
 } from '@wellsfargo-starui/react/data/runtime';
 import { buildColumnDefs } from './buildColumnDefs.js';
 import { useProviderDataWiring } from './useProviderDataWiring.js';
+import { useSsrmProviderWiring } from './useSsrmProviderWiring.js';
 import { useGridLevelPersistence } from './useGridLevelPersistence.js';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
 import {
@@ -508,11 +511,20 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   // `useDataProviderConfig` / `useResolvedCfg` for column defs and
   // the picker only, not as an attach cfg pass-through.
   const providerReady = Boolean(activeId && !activeRow.loading && rowIdField && columnDefs);
+  const isSsrm = isSsrmProviderType(activeCfg?.providerType);
   const {
     provider,
     refresh: refreshProvider,
     restart: restartProvider,
-  } = useDataProvider<TData>(providerReady ? activeId : null, { autoStart: false });
+  } = useDataProvider<TData>(providerReady && !isSsrm ? activeId : null, { autoStart: false });
+  const {
+    provider: ssrmProvider,
+    refresh: refreshSsrmProvider,
+    restart: restartSsrmProvider,
+  } = useSsrmDataProvider(
+    providerReady && isSsrm ? activeId : null,
+    { autoStart: true },
+  );
 
   // Loading-overlay state — derived synchronously from a "subscription
   // key" so the overlay appears on the SAME render that mounts the
@@ -596,9 +608,25 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     );
   }
 
+  useSsrmProviderWiring({
+    provider: isSsrm ? ssrmProvider : null,
+    activeId,
+    subscriptionKey,
+    mode: selection.mode,
+    onError,
+    containerEventBus,
+    setLoadRowCount,
+    setProviderDisconnected,
+    setDisconnectDetail,
+    setResolvedSubKey,
+    setIsRefetching,
+  });
+
   useProviderDataWiring<TData>({
     liveApi,
-    provider,
+    provider: isSsrm ? null : provider,
+    rowChangeFeed: gridHandle?.platform.rows ?? null,
+    externalFilterColumns: gridHandle?.platform.externalFilters ?? null,
     activeId,
     subscriptionKey,
     rowIdField,
@@ -617,22 +645,28 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     setIsRefetching,
   });
 
-  /** Cache replay only — `IDataProvider.refresh()`; no upstream reconnect. */
+  /**
+   * Cache replay only — `refresh()`; no upstream reconnect. CSRM replays the
+   * hub row cache to this subscriber; SSRM purges the grid's blocks and
+   * re-reads them from the worker cache.
+   */
   const refreshView = useCallback(() => {
-    if (!activeId || !provider) return;
+    const active = isSsrm ? ssrmProvider : provider;
+    if (!activeId || !active) return;
     if (DEBUG) {
       // eslint-disable-next-line no-console
       console.log('[refresh] %c1. Refresh view clicked%c provider=%s (cache replay)',
         'color:#ec4899;font-weight:bold', '', activeId);
     }
-    void refreshProvider().catch((err: unknown) => {
+    const done = isSsrm ? refreshSsrmProvider() : refreshProvider();
+    void done.catch((err: unknown) => {
       (onError ?? defaultOnError)(err instanceof Error ? err : new Error(String(err)));
     });
-  }, [activeId, provider, refreshProvider, onError]);
+  }, [activeId, isSsrm, ssrmProvider, provider, refreshSsrmProvider, refreshProvider, onError]);
 
-  /** Full re-acquire — `IDataProvider.restart()` with toolbar extra payload. */
+  /** Full re-acquire — `restart()` with toolbar extra payload. */
   const reloadFromSource = useCallback(async () => {
-    if (!activeId || !provider) return;
+    if (!activeId || !(isSsrm ? ssrmProvider : provider)) return;
     const asOfForRestart = selection.mode === 'historical'
       ? (asOfDate ?? (isHistoricalToolbarDate(toolbarDate) ? toolbarDate : null))
       : null;
@@ -674,7 +708,10 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
         'color:#ec4899;font-weight:bold', '',
         activeId, selection.mode, asOfDate ?? '—', JSON.stringify(extra));
     }
-    if (liveApi) {
+    // Client-side row model only. Under SSRM `rowData` isn't the row source
+    // and the stale blocks are dropped by the purge the provider's
+    // `restart()` triggers.
+    if (liveApi && !isSsrm) {
       try {
         liveApi.flushAsyncTransactions();
         if (DEBUG) {
@@ -697,10 +734,11 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     setIsRefetching(true);
     setLoadRowCount(undefined);
     setResolvedSubKey(null);
-    void restartProvider(extra).catch((err: unknown) => {
+    const restarted = isSsrm ? restartSsrmProvider(extra) : restartProvider(extra);
+    void restarted.catch((err: unknown) => {
       (onError ?? defaultOnError)(err instanceof Error ? err : new Error(String(err)));
     });
-  }, [activeId, provider, selection.mode, asOfDate, toolbarDate, liveApi, restartProvider, onError, activeRow.cfg, appData.store, historicalDateAppDataRef]);
+  }, [activeId, isSsrm, ssrmProvider, provider, selection.mode, asOfDate, toolbarDate, liveApi, restartSsrmProvider, restartProvider, onError, activeRow.cfg, appData.store, historicalDateAppDataRef]);
 
   // Restart the active provider after toolbar date / mode changes.
   // Wait for `liveApi` so the provider wiring effect registers snapshot
@@ -709,7 +747,7 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
   useEffect(() => {
     const pending = pendingToolbarReloadRef.current;
     if (!pending) return;
-    if (!loaded || !provider || !activeId || !liveApi) return;
+    if (!loaded || !(isSsrm ? ssrmProvider : provider) || !activeId || !liveApi) return;
     // Fire only once the committed state matches the intent that queued this
     // reload. The ref is set synchronously in the handler, but the matching
     // toolbar date / mode / asOfDate updates commit a render later — an
@@ -722,6 +760,8 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     reloadFromSource();
   }, [
     loaded,
+    isSsrm,
+    ssrmProvider,
     provider,
     activeId,
     liveApi,
@@ -876,6 +916,23 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
     [refreshReloadAdminActions, dataProviderInfraAdminActions, userAdminActions],
   );
 
+  // Stable identity: `MarketsGridSsrmSurface` is memo'd, and a fresh object
+  // each render would make AgGridReact re-process the datasource.
+  const ssrmConfig = useMemo(
+    () => (isSsrm && ssrmProvider
+      ? {
+        provider: ssrmProvider,
+        keyColumn: rowIdField ?? undefined,
+        cacheBlockSize: (activeCfg as { blockSize?: number } | null)?.blockSize,
+        // Block-read shape from the provider editor's SSRM section; unset
+        // leaves AG Grid's defaults (no debounce, two reads in flight).
+        blockLoadDebounceMillis: (activeCfg as { blockLoadDebounceMillis?: number } | null)?.blockLoadDebounceMillis,
+        maxConcurrentDatasourceRequests: (activeCfg as { maxConcurrentDatasourceRequests?: number } | null)?.maxConcurrentDatasourceRequests,
+      }
+      : undefined),
+    [isSsrm, ssrmProvider, rowIdField, activeCfg],
+  );
+
   const adminActionsInfraOnly = useMemo(
     () => mergeAdminActions([], dataProviderInfraAdminActions, userAdminActions),
     [dataProviderInfraAdminActions, userAdminActions],
@@ -895,8 +952,13 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
 
   // Provider id chosen but catalog row still loading — avoid mounting a
   // throwaway MarketsGrid shell (AG Grid + enterprise modules) that would
-  // immediately unmount when cfg arrives.
-  if (activeId && activeRow.loading) {
+  // immediately unmount when cfg arrives. A chosen provider with no cfg and
+  // no error is "still loading" whatever `loading` says: the config hook
+  // re-syncs one render after `activeId` changes, and that one render used
+  // to fall through to the no-provider grid below — every blotter built its
+  // AG Grid twice (WORKLOG 20).
+  const cfgPending = Boolean(activeId) && activeRow.cfg === null && !activeRow.error;
+  if (activeId && (activeRow.loading || cfgPending)) {
     return (
       <>
         <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
@@ -916,8 +978,9 @@ export function MarketsGridContainer<TData extends Record<string, unknown> = Rec
         <div style={{ position: 'relative', height: '100%', minHeight: 0 }}>
           <MarketsGrid<TData>
             {...(marketsGridProps as MarketsGridProps<TData>)}
-            key={`${activeId}::${rowIdFieldKey}`}
+            key={`${isSsrm ? 'ssrm' : 'csrm'}::${activeId}::${rowIdFieldKey}`}
             rowData={EMPTY as TData[]}
+            ssrm={ssrmConfig}
             rowIdField={rowIdField}
             columnDefs={columnDefs}
             appData={appDataLookup}

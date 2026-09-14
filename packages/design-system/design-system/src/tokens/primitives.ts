@@ -64,14 +64,14 @@ export const colors = {
     light:    '#b27607',
     dark:     '#f5c14b',
   },
-  // ── Brand / signature cyan (STARUI --st-accent) ──
+  // ── Brand — Cursor Light / Cursor Dark button.background ──
   brand: {
-    light:    '#0891b2',
-    lightHov: '#0e7490',
-    lightLo:  '#0e7490',
-    dark:     '#22d3ee',
-    darkHov:  '#4ae0f2',
-    darkHi:   '#4ae0f2',
+    light:    '#2778C1',
+    lightHov: '#246AAB',
+    lightLo:  '#246AAB',
+    dark:     '#81A1C1',
+    darkHov:  '#87A6C4',
+    darkHi:   '#87A6C4',
   },
   // ── Info (STARUI signature cyan — same hue family as brand) ──
   cyan: {

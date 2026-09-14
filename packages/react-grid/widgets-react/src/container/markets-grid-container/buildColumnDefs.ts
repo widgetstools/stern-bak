@@ -120,6 +120,21 @@ function fieldValue(data: Record<string, unknown>, field: string | undefined): u
   return field ? getValueByPath(data, field) ?? null : null;
 }
 
+/**
+ * Same brand as `SSRM_EXPR_AGG_KEY` in `@wellsfargo-starui/core`. Inlined
+ * so this file does not depend on a core `dist/` rebuild for a 4-line
+ * lookup — widgets-react tests resolve the package to compiled output.
+ */
+function resolveAggregateFromApi(
+  api: ValueGetterParams['api'],
+): ((fnName: string, columnId: string) => unknown) | undefined {
+  if (!api || typeof api !== 'object') return undefined;
+  const session = (api as { __ssrmExprAgg?: { resolve?: (fn: string, col: string) => unknown } })
+    .__ssrmExprAgg;
+  if (typeof session?.resolve !== 'function') return undefined;
+  return (fnName, columnId) => session.resolve!(fnName, columnId);
+}
+
 function makeExpressionGetter(
   expression: string,
   compiledFn: CompiledFn,
@@ -131,6 +146,7 @@ function makeExpressionGetter(
     value: null as unknown,
     data: EMPTY_ROW,
     columns: EMPTY_ROW,
+    resolveAggregate: undefined as ReturnType<typeof resolveAggregateFromApi>,
   };
 
   return (params: ValueGetterParams): unknown => {
@@ -140,6 +156,7 @@ function makeExpressionGetter(
 
     ctx.data = data;
     ctx.columns = data;
+    ctx.resolveAggregate = resolveAggregateFromApi(params.api);
 
     if (usesCellValue) {
       const cell = fieldValue(data, field);
@@ -218,6 +235,10 @@ function resolveColDef<TData>(def: ColDef<TData>): ColDef<TData> {
       return {
         ...def,
         colId: def.colId ?? field,
+        context: {
+          ...(typeof def.context === 'object' && def.context ? def.context : {}),
+          staruiExpression: true,
+        },
         valueGetter: makeExpressionGetter(
           expr,
           compiled.fn,

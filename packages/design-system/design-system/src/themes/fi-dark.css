@@ -11,19 +11,19 @@
   --card-foreground: 215 10% 94%;
   --popover: 215 9% 16%;
   --popover-foreground: 215 10% 94%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 210 34% 63%;
+  --primary-foreground: 222 15% 12%;
   --secondary: 215 8% 18%;
   --secondary-foreground: 215 10% 94%;
   --muted: 215 8% 15%;
   --muted-foreground: 215 6% 60%;
-  --accent: 217 91% 60%;
-  --accent-foreground: 0 0% 100%;
+  --accent: 210 34% 63%;
+  --accent-foreground: 222 15% 12%;
   --destructive: 354 86% 65%;
   --destructive-foreground: 0 0% 100%;
   --border: 215 8% 21%;
   --input: 215 8% 21%;
-  --ring: 217 91% 60%;
+  --ring: 210 34% 63%;
   --radius: 2px;
 
   --bn-bg:        #171a1d;
@@ -48,8 +48,8 @@
   --bn-red:     #f25668;
   --bn-red2:    #ff7484;
   --bn-amber:   #f5c14b;
-  --bn-blue:    #3b82f6;
-  --bn-blue2:   #60a5fa;
+  --bn-blue:    #81A1C1;
+  --bn-blue2:   #87A6C4;
   --bn-info:    #38bdf8;
   --bn-cyan:    #00e5ff;
   --bn-purple:  #af7de8;
@@ -59,12 +59,12 @@
   --bn-cta-text: #ffffff;
   --bn-logo-bg:  #171a1d;
 
-  --bn-focus-ring:    #3b82f6;
-  --bn-focus-ring-bg: rgba(59,130,246,0.13);
+  --bn-focus-ring:    #81A1C1;
+  --bn-focus-ring-bg: rgba(129,161,193,0.13);
   --bn-disabled-bg:   #383c42;
   --bn-disabled-fg:   #494c52;
   --bn-hover-overlay: rgba(255,255,255,0.05);
-  --bn-selection:     rgba(59,130,246,0.20);
+  --bn-selection:     rgba(129,161,193,0.22);
 
   --bn-positive-soft: rgba(45,212,191,0.13);
   --bn-positive-ring: rgba(45,212,191,0.13);

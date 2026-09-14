@@ -21,9 +21,12 @@
  * settings sheet as `module.ListPane` + `module.EditorPane`. All
  * `cc-*` test-ids are preserved character-for-character.
  */
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { classifySsrmExpression, ExpressionEngine, type SsrmExpressionClassification } from '@wellsfargo-starui/core';
 import { ExpressionEditor } from '../../ui/ExpressionEditor';
+import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
+import { useGridApi } from '../../hooks/useGridApi';
 import type { EditorPaneProps, ListPaneProps } from '@wellsfargo-starui/core';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
@@ -48,6 +51,65 @@ import { Tooltip } from '../../ui/HoverTooltip';
 import type { CalculatedColumnsState, VirtualColumnDef } from './state';
 
 const MODULE_ID = 'calculated-columns';
+
+// Shared parse-only engine for the tier readout — same lazy-singleton shape
+// as the ExpressionEditor's linter.
+let _tierEngine: ExpressionEngine | null = null;
+function tierEngine(): ExpressionEngine {
+  return (_tierEngine ??= new ExpressionEngine());
+}
+
+/**
+ * Which SSRM tier this column's expression lands in — the REAL classifier
+ * from the engine expression contract (plan §12 T1): `compiled` expressions
+ * are fully expressible in the wire grammar and unlock engine-side with T3
+ * (plus any `requires` phases); `materialized` stays a client column;
+ * `unsupported` leans on loaded-row-only aggregates (MEDIAN/STDEV/VARIANCE/
+ * DISTINCT_COUNT) whose values ARE loaded-block statistics. Under CSRM there
+ * are no tiers — returns null. A parse failure classifies as materialized
+ * (the broken expression already renders null per row).
+ */
+function ssrmExpressionTier(
+  ssrm: boolean,
+  expression: string | undefined,
+): SsrmExpressionClassification | null {
+  if (!ssrm) return null;
+  try {
+    return classifySsrmExpression(tierEngine().parse(expression ?? ''));
+  } catch {
+    return {
+      tier: 'materialized',
+      requires: [],
+      engineAggregates: [],
+      untranslatable: ['expression does not parse'],
+    };
+  }
+}
+
+const TIER_CHIP: Record<SsrmExpressionClassification['tier'], string> = {
+  compiled: 'ENGINE',
+  materialized: 'GRID',
+};
+
+/** The badge's expanded sentence — mechanisms, not adjectives. */
+function tierNote(tier: SsrmExpressionClassification): string {
+  if (tier.tier === 'compiled') {
+    const parts = [
+      'SERVER-SIDE GRID — compiled to the engine expression contract: the WASM engine evaluates it per row, so sort, filter and row-group work dataset-wide (plan §12 T3).',
+    ];
+    if (tier.engineAggregates.length > 0) {
+      parts.push('Aggregate scalars read engine-wide totals over the filtered set, not the loaded blocks.');
+    }
+    return parts.join(' ');
+  }
+  const parts = [
+    'SERVER-SIDE GRID — computed in the grid per loaded row; sort, filter and row-group are locked (outside the engine expression grammar).',
+  ];
+  if (tier.untranslatable.length > 0) {
+    parts.push(`Outside the engine grammar: ${tier.untranslatable[0]}.`);
+  }
+  return parts.join(' ');
+}
 
 /** Base-36 id with a stable `vcol_` prefix — collision-safe for reasonable
  *  lists. Kept plain so new items sort last by creation order. */
@@ -225,6 +287,9 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
     [baseCols],
   );
 
+  const api = useGridApi();
+  const ssrm = isSsrmGrid(api);
+
   const { draft, setDraft, dirty, save, discard, missing } = useModuleDraft<
     CalculatedColumnsState,
     VirtualColumnDef
@@ -237,6 +302,11 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
       virtualColumns: state.virtualColumns.map((c) => (c.colId === colId ? next : c)),
     }),
   });
+
+  const tier = useMemo(
+    () => ssrmExpressionTier(ssrm, draft?.expression),
+    [ssrm, draft?.expression],
+  );
 
   if (missing || !draft) return null;
 
@@ -316,7 +386,29 @@ const VirtualColumnEditor = memo(function VirtualColumnEditor({
               value={<Mono>{draft.initialWidth ? `${draft.initialWidth}px` : 'AUTO'}</Mono>}
               tone={draft.initialWidth ? 'info' : 'neutral'}
             />
+            {tier ? (
+              <SummaryChip
+                label="SSRM TIER"
+                tone={tier.tier === 'compiled' ? 'info' : 'warning'}
+                data-testid={`cc-virtual-ssrm-tier-${colId}`}
+                value={
+                  <Mono color={tier.tier === 'compiled' ? 'var(--ds-primary)' : 'var(--ds-accent-warning)'}>
+                    {TIER_CHIP[tier.tier]}
+                    {tier.engineAggregates.length > 0 ? ' + ENGINE AGG' : ''}
+                  </Mono>
+                }
+                title="Server-side grid: this column is computed in the grid, not the engine."
+              />
+            ) : null}
           </div>
+          {tier ? (
+            <div
+              className="w-full mt-1 text-xs text-muted-foreground"
+              data-testid={`cc-virtual-ssrm-note-${colId}`}
+            >
+              {tierNote(tier)}
+            </div>
+          ) : null}
           <div className="w-full mt-2 flex items-center gap-2">
             <Caps size="2xs">COLUMN ID</Caps>
             <IconInput

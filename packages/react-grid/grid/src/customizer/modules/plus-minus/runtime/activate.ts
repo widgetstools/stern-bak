@@ -1,5 +1,6 @@
 import type { GridApi } from 'ag-grid-community';
 import type { PlatformHandle } from '@wellsfargo-starui/core';
+import { lookupSsrmEditWriter } from '@wellsfargo-starui/core';
 import {
   PLUS_MINUS_MODULE_ID,
   type PlusMinusState,
@@ -30,6 +31,9 @@ export function activatePlusMinus(platform: PlatformHandle<PlusMinusState>): () 
     const onCellKeyDown = async (e: { event?: Event | null }) => {
       const state = platform.getState();
       if (!state.settings.enabled) return;
+      // SSRM: only with the engine write hook — otherwise the nudge paints
+      // loaded rows the next tick reverts (plan §12 C1).
+      if (api.getGridOption?.('rowModelType') === 'serverSide' && !lookupSsrmEditWriter(api)) return;
 
       const ke = e.event as KeyboardEvent | undefined;
       if (!ke) return;

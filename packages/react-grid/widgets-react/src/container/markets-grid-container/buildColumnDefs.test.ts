@@ -12,10 +12,10 @@ beforeEach(() => {
 });
 
 /** Invoke a colDef's valueGetter against a row, the way AG-Grid would. */
-function getValue(def: ColDef, data: unknown): unknown {
+function getValue(def: ColDef, data: unknown, api?: ValueGetterParams['api']): unknown {
   const vg = def.valueGetter;
   if (typeof vg !== 'function') throw new Error('expected a function valueGetter');
-  return vg({ data } as ValueGetterParams);
+  return vg({ data, api } as ValueGetterParams);
 }
 
 describe('buildColumnDefs', () => {
@@ -80,6 +80,7 @@ describe('buildColumnDefs', () => {
         { field: 'x', cellDataType: 'number', valueGetter: '[a] + [b]' },
       ] as ColDef[])!;
       expect(typeof def.valueGetter).toBe('function');
+      expect((def.context as { staruiExpression?: boolean } | undefined)?.staruiExpression).toBe(true);
       expect(subFilters(def)).toEqual(['agNumberColumnFilter', 'agSetColumnFilter']);
     });
   });
@@ -122,6 +123,19 @@ describe('buildColumnDefs', () => {
       expect(
         getValue(def, { cusip: 'ABC999', inventoryName: 'Other' }),
       ).toBe('Other');
+    });
+
+    it('uses a dataset-wide SSRM resolver for SUM instead of the current row', () => {
+      const [def] = buildColumnDefs([
+        { field: 'share', valueGetter: '[price] / SUM([price])' },
+      ] as ColDef[])!;
+      const api = {
+        __ssrmExprAgg: {
+          resolve: (fn: string, columnId: string) =>
+            fn === 'SUM' && columnId === 'price' ? 1000 : undefined,
+        },
+      } as ValueGetterParams['api'];
+      expect(getValue(def, { price: 10 }, api)).toBe(0.01);
     });
 
     it('optional-chains deep nested paths — missing intermediates yield null, never throw', () => {

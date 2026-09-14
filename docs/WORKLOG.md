@@ -10,7 +10,7 @@ Each entry states what is wrong, why it was left, and what "done" looks like, so
 it can be picked up cold. Close an item by deleting its section in the same
 change that fixes it.
 
-Last updated: 2026-08-02.
+Last updated: 2026-09-11.
 
 ---
 
@@ -722,9 +722,26 @@ features, but each carries pre-collapse names/paths. One pass, per file:
 - `guides/platform-bootstrap-config.md` — `@wellsfargo-starui/host-data` →
   `@wellsfargo-starui/data`.
 
-## 14. First-run catalog read stalled once — class closed, forensic cause unproven
+## 14. First-run catalog read stalled once — closed; forensic cause found 2026-09-12
 
-**Area:** `packages/data/host-data` (worker) · **Blocked on:** recurrence
+**Area:** `packages/data/host-data` (worker) · **Blocked on:** nothing — closed
+
+**Forensic cause found (2026-09-12, worker-split W1c live probe on the
+Windows target):** not a Dexie stall — a port-adoption gap in the shared
+worker installer. `defaultEntry` must `start()` each port to receive the
+bootstrap handshake; on handover it removed its capture listener, and
+`install()` only attached the host's listener AFTER the catalog + AppData
+hydrate awaits. A started port with no listener drops messages, so every
+request a first window sent in that window (its `appdata-attach`,
+`hub-ready`, the first `get-config`) vanished — the window's readiness
+promises never settled, the grid's `get-config` only succeeded on the
+client-side retry. A port trace (`apps/scripts/ssrm-perf`, headless
+Chromium, fresh profile) showed six unanswered requests followed by
+answered retries. Fixed in `entry.ts`: every port is attached the moment
+it is known and dispatch is backlogged, in arrival order, until the host
+is ready; pinned by two regression tests in `entry.adoptPorts.test.ts`
+(adopted-port mid-hydrate, onconnect-port mid-hydrate). The bounded-reply
+backstops below stay.
 
 Observed once (2026-08-02, first-run cold boot of `stomp-marketsgrid-minimal`):
 the worker's first ConfigManager read (`ConfigCatalogCache.ensure` →
@@ -747,6 +764,511 @@ storm) could not reproduce the stall.
 deadline error ever surfaces in the wild (`"catalog read did not settle"`),
 capture the worker console via chrome://inspect at that moment — the
 backstop now makes the event visible instead of silent.
+
+## 15. SSRM hardening follow-ups (2026-09-11)
+
+**Area:** `packages/data/host-data/src/runtime/ssrm`, `packages/react-grid/grid/src/ssrm` ·
+**Blocked on:** nothing — the remaining engine phases proceed in rangrez, per
+the engine enhancement plan,
+[`superpowers/plans/2026-08-23-ssrm-engine-rust-perspective.md`](superpowers/plans/2026-08-23-ssrm-engine-rust-perspective.md) §12
+(T1–T7 + C1–C2 is the route to full SSRM parity, measured by `apps/source/markets-grid-lab-ssrm`);
+evidence in
+[`superpowers/plans/2026-09-11-ssrm-hardening-handoff.md`](superpowers/plans/2026-09-11-ssrm-hardening-handoff.md) §5
+
+Three passes on 2026-09-11 closed every original P0/P1 item except double
+serialisation, plus plan-§12 phases T1/T2/C1/C2; the 2026-09-12 engine pass
+landed the remaining five (T3 computed columns, T4 aggregate scalars, T5
+membership deltas / book-wide alerts, T6 typed dates with the `__epoch`
+machinery deleted, T7 pivot completeness) — handoff §2/§2b/§2c are the change
+logs, §3 the probed engine facts, §4/§4b the measured baselines; the parity
+matrix stands at 14 full / 2 partial / 0 gap. What remains, in the handoff's
+order: double serialisation per block (JSON in the WASM boundary, then
+structured clone — only matters past ~1 grid / 20k rows, block RPC is
+4–5 ms); per-level SSRM store options unset and unmeasured
+(`getServerSideGroupLevelParams` and friends); the six-blotter soak
+(`ssrm-multiwindow.mjs` ran at PAGES=2; `PAGES=6` at `?rate=10000` has not);
+LF-in-CRLF line endings (harmless, owner's call).
+
+## 16. Edit lifecycle, staged batches, file import — CSRM + SSRM (2026-09-12)
+
+**Area:** `packages/data/host-data/src/provider`, `packages/core/engine/src/customizer/modules/editing-core`, grid customizer ·
+**Blocked on:** nothing — phases are independent of the engine work; plan at
+[`superpowers/plans/2026-09-12-edit-lifecycle-plan.md`](superpowers/plans/2026-09-12-edit-lifecycle-plan.md)
+
+`apps/source/spg-pricing-blotter` proved the shape app-side: one wrapper
+over `applyEdits` gives every grid write path a real commit lifecycle
+(amber staged → yellow pending → cleared on server ack → red refused),
+plus validated CSV import staged before save. The plan platformizes it in
+six phases — E1 write contract + edit-ack lifecycle module (also closes
+the CSRM hole where edits are local transactions the next tick reverts:
+`IDataProvider` has NO write method today), E2 worker-side upstream
+write-back (`editEndpoint` config; one POST per book, not per window),
+E3 staged overlay tiers (reload-safe drafts; Discard = drop the tier),
+E4 file-import customizer module (deletes the app's dialog), E5
+write-conflict signal (pending cell ticked to a DIFFERENT upstream value
+must not silently lose either way), E6 batch-ack status panel. One phase
+per session; the app's stores/wrapper are deleted as each phase absorbs
+them.
+
+## 17. Single SharedWorker starves config/AppData under streaming load (2026-09-12)
+
+**Area:** `packages/data/host-data/src/runtime/worker`, `bootstrap` ·
+**Branch:** `feature/worker-hub-config-refactor` · plan at
+[`superpowers/plans/2026-09-12-worker-split-plan.md`](superpowers/plans/2026-09-12-worker-split-plan.md)
+
+One SharedWorker hosts three planes over one event loop: high-frequency
+data (STOMP ingest → WASM, SSRM ticks, CSRM fan-out) plus low-frequency
+config catalog RPCs and AppData. A worker cannot preempt a running ingest
+macrotask, so tool windows opening mid-storm queue their config requests
+behind the data plane — in-worker prioritization is structurally a
+non-fix. Plan: split catalog RPC + HubAppDataService (already
+self-contained modules) into a second `«appId»-platform` SharedWorker; the
+data hub keeps a read-only ConfigManager and re-reads shared IndexedDB at
+provider lifecycle moments (no worker↔worker bridge). Phases W0
+measure → W1 extract → W2 boot rework (also the WORKLOG-14 hydrate-order
+class, plus `warmPlatform()` — the one-line fire-and-forget app-load /
+OpenFin-dock warm-up that spawns the workers and starts autoStart
+providers off the UI thread; the existing lazy create-on-first-grid-mount
+path stays as the fallback, merged through the same per-appId promise
+maps) → W3 re-measure + soak → W4 CSRM fan-out (20k snapshot × 10
+blotters near-simultaneous: round-robin chunk scheduling over the
+existing bucketed pre-encoded replay cache, one encode for broadcast +
+replay, backpressure-aware pacing, SAB as a crossOriginIsolated-gated
+stretch). Thin-window principle added: windows never open Dexie — config
+AND AppData reads/writes are services-worker RPCs (the customizer's
+storage adapter included, with a per-gridId profile cache in worker
+memory); the tens-of-seconds window opens trace to every window running
+its own ConfigManager boot against a storming data worker. W0 baseline
+RUN (2026-09-12, worker-baseline.mjs): the CSRM fan-out ladder reproduced
+(9 joiners 1091→2337 ms, last÷first 2.14× vs the ≤1.5× target); config-RPC
+starvation did NOT reproduce on the dev rig (p99 ≤ 2.1 ms even during the
+20k snapshot re-stream — short drain-paced macrotasks) — re-probe on a
+corporate/OpenFin rig with useRest:true before calling the config plane
+low-risk. THROTTLE=4 Windows-proxy run (CDP page throttling; worker
+thread NOT throttleable, so numbers understate Windows): the starvation
+mechanism appears — 103.8 ms hub-ready stall during snapshot re-stream,
+mid-storm window open 225→924 ms, joiner ladder to 5.4 s. Dev rig is an
+M4 Max; deployment target is Windows 11 32 GB — all exit gates run native
+AND throttled, final acceptance on the real target box. W1a+W1b landed
+(dual worker + slim PlatformServicesHost behind a self.name branch); W1c
+landed on the Windows target (2026-09-12): the data hub serves no catalog /
+AppData (routes deleted, `ProviderLifecycleReads` re-reads IndexedDB at
+create / restart / reconfigure, platform worker is the sole seeder, data
+worker inits read-only attach mode, hub at the 800-line ceiling after
+`HubSsrmRpc` + `HubStatsSampler` extraction); React hooks + adapters were
+stragglers still issuing catalog RPCs on the DATA client and were
+re-pointed at `platformClient`; the inspector merges both workers'
+introspect. Windows-native W0 numbers (W1b HEAD) are in plan §5. W2 landed on
+the Windows target (2026-09-12): `ensureConfigReady` is the thin-window
+tier (platform-services port spawned alone and first, read-only attach-mode
+IndexedDB, gated on the worker's catalog with a 20 s backstop — windows
+never seed), config writes ride the port (`ConfigWriter` →
+`config-save` / `config-delete`; the services worker is the single
+writer, refreshes its catalog inline and self-invalidates on its own
+change notifier for writes from anywhere else; window-side
+`wireWorkerCatalogSync` deleted), `warmPlatform()` is the app-load /
+OpenFin-provider-window warm-up (stats-mode attach keeps providers
+running without fan-out; star-demo's provider window calls it with
+`providers: 'autoStart'`), and the WORKLOG-14 installer race is fixed
+(see item 14). Deliberately NOT done: a per-`gridId` profile cache in
+worker RAM — reads stay window-local IndexedDB primary-key gets through
+the ConfigManager's own row cache, which never touch the data worker's
+thread, so there is no contention to remove; revisit only with a
+measured read cost. Field note from the Windows probe: the demo pages
+block `DOMContentLoaded` on Google Fonts (0.1–11 s here) — the harness
+now aborts those hosts; apps should self-host or defer the fonts. W4
+landed (2026-09-12): `ReplayScheduler` fans late-join replays out
+round-robin (rounds of one chunk per pending port, 8 ms budget between
+rounds, MessageChannel yield, chunks frozen per job at enqueue, live
+deltas deferred per port until its `ready`), with hub-thread accounting on
+`hub-introspect.fanout`; 10-window ladder 1.47× → 1.09–1.36× (spread
+1 204 → 272–939 ms), hub thread ≈ 0.6–0.9 s encode + 0.45–0.6 s posting
+per 9-port episode — the posting floor is structured-clone per port, so
+the SharedArrayBuffer stretch (needs `crossOriginIsolated`) is the next
+lever there and was NOT built. W3 closed the pass (2026-09-12): final
+Windows-native column in plan §5 (re-stream config max 53.5 → 2.2 ms;
+window ladder 6 ms; six-window `?rate=10000` soak green with SSRM block
+p50 254 ms vs 145 at two pages — the same-plane contention the plan
+excludes), the single-worker bootstrap helpers deleted
+(`createDataServicesClient`, `bootstrapDataServicesWithWorkerAsset`,
+`createAppDataServices` — no consumers, and they attached AppData on the
+data port, which no longer answers), `wireWorkerCatalogSync` deleted,
+docs aligned. **Open**, per the handoff §6: REST-mode re-probe against a
+real config service; OpenFin-runtime verification of the provider-window
+warm-up + freeze exemption; customizer-open timing on an app that renders
+the settings button; the demo apps' render-blocking Google Fonts; the
+SharedArrayBuffer fan-out stretch. Item 14 is closed with its cause. [`superpowers/plans/2026-09-12-worker-split-handoff.md`](superpowers/plans/2026-09-12-worker-split-handoff.md). Honest limits stated in the plan: same-plane
+SSRM contention and CPU saturation are not fixed by this.
+
+## 18. OpenFin live verification of the worker split (2026-09-12) — one defect fixed, one leak characterized
+
+**Area:** `packages/data/host-data/src/bootstrap/freezeExemptionLock.ts`, worker port lifecycle · **Blocked on:** the port-leak cause
+
+Probed the running star-demo platform (OpenFin 43.142, twelve SSRM views
+streaming) over CDP from the provider window — numbers in the worker-split
+plan §5 ("the deployment shape, measured live"): platform-port config RPCs
+0.3 ms p50 while the data port's scalar probe waited 55 ms p50 / 190 ms
+p99 behind ingest; `config-save` through the single writer and
+`warmPlatform` from the provider page both verified live.
+
+**Fixed:** `acquireBackgroundFreezeExemption` requested its Web Lock in
+exclusive mode under one origin-wide name, so the provider window held it
+and all twelve views sat in `navigator.locks.query().pending` — a queued
+request neither rejects nor retries, so no warning either. Now `{ mode:
+'shared' }` (test pinned). Windows loaded before this fix still hold /
+queue the exclusive lock until the platform restarts — restart the
+provider to verify with `navigator.locks.query()` in a view
+(`held` should list `starui-background-freeze-exemption` in every data
+window).
+
+**Cause found — a `dist` rebuild under a dev-served platform reloads every
+page mid-write.** star-demo runs on `vite dev` in source mode, which
+serves `packages/*/dist` through `/@fs/` and watches it: any package
+rebuild (`rimraf dist && tsc`) fires a full reload of EVERY open OpenFin
+page while the files are half-written. Pages that catch that window fetch
+a truncated worker asset (HTTP 200), no SharedWorker target ever appears,
+and provider + views sit with no `starui:*` marks and an empty body — the
+provider route's config gate never resolves, `fin.Platform.init` never
+runs, no dock. Seen twice in one session (a data rebuild during a platform
+restart; a grid rebuild with the platform live). Reloading each page once
+the files are whole recovers it (10 ms ladder). Rule: do not rebuild
+`dist` while a dev-served OpenFin platform is up — or test OpenFin against
+a production preview. Still open underneath: the thin tier's 20 s catalog
+deadline did not surface in the hung windows, so something earlier in
+`ensureConfigReady` blocks when the worker is dead at first connect
+(`ConfigManager.init({ mode: 'attach' })` is the suspect); reproduce by
+serving a truncated worker asset to a fresh profile with the console
+captured.
+
+**Open — dead ports in the workers:** with 13 live pages the platform
+worker reported 59 connected ports and 58 AppData listeners, the data
+worker 58–59 ports (data subscribers are heartbeat-swept and were exactly
+right). Every AppData delta is posted to each dead listener (silent
+no-op per port, but ~45× the work) and the PortLike closures are retained.
+Controlled experiments over CDP: opening and closing a config-only
+window, opening and closing a blotter view, and reloading a live view all
+returned the counts to baseline — `pagehide` → `port-close` works for
+those lifecycles. The leaked entries accumulated earlier in the session
+(~94 min, many view duplications and several `dist` rebuilds that
+triggered Vite full reloads) and their originating lifecycle was not
+reproduced. Proposed fix regardless of cause: liveness for platform-port
+consumers — the client already heartbeats data subscriptions on the data
+port; add a per-port `ping` on the platform port and let both hosts sweep
+ports (and their AppData listeners) silent for the hidden-grace window,
+mirroring the data hub's subscriber sweep.
+
+## 19. SSRM tick fan-out shipped the whole table's churn to every view (2026-09-12) — fixed
+
+**Symptoms (user, live OpenFin, twelve SSRM blotters on `stomp-ssrm1`):**
+rows appear seconds after the busy indicator clears; after a fling the
+blank rows take a couple of seconds to fill.
+
+**What it was not.** The data worker: at the demo's feed rate a block read
+costs ~3 ms of engine time with an empty queue (`hub-introspect.ssrm`,
+plan §5). Request serialisation: letting AG Grid keep four block reads in
+flight instead of two changed nothing (4.1 s vs 3.8 s fill) — the option
+stays opt-in. The event loop of the views was idle (p95 lag 13 ms).
+
+**What it was.** A CDP CPU profile of one hooked view: during a 44 s cold
+load the main thread spent 11.8 s inside the data client's
+`handleMessage` and 19 s in native `(program)` (structured-clone
+deserialisation of incoming port messages); during a 13.9 s fling window
+3.2 s + 5.3 s. AG Grid and React were a distant second. Counting the
+messages on one view's data port over 10 s at rest: 31 `ssrm-tick`
+`rowDelta` events, 45 MB in total (up to 3.2 MB each, 4.5 MB/s), carrying
+38 000 full-width rows — for a grid holding two blocks of 200. The engine's
+`poll_shared_delta` returns the whole table's churn once per flush and
+`HubSsrmRpc.flushTicks` posted that identical payload to every session of
+the provider: twelve views × 4.5 MB/s of structured clones, each view
+deserialising rows it immediately discarded as "not loaded"
+(`bindSsrmTicks` walks its loaded nodes per tick). During a fling the
+deserialisation competes with row rendering; on a cold load it stretches
+the widget mount (first block issued 11 s after `platform-ready`).
+
+**Fix.** `SsrmSessionWindows` in the data hub: every flat block a session
+reads registers its leaf keys; each `rowDelta` tick is trimmed per session
+to the rows it holds plus `unloaded: { upserts, removals }` counts, which
+`bindSsrmTicks` feeds into the same count check / positional refresh an
+unknown upsert takes. Sessions that never read a flat block, grouped
+sessions and sessions past 50 000 keys keep receiving the full delta (never
+withhold a row the grid might hold; stale keys after a purge only cost
+bytes). `hub-introspect.ssrm.tickFlush.upsertsPosted / upsertsWithheld`
+count the effect. Measured after, same hooked thirteenth
+view: 62 ticks in 10 s, 0.96 MB, 794 rows (0.10 MB/s, ≤31 kB each);
+worker counters `upsertsPosted` 0.67 M vs `upsertsWithheld` 12.0 M (95 %
+withheld); fling scroll-stop → rows filled 1.8 s (was 3.8–4.3 s; the
+view's own long tasks during the fling are still ~3 s, so what remains is
+rendering); cold reload → rows 13.7 s with the first block issued at
+12.6 s and answered in 0.76 s (was 20–28 s / 1.0–1.6 s). Tick flush in
+the worker rose from ~15 ms to 24 ms p50 with 13 sessions (keying ~3.6 k
+rows per tick + thirteen filtered posts, versus thirteen 3 MB clones) —
+~15 % of the worker thread at six flushes a second; the engine's delta
+JSON parse is most of it.
+
+**Trap met on the way (dev rig).** `vite dev` serves the worker asset
+through its transform cache and did NOT notice the rebuilt
+`dist/assets/data-services-worker.mjs` (file changed at 19:48, server
+kept serving the 18:44 bytes; `touch` did not help, `?t=` is stripped
+before the module lookup). Fresh SharedWorkers therefore ran old code
+until the dev server itself was restarted — check the served bytes
+(`curl .../@fs/.../data-services-worker.mjs | grep <new symbol>`) before
+trusting any worker-side measurement on this rig.
+
+**Where the rest of the fling goes (single blotter, 2026-09-12 late).**
+With one SSRM blotter on the dev-served OpenFin dock a fling still filled
+in 5.0 s, the view's main thread saturated (17 long tasks, 8.6 s, one of
+1.0 s); a CDP profile put 2.8 s of a 6.5 s window as self time inside
+React's development-mode `createElement` (one per AG Grid cell component,
+stack captured per element), the worker client at 6 ms. Same SSRM app
+(`stomp-ssrm-minimal`), same feed, same Chromium, three flings each:
+**production build 190 / 206 / 247 ms** (block reads ~100–150 ms p50,
+~300 ms of long tasks) vs **`vite dev` 1 728 / 1 681 / 1 314 ms** (block
+reads 630–740 ms p50 against the SAME worker — the reply waits for the
+busy page; 2.5–3.2 s of long tasks). Perf judgements about scrolling must
+be made on a production build; the dev server is 7–9× slower on this path.
+Second, smaller factor, from the data worker's own accounting over 21 min
+at the default feed rate: ingest 8 538 batches, 58 ms p50 / 245 ms p99,
+**35 % of the worker thread** (`flattenRows` + `JSON.stringify` +
+`apply_message_json`); tick flush 21 ms p50, 17 %; block reads therefore
+queue **39 ms p50 / 980 ms p99 / 3.1 s max** behind them (engine time
+7 ms). Third: the blotter reads 100-row blocks, so a fling issues 7–9
+reads two at a time (AG Grid's default), each paying that queue; 200-row
+blocks halve the count and `blockLoadDebounceMillis` skips the blocks a
+thumb drag passes over. The engine's per-row ingest cost (~100 µs/row) is
+the worker-side lever.
+
+**Production dock, confirmed live (user's build on :5175, one blotter +
+probe, 400-row blocks):** cold reload → rows 2.5 s (`platform-ready` 1.1 s,
+first block 97 ms); fling scroll-stop → filled **543 ms** (dev server:
+5.0 s) with 0.9 s of long tasks on the view; seven block reads of 400 rows
+at 97–351 ms, three of them issued before the scroll stopped for ranges
+the thumb passed over, the rest two at a time. Next levers on that
+blotter: `blockLoadDebounceMillis` (~100 ms) and
+`maxConcurrentDatasourceRequests` (4) on the grid's `ssrm` config, both
+opt-in; worker-side, a 400-row read costs the engine 17 ms and queues
+37 ms p50 / 420 ms p99 behind ingest.
+
+**Still open.**
+- Rows in a tick are full width; a column-level patch from the engine
+  (the CSRM `delta-patch` shape) would cut the remaining bytes by the
+  changed-column ratio.
+- The grid does not tell the hub when it purges blocks, so a session's key
+  set only grows (bounded by the 50 000 cap, after which the session falls
+  back to full ticks). A `ssrm-blocks-dropped` hint, or `maxBlocksInCache`
+  on the grid, would keep long-scrolling sessions trimmed.
+- All numbers are from `vite dev` (development React, unminified AG Grid);
+  a production build of the views should be measured before quoting them.
+- Cold path: the 11 s between `platform-ready` and the first block read on
+  a thirteenth view is widget mount time under the tick flood; re-measure
+  now that the flood is gone, then profile what remains.
+- Ticks keep flowing at the feed's cadence while a grid scrolls (measured
+  on a hooked view: 5.8 ticks/s scrolling vs 5.9 idle, trimmed payloads);
+  the worker's flush is a timer, and the grid only holds its positional
+  refreshes 150 ms past the last scroll event while tick transactions
+  still land mid-scroll. If scroll smoothness matters more than mid-scroll
+  freshness, a scroll-aware hold on tick transactions (queue, apply when
+  scrolling stops) is the follow-up.
+- `stomp-ssrm1` is not `autoStart`-flagged, so the dock warms only
+  `test.dp`; the provider editor's Behaviour tab now has the switch.
+- Restarting the workers: page reloads never do it (the new document joins
+  the old worker before it dies). Quit the dock and `npm run client`, or
+  `Runtime.evaluate` `self.close()` in each `shared_worker` CDP target.
+
+## 20. Every blotter built its AG Grid twice (2026-09-13) — fixed
+
+**Symptom (user, production build):** the AG Grid Enterprise licence
+banner printed twice per blotter, CSRM and SSRM alike.
+
+**Cause, measured on the production dock over CDP (a DevTools hook
+installed before the app ran, fiber tree diffed per commit):** the first
+`AgGridReact` instance belonged to `MarketsGridContainer`'s
+`key="__no_provider__"` placeholder grid, the second to the real grid
+keyed `csrm::<providerId>::<rowIdField>`, ~80 ms later. The container's
+identity props (userId, appId, instanceId, storage) were stable and the
+grid-level data loaded once. The sequence was: `loaded` and the persisted
+selection landed together; on that same render `useDataProviderConfig`
+still returned its previous, null-provider view `{ cfg: null,
+loading: false }` — its effect re-syncs `loading` only one render later —
+so the container's "provider chosen but config loading" guard missed,
+fell through to the no-provider branch and mounted a full MarketsGrid
+(AG Grid + enterprise modules, licence check) for one commit. The next
+render said `loading: true`, the config arrived, and the keyed grid
+replaced the placeholder.
+
+**Fix.** `useDataProviderConfig` stamps each stored view with the
+providerId it describes and derives the returned view synchronously: a
+view for another id (or none) reports `{ cfg: null, loading: true }` on
+the very render the new id appears. `MarketsGridContainer` additionally
+treats "provider chosen, no cfg, no error" as loading regardless of the
+flag. Regression tests: the hook's render log never contains
+`{ cfg: null, loading: false }` for a provider whose config has not
+landed; the container mounts the stub grid exactly once across the
+pending → loaded transition and still offers the no-provider grid when
+the config fetch has failed.
+
+**Cost of the bug** was a full grid boot per blotter on every load (in
+production ~80 ms of main-thread work plus the second licence check; in
+`vite dev` several hundred ms), on top of StrictMode's dev-only double
+mount.
+
+**Dev-rig notes (how it was found):** `console` stacks name the creator
+of each banner (`Runtime.consoleAPICalled` carries call frames); a
+minimal `__REACT_DEVTOOLS_GLOBAL_HOOK__` installed by
+`Page.addScriptToEvaluateOnNewDocument` receives every commit from
+production React, which lets one diff the ancestor chains of two grid
+instances and read hook state per commit. A `.ag-root-wrapper` appended
+straight under `document.body` is `measureNativeScrollbarWidth`'s probe,
+not a grid.
+
+## 21. CSRM blotters freeze when docked into one OpenFin Browser window (2026-09-13) — diagnosed, partial fix
+
+**Symptom (user):** with six 20 000-row CSRM blotters docked as panes /
+tabs of ONE OpenFin Browser window, updates appear to freeze the grid and
+cell flashes stay lit for seconds; separate windows are fine.
+
+**Process layout (measured via `fin.View.getProcessInfo`):** all six
+views share one renderer process (pid 10932, 2.9 GB) because every view
+carries `processAffinity: "star-demo"` (the shared per-app group the
+reverted isolation experiment left behind, see
+`docs/archive/openfin-process-isolation.md`). One process = one main
+thread: every view measured the same event-loop lag (338 ms p50 / 737 ms
+p95 at first, 1.4–5.5 s later in the session), visible grids painted at
+4–5 fps, and the two hidden tabs burned as much as the visible ones.
+
+**Where the thread goes (per view, 10 s, timer census + CPU profiles):**
+- The feed patches ~5 000 rows/s per view (3 500 rows per 250 ms throttle
+  window, 4.4 changed fields per row, 372 columns, thin deltas on,
+  conflation on; 564 kB/s on the wire). Throttling already caps the frame
+  rate; conflation already collapses same-key repeats.
+- AG Grid's transaction path fires `rowNodeDataChanged` once per updated
+  row, and two listeners schedule a timer per event: ag-grid-react's
+  `RenderStatusService` (`setTimeout(processResizeOperations)`, present
+  whenever the ColumnAutoSize module is registered — `AllEnterpriseModule`
+  is) and an enterprise debounce that clears + re-arms. Measured:
+  **189 490 `setTimeout` + 94 726 `clearTimeout` in 10 s on one view**,
+  74 841 of those timers ran as separate macrotasks. The batched
+  transaction flushes (`executeBatchUpdateRowData`, every 200 ms) cost
+  867 ms per 10 s per view. Six views → ~115 000 timer operations a
+  second on one thread.
+- The data client's thin-patch merge copied the whole 372-column row for
+  every 4-field patch: 16.4 ms per 3 500-row frame vs 2 ms in place.
+
+**Done here:** `mergeThinPatches` now patches the mirrored row in place
+(`Object.assign` of the changed fields; the mirror row is the very object
+the consumer and AG Grid's node hold), delivering that same object.
+Change detection downstream is by value (cells compare against what they
+last rendered; `RowChangeBus` reads changed nodes from AG Grid's flush
+event), verified by reading every old-vs-new row consumer. Saves ~14 ms
+per frame per view (21–58 ms/s per view at 1.5–4 frames/s). Tests pinned
+the old "new object per patch" contract and were flipped; a consumer
+that needs a row's previous values copies it. Measured on the dock it
+did NOT relieve the freeze: the merge was ~5 % of the thread, the AG
+Grid per-row update path is the rest.
+
+**Next — planned in [`superpowers/plans/2026-09-13-grid-apply-and-mount-refactor-plan.md`](superpowers/plans/2026-09-13-grid-apply-and-mount-refactor-plan.md) (B0–B3 for item 1, A for item 2, C opt-in only for item 3):**
+1. Stop handing AG Grid every changed row. With in-place patches the
+   node data is already current, so the grid only needs: rendered rows'
+   cells refreshed (with flash) — ~20 rows, not 5 000; a throttled model
+   refresh when a sort / filter / group column changed (the rule
+   `bindSsrmTicks` already applies for SSRM); adds and removes as
+   transactions; and the changed nodes handed to `RowChangeBus` directly
+   for alerts / conditional styling. Cuts the per-row event and timer
+   storm ~50× and helps single windows too. A real change to
+   `applyProviderToGrid` + the controller + the bus, with tests.
+2. Per-view renderer isolation for docked views — IN PROGRESS on branch
+   `feature/openfin-view-process-isolation`: not per-view stamping this
+   time but OpenFin's platform-level `viewProcessAffinityStrategy:
+   "different"` in the manifest ("The views in the same domain will have
+   their own renderer processes"), the seed's `processAffinity:
+   "star-demo"` pins removed, and the createView/createWindow overrides
+   stripping every persisted affinity while the strategy is active.
+   OpenFin's caveat: "no guarantee that a different affinity value will
+   create a different process, under the hood Chromium can enforce its own
+   process management". To re-measure per the revert note: PIDs per view,
+   per-process memory vs the 2.9 GB shared renderer, event-loop lag per
+   view, and hidden-view liveness (the hidden-view freeze that caused the
+   revert is now handled by `backgroundThrottling: false` + the runtime
+   flags).
+   **Measured 2026-09-13 (this branch, production bundle, same six CSRM
+   blotters docked as four panes + two tabs in ONE Browser window):**
+
+   | | shared renderer (before) | one renderer per view (this branch) |
+   |---|---|---|
+   | processes | 1 (pid 10932), 2.9 GB | 6, 505–644 MB each (~3.4 GB) |
+   | event-loop lag per view p50 / p95 / max | 338 ms / 737 ms / 778 ms (later 1.4–5.5 s) | **0 / 96–153 / 150–226 ms** |
+   | frame gap on visible views p50 / p95 | 200–250 ms / 350–800 ms (4–5 fps) | **17 ms / 67 ms (60 fps)** |
+   | long tasks per view per 10 s | 2–6 (thread saturated by sub-50 ms tasks) | 12–22, 0.9–2.0 s (the AG Grid per-row update work, now on its own core) |
+   | hidden tabs | share the saturated thread | 100 ms timers fire 70–73 of 80, lag ≤ 180 ms — alive, still processing updates |
+
+   OpenFin stamped a unique affinity per view (`fin.View.getProcessInfo`
+   shows distinct PIDs) — Chromium did not consolidate on this box (16
+   renderers alive during the run). Memory per view is ~15 % higher than
+   its share of the single process. The docked freeze is gone; what
+   remains per view is the AG Grid per-row update cost (next item 1).
+   **Windows target verification (2026-09-13, plan §7.2, 12 docked CSRM
+   views, runtime 43.142.101.2):** isolation on — 13 renderer PIDs for 13
+   views, 314–462 MB working set each, hidden tabs 80 of 80 ticks, lag p95
+   4.9–13.5 ms at 60 fps, no long tasks. The isolation-OFF run (manifest key
+   removed, same saved layout restored) came up isolated again: the runtime
+   stamps a bare-uuid `processAffinity` per view under `"different"`,
+   `getSnapshot()` persists it, and the no-strategy cleanup only knew
+   `view-iso-*`. Fixed in `stripLegacyViewIsolationAffinity.ts` (uuid
+   affinities are isolation artefacts too, tests added). Re-run with the fix
+   built in, same saved layout: 2 renderer PIDs for 13 views (all 12
+   blotters in one, private 3 346 MB vs 3 837 MB summed over the 12 isolated
+   processes, +15 %); lag p95 197–221 ms and 39–40 fps on the visible views
+   against 4.9–13.5 ms and 60 fps isolated; timers 38–74 per view per 10 s
+   either way. Phase A decision inputs are in the plan's §A. Also measured:
+   `view.getOptions()` reports `backgroundThrottling: true` even for a view
+   created with `false` — judge throttling by liveness, not by that option.
+3. Pause fan-out to hidden subscribers in the hub (it already knows
+   `meta.hidden`) and replay from cache on visibility.
+
+**B0 + B1 measured (2026-09-13, plan B0 acd4b23 / B1 24abcb1):** with
+`Find` dropped from the registered modules (its `FindService` debounce was
+the `clearTimeout` + `setTimeout` pair) and streaming updates applied in
+place — rendered rows refreshed in one `refreshCells` per flush window,
+changed nodes handed to `RowChangeBus.noteRowsChanged`, a transaction only
+for rows whose sort / filter / group / aggregate key changed — one docked
+view per 10 s went from 189 490 `setTimeout` + 94 726 `clearTimeout` to
+22–46 + 0–5, and the batch flush from 867 ms to 0 (`refreshCells` ≤ 20 ms).
+Production preview, isolation on, 12 views: visible views 5–8 % busy at
+120 fps, no long tasks. Hidden docked tabs report
+`document.visibilityState === 'hidden'`, keep their 100 ms timers and keep
+receiving the feed (owner decision, plan Phase C); they spend 10× longer in
+`mergeThinPatches` than visible tabs for the same frames — background
+scheduling of the hidden process, to be confirmed in plan B3. The
+no-isolation six-view lag run is owed to the plan's §2 as confirmation.
+
+**B2 measured and built (2026-09-13):** one CSRM view (20 000 rows, 372
+columns, 15 ticking) on the production dock, census + CPU profile per grid
+state, 10 s each — default 71 `setTimeout`; sorted by a ticking column
+23–45 k; grouped two levels with ticking aggregates 23.5 k; filtered on a
+static column ≈ 3.3 k (first-touch tail); the toolbar-date row exclusion on
+44.7 k with 1.6 s of `executeBatchUpdateRowData`, because an external
+filter could not be attributed to columns and every updated row rode a
+transaction. Now the toolbar-date module declares the columns its expression
+reads on `GridPlatform.externalFilters` (`ExternalFilterColumnRegistry`,
+`collectColumnRefs`) and the apply path treats them as key columns: the
+same state measures 2 117 timers and 64 ms, rendered rows refreshed in
+place. The remaining tens of thousands in the sorted / grouped states are
+ag-grid-react's autosize flush (`setTimeout(processResizeOperations, 0)`
+once per `rowNodeDataChanged`); their cost is the re-sort / re-aggregate per
+flush window, paid only for rows whose key changed. `npm run check:loc`
+compared backslash paths with its POSIX baseline on Windows and reported
+every baseline file as new — fixed. **B3 (hidden views: skip DOM work while
+hidden) skipped by the owner on 2026-09-13:** on the Windows target hidden
+docked tabs cost 1.5–2× the visible ones in the merge (not the Mac's 10×),
+stay alive at 80 of 80 ticks with lag p95 ≤ 13.5 ms, and run on their own
+renderer with isolation on; the no-isolation lag the phase owed came from
+run 6 (p95 197–221 ms). Reopen if docked views ever run without isolation.
+
+**Dev-rig notes:** `fin.View.getProcessInfo()` from the provider page maps
+views to PIDs; wrapping `setTimeout`/`clearTimeout` in an init script and
+bucketing by callback source finds timer storms that CPU profiles only
+show as native self time; concurrent per-isolate CPU profiles on a shared
+thread over-attribute wall time (sum across views exceeded the window
+12×) — use them for ranking within a view, never for absolute cost.
 
 ## Pre-existing, tracked elsewhere
 

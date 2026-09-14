@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ExpressionEngine } from '@wellsfargo-starui/core';
 import {
   INITIAL_TOOLBAR_DATE_SETTINGS,
   TOOLBAR_DATE_SETTINGS_MODULE_ID,
@@ -92,6 +93,8 @@ describe('toolbarDateSettingsModule', () => {
     const platform = {
       getState: () => state,
       subscribe: () => () => {},
+      externalFilters: { declare: () => {}, columns: () => null },
+      resources: { expression: () => new ExpressionEngine() },
       api: {
         on: (evt: string, fn: () => void) => {
           if (evt === 'cellValueChanged') cellHandler = fn;

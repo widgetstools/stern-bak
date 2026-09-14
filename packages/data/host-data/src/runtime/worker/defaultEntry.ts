@@ -22,7 +22,7 @@
  * call `installSharedWorkerHub({...})` directly.
  */
 
-import { installSharedWorkerHub, type AdoptedPort } from './index.js';
+import { installPlatformServicesHost, installSharedWorkerHub, type AdoptedPort } from './index.js';
 import { createConfigManager } from '@wellsfargo-starui/core/host/config';
 import {
   isWorkerBootstrapRequest,
@@ -121,38 +121,62 @@ function withTimeout(): Promise<WorkerBootstrapPayload | null> {
 async function boot(): Promise<void> {
   const payload = await withTimeout();
 
+  // ONE bundled asset serves BOTH worker kinds (worker-split plan W1b):
+  // the SharedWorker's own name says which brain to install. The platform
+  // instance never touches the provider/SSRM graph — stompjs is a lazy
+  // import and the WASM engine only loads on first SSRM boot, so the
+  // shared bundle costs the platform worker nothing at runtime.
+  const isPlatformServices =
+    String((globalThis as { name?: unknown }).name ?? '').startsWith('mkt-platform-services:');
+
   const configManager = createConfigManager({
     configServiceRestUrl: payload?.configServiceRestUrl,
     appId: payload?.appId,
     identity: payload?.userId
       ? { userId: payload.userId, displayName: payload.userId }
       : undefined,
-    seedConfigUrl: payload?.seedConfigUrl,
-    seedConfigReload: payload?.seedConfigReload,
+    // Only the platform-services worker seeds (worker-split W1c). The data
+    // worker's ConfigManager is READ-ONLY — provider-lifecycle reads
+    // against the same IndexedDB — so it never sees a seed URL.
+    seedConfigUrl: isPlatformServices ? payload?.seedConfigUrl : undefined,
+    seedConfigReload: isPlatformServices ? payload?.seedConfigReload : undefined,
   });
-  // Full init (including seedIfEmpty) is intentional and must stay. The
-  // worker is the deterministic seeder + the stale-warm safety net: a
-  // SharedWorker has no localStorage/sessionStorage, so it cannot read
-  // the cross-window "warm" marker and therefore cannot attach the way a
-  // warm main-thread window does. seedIfEmpty's in-lock emptiness check
-  // makes this a no-op (no fetch, no write) whenever the DB is already
-  // populated, so there is no redundant work to "optimize away" here —
-  // converting this to attach mode would silently break recovery after a
-  // wiped IndexedDB. See docs/CONFIG_SERVICE_BASELINE.md §4.5.
-  await configManager.init();
+  if (isPlatformServices) {
+    // Full init (including seedIfEmpty) is intentional and must stay. The
+    // platform-services worker is the deterministic seeder + the stale-warm
+    // safety net: a SharedWorker has no localStorage/sessionStorage, so it
+    // cannot read the cross-window "warm" marker and therefore cannot
+    // attach the way a warm main-thread window does. seedIfEmpty's in-lock
+    // emptiness check makes this a no-op (no fetch, no write) whenever the
+    // DB is already populated, so there is no redundant work to "optimize
+    // away" here — converting this to attach mode would silently break
+    // recovery after a wiped IndexedDB. See docs/CONFIG_SERVICE_BASELINE.md
+    // §4.5.
+    await configManager.init();
+  } else {
+    // Attach: open the shared database, no seed, no publish. The platform
+    // worker is the single seeder; a window's boot gates on it before any
+    // grid attaches here, so the lifecycle reads below find seeded rows.
+    await configManager.init({ mode: 'attach' });
+  }
 
-  // Must stay in one synchronous turn: `installSharedWorkerHub` reassigns
-  // `onconnect` before its first await, so no port can connect between
-  // handover and the hub taking over.
+  // Must stay in one synchronous turn: the installer reassigns `onconnect`
+  // before its first await, so no port can connect between handover and
+  // the host taking over.
   const adoptPorts = takeCapturedPorts();
-  await installSharedWorkerHub({ configManager, adoptPorts });
+  if (isPlatformServices) {
+    await installPlatformServicesHost({ configManager, adoptPorts });
+  } else {
+    await installSharedWorkerHub({ configManager, adoptPorts });
+  }
 
+  const label = isPlatformServices ? 'platform-services worker' : 'data worker';
   // eslint-disable-next-line no-console
   console.info(
-    `[@wellsfargo-starui/data worker] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
+    `[@wellsfargo-starui/data ${label}] ConfigManager initialised (mode: ${configManager.isRestMode() ? 'REST' : 'local'})`,
   );
   // eslint-disable-next-line no-console
-  console.info('[@wellsfargo-starui/data worker] catalog + AppData hydrated; hub waiting for ports');
+  console.info(`[@wellsfargo-starui/data ${label}] catalog + AppData hydrated; waiting for ports`);
 }
 
 boot().catch((err) => {

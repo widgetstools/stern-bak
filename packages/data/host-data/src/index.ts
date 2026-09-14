@@ -29,6 +29,15 @@ export type {
 export {
   ProviderClientAdapter,
   resolveProviderCapabilities,
+  SsrmProviderClientAdapter,
+} from './provider/index.js';
+export type {
+  ISsrmDataProvider,
+  SsrmAggregatesRequest,
+  SsrmAggregatesResult,
+  SsrmApplyEditsRequest,
+  SsrmApplyEditsResult,
+  SsrmProviderClientAdapterOpts,
 } from './provider/index.js';
 
 // Platform bootstrap (Phase 0.5).
@@ -45,8 +54,10 @@ export {
   resolvePlatformBootstrapFromObject,
   ensureConfigReady,
   ensurePlatformReady,
+  warmPlatform,
   ensureDataServicesHub,
   SnapshotReassembler,
+  mergeHubIntrospect,
   runAppDataBootstrap,
   createAppDataBootstrapContext,
   markConfigReady,
@@ -62,7 +73,9 @@ export type { LoadMilestone } from './bootstrap/index.js';
 export type {
   FetchLike,
   ConfigReadyBundle,
+  EnsureConfigReadyOpts,
   EnsurePlatformReadyOpts,
+  WarmPlatformOpts,
   EnsureHubOpts,
   ResolvedDataServicesHubBundle,
   SnapshotReassemblerCallbacks,

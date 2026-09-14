@@ -110,15 +110,30 @@ same contracts into different environments.
 
 ## 5. Data services
 
-`@wellsfargo-starui/data` centralizes market-data distribution in a
-**SharedWorker**, so N grids across M windows share one upstream connection.
+`@wellsfargo-starui/data` centralizes market-data distribution in
+**SharedWorkers**, so N grids across M windows share one upstream connection.
+Since the worker split there are two per `appId`, one asset, two brains
+selected by the worker's own name:
+
+- `mkt-platform-services:«appId»` — the **platform-services worker**: the
+  config catalog RPCs, AppData, the single writer for config rows, the sole
+  seeder. Its event loop never carries ingest, so a tool window's config
+  request never queues behind a streaming blotter.
+- `mkt-data-services:«appId»` — the **data hub**: providers, CSRM cache +
+  fan-out, the SSRM WASM plane. It serves no config and no AppData; at
+  provider create / restart it re-reads the shared IndexedDB on demand.
+
+A window is thin: it connects the platform port first (`ensureConfigReady`
+gates on that worker's catalog — the window never seeds), then the data
+port; `warmPlatform()` does both at app load and starts `autoStart`
+providers so the first grid attaches to a running provider.
 
 ![Data services flow](./diagrams/data-services.svg)
 
 Key properties:
 
-- **One connection, many consumers** — the worker owns the STOMP session;
-  windows attach through `data/runtime/client`.
+- **One connection, many consumers** — the data hub owns the STOMP session;
+  windows attach through `data/runtime/client` (one client per worker).
 - **Thin deltas** — post-snapshot live frames broadcast per-row field patches
   rather than whole rows (see
   [hub-fanout-optimizations](../hub-fanout-optimizations.md) for the wire

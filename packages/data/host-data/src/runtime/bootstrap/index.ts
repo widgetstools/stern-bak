@@ -13,17 +13,7 @@ export {
 } from './bootstrap.js';
 
 export {
-  createDataServicesClient,
-  type CreateDataServicesClientOpts,
-} from './createDataServicesClient.js';
-
-export {
   createDataServicesWorker,
   DATA_SERVICES_WORKER_ASSET,
   type CreateDataServicesWorkerOpts,
 } from './createDataServicesWorker.js';
-
-export {
-  bootstrapDataServicesWithWorkerAsset,
-  type BootstrapDataServicesWithWorkerAssetOpts,
-} from './bootstrapWithWorkerAsset.js';

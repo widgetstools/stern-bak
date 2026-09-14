@@ -250,7 +250,8 @@ Run mentally before writing code for any feature add / update / remove:
 3. **Reuse before new** — search for existing implementations first
 4. **Anti-pattern refuse list** — no native `<input>`/`<textarea>`/`<select>`
    (use shadcn), no per-panel re-exploration of settled UI
-5. **Complexity ceilings** — 800 LOC / file, 80 LOC / function
+5. **Complexity ceilings** — 800 LOC / file, 80 LOC / function (enforced as a
+   ratchet by `npm run check:loc`; a file over the ceiling may not grow)
 6. **Test coverage** — unit for logic, e2e for interaction
 7. **No versioned code** — never `v1/`, `v2/`, `legacy/` in paths or
    doc phasing; superseded code is deleted in the same change as its
@@ -271,8 +272,14 @@ After every feature add / update / fix / removal:
 
 ## Dep version edits
 
-Pin to the **stable line** for each major (React 19.2.x, @openfin/core
-43.101.x), not the latest patch. Document a per-package "stable-vs-latest"
-rationale inline in a `//dependencies-registry-notes` block when introducing
-version pins. Don't drift: the whole reason for this monorepo was to stop
-drift.
+Pin to the **stable line** for each major (@openfin/core 43.101.x), not the
+latest patch. **React is the deliberate exception** (owner decision,
+2026-09-11): `^19.2.5` in all React packages and apps, so each install root
+hoists ONE copy of whatever 19.x npm resolves — a `~19.2.x` pin nesting a
+second React under a package while `ag-grid-react` pulls a newer hoisted one
+is the "two Reacts" failure where every hook test dies with
+`Cannot read properties of null (reading 'useState')`. Keep the caret
+consistent across BOTH install roots (`/` and `apps/`). Document a
+per-package "stable-vs-latest" rationale inline in a
+`//dependencies-registry-notes` block when introducing version pins. Don't
+drift: the whole reason for this monorepo was to stop drift.

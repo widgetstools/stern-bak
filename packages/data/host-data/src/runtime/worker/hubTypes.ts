@@ -9,7 +9,6 @@ import type { ProviderConfig } from '@wellsfargo-starui/types';
 import type { ProviderStatus, WireEncoding, AppDataEvent, SubscriberMeta } from '../protocol.js';
 import type { ProviderHandle } from '../providers/Provider.js';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
-import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 
 /**
  * Maximum rows shipped in a single late-join replay `postMessage`.
@@ -34,6 +33,14 @@ export const LATE_JOIN_CHUNK_SIZE = 500;
  * round-trip doesn't repay itself below this size).
  */
 export const LIVE_BIN_MIN_ROWS = 64;
+
+/**
+ * Hub-thread budget of one late-join replay pass (worker-split W4). A
+ * lone window's replay fits inside it and ships synchronously; a fan-out
+ * that does not is interleaved round-robin across passes, with a macrotask
+ * yield between them so ingest and block RPCs keep flowing.
+ */
+export const REPLAY_PASS_BUDGET_MS = 8;
 
 /** Sliding-window length for upstream + publish /s averages. */
 export const SEC_WINDOW = 5;
@@ -89,6 +96,8 @@ export interface EncodedChunk {
 }
 
 export interface ProviderSlot {
+  /** The id this slot is registered under. */
+  providerId: string;
   handle: ProviderHandle;
   cfg: ProviderConfig;
   cache: Map<string, unknown>;
@@ -196,19 +205,15 @@ export type AppDataDeltaEventMutable = Extract<AppDataEvent, { kind: 'appdata-de
 
 export interface SharedWorkerDataServicesHubOpts {
   /**
-   * ConfigManager backing AppData persistence. The hub becomes the
-   * sole IndexedDB writer for AppData rows — main-thread mirrors no
-   * longer touch ConfigManager. Optional only for back-compat with
-   * tests that don't exercise the AppData path; production callers
-   * (the SharedWorker entry script) MUST pass one.
+   * READ-ONLY ConfigManager for provider-lifecycle reads (worker-split
+   * W1c): resolving a cfg-free attach's provider row and the `{{name.key}}`
+   * AppData tokens in a cfg, re-read from IndexedDB at create / restart /
+   * reconfigure. The data hub never writes through it and never seeds —
+   * catalog RPCs and AppData live on the platform-services worker.
+   * Optional for tests that pass cfg inline; the SharedWorker entry MUST
+   * pass one.
    */
   configManager?: ConfigManager;
-
-  /**
-   * Preloaded data-provider catalog. When omitted but `configManager`
-   * is set, the hub constructs one automatically.
-   */
-  configCatalog?: ConfigCatalogCache;
 
   /** Tick interval for the stats sampler (default 1000ms). */
   statsIntervalMs?: number;
@@ -216,4 +221,10 @@ export interface SharedWorkerDataServicesHubOpts {
   setTimer?: (cb: () => void, ms: number) => unknown;
   /** Inject the timer cancel for tests. Default: clearInterval. */
   clearTimer?: (handle: unknown) => void;
+  /** Inject a RustHub factory (unit tests). Production loads vendored WASM. */
+  createRustHub?: import('../ssrm/RustHubHost.js').RustHubFactory;
+  /** Inject the replay scheduler's macrotask yield (tests). Default: MessageChannel hop. */
+  yieldToMacrotask?: (cb: () => void) => void;
+  /** Override the replay pass budget (tests). Default `REPLAY_PASS_BUDGET_MS`. */
+  replayPassBudgetMs?: number;
 }

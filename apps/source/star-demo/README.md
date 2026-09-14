@@ -24,6 +24,7 @@ The app uses a **HashRouter** — real URLs always carry `#/`:
 | `http://localhost:5175/#/` | home |
 | `…/#/platform/provider` | OpenFin platform provider (bootstraps the workspace) |
 | `…/#/blotters/marketsgrid` | `HostedMarketsGrid` blotter (`gridId: star-demo-blotter`) |
+| `…/#/blotters/ssrmmarketsgrid?instanceId=<configId>` | `HostedSsrmMarketsGrid` — SSRM when live provider type is `stomp-ssrm`; instance id from launch URL / registry |
 | `…/#/dataproviders` | data-provider editor |
 | `…/#/config-browser` | configuration browser |
 | `…/#/workspace-setup` | workspace setup (config-only tier) |

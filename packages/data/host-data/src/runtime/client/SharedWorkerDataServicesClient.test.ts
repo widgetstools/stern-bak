@@ -10,6 +10,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInPageWiring, SharedWorkerDataServicesClient } from './SharedWorkerDataServicesClient';
+import { PlatformServicesHost } from '../worker/PlatformServicesHost.js';
+import { OptimisticLockError } from '@wellsfargo-starui/core/host/config';
 import { SharedWorkerDataServicesHub, type PortLike } from '../worker/SharedWorkerDataServicesHub';
 import { registerProvider } from '../providers/registry';
 import { isAppDataRequest, isRequest } from '../protocol';
@@ -78,9 +80,41 @@ function attachPortToHub(hub: SharedWorkerDataServicesHub): (port: MessagePort) 
     const portLike: PortLike = { postMessage: (m) => port.postMessage(m) };
     port.addEventListener('message', (ev: MessageEvent) => {
       if (isRequest(ev.data)) hub.handleRequest(portLike, ev.data);
-      else if (isAppDataRequest(ev.data)) hub.handleAppDataRequest(portLike, ev.data);
     });
     port.start();
+  };
+}
+
+/** Catalog + AppData live on the platform-services host since the split (W1c). */
+interface PlatformWiring {
+  host: PlatformServicesHost;
+  client: SharedWorkerDataServicesClient;
+  close(): void;
+}
+
+function attachPortToHost(host: PlatformServicesHost): (port: MessagePort) => void {
+  return (port) => {
+    const portLike: PortLike = { postMessage: (m) => port.postMessage(m) };
+    port.addEventListener('message', (ev: MessageEvent) => {
+      if (isRequest(ev.data)) host.handleRequest(portLike, ev.data);
+      else if (isAppDataRequest(ev.data)) host.handleAppDataRequest(portLike, ev.data);
+    });
+    port.start();
+  };
+}
+
+function wirePlatform(opts: { configManager?: ConfigManager } = {}): PlatformWiring {
+  const host = new PlatformServicesHost({
+    ...(opts.configManager ? { configManager: opts.configManager } : {}),
+  });
+  const wiring = createInPageWiring(attachPortToHost(host), { disablePageHideClose: true });
+  return {
+    host,
+    client: wiring.client,
+    close: () => {
+      wiring.close();
+      void host.dispose();
+    },
   };
 }
 
@@ -133,9 +167,9 @@ describe('port-close protocol — clean window close releases the hub-side port'
     const wiringA = createInPageWiring(attach, { disablePageHideClose: true });
     const wiringB = createInPageWiring(attach, { disablePageHideClose: true });
 
-    // Both ports register on first traffic.
-    await wiringA.client.isCatalogReady();
-    await wiringB.client.isCatalogReady();
+    // Both ports register on first traffic (a scalar probe the data hub answers).
+    await wiringA.client.isProviderRunning('p0');
+    await wiringB.client.isProviderRunning('p0');
     expect(hub.buildIntrospectSnapshot().connectedPorts).toBe(2);
 
     // Clean close: without the explicit port-close goodbye the hub can
@@ -151,20 +185,20 @@ describe('port-close protocol — clean window close releases the hub-side port'
     await hub.dispose();
   });
 
-  it('port-close also releases AppData listeners (no heartbeat covers them)', async () => {
-    const hub = new SharedWorkerDataServicesHub({});
-    const attach = attachPortToHub(hub);
+  it('port-close also releases AppData listeners on the platform host (no heartbeat covers them)', async () => {
+    const host = new PlatformServicesHost({});
+    const attach = attachPortToHost(host);
     const wiring = createInPageWiring(attach, { disablePageHideClose: true });
 
     const mirror = wiring.client.attachAppData({ userId: 'u1' });
     await mirror.attach();
     await flush();
-    expect(hub.buildIntrospectSnapshot().appData.listenerCount).toBe(1);
+    expect(host.buildIntrospectSnapshot().appData.listenerCount).toBe(1);
 
     wiring.client.close();
     await flush();
-    expect(hub.buildIntrospectSnapshot().appData.listenerCount).toBe(0);
-    await hub.dispose();
+    expect(host.buildIntrospectSnapshot().appData.listenerCount).toBe(0);
+    await host.dispose();
   });
 });
 
@@ -173,6 +207,7 @@ function stubConfigManager(): ConfigManager & { _rows: Map<string, AppConfigRow>
   return {
     _rows: rows,
     getAppId() { return 'TestApp'; },
+    onConfigChanged() { return () => {}; },
     async getConfigsByUser(userId: string) {
       return [...rows.values()].filter((r) => r.userId === userId);
     },
@@ -516,11 +551,11 @@ describe('SharedWorkerDataServicesClient', () => {
 });
 
 describe('SharedWorkerDataServicesClient — attachAppData', () => {
-  let w: Wiring;
+  let w: PlatformWiring;
   let cm: ReturnType<typeof stubConfigManager>;
   beforeEach(() => {
     cm = stubConfigManager();
-    w = wire({ configManager: cm });
+    w = wirePlatform({ configManager: cm });
   });
   afterEach(() => w.close());
 
@@ -533,7 +568,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
       createdBy: 'alice', updatedBy: 'alice',
       creationTime: '0', updatedTime: '0',
     } as AppConfigRow);
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
 
     const mirror = w.client.attachAppData({ userId: 'alice' });
     await mirror.attach();
@@ -543,7 +578,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
   });
 
   it('two mirrors converge on a write', async () => {
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
     const a = w.client.attachAppData({ userId: 'alice', subId: 'a' });
     const b = w.client.attachAppData({ userId: 'alice', subId: 'b' });
     await a.attach();
@@ -555,7 +590,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
   });
 
   it('detachAppData stops further deltas reaching the mirror', async () => {
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
     const a = w.client.attachAppData({ userId: 'alice', subId: 'a' });
     const b = w.client.attachAppData({ userId: 'alice', subId: 'b' });
     await a.attach();
@@ -571,7 +606,7 @@ describe('SharedWorkerDataServicesClient — attachAppData', () => {
   });
 
   it('close() clears AppData mirror routing', async () => {
-    await w.hub.hydrateAppData('alice');
+    await w.host.hydrateAppData('alice');
     const a = w.client.attachAppData({ userId: 'alice', subId: 'a' });
     await a.attach();
     await a.ready();
@@ -609,11 +644,11 @@ function mockProviderRow(id: string, testKey = 'c-1'): AppConfigRow {
 }
 
 describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
-  it('waitForCatalogReady resolves when the hub catalog is hydrated', async () => {
+  it('waitForCatalogReady resolves when the platform host catalog is hydrated', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
     await w.client.waitForCatalogReady();
     w.close();
   });
@@ -621,8 +656,8 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
   it('onCatalogChange fires with scoped detail after row invalidate', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
 
     const details: Array<{ providerId?: string; full?: boolean }> = [];
     const off = w.client.onCatalogChange((detail) => { details.push(detail); });
@@ -633,12 +668,12 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
     w.close();
   });
 
-  it('getProviderConfig and listProviderConfigs round-trip through the hub', async () => {
+  it('getProviderConfig and listProviderConfigs round-trip through the platform host', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
     cm._rows.set('p2', mockProviderRow('p2', 'c-2'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
 
     const one = await w.client.getProviderConfig('p1');
     expect(one?.providerId).toBe('p1');
@@ -649,11 +684,10 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
     w.close();
   });
 
-  it('cfg-free subscribe starts a provider from the worker catalog', async () => {
+  it('cfg-free subscribe starts a provider from an on-demand IndexedDB read (no catalog in the data hub)', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
     const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
 
     const handle = w.client.subscribe<{ id: string }>('p1');
     await flush();
@@ -671,9 +705,6 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
     const dual = wireTwoClients({ configManager: cm });
-    await dual.hub.hydrateCatalog();
-    await dual.clientA.waitForCatalogReady();
-    await dual.clientB.waitForCatalogReady();
 
     const primer = dual.clientA.subscribe('p1', cfg());
     await flush();
@@ -726,8 +757,8 @@ describe('SharedWorkerDataServicesClient — config catalog RPC', () => {
   it('configStore.save() invalidates the worker catalog so getProviderConfig sees updates', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const w = wire({ configManager: cm });
-    await w.hub.hydrateCatalog();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
 
     const store = new DataProviderConfigStore(
       cm,
@@ -783,7 +814,7 @@ describe('SharedWorkerDataServicesClient — thin field-level deltas end-to-end'
     handle.unsubscribe();
   });
 
-  it('the merged row is a NEW object — the previous row value is never mutated', async () => {
+  it('patches the row the consumer already holds in place — same object, no full-row copy', async () => {
     const handle = await settledThinHandle();
     const snapshotRow = (await handle.snapshot)[0];
     const updates: Array<readonly Record<string, unknown>[]> = [];
@@ -792,8 +823,10 @@ describe('SharedWorkerDataServicesClient — thin field-level deltas end-to-end'
     controllers.get('c-1')!.emit({ rows: [{ id: 'r1', px: 2, qty: 10, note: 'keep' }] });
     await flush();
 
-    expect(updates[0][0]).not.toBe(snapshotRow);
-    expect(snapshotRow).toEqual({ id: 'r1', px: 1, qty: 10, note: 'keep' });
+    // Identity-stable: the delivered row IS the snapshot row, now carrying
+    // the patched value (a 372-column row no longer gets rebuilt per patch).
+    expect(updates[0][0]).toBe(snapshotRow);
+    expect(snapshotRow).toEqual({ id: 'r1', px: 2, qty: 10, note: 'keep' });
     handle.unsubscribe();
   });
 
@@ -825,7 +858,8 @@ describe('SharedWorkerDataServicesClient — thin field-level deltas end-to-end'
   it('chains patches across ticks (mirror tracks the merged row)', async () => {
     const handle = await settledThinHandle();
     const updates: Array<readonly Record<string, unknown>[]> = [];
-    handle.onUpdate((rows) => updates.push(rows));
+    // Rows are patched in place, so a consumer keeping history copies them.
+    handle.onUpdate((rows) => updates.push(rows.map((r) => ({ ...r }))));
 
     controllers.get('c-1')!.emit({ rows: [{ id: 'r1', px: 2, qty: 10, note: 'keep' }] });
     await flush();
@@ -984,8 +1018,8 @@ describe('SharedWorkerDataServicesClient — edge cases and error paths', () => 
   it('onCatalogChange isolates throwing listeners', async () => {
     const cm = stubConfigManager();
     cm._rows.set('p1', mockProviderRow('p1'));
-    const local = wire({ configManager: cm });
-    await local.hub.hydrateCatalog();
+    const local = wirePlatform({ configManager: cm });
+    await local.host.hydrateCatalog();
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const good = vi.fn();
@@ -1183,8 +1217,8 @@ describe('SharedWorkerDataServicesClient — direct port events', () => {
 
   it('routes appdata-ack events to every attached mirror', async () => {
     const cm = stubConfigManager();
-    const local = wire({ configManager: cm });
-    await local.hub.hydrateAppData('alice');
+    const local = wirePlatform({ configManager: cm });
+    await local.host.hydrateAppData('alice');
     const a = local.client.attachAppData({ userId: 'alice', subId: 'a' });
     const b = local.client.attachAppData({ userId: 'alice', subId: 'b' });
     await a.attach();
@@ -1243,3 +1277,190 @@ describe('SharedWorkerDataServicesClient — subscription-lost recovery', () => 
   });
 });
 
+describe('SharedWorkerDataServicesClient — SSRM RPC lifecycle', () => {
+  it('rejects an SSRM RPC the worker never answers', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      ssrmRpcTimeoutMs: 20,
+    });
+    await expect(client.ssrmGetRows('p', 's', { startRow: 0, endRow: 10 }))
+      .rejects.toThrow(/ssrm-get-rows timed out after 20ms/);
+    client.close();
+    channel.port2.close();
+  });
+
+  it('settles a late reply normally and rejects what is still pending on close', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: Array<{ kind?: string; reqId?: string }> = [];
+    channel.port2.addEventListener('message', (ev: MessageEvent) => { posts.push(ev.data); });
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      ssrmRpcTimeoutMs: 0,
+    });
+    const answered = client.ssrmGetRows('p', 's', { startRow: 0, endRow: 10 });
+    const orphaned = client.ssrmRowCount('p', 's', {});
+    await new Promise((r) => setTimeout(r, 0));
+    const getReq = posts.find((m) => m.kind === 'ssrm-get-rows');
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: getReq?.reqId, ok: true, result: { rowData: [], rowCount: 3 } });
+    await expect(answered).resolves.toMatchObject({ rowCount: 3 });
+    client.close();
+    await expect(orphaned).rejects.toThrow(/client closed/);
+    channel.port2.close();
+  });
+
+  it('posts grid edits as ssrm-apply-edits and resolves the applied count', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: Array<{ kind?: string; reqId?: string; rows?: unknown[] }> = [];
+    channel.port2.addEventListener('message', (ev: MessageEvent) => { posts.push(ev.data); });
+    const client = new SharedWorkerDataServicesClient(channel.port1, { disablePageHideClose: true });
+    const p = client.ssrmApplyEdits('p', 's', [{ id: '1', px: 2 }]);
+    await new Promise((r) => setTimeout(r, 0));
+    const req = posts.find((m) => m.kind === 'ssrm-apply-edits');
+    expect(req?.rows).toEqual([{ id: '1', px: 2 }]);
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: req?.reqId, ok: true, result: { applied: 1 } });
+    await expect(p).resolves.toEqual({ applied: 1 });
+    client.close();
+    channel.port2.close();
+  });
+});
+
+describe('SharedWorkerDataServicesClient — SSRM protocol', () => {
+  it('attachSsrm posts mode ssrm and routes rpc + ticks', async () => {
+    const channel = new MessageChannel();
+    channel.port2.start();
+    const posts: Array<{ kind?: string; reqId?: string; mode?: string }> = [];
+    channel.port2.addEventListener('message', (ev: MessageEvent) => {
+      posts.push(ev.data);
+    });
+    const client = new SharedWorkerDataServicesClient(channel.port1, {
+      disablePageHideClose: true,
+      generateSubId: () => 'ssrm-1',
+    });
+    const subId = client.attachSsrm('p-ssrm', undefined, {
+      onStatus: vi.fn(),
+      onRowsReceived: vi.fn(),
+    });
+    expect(subId).toBe('ssrm-1');
+    await flush();
+    expect(posts.some((m) => m.kind === 'attach' && m.mode === 'ssrm')).toBe(true);
+
+    const ticks: unknown[] = [];
+    const off = client.onSsrmTick(subId, (p) => { ticks.push(p); });
+    channel.port2.postMessage({
+      kind: 'ssrm-tick',
+      subId,
+      payload: { kind: 'rowDelta', upserts: [{ id: '1' }] },
+    });
+    channel.port2.postMessage({
+      kind: 'ssrm-tick',
+      subId: 'other',
+      payload: { kind: 'rowDelta', upserts: [{ id: 'x' }] },
+    });
+    await flush();
+    expect(ticks).toHaveLength(1);
+    off();
+
+    const rowsP = client.ssrmGetRows('p-ssrm', subId, { startRow: 0, endRow: 10 });
+    await flush();
+    const getReq = posts.find((m) => m.kind === 'ssrm-get-rows');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: getReq?.reqId,
+      ok: true,
+      result: { rowData: [], rowCount: 0 },
+    });
+    await expect(rowsP).resolves.toMatchObject({ rowCount: 0 });
+
+    const watchP = client.ssrmWatchGroups('p-ssrm', subId, ['desk'], { qty: 'sum' });
+    await flush();
+    const watchReq = posts.find((m) => m.kind === 'ssrm-watch-groups');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: watchReq?.reqId,
+      ok: true,
+      result: { ok: true },
+    });
+    await expect(watchP).resolves.toBeUndefined();
+
+    const valuesP = client.ssrmColumnValues('p-ssrm', subId, { column: 'desk' });
+    await flush();
+    const valuesReq = posts.find((m) => m.kind === 'ssrm-column-values');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: valuesReq?.reqId,
+      ok: true,
+      result: { column: 'desk', values: ['A'], truncated: false },
+    });
+    await expect(valuesP).resolves.toMatchObject({ values: ['A'] });
+
+    const countP = client.ssrmRowCount('p-ssrm', subId, { filterModel: null });
+    await flush();
+    const countReq = posts.find((m) => m.kind === 'ssrm-row-count');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: countReq?.reqId,
+      ok: true,
+      result: { rowCount: 4200 },
+    });
+    await expect(countP).resolves.toEqual({ rowCount: 4200 });
+
+    const aggP = client.ssrmAggregates('p-ssrm', subId, {
+      specs: [{ column: 'qty', fn: 'sum' }],
+    });
+    await flush();
+    const aggReq = posts.find((m) => m.kind === 'ssrm-aggregates');
+    channel.port2.postMessage({
+      kind: 'ssrm-rpc',
+      reqId: aggReq?.reqId,
+      ok: true,
+      result: { values: { qty_sum: 10 } },
+    });
+    await expect(aggP).resolves.toEqual({ values: { qty_sum: 10 } });
+
+    const failP = client.ssrmGetRows('p-ssrm', subId, { startRow: 0 });
+    await flush();
+    const failReq = [...posts].reverse().find((m) => m.kind === 'ssrm-get-rows');
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: failReq?.reqId, ok: false });
+    await expect(failP).rejects.toThrow(/ssrm rpc failed/);
+
+    channel.port2.postMessage({ kind: 'ssrm-rpc', reqId: 'missing', ok: true, result: {} });
+    client.close();
+    expect(() => client.attachSsrm('p', undefined, { onStatus: vi.fn(), onRowsReceived: vi.fn() }))
+      .toThrow(/closed/);
+    await expect(client.ssrmGetRows('p', 's', { startRow: 0 })).rejects.toThrow(/closed/);
+  });
+});
+
+describe('SharedWorkerDataServicesClient — config writes ride the platform host (W2)', () => {
+  it('saveConfigRow persists through the host and resolves with the stored row; a later read sees it', async () => {
+    const cm = stubConfigManager();
+    const w = wirePlatform({ configManager: cm });
+    await w.host.hydrateCatalog();
+
+    const stored = await w.client.saveConfigRow(mockProviderRow('p9'));
+    expect(stored.configId).toBe('p9');
+    expect(cm._rows.get('p9')).toBeDefined();
+    expect((await w.client.getProviderConfig('p9'))?.providerId).toBe('p9');
+
+    await w.client.deleteConfigRow('p9');
+    expect(cm._rows.has('p9')).toBe(false);
+    w.close();
+  });
+
+  it('a stale write rejects with OptimisticLockError carrying the current row', async () => {
+    const cm = stubConfigManager();
+    const current = mockProviderRow('p1');
+    (cm as unknown as { saveConfig: () => Promise<void> }).saveConfig = async () => { throw new OptimisticLockError(current); };
+    const w = wirePlatform({ configManager: cm });
+
+    await expect(w.client.saveConfigRow(mockProviderRow('p1'), { expectedUpdatedTime: 'old' })).rejects.toBeInstanceOf(OptimisticLockError);
+    await w.client.saveConfigRow(mockProviderRow('p1'), { expectedUpdatedTime: 'old' }).catch((err: OptimisticLockError) => {
+      expect(err.currentRow).toMatchObject({ configId: 'p1' });
+    });
+    w.close();
+  });
+});

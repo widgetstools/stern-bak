@@ -1,0 +1,54 @@
+@import '@wellsfargo-starui/design-system/css';
+@import '@wellsfargo-starui/grid/styles.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  * { @apply border-border; }
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  html { overflow: hidden; }
+  body {
+    overflow: hidden;
+    background: var(--ds-surface-ground);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-sans), -apple-system, sans-serif;
+    font-size: var(--ds-font-size-body);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ── Write-lifecycle cell states (see src/trading/cellStates.ts) ──
+   staged  — value lives only in this grid (CSV import before Save)
+   pending — sent to the server, commit not yet acknowledged
+   failed  — the server refused it
+   All from design tokens, so both themes hold. The border is an inset
+   box-shadow: AG Grid owns the real cell borders, and painting over them
+   would shift the row layout. */
+.ag-cell.spg-cell-staged {
+  background: color-mix(in srgb, var(--ds-accent-warning) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent-warning) 55%, transparent);
+}
+.ag-cell.spg-cell-pending {
+  box-shadow: inset 0 0 0 1.5px var(--ds-accent-warning);
+}
+.ag-cell.spg-cell-failed {
+  box-shadow: inset 0 0 0 1.5px var(--ds-accent-negative);
+  background: color-mix(in srgb, var(--ds-accent-negative) 12%, transparent);
+}
+
+.spg-num-up { color: var(--ds-accent-positive); }
+.spg-num-down { color: var(--ds-accent-negative); }

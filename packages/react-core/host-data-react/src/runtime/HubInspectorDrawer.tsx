@@ -33,6 +33,7 @@ import {
 // Import the provider hook directly — going through './index.js' closed
 // a runtime barrel cycle (index → DataHubProvider → HubInspectorHost →
 // this file → index).
+import { mergeHubIntrospect } from '@wellsfargo-starui/data';
 import { useDataServicesContext } from './DataServicesProvider.js';
 
 const POLL_MS = 1000;
@@ -45,7 +46,7 @@ export interface HubInspectorDrawerProps {
 }
 
 export function HubInspectorDrawer({ open, onOpenChange }: HubInspectorDrawerProps): React.ReactNode {
-  const { client } = useDataServicesContext();
+  const { client, platformClient } = useDataServicesContext();
   const [snapshot, setSnapshot] = useState<HubIntrospectSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,15 +56,20 @@ export function HubInspectorDrawer({ open, onOpenChange }: HubInspectorDrawerPro
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const next = await client.getHubIntrospect();
-      setSnapshot(next);
+      // Two workers since the split (W1c): providers + ports from the data
+      // hub, catalog + AppData from the platform-services host.
+      const [data, platform] = await Promise.all([
+        client.getHubIntrospect(),
+        platformClient === client ? Promise.resolve(null) : platformClient.getHubIntrospect(),
+      ]);
+      setSnapshot(mergeHubIntrospect(data, platform));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [client, platformClient]);
 
   useEffect(() => {
     if (!open) return;

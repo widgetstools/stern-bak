@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createConfigManager = vi.fn();
 const installSharedWorkerHub = vi.fn();
+const installPlatformServicesHost = vi.fn();
 
 vi.mock('@wellsfargo-starui/core/host/config', () => ({
   createConfigManager: (...args: unknown[]) => createConfigManager(...args),
@@ -20,6 +21,7 @@ vi.mock('@wellsfargo-starui/core/host/config', () => ({
 
 vi.mock('./index.js', () => ({
   installSharedWorkerHub: (...args: unknown[]) => installSharedWorkerHub(...args),
+  installPlatformServicesHost: (...args: unknown[]) => installPlatformServicesHost(...args),
 }));
 
 interface WorkerGlobal {
@@ -51,7 +53,9 @@ describe('defaultEntry — worker bootstrap handshake', () => {
   beforeEach(() => {
     createConfigManager.mockReset().mockReturnValue(fakeConfigManager);
     installSharedWorkerHub.mockReset().mockResolvedValue({ hub: {}, stop: vi.fn() });
+    installPlatformServicesHost.mockReset().mockResolvedValue({ host: {}, stop: vi.fn() });
     fakeConfigManager.init.mockClear();
+    delete (globalThis as { name?: string }).name;
     vi.spyOn(console, 'info').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     (globalThis as unknown as WorkerGlobal).onconnect = null;
@@ -61,7 +65,38 @@ describe('defaultEntry — worker bootstrap handshake', () => {
     vi.restoreAllMocks();
   });
 
-  it('builds the ConfigManager from the payload the client sends over the port', async () => {
+  it('the DATA worker builds a read-only ConfigManager from the payload — no seed URL, attach-mode init', async () => {
+    await loadEntry();
+    const channel = connect();
+
+    channel.port1.postMessage({
+      kind: 'worker-bootstrap',
+      payload: {
+        appId: 'Star-Demo',
+        userId: 'k151344',
+        seedConfigUrl: '/seed.json',
+        seedConfigReload: 'when-changed',
+        configServiceRestUrl: 'http://localhost:3001/api/v1',
+      },
+    });
+    await flush();
+
+    // Worker-split W1c: the platform-services worker is the sole seeder.
+    expect(createConfigManager).toHaveBeenCalledWith({
+      appId: 'Star-Demo',
+      identity: { userId: 'k151344', displayName: 'k151344' },
+      seedConfigUrl: undefined,
+      seedConfigReload: undefined,
+      configServiceRestUrl: 'http://localhost:3001/api/v1',
+    });
+    expect(fakeConfigManager.init).toHaveBeenCalledTimes(1);
+    expect(fakeConfigManager.init).toHaveBeenCalledWith({ mode: 'attach' });
+    expect(installSharedWorkerHub).toHaveBeenCalledTimes(1);
+    expect(installPlatformServicesHost).not.toHaveBeenCalled();
+  });
+
+  it('the PLATFORM-SERVICES worker (by SharedWorker name) seeds: full init with the seed URL, slim host installed', async () => {
+    (globalThis as { name?: string }).name = 'mkt-platform-services:Star-Demo';
     await loadEntry();
     const channel = connect();
 
@@ -85,6 +120,11 @@ describe('defaultEntry — worker bootstrap handshake', () => {
       configServiceRestUrl: 'http://localhost:3001/api/v1',
     });
     expect(fakeConfigManager.init).toHaveBeenCalledTimes(1);
+    expect(fakeConfigManager.init).toHaveBeenCalledWith();
+    expect(installPlatformServicesHost).toHaveBeenCalledTimes(1);
+    expect(installSharedWorkerHub).not.toHaveBeenCalled();
+    const opts = installPlatformServicesHost.mock.calls[0][0] as { adoptPorts: Array<{ port: MessagePort }> };
+    expect(opts.adoptPorts[0].port).toBe(channel.port2);
   });
 
   it('hands the connected port to the hub so the client is not dropped', async () => {

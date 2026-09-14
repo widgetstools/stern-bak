@@ -45,6 +45,12 @@ function App() {
             <Link to="/blotters/marketsgrid" className="text-sm text-primary hover:underline">
               /blotters/marketsgrid &mdash; MarketsGrid blotter
             </Link>
+            <Link
+              to="/blotters/ssrmmarketsgrid?instanceId=grid-ssrm"
+              className="text-sm text-primary hover:underline"
+            >
+              /blotters/ssrmmarketsgrid &mdash; SSRM MarketsGrid (template instance)
+            </Link>
             <Link to="/dataproviders" className="text-sm text-primary hover:underline">
               /dataproviders &mdash; Create / edit STOMP, REST, Mock and AppData providers
             </Link>

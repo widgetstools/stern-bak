@@ -1,6 +1,10 @@
 /**
  * BehaviourFields — per-transport "behaviour" knobs.
  *
+ * Every transport gets a Start-up section: `autoStart` — start the provider
+ * in the data worker when the platform warms (dock / app load) so the first
+ * view attaches to a running provider.
+ *
  * STOMP gets:
  *   - Reconnect initial delay (full backoff is tracked but unimplemented
  *     — stompjs's static `reconnectDelay`).
@@ -9,7 +13,7 @@
  *     out. These are also settable in code on the provider config.
  *   - Snapshot chunk size (`snapshotChunkSize`) — rows per worker→main
  *     postMessage during the snapshot flush.
- * Other transports: no behaviour knobs today.
+ * Other transports: the Start-up section only.
  */
 
 import {
@@ -33,12 +37,42 @@ export interface BehaviourFieldsProps {
 const CONFLATE_NONE = '__none__';
 
 export function BehaviourFields({ cfg, onChange }: BehaviourFieldsProps) {
-  if (cfg.providerType === 'stomp') {
-    return <StompBehaviour cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />;
-  }
   return (
-    <section className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-      No behaviour settings for {cfg.providerType.toUpperCase()} providers.
+    <div className="space-y-4">
+      <StartupSection cfg={cfg} onChange={onChange} />
+      {cfg.providerType === 'stomp-ssrm' && (
+        <StompSsrmBehaviour cfg={cfg as unknown as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />
+      )}
+      {cfg.providerType === 'stomp' && (
+        <StompBehaviour cfg={cfg as StompProviderConfig} onChange={onChange as (n: Partial<StompProviderConfig>) => void} />
+      )}
+    </div>
+  );
+}
+
+/** `autoStart` — the dock / app warm-up starts this provider before any view asks for it. */
+function StartupSection({ cfg, onChange }: BehaviourFieldsProps) {
+  return (
+    <section className="rounded-lg border border-border bg-muted/30 p-4 space-y-3.5 max-w-md">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Start-up</h3>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="autoStart"
+            checked={cfg.autoStart === true}
+            onCheckedChange={(v) => onChange({ autoStart: v ? true : undefined })}
+          />
+          <Label htmlFor="autoStart" className="text-xs font-medium text-muted-foreground">
+            Start with the platform
+          </Label>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Start this provider in the data worker when the platform warms up (OpenFin dock
+          load / app load), so the first view that opens attaches to a running provider
+          and paints from the worker cache instead of waiting for connect + snapshot.
+          Off: the first view to use the provider starts it.
+        </p>
+      </div>
     </section>
   );
 }
@@ -48,6 +82,34 @@ function conflateFieldOptions(cfg: StompProviderConfig): string[] {
   const fromCols = (cfg.columnDefinitions ?? []).map((c) => c.field);
   if (fromCols.length > 0) return [...new Set(fromCols)];
   return [...new Set((cfg.inferredFields ?? []).map((f) => f.path))];
+}
+
+function StompSsrmBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(next: Partial<StompProviderConfig>): void }) {
+  return (
+    <section className="rounded-lg border border-border bg-muted/30 p-4 space-y-5 max-w-md">
+      <div className="space-y-3.5">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reconnect</h3>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Initial Delay (ms)</Label>
+          <Input
+            type="number"
+            className="h-8 text-sm"
+            min={0}
+            max={60_000}
+            step={500}
+            value={cfg.reconnect?.initialDelayMs ?? 5000}
+            onChange={(e) => onChange({
+              reconnect: { ...(cfg.reconnect ?? {}), initialDelayMs: Number(e.target.value) || 0 },
+            })}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Static delay between reconnect attempts. CSRM-only knobs (thin deltas, wire
+            format, field projection) do not apply — the WASM cache is the projection.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function StompBehaviour({ cfg, onChange }: { cfg: StompProviderConfig; onChange(next: Partial<StompProviderConfig>): void }) {

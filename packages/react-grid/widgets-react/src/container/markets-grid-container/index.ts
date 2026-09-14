@@ -14,4 +14,8 @@ export {
   type ProviderSelection,
   type ProviderMode,
 } from './MarketsGridContainer.js';
+export {
+  SsrmMarketsGridContainer,
+  type SsrmMarketsGridContainerProps,
+} from './SsrmMarketsGridContainer.js';
 export { DatePicker, type DatePickerProps } from './DatePicker.js';

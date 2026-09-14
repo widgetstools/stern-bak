@@ -23,7 +23,6 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { SharedWorkerDataServicesHub, type PortLike } from './SharedWorkerDataServicesHub';
-import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import { registerProvider } from '../providers/registry';
 import type { ProviderEmit, ProviderHandle } from '../providers/Provider';
 import type { Event, RowPatch } from '../protocol';
@@ -662,6 +661,84 @@ describe('SharedWorkerDataServicesHub — snapshot replay memoization', () => {
   });
 });
 
+describe('SharedWorkerDataServicesHub — round-robin replay fan-out (worker-split W4)', () => {
+  /** Hub whose replay passes hold ~one post each (a vanishing budget) and whose yields we run by hand. */
+  function fanoutHub() {
+    const yields: Array<() => void> = [];
+    const hub = new SharedWorkerDataServicesHub({
+      replayPassBudgetMs: 0.0001,
+      yieldToMacrotask: (cb) => { yields.push(cb); },
+    });
+    const drain = () => { while (yields.length) yields.splice(0).forEach((cb) => cb()); };
+    return { hub, drain };
+  }
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r${i}`, x: i }));
+
+  it('every simultaneous joiner gets its first chunk before any joiner gets its second, then ready', () => {
+    const { hub, drain } = fanoutHub();
+    const primer = makePort();
+    hub.handleRequest(primer, { kind: 'attach', subId: 'primer', providerId: 'p1', mode: 'data', cfg: cfg() });
+    controllers.get('default')!.emit({ rows: rows(1500), replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+
+    const seq: string[] = []; // cross-port order of delta-bin posts
+    const joiners = ['j1', 'j2', 'j3'].map((subId) => {
+      const port = makePort();
+      const inner = port.postMessage.bind(port);
+      port.postMessage = (m: unknown) => { if ((m as { kind?: string }).kind === 'delta-bin') seq.push(subId); inner(m); };
+      hub.handleRequest(port, { kind: 'attach', subId, providerId: 'p1', mode: 'data' });
+      return { subId, port };
+    });
+    drain();
+
+    for (const { port, subId } of joiners) {
+      const kinds = port.messages.map((m) => `${m.kind}${(m as { replace?: boolean }).replace ? '*' : ''}${(m as { status?: string }).status ? ':' + (m as { status?: string }).status : ''}`);
+      expect(kinds, subId).toEqual(['status:loading', 'delta-bin*', 'delta-bin', 'delta-bin', 'status:ready']);
+      expect(rowsOf(port.messages[1])!.length + rowsOf(port.messages[2])!.length + rowsOf(port.messages[3])!.length).toBe(1500);
+    }
+    // Round-robin across passes: the last joiner's first chunk lands before
+    // the first joiner's last chunk — nobody waits behind a whole replay.
+    expect(seq.indexOf('j3')).toBeLessThan(seq.lastIndexOf('j1'));
+    const stats = hub.buildIntrospectSnapshot().fanout!;
+    expect(stats.replays).toBe(3);
+    expect(stats.passes).toBeGreaterThan(1);
+    expect(stats.lastEpisode).toMatchObject({ ports: 3, chunksPosted: 9 });
+  });
+
+  it('a live tick landing mid-replay reaches the replaying port only after its ready — and the others at once', () => {
+    const { hub, drain } = fanoutHub();
+    const primer = makePort();
+    hub.handleRequest(primer, { kind: 'attach', subId: 'primer', providerId: 'p1', mode: 'data', cfg: cfg() });
+    controllers.get('default')!.emit({ rows: rows(1000), replace: true });
+    controllers.get('default')!.emit({ status: 'ready' });
+
+    const late = makePort();
+    hub.handleRequest(late, { kind: 'attach', subId: 'late', providerId: 'p1', mode: 'data' });
+    // Replay in flight (first chunk posted, more owed): a tick arrives.
+    primer.messages.length = 0;
+    controllers.get('default')!.emit({ rows: [{ id: 'r0', x: 999 }] });
+    expect(primer.messages.map((m) => m.kind)).toEqual(['delta']);
+    expect(late.messages.map((m) => m.kind)).not.toContain('delta');
+    drain();
+
+    const kinds = late.messages.map((m) => `${m.kind}${(m as { status?: string }).status ? ':' + (m as { status?: string }).status : ''}`);
+    expect(kinds).toEqual(['status:loading', 'delta-bin', 'delta-bin', 'status:ready', 'delta']);
+    expect(rowsOf(late.messages[4])).toEqual([{ id: 'r0', x: 999 }]);
+  });
+
+  it('a joiner that detaches mid-replay gets nothing more', () => {
+    const { hub, drain } = fanoutHub();
+    const primer = makePort();
+    hub.handleRequest(primer, { kind: 'attach', subId: 'primer', providerId: 'p1', mode: 'data', cfg: cfg() });
+    controllers.get('default')!.emit({ rows: rows(1500), replace: true });
+    const late = makePort();
+    hub.handleRequest(late, { kind: 'attach', subId: 'late', providerId: 'p1', mode: 'data' });
+    hub.handleRequest(late, { kind: 'detach', subId: 'late' });
+    drain();
+    expect(late.messages.map((m) => m.kind)).toEqual(['status', 'delta-bin']);
+  });
+});
+
 describe('SharedWorkerDataServicesHub — binary snapshot broadcast (restart/initial fan-out)', () => {
   const binChunks = (port: CapturedPort) =>
     port.messages.filter((m) => m.kind === 'delta-bin') as Array<Event & { kind: 'delta-bin' }>;
@@ -1059,234 +1136,6 @@ describe('SharedWorkerDataServicesHub — subscriber heartbeats', () => {
 
 // ─── AppData wire round-trip ─────────────────────────────────────
 
-interface AppDataPort {
-  messages: unknown[];
-  postMessage(m: unknown): void;
-}
-
-// Shallow-copy on capture — see makePort note (hub reuses fan-out events).
-function makeAppDataPort(): AppDataPort {
-  const messages: unknown[] = [];
-  return {
-    messages,
-    postMessage(m) { messages.push({ ...(m as object) }); },
-  };
-}
-
-function appDataRow(configId: string, name: string, values: Record<string, unknown> = {}) {
-  return { configId, name, isPublic: false, values, userId: 'alice' };
-}
-
-describe('SharedWorkerDataServicesHub — AppData', () => {
-  it('snapshot delivered on attach reflects the seed', () => {
-    const hub = new SharedWorkerDataServicesHub();
-    const port = makeAppDataPort();
-    hub.handleAppDataRequest(port, {
-      kind: 'appdata-attach',
-      subId: 'a',
-      seed: [appDataRow('a', 'positions', { asOfDate: '2026-04-01' })],
-    });
-    expect(port.messages).toHaveLength(1);
-    expect(port.messages[0]).toMatchObject({
-      kind: 'appdata-snapshot',
-      subId: 'a',
-      rows: [{ configId: 'a', name: 'positions' }],
-    });
-  });
-
-  it('second attacher sees the previously-seeded snapshot (no double-hydrate)', async () => {
-    const hub = new SharedWorkerDataServicesHub();
-    const portA = makeAppDataPort();
-    const portB = makeAppDataPort();
-
-    // First attacher seeds.
-    hub.handleAppDataRequest(portA, {
-      kind: 'appdata-attach',
-      subId: 'a',
-      seed: [appDataRow('a', 'positions', { asOfDate: '2026-04-01' })],
-    });
-    // Second attacher attempts a different seed — ignored.
-    void hub.handleAppDataRequest(portB, {
-      kind: 'appdata-attach',
-      subId: 'b',
-      seed: [appDataRow('z', 'wouldOverwrite')],
-    });
-    await Promise.resolve();
-    expect(portB.messages[0]).toMatchObject({
-      kind: 'appdata-snapshot',
-      rows: [{ configId: 'a', name: 'positions' }],
-    });
-  });
-
-  it('attach is throttled to the hydrate read; config-invalidate resyncs persisted rows', async () => {
-    const rows = new Map<string, AppConfigRow>([
-      ['ad-1', {
-        configId: 'ad-1',
-        appId: 'TestApp',
-        userId: 'dev1',
-        componentType: 'data-provider',
-        componentSubType: 'appdata',
-        isTemplate: false,
-        displayText: 'App1Data',
-        payload: {
-          providerType: 'appdata',
-          variables: {
-            userId: { key: 'userId', value: 'alice', type: 'string', durability: 'volatile' },
-          },
-          __providerMeta: {},
-        },
-        createdBy: 'dev1',
-        updatedBy: 'dev1',
-        creationTime: '2026-01-01T00:00:00.000Z',
-        updatedTime: '2026-01-01T00:00:00.000Z',
-      }],
-    ]);
-    const cm = {
-      async getAllConfigsUnfiltered() { return [...rows.values()]; },
-    async getConfigsByComponentTypesUnfiltered(types: string[]) { return [...rows.values()].filter((r) => types.includes(r.componentType)); },
-      async getConfig(id: string) { return rows.get(id); },
-      async saveConfig(row: AppConfigRow) { rows.set(row.configId, row); },
-      async deleteConfig(id: string) { rows.delete(id); },
-    } as unknown as ConfigManager;
-
-    const hub = new SharedWorkerDataServicesHub({ configManager: cm });
-    await hub.hydrateAppData();
-
-    const portA = makeAppDataPort();
-    void hub.handleAppDataRequest(portA, { kind: 'appdata-attach', subId: 'a' });
-    await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
-    expect(portA.messages[0]).toMatchObject({
-      kind: 'appdata-snapshot',
-      rows: [expect.objectContaining({ name: 'App1Data' })],
-    });
-
-    rows.set('ad-2', {
-      ...rows.get('ad-1')!,
-      configId: 'ad-2',
-      displayText: 'App2Data',
-      payload: {
-        providerType: 'appdata',
-        variables: {
-          clientId: { key: 'clientId', value: 'desk-1', type: 'string', durability: 'volatile' },
-        },
-        __providerMeta: {},
-      },
-    });
-
-    // Attach alone must NOT rescan IndexedDB — a burst of opening
-    // windows would serialize one table scan per window in front of
-    // every snapshot reply. The row persisted out-of-band stays
-    // invisible until the next resync trigger.
-    const portB = makeAppDataPort();
-    void hub.handleAppDataRequest(portB, { kind: 'appdata-attach', subId: 'b' });
-    await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
-    expect(portB.messages[0]).toMatchObject({
-      kind: 'appdata-snapshot',
-      rows: [expect.objectContaining({ name: 'App1Data' })],
-    });
-
-    // `config-invalidate` (the editor-save path) resyncs from the
-    // store and fans the new row out to attached mirrors.
-    hub.handleRequest(portB, { kind: 'config-invalidate', reqId: 'inv1' });
-    await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
-    expect(portB.messages).toContainEqual(
-      expect.objectContaining({
-        kind: 'appdata-delta',
-        op: 'upsert',
-        row: expect.objectContaining({ name: 'App2Data' }),
-      }),
-    );
-
-    // A mirror attaching after the resync sees both rows in its snapshot.
-    const portC = makeAppDataPort();
-    void hub.handleAppDataRequest(portC, { kind: 'appdata-attach', subId: 'c' });
-    await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
-    expect(portC.messages[0]).toMatchObject({
-      kind: 'appdata-snapshot',
-      rows: expect.arrayContaining([
-        expect.objectContaining({ name: 'App1Data' }),
-        expect.objectContaining({ name: 'App2Data' }),
-      ]),
-    });
-  });
-
-  it('set fans out a delta to every attached subscriber including originator', () => {
-    const hub = new SharedWorkerDataServicesHub();
-    const portA = makeAppDataPort();
-    const portB = makeAppDataPort();
-    hub.handleAppDataRequest(portA, { kind: 'appdata-attach', subId: 'a', seed: [] });
-    hub.handleAppDataRequest(portB, { kind: 'appdata-attach', subId: 'b' });
-
-    const next = appDataRow('a1', 'positions', { asOfDate: '2026-05-08' });
-    hub.handleAppDataRequest(portA, { kind: 'appdata-set', reqId: 'r1', row: next });
-
-    // A: snapshot, delta, ack (broadcast happens before ack — see hub).
-    expect(portA.messages).toHaveLength(3);
-    // B: snapshot, delta.
-    expect(portB.messages).toHaveLength(2);
-
-    const aDelta = portA.messages[1] as { kind: string; subId: string; op: string; row: { configId: string } };
-    expect(aDelta).toMatchObject({ kind: 'appdata-delta', subId: 'a', op: 'upsert', row: { configId: 'a1' } });
-    const aAck = portA.messages[2] as { kind: string; reqId: string; ok: boolean };
-    expect(aAck).toMatchObject({ kind: 'appdata-ack', reqId: 'r1', ok: true });
-
-    const bDelta = portB.messages[1] as { kind: string; subId: string; op: string };
-    expect(bDelta).toMatchObject({ kind: 'appdata-delta', subId: 'b', op: 'upsert' });
-  });
-
-  it('remove fans out a remove delta + ack', () => {
-    const hub = new SharedWorkerDataServicesHub();
-    const port = makeAppDataPort();
-    hub.handleAppDataRequest(port, {
-      kind: 'appdata-attach', subId: 'a',
-      seed: [appDataRow('a1', 'positions')],
-    });
-    hub.handleAppDataRequest(port, {
-      kind: 'appdata-remove', reqId: 'r1', configId: 'a1',
-    });
-    const lastTwo = port.messages.slice(-2) as { kind: string }[];
-    expect(lastTwo[0]).toMatchObject({ kind: 'appdata-delta', op: 'remove' });
-    expect(lastTwo[1]).toMatchObject({ kind: 'appdata-ack', reqId: 'r1', ok: true });
-  });
-
-  it('detach stops further deltas reaching the listener', () => {
-    const hub = new SharedWorkerDataServicesHub();
-    const portA = makeAppDataPort();
-    const portB = makeAppDataPort();
-    hub.handleAppDataRequest(portA, { kind: 'appdata-attach', subId: 'a', seed: [] });
-    hub.handleAppDataRequest(portB, { kind: 'appdata-attach', subId: 'b' });
-    hub.handleAppDataRequest(portA, { kind: 'appdata-detach', subId: 'a' });
-
-    portA.messages.length = 0;
-    portB.messages.length = 0;
-    hub.handleAppDataRequest(portB, {
-      kind: 'appdata-set', reqId: 'r2',
-      row: appDataRow('a2', 'trades'),
-    });
-    expect(portA.messages).toHaveLength(0);
-    // B: delta + ack (no snapshot — already attached).
-    expect(portB.messages).toHaveLength(2);
-  });
-
-  it('onPortClosed cleans up appdata listeners', () => {
-    const hub = new SharedWorkerDataServicesHub();
-    const portA = makeAppDataPort();
-    const portB = makeAppDataPort();
-    hub.handleAppDataRequest(portA, { kind: 'appdata-attach', subId: 'a', seed: [] });
-    hub.handleAppDataRequest(portB, { kind: 'appdata-attach', subId: 'b' });
-    hub.onPortClosed(portA);
-
-    portA.messages.length = 0;
-    portB.messages.length = 0;
-    hub.handleAppDataRequest(portB, {
-      kind: 'appdata-set', reqId: 'r3',
-      row: appDataRow('a3', 'orders'),
-    });
-    expect(portA.messages).toHaveLength(0);
-    expect(portB.messages).toHaveLength(2);
-  });
-});
-
 // ─── REST transport — hub round-trip ─────────────────────────────────
 //
 // The hub's per-request plumbing is transport-agnostic; the same
@@ -1381,8 +1230,29 @@ function mockProviderRow(id: string, testKey = 'default'): AppConfigRow {
   };
 }
 
-function mockConfigManager(rows: AppConfigRow[]): ConfigManager {
-  const map = new Map(rows.map((r) => [r.configId, r]));
+function mockAppDataRow(id: string, name: string, userId: string): AppConfigRow {
+  return {
+    configId: id,
+    appId: 'TestApp',
+    userId: 'dev1',
+    componentType: 'data-provider',
+    componentSubType: 'appdata',
+    isTemplate: false,
+    displayText: name,
+    payload: {
+      providerType: 'appdata',
+      variables: { userId: { key: 'userId', value: userId, type: 'string', durability: 'volatile' } },
+      __providerMeta: {},
+    },
+    createdBy: 'dev1',
+    updatedBy: 'dev1',
+    creationTime: '2026-01-01T00:00:00.000Z',
+    updatedTime: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function mockConfigManager(rows: AppConfigRow[], live?: Map<string, AppConfigRow>): ConfigManager {
+  const map = live ?? new Map(rows.map((r) => [r.configId, r]));
   return {
     getAppId() { return 'TestApp'; },
     async getAllConfigsUnfiltered() { return [...map.values()]; },
@@ -1399,26 +1269,30 @@ function makeAnyPort(): PortLike & { messages: unknown[] } {
   };
 }
 
-describe('SharedWorkerDataServicesHub — config catalog', () => {
-  it('cfg-free first attach resolves cfg from catalog and starts the provider', async () => {
-    const cache = new ConfigCatalogCache(mockConfigManager([mockProviderRow('p1')]));
-    await cache.loadAll();
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
+describe('SharedWorkerDataServicesHub — provider lifecycle reads (worker-split W1c)', () => {
+  const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const statusOf = (m: Event) => (m as { status?: string }).status;
+
+  it('cfg-free first attach resolves the cfg from IndexedDB on demand and starts the provider', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([mockProviderRow('p1')]) });
     const port = makePort();
 
     hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data' });
+    // The read is in flight — nothing has been posted yet.
+    expect(port.messages).toHaveLength(0);
+    await tick();
 
-    expect(port.messages.some((m) => m.kind === 'status' && (m as { status?: string }).status === 'error')).toBe(false);
+    expect(port.messages.some((m) => m.kind === 'status' && statusOf(m) === 'error')).toBe(false);
     expect(port.messages.some((m) => m.kind === 'delta' && (m as { replace?: boolean }).replace)).toBe(true);
+    expect(controllers.has('default')).toBe(true);
   });
 
-  it('first attach without cfg or catalog entry returns error', async () => {
-    const cache = new ConfigCatalogCache(mockConfigManager([]));
-    await cache.loadAll();
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
+  it('first attach without cfg or catalog row returns error', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([]) });
     const port = makePort();
 
     hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'missing', mode: 'data' });
+    await tick();
 
     expect(port.messages).toHaveLength(1);
     expect(port.messages[0]).toMatchObject({
@@ -1428,147 +1302,123 @@ describe('SharedWorkerDataServicesHub — config catalog', () => {
     });
   });
 
-  it('hub-ready, get-config, and list-configs respond from catalog', async () => {
-    const cache = new ConfigCatalogCache(mockConfigManager([mockProviderRow('p1'), mockProviderRow('p2')]));
-    await cache.loadAll();
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
-    const port = makeAnyPort();
-
-    hub.handleRequest(port, { kind: 'hub-ready', reqId: 'ready-1' });
-    hub.handleRequest(port, { kind: 'get-config', reqId: 'get-1', providerId: 'p1' });
-    hub.handleRequest(port, { kind: 'list-configs', reqId: 'list-1' });
-    // get-config now resolves the provider on demand (async), so match by
-    // reqId rather than positional index.
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-
-    const byReqId = (reqId: string) =>
-      port.messages.find((m) => (m as { reqId?: string }).reqId === reqId);
-    expect(byReqId('ready-1')).toMatchObject({ kind: 'config-snapshot', ok: true, ready: true });
-    expect(byReqId('get-1')).toMatchObject({ kind: 'config-snapshot', ok: true, config: { providerId: 'p1' } });
-    expect(byReqId('list-1')).toMatchObject({
-      kind: 'config-snapshot',
-      ok: true,
-      configs: expect.arrayContaining([
-        expect.objectContaining({ providerId: 'p1' }),
-        expect.objectContaining({ providerId: 'p2' }),
-      ]),
-    });
+  it('inline cfg with a store behind the hub still reads AppData first, then creates', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([]) });
+    const port = makePort();
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: cfg() });
+    expect(port.messages).toHaveLength(0);
+    await tick();
+    expect(port.messages[0]).toMatchObject({ kind: 'status', status: 'loading' });
+    expect(port.messages[1]).toMatchObject({ kind: 'delta', replace: true, rows: [] });
   });
 
-  it('get-config resolves a provider on demand before the catalog preloads', async () => {
-    const cache = new ConfigCatalogCache(mockConfigManager([mockProviderRow('p1')]));
-    // Deliberately skip loadAll() — the worker should still resolve the one
-    // provider via a single-row read (Phase 3 on-demand path).
-    expect(cache.isReady()).toBe(false);
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
-    const port = makeAnyPort();
+  it('concurrent cfg-free attaches share one provider — the second late-joins', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([mockProviderRow('p1')]) });
+    const portA = makePort();
+    const portB = makePort();
 
-    hub.handleRequest(port, { kind: 'get-config', reqId: 'get-od', providerId: 'p1' });
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    hub.handleRequest(portA, { kind: 'attach', subId: 'a', providerId: 'p1', mode: 'data' });
+    hub.handleRequest(portB, { kind: 'attach', subId: 'b', providerId: 'p1', mode: 'data' });
+    await tick();
 
-    expect(port.messages.find((m) => (m as { reqId?: string }).reqId === 'get-od')).toMatchObject({
-      kind: 'config-snapshot',
-      ok: true,
-      config: { providerId: 'p1' },
-    });
-    // The resolved row is now cached, so a follow-up attach finds it.
-    expect(cache.get('p1')?.providerId).toBe('p1');
+    expect(controllers.size).toBe(1);
+    expect(portA.messages.some(isReplaceDelta)).toBe(true);
+    expect(portB.messages.some(isReplaceDelta)).toBe(true);
+    expect(hub.buildIntrospectSnapshot().runningProviderCount).toBe(1);
   });
 
-  it('config-invalidate reloads an updated row from ConfigManager', async () => {
-    const rows = new Map([['p1', { ...mockProviderRow('p1'), displayText: 'Original' }]]);
-    const cm = {
-      async getAllConfigsUnfiltered() { return [...rows.values()]; },
-    async getConfigsByComponentTypesUnfiltered(types: string[]) { return [...rows.values()].filter((r) => types.includes(r.componentType)); },
-      async getConfig(id: string) { return rows.get(id); },
-    } as unknown as ConfigManager;
-    const cache = new ConfigCatalogCache(cm);
-    await cache.loadAll();
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
-    const port = makeAnyPort();
-
-    rows.set('p1', { ...mockProviderRow('p1'), displayText: 'Updated' });
-    await cache.invalidate('p1');
-    expect(cache.get('p1')?.name).toBe('Updated');
-
-    port.messages.length = 0;
-    hub.handleRequest(port, { kind: 'get-config', reqId: 'get-2', providerId: 'p1' });
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    expect(port.messages[0]).toMatchObject({
-      kind: 'config-snapshot',
-      ok: true,
-      config: { providerId: 'p1', name: 'Updated' },
-    });
-  });
-
-  it('handleConfigInvalidate RPC reloads a single catalog row', async () => {
-    const rows = new Map([['p1', { ...mockProviderRow('p1'), displayText: 'Original' }]]);
-    const cm = {
-      async getAllConfigsUnfiltered() { return [...rows.values()]; },
-    async getConfigsByComponentTypesUnfiltered(types: string[]) { return [...rows.values()].filter((r) => types.includes(r.componentType)); },
-      async getConfig(id: string) { return rows.get(id); },
-    } as unknown as ConfigManager;
-    const cache = new ConfigCatalogCache(cm);
-    await cache.loadAll();
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
-    const port = makeAnyPort();
-
-    rows.set('p1', { ...mockProviderRow('p1'), displayText: 'Updated' });
-    hub.handleRequest(port, { kind: 'config-invalidate', reqId: 'inv-1', providerId: 'p1' });
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-
-    expect(port.messages.find((m) => (m as { reqId?: string }).reqId === 'inv-1')).toMatchObject({
-      kind: 'config-snapshot',
-      ok: true,
-    });
-    expect(cache.get('p1')?.name).toBe('Updated');
-  });
-
-  it('hub-introspect returns running providers, catalog idle rows, and AppData', async () => {
-    const cache = new ConfigCatalogCache(mockConfigManager([mockProviderRow('p1'), mockProviderRow('p2')]));
-    await cache.loadAll();
-    const hub = new SharedWorkerDataServicesHub({ configCatalog: cache });
+  it('a detach that lands during the lifecycle read cancels the attach', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([mockProviderRow('p1')]) });
     const port = makePort();
 
-    hub.handleRequest(port, { kind: 'attach', subId: 'd1', providerId: 'p1', mode: 'data', cfg: cfg() });
-    hub.handleAppDataRequest(port, {
-      kind: 'appdata-attach',
-      subId: 'appdata-1',
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data' });
+    hub.handleRequest(port, { kind: 'detach', subId: 's1' });
+    await tick();
+
+    expect(port.messages).toHaveLength(0);
+    expect(hub.buildIntrospectSnapshot().runningProviderCount).toBe(0);
+  });
+
+  it('a port closed during the lifecycle read drops its pending attach', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([mockProviderRow('p1')]) });
+    const port = makePort();
+
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data' });
+    hub.onPortClosed(port);
+    await tick();
+
+    expect(port.messages).toHaveLength(0);
+    expect(hub.buildIntrospectSnapshot().runningProviderCount).toBe(0);
+  });
+
+  it('a failed IndexedDB read surfaces as status:error instead of a stranded attach', async () => {
+    const cm = {
+      getAppId() { return 'TestApp'; },
+      async getConfigsByComponentTypesUnfiltered() { throw new Error('idb closed'); },
+      async getConfig() { throw new Error('idb closed'); },
+    } as unknown as ConfigManager;
+    const hub = new SharedWorkerDataServicesHub({ configManager: cm });
+    const port = makePort();
+
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data' });
+    await tick();
+
+    expect(port.messages).toEqual([expect.objectContaining({ kind: 'status', status: 'error', error: 'idb closed' })]);
+  });
+
+  it('resolves {{name.key}} tokens from a fresh read at create AND at reconfigure', async () => {
+    const seen: string[] = [];
+    registerProvider('mock' as ProviderConfig['providerType'], (c, emit) => {
+      seen.push((c as unknown as { url: string }).url);
+      const ctrl: TestController = { emit, stopCount: 0, restartLog: [] };
+      controllers.set('default', ctrl);
+      return { stop() { ctrl.stopCount += 1; }, restart(extra) { ctrl.restartLog.push(extra); } };
     });
-    hub.handleAppDataRequest(port, {
-      kind: 'appdata-upsert',
-      reqId: 'upsert-1',
-      row: {
-        configId: 'cfg-positions',
-        name: 'positions',
-        isPublic: true,
-        values: { asOfDate: '2026-05-28' },
-        userId: 'system',
-      },
-    });
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const rows = new Map<string, AppConfigRow>([['ad-1', mockAppDataRow('ad-1', 'App1Data', 'alice')]]);
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([...rows.values()], rows) });
+    const port = makePort();
+    const templated = cfg('default', { url: 'https://x/{{App1Data.userId}}' });
+
+    hub.handleRequest(port, { kind: 'attach', subId: 's1', providerId: 'p1', mode: 'data', cfg: templated });
+    await tick();
+    expect(seen).toEqual(['https://x/alice']);
+
+    // The row is edited out-of-band (the platform worker persisted it). The
+    // data hub receives no invalidation — the next lifecycle moment
+    // (editor reconnect: cfg + extra) re-reads and resolves the new value.
+    rows.set('ad-1', mockAppDataRow('ad-1', 'App1Data', 'bob'));
+    hub.handleRequest(port, { kind: 'attach', subId: 's2', providerId: 'p1', mode: 'data', cfg: templated, extra: { __refresh: 1 } });
+    await tick();
+    expect(seen).toEqual(['https://x/alice', 'https://x/bob']);
+  });
+
+  it('hub-introspect reports running providers and no catalog', async () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([mockProviderRow('p1')]) });
+    const port = makeAnyPort();
+    hub.handleRequest(port, { kind: 'attach', subId: 'd1', providerId: 'p1', mode: 'data' });
+    await tick();
 
     hub.handleRequest(port, { kind: 'hub-introspect', reqId: 'intro-1' });
-
     const snap = port.messages.find((m) => (m as { reqId?: string }).reqId === 'intro-1') as {
       ok: boolean;
-      introspect?: {
-        runningProviderCount: number;
-        providers: Array<{ providerId: string; running: boolean }>;
-        appData: { rows: Array<{ name: string }> };
-      };
+      introspect?: { runningProviderCount: number; catalogReady: boolean; catalogProviderCount: number; providers: Array<{ providerId: string; running: boolean }> };
     };
     expect(snap).toMatchObject({ kind: 'config-snapshot', ok: true });
     expect(snap.introspect?.runningProviderCount).toBe(1);
-    expect(snap.introspect?.providers).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ providerId: 'p1', name: 'p1', running: true, cfg: expect.objectContaining({ providerType: 'mock' }) }),
-        expect.objectContaining({ providerId: 'p2', name: 'p2', running: false, cfg: expect.objectContaining({ providerType: 'mock' }) }),
-      ]),
-    );
-    expect(snap.introspect?.appData.rows).toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: 'positions', keyCount: 1, values: { asOfDate: '2026-05-28' } })]),
-    );
+    expect(snap.introspect?.catalogReady).toBe(false);
+    expect(snap.introspect?.catalogProviderCount).toBe(0);
+    expect(snap.introspect?.providers).toEqual([expect.objectContaining({ providerId: 'p1', running: true })]);
+  });
+
+  it('does not answer catalog or AppData RPCs — those live on the platform-services worker', () => {
+    const hub = new SharedWorkerDataServicesHub({ configManager: mockConfigManager([mockProviderRow('p1')]) });
+    const port = makeAnyPort();
+    hub.handleRequest(port, { kind: 'hub-ready', reqId: 'r1' });
+    hub.handleRequest(port, { kind: 'get-config', reqId: 'r2', providerId: 'p1' });
+    hub.handleRequest(port, { kind: 'list-configs', reqId: 'r3' });
+    hub.handleRequest(port, { kind: 'config-invalidate', reqId: 'r4' });
+    expect(port.messages).toHaveLength(0);
+    expect((hub as unknown as { handleAppDataRequest?: unknown }).handleAppDataRequest).toBeUndefined();
   });
 });
 

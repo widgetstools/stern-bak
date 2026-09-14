@@ -40,6 +40,7 @@ import {
   mergeFilterModels,
   subtractFilterModel,
 } from './filtersToolbarLogic';
+import { useSsrmFilterCounts, useSsrmRowCounter } from './useSsrmFilterCounts';
 import type { SavedFilter } from './types';
 
 // ─── AG-Grid v35 shape repair ──────────────────────────────────────────
@@ -104,6 +105,38 @@ function sanitizeFilterEntry(colId: string, entry: unknown): unknown | null {
     return { ...e, values: recovered };
   }
 
+  return entry;
+}
+
+/**
+ * SSRM set filters won't apply a model until their values callback
+ * resolves. A one-value pill (`desk: Govies`) is just an equals, which
+ * AG Grid will send on getRows without waiting on that list — so the
+ * grouped store is not held empty after the first block.
+ */
+function rewriteSetFiltersForSsrm(
+  model: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!model) return null;
+  const out: Record<string, unknown> = {};
+  for (const [col, entry] of Object.entries(model)) {
+    out[col] = rewriteSetEntryForSsrm(entry);
+  }
+  return out;
+}
+
+function rewriteSetEntryForSsrm(entry: unknown): unknown {
+  if (!entry || typeof entry !== 'object') return entry;
+  const e = entry as { filterType?: string; values?: unknown[]; filterModels?: unknown[] };
+  if (e.filterType === 'multi' && Array.isArray(e.filterModels)) {
+    return { ...e, filterModels: e.filterModels.map(rewriteSetEntryForSsrm) };
+  }
+  if ((e.filterType === 'set' || e.values !== undefined) && Array.isArray(e.values) && e.values.length === 1) {
+    const value = e.values[0];
+    return typeof value === 'number'
+      ? { filterType: 'number', type: 'equals', filter: value }
+      : { filterType: 'text', type: 'equals', filter: String(value) };
+  }
   return entry;
 }
 
@@ -259,7 +292,14 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
   const filterCountsRef = useRef<Record<string, number>>({});
   const matchSetsRef = useRef<Map<string, Set<string>>>(new Map());
 
+  // Under SSRM the row nodes are just the loaded blocks, so the walk below
+  // would count block contents rather than the dataset. The engine answers
+  // instead — see useSsrmFilterCounts.
+  const ssrmCounter = useSsrmRowCounter();
+  const ssrmCounts = useSsrmFilterCounts(filters, ssrmCounter);
+
   useEffect(() => {
+    if (ssrmCounter) return undefined;
     const disposers: Array<() => void> = [];
     disposers.push(
       platform.api.onReady((liveApi) => {
@@ -353,9 +393,9 @@ function useFilterCounts(filters: readonly SavedFilter[]): Record<string, number
       }),
     );
     return () => { for (const d of disposers) d(); };
-  }, [platform, filters]);
+  }, [platform, filters, ssrmCounter]);
 
-  return filterCounts;
+  return ssrmCounter ? ssrmCounts : filterCounts;
 }
 
 /**
@@ -373,6 +413,14 @@ function useFilterModelSync(filters: readonly SavedFilter[]): boolean {
   const platform = useGridPlatform();
   const api = useGridApi();
   const [hasNewFilter, setHasNewFilter] = useState(false);
+  // Under SSRM a set-filter pill put in front of the first block holds the
+  // grid on "loading": AG Grid will not apply the model (or paint rows)
+  // until the values callback resolves, and a grouped request plus that
+  // wait is the empty grid in the screenshot. CSRM has the rows already,
+  // so it can push immediately.
+  const ssrm = useSsrmRowCounter() != null;
+  const ssrmReadyRef = useRef(!ssrm);
+  useEffect(() => { ssrmReadyRef.current = !ssrm; }, [ssrm]);
 
   // Latest filters captured in a ref so platform-level listeners
   // (profile:loaded, firstDataRendered) can reach the freshest list
@@ -384,6 +432,8 @@ function useFilterModelSync(filters: readonly SavedFilter[]): boolean {
   // Centralised so the React effect, profile:loaded listener, and
   // firstDataRendered listener all use the exact same code path.
   const pushActiveFilterModel = useCallback((liveApi: GridApi) => {
+    if (!ssrmReadyRef.current) return;
+
     const syncHasNewFilter = () => {
       const raw = liveApi.getFilterModel() as Record<string, unknown> | null;
       const live = sanitizeFilterModel(raw);
@@ -403,7 +453,9 @@ function useFilterModelSync(filters: readonly SavedFilter[]): boolean {
       // as undefined / object / string) would take down the whole grid
       // mount. Sanitize first; on throw, log and skip so the grid stays
       // usable.
-      const nextModel = sanitizeFilterModel(model);
+      const nextModel = ssrm
+        ? rewriteSetFiltersForSsrm(sanitizeFilterModel(model))
+        : sanitizeFilterModel(model);
       const currentModel = sanitizeFilterModel(
         liveApi.getFilterModel() as Record<string, unknown> | null,
       );
@@ -417,7 +469,7 @@ function useFilterModelSync(filters: readonly SavedFilter[]): boolean {
       console.error('[FiltersToolbar] setFilterModel threw — ignoring this push so the grid stays usable.', { model, err });
     }
     syncHasNewFilter();
-  }, []);
+  }, [ssrm]);
 
   // ─── Push the merged filter into AG-Grid whenever the active set changes ─
   // Handles in-session edits (toggle, add, remove, rename, edit-model).
@@ -443,17 +495,18 @@ function useFilterModelSync(filters: readonly SavedFilter[]): boolean {
     });
   }, [platform, pushActiveFilterModel]);
 
-  // ─── Re-push once on firstDataRendered ──────────────────────────────────
-  // Cold-mount safety net: at first profile-load, setFilterModel may run
-  // before AG-Grid has fully registered its columns (column transforms
-  // can race with profile deserialize). Re-applying once after AG-Grid
-  // signals firstDataRendered ensures the active pill's filter is live
-  // by the time the user sees rows.
+  // ─── First block, then the pill ─────────────────────────────────────────
+  // Cold-mount safety net (CSRM): setFilterModel may run before columns
+  // are registered. Under SSRM this is the FIRST apply — the mount /
+  // profile:loaded pushes above are no-ops until the first block has
+  // painted, so a grouped grid is not held empty waiting on set-filter
+  // values.
   useEffect(() => {
     let fired = false;
     const dispose = platform.api.on('firstDataRendered', () => {
       if (fired) return;
       fired = true;
+      ssrmReadyRef.current = true;
       const liveApi = platform.api.api;
       if (liveApi) pushActiveFilterModel(liveApi);
     });

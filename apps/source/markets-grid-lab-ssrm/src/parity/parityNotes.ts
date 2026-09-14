@@ -1,0 +1,198 @@
+/**
+ * SSRM parity, feature by feature — the reason this app exists.
+ *
+ * Each entry is the honest status of one lab tab when the SAME
+ * `LabFeatureConfig` runs against the server-side row model, with the
+ * mechanism behind every gap. Grounded in the SSRM handoff
+ * (docs/superpowers/plans/2026-09-11-ssrm-hardening-handoff.md), the grid's
+ * honesty locks, and what this app exercises live; `parityNotes.test.ts`
+ * pins one entry per tab so a new lab tab cannot ship without a verdict.
+ */
+
+export type ParityStatus = 'full' | 'partial' | 'gap';
+
+export interface ParityEntry {
+  tabId: string;
+  label: string;
+  status: ParityStatus;
+  /** One line for the matrix. */
+  summary: string;
+  /** The mechanisms — what works, what doesn't, and why. */
+  notes: string[];
+}
+
+export const PARITY: ParityEntry[] = [
+  {
+    tabId: 'overview',
+    label: 'Overview',
+    status: 'full',
+    summary: 'Full chrome; counts and aggregations come from the engine instead of row walks.',
+    notes: [
+      'Status bar panels are the engine-backed SSRM set (total / filtered / selected / aggregation) — same ag-status chrome, numbers from getRowCount/getAggregates, dash until the first answer.',
+      'Header select-all uses server-side selection state; selected counts resolve group trees via engine __count.',
+      'Row grouping is engine-side, one level per request; group rows show engine child counts.',
+      'Pivot works from the columns tool panel (engine pivots grouped views; | field separator).',
+    ],
+  },
+  {
+    tabId: 'formatting',
+    label: 'Formatting',
+    status: 'full',
+    summary: 'Value formatters are client-side rendering — identical over loaded block rows.',
+    notes: [
+      'Excel format strings, Intl formatters and tick flashes all run on rendered cells; the row model changes where rows come from, not how cells paint.',
+      'Date columns are declared dateString in the engine schema, so date filters/sorts run on the numeric epoch shadow rather than lexicographic strings.',
+    ],
+  },
+  {
+    tabId: 'visual-excel',
+    label: 'Visual Excel',
+    status: 'full',
+    summary: 'Exports drain the filtered book from the engine — never just loaded blocks.',
+    notes: [
+      'exportSsrmVisualExcel pulls all matching rows via chunked getRows (refused above 250k rows) and runs the same styling pipeline on a hidden grid.',
+      'A selection export honours server-side selection state, including group-selection trees.',
+    ],
+  },
+  {
+    tabId: 'renderers',
+    label: 'Cell Renderers',
+    status: 'partial',
+    summary: 'All renderers paint; synthetic valueGetter columns are locked for sort/filter.',
+    notes: [
+      'Pills, heatmaps, percent bars, trend arrows render from block row data exactly as CSRM.',
+      'KRD sparkline and bid/ask width are client valueGetters with no engine column — sorting/filtering them would silently order by nothing, so they carry the staruiSsrmClientExpr brand and the honesty lock disables sort/filter/group with a tooltip. (Calculated columns in the expression grammar are NOT in this bucket anymore — they compile into the engine, see the Calculated tab.)',
+      'The KRD inputs (krd1Y…krd30Y) ride the engine schema so the sparkline has data on every loaded row.',
+    ],
+  },
+  {
+    tabId: 'toolbar',
+    label: 'Formatter Toolbar',
+    status: 'full',
+    summary: 'Live cell/header painting is customizer state — row-model agnostic.',
+    notes: [
+      'Formatter toolbar writes module state applied through colDef transforms; identical under SSRM.',
+    ],
+  },
+  {
+    tabId: 'groups',
+    label: 'Column Groups',
+    status: 'full',
+    summary: 'Header groups are pure column-def structure — identical.',
+    notes: [
+      'Column groups, visibility and pinning are client concerns; profile save/restore works, including SSRM group-expansion restore via isServerSideGroupOpenByDefault.',
+    ],
+  },
+  {
+    tabId: 'calc',
+    label: 'Calculated Columns',
+    status: 'full',
+    summary: 'Compiled expressions run IN the engine — sort/filter/group work dataset-wide.',
+    notes: [
+      'Expressions in the engine grammar compile to the wire contract and ride every block request as computed columns; the WASM engine evaluates them per row (plan §12 T3), pinned to client semantics by a 44-case golden corpus.',
+      'Sort, filter, row-group and aggregation on a compiled column happen engine-side over the whole book — the lock now applies only to columns OUTSIDE the grammar (diff refs, REGEX_MATCH…), and the customizer chip says which is which (ENGINE vs GRID).',
+      'Aggregate scalars — SUM/AVG/MIN/MAX/COUNT and, since T4, MEDIAN/STDEV/VARIANCE/DISTINCT_COUNT — resolve engine-side over the filtered set, never as loaded-block statistics.',
+    ],
+  },
+  {
+    tabId: 'conditional',
+    label: 'Conditional Styling',
+    status: 'partial',
+    summary: 'Rules paint what is on screen; aggregate thresholds read the whole book.',
+    notes: [
+      'Styling rules and indicators evaluate on rendered rows: viewport-scoped is the honest semantic (they paint what you see).',
+      'Aggregate thresholds — [px] > AVG([px]) and friends — resolve engine-wide over the current filter (the same getAggregates session calculated columns use), so the THRESHOLD is the book value even though only loaded rows get painted. Under CSRM the same rule reads the full row snapshot.',
+      'Rules never see unloaded rows, so a "count of rows matching a style" intuition does not transfer; use engine-backed counts instead.',
+      'Transaction-first ticks keep flash/timed activations working (asyncTransactionsFlushed fires).',
+    ],
+  },
+  {
+    tabId: 'filters',
+    label: 'Quick Filters',
+    status: 'full',
+    summary: 'Pills filter engine-side; badges count the whole book via the engine.',
+    notes: [
+      'Saved-filter pills apply their model to block requests; badge counts come from getRowCount per pill (tick-gated: zero RPCs at idle).',
+      'Set-filter value lists are engine-supplied and scoped to other filters and the quick search.',
+      'Quick search is multi-word AND-of-OR across every text column, matched in the worker.',
+    ],
+  },
+  {
+    tabId: 'live',
+    label: 'Live Updates',
+    status: 'full',
+    summary: 'Ticks apply as transactions; refreshes only when position could change.',
+    notes: [
+      'Engine deltas arrive as applyServerSideTransactionAsync updates (cell flash, alerts and styling all fire); removals apply as remove transactions.',
+      'Sorted/filtered/grouped views refresh positionally on a throttle instead of per tick — measured 0 long tasks at 10k updates/s unsorted.',
+      'The demo rail pauses/paces the feed through provider.restart (mock soft-restart).',
+    ],
+  },
+  {
+    tabId: 'alerts',
+    label: 'Alerts',
+    status: 'full',
+    summary: 'Compiled data-change rules watch the WHOLE book via engine membership deltas.',
+    notes: [
+      'A data-change rule whose expression compiles becomes an engine predicate watch (plan §12 T5): the engine diffs the predicate\'s row set per revision and pushes entered rows as viewDelta ticks — a row three pages below the viewport fires the alert.',
+      'Engine-watched rules are excluded from the client evaluator, so a loaded row\'s transition cannot fire twice; deltas route only to the grid that owns the rule (two windows never double-fire).',
+      'Rules outside the wire grammar — diff refs (oldValue…), column-scoped rules, relativeChange — stay client-side on loaded rows, and the settings band says so.',
+    ],
+  },
+  {
+    tabId: 'editing',
+    label: 'Editing',
+    status: 'full',
+    summary: 'The whole family persists through the engine write path — undo/redo included.',
+    notes: [
+      'Cell edits, fills and pastes coalesce into ssrm-apply-edits; the worker edit overlay holds them over stale feed resends, and every window on the provider sees them.',
+      'Smart Edit and every editing-core patch path (applyPatches seam) persist via the SSRM edit writer the surface attaches (plan §12 C1) — the same write path pastes use.',
+      'Undo/redo flows through the same seam: an undo applies the inverse patches as an ordinary engine write (plan §12 C2).',
+      'A paste that would land on unloaded block placeholders is refused with a warning rather than silently partial.',
+    ],
+  },
+  {
+    tabId: 'bulk-update',
+    label: 'Bulk Update',
+    status: 'full',
+    summary: 'Writes persist through the engine edit writer — enabled under SSRM.',
+    notes: [
+      'Bulk update funnels through the editing-core applyPatches seam, which now also writes ssrm-apply-edits when the surface attached the engine writer (plan §12 C1) — loaded rows repaint immediately, the engine holds the values, every window sees them.',
+      'Without a write-capable provider (no applyEdits) the honest disable still stands.',
+    ],
+  },
+  {
+    tabId: 'plus-minus',
+    label: 'Plus / Minus',
+    status: 'full',
+    summary: 'Keyboard nudges persist through the engine edit writer.',
+    notes: [
+      'Same applyPatches seam as bulk update — the nudge paints and persists via ssrm-apply-edits; the worker overlay holds it over feed resends.',
+      'Without the engine writer the nudge stays disabled rather than silently non-persistent.',
+    ],
+  },
+  {
+    tabId: 'shortcuts',
+    label: 'Shortcuts',
+    status: 'full',
+    summary: 'Letter-key arithmetic persists through the engine edit writer.',
+    notes: [
+      'Same applyPatches seam — writes land engine-side like a paste.',
+      'Without the engine writer the shortcut keys stay disabled.',
+    ],
+  },
+  {
+    tabId: 'profiles',
+    label: 'Profiles',
+    status: 'full',
+    summary: 'Profiles are customizer + grid state — row-model agnostic, including expansion.',
+    notes: [
+      'Formatting, styling, calculated and filter state save/restore identically.',
+      'Grid state restores under SSRM including expanded groups (captured from loaded nodes, replayed via isServerSideGroupOpenByDefault as rows load).',
+    ],
+  },
+];
+
+export function parityFor(tabId: string): ParityEntry | undefined {
+  return PARITY.find((p) => p.tabId === tabId);
+}

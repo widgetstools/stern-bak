@@ -21,6 +21,7 @@ export {
   topoSortModules,
   ApiHub,
   RowChangeBus,
+  ExternalFilterColumnRegistry,
   ResourceScope,
   CssInjector,
   PipelineRunner,
@@ -34,6 +35,7 @@ export type {
   CssHandle,
   EditorPaneProps,
   ExpressionEngineLike,
+  ExternalFilterColumns,
   GridApi,
   GridOptions,
   GetRowIdFunc,
@@ -44,6 +46,7 @@ export type {
   PlatformEventMap,
   PlatformHandle,
   RowChange,
+  RowChangeFeed,
   RowChangeSignal,
   SerializedState,
   SettingsPanelProps,
@@ -114,12 +117,28 @@ export {
   tryCompileToAgString,
   astUsesAggregateFunctions,
   getAggregateFunctionNames,
+  SSRM_EXPR_AGG_KEY,
+  lookupSsrmExprAggregate,
+  simpleColumnAggregate,
+  simpleAggFuncForColumn,
+  classifySsrmExpression,
+  compileToEngineExpression,
+  toComputedColumnSpec,
+  collectColumnRefs,
+} from './expression';
+export type {
+  CompileToEngineExpressionResult,
+  SsrmExpressionClassification,
+  SsrmExpressionTier,
 } from './expression';
 export type {
   ExpressionNode,
   EvaluationContext,
   ValidationResult,
   FunctionDefinition,
+  SsrmExprAggLookup,
+  SimpleAggFn,
+  SimpleColumnAggregate,
 } from './expression';
 export { migrateExpressionSyntax, migrateExpressionsInObject } from './expression/migrate';
 

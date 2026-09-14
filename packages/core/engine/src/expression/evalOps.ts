@@ -40,7 +40,9 @@ export function applyBinary(op: string, left: unknown, right: unknown): unknown 
     case '*':
       return (left as number) * (right as number);
     case '/':
-      if ((right as number) === 0) return null;
+      // `null` is the pending-aggregate sentinel under SSRM
+      // (`[col] / SUM([col])` must not flash `Infinity`).
+      if (right == null || (right as number) === 0) return null;
       return (left as number) / (right as number);
     case '%':
       return (left as number) % (right as number);
@@ -92,6 +94,27 @@ export function resolveColumnRef(columnId: string, ctx: EvaluationContext): unkn
   if (fromColumns !== undefined && fromColumns !== null) return fromColumns;
   const fromData = getValueByPath(ctx.data, columnId);
   return fromData ?? null;
+}
+
+export type ResolvedAggregate = { ok: true; value: unknown } | { ok: false };
+
+/**
+ * Dataset-wide short-circuit for `FN([column])` when the caller supplied
+ * {@link EvaluationContext.resolveAggregate}. Used under SSRM so SUM / AVG
+ * / MIN / MAX / COUNT do not reduce the loaded cache block via `allRows`.
+ * `undefined` from the resolver means "I don't handle this fn" and falls
+ * through to {@link buildCallArgs}.
+ */
+export function tryResolvedAggregate(
+  fn: FunctionDefinition,
+  argNodes: readonly ExpressionNode[],
+  ctx: EvaluationContext,
+): ResolvedAggregate {
+  if (!fn.aggregateColumnRefs || !ctx.resolveAggregate) return { ok: false };
+  if (argNodes.length !== 1 || argNodes[0].type !== 'columnRef') return { ok: false };
+  const value = ctx.resolveAggregate(fn.name, argNodes[0].columnId);
+  if (value === undefined) return { ok: false };
+  return { ok: true, value };
 }
 
 /**

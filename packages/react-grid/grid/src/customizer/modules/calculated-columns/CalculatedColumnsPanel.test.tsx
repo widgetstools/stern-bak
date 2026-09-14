@@ -264,4 +264,40 @@ describe('CalculatedColumnsPanel (v4)', () => {
     );
     expect(screen.getByTestId('cc-panel')).toBeTruthy();
   });
+
+  it('says which SSRM tier a column is in — and stays silent under CSRM', () => {
+    // CSRM (no api / client row model): no tier chrome at all.
+    render(<MasterDetail platform={platform} />);
+    expect(screen.queryByTestId('cc-virtual-ssrm-note-grossPnl')).toBeNull();
+    cleanup();
+
+    // SSRM: the editor names the tier and why sort/filter/group are off.
+    const ssrmPlatform = makePlatform();
+    ssrmPlatform.api.attach({
+      getGridOption: (key: string) => (key === 'rowModelType' ? 'serverSide' : undefined),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      isDestroyed: () => false,
+    } as never);
+    render(<MasterDetail platform={ssrmPlatform} />);
+    // `[price] * [quantity] / 1000` compiles — the engine evaluates it (T3).
+    expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
+      .toMatch(/WASM engine evaluates it per row/i);
+    expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
+      .not.toMatch(/engine-wide totals/i);
+
+    // An aggregate expression is flagged as reading engine-wide totals.
+    fireEvent.change(screen.getByTestId('cc-virtual-expr-grossPnl'), {
+      target: { value: 'SUM([price])' },
+    });
+    expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
+      .toMatch(/engine-wide totals/i);
+
+    // Outside the grammar → stays a locked grid column, computed per loaded row.
+    fireEvent.change(screen.getByTestId('cc-virtual-expr-grossPnl'), {
+      target: { value: "REGEX_MATCH([desk], '^G')" },
+    });
+    expect(screen.getByTestId('cc-virtual-ssrm-note-grossPnl').textContent)
+      .toMatch(/computed in the grid per loaded row/i);
+  });
 });

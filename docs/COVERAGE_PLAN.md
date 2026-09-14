@@ -158,7 +158,7 @@ measurement described above.
 
 **1 — logic, no React.** `host-config`'s `ConfigManager.ts` is at 66.2% and only
 needs its error paths; `db.ts`/`errors.ts`/`seedDigest.ts` are small.
-`host-data`'s `createDataPort.ts` and `bootstrapWithWorkerAsset.ts` are at 0%.
+`host-data`'s `createDataPort.ts` is at 0% (`bootstrapWithWorkerAsset.ts` was deleted with the worker split).
 
 **2 — first React-heavy session.** `useDockEditor` already has a suite to copy
 the mocking pattern from (mock `@wellsfargo-starui/openfin-platform/config`,

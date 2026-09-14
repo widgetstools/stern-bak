@@ -126,7 +126,11 @@ export const calculatedColumnsModule: Module<CalculatedColumnsState> = {
     const disposers = [
       platform.api.on('cellValueChanged', onDataEvent),
       platform.api.on('rowValueChanged', onDataEvent),
-      platform.api.on('rowDataUpdated', onDataEvent),
+      // Streaming updates refresh rows in place and no longer ride
+      // transactions (refactor plan B1), so `rowDataUpdated` only fires for a
+      // snapshot / add / remove; the row-change bus carries every changed
+      // row, structural or not, coalesced per frame.
+      platform.rows.subscribe(onDataEvent),
     ];
     return () => {
       if (rafHandle !== null && typeof cancelAnimationFrame === 'function') {

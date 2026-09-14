@@ -1,7 +1,7 @@
 /**
- * SharedWorkerDataServicesHub — single-process state machine that fans
- * incoming requests to provider factories and outgoing events to
- * subscriber ports. Lives inside the SharedWorker.
+ * SharedWorkerDataServicesHub — the DATA-PLANE brain of the data-services
+ * SharedWorker: fans incoming requests to provider factories and outgoing
+ * events to subscriber ports.
  *
  * Providers lazy-create on first `attach` (later attaches reuse the
  * running instance), auto-stop when the last data + stats subscriber
@@ -11,12 +11,22 @@
  * triggers `provider.restart(extra)` (historical date picker /
  * refresh button paths).
  *
+ * Since the worker split (plan W1c) this hub serves NO config catalog and
+ * NO AppData: those RPCs live in {@link PlatformServicesHost} on the
+ * platform-services worker, whose event loop never carries ingest. The
+ * one config/AppData coupling left here is {@link ProviderLifecycleReads}
+ * — an on-demand IndexedDB read at provider lifecycle moments (create /
+ * restart / reconfigure) that resolves the provider cfg and the
+ * `{{name.key}}` tokens in it.
+ *
  * The subsystems live in sibling modules; this class is orchestration:
  *   - {@link SubscriberRegistry} — listener membership, subId index
- *   - {@link HubAppDataService} — AppData store + RPC + persistence
+ *   - {@link ProviderLifecycleReads} — cfg + AppData reads at lifecycle moments
+ *   - {@link HubSsrmRpc} — SSRM block RPCs, engine sessions, the tick loop
+ *   - {@link HubStatsSampler} — the 1 Hz diagnostics sampler
+ *   - {@link ReplayScheduler} — round-robin late-join replay fan-out
  *   - `providerEmit.ts` — upstream event application + encode
  *   - `replayCache.ts` — bucketed late-join replay encoding
- *   - `hubCatalogRpc.ts` — config/catalog request handlers
  *   - `hubIntrospect.ts` / `hubStats.ts` — diagnostics snapshots
  */
 
@@ -25,46 +35,40 @@ import type {
   AttachRequest,
   DetachRequest,
   Event,
-  ProviderStats,
   Request,
   StopRequest,
-  AppDataRequest,
-  CatalogEvent,
   RefreshProviderRequest,
   HubIntrospectSnapshot,
 } from '../protocol.js';
 import { startProvider } from '../providers/registry.js';
 import type { ProviderEmit, ProviderEmitEvent, ProviderHandle } from '../providers/Provider.js';
-import { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
 import {
   traceStompProviderCfg,
   traceWorkerAppDataSnapshot,
 } from '../template/templateTrace.js';
 import {
-  LATE_JOIN_CHUNK_SIZE,
   SEC_WINDOW,
   MIN_WINDOW,
   type PortLike,
   type ProviderSlot,
-  type StatsListener,
   type SharedWorkerDataServicesHubOpts,
   SUBSCRIBER_SWEEP_INTERVAL_MS,
 } from './hubTypes.js';
 import { restartClickLatency, restartExtrasEqual } from './hubHelpers.js';
-import { newReplayCache, ensureReplayChunks } from './replayCache.js';
-import { rotateStatsBuckets, snapshotProviderStats, zeroedStats } from './hubStats.js';
+import { newReplayCache } from './replayCache.js';
+import { ReplayScheduler } from './ReplayScheduler.js';
+import { yieldToMacrotask } from './yieldToMacrotask.js';
+import { snapshotProviderStats } from './hubStats.js';
 import { applyProviderEmit, type ProviderEmitContext } from './providerEmit.js';
-import { buildIntrospectSnapshot, type IntrospectSources } from './hubIntrospect.js';
+import { buildIntrospectSnapshot } from './hubIntrospect.js';
 import {
-  handleHubReady,
   handleHubIntrospect,
   handleProviderRunning,
-  handleGetConfig,
-  handleListConfigs,
-  handleConfigInvalidate,
-  type CatalogRpcContext,
+  type IntrospectRpcContext,
 } from './hubCatalogRpc.js';
-import { HubAppDataService } from './HubAppDataService.js';
+import { HubSsrmRpc } from './HubSsrmRpc.js';
+import { HubStatsSampler } from './HubStatsSampler.js';
+import { ProviderLifecycleReads } from './ProviderLifecycleReads.js';
 import { SubscriberRegistry } from './SubscriberRegistry.js';
 
 // Re-exported for back-compat with `worker/index.ts` consumers.
@@ -80,42 +84,72 @@ const DEBUG = false;
 export class SharedWorkerDataServicesHub {
   private readonly providers = new Map<string, ProviderSlot>();
   private readonly subscribers = new SubscriberRegistry();
-  private readonly appDataSvc: HubAppDataService;
-  private readonly configCatalog: ConfigCatalogCache | null;
+  private readonly lifecycle: ProviderLifecycleReads;
   private readonly connectedPorts = new Set<PortLike>();
+  /**
+   * Attaches whose lifecycle read (cfg / AppData from IndexedDB) is still in
+   * flight, by subId → port. A detach, port close or dispose that lands
+   * meanwhile removes the entry, and the read's continuation then drops
+   * the attach instead of registering a listener nobody owns.
+   */
+  private readonly pendingAttaches = new Map<string, PortLike>();
 
-  private readonly statsIntervalMs: number;
   private readonly setTimer: (cb: () => void, ms: number) => unknown;
   private readonly clearTimer: (handle: unknown) => void;
-  private statsTimer: unknown = null;
   private subscriberSweepTimer: unknown = null;
 
   private readonly emitCtx: ProviderEmitContext;
-  private readonly catalogRpcCtx: CatalogRpcContext;
+  private readonly introspectCtx: IntrospectRpcContext;
+  private readonly ssrm: HubSsrmRpc;
+  private readonly stats: HubStatsSampler;
+  private readonly replay: ReplayScheduler;
 
   constructor(opts: SharedWorkerDataServicesHubOpts = {}) {
-    this.statsIntervalMs = opts.statsIntervalMs ?? 1000;
     this.setTimer = opts.setTimer ?? ((cb, ms) => setInterval(cb, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
-    this.appDataSvc = new HubAppDataService(opts.configManager);
-    if (opts.configCatalog) {
-      this.configCatalog = opts.configCatalog;
-    } else if (opts.configManager) {
-      this.configCatalog = new ConfigCatalogCache(opts.configManager);
-    } else {
-      this.configCatalog = null;
-    }
+    this.lifecycle = new ProviderLifecycleReads(opts.configManager);
 
+    this.replay = new ReplayScheduler(
+      {
+        isCurrentSlot: (providerId, slot) => this.providers.get(providerId) === slot,
+        isHidden: (subId) => Boolean(this.subscribers.listenerOf(subId)?.hidden),
+        post: (job, event) => this.postDataEvent(job, event),
+        recordPublish: (slot, count) => this.recordPublish(slot, count),
+        yieldThen: opts.yieldToMacrotask ?? yieldToMacrotask,
+        now: () => (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+      },
+      opts.replayPassBudgetMs,
+    );
+
+    this.stats = new HubStatsSampler(
+      {
+        providers: this.providers,
+        subscribers: this.subscribers,
+        setTimer: this.setTimer,
+        clearTimer: this.clearTimer,
+        pruneDeadStatsListeners: (providerId, dead) => this.pruneDeadStatsListeners(providerId, dead),
+      },
+      opts.statsIntervalMs ?? 1000,
+    );
+    this.ssrm = new HubSsrmRpc(
+      {
+        providers: this.providers,
+        subscribers: this.subscribers,
+        setTimer: this.setTimer,
+        clearTimer: this.clearTimer,
+        pruneDeadDataListeners: (providerId, dead) => this.pruneDeadDataListeners(providerId, dead),
+      },
+      opts.createRustHub,
+    );
     this.emitCtx = {
       dataListenerCount: (providerId) => this.subscribers.dataCount(providerId),
       broadcast: (providerId, slot, eventTemplate) =>
         this.broadcastData(providerId, slot, eventTemplate),
-      flushStats: (providerId) => this.flushStatsToListeners(providerId),
+      flushStats: (providerId) => this.stats.flush(providerId),
+      ingestSsrm: (providerId, rows, replace) => this.ssrm.ingest(providerId, rows, replace),
+      warmSsrm: (providerId) => this.ssrm.warmSessions(providerId),
     };
-    this.catalogRpcCtx = {
-      catalog: this.configCatalog,
-      broadcastCatalogEvent: (event) => this.broadcastCatalogEvent(event),
-      resyncAppData: () => this.appDataSvc.resync(),
+    this.introspectCtx = {
       buildIntrospect: () => this.buildIntrospectSnapshot(),
       isProviderRunning: (providerId) => this.providers.has(providerId),
     };
@@ -124,82 +158,39 @@ export class SharedWorkerDataServicesHub {
   // ─── Public surface ────────────────────────────────────────────
 
   handleRequest(port: PortLike, req: Request): void {
-    this.trackPort(port);
+    this.connectedPorts.add(port);
     switch (req.kind) {
       case 'attach':  this.handleAttach(port, req); return;
       case 'detach':  this.handleDetach(req); return;
       // Clean window close: postMessage to a dead port never throws and
       // messageerror never fires, so this explicit goodbye is the ONLY
-      // way connectedPorts / AppData listeners get released.
+      // way connectedPorts gets released.
       case 'port-close': this.onPortClosed(port); return;
       case 'ping':    this.subscribers.ping(req.subId, req.meta); return;
       case 'stop':    this.handleStop(req); return;
-      case 'hub-ready': handleHubReady(this.catalogRpcCtx, port, req); return;
-      case 'get-config': void handleGetConfig(this.catalogRpcCtx, port, req); return;
-      case 'list-configs': handleListConfigs(this.catalogRpcCtx, port, req); return;
-      case 'config-invalidate': void handleConfigInvalidate(this.catalogRpcCtx, port, req); return;
       case 'refresh-provider': this.handleRefreshProvider(req); return;
-      case 'hub-introspect': handleHubIntrospect(this.catalogRpcCtx, port, req); return;
-      case 'provider-running': handleProviderRunning(this.catalogRpcCtx, port, req); return;
+      case 'hub-introspect': handleHubIntrospect(this.introspectCtx, port, req); return;
+      case 'provider-running': handleProviderRunning(this.introspectCtx, port, req); return;
+      default:
+        // Config catalog + AppData RPCs no longer live here (worker-split
+        // W1c) — the platform-services worker answers them and nothing
+        // routes them to this port. Anything else is an SSRM RPC.
+        this.ssrm.handleRequest(port, req);
     }
-  }
-
-  /**
-   * AppData request entry point — see {@link HubAppDataService}.
-   * Routed by `isAppDataRequest` upstream of the hub (worker entry).
-   */
-  handleAppDataRequest(port: PortLike, req: AppDataRequest): void {
-    this.trackPort(port);
-    this.appDataSvc.handleRequest(port, req);
-  }
-
-  /**
-   * Preload data-provider catalog rows from ConfigManager into the
-   * in-memory cache. Production installs call this after
-   * `configManager.init()` and before port attach traffic.
-   *
-   * Idempotent. No-op when no ConfigCatalogCache was constructed.
-   */
-  async hydrateCatalog(): Promise<void> {
-    if (!this.configCatalog) return;
-    if (this.configCatalog.isReady()) return;
-    try {
-      await this.configCatalog.loadAll();
-      this.broadcastCatalogEvent({ kind: 'catalog-ready', full: true });
-    } catch (err) {
-      // Hydration failure is non-fatal — attach with inline cfg still
-      // works; cfg-free attach will miss until a retry succeeds.
-      // eslint-disable-next-line no-console
-      console.error('[hub] Config catalog hydrate failed', err);
-    }
-  }
-
-  /** Worker-side catalog cache, or null when no ConfigManager was supplied. */
-  getConfigCatalog(): ConfigCatalogCache | null {
-    return this.configCatalog;
   }
 
   /** Live hub diagnostics for operator / dev tooling. */
   buildIntrospectSnapshot(): HubIntrospectSnapshot {
-    const sources: IntrospectSources = {
+    return buildIntrospectSnapshot({
       providers: this.providers,
       subscribers: this.subscribers,
-      configCatalog: this.configCatalog,
+      configCatalog: null,
       connectedPortCount: this.connectedPorts.size,
-      appDataListenerCount: this.appDataSvc.listenerCount,
-      appDataRows: this.appDataSvc.snapshotRows(),
-    };
-    return buildIntrospectSnapshot(sources);
-  }
-
-  /** See {@link HubAppDataService.hydrate}. */
-  async hydrateAppData(userId = 'worker'): Promise<void> {
-    await this.appDataSvc.hydrate(userId);
-  }
-
-  /** See {@link HubAppDataService.resync}. */
-  async resyncAppDataFromStore(userId = 'worker'): Promise<void> {
-    await this.appDataSvc.resync(userId);
+      appDataListenerCount: 0,
+      appDataRows: this.lifecycle.snapshotRows(),
+      fanout: this.replay.snapshotStats(),
+      ssrm: this.ssrm.snapshotStats(),
+    });
   }
 
   /** Drop every subscription owned by this port. Called on disconnect. */
@@ -210,120 +201,174 @@ export class SharedWorkerDataServicesHub {
       /* port already torn down */
     }
     this.connectedPorts.delete(port);
-    const { idleCandidates, statsEmptied } = this.subscribers.removeByPort(port);
-    if (statsEmptied) this.maybeStopStatsSampler();
-    this.appDataSvc.onPortClosed(port);
+    for (const [subId, owner] of this.pendingAttaches) {
+      if (owner === port) this.pendingAttaches.delete(subId);
+    }
+    const { idleCandidates, subIds, statsEmptied } = this.subscribers.removeByPort(port);
+    for (const subId of subIds) this.replay.cancel(subId);
+    if (statsEmptied) this.stats.maybeStop();
+    // A reload closes the port without ever sending `detach`, and the worker
+    // outlives the page. Without this the dead page's engine session and its
+    // open views stay live, and every reload leaves another generation of
+    // them for the engine to maintain on every tick.
+    for (const subId of subIds) this.ssrm.detachSession(subId);
     for (const providerId of idleCandidates) {
       this.maybeStopProviderIfIdle(providerId);
     }
+    this.ssrm.maybeStopTicker();
   }
 
   /** Stop every provider + cancel sampler. For shutdown only. */
   async dispose(): Promise<void> {
+    this.pendingAttaches.clear();
     for (const [, slot] of this.providers) await slot.handle.stop();
     this.providers.clear();
     this.subscribers.clear();
-    this.appDataSvc.clear();
     this.connectedPorts.clear();
     if (this.subscriberSweepTimer !== null) {
       this.clearTimer(this.subscriberSweepTimer);
       this.subscriberSweepTimer = null;
     }
-    this.maybeStopStatsSampler();
+    this.stats.maybeStop();
   }
 
-  // ─── Request handlers ──────────────────────────────────────────
-
-  private trackPort(port: PortLike): void {
-    this.connectedPorts.add(port);
-  }
-
-  private broadcastCatalogEvent(event: CatalogEvent): void {
-    for (const port of this.connectedPorts) {
-      try { port.postMessage(event); }
-      catch { this.connectedPorts.delete(port); }
-    }
-  }
+  // ─── Attach: lifecycle reads, then create / restart / late-join ──
 
   private handleAttach(port: PortLike, req: AttachRequest): void {
+    const slot = this.providers.get(req.providerId);
+    if (slot && !isLifecycleMoment(slot, req)) {
+      // Late joiner — nothing to read; attach synchronously.
+      this.attachListener(port, req, slot, false);
+      return;
+    }
+    if (!this.lifecycle.hasStore) {
+      // No persistence behind this hub (tests, bespoke installs): there is
+      // nothing to read, so create / restart stay synchronous.
+      this.attachAfterLifecycleRead(port, req, null);
+      return;
+    }
+    // A lifecycle moment with a store behind us: resolve the provider row
+    // (cfg-free attach) and refresh the AppData snapshot from IndexedDB
+    // FIRST, so the provider starts against current rows — the data hub
+    // receives no catalog invalidations any more (worker-split W1c).
+    this.pendingAttaches.set(req.subId, port);
+    void this.lifecycle.prepare(!slot && !req.cfg ? req.providerId : null).then(
+      (catalogCfg) => {
+        if (!this.pendingAttaches.delete(req.subId)) return;
+        this.attachAfterLifecycleRead(port, req, catalogCfg);
+      },
+      (err: unknown) => {
+        if (!this.pendingAttaches.delete(req.subId)) return;
+        this.postAttachError(port, req.subId, err instanceof Error ? err.message : String(err));
+      },
+    );
+  }
+
+  private attachAfterLifecycleRead(
+    port: PortLike,
+    req: AttachRequest,
+    catalogCfg: ProviderConfig | null,
+  ): void {
     let slot = this.providers.get(req.providerId);
     let isRestartAttach = false;
-
     if (!slot) {
-      const cfg = req.cfg ?? this.configCatalog?.getProviderConfig(req.providerId) ?? undefined;
-      if (!cfg) {
-        // eslint-disable-next-line no-console
-        if (DEBUG) console.log(`[v2/hub] attach REJECTED subId=${req.subId} provider=${req.providerId}: not running and no cfg`);
-        port.postMessage({
-          subId: req.subId,
-          kind: 'status',
-          status: 'error',
-          error: `Provider '${req.providerId}' not in catalog and no cfg supplied to start it.`,
-        });
-        return;
-      }
-      this.traceStompAttachCfg('hub.attach CREATE (catalog cfg → worker)', req.providerId, cfg, req.extra);
-      // eslint-disable-next-line no-console
-      if (DEBUG) console.log(`[v2/hub] attach CREATE subId=${req.subId} provider=${req.providerId}`);
-      try {
-        slot = this.createProvider(req.providerId, cfg);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        port.postMessage({
-          subId: req.subId,
-          kind: 'status',
-          status: 'error',
-          error: message,
-        } satisfies Event);
-        return;
-      }
-      // createProvider registered the slot (pre-start, so synchronous
-      // emissions broadcast).
-      this.ensureStatsSampler();
-      // First attach can carry `extra` (historical asOfDate). Without this,
-      // `ProviderClientAdapter.restart()` on a fresh provider would create
-      // the slot but drop the overlay — STOMP would publish unresolved
-      // `{{positions.asOfDate}}` template paths.
-      if (req.extra) {
-        // eslint-disable-next-line no-console
-        console.log(`[v2/hub][trace] attach CREATE+RESTART provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
-        void slot.handle.restart(req.extra);
-        slot.activeRestartExtra = req.extra;
-      }
+      const created = this.createForAttach(port, req, req.cfg ?? catalogCfg ?? undefined);
+      if (!created) return;
+      slot = created;
     } else if (req.extra) {
-      // Existing provider + restart payload. When the caller supplies a
-      // cfg (the provider editor's Restart button always sends the current
-      // draft), the connection / column / behaviour settings may have been
-      // edited since the slot was created — the running provider captured
-      // the OLD cfg, so a plain restart() would reconnect with stale
-      // values. Rebuild the slot from the new cfg first. Normal grid
-      // subscribers omit cfg and just get a plain restart(extra) (e.g. the
-      // historical `asOfDate` overlay), which keeps the existing config.
-      if (req.cfg) {
-        this.traceStompAttachCfg('hub.attach RESTART+RECONFIG (running provider)', req.providerId, req.cfg, req.extra);
-        // eslint-disable-next-line no-console
-        console.log(`[v2/hub][trace] attach RESTART+RECONFIG provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
-        slot = this.recreateProvider(req.providerId, req.cfg);
-        void slot.handle.restart(req.extra);
-        slot.activeRestartExtra = req.extra;
-        isRestartAttach = true;
-      } else if (!restartExtrasEqual(slot.activeRestartExtra, req.extra)) {
-        this.traceStompAttachCfg('hub.attach RESTART (running provider)', req.providerId, slot.cfg, req.extra);
-        // eslint-disable-next-line no-console
-        console.log(`[v2/hub][trace] attach RESTART provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
-        void slot.handle.restart(req.extra);
-        slot.activeRestartExtra = req.extra;
-        isRestartAttach = true;
-      } else {
-        // eslint-disable-next-line no-console
-        if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER (same extra) subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
-      }
-    } else {
-      // eslint-disable-next-line no-console
-      if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
+      ({ slot, isRestartAttach } = this.restartForAttach(req, slot));
     }
+    this.attachListener(port, req, slot, isRestartAttach);
+  }
 
-    if (req.mode === 'data') {
+  /** First attach for a provider id: build the slot (and apply a first-attach `extra`). */
+  private createForAttach(
+    port: PortLike,
+    req: AttachRequest,
+    cfg: ProviderConfig | undefined,
+  ): ProviderSlot | null {
+    if (!cfg) {
+      // eslint-disable-next-line no-console
+      if (DEBUG) console.log(`[v2/hub] attach REJECTED subId=${req.subId} provider=${req.providerId}: not running and no cfg`);
+      this.postAttachError(
+        port,
+        req.subId,
+        `Provider '${req.providerId}' not in catalog and no cfg supplied to start it.`,
+      );
+      return null;
+    }
+    this.traceStompAttachCfg('hub.attach CREATE (catalog cfg → worker)', req.providerId, cfg, req.extra);
+    // eslint-disable-next-line no-console
+    if (DEBUG) console.log(`[v2/hub] attach CREATE subId=${req.subId} provider=${req.providerId}`);
+    let slot: ProviderSlot;
+    try {
+      slot = this.createProvider(req.providerId, cfg);
+    } catch (err) {
+      this.postAttachError(port, req.subId, err instanceof Error ? err.message : String(err));
+      return null;
+    }
+    // createProvider registered the slot (pre-start, so synchronous
+    // emissions broadcast).
+    this.stats.ensure();
+    // First attach can carry `extra` (historical asOfDate). Without this,
+    // `ProviderClientAdapter.restart()` on a fresh provider would create
+    // the slot but drop the overlay — STOMP would publish unresolved
+    // `{{positions.asOfDate}}` template paths.
+    if (req.extra) {
+      // eslint-disable-next-line no-console
+      console.log(`[v2/hub][trace] attach CREATE+RESTART provider=${req.providerId} extra=${JSON.stringify(req.extra)} ${restartClickLatency(req.extra)}`);
+      void slot.handle.restart(req.extra);
+      slot.activeRestartExtra = req.extra;
+    }
+    return slot;
+  }
+
+  /**
+   * Running provider + restart payload. When the caller supplies a cfg
+   * (the provider editor's Restart button always sends the current
+   * draft), the connection / column / behaviour settings may have been
+   * edited since the slot was created — the running provider captured
+   * the OLD cfg, so a plain restart() would reconnect with stale values.
+   * Rebuild the slot from the new cfg first. Normal grid subscribers omit
+   * cfg and just get a plain restart(extra) (e.g. the historical
+   * `asOfDate` overlay), which keeps the existing config.
+   */
+  private restartForAttach(
+    req: AttachRequest,
+    slot: ProviderSlot,
+  ): { slot: ProviderSlot; isRestartAttach: boolean } {
+    const extra = req.extra!;
+    if (req.cfg) {
+      this.traceStompAttachCfg('hub.attach RESTART+RECONFIG (running provider)', req.providerId, req.cfg, extra);
+      // eslint-disable-next-line no-console
+      console.log(`[v2/hub][trace] attach RESTART+RECONFIG provider=${req.providerId} extra=${JSON.stringify(extra)} ${restartClickLatency(extra)}`);
+      const fresh = this.recreateProvider(req.providerId, req.cfg);
+      void fresh.handle.restart(extra);
+      fresh.activeRestartExtra = extra;
+      return { slot: fresh, isRestartAttach: true };
+    }
+    if (!restartExtrasEqual(slot.activeRestartExtra, extra)) {
+      this.traceStompAttachCfg('hub.attach RESTART (running provider)', req.providerId, slot.cfg, extra);
+      // eslint-disable-next-line no-console
+      console.log(`[v2/hub][trace] attach RESTART provider=${req.providerId} extra=${JSON.stringify(extra)} ${restartClickLatency(extra)}`);
+      void slot.handle.restart(extra);
+      slot.activeRestartExtra = extra;
+      return { slot, isRestartAttach: true };
+    }
+    // eslint-disable-next-line no-console
+    if (DEBUG) console.log(`[v2/hub] attach LATE-JOINER (same extra) subId=${req.subId} provider=${req.providerId} cacheSize=${slot.cache.size} status=${slot.status}`);
+    return { slot, isRestartAttach: false };
+  }
+
+  private attachListener(
+    port: PortLike,
+    req: AttachRequest,
+    slot: ProviderSlot,
+    isRestartAttach: boolean,
+  ): void {
+    if (req.mode === 'ssrm') {
+      this.attachSsrmListener(req.providerId, req.subId, port, slot);
+    } else if (req.mode === 'data') {
       this.attachDataListener(req.providerId, req.subId, port, slot, {
         skipCacheReplay: isRestartAttach,
       });
@@ -332,10 +377,24 @@ export class SharedWorkerDataServicesHub {
     }
   }
 
+  private postAttachError(port: PortLike, subId: string, error: string): void {
+    try {
+      port.postMessage({ subId, kind: 'status', status: 'error', error } satisfies Event);
+    } catch {
+      /* port already dead */
+    }
+  }
+
+  // ─── Detach / stop / refresh ───────────────────────────────────
+
   private handleDetach(req: DetachRequest): void {
+    this.pendingAttaches.delete(req.subId);
+    this.replay.cancel(req.subId);
+    this.ssrm.detachSession(req.subId);
     const removed = this.subscribers.remove(req.subId);
-    if (removed.statsEmptied) this.maybeStopStatsSampler();
+    if (removed.statsEmptied) this.stats.maybeStop();
     if (removed.providerId) this.maybeStopProviderIfIdle(removed.providerId);
+    this.ssrm.maybeStopTicker();
   }
 
   private maybeStopProviderIfIdle(providerId: string): void {
@@ -391,7 +450,7 @@ export class SharedWorkerDataServicesHub {
       }
     }
     const removed = this.subscribers.remove(subId);
-    if (removed.statsEmptied) this.maybeStopStatsSampler();
+    if (removed.statsEmptied) this.stats.maybeStop();
     return removed.providerId;
   }
 
@@ -415,6 +474,7 @@ export class SharedWorkerDataServicesHub {
     // Drop from the registry first so late STOMP frames cannot fan-out
     // while deactivate() is still in flight.
     this.providers.delete(providerId);
+    this.replay.cancelProvider(providerId);
 
     for (const l of this.subscribers.removeDataListenersOf(providerId)) {
       try {
@@ -429,22 +489,13 @@ export class SharedWorkerDataServicesHub {
     // Instead push one final zeroed snapshot so the pane reflects the
     // stopped state; the sampler skips this provider (no slot) until a
     // Restart re-creates it, at which point the same subscription resumes.
-    this.emitStoppedStats(providerId);
-    this.maybeStopStatsSampler();
+    this.stats.emitStopped(providerId);
+    this.stats.maybeStop();
 
     const stopResult = slot.handle.stop();
+    this.ssrm.dropProvider(providerId, slot.cfg);
     this.maybeStopSubscriberSweeper();
     if (stopResult instanceof Promise) await stopResult;
-  }
-
-  /** Push a single zeroed stats snapshot to a provider's stats listeners. */
-  private emitStoppedStats(providerId: string): void {
-    const listeners = this.subscribers.statsListeners(providerId);
-    if (!listeners) return;
-    const stats = zeroedStats();
-    for (const l of listeners.values()) {
-      l.port.postMessage({ subId: l.subId, kind: 'stats', stats } satisfies Event);
-    }
   }
 
   // ─── Provider lifecycle ────────────────────────────────────────
@@ -455,15 +506,15 @@ export class SharedWorkerDataServicesHub {
     cfg: ProviderConfig | undefined,
     extra?: Record<string, unknown>,
   ): void {
-    if (!cfg || cfg.providerType !== 'stomp') return;
+    if (!cfg || (cfg.providerType !== 'stomp' && cfg.providerType !== 'stomp-ssrm')) return;
     traceWorkerAppDataSnapshot(
       `${phase} · worker AppData`,
-      this.appDataSvc.snapshotRows().map((r) => ({ name: r.name, values: r.values })),
+      this.lifecycle.snapshotRows().map((r) => ({ name: r.name, values: r.values })),
     );
     traceStompProviderCfg(phase, cfg as StompProviderConfig, {
       providerId,
       extra,
-      lookup: (name, key) => this.appDataSvc.get(name, key),
+      lookup: this.lifecycle.lookup,
     });
   }
 
@@ -475,6 +526,7 @@ export class SharedWorkerDataServicesHub {
       wireFormat?: string;
     };
     const slot: ProviderSlot = {
+      providerId,
       handle: undefined as unknown as ProviderHandle, // set immediately below
       cfg,
       cache: new Map<string, unknown>(),
@@ -530,8 +582,9 @@ export class SharedWorkerDataServicesHub {
     this.providers.set(providerId, slot);
     try {
       slot.handle = startProvider(cfg, emit, {
-        appDataLookup: (name, key) => this.appDataSvc.get(name, key),
+        appDataLookup: this.lifecycle.lookup,
       });
+      this.ssrm.bootProvider(providerId, cfg);
     } catch (err) {
       this.providers.delete(providerId);
       throw err;
@@ -557,7 +610,7 @@ export class SharedWorkerDataServicesHub {
     // createProvider registers the fresh slot before starting it, so its
     // synchronous `loading` emission reaches every existing listener.
     const fresh = this.createProvider(providerId, cfg);
-    this.ensureStatsSampler();
+    this.stats.ensure();
     return fresh;
   }
 
@@ -595,16 +648,25 @@ export class SharedWorkerDataServicesHub {
     this.replayCacheToPort(subId, port, slot, 'attach');
   }
 
+  private attachSsrmListener(
+    providerId: string,
+    subId: string,
+    port: PortLike,
+    slot: ProviderSlot,
+  ): void {
+    this.subscribers.attach(providerId, subId, port, 'ssrm');
+    this.ensureSubscriberSweeper();
+    this.ssrm.attachSession(providerId, subId, slot);
+    port.postMessage({ subId, kind: 'status', status: slot.status, error: slot.lastError } satisfies Event);
+  }
+
   /**
-   * Chunked cache replay to a single port (late-join attach or
-   * refresh-provider).
-   *
-   * Ships pre-encoded `delta-bin` chunks (see {@link DeltaBinEvent}):
-   * the replay cache re-encodes only the buckets dirtied since the
-   * last replay and posts the SAME byte buffers to every replaying
-   * port. Cloning a Uint8Array across the port is a flat memcpy — no
-   * per-row object graph walk per subscriber, which is what made
-   * simultaneous multi-window attaches GC-storm the worker.
+   * Cache replay to a single port (late-join attach or refresh-provider):
+   * `loading`, pre-encoded `delta-bin` chunks through the
+   * {@link ReplayScheduler} (round-robin across every replaying port — W4;
+   * same byte buffers to every port, a flat memcpy each), then `ready`.
+   * An attach replay of an EMPTY cache must NOT settle the client snapshot
+   * (upstream still owes rows + ready); a refresh always ends with `ready`.
    */
   private replayCacheToPort(
     subId: string,
@@ -613,41 +675,16 @@ export class SharedWorkerDataServicesHub {
     mode: 'attach' | 'refresh',
   ): void {
     // eslint-disable-next-line no-console
-    if (DEBUG) console.log(
-      `[v2/hub] → subId=${subId}: replay rows=${slot.cache.size} in ${
-        Math.max(1, Math.ceil(slot.cache.size / LATE_JOIN_CHUNK_SIZE))
-      } chunk(s), status=${slot.status}`,
-    );
+    if (DEBUG) console.log(`[v2/hub] → subId=${subId}: replay rows=${slot.cache.size}, status=${slot.status}`);
     port.postMessage({ subId, kind: 'status', status: 'loading' } satisfies Event);
-    if (slot.cache.size === 0) {
-      port.postMessage({ subId, kind: 'delta', rows: [], replace: true } satisfies Event);
-      this.recordPublish(slot, 1);
-    } else {
-      const chunks = ensureReplayChunks(slot.replay, slot.cache, slot.columnar);
-      for (let i = 0; i < chunks.length; i++) {
-        port.postMessage({
-          subId,
-          kind: 'delta-bin',
-          buf: chunks[i].buf,
-          enc: chunks[i].enc,
-          replace: i === 0,
-        } satisfies Event);
-        this.recordPublish(slot, 1);
-      }
+    if (slot.cache.size > 0) {
+      this.replay.enqueue({ providerId: slot.providerId, subId, port, slot, mode });
+      return;
     }
-    // Refresh always ends with `ready` so the busy overlay clears. Attach
-    // replay on an empty cache must NOT settle the client snapshot — the
-    // upstream provider still owes rows + ready.
-    const emitReady = mode === 'refresh' || slot.cache.size > 0;
-    if (emitReady) {
-      port.postMessage({
-        subId,
-        kind: 'status',
-        // Replay succeeded — surface `ready` so the grid clears any stale
-        // banner even if the upstream transport is still recovering.
-        status: 'ready',
-        error: undefined,
-      } satisfies Event);
+    port.postMessage({ subId, kind: 'delta', rows: [], replace: true } satisfies Event);
+    this.recordPublish(slot, 1);
+    if (mode === 'refresh') {
+      port.postMessage({ subId, kind: 'status', status: 'ready', error: undefined } satisfies Event);
     }
   }
 
@@ -666,7 +703,7 @@ export class SharedWorkerDataServicesHub {
       } satisfies Event);
     }
 
-    this.ensureStatsSampler();
+    this.stats.ensure();
   }
 
   /**
@@ -699,7 +736,7 @@ export class SharedWorkerDataServicesHub {
   private pruneDeadStatsListeners(providerId: string, deadSubIds: readonly string[]): void {
     if (deadSubIds.length === 0) return;
     if (this.subscribers.pruneDead(providerId, 'stats', deadSubIds)) {
-      this.maybeStopStatsSampler();
+      this.stats.maybeStop();
     }
     this.maybeStopProviderIfIdle(providerId);
   }
@@ -727,6 +764,13 @@ export class SharedWorkerDataServicesHub {
     const dead: string[] = [];
     let live = 0;
     for (const l of listeners.values()) {
+      // A port still owing replay chunks must not see a live frame inside
+      // its snapshot — hold it; the scheduler flushes after that port's
+      // `ready` (W4).
+      if (this.replay.isReplaying(l.subId)) {
+        this.replay.defer(l.subId, eventTemplate);
+        continue;
+      }
       if (!this.postDataEvent(l, eventTemplate)) {
         dead.push(l.subId);
         continue;
@@ -744,61 +788,14 @@ export class SharedWorkerDataServicesHub {
     slot.pubsByBucket[slot.bucketIdx] += count;
     slot.pubsByMinBucket[slot.minBucketIdx] += count;
   }
+}
 
-  // ─── Stats sampler ─────────────────────────────────────────────
-
-  private ensureStatsSampler(): void {
-    if (this.statsTimer !== null) return;
-    this.statsTimer = this.setTimer(() => this.tickStats(), this.statsIntervalMs);
-  }
-
-  private maybeStopStatsSampler(): void {
-    // Keep rotating sliding-window buckets while any provider is running,
-    // even with no stats listeners — otherwise publish/min buckets stall
-    // and accumulate unbounded counts in a single slot.
-    if (this.providers.size === 0 && this.statsTimer !== null) {
-      this.clearTimer(this.statsTimer);
-      this.statsTimer = null;
-    }
-  }
-
-  private flushStatsToListeners(providerId: string): void {
-    const listeners = this.subscribers.statsListeners(providerId);
-    const slot = this.providers.get(providerId);
-    if (!listeners || !slot) return;
-    const stats = snapshotProviderStats(slot, this.subscribers.dataCount(providerId));
-    this.postStatsToListeners(providerId, listeners, stats);
-  }
-
-  private postStatsToListeners(
-    providerId: string,
-    listeners: Map<string, StatsListener>,
-    stats: ProviderStats,
-  ): void {
-    const dead: string[] = [];
-    for (const l of listeners.values()) {
-      try {
-        l.port.postMessage({ subId: l.subId, kind: 'stats', stats } satisfies Event);
-      } catch {
-        dead.push(l.subId);
-      }
-    }
-    this.pruneDeadStatsListeners(providerId, dead);
-  }
-
-  private tickStats(): void {
-    // Rotate sliding-window buckets first: the slot we're about to
-    // overwrite holds the oldest second of activity.
-    for (const slot of this.providers.values()) {
-      rotateStatsBuckets(slot);
-    }
-
-    for (const providerId of [...this.subscribers.statsProviderIds()]) {
-      const slot = this.providers.get(providerId);
-      const listeners = this.subscribers.statsListeners(providerId);
-      if (!slot || !listeners) continue;
-      const stats = snapshotProviderStats(slot, this.subscribers.dataCount(providerId));
-      this.postStatsToListeners(providerId, listeners, stats);
-    }
-  }
+/**
+ * A running slot + an attach that must reconnect upstream: a new cfg (editor
+ * reconnect) or a different `extra` overlay (historical date). Same overlay
+ * = late joiner, no lifecycle read.
+ */
+function isLifecycleMoment(slot: ProviderSlot, req: AttachRequest): boolean {
+  if (!req.extra) return false;
+  return Boolean(req.cfg) || !restartExtrasEqual(slot.activeRestartExtra, req.extra);
 }

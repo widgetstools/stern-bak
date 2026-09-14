@@ -22,6 +22,7 @@ const TOOL_WINDOW_CHUNK_LOADERS: Record<string, () => Promise<unknown>> = {
   DataProviders: () => import("../views/DataProviders"),
   ConfigBrowser: () => import("../views/ConfigBrowser"),
   BlottersMarketsGrid: () => import("../views/BlottersMarketsGrid"),
+  BlottersSsrmMarketsGrid: () => import("../views/BlottersSsrmMarketsGrid"),
   WorkspaceSetupReact: () => import("@wellsfargo-starui/react/workspace-setup"),
   RenameViewTab: () => import("../views/RenameViewTab"),
 };

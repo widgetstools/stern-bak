@@ -180,8 +180,21 @@ const GET_CONFIG_ATTEMPT_TIMEOUT_MS = 2_500;
 const GET_CONFIG_ATTEMPTS = 3;
 
 export function useDataProviderConfig(providerId: string | null | undefined): DataProviderConfigView {
-  const { client } = useDataServicesContext();
-  const [view, setView] = useState<DataProviderConfigView>({ cfg: null, loading: Boolean(providerId) });
+  // Catalog RPCs ride the platform-services worker (worker-split W1c) — the
+  // data hub no longer answers `get-config`.
+  const { platformClient: client } = useDataServicesContext();
+  // `forId` stamps which providerId a stored view describes, so the render
+  // that first sees a NEW providerId reports `loading: true` immediately
+  // instead of the previous id's `{ cfg: null, loading: false }` for one
+  // render (the effect below only re-syncs state after that render commits).
+  // That one stale render used to mount a throwaway "no provider" grid in
+  // MarketsGridContainer before the real one — every blotter built its
+  // AG Grid twice.
+  const [view, setView] = useState<StoredConfigView>({
+    cfg: null,
+    loading: Boolean(providerId),
+    forId: providerId ?? null,
+  });
   const [tick, setTick] = useState(0);
   // Which providerId the current `view.cfg` was actually loaded for.
   // Without this, switching A → B kept A's cfg visible (with
@@ -201,16 +214,16 @@ export function useDataProviderConfig(providerId: string | null | undefined): Da
     let cancelled = false;
     if (!providerId) {
       loadedForIdRef.current = null;
-      setView({ cfg: null, loading: false });
+      setView({ cfg: null, loading: false, forId: null });
       return;
     }
     if (loadedForIdRef.current === providerId) {
       // Same provider (catalog-change refresh): keep the current cfg
       // visible while the fresh row loads.
-      setView((prev) => ({ ...prev, loading: prev.cfg === null, error: undefined }));
+      setView((prev) => ({ ...prev, loading: prev.cfg === null, error: undefined, forId: providerId }));
     } else {
       // Provider switch: the previous cfg belongs to ANOTHER provider.
-      setView({ cfg: null, loading: true });
+      setView({ cfg: null, loading: true, forId: providerId });
     }
     // Time-bounded with retries — a `get-config` issued in the worker's
     // first moments can go unanswered (the worker-side catalog read stalls
@@ -239,12 +252,13 @@ export function useDataProviderConfig(providerId: string | null | undefined): Da
                 loading: false,
                 error: `get-config for "${providerId}" got no response within `
                   + `${GET_CONFIG_ATTEMPTS} × ${GET_CONFIG_ATTEMPT_TIMEOUT_MS}ms`,
+                forId: providerId,
               }));
             }
             continue;
           }
           loadedForIdRef.current = providerId;
-          setView({ cfg, loading: false });
+          setView({ cfg, loading: false, forId: providerId });
           return;
         } catch (err: unknown) {
           // An explicit rejection is an authoritative answer — surface it
@@ -254,6 +268,7 @@ export function useDataProviderConfig(providerId: string | null | undefined): Da
               cfg: prev.cfg,
               loading: false,
               error: err instanceof Error ? err.message : String(err),
+              forId: providerId,
             }));
           }
           return;
@@ -264,7 +279,16 @@ export function useDataProviderConfig(providerId: string | null | undefined): Da
     return () => { cancelled = true; };
   }, [providerId, client, tick]);
 
+  // Derived synchronously: a view stamped for another id (or none) is not
+  // this provider's — report it as loading on this very render.
+  if (!providerId) return view.forId === null ? view : { cfg: null, loading: false };
+  if (view.forId !== providerId) return { cfg: null, loading: true };
   return view;
+}
+
+/** {@link DataProviderConfigView} plus the providerId it was produced for. */
+interface StoredConfigView extends DataProviderConfigView {
+  forId: string | null;
 }
 
 // ─── Hook 3b: list DataProvider configs ──────────────────────────
@@ -284,7 +308,7 @@ export interface DataProvidersListView {
 export function useDataProvidersList(
   opts: { subtype?: ProviderConfig['providerType']; includeAppData?: boolean } = {},
 ): DataProvidersListView {
-  const { client } = useDataServicesContext();
+  const { platformClient: client } = useDataServicesContext();
   const [view, setView] = useState<{ configs: readonly DataProviderConfig[]; loading: boolean; error?: string }>(
     { configs: [], loading: true },
   );
@@ -381,6 +405,11 @@ export {
   type UseDataProviderOpts,
   type UseDataProviderResult,
 } from './useDataProvider.js';
+export {
+  useSsrmDataProvider,
+  type UseSsrmDataProviderOpts,
+  type UseSsrmDataProviderResult,
+} from './useSsrmDataProvider.js';
 
 // ─── Hook 5: provider data subscription (legacy) ───────────────
 //
@@ -487,4 +516,3 @@ export type {
   HubProviderIntrospectRow,
   HubAppDataIntrospectRow,
 } from '@wellsfargo-starui/data/runtime';
-export { createAppDataServices, type CreateAppDataServicesOpts } from './createAppDataServices.js';

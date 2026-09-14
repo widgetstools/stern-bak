@@ -14,6 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@wellsfargo-starui/data': resolve(__dirname, 'host-data/src/index.ts'),
+      '@starui/dshub': resolve(__dirname, 'host-data/src/runtime/ssrm/dshub.vitest-stub.ts'),
     },
   },
   test: {

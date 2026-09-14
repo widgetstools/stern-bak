@@ -27,6 +27,7 @@ import {
   resolveEffectiveStyle,
 } from '../../../colDef';
 import type { GridThemeMode, ValueFormatterTemplate } from '../../../colDef';
+import { simpleAggFuncForColumn, type SimpleAggFn } from '../../../expression/simpleColumnAggregate';
 
 // ─── Runtime value-type dispatcher for the global cell formatters ─────────
 //
@@ -447,13 +448,36 @@ export function applyRowGroupingConfigToColDef(
 
   if (cfg.aggFunc === 'custom') {
     if (cfg.customAggExpression && cfg.customAggExpression.trim() && engine) {
-      const fn = buildCustomAggFn(engine, cfg.customAggExpression);
-      if (fn) merged.aggFunc = fn;
+      const named = namedAggFromCustomExpression(
+        engine,
+        cfg.customAggExpression,
+        typeof merged.colId === 'string' ? merged.colId : typeof merged.field === 'string' ? merged.field : undefined,
+      );
+      if (named) {
+        // Named agg goes to the SSRM engine (and CSRM's built-in) instead
+        // of a client IAggFunc over loaded children.
+        merged.aggFunc = named;
+      } else {
+        const fn = buildCustomAggFn(engine, cfg.customAggExpression);
+        if (fn) merged.aggFunc = fn;
+      }
     }
     // Empty expression or no engine: leave aggFunc untouched so the grid
     // doesn't silently drop aggregation while the user is still typing.
   } else if (cfg.aggFunc !== undefined) {
     merged.aggFunc = cfg.aggFunc;
+  }
+}
+
+function namedAggFromCustomExpression(
+  engine: ExpressionEngineLike,
+  expression: string,
+  columnId: string | undefined,
+): SimpleAggFn | undefined {
+  try {
+    return simpleAggFuncForColumn(engine.parse(expression), columnId);
+  } catch {
+    return undefined;
   }
 }
 

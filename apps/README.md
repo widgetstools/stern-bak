@@ -137,6 +137,7 @@ npm run app -- stomp-marketsgrid-minimal --tarball
 | `markets-grid-lab` | 5300 | MarketsGrid editing / profiles lab |
 | `design-system` | 5310 | Design-system showcase |
 | `stomp-marketsgrid-minimal` | 5213 | Smallest STOMP → grid path |
+| `stomp-ssrm-minimal` | 5214 | Two SSRM blotters, one `stomp-ssrm` WASM cache |
 | `basic` | 5194 | Tutorial — minimal grid host |
 | `dataprovider-editor` | 5193 | Tutorial — data-provider editor |
 | `stomp-view-server` | 8081 | STOMP fixture server (not a UI app) |
@@ -147,13 +148,13 @@ nothing.
 
 | Track | Apps | Ports |
 |---|---|---|
-| `source/` | 7 | 5175, 5193, 5194, 5213, 5300, 5310, 8081 |
-| `tarball/` | 6 | source port **+ 1000** (6175, 6193, …) so both tracks can run at once |
+| `source/` | 8 | 5175, 5193, 5194, 5213, 5214, 5300, 5310, 8081 |
+| `tarball/` | 7 | source port **+ 1000** (6175, 6193, …) so both tracks can run at once |
 
 **`tarball/` is generated — do not hand-edit it.**
 
 ```bash
-npm run setup:tarball    # vendor the tarballs, regenerate all six from source/, then install each app
+npm run setup:tarball    # vendor the tarballs, regenerate all seven UI apps from source/, then install each app
 ```
 
 `setup:tarball` runs `scripts/setup.mjs` (vendor), `scripts/makeTarballApp.mjs

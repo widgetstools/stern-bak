@@ -24,6 +24,15 @@
  * seconds later), and `held` must only latch when the grant callback
  * runs, not when the request is issued. No-op where the Web Locks API
  * is unavailable.
+ *
+ * The lock is requested in SHARED mode. Web Locks are keyed by name per
+ * origin, and every data window asks for the same name: an exclusive
+ * request is granted to the FIRST window and queues every later one
+ * behind it forever — `request()` does not reject, so nothing retried
+ * and nothing warned. Seen live on the star-demo OpenFin platform: the
+ * provider window held the lock and all twelve blotter views sat in
+ * `navigator.locks.query().pending`. A shared lock is granted to every
+ * requester at once, so each window holds its own exemption.
  */
 
 export const FREEZE_EXEMPTION_LOCK_NAME = 'starui-background-freeze-exemption';
@@ -43,7 +52,7 @@ export function acquireBackgroundFreezeExemption(): void {
   const tryAcquire = (): void => {
     attempts += 1;
     navigator.locks
-      .request(FREEZE_EXEMPTION_LOCK_NAME, () => {
+      .request(FREEZE_EXEMPTION_LOCK_NAME, { mode: 'shared' }, () => {
         granted = true;
         // Held for the lifetime of the document — never resolves.
         return new Promise<void>(() => {});

@@ -51,6 +51,12 @@ export interface BootstrapDataServicesOpts {
    * MessagePort. `dispose()` closes it either way.
    */
   client?: SharedWorkerDataServicesClient;
+  /**
+   * Client whose port carries AppData (worker-split plan W1: the
+   * platform-services worker). Defaults to the main data client — the
+   * pre-split single-worker shape.
+   */
+  appDataClient?: SharedWorkerDataServicesClient;
 
   /**
    * ConfigManager used by the AppData mirror for persistence reads
@@ -67,8 +73,14 @@ export interface BootstrapDataServicesOpts {
 }
 
 export interface DataServices {
-  /** Live data subscription client. Wraps the SharedWorker port. */
+  /** Live data subscription client. Wraps the data-hub SharedWorker port. */
   client: SharedWorkerDataServicesClient;
+  /**
+   * Client whose worker serves the config catalog + AppData (the
+   * platform-services worker since the split — worker-split W1c). Absent
+   * on bundles built for a single worker; consumers fall back to `client`.
+   */
+  platformClient?: SharedWorkerDataServicesClient;
   /** App-wide AppDataMirror. Sync reads, async writes. */
   appData: AppDataMirror;
   /** ConfigManager passed in at bootstrap time. */
@@ -92,13 +104,14 @@ export function bootstrapDataServices(opts: BootstrapDataServicesOpts): DataServ
   if (existing) return existing;
 
   const client = opts.client ?? new SharedWorkerDataServicesClient(opts.worker.port);
+  const appDataClient = opts.appDataClient ?? client;
   // The mirror is now a pure RPC client — it sends operations to the
   // hub and receives snapshot/delta events back. The hub owns
   // IndexedDB persistence (it constructs its own ConfigManager inside
   // the SharedWorker context). `opts.configManager` stays on the
   // bundle for editor flows (`DataProviderConfigStore`) but doesn't
   // flow into the mirror anymore.
-  const appData = client.attachAppData({ userId: opts.userId });
+  const appData = appDataClient.attachAppData({ userId: opts.userId });
 
   // Fire the seed read + worker round-trip immediately. Errors here
   // surface through the mirror's existing `console.warn` path —
@@ -110,14 +123,18 @@ export function bootstrapDataServices(opts: BootstrapDataServicesOpts): DataServ
 
   const services: DataServices = {
     client,
+    platformClient: appDataClient,
     appData,
     configManager: opts.configManager,
     ready: appData.ready(),
     dispose() {
       if (disposed) return;
       disposed = true;
-      try { client.detachAppData(appData); } catch { /* port may already be dead */ }
+      try { appDataClient.detachAppData(appData); } catch { /* port may already be dead */ }
       try { client.close(); } catch { /* idempotent */ }
+      if (appDataClient !== client) {
+        try { appDataClient.close(); } catch { /* idempotent */ }
+      }
       if (registry.get(opts.appName) === services) {
         registry.delete(opts.appName);
       }

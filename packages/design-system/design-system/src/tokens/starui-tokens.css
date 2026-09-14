@@ -2,7 +2,7 @@
    STARUI · Fixed-Income Design System — Core Tokens
    v1.0 · framework-agnostic single source of truth
    ----------------------------------------------------------------------------
-   • Default accent ........ Azure (neon, trading-desk)
+   • Default accent ........ Cursor Dark / Cursor Light button.background
    • Positive / Negative ... Teal / Rose
    • Type .................. Inter (sans) · JetBrains Mono (numeric)
    • Themes ................ Light (FT "paper") + Dark (blue-graphite, default)
@@ -24,9 +24,9 @@
   --popover:               1 0 0;             /* #FFFFFF */
   --popover-foreground:    0.345 0.004 256;
 
-  /* ── Brand / accent — Cyan (FI brand identity, unchanged) ───────────────── */
-  --primary:               0.54 0.135 220;
-  --primary-foreground:    0.99 0.012 220;
+  /* ── Brand / accent — Cursor Light button.background (#2778C1) ─────────── */
+  --primary:               0.561 0.137 249.9;
+  --primary-foreground:    0.991 0 0;
   --secondary:             0.959 0.002 256;   /* #F3F3F3 — elevated chrome */
   --secondary-foreground:  0.40 0.005 256;    /* #4E4E4E */
   --muted:                 0.940 0.002 256;   /* #ECECEC */
@@ -41,7 +41,7 @@
   --border-strong:         0.853 0.004 256;   /* #CECECE */
   --input:                 0.853 0.004 256;   /* #CECECE */
   --grid-border:           0.932 0.003 256;   /* #EBEBEB — grid lines */
-  --ring:                  0.54 0.135 220;
+  --ring:                  0.561 0.137 249.9;
 
   /* ── Fixed-income semantics — Teal (up) / Rose (down), light ────────────── */
   --buy:                   0.52 0.105 192;
@@ -115,12 +115,10 @@
   --popover:               0.217 0.020 258;
   --popover-foreground:    0.96 0.006 258;
 
-  /* Brand / accent — single vivid accent, aligned to the canonical
-     starui-design-system source (bright cyan-blue, L≈0.72). It's light, so
-     the foreground is a deep navy for legible (AA) text on primary fills.
+  /* Brand / accent — Cursor Dark button.background (#81A1C1) + button.foreground.
      This is THE accent: buttons, ring, active toggles, formatter highlights. */
-  --primary:               0.72 0.145 218;
-  --primary-foreground:    0.16 0.04 222;
+  --primary:               0.697 0.059 248.7;
+  --primary-foreground:    0.226 0.013 264.3;
   --secondary:             0.260 0.023 258;
   --secondary-foreground:  0.93 0.006 258;
   --muted:                 0.251 0.023 258;
@@ -135,7 +133,7 @@
   --border-strong:         0.525 0.022 258;
   --input:                 0.355 0.019 258;
   --grid-border:           0.365 0.019 258;
-  --ring:                  0.72 0.145 218;
+  --ring:                  0.697 0.059 248.7;
 
   /* Teal (up) / Rose (down) — dark, AA text on fill */
   --buy:                   0.76 0.135 192;

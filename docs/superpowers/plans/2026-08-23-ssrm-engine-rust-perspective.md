@@ -3,6 +3,13 @@
 **Target: AG Grid 36+.** The repo is currently installed at 35.1.0; the upgrade is a
 prerequisite phase of this work (§2).
 
+> **2026-09-11:** SSRM shipped via the in-worker vendored rangrez WASM (not the
+> Perspective/native-exe route §8 assumed). **§12** is the current plan — a phased
+> enhancement of the vendored engine (tables with a real lifecycle, views with computed
+> columns, membership deltas, typed dates, complete pivot) that closes the parity gaps
+> `apps/source/markets-grid-lab-ssrm` measures. §5's analysis stands; its
+> Perspective-specific mechanics are superseded by §12.
+
 ## Context
 
 Six blotters share one OpenFin renderer main thread. The hub is healthy (~38%); the
@@ -847,3 +854,230 @@ main risk control, and it lets the engine be built in parallel.
 - Commit `Cargo.lock`, diverging from the repo's no-lockfile rule — that rule exists because
   npm lockfiles pin `registry.npmjs.org`, which crates.io does not have; a binary crate
   should pin. Document the divergence.
+
+---
+
+## 12. Engine enhancement plan — table/view completion (added 2026-09-11)
+
+**What changed since this plan was written.** SSRM shipped by a different route than §8
+assumed: the vendored rangrez `RustHub` WASM runs **inside the existing SharedWorker**
+(`packages/data/host-data/vendor/dshub/`), fed by `stomp-ssrm` and (since 2026-09-11)
+`mock-ssrm` providers — no Perspective, no native exe, no code signing. §8 phases 1–5 and 8
+are effectively delivered by that route (see the SSRM hardening handoff and
+`apps/source/markets-grid-lab-ssrm`, whose parity matrix is the live gap list); §8 phases
+9–10 (native engine + app-asset packaging) remain a separate, unstarted track. This
+section is the plan for closing the remaining parity gaps **by enhancing the vendored
+engine itself** — it supersedes the *mechanics* of §5.2/§5.3 (which are Perspective-
+specific) while keeping their analysis, which is engine-agnostic and correct.
+
+The engine already has the right shape — `boot_datasource` is a table, `openView` takes a
+view spec, views are live-maintained and feed the grid's blocks. What is missing is
+**view-grammar expressiveness** (no computed columns, no typed dates, pivot only over
+grouped views) and a **real table lifecycle** (probed: no delete primitive; rows ingested
+with zero subscribed sessions are dropped — the anchor subscription works around it).
+Engine work happens in the rangrez repo (first-party) and lands here as a re-vendor.
+
+### 12.1 Binding constraints (override the phase text)
+
+1. **Pin before use.** Every engine capability a phase adds is pinned by a test in
+   `packages/data/host-data/src/runtime/ssrm/*.wasm.integration.test.ts` — running against
+   the REAL vendored WASM in the ordinary `npm test` — **before** any client code path
+   depends on it. Mechanically enforced: the suite fails on a vendored bump that changes
+   probed behaviour (`sort`-not-`dir`, `|` pivot naming, whole-row upserts, and every
+   addition below).
+2. **Re-vendor atomically.** `dshub.js` + `dshub_bg.wasm` + `dshub.d.ts` are replaced
+   together, in one commit, which also runs the integration suite. Never partial.
+3. **One grammar, one parser.** The client `ExpressionEngine`
+   (`packages/core/engine/src/expression/`) stays the single parser of the DSL; the engine
+   consumes a **serialized AST wire form**, never source text. This delivers what §5.2
+   feared losing — no second implementation of the language — while still compiling
+   engine-side.
+4. **No silent fallback.** Anything the engine cannot express is *reported*
+   (`unsupportedFilters` pattern), never dropped. Extends to expressions: an
+   uncompilable expression stays a locked, labelled client column — never a wrong sort.
+5. **Regression targets** (currently correct; must not regress in any phase): edit-overlay
+   semantics; block/poll view-cap partition; warm root view; tick-gated pollers (zero RPCs
+   at idle); the honesty locks for whatever stays client-tier; the multiwindow soak
+   numbers (handoff §4b). The anchor subscription is a target only until T2 deletes it —
+   deleting it *is* T2's exit.
+
+### 12.2 Phases — one session each
+
+Engine phases have two halves: the rangrez change (specified here, built there) and the
+stern-bak landing (re-vendor + pin + client unlock). Where the halves are both substantial
+they are separate sessions.
+
+| # | Phase | Where | Depends on | Status |
+| --- | --- | --- | --- | --- |
+| **T1** | Expression wire contract + tier compiler | stern-bak only | — | **DONE 2026-09-11** |
+| **T2** | Table lifecycle: delete / truncate / replace, retention decoupled from subscribers | rangrez → re-vendor | — | **DONE 2026-09-11** |
+| **T3** | Computed columns on views (incremental recompute) | rangrez → re-vendor | T1 | **DONE 2026-09-12** |
+| **T4** | Aggregate scalars in expressions + full aggregate set | rangrez → re-vendor | T3 | **DONE 2026-09-12** |
+| **T5** | Per-view membership deltas + alert bridge | rangrez → re-vendor | T1 | **DONE 2026-09-12** |
+| **T6** | Typed date/timestamp columns; retire the `__epoch` shadows | rangrez → re-vendor | — | **DONE 2026-09-12** |
+| **T7** | Pivot completeness (group-less pivot, separator safety) | rangrez → re-vendor | — | **DONE 2026-09-12** |
+| **C1** | Write-path rebuild: Bulk Update, Plus/Minus, Shortcuts, Smart Edit on `ssrm-apply-edits` | stern-bak only | — | **DONE 2026-09-11** |
+| **C2** | SSRM undo/redo: journal inverse-edits through `applyEdits` | stern-bak only | C1 | **DONE 2026-09-11** (same seam) |
+
+**T1 landed as:** `SsrmExprNode` wire grammar v1 + `SsrmComputedColumnSpec` in
+`@wellsfargo-starui/types` (`shared-types/src/ssrmExpression.ts`);
+`compileToEngineExpression` / `classifySsrmExpression` / `toComputedColumnSpec` in
+`packages/core/engine/src/expression/compileToEngineExpression.ts`; 45 golden fixtures
+(`ssrmExpressionContract.fixtures.json`) pinning the CLIENT evaluator's semantics — the
+corpus the Rust side must reproduce at T3; the customizer's SSRM TIER chip now reports the
+real tier (ENGINE-READY / GRID / LOADED ROWS) with the phases each column awaits.
+
+**T2 landed as:** rangrez — `Registry.ensure_pinned`/`unpin` (ingest pins the table, so
+retention follows the data; the zero-subscriber drop is gone at the root),
+`TableCache::truncate` (one revision, deletions ride the log), the superseded-removal rule
+in `changed_since` (a live re-upsert cancels its older deletion — what makes
+`replace_snapshot` safe for surviving keys), and wasm entry points `delete_rows` /
+`truncate` / `replace_snapshot` / `drop_table`; `apply_message_json` now get-or-creates
+via the pin. stern-bak — the plane's restart flush routes through `replace_snapshot`
+(the empty-schema re-boot hack is deleted), the anchor-subscription workaround is deleted,
+`stopProvider` calls `dropTable`, and `deleteRows` is exposed. Pinned by
+`tests/lifecycle.rs` (rangrez) and the T2 cases in the WASM integration suite.
+
+**C1/C2 landed as:** an editing-core GridApi brand (`SSRM_EDIT_WRITER_KEY`,
+`attachSsrmEditWriter` / `lookupSsrmEditWriter` — the `SSRM_EXPR_AGG_KEY` pattern) that the
+SSRM surface binds to `ISsrmDataProvider.applyEdits`; `applyPatches` persists through it
+alongside the local server-side transaction (whole rows + per-row edited columns for the
+worker overlay). Because Bulk Update, Plus/Minus, Shortcuts, Smart Edit AND
+`EditJournal.undo/redo/undoTo` all funnel through `applyPatches`, one seam closed all of
+them: the honesty disables now lift exactly when a writer is attached, and an undo persists
+as an ordinary engine write of the old values. The parity lab's three Gap rows and the
+Editing partial are green.
+
+**T1 — Expression wire contract + tier compiler.**
+*Entry:* none. *Deliverable:* a versioned `SsrmExpressionSpec` JSON wire form (ops from
+§5.2's left column: arithmetic, comparisons, `AND/OR/NOT`, ternary/`CASE`, `IN/BETWEEN`,
+the math/string/logical/date-part function set; **null semantics defined explicitly** —
+null propagates through operators, `ISNULL`/`IFNULL` are the escape hatches);
+`compileToEngineExpression(ast)` in `packages/core/engine/src/expression/` with golden
+fixtures; the three-tier classifier (compiled / materialized / unsupported) extending
+`astUsesAggregateFunctions`, consumed by the customizer's existing SSRM TIER chip (which
+today hard-codes "materialized"). *Out of scope:* any engine change; sending the wire form
+anywhere. *Exit:* fixtures cover every op in the inventory + tier classification of the
+lab's seeded expressions; chip shows per-column tier. *Verify:* `packages/core` vitest.
+
+**T2 — Table lifecycle.**
+*Entry:* T1 not required. *Rangrez:* tables retain data independent of sessions (kill the
+zero-subscriber drop); `delete_rows(ds, keys)`, `truncate(ds)`, and
+`replace_snapshot(ds, rows)` (atomic truncate+ingest) entry points; same-schema re-boot
+stays idempotent. *stern-bak:* restart flush uses `replace_snapshot` so a shrinking
+snapshot shows exactly the new rows; upstream removal envelopes map to `delete_rows`;
+**delete the anchor subscription** (`ensureAnchor`/`releaseAnchor` and their tests become
+lifecycle tests). Closes handoff §5 item 1. *Exit:* WASM tests pin retention-without-
+subscribers, delete, truncate, replace; shrinking-restart e2e in the plane suite; anchor
+code gone. *Verify:* `packages/data` vitest + `ssrm-multiwindow.mjs` rerun.
+
+**T3–T7 landed as (2026-09-12, one engine pass):** rangrez `src/expr.rs` evaluates wire
+grammar v1 with the client's JS coercions verbatim, proven by the GENERATED corpus
+`tests/fixtures/ssrmExpressionContract.wire.json` (44 compiled cases incl. the T4
+statistical aggregates) in `tests/expr_contract.rs` — the fixture file is written by
+stern-bak from `ssrmExpressionContract.fixtures.json` and copied over, never hand-edited.
+`ViewSpec.computed` + a per-view `ComputedMemo` (patched via the cache touch log like the
+slot memo) make computed columns first-class in filter / sort / groupBy / aggregates /
+splitBy and on every materialized row; half-parsed computed columns REJECT `openView`.
+Aggregate scalars resolve over the view's FILTERED rows with `expr::client_aggregate`
+(client fold semantics), converging one revision behind a scalar-dependent filter — the
+client binder's own temporal behaviour. `Agg` gained median/stdev/variance/
+distinct_count via the shared `MultiAcc`. `ViewSpec.watch` + `View::membership_delta`
+(prime-silent, complete entered/left key lists, entered rows capped at 200) feed the wasm
+`tick()`'s `viewDelta` messages, routed to the opening session. Typed date columns parse
+epochs at WRITE time in `TableCache` (hand-rolled ISO-8601, 1.78-safe) — `query_value`
+serves instants to sort/filter while `row_json` keeps the string. Group-less `splitBy`
+serves the one grand-total row, and split values fold `|` → `¦` so a value cannot forge
+pivot field boundaries. `capabilities()` names all of it. stern-bak:
+`compileSsrmComputedColumns` compiles tier-`compiled` calculated columns into every
+getRows request; `lockSsrmExpressionColumns` skips engine-backed colIds; the alerts
+runtime's `bindSsrmAlertPredicates` registers compiled dataChange rules as engine
+predicate watches (dispatch through the SAME `createAlertDispatcher`, engine-watched
+rules excluded from client evaluation, deltas pinned to the owning subId); the `__epoch`
+shadow machinery is DELETED (`ssrmEpochColumn`, `SSRM_EPOCH_SUFFIX`, `stampEpochs`,
+`ssrmEpochOf`, the `dateNodes`/sort rewrites) — boot types date columns `date` and the
+bounds target the real column; the pivot-needs-row-groups guard is gone. Six new
+engine-fact pins in `SsrmWasmPlane.wasm.integration.test.ts` (T3 compute/sort/filter,
+T3 loud refusal, T4 group median, T5 watch→viewDelta→unwatch, T6 instant sort + range
+filter, T7 grand-total row). Parity matrix: Calculated → full, Alerts → full
+(14 full / 2 partial / 0 gap; the two partials are the deliberate viewport semantics).
+
+**T3 — Computed columns on views.**
+*Rangrez:* view spec gains `computed: [{ as, expr }]` (T1 wire form); columns materialize
+with the view and **re-evaluate incrementally** — only rows whose input columns changed in
+a tick; computed columns are first-class in the same view's `filter` / `sort` / `groupBy`
+/ `aggregates` and ride `readWindow` rows and deltas. *stern-bak:* the SSRM surface
+passes the grid's tier-1 expressions into `createSsrmDatasource` → request →
+`toViewSpec` → `spec.computed`; `lockSsrmExpressionColumns` locks only tier-2/3; the
+parity lab's Calculated tab and the synthetic renderer columns (bid/ask width — an
+expression) unlock. *Exit:* WASM test: sort/filter/group by a computed column over a
+ticking table, incl. null semantics and a tick that changes only an input column
+updating the computed value in the delta. Parity matrix: Calculated → full (row-local).
+*Verify:* data + grid vitest; lab-ssrm smoke.
+
+**T4 — Aggregate scalars + full aggregate set.**
+*Rangrez:* view-level aggregates usable as scalars inside computed expressions
+(`[mv] / SUM([mv])`), re-evaluating dependent columns once per publish window when the
+aggregate moved (documented cost: full-column re-eval of dependent columns — fine at this
+scale in Rust); add `median` / `stdev` (sample) / `variance` / `distinct_count` engine
+aggregates. *stern-bak:* `bindSsrmExpressionAggregates` drops its client-only list;
+tier classifier promotes aggregate-bearing expressions to compiled. *Exit:* WASM test
+pins the ratio column against hand-computed totals under ticks. Parity: Calculated →
+full (cross-row).
+
+**T5 — Membership deltas + alert bridge.**
+*Rangrez:* per-view enter/exit events in the session outbox
+(`viewDelta { viewId, entered: keys[], left: keys[] }`), conflated per tick window.
+*stern-bak:* plane API `watchPredicate(sessionId, providerId, filterNodes) → viewId`
+reusing the existing filter grammar (alert predicates mostly need no expressions; T1/T3
+extend reach); hits route through the **same `createAlertDispatcher`** (§5.2's rule —
+nothing re-implements a rule). Diff-ref rules (`[col.old]`) stay client-side over loaded
+rows with the existing honest label — the field-scoped previous-value shadow of §5.2
+remains a named follow-up, not part of this phase. *Exit:* an alert on a filtered-out,
+never-loaded row fires; WASM test pins enter/exit under ticks. Parity: Alerts →
+full (predicate rules).
+
+**T6 — Typed date/timestamp columns.**
+*Rangrez:* `date` / `timestamp` column types (epoch-ms storage, native comparators, range
+ops); boot schema accepts them. *stern-bak:* schema emits real types;
+**delete the `__epoch` shadow machinery** (`ssrmEpochColumn`, `stampEpochs`, the
+`dateNodes` rewrite in `toViewSpec`) in the same change — the shadow tests become
+native-type contract tests. *Exit:* date `equals`/`inRange`/sort native and pinned;
+epoch code gone. (Repo rule: superseded code deleted with its replacement.)
+
+**T7 — Pivot completeness.**
+*Rangrez:* `splitBy` without `groupBy` (single grand-total row pivot); engine-reported
+`pivotResultFields` with separator-safe encoding (escape or length-prefixed path), fixing
+the probed `|`-collision limit; optional grand-total row. *stern-bak:* drop the
+pivot-needs-row-groups `unsupported` guard and the client-side field derivation. *Exit:*
+WASM test pins group-less pivot and a pivot key containing `|`.
+
+**C1 — Write-path rebuild (client only, any time).**
+Bulk Update, Plus/Minus and Shortcuts re-target their `editing-core/applyPatches` seam to
+batched `provider.applyEdits({ rows, editedColumns })` under SSRM (the exact path pastes
+use — coalescing and the worker overlay already exist); the honesty-lock disables come
+off behind provider capability. *Exit:* the parity lab's three Gap rows → full; e2e in
+`apps/e2e` for one flow. *Verify:* grid vitest + lab-ssrm smoke.
+
+**C2 — SSRM undo/redo.** Journal entries already record before-values; SSRM-mode undo
+applies the inverse as an `applyEdits` batch instead of `applyTransactionAsync`. *Exit:*
+undo of a paste restores engine values in a second window.
+
+### 12.3 Traceability — every open gap to its phase
+
+| Gap (parity lab / handoff) | Phase |
+| --- | --- |
+| Calculated: sort/filter/group locked (parity: partial) | T1 + T3 (row-local), T4 (cross-row) — **done, parity full** |
+| Renderers: synthetic valueGetter columns locked | T3 **(done — grammar expressions unlock; raw valueGetters stay locked by design)** |
+| Alerts: loaded rows only | T5 **(done — compiled rules book-wide; diff-refs: named follow-up)** |
+| Bulk Update / Plus-Minus / Shortcuts: gap | C1 **(done — closed)** |
+| Editing: journal/undo CSRM-only | C2 **(done — closed)** |
+| Handoff §5.1 — engine cannot delete rows; anchor workaround | T2 **(done — closed)** |
+| Date `__epoch` shadow hack | T6 **(done — machinery deleted)** |
+| Pivot needs row groups; `\|` collision | T7 **(done — grand-total pivot; values fold `\|`→`¦`)** |
+| Handoff §5.2 double serialisation, §5.3 per-level options, §5.4 six-blotter soak | unchanged — not engine-grammar work |
+
+T1–T7 + C1–C2 are all landed (2026-09-12). The parity matrix stands at 14 full /
+2 partial / 0 gap — the two partials are the deliberate viewport semantics (conditional
+styling paints what is visible; raw client valueGetter renderer columns stay locked),
+and the diff-ref alert follow-up remains named in-app.

@@ -75,5 +75,6 @@ export {
 } from './rowPath.js';
 
 export * from './dataProvider.js';
+export * from './ssrmExpression.js';
 export * from './fieldSelector.js';
 export * from './configuration.js';

@@ -8,6 +8,7 @@
  * {@link ProviderEmitContext} so this module stays free of hub state.
  */
 
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
 import type { Event, RowPatch } from '../protocol.js';
 import type { ProviderEmitEvent } from '../providers/Provider.js';
 import { diffTopLevel } from '../wire/rowDiff.js';
@@ -34,6 +35,14 @@ export interface ProviderEmitContext {
   broadcast(providerId: string, slot: ProviderSlot, eventTemplate: Event): void;
   /** Push a fresh stats snapshot to stats listeners (loading / timing). */
   flushStats(providerId: string): void;
+  /** SSRM: ingest flattened rows into the WASM plane (no CSRM cache). */
+  ingestSsrm?(providerId: string, rows: readonly unknown[], replace: boolean): void;
+  /**
+   * SSRM: the snapshot just landed (`ready`) — build the root engine view
+   * for attached sessions now, off the request path, so the first block
+   * read is a warm-view hit instead of paying the view build.
+   */
+  warmSsrm?(providerId: string): void;
 }
 
 /**
@@ -60,6 +69,7 @@ export function applyProviderEmit(
       slot.snapshotFetchMs = Date.now() - slot.snapshotFetchStartedAt;
       slot.snapshotReady = true;
       slot.publishWindowSeconds = 0;
+      if (isSsrmProviderType(slot.cfg.providerType)) ctx.warmSsrm?.(providerId);
     }
     slot.status = event.status;
     if (event.status === 'error') {
@@ -116,6 +126,20 @@ function applyRows(
   slot: ProviderSlot,
   event: Extract<ProviderEmitEvent, { rows: readonly unknown[] }>,
 ): void {
+  if (isSsrmProviderType(slot.cfg.providerType)) {
+    ctx.ingestSsrm?.(providerId, event.rows, Boolean(event.replace));
+    slot.lastMessageAt = Date.now();
+    slot.msgCount += 1;
+    slot.msgsByBucket[slot.bucketIdx] += 1;
+    if (!slot.snapshotReady) {
+      ctx.broadcast(providerId, slot, {
+        kind: 'rows-received',
+        count: event.rows.length,
+        subId: '',
+      });
+    }
+    return;
+  }
   const keyColumn = (slot.cfg as { keyColumn?: string | readonly string[] }).keyColumn;
   const replay = slot.replay;
   if (event.replace) {

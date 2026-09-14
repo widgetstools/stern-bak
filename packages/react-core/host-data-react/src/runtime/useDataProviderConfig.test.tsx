@@ -95,6 +95,29 @@ describe('useDataProviderConfig — provider switch drops the stale cfg', () => 
     expect(result.current.loading).toBe(false);
   });
 
+  it('reports loading on the very render a providerId first appears — never { cfg: null, loading: false } for it', async () => {
+    const h = makeHarness();
+    // Log every rendered view, keyed by the providerId that render saw.
+    const renders: Array<{ id: string | null; cfg: unknown; loading: boolean }> = [];
+    const { rerender } = renderHook(
+      ({ id }: { id: string | null }) => {
+        const v = useDataProviderConfig(id);
+        renders.push({ id, cfg: v.cfg, loading: v.loading });
+        return v;
+      },
+      { wrapper: h.wrapper, initialProps: { id: null as string | null } },
+    );
+    expect(renders.at(-1)).toEqual({ id: null, cfg: null, loading: false });
+    rerender({ id: 'p1' });
+    // Every render that saw 'p1' before its cfg landed must say loading.
+    const stale = renders.filter((r) => r.id === 'p1' && r.cfg === null && !r.loading);
+    expect(stale).toEqual([]);
+    expect(renders.at(-1)).toMatchObject({ id: 'p1', cfg: null, loading: true });
+    await h.resolveFetch('p1', { providerType: 'mock', dataType: 'positions' } as ProviderConfig);
+    await waitFor(() => expect(renders.at(-1)).toMatchObject({ id: 'p1', loading: false }));
+    expect(renders.at(-1)?.cfg).toMatchObject({ providerType: 'mock' });
+  });
+
   it('keeps the current cfg visible through a same-provider catalog refresh', async () => {
     const { wrapper, resolveFetch, emitCatalogChange } = makeHarness();
     const { result } = renderHook(() => useDataProviderConfig('prov-a'), { wrapper });

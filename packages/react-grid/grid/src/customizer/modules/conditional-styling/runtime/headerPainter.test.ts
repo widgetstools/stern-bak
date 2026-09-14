@@ -85,6 +85,46 @@ describe('createHeaderPainter', () => {
     header.remove();
   });
 
+
+  it('aggregate rules paint against the book threshold, not the row alone', () => {
+    const header = document.createElement('div');
+    header.className = 'ag-header-cell';
+    header.setAttribute('col-id', 'px');
+    document.body.appendChild(header);
+
+    const engine = new ExpressionEngine();
+    const diffCacheByApi = new WeakMap<object, Map<string, { oldValue: unknown; newValue: unknown }>>();
+    const rows = [{ px: 10 }, { px: 20 }, { px: 90 }]; // avg 40 — only 90 beats it
+    const platform = {
+      api: {
+        api: {
+          forEachNode: (cb: (node: { data: Record<string, unknown> }) => void) => {
+            for (const data of rows) cb({ data });
+          },
+          forEachNodeAfterFilter: (cb: (node: { data: Record<string, unknown> }) => void) => {
+            for (const data of rows) cb({ data });
+          },
+        },
+      },
+      getState: () => makeState([{
+        id: 'agg1',
+        enabled: true,
+        expression: '[px] > AVG([px])',
+        scope: { type: 'cell', columns: ['px'] },
+        flash: { enabled: true, target: 'headers', color: 'amber', mode: 'oneShot' },
+      }]),
+      resources: { expression: () => engine },
+    };
+
+    const painter = createHeaderPainter(platform as never, diffCacheByApi);
+    painter.evaluate();
+    // 90 > 40 — a matching row exists, so the header paints. Under the old
+    // per-row context AVG([px]) degraded to the row's own value and this
+    // class never appeared.
+    expect(header.className).toContain('ds-flash-hdr-agg1');
+    header.remove();
+  });
+
   it('no-ops when api or document is unavailable', () => {
     const painter = createHeaderPainter({
       api: { api: null },

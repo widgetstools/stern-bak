@@ -32,6 +32,7 @@ function defaultHubInspectorEnabled(): boolean {
 function hubToDataServices(platform: ResolvedDataServicesHubBundle): DataServices {
   return {
     client: platform.client,
+    platformClient: platform.platformClient,
     appData: platform.appData,
     configManager: platform.configManager,
     // `DataServices.ready` is the AppData-mirror snapshot signal (templates).

@@ -4,14 +4,16 @@
  * Worker fallback, port teardown, and `stop()`.
  *
  * The hydration window is the subtle one. `onconnect` is registered
- * BEFORE the `await hub.hydrateCatalog()`, because browsers fire
- * `connect` the moment the main thread constructs the SharedWorker — a
- * handler installed after hydration drops the first port and every
- * client's `appData.ready()` hangs forever.
+ * BEFORE the platform host's `await hydrateCatalog()`, because browsers
+ * fire `connect` the moment the main thread constructs the SharedWorker —
+ * a handler installed after hydration drops the first port and every
+ * client's `appData.ready()` hangs forever. AppData + catalog live on the
+ * platform-services host since the split (W1c); the data hub has nothing
+ * to hydrate and no AppData handler.
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { installSharedWorkerHub } from './entry.js';
+import { installPlatformServicesHost, installSharedWorkerHub } from './entry.js';
 import type { ConfigManager } from '@wellsfargo-starui/core/host/config';
 
 type Snapshot = { kind: string; reqId?: string };
@@ -35,19 +37,33 @@ async function settle(): Promise<void> {
 }
 
 describe('installSharedWorkerHub — port routing', () => {
-  it('routes an AppData request to the AppData handler, not the provider one', async () => {
+  it('routes an AppData request to the platform host AppData handler, not the provider one', async () => {
     const channel = new MessageChannel();
-    const installed = await installSharedWorkerHub({
+    const installed = await installPlatformServicesHost({
       selfRef: { onconnect: null },
       adoptPorts: [{ port: channel.port2, buffered: [] }],
     });
-    const appData = vi.spyOn(installed.hub, 'handleAppDataRequest');
-    const request = vi.spyOn(installed.hub, 'handleRequest');
+    const appData = vi.spyOn(installed.host, 'handleAppDataRequest');
+    const request = vi.spyOn(installed.host, 'handleRequest');
 
     channel.port1.postMessage({ kind: 'appdata-attach', reqId: 'a1' });
     await settle();
 
     expect(appData).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: 'appdata-attach' }));
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('the data hub has no AppData handler — an AppData request is dropped, never mis-routed', async () => {
+    const channel = new MessageChannel();
+    const installed = await installSharedWorkerHub({
+      selfRef: { onconnect: null },
+      adoptPorts: [{ port: channel.port2, buffered: [] }],
+    });
+    const request = vi.spyOn(installed.hub, 'handleRequest');
+
+    channel.port1.postMessage({ kind: 'appdata-attach', reqId: 'a1' });
+    await settle();
+
     expect(request).not.toHaveBeenCalled();
   });
 
@@ -57,13 +73,11 @@ describe('installSharedWorkerHub — port routing', () => {
       selfRef: { onconnect: null },
       adoptPorts: [{ port: channel.port2, buffered: [] }],
     });
-    const appData = vi.spyOn(installed.hub, 'handleAppDataRequest');
     const request = vi.spyOn(installed.hub, 'handleRequest');
 
     channel.port1.postMessage({ kind: 'who-knows' });
     await settle();
 
-    expect(appData).not.toHaveBeenCalled();
     expect(request).not.toHaveBeenCalled();
   });
 
@@ -89,7 +103,7 @@ describe('installSharedWorkerHub — port routing', () => {
 
     // The listeners are gone, so nothing further on this port reaches the hub.
     port.dispatchEvent(
-      Object.assign(new Event('message'), { data: { kind: 'hub-ready', reqId: 'after-close' } }),
+      Object.assign(new Event('message'), { data: { kind: 'provider-running', reqId: 'after-close', providerId: 'probe' } }),
     );
     await settle();
 
@@ -112,30 +126,28 @@ describe('installSharedWorkerHub — port routing', () => {
   });
 });
 
-describe('installSharedWorkerHub — hydration window', () => {
-  /** A ConfigManager stand-in; only the AppData store touches it. */
-  const configManager = { getIdentity: () => ({ userId: 'worker' }) } as unknown as ConfigManager;
-
+describe('installPlatformServicesHost — hydration window', () => {
   it('serves a port that connected while the catalog was still hydrating', async () => {
     let releaseLoad: () => void = () => {};
-    const loadAll = vi.fn(() => new Promise<void>((resolve) => { releaseLoad = resolve; }));
-    const configCatalog = {
-      isReady: () => false,
-      loadAll,
-      list: () => [],
-      ensure: async () => undefined,
-      invalidate: async () => {},
-    };
+    // The first catalog read (`loadAll` → the ConfigManager's indexed list)
+    // is held open; the AppData hydrate that follows resolves immediately.
+    let listCalls = 0;
+    const configManager = {
+      getAppId: () => 'TestApp',
+      getIdentity: () => ({ userId: 'worker' }),
+      onConfigChanged: () => () => {},
+      getConfigsByComponentTypesUnfiltered: vi.fn(() => {
+        listCalls += 1;
+        if (listCalls === 1) return new Promise<never[]>((resolve) => { releaseLoad = () => resolve([]); });
+        return Promise.resolve([]);
+      }),
+      getConfig: async () => undefined,
+    } as unknown as ConfigManager;
 
     const selfRef: { onconnect: ((ev: { ports: readonly MessagePort[] }) => void) | null } = {
       onconnect: null,
     };
-    const installing = installSharedWorkerHub({
-      selfRef,
-      configManager,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      configCatalog: configCatalog as any,
-    });
+    const installing = installPlatformServicesHost({ selfRef, configManager });
 
     // The handler must already be live even though install has not resolved.
     expect(selfRef.onconnect).toBeTypeOf('function');
@@ -146,20 +158,15 @@ describe('installSharedWorkerHub — hydration window', () => {
     releaseLoad();
     await installing;
 
-    expect(loadAll).toHaveBeenCalled();
+    expect(listCalls).toBeGreaterThan(0);
     channel.port1.postMessage({ kind: 'hub-ready', reqId: 'queued-port' });
     await waitForCount(received, 1);
-    expect(received[0]).toMatchObject({ kind: 'config-snapshot', reqId: 'queued-port' });
+    expect(received[0]).toMatchObject({ kind: 'config-snapshot', reqId: 'queued-port', ready: true });
   });
 
   it('skips hydration entirely when no ConfigManager is supplied', async () => {
-    const loadAll = vi.fn(async () => {});
-    await installSharedWorkerHub({
-      selfRef: { onconnect: null },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      configCatalog: { isReady: () => false, loadAll, list: () => [] } as any,
-    });
-    expect(loadAll).not.toHaveBeenCalled();
+    const installed = await installPlatformServicesHost({ selfRef: { onconnect: null } });
+    expect(installed.host.buildIntrospectSnapshot().catalogReady).toBe(false);
   });
 });
 
@@ -181,16 +188,16 @@ describe('installSharedWorkerHub — dedicated Worker fallback', () => {
     await installSharedWorkerHub({ selfRef: globalRef });
 
     expect(globalRef.onmessage).toBeTypeOf('function');
-    globalRef.onmessage!({ data: { kind: 'hub-ready', reqId: 'dedicated' } } as MessageEvent);
+    globalRef.onmessage!({ data: { kind: 'provider-running', reqId: 'dedicated', providerId: 'probe' } } as MessageEvent);
 
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({ kind: 'config-snapshot', reqId: 'dedicated' });
   });
 
-  it('routes AppData requests on that channel too', async () => {
+  it('routes AppData requests on that channel too (platform host)', async () => {
     const { globalRef } = dedicatedGlobal();
-    const installed = await installSharedWorkerHub({ selfRef: globalRef });
-    const appData = vi.spyOn(installed.hub, 'handleAppDataRequest');
+    const installed = await installPlatformServicesHost({ selfRef: globalRef });
+    const appData = vi.spyOn(installed.host, 'handleAppDataRequest');
 
     globalRef.onmessage!({ data: { kind: 'appdata-attach', reqId: 'a1' } } as MessageEvent);
 

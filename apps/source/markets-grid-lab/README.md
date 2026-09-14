@@ -65,3 +65,5 @@ E2E specs in [`apps/e2e/`](../../e2e/) drive this app on `:5300`
 `v2-bulk-update`, `v2-plus-minus`, `v2-shortcuts`, `v2-edit-history`).
 
 > Framework docs: [`docs/latest/`](../../../docs/latest/README.md).
+> SSRM twin: [`markets-grid-lab-ssrm`](../markets-grid-lab-ssrm/README.md) runs these
+> same tabs against the server-side row model and reports feature-by-feature parity.

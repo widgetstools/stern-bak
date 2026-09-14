@@ -106,4 +106,30 @@ describe('activateShortcuts', () => {
     expect(applyTransactionAsync).not.toHaveBeenCalled();
     platform.destroy();
   });
+
+  it('ignores shortcut keys on server-side grids', async () => {
+    const platform = new GridPlatform({
+      gridId: 'sc-ssrm',
+      modules: [shortcutsModule],
+    });
+    platform.store.setModuleState('shortcuts', () => ({
+      ...INITIAL_SHORTCUTS,
+      shortcuts: [{
+        ...defaultShortcut('Add 5'),
+        shortcutKey: 'm',
+        operation: 'add',
+        shortcutValue: 5,
+        scope: { columnIds: ['quantityFace'] },
+      }],
+    }));
+    const { api, getHandler, applyTransactionAsync } = makeMockApi();
+    (api as { getGridOption: (key: string) => unknown }).getGridOption = (key) =>
+      (key === 'rowModelType' ? 'serverSide' : undefined);
+    platform.onGridReady(api as never);
+    await getHandler()!({
+      event: { key: 'm', preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as KeyboardEvent,
+    });
+    expect(applyTransactionAsync).not.toHaveBeenCalled();
+    platform.destroy();
+  });
 });

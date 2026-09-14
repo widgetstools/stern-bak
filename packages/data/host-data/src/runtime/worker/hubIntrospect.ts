@@ -8,7 +8,9 @@
 
 import type {
   AppDataRow,
+  HubFanoutIntrospect,
   HubIntrospectSnapshot,
+  HubSsrmIntrospect,
   HubProviderIntrospectRow,
 } from '../protocol.js';
 import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
@@ -23,6 +25,10 @@ export interface IntrospectSources {
   connectedPortCount: number;
   appDataListenerCount: number;
   appDataRows: readonly AppDataRow[];
+  /** Late-join replay fan-out accounting (data hub only). */
+  fanout?: HubFanoutIntrospect;
+  /** SSRM plane accounting (data hub only). */
+  ssrm?: HubSsrmIntrospect;
 }
 
 export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSnapshot {
@@ -93,5 +99,7 @@ export function buildIntrospectSnapshot(src: IntrospectSources): HubIntrospectSn
         values: r.values,
       })),
     },
+    ...(src.fanout ? { fanout: src.fanout } : {}),
+    ...(src.ssrm ? { ssrm: src.ssrm } : {}),
   };
 }

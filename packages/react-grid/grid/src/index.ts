@@ -7,6 +7,16 @@
  */
 
 export { MarketsGrid, MarketsGridCore, DEFAULT_MODULES, MINIMAL_MODULES } from './widget/MarketsGrid.js';
+export { ensureAgGridModules, platformAgGridModules, EXCLUDED_AG_GRID_MODULES } from './widget/ensureAgGridModules.js';
+export {
+  createSsrmDatasource,
+  ssrmGetRowId,
+  createSsrmGetRowId,
+  bindSsrmTicks,
+  bindSsrmExpressionAggregates,
+  watchGroupsFromApi,
+  withSsrmStatusBar,
+} from './ssrm/index.js';
 export { useGridTheme } from './widget/theme/index.js';
 export { FiltersToolbar, type FiltersToolbarProps } from './widget/FiltersToolbar.js';
 export { FormattingToolbar } from './widget/FormattingToolbar.js';

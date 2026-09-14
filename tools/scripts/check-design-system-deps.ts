@@ -6,7 +6,14 @@
 //  peerDependencies, or devDependencies so consumers resolve one
 //  coherent theme graph (npm sees the contract).
 //
-//  Angular (`packages/angular/**`) is skipped until DS adoption is wired there.
+//  Scope: the library packages under `packages/` (the seven architecture
+//  buckets). `apps/` is deliberately NOT scanned — it is its own install
+//  root outside the package CI surface (CLAUDE.md, docs/APPS_REPO.md) and
+//  the demo apps declare no `@wellsfargo-starui/*` dependency at all: they
+//  consume the platform through the postinstall symlink and the Vite source
+//  aliases, so a lone design-system entry there would describe nothing.
+//  The remaining Angular package (`host-data-angular`) is skipped until DS
+//  adoption is wired there.
 // ─────────────────────────────────────────────────────────────
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -50,22 +57,11 @@ function walkDirs(dir: string, depth: number, maxDepth: number): string[] {
   return dirs;
 }
 
-/** Workspace packages under packages (nested) and apps (flat). */
+/** Library packages: every directory with a package.json under `packages/<bucket>/`. */
 function findPackageDirs(): string[] {
-  const roots = [
-    join(ROOT, 'packages', 'shared', 'foundation'),
-    join(ROOT, 'packages', 'shared', 'runtime'),
-    join(ROOT, 'packages', 'shared', 'services'),
-    join(ROOT, 'packages', 'shared', 'platform'),
-    join(ROOT, 'packages', 'react'),
-    join(ROOT, 'packages', 'angular'),
-    join(ROOT, 'apps'),
-  ];
-  const out: string[] = [];
-  for (const r of roots) {
-    if (!existsSync(r)) continue;
-    out.push(...walkDirs(r, 0, 10));
-  }
+  const packagesRoot = join(ROOT, 'packages');
+  if (!existsSync(packagesRoot)) throw new Error(`check-design-system-deps: ${packagesRoot} does not exist`);
+  const out: string[] = walkDirs(packagesRoot, 0, 3);
   const pkgDirs: string[] = [];
   const seen = new Set<string>();
   for (const d of out) {
@@ -79,9 +75,36 @@ function findPackageDirs(): string[] {
   return pkgDirs;
 }
 
+/**
+ * A bucket package (`packages/<bucket>/package.json`) is the npm unit; its
+ * members (`packages/<bucket>/<member>/src`) are what ships under that name,
+ * so their sources count towards it. A member's own package.json is a build
+ * shim, not a unit consumers install.
+ */
+function srcDirsOf(pkgDir: string): string[] {
+  const own = join(pkgDir, 'src');
+  const dirs = existsSync(own) ? [own] : [];
+  let entries;
+  try {
+    entries = readdirSync(pkgDir, { withFileTypes: true });
+  } catch {
+    return dirs;
+  }
+  for (const e of entries) {
+    if (!e.isDirectory() || SKIP_DIRS.has(e.name) || e.name === 'src') continue;
+    const memberSrc = join(pkgDir, e.name, 'src');
+    if (existsSync(memberSrc)) dirs.push(memberSrc);
+  }
+  return dirs;
+}
+
+function isBuildShim(name: string): boolean {
+  return name.endsWith('-build-shim');
+}
+
 function readSrcUsesDs(pkgDir: string): boolean {
-  const srcDir = join(pkgDir, 'src');
-  if (!existsSync(srcDir)) return false;
+  const srcDirs = srcDirsOf(pkgDir);
+  if (srcDirs.length === 0) return false;
 
   const exts = new Set(['.tsx', '.ts', '.css', '.scss']);
   function scanFile(path: string): boolean {
@@ -117,7 +140,7 @@ function readSrcUsesDs(pkgDir: string): boolean {
     return false;
   }
 
-  return walkFiles(srcDir);
+  return srcDirs.some((d) => walkFiles(d));
 }
 
 function hasDsDep(pkgJson: Record<string, unknown>): boolean {
@@ -129,11 +152,11 @@ function hasDsDep(pkgJson: Record<string, unknown>): boolean {
   return false;
 }
 
-/** True when pkg lives under `packages/angular/` (not enforced yet). */
+/** True for the remaining Angular package (`packages/data/host-data-angular`; not enforced yet). */
 function isAngularWorkspacePackage(pkgDir: string): boolean {
   const rel = relative(ROOT, pkgDir);
   const segments = rel.split(sep);
-  return segments[0] === 'packages' && segments[1] === 'angular';
+  return segments[0] === 'packages' && segments.some((s) => s.endsWith('-angular'));
 }
 
 function main(): void {
@@ -147,7 +170,7 @@ function main(): void {
       continue;
     }
     const name = typeof pkgJson.name === 'string' ? pkgJson.name : '';
-    if (!name || SKIP_PKG_NAMES.has(name)) continue;
+    if (!name || SKIP_PKG_NAMES.has(name) || isBuildShim(name)) continue;
     if (isAngularWorkspacePackage(pkgDir)) continue;
 
     if (!readSrcUsesDs(pkgDir)) continue;

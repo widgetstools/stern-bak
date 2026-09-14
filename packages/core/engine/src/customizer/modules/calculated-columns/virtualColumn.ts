@@ -29,6 +29,7 @@ import {
   valueFormatterFromTemplate,
 } from '../../../colDef';
 import type { VirtualColumnDef } from './state';
+import { lookupSsrmExprAggregate } from '../../../expression/ssrmAggregateLookup';
 
 /** Shape stored in ResourceScope.cache<GridApi, AllRowsEntry>. */
 export interface AllRowsEntry {
@@ -118,6 +119,11 @@ export function buildVirtualColDef(
     editable: false,
     sortable: true,
     filter: true,
+    // Under SSRM the surface compiles this source through the engine
+    // expression contract: a tier-'compiled' column rides the getRows
+    // request as an engine computed column (sortable/filterable/groupable
+    // dataset-wide); anything else keeps the brand-based lock.
+    context: { staruiVirtual: true, staruiExprSource: v.expression },
     valueGetter: (params: ValueGetterParams) => {
       // Group rows store the agg result on `node.aggData[colId]`. Return
       // that here so the group row shows the aggregate instead of an
@@ -153,6 +159,11 @@ export function buildVirtualColDef(
             // before handing out its memo.
             getAllRowsSnapshot(params.api as GridApi, cache);
             return getAllRowsColumnCache(params.api as GridApi, cache);
+          },
+          // SSRM: SUM/AVG/MIN/MAX/COUNT read the engine total, not
+          // the loaded-block snapshot in `allRows`.
+          get resolveAggregate() {
+            return lookupSsrmExprAggregate(params.api);
           },
         });
       } catch {

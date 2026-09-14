@@ -38,6 +38,7 @@ import {
   partitionEnabledRules,
 } from './evaluateCellDelta';
 import { createPreviousValuesStore } from './previousValues';
+import { bindSsrmAlertPredicates } from './ssrmAlertPredicates';
 
 type PartitionedRules = ReturnType<typeof partitionEnabledRules>;
 
@@ -79,6 +80,19 @@ export function activateAlerts(
   const dispatcher = createAlertDispatcher(platform);
   const prevValues = createPreviousValuesStore();
   const engine = platform.resources.expression();
+
+  // Rules the SSRM predicate bridge watches ENGINE-side (plan §12 T5). The
+  // client evaluator skips them — a loaded row's transition would otherwise
+  // fire the same rule twice, once from the engine delta and once from here.
+  const engineWatched = new Set<string>();
+  const partitionForClient = (rules: AlertsState['rules']): PartitionedRules => {
+    const partitioned = partitionEnabledRules(rules);
+    if (engineWatched.size === 0) return partitioned;
+    return {
+      ...partitioned,
+      dataChange: partitioned.dataChange.filter((r) => !engineWatched.has(r.id)),
+    };
+  };
 
   let knownRowIds: Set<string> = new Set();
 
@@ -180,7 +194,7 @@ export function activateAlerts(
       if (id) { knownRowIds.delete(id); prevValues.deleteRow(id); }
     }
 
-    const partitioned = partitionEnabledRules(rules);
+    const partitioned = partitionForClient(rules);
     if (partitioned.dataChange.length === 0 && partitioned.relativeChange.length === 0) return;
     const api = platform.api.api;
     if (!api) return;
@@ -212,7 +226,7 @@ export function activateAlerts(
     for (const id of knownRowIds) if (!next.has(id)) prevValues.deleteRow(id);
     knownRowIds = next;
 
-    const partitioned = partitionEnabledRules(rules);
+    const partitioned = partitionForClient(rules);
     if (partitioned.dataChange.length === 0 && partitioned.relativeChange.length === 0) return;
     const watchedCols = getWatchedCols(api, rules);
     if (watchedCols.size === 0) return;
@@ -235,7 +249,7 @@ export function activateAlerts(
     const data = evt.data ?? (node as { data?: Record<string, unknown> }).data ?? {};
     const newValue = evt.newValue;
     const prev = prevValues.get(rowId, colId);
-    const partitioned = partitionEnabledRules(platform.getState().rules);
+    const partitioned = partitionForClient(platform.getState().rules);
 
     evaluateCellDelta({
       rowId,
@@ -289,6 +303,17 @@ export function activateAlerts(
       const handler = onCellValueChanged as unknown as () => void;
       api.addEventListener('cellValueChanged', handler);
       disposers.push(() => api.removeEventListener('cellValueChanged', handler));
+
+      // SSRM: compiled dataChange rules ride an engine membership watch and
+      // fire over ALL rows, not loaded blocks. No-op on CSRM grids.
+      disposers.push(
+        bindSsrmAlertPredicates(
+          platform,
+          api as unknown as Parameters<typeof bindSsrmAlertPredicates>[1],
+          dispatcher,
+          engineWatched,
+        ),
+      );
     }),
   );
 

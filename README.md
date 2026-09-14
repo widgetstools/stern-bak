@@ -48,7 +48,7 @@ runtime architecture are diagrammed in
 - **Node** ≥ 20, **npm** 10 workspaces, **Turborepo** 2 — plain
   `npm install`, never `npm ci` (lockfiles are per-environment, not committed)
 - **React** 19.2.x + **TypeScript** 5.9.x + **Vite** 7.x
-- **AG Grid Enterprise** 35.1.x
+- **AG Grid Enterprise** 36.1.x
 - **OpenFin** 43.101.x (Core / Workspace)
 - **Dexie** (IndexedDB) for config persistence; **SharedWorker** for live data
 - **Radix UI** + shadcn primitives via `@wellsfargo-starui/react`
@@ -81,6 +81,7 @@ The demo apps double as reference implementations — each has its own README:
 [`dataprovider-editor`](./apps/source/dataprovider-editor/) (:5193),
 [`star-demo`](./apps/source/star-demo/) (OpenFin, :5175),
 [`stomp-marketsgrid-minimal`](./apps/source/stomp-marketsgrid-minimal/) (:5213),
+[`stomp-ssrm-minimal`](./apps/source/stomp-ssrm-minimal/) (:5214),
 [`stomp-view-server`](./apps/source/stomp-view-server/) (fixture broker, :8081).
 
 ## Running demo apps from the root
@@ -109,6 +110,7 @@ npm run app -- stomp-marketsgrid-minimal --no-broker   # skip the auto-started b
 | `markets-grid-lab` | 5300 | 6300 | |
 | `star-demo` | 5175 | 6175 | starts the broker unless `--no-broker`; supports `--openfin` |
 | `stomp-marketsgrid-minimal` | 5213 | 6213 | requires the broker |
+| `stomp-ssrm-minimal` | 5214 | 6214 | two SSRM grids, one WASM cache; requires the broker |
 | `stomp-view-server` | 8081 | — | the broker itself; source-track only (imports no `@wellsfargo-starui` packages, so no tarball twin) |
 
 `--tarball` targets the generated twin at `apps/tarball/<app>` on its own port
@@ -129,7 +131,7 @@ and [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 | `npm test` | turbo Vitest across `packages/` |
 | `npm run test:coverage` | instrumented run; merges per-bucket LCOV → `coverage/lcov.info` (Sonar) |
 | `npm run check:coverage` | the **70%-per-file** gate (lines, statements, functions, branches) |
-| `npm run lint:all` | ESLint + dependency cycles + design-system dep rules + RTL enforcement |
+| `npm run lint:all` | ESLint + dependency cycles + design-system dep rules + RTL enforcement + file/function size ratchet (`check:loc`) |
 | `npm run check:ds-tokens` | no-hardcoded-hex token policy scan |
 | `npm run pack:npm` | pack each package as a real npm tarball → `dist-npm/` |
 | `npm run verify:external` | prove the tarballs install with `packages/` hidden |

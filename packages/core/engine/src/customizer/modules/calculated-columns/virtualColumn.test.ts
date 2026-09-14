@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExpressionEngine } from '../../../expression/index.js';
+import { ExpressionEngine, SSRM_EXPR_AGG_KEY } from '../../../expression/index.js';
 import type { GridApi } from 'ag-grid-community';
 import {
   buildVirtualColDef,
@@ -71,6 +71,7 @@ describe('buildVirtualColDef', () => {
     const good = buildVirtualColDef(virtual(), engine, cache);
     const bad = buildVirtualColDef(virtual({ expression: '((((' }), engine, cache);
 
+    expect(good.context).toEqual({ staruiVirtual: true, staruiExprSource: '[price] * [qty]' });
     const getter = good.valueGetter as (p: { data: Record<string, unknown> }) => unknown;
     expect(getter({ data: { price: 2, qty: 3 } })).toBe(6);
 
@@ -129,6 +130,28 @@ describe('buildVirtualColDef', () => {
       api: GridApi;
     }) => unknown;
     expect(getter({ data: { price: 10 }, api })).toBe(30);
+  });
+
+  it('prefers a dataset-wide resolver over the loaded-block snapshot', () => {
+    const col = buildVirtualColDef(
+      virtual({ expression: '[price] / SUM([price])' }),
+      engine,
+      cache,
+    );
+    const api = {
+      forEachNode: (cb: (node: { data?: Record<string, unknown> }) => void) => {
+        cb({ data: { price: 10 } });
+      },
+      [SSRM_EXPR_AGG_KEY]: {
+        resolve: (fn: string, columnId: string) =>
+          fn === 'SUM' && columnId === 'price' ? 1000 : undefined,
+      },
+    } as unknown as GridApi;
+    const getter = col.valueGetter as (p: {
+      data: Record<string, unknown>;
+      api: GridApi;
+    }) => unknown;
+    expect(getter({ data: { price: 10 }, api })).toBe(0.01);
   });
 
   it('clears inline color when formatter has no color tag', () => {

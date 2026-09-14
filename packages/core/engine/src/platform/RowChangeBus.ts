@@ -1,6 +1,6 @@
 import type { AsyncTransactionsFlushedEvent, IRowNode, RowNodeTransaction } from 'ag-grid-community';
 import type { ApiHub } from './ApiHub';
-import type { RowChange, RowChangeSignal } from './types';
+import type { RowChange, RowChangeFeed, RowChangeSignal } from './types';
 
 /**
  * The platform's single, shared, timer-coalesced row-change emitter.
@@ -29,7 +29,7 @@ import type { RowChange, RowChangeSignal } from './types';
  *
  * Lifecycle: `start()` on grid-ready (api attached), `dispose()` on destroy.
  */
-export class RowChangeBus implements RowChangeSignal {
+export class RowChangeBus implements RowChangeSignal, RowChangeFeed {
   private readonly handlers = new Set<(change: RowChange) => void>();
   private disposers: Array<() => void> = [];
   private timerId: ReturnType<typeof setTimeout> | null = null;
@@ -48,6 +48,18 @@ export class RowChangeBus implements RowChangeSignal {
   subscribe(fn: (change: RowChange) => void): () => void {
     this.handlers.add(fn);
     return () => this.handlers.delete(fn);
+  }
+
+  /**
+   * Rows updated WITHOUT a transaction (the rendered-row apply path patches
+   * node data in place and refreshes rendered cells — refactor plan B1).
+   * Counts as a flush for this frame's classification, so a `modelUpdated`
+   * landing in the same window is still a delta, not `full`.
+   */
+  noteRowsChanged(nodes: ReadonlyArray<IRowNode>): void {
+    for (const node of nodes) this.track(this.pendingUpdated, node);
+    this.sawFlush = true;
+    this.schedule();
   }
 
   /** Begin listening. Idempotent. Called by GridPlatform once the api attaches. */

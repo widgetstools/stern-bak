@@ -20,7 +20,7 @@ name the ones you import. Peer dependencies you must supply yourself:
 | Peer | Range | Needed by |
 |---|---|---|
 | `react`, `react-dom` | `^19.2.5` | every React package |
-| `ag-grid-community` / `-enterprise` / `-react` | `^35.1.0` | `grid`, `widgets-react` (enterprise licence is yours to install) |
+| `ag-grid-community` / `-enterprise` / `-react` | `^36.1.0` | `grid`, `widgets-react` (enterprise licence is yours to install) |
 | `lucide-react` | `^0.554.0` | `grid`, `widgets-react`, `ui` |
 | `@tanstack/react-query` | `^5.80.0` | `widgets-react` |
 | `@openfin/*` | `23.0.20` / `43.101.2` — **optional** | only for OpenFin hosting |
@@ -193,10 +193,11 @@ await ensurePlatformReady(config, { workerScriptUrl: workerUrl });
 | Blank page / infinite loading on data routes | `appData.ready()` never resolves → `ConfigManager.init()` hangs — check the worker actually booted |
 | React context errors from the data hooks (`must be inside <…Provider>`) | Vite prebundled a duplicate copy of the data runtime — add the `optimizeDeps.exclude` line above |
 
-**Do not** use `createDataServicesClient()` in Vite apps — its
-`new URL(..., import.meta.url)` lives inside the library and breaks once
-Vite prebundles the package into `.vite/deps/`. Use `ensurePlatformReady`
-with the packaged worker asset instead.
+Boot through `ensurePlatformReady` (or `warmPlatform`) with the packaged
+worker asset; the former single-worker `createDataServicesClient()` /
+`bootstrapDataServicesWithWorkerAsset()` helpers were deleted with the
+worker split — there are two SharedWorkers now, and only the platform
+bootstrap spawns both.
 
 ## 5. Publishing (maintainers)
 

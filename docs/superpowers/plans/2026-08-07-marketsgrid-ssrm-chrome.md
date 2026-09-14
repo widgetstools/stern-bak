@@ -1,5 +1,22 @@
 # MarketsGrid SSRM Chrome Parity Implementation Plan
 
+> **⚠️ SUPERSEDED IN TWO PLACES — read before executing (2026-09-11):**
+>
+> 1. **Do not remount the AG Grid *surface* by destroying `GridPlatform`.** Where
+>    this plan implies tearing the platform down to switch row model,
+>    `GridPlatform.destroy()` is one-way and permanently destroys the customizer
+>    profile. The shipped design remounts at `<MarketsGrid key>` INSIDE a live
+>    host — keep it that way. (The `key={`ssrm:${provider.id}`}` remount noted in
+>    the file map is the surface-level remount and is fine.)
+> 2. **`configureExpressions` / `toSsrmExpressionRules` do not exist on `main`.**
+>    They live only on the unmerged `origin/feature/ssrm` branch and target an
+>    engine the vendored WASM is not. On `main`, expression columns are
+>    client-computed and locked (`lockSsrmExpressionColumns`), and the
+>    calculated-columns panel reports the SSRM tier.
+>
+> Current state of the SSRM work:
+> [`2026-09-11-ssrm-hardening-handoff.md`](./2026-09-11-ssrm-hardening-handoff.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make SSRM MarketsGrid use the full MarketsGrid host chrome (customizer, formatter, edit toolbar, filters, profiles) by teaching `MarketsGrid` an `ssrm` prop that swaps the inner AG Grid surface to server-side row model.

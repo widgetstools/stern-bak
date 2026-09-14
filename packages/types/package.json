@@ -2,7 +2,7 @@
   "name": "@wellsfargo-starui/types",
   "version": "0.1.0",
   "private": true,
-  "description": "MarketsUI foundation types — host-port identity/theme/surface types plus the shared widget-framework contracts. Consolidates types and shared-types.",
+  "description": "MarketsUI foundation types \u2014 host-port identity/theme/surface types plus the shared widget-framework contracts. Consolidates types and shared-types.",
   "type": "module",
   "main": "./types/dist/index.js",
   "module": "./types/dist/index.js",
@@ -31,6 +31,11 @@
       "types": "./shared-types/dist/fieldSelector.d.ts",
       "import": "./shared-types/dist/fieldSelector.js",
       "require": "./shared-types/dist/fieldSelector.js"
+    },
+    "./shared/ssrmExpression": {
+      "types": "./shared-types/dist/ssrmExpression.d.ts",
+      "import": "./shared-types/dist/ssrmExpression.js",
+      "require": "./shared-types/dist/ssrmExpression.js"
     }
   },
   "files": [

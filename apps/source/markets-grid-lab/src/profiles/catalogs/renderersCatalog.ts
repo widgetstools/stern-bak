@@ -7,7 +7,9 @@ import {
   RENDERERS_PNL_ASSIGNMENTS,
 } from '../../seeds/renderers';
 
-export const RENDERERS_GRID_ID = 'lab-renderers-v2';
+// v3: re-seeds the fixed renderer configs (trend-arrow upColor/downColor,
+// sparkline variant, percent-bar max) — v2 storage carries the broken shapes.
+export const RENDERERS_GRID_ID = 'lab-renderers-v3';
 
 export const RENDERERS_DEMO_PROFILES: LabDemoProfileEntry[] = [
   {

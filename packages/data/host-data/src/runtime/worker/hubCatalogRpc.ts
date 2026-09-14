@@ -7,7 +7,9 @@
  */
 
 import type {
+  ConfigDeleteRequest,
   ConfigInvalidateRequest,
+  ConfigSaveRequest,
   ConfigSnapshotEvent,
   GetConfigRequest,
   HubIntrospectRequest,
@@ -17,15 +19,32 @@ import type {
   ProviderRunningRequest,
   CatalogEvent,
 } from '../protocol.js';
+import { OptimisticLockError, type AppConfigRow, type ConfigManager } from '@wellsfargo-starui/core/host/config';
 import type { ConfigCatalogCache } from '../../hub/ConfigCatalogCache.js';
+import { isCatalogConfigRow } from '../../hub/isCatalogConfigRow.js';
 import type { PortLike } from './hubTypes.js';
 
-export interface CatalogRpcContext {
-  catalog: ConfigCatalogCache | null;
-  broadcastCatalogEvent(event: CatalogEvent): void;
-  resyncAppData(): Promise<void>;
+/**
+ * The two diagnostics RPCs both worker brains answer — the data hub for its
+ * providers, the platform host for its catalog + AppData.
+ */
+export interface IntrospectRpcContext {
   buildIntrospect(): HubIntrospectSnapshot;
   isProviderRunning(providerId: string): boolean;
+}
+
+export interface CatalogRpcContext extends IntrospectRpcContext {
+  catalog: ConfigCatalogCache | null;
+  /** The worker's ConfigManager — the single writer for config rows (W2). */
+  configManager: ConfigManager | null;
+  /**
+   * Config ids this worker is writing right now. The host's own
+   * change-notifier listener skips them (the handler refreshes the catalog
+   * inline before replying, so the reply is never ahead of the cache).
+   */
+  ownWrites: Set<string>;
+  broadcastCatalogEvent(event: CatalogEvent): void;
+  resyncAppData(): Promise<void>;
 }
 
 function reply(port: PortLike, snapshot: ConfigSnapshotEvent): void {
@@ -84,8 +103,85 @@ async function replyBounded(
       reqId,
       ok: false,
       error: err instanceof Error ? err.message : String(err),
+      ...(err instanceof OptimisticLockError
+        ? { code: 'optimistic-lock' as const, conflictRow: err.currentRow ?? null }
+        : {}),
     });
     return false;
+  }
+}
+
+/** Re-read one catalog row + the AppData rows after a write landed. */
+async function refreshCatalogRow(ctx: CatalogRpcContext, configId: string): Promise<void> {
+  await ctx.catalog?.invalidate(configId);
+  await ctx.resyncAppData();
+}
+
+/**
+ * `config-save` — persist a row on behalf of a window (single writer, W2).
+ * Catalog rows refresh the worker's cache BEFORE the reply, so a window
+ * that reads straight back sees its own write; every window then hears
+ * `catalog-ready`.
+ */
+export async function handleConfigSave(
+  ctx: CatalogRpcContext,
+  port: PortLike,
+  req: ConfigSaveRequest,
+): Promise<void> {
+  const cm = ctx.configManager;
+  if (!cm) {
+    replyNoCatalog(port, req.reqId);
+    return;
+  }
+  let touched: AppConfigRow | null = null;
+  const completed = await replyBounded(port, req.reqId, async () => {
+    ctx.ownWrites.add(req.row.configId);
+    try {
+      await cm.saveConfig(
+        req.row,
+        req.expectedUpdatedTime === undefined ? undefined : { expectedUpdatedTime: req.expectedUpdatedTime },
+      );
+      const persisted = (await cm.getConfig(req.row.configId)) ?? req.row;
+      if (isCatalogConfigRow(persisted)) {
+        touched = persisted;
+        await refreshCatalogRow(ctx, persisted.configId);
+      }
+      return { row: persisted };
+    } finally {
+      ctx.ownWrites.delete(req.row.configId);
+    }
+  });
+  if (completed && touched) {
+    ctx.broadcastCatalogEvent({ kind: 'catalog-ready', providerId: (touched as AppConfigRow).configId });
+  }
+}
+
+/** `config-delete` — the delete half of the single writer. */
+export async function handleConfigDelete(
+  ctx: CatalogRpcContext,
+  port: PortLike,
+  req: ConfigDeleteRequest,
+): Promise<void> {
+  const cm = ctx.configManager;
+  if (!cm) {
+    replyNoCatalog(port, req.reqId);
+    return;
+  }
+  let wasCatalogRow = false;
+  const completed = await replyBounded(port, req.reqId, async () => {
+    ctx.ownWrites.add(req.configId);
+    try {
+      const before = await cm.getConfig(req.configId);
+      wasCatalogRow = Boolean(before && isCatalogConfigRow(before));
+      await cm.deleteConfig(req.configId);
+      if (wasCatalogRow) await refreshCatalogRow(ctx, req.configId);
+      return {};
+    } finally {
+      ctx.ownWrites.delete(req.configId);
+    }
+  });
+  if (completed && wasCatalogRow) {
+    ctx.broadcastCatalogEvent({ kind: 'catalog-ready', providerId: req.configId });
   }
 }
 
@@ -108,7 +204,7 @@ export function handleHubReady(ctx: CatalogRpcContext, port: PortLike, req: HubR
 }
 
 export function handleHubIntrospect(
-  ctx: CatalogRpcContext,
+  ctx: IntrospectRpcContext,
   port: PortLike,
   req: HubIntrospectRequest,
 ): void {
@@ -122,7 +218,7 @@ export function handleHubIntrospect(
 
 /** O(1) scalar probe — never serializes hub state (unlike introspect). */
 export function handleProviderRunning(
-  ctx: CatalogRpcContext,
+  ctx: IntrospectRpcContext,
   port: PortLike,
   req: ProviderRunningRequest,
 ): void {

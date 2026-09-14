@@ -52,7 +52,7 @@ describe('startProvider', () => {
     startProvider(cfg, emit, { appDataLookup: lookup });
 
     expect(startStomp).toHaveBeenCalledWith(
-      cfg,
+      expect.objectContaining({ providerType: 'stomp' }),
       emit,
       expect.objectContaining({ appDataLookup: lookup }),
     );
@@ -85,6 +85,24 @@ describe('startProvider', () => {
     });
 
     expect(startMock).toHaveBeenCalled();
+  });
+
+  it('dispatches stomp-ssrm through startStomp with providerType coerced to stomp', () => {
+    const cfg = {
+      providerType: 'stomp-ssrm',
+      websocketUrl: 'ws://localhost',
+      listenerTopic: '/t',
+      keyColumn: 'id',
+      columnDefinitions: [{ field: 'id', headerName: 'ID' }],
+    } as ProviderConfig;
+
+    startProvider(cfg, emit);
+
+    expect(startStomp).toHaveBeenCalledWith(
+      expect.objectContaining({ providerType: 'stomp', listenerTopic: '/t' }),
+      emit,
+      expect.any(Object),
+    );
   });
 
   it('allows registerProvider to override the default factory', () => {

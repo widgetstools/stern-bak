@@ -46,6 +46,8 @@ import {
   type RelativeChangeMode,
 } from '@wellsfargo-starui/core';
 import { useGridPlatform } from '../../hooks/GridProvider';
+import { useGridApi } from '../../hooks/useGridApi';
+import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
 import { useModuleState } from '../../hooks/useModuleState';
 import { useModuleDraft } from '../../hooks/useModuleDraft';
 import { useDirty } from '../../hooks/useDirty';
@@ -112,6 +114,7 @@ interface AlertsSettingsBandProps {
 
 export function AlertsSettingsBand({ settings, onChange }: AlertsSettingsBandProps) {
   const openFinDetected = isOpenFinHost();
+  const ssrm = isSsrmGrid(useGridApi());
   const setEvalMode = (mode: EvaluationMode) =>
     onChange((prev) => ({ ...prev, evaluationMode: mode }));
 
@@ -131,6 +134,17 @@ export function AlertsSettingsBand({ settings, onChange }: AlertsSettingsBandPro
               data-testid="alerts-enabled-switch"
             />
           </div>
+          {ssrm ? (
+            <p
+              className="text-xs text-[color:var(--ds-text-muted)] py-1"
+              data-testid="alerts-ssrm-visible-only"
+            >
+              Data-change rules whose condition compiles to the engine
+              expression grammar watch the WHOLE book — a row that has never
+              loaded still fires. Relative-change, column-scoped and
+              old/new-value rules evaluate on loaded (visible) rows only.
+            </p>
+          ) : null}
         </Band>
 
         <Band title="Frequency">

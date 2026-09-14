@@ -36,6 +36,7 @@ const APPS = {
   'markets-grid-lab':          { port: 5300, broker: 'none' },
   'star-demo':                 { port: 5175, broker: 'auto', openfin: true },
   'stomp-marketsgrid-minimal': { port: 5213, broker: 'required' },
+  'stomp-ssrm-minimal':        { port: 5214, broker: 'required' },
   'stomp-view-server':         { port: 8081, broker: 'self' },
 };
 const BROKER = 'stomp-view-server';
@@ -114,7 +115,11 @@ function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
   for (const c of children) {
-    try { process.kill(-c.pid, 'SIGTERM'); } catch { /* already gone */ }
+    try {
+      // Windows has no process groups; `taskkill /T` walks the tree instead.
+      if (process.platform === 'win32') spawn('taskkill', ['/pid', String(c.pid), '/T', '/F'], { stdio: 'ignore' });
+      else process.kill(-c.pid, 'SIGTERM');
+    } catch { /* already gone */ }
   }
   setTimeout(() => process.exit(code), 300);
 }
@@ -122,7 +127,15 @@ process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
 function run(label, cwd, script, { critical = true } = {}) {
-  const child = spawn('npm', ['run', script], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  // `npm` is `npm.cmd` on Windows, which `spawn` only finds through a shell;
+  // `detached` (a POSIX process group for the shutdown kill) is POSIX-only.
+  const win32 = process.platform === 'win32';
+  const child = spawn('npm', ['run', script], {
+    cwd,
+    detached: !win32,
+    shell: win32,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   children.push(child);
   const forward = (stream, out) =>
     stream.on('data', (buf) => {

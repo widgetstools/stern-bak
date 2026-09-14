@@ -20,6 +20,7 @@
  * forever, which surfaces the issue).
  */
 
+import { OptimisticLockError, type AppConfigRow } from '@wellsfargo-starui/core/host/config';
 import type {
   AppDataAckEvent,
   AppDataDeltaEvent,
@@ -28,7 +29,9 @@ import type {
   AttachRequest,
   CatalogChangeDetail,
   CatalogEvent,
+  ConfigDeleteRequest,
   ConfigInvalidateRequest,
+  ConfigSaveRequest,
   ConfigSnapshotEvent,
   DeltaPatchEvent,
   DetachRequest,
@@ -45,9 +48,29 @@ import type {
   RowPatch,
   StopRequest,
   SubscriberMeta,
+  SsrmColumnValuesWireRequest,
+  SsrmGetRowsWireRequest,
+  SsrmAggregatesWireRequest,
+  SsrmRowCountWireRequest,
+  SsrmWatchGroupsWireRequest,
+  SsrmWatchPredicateWireRequest,
+  SsrmUnwatchPredicateWireRequest,
+  SsrmApplyEditsWireRequest,
 } from '../protocol.js';
+import type {
+  SsrmColumnValuesRequest,
+  SsrmColumnValuesResult,
+  SsrmGetRowsRequest,
+  SsrmGetRowsResult,
+  SsrmAggregatesRequest,
+  SsrmAggregatesResult,
+  SsrmApplyEditsResult,
+  SsrmRowCountRequest,
+  SsrmRowCountResult,
+  SsrmTickPayload,
+} from '../ssrm/ssrmTypes.js';
 import { SUBSCRIBER_PING_INTERVAL_MS } from '../worker/hubTypes.js';
-import { isCatalogEvent, isEvent, isAppDataEvent } from '../protocol.js';
+import { isCatalogEvent, isEvent, isAppDataEvent, isSsrmRpcEvent, isSsrmTickEvent } from '../protocol.js';
 import { composeRowId, type DataProviderConfig, type ProviderConfig } from '@wellsfargo-starui/types';
 import { decodeColumnar } from '../wire/columnarCodec.js';
 import type { ListOptions } from '../config/store.js';
@@ -170,7 +193,15 @@ export interface SharedWorkerDataServicesClientOpts {
   generateSubId?: () => string;
   /** Disable window `pagehide` → `close()` wiring (tests). Default false. */
   disablePageHideClose?: boolean;
+  /**
+   * Reject an SSRM RPC (`ssrm-get-rows` and friends) that the worker has not
+   * answered within this many ms. A lost reply otherwise leaves the promise —
+   * and an AG Grid block — pending forever. `0` disables. Default 15 000.
+   */
+  ssrmRpcTimeoutMs?: number;
 }
+
+export const DEFAULT_SSRM_RPC_TIMEOUT_MS = 15_000;
 
 export class SharedWorkerDataServicesClient {
   private readonly port: MessagePort;
@@ -191,6 +222,16 @@ export class SharedWorkerDataServicesClient {
   >();
   private readonly catalogReadyWaiters: Array<() => void> = [];
   private readonly catalogChangeListeners = new Set<(detail: CatalogChangeDetail) => void>();
+  private readonly ssrmPending = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void;
+      reject: (err: Error) => void;
+      timer?: ReturnType<typeof setTimeout>;
+    }
+  >();
+  private readonly ssrmRpcTimeoutMs: number;
+  private readonly ssrmTickListeners = new Map<SubId, Set<(payload: SsrmTickPayload) => void>>();
   private readonly heartbeatTimers = new Map<SubId, ReturnType<typeof setInterval>>();
   private readonly heartbeatMeta = new Map<SubId, SubscriberMeta | undefined>();
   private pageHideHandler: ((ev: PageTransitionEvent) => void) | null = null;
@@ -199,6 +240,7 @@ export class SharedWorkerDataServicesClient {
   constructor(port: MessagePort, opts: SharedWorkerDataServicesClientOpts = {}) {
     this.port = port;
     this.generateSubId = opts.generateSubId ?? (() => crypto.randomUUID());
+    this.ssrmRpcTimeoutMs = opts.ssrmRpcTimeoutMs ?? DEFAULT_SSRM_RPC_TIMEOUT_MS;
     this.port.addEventListener('message', this.handleMessage);
     this.port.start();
     if (!opts.disablePageHideClose && typeof globalThis.addEventListener === 'function') {
@@ -253,6 +295,172 @@ export class SharedWorkerDataServicesClient {
     });
     this.startHeartbeat(subId, opts.meta);
     return subId;
+  }
+
+  /**
+   * Attach without CSRM cache replay. Status + `ssrm-tick` only;
+   * blocks arrive via {@link ssrmGetRows}.
+   */
+  attachSsrm(
+    providerId: string,
+    cfg: ProviderConfig | undefined,
+    listener: Pick<DataListener, 'onStatus' | 'onRowsReceived'>,
+    opts: AttachOpts = {},
+  ): SubId {
+    if (this.closed) throw new Error('[SharedWorkerDataServicesClient] client is closed');
+    const subId = this.generateSubId();
+    this.subs.set(subId, {
+      kind: 'data',
+      listener: {
+        onDelta: () => undefined,
+        onStatus: listener.onStatus,
+        onRowsReceived: listener.onRowsReceived,
+      },
+      attach: { providerId, cfg, extra: opts.extra, meta: opts.meta },
+    });
+    this.send({
+      kind: 'attach',
+      subId,
+      providerId,
+      cfg,
+      mode: 'ssrm',
+      extra: opts.extra,
+    });
+    this.startHeartbeat(subId, opts.meta);
+    return subId;
+  }
+
+  ssrmGetRows(providerId: string, subId: string, request: SsrmGetRowsRequest): Promise<SsrmGetRowsResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-get-rows',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmGetRowsResult>;
+  }
+
+  /** Distinct values for one column — populates an AG Grid set filter list. */
+  ssrmColumnValues(
+    providerId: string,
+    subId: string,
+    request: SsrmColumnValuesRequest,
+  ): Promise<SsrmColumnValuesResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-column-values',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmColumnValuesResult>;
+  }
+
+  /** Matched row count for a filter the grid hasn't applied (pill badges). */
+  ssrmRowCount(
+    providerId: string,
+    subId: string,
+    request: SsrmRowCountRequest,
+  ): Promise<SsrmRowCountResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-row-count',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmRowCountResult>;
+  }
+
+  ssrmAggregates(
+    providerId: string,
+    subId: string,
+    request: SsrmAggregatesRequest,
+  ): Promise<SsrmAggregatesResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-aggregates',
+      providerId,
+      subId,
+      request,
+    }) as Promise<SsrmAggregatesResult>;
+  }
+
+  ssrmWatchGroups(
+    providerId: string,
+    subId: string,
+    groupBy: readonly string[],
+    aggregates?: Record<string, string>,
+  ): Promise<void> {
+    return this.ssrmRpc({
+      kind: 'ssrm-watch-groups',
+      providerId,
+      subId,
+      groupBy,
+      aggregates,
+    }).then(() => undefined);
+  }
+
+  /** Watch a compiled predicate dataset-wide; deltas arrive as `viewDelta` ticks. */
+  ssrmWatchPredicate(providerId: string, subId: string, ruleId: string, expr: import('../ssrm/ssrmTypes.js').SsrmExprNode): Promise<void> {
+    return this.ssrmRpc({ kind: 'ssrm-watch-predicate', providerId, subId, ruleId, expr }).then(() => undefined);
+  }
+
+  ssrmUnwatchPredicate(providerId: string, subId: string, ruleId: string): Promise<void> {
+    return this.ssrmRpc({ kind: 'ssrm-unwatch-predicate', providerId, subId, ruleId }).then(() => undefined);
+  }
+
+  /** Write grid edits (paste / cell edit) into the engine cache. */
+  ssrmApplyEdits(
+    providerId: string,
+    subId: string,
+    rows: readonly Record<string, unknown>[],
+    editedColumns?: ReadonlyArray<readonly string[]>,
+  ): Promise<SsrmApplyEditsResult> {
+    return this.ssrmRpc({
+      kind: 'ssrm-apply-edits',
+      providerId,
+      subId,
+      rows,
+      ...(editedColumns ? { editedColumns } : {}),
+    }) as Promise<SsrmApplyEditsResult>;
+  }
+
+  onSsrmTick(subId: SubId, handler: (payload: SsrmTickPayload) => void): () => void {
+    const set = this.ssrmTickListeners.get(subId) ?? new Set();
+    set.add(handler);
+    this.ssrmTickListeners.set(subId, set);
+    return () => {
+      const next = this.ssrmTickListeners.get(subId);
+      next?.delete(handler);
+      if (next && next.size === 0) this.ssrmTickListeners.delete(subId);
+    };
+  }
+
+  private ssrmRpc(
+    req:
+      | Omit<SsrmGetRowsWireRequest, 'reqId'>
+      | Omit<SsrmColumnValuesWireRequest, 'reqId'>
+      | Omit<SsrmRowCountWireRequest, 'reqId'>
+      | Omit<SsrmAggregatesWireRequest, 'reqId'>
+      | Omit<SsrmWatchGroupsWireRequest, 'reqId'>
+      | Omit<SsrmWatchPredicateWireRequest, 'reqId'>
+      | Omit<SsrmUnwatchPredicateWireRequest, 'reqId'>
+      | Omit<SsrmApplyEditsWireRequest, 'reqId'>,
+  ): Promise<unknown> {
+    if (this.closed) {
+      return Promise.reject(new Error('[SharedWorkerDataServicesClient] client is closed'));
+    }
+    const reqId = crypto.randomUUID();
+    // Epoch stamp so the hub can report how long this request waited in
+    // its queue (`hub-introspect.ssrm.getRows.queueMs`).
+    const sentAt = Date.now();
+    return new Promise((resolve, reject) => {
+      const timer = this.ssrmRpcTimeoutMs > 0
+        ? setTimeout(() => {
+          if (!this.ssrmPending.delete(reqId)) return;
+          reject(new Error(
+            `[SharedWorkerDataServicesClient] ${req.kind} timed out after ${this.ssrmRpcTimeoutMs}ms — the worker did not answer.`,
+          ));
+        }, this.ssrmRpcTimeoutMs)
+        : undefined;
+      this.ssrmPending.set(reqId, { resolve, reject, timer });
+      this.send({ ...req, reqId, sentAt } as Request);
+    });
   }
 
   /**
@@ -621,6 +829,26 @@ export class SharedWorkerDataServicesClient {
     await this.rpcCatalog({ kind: 'config-invalidate', providerId });
   }
 
+  /**
+   * Persist one `appConfig` row through the platform-services worker — the
+   * single writer for config rows (worker-split W2). Resolves with the row
+   * as stored; rejects with {@link OptimisticLockError} when
+   * `expectedUpdatedTime` is stale.
+   */
+  async saveConfigRow(row: AppConfigRow, options?: { expectedUpdatedTime?: string }): Promise<AppConfigRow> {
+    const snap = await this.rpcCatalog({
+      kind: 'config-save',
+      row,
+      expectedUpdatedTime: options?.expectedUpdatedTime,
+    });
+    return snap.row ?? row;
+  }
+
+  /** Delete one `appConfig` row through the platform-services worker. */
+  async deleteConfigRow(configId: string): Promise<void> {
+    await this.rpcCatalog({ kind: 'config-delete', configId });
+  }
+
   /** Live SharedWorker hub diagnostics (providers, subscribers, cache sizes). */
   async getHubIntrospect(): Promise<HubIntrospectSnapshot> {
     const snap = await this.rpcCatalog({ kind: 'hub-introspect' });
@@ -716,6 +944,13 @@ export class SharedWorkerDataServicesClient {
       pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
     }
     this.catalogPending.clear();
+    // Block reads in flight when the page closes must settle too — a pending
+    // promise here is an AG Grid block that never leaves its loading state.
+    for (const [, pending] of this.ssrmPending) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.reject(new Error('[SharedWorkerDataServicesClient] client closed'));
+    }
+    this.ssrmPending.clear();
     for (const resolve of this.catalogReadyWaiters) resolve();
     this.catalogReadyWaiters.length = 0;
     this.catalogChangeListeners.clear();
@@ -832,6 +1067,8 @@ export class SharedWorkerDataServicesClient {
       | Omit<GetConfigRequest, 'reqId'>
       | Omit<ListConfigsRequest, 'reqId'>
       | Omit<ConfigInvalidateRequest, 'reqId'>
+      | Omit<ConfigSaveRequest, 'reqId'>
+      | Omit<ConfigDeleteRequest, 'reqId'>
       | Omit<HubIntrospectRequest, 'reqId'>
       | Omit<ProviderRunningRequest, 'reqId'>,
   ): Promise<ConfigSnapshotEvent> {
@@ -852,6 +1089,21 @@ export class SharedWorkerDataServicesClient {
     }
     if (isAppDataEvent(ev.data)) {
       this.routeAppDataEvent(ev.data);
+      return;
+    }
+    if (isSsrmRpcEvent(ev.data)) {
+      const pending = this.ssrmPending.get(ev.data.reqId);
+      if (!pending) return;
+      this.ssrmPending.delete(ev.data.reqId);
+      if (pending.timer) clearTimeout(pending.timer);
+      if (ev.data.ok) pending.resolve(ev.data.result);
+      else pending.reject(new Error(ev.data.error ?? 'ssrm rpc failed'));
+      return;
+    }
+    if (isSsrmTickEvent(ev.data)) {
+      const listeners = this.ssrmTickListeners.get(ev.data.subId);
+      if (!listeners) return;
+      for (const h of listeners) h(ev.data.payload);
       return;
     }
     if (!isEvent(ev.data)) return;
@@ -935,11 +1187,19 @@ export class SharedWorkerDataServicesClient {
   }
 
   /**
-   * Apply a `delta-patch` frame: merge each patch into the mirrored
-   * previous row, producing NEW full-row objects (the previous row is
-   * never mutated — consumers may still hold it). Full rows under `f`
-   * (inserts / fallbacks) pass through as-is. Returns the merged rows
-   * in patch order, ready for the ordinary `onDelta` path.
+   * Apply a `delta-patch` frame: merge each patch INTO the mirrored row in
+   * place and hand that same object on. The mirror row is the object the
+   * consumer already holds (the replay delivered it), so AG Grid's row node
+   * data is patched without rebuilding the row. It used to copy the whole
+   * row per patch — a 372-column row for a 4-field patch, ~5 000 rows a
+   * second per view, and six views docked into one renderer thread spent
+   * half their time in that copy (WORKLOG 21). Downstream change detection
+   * is by value, not identity: cells compare against what they last
+   * rendered, and the row-change bus reads changed nodes from AG Grid's
+   * flush event. A consumer that needs a row's previous values must copy
+   * them before the patch lands. Full rows under `f` (inserts / fallbacks)
+   * replace the mirror entry as-is. Returns the patched rows in patch
+   * order, ready for the ordinary `onDelta` path.
    */
   private mergeThinPatches(event: DeltaPatchEvent): unknown[] {
     const state = this.thinSubs.get(event.subId);
@@ -958,12 +1218,11 @@ export class SharedWorkerDataServicesClient {
         out.push(p.f);
         continue;
       }
-      const prev = state.rows.get(p.k);
-      if (!prev || typeof prev !== 'object') continue;
-      const next: Record<string, unknown> = { ...(prev as Record<string, unknown>), ...(p.s ?? {}) };
-      if (p.d) for (const name of p.d) delete next[name];
-      state.rows.set(p.k, next);
-      out.push(next);
+      const row = state.rows.get(p.k);
+      if (!row || typeof row !== 'object') continue;
+      if (p.s) Object.assign(row as Record<string, unknown>, p.s);
+      if (p.d) for (const name of p.d) delete (row as Record<string, unknown>)[name];
+      out.push(row);
     }
     return out;
   }
@@ -990,6 +1249,7 @@ export class SharedWorkerDataServicesClient {
     if (!pending) return;
     this.catalogPending.delete(event.reqId);
     if (event.ok) pending.resolve(event);
+    else if (event.code === 'optimistic-lock') pending.reject(new OptimisticLockError(event.conflictRow ?? undefined));
     else pending.reject(new Error(event.error ?? 'Catalog request failed'));
   }
 

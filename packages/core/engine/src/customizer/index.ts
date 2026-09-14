@@ -10,6 +10,11 @@ export {
   invalidateAllRowsCache,
   type AllRowsEntry,
 } from './modules/calculated-columns/virtualColumn.js';
+export {
+  attachAggregateContext,
+  invalidateStylingAggregates,
+  ruleUsesAggregates,
+} from './modules/conditional-styling/aggregateContext';
 
 export * from './modules/column-customization/state.js';
 export {

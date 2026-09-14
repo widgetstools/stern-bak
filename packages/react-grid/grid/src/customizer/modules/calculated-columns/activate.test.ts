@@ -28,6 +28,13 @@ function makeHarness(virtualColumns: VirtualCol[]) {
         return () => listeners.delete(event);
       },
     },
+    // Streaming flushes reach the module through the row-change bus (plan B1).
+    rows: {
+      subscribe: (cb: () => void) => {
+        listeners.set('rows', cb);
+        return () => listeners.delete('rows');
+      },
+    },
     getState: () => ({ virtualColumns }),
     resources: {
       cache: () => cache,
@@ -37,7 +44,7 @@ function makeHarness(virtualColumns: VirtualCol[]) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dispose = calculatedColumnsModule.activate!(platform as any);
-  const fire = (event = 'rowDataUpdated') => listeners.get(event)?.();
+  const fire = (event = 'rowDataUpdated') => listeners.get(event === 'rowDataUpdated' ? 'rows' : event)?.();
   return { refreshCells, cache, api, fire, dispose };
 }
 
@@ -163,6 +170,12 @@ describe('calculatedColumnsModule.activate — refresh gating + coalescing', () 
           return () => listeners.delete(event);
         },
       },
+      rows: {
+        subscribe: (cb: () => void) => {
+          listeners.set('rows', cb);
+          return () => listeners.delete('rows');
+        },
+      },
       getState: () => ({
         virtualColumns: [{ colId: 'total', headerName: 'Total', expression: 'SUM([x])' }],
       }),
@@ -172,7 +185,7 @@ describe('calculatedColumnsModule.activate — refresh gating + coalescing', () 
       },
     };
     const dispose = calculatedColumnsModule.activate!(platform as never);
-    listeners.get('rowDataUpdated')?.();
+    listeners.get('rows')?.();
     flushFrame();
     expect(refreshCells).not.toHaveBeenCalled();
     dispose();

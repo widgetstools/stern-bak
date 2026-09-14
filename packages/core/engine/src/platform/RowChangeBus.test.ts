@@ -185,3 +185,33 @@ describe('RowChangeBus', () => {
     expect(got).toHaveLength(0);
   });
 });
+
+describe('RowChangeBus.noteRowsChanged (rendered-row apply path)', () => {
+  it('emits the noted nodes as a delta and keeps a same-frame modelUpdated from marking full', async () => {
+    const { api, fire } = makeFakeApi();
+    const hub = new ApiHub();
+    hub.attach(api);
+    const bus = new RowChangeBus(hub);
+    bus.start();
+    const seen: RowChange[] = [];
+    bus.subscribe((c) => seen.push(c));
+
+    const a = { id: 'a' } as never;
+    const b = { id: 'b' } as never;
+    bus.noteRowsChanged([a, b]);
+    bus.noteRowsChanged([a]);
+    fire('modelUpdated');
+    await nextFrame();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].full).toBe(false);
+    expect(seen[0].updated.map((n) => n.id)).toEqual(['a', 'b']);
+    expect(seen[0].added).toEqual([]);
+
+    fire('modelUpdated');
+    await nextFrame();
+    expect(seen).toHaveLength(2);
+    expect(seen[1].full).toBe(true);
+    bus.dispose();
+  });
+});

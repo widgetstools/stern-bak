@@ -3,6 +3,8 @@ import {
   defaultVisualExcelFileName,
   type VisualExcelState,
 } from '@wellsfargo-starui/core';
+import { exportSsrmVisualExcel } from '../../../ssrm/exportSsrmExcel.js';
+import { isSsrmGrid } from '../../../ssrm/ssrmSession.js';
 
 export interface VisualExcelExportOptions {
   fileName?: string;
@@ -10,14 +12,24 @@ export interface VisualExcelExportOptions {
   onlySelected?: boolean;
   /** Default `filteredAndSorted`. */
   exportedRows?: 'all' | 'filteredAndSorted';
+  /** SSRM drain path only — CSRM always writes Excel. */
+  format?: 'excel' | 'csv';
 }
 
-/** Export grid data to Excel preserving display formatters and style-rule colours. */
+/**
+ * Export grid data to Excel preserving display formatters and style-rule colours.
+ * Under SSRM this drains the filtered book from the engine (or refuses) —
+ * never `exportDataAsExcel` on the live cache.
+ */
 export function exportVisualExcel(
   api: GridApi,
   settings: VisualExcelState['settings'],
   options: VisualExcelExportOptions = {},
-): void {
+): void | Promise<void> {
+  if (isSsrmGrid(api)) {
+    return exportSsrmVisualExcel(api, settings, options);
+  }
+
   const fileName = options.fileName
     ?? defaultVisualExcelFileName(settings.fileNamePrefix);
 

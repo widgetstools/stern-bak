@@ -591,6 +591,25 @@ describe('provider view/window overrides', () => {
     expect(payload.opts.backgroundThrottling).toBe(false);
   });
 
+  it('with manifest viewProcessAffinityStrategy "different", createView/createWindow strip every persisted affinity', async () => {
+    const provider = await makeProvider({ cm: new InMemoryConfigManager(), appId: APP_ID, userId: USER_ID });
+    (globalThis as any).fin = {
+      me: { identity: { uuid: 'plat' } },
+      Application: { getCurrentSync: () => ({ getManifest: async () => ({ platform: { viewProcessAffinityStrategy: 'different' } }) }) },
+    };
+    const view = { opts: { processAffinity: 'plat', backgroundThrottling: true } };
+    await provider.createView(view, { uuid: 'plat' });
+    expect('processAffinity' in view.opts).toBe(false);
+    expect(view.opts.backgroundThrottling).toBe(false);
+    const win = {
+      layout: { content: [{ componentName: 'view', componentState: { processAffinity: 'plat' } }] },
+      windowOptions: { layout: { content: [{ componentName: 'view', componentState: { processAffinity: 'view-iso-old' } }] } },
+    };
+    await provider.createWindow(win, { uuid: 'plat' });
+    expect('processAffinity' in win.layout.content[0].componentState).toBe(false);
+    expect('processAffinity' in win.windowOptions.layout.content[0].componentState).toBe(false);
+  });
+
   it('createWindow cleans nested layouts and window options', async () => {
     const provider = await makeProvider({ cm: new InMemoryConfigManager(), appId: APP_ID, userId: USER_ID });
     (globalThis as any).fin = { me: { identity: { uuid: 'plat' } } };

@@ -1,0 +1,830 @@
+{
+  "$comment": "Ratchet baseline for scripts/check-file-size.mjs (npm run check:loc). Logical lines per ESLint max-lines (blank + comment lines skipped); ceilings 800 lines / 80 per function. Entries only go down; \"phase\" names the refactor-plan phase that removes the entry, null = none scheduled.",
+  "files": {
+    "packages/core/engine/src/customizer/modules/column-customization/transforms.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/core/engine/src/customizer/modules/column-groups/composeGroups.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/core/engine/src/customizer/modules/conditional-styling/transforms.ts": {
+      "lines": 875,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/core/engine/src/customizer/modules/grid-state/helpers.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/core/engine/src/expression/tokenizer.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/core/engine/src/profiles/ProfileManager.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/core/host-config/src/ConfigManager.ts": {
+      "lines": 870,
+      "longFunctions": 0,
+      "phase": null
+    },
+    "packages/core/host-config/src/deployExport.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/core/host-config/src/profileBundle.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/client/SharedWorkerDataServicesClient.ts": {
+      "lines": 959,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/providers/transports/mock.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/providers/transports/mockTrade.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/providers/transports/mockUniverse.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/providers/transports/stomp.ts": {
+      "lines": null,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/wire/columnarCodec.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/data/host-data/src/runtime/worker/providerEmit.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/design-system/design-system/src/adapters/compatCss.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/design-system/design-system/src/cellRenderers.ts": {
+      "lines": 1018,
+      "longFunctions": 0,
+      "phase": null
+    },
+    "packages/design-system/design-system/src/tokens/components.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/design-system/design-system/src/tokens/semantic.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/design-system/icons-svg/allIcons.ts": {
+      "lines": 931,
+      "longFunctions": 0,
+      "phase": null
+    },
+    "packages/openfin/openfin-platform/src/configImport.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/openfin/openfin-platform/src/dock.ts": {
+      "lines": 807,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/openfin/openfin-platform/src/icons/allIcons.ts": {
+      "lines": 931,
+      "longFunctions": 0,
+      "phase": null
+    },
+    "packages/openfin/openfin-platform/src/internal/customActions.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/openfin/openfin-platform/src/workspace.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/openfin/openfin-platform/src/workspacePersistence.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-core/host-data-react/src/runtime/HubInspectorDrawer.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/host-data-react/src/runtime/HubInspectorVirtualSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/host-data-react/src/runtime/useDataProvider.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/host-data-react/src/runtime/useSsrmDataProvider.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/ui/src/components/CollapsibleToolbar.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/ui/src/components/VirtualizedList.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/ui/src/components/carousel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/ui/src/components/chart.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/widget-sdk/src/hooks/useWidget.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/ImportConfig.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/WorkspaceSetup.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/components/workspace-setup/ComponentsPane.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/components/workspace-setup/DockPane.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/components/workspace-setup/InspectorPane.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/hooks/useDockEditor.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-core/workspace-setup-react/src/registry/useRegistryEditor.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/ConfigBrowser.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/components/DataGrid.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/components/DeleteAllDialog.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/components/DeployExportPreviewDialog.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/components/ImportPreviewDialog.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/components/ResetToSeedDialog.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/components/RowDrawer.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/config-browser/src/hooks/useConfigBrowser.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/hooks/useProfileManager.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/alerts/AlertsBadge.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/alerts/AlertsPanel.tsx": {
+      "lines": 858,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/alerts/runtime/activate.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/alerts/runtime/dispatch.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/bulk-update/BulkUpdatePanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/bulk-update/BulkUpdateToolbarBody.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/calculated-columns/CalculatedColumnsPanel.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/CellRendererEditors/AllocationBarEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/CellRendererEditors/HeatmapEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/CellRendererEditors/IconTextEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/CellRendererEditors/PercentBarEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/CellRendererEditors/PillEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/ColumnSettingsPanel.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/CellEditorEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/CellRendererBand.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/ColumnMetaStrip.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/FilterEditor.tsx": {
+      "lines": null,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/LayoutBand.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/RowGroupingEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-customization/editors/TemplatesBand.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/column-groups/ColumnGroupsPanel.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/ConditionalStylingPanel.tsx": {
+      "lines": null,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/deserializeMigration.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/editor/AnimateBand.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/editor/ColumnPickerMulti.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/editor/FlashBand.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/editor/RuleMetaStrip.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/runtime/activate.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/runtime/headerPainter.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/conditional-styling/runtime/timedActivations.ts": {
+      "lines": null,
+      "longFunctions": 4,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/data-change-history/DataChangeHistoryPanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/general-settings/GridOptionsPanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/general-settings/fieldSchema.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/general-settings/index.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/plus-minus/PlusMinusPanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/shortcuts/ShortcutsPanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/smart-edit/SmartEditPanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/smart-edit/SmartEditToolbarBody.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/toolbar-date-settings/GridEventBindingsSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/toolbar-date-settings/ProviderGridHostSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/modules/toolbar-date-settings/ToolbarDateSettingsPanel.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/ColorPicker/CompactColorField.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/ExpressionEditor/ExpressionEditorInner.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/ExpressionEditor/FallbackInput.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/ExpressionEditor/HelpOverlay.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/ExpressionEditor/Palette.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/FormatterPicker/CompactFormatterPicker.tsx": {
+      "lines": null,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/FormatterPicker/CustomFormatTab.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/FormatterPicker/ExcelReferencePopover.tsx": {
+      "lines": null,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/FormatterPicker/FormatterPicker.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/FormatterPicker/InlineFormatterPicker.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/PopoutPortal.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/StyleEditor/BorderStyleEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/StyleEditor/sections/FormatSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/StyleEditor/sections/TextSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/format-editor/FormatColorPicker.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/customizer/ui/format-editor/FormatDropdown.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/ssrm/bindSsrmTicks.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/ssrm/createSsrmDatasource.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/DraggableFloat.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/EditableCaption.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/FiltersToolbar.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/MarketsGrid.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/MarketsGridHost.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/MarketsGridSsrmSurface.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/PrimaryToolbar.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/PrimaryToolbarOverflowMenu.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/ProfileSelector.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/QuickSearch.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/SettingsSheet.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/TemplateManager.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/ViewMenu.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/column-selector/ColumnList.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/column-selector/ColumnSelectorDialog.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/column-selector/useColumnSelectorState.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/formatter/modules/ModuleContext.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/formatter/modules/ModuleEditorFilter.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/formatter/modules/ModuleFormat.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/formatter/modules/ModuleLibrary.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/formatter/useFormatterActions.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/formatter/useFormatterTemplates.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/help/EmojiSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/help/ExcelSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/help/ExpressionsSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/help/TrafficLightSection.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/streamSafeDateFloatingFilter.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/streamSafeFloatingFilter.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/useFilterModel.ts": {
+      "lines": null,
+      "longFunctions": 4,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/useGridHost.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/useMarketsGridController.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/grid/src/widget/useProfileSelectorActions.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/blotter/hooks/useBlotterDataConnection.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/data-provider-selector/DataProviderSelector.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/markets-grid-container/MarketsGridContainer.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": "D3"
+    },
+    "packages/react-grid/widgets-react/src/container/markets-grid-container/applyProviderToGrid.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/markets-grid-container/useGridLevelPersistence.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/markets-grid-container/useProviderDataWiring.ts": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/DataProviderEditor.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/EditorForm.tsx": {
+      "lines": null,
+      "longFunctions": 2,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/MultiSelect.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/tabs/ColumnsTab.tsx": {
+      "lines": null,
+      "longFunctions": 3,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/tabs/DiagnosticsTab.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/tabs/FieldsTab.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/transports/AppDataFields.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/transports/BehaviourFields.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/transports/RestFields.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/transports/StompSsrmFields.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/container/provider-editor/useProviderProbe.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/hosted/HostedMarketsGrid.tsx": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/hosted/useFdc3Channel.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/hosted/useGridContextLink.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/hosted/useHostedIdentity.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    },
+    "packages/react-grid/widgets-react/src/hosted/useInteropChannel.ts": {
+      "lines": null,
+      "longFunctions": 1,
+      "phase": null
+    }
+  }
+}
