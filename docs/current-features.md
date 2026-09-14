@@ -1780,6 +1780,12 @@ recover from git history if it is ever revived.
 - `npm run check:loc` (`scripts/check-file-size.mjs`, part of `lint:all`) — the complexity ceilings (800 logical lines per file, 80 per function) as a ratchet: runs ESLint's own `max-lines` / `max-lines-per-function` rules alone with the options and test carve-outs read from `eslint.config.mjs`, and compares against `scripts/file-size-baseline.json`. A file not in the baseline may not exceed either ceiling; a listed file may not grow; entries only go down (`--update` lowers, `--update --allow-growth` is the deliberate exception) and each names the refactor-plan phase that removes it.
 - `apps/scripts/ssrm-perf/cdp-*.mjs` + `csrm-frame-counter.mjs` — the dock probes behind WORKLOG 19–21 as scripts over raw CDP against the running OpenFin dock (`cdpDock.mjs`): timer census by callback source, main-thread lag / frame gaps / long tasks, hidden-tab liveness + `document.visibilityState`, view → renderer PID map, AG Grid instances per load + fiber depth, and frames / rows / bytes per message kind on the data port. README rows in `apps/scripts/ssrm-perf/README.md`.
 
+### Data provider editor
+
+- `fieldLayout.tsx` (`provider-editor/transports/`) — one `Card` / `Field` / `Help` set for every transport editor, replacing the copies that had drifted apart in `StompFields` and `RestFields`. `Card` lays fields out in two columns above `lg` (`single` forces one); `Field` is label-left on a 132px label track (`wide` spans both columns for JSON bodies and key/value tables). Stacked labels inside a `max-w-md` card left the editor pane roughly half empty on a 900px surface.
+- Sidebar rows are a three-track grid — icon, name, a reserved 52px action gutter — so a long name truncates to one stable width and Duplicate / Delete stay reachable; the name carries a `title`. Actions live in `RowActions`.
+- The save button reports its own outcome: spinner, then a check and "Saved" for `SAVING_PULSE_MS`, then back; `SAVING_FLOOR_MS` keeps a millisecond-fast IndexedDB write visible, and a failure relabels the button "Retry update". The footer's left-hand status is unchanged.
+
 ### Consumer documentation
 
 - `docs/MARKETSGRID_USAGE_GUIDE.md` — scenario matrix for MarketsGrid (`MarketsGrid` / `MarketsGridContainer` / `HostedMarketsGrid`), hub bootstrap, OpenFin vs browser, persistence, customizer UI (§22), troubleshooting

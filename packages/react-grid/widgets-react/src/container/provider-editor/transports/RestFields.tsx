@@ -7,6 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@wellsfargo-starui/react';
 import type { RestProviderConfig } from '@wellsfargo-starui/types/shared';
+import { Card, Field, Help } from './fieldLayout.js';
 import { KeyValueEditor } from '../KeyValueEditor.js';
 
 export interface RestFieldsProps {
@@ -58,7 +59,7 @@ export function RestFields({ cfg, onChange }: RestFieldsProps) {
 
       <Card title="Payload">
         <KeyValueEditor
-          label="Query Parameters"
+          label="Query Parameters" wide
           description="URL query string."
           value={cfg.queryParams ?? {}}
           onChange={(v) => onChange({ queryParams: v })}
@@ -66,7 +67,7 @@ export function RestFields({ cfg, onChange }: RestFieldsProps) {
           valuePlaceholder="Value"
         />
         <KeyValueEditor
-          label="Custom Headers"
+          label="Custom Headers" wide
           description="Sent with every request."
           value={cfg.headers ?? {}}
           onChange={(v) => onChange({ headers: v })}
@@ -74,7 +75,7 @@ export function RestFields({ cfg, onChange }: RestFieldsProps) {
           valuePlaceholder="Value"
         />
         {cfg.method === 'POST' && (
-          <Field label="Request Body (JSON)">
+          <Field label="Request Body (JSON)" wide>
             <Textarea
               className="font-mono text-xs scrollbar-thin"
               rows={5}
@@ -140,24 +141,3 @@ export function RestFields({ cfg, onChange }: RestFieldsProps) {
 
 // ─── shared layout primitives ─────────────────────────────────────
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-muted/30 p-4 space-y-3.5">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Field({ label, required, children, className }: { label: string; required?: boolean; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`space-y-1.5 ${className ?? ''}`}>
-      <Label className="text-xs font-medium text-muted-foreground">{label}{required ? ' *' : ''}</Label>
-      {children}
-    </div>
-  );
-}
-
-function Help({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] text-muted-foreground">{children}</p>;
-}

@@ -9,6 +9,7 @@
 
 import { Input, Label } from '@wellsfargo-starui/react';
 import type { StompProviderConfig } from '@wellsfargo-starui/types/shared';
+import { Card, Field, Help } from './fieldLayout.js';
 
 export interface StompFieldsProps {
   cfg: StompProviderConfig;
@@ -60,7 +61,7 @@ export function StompFields({ cfg, onChange }: StompFieldsProps) {
             in the URL itself. Supports <code className="bg-muted px-1 rounded text-[10px]">[name]</code> tokens.
           </Help>
         </Field>
-        <Field label="Trigger Body">
+        <Field label="Trigger Body" wide>
           <Input
             className="h-8 text-sm font-mono"
             value={cfg.requestBody ?? ''}
@@ -91,26 +92,3 @@ export function StompFields({ cfg, onChange }: StompFieldsProps) {
 // ─── shared layout primitives — kept in this file so each transport
 //      can drop them in without an extra abstraction layer ──────────
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-muted/30 p-4 space-y-3.5">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-muted-foreground">
-        {label}{required ? ' *' : ''}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
-function Help({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] text-muted-foreground">{children}</p>;
-}
