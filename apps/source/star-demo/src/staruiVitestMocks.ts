@@ -136,39 +136,16 @@ vi.mock('@wellsfargo-starui/grid/config-browser', () => ({
     React.createElement('div', { 'data-testid': 'config-browser-panel' }, 'Config Browser'),
 }));
 
-vi.mock('@wellsfargo-starui/grid/widgets/hosted', () => ({
-  HostedMarketsGrid: (props: Record<string, unknown>) =>
+// The blotter routes render `BlotterHost` (plan D2); the stub keeps the two
+// host callbacks reachable so the popout wiring can be exercised.
+vi.mock('@wellsfargo-starui/grid/widgets', () => ({
+  BlotterHost: (props: Record<string, unknown>) =>
     React.createElement(
       'div',
       {
-        'data-testid': 'hosted-markets-grid',
+        'data-testid': 'blotter-host',
         'data-grid-id': props.gridId,
-      },
-      React.createElement(
-        'button',
-        {
-          type: 'button',
-          'data-testid': 'edit-provider',
-          onClick: () => (props.onEditProvider as ((id: string) => void) | undefined)?.('p-1'),
-        },
-        'Edit provider',
-      ),
-      React.createElement(
-        'button',
-        {
-          type: 'button',
-          'data-testid': 'open-config-browser',
-          onClick: () => (props.onOpenConfigBrowser as (() => void) | undefined)?.(),
-        },
-        'Config browser',
-      ),
-    ),
-  HostedSsrmMarketsGrid: (props: Record<string, unknown>) =>
-    React.createElement(
-      'div',
-      {
-        'data-testid': 'hosted-ssrm-markets-grid',
-        'data-grid-id': props.gridId,
+        'data-component-name': props.componentName,
       },
       React.createElement(
         'button',

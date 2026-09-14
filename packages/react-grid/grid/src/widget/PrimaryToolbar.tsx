@@ -50,6 +50,8 @@ export interface PrimaryToolbarProps {
   readonly profileList: readonly ProfileMeta[];
   readonly activeProfileId: string;
   readonly profileActions: ProfileSelectorActions;
+  /** Workspace Setup's template-authoring launch — template layouts are editable there. */
+  readonly profileTemplateAuthoring: boolean;
   readonly isDirty: boolean;
   readonly showSaveButton: boolean;
   readonly saveFlash: boolean;
@@ -91,6 +93,7 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
     profileList,
     activeProfileId,
     profileActions,
+    profileTemplateAuthoring,
     isDirty,
     showSaveButton,
     saveFlash,
@@ -158,6 +161,7 @@ function PrimaryToolbarInner(props: PrimaryToolbarProps): ReactElement {
                 profiles={[...profileList]}
                 activeProfileId={activeProfileId}
                 isDirty={isDirty}
+                templateAuthoring={profileTemplateAuthoring}
                 onCreate={profileActions.onCreate}
                 onLoad={profileActions.onLoad}
                 onDelete={profileActions.onDelete}
@@ -235,6 +239,7 @@ function primaryToolbarPropsEqual(prev: PrimaryToolbarProps, next: PrimaryToolba
     && prev.profileList === next.profileList
     && prev.activeProfileId === next.activeProfileId
     && prev.profileActions === next.profileActions
+    && prev.profileTemplateAuthoring === next.profileTemplateAuthoring
     && prev.isDirty === next.isDirty
     && prev.showSaveButton === next.showSaveButton
     && prev.saveFlash === next.saveFlash

@@ -206,7 +206,7 @@ Per-renderer config types (`PillRendererConfig`,
 **Public exports:**
 
 - `./icons` — `ICON_PATHS`, `ICON_META`, helpers
-- `./icons/react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component)
+- `./icons/react` — curated `lucide-react` re-exports + `DynamicIcon` (id → Lucide component); `hasInlineLucideIcon(id)` and `lucideIconToSvg(id, {size, color, strokeWidth})` render a bundled `lucide:` icon to an SVG string (via `react-dom/server`) so dock icons resolve offline
 - `./icons/angular` — `@lucide/angular` bindings: `LucideComponent`, `provideLucideIcons`, `provideLucideConfig`, `LUCIDE_ICONS`, `LUCIDE_CONFIG`, and per-icon standalone components (aliased to friendly names, e.g. `FileText`, `Home`)
 - `./icons/all-icons` — `MARKET_ICON_SVGS`, `svgToDataUrl`, `marketIconToDataUrl`, named SVG constants, plus full icon-id enumeration
 - `./icons/svg/*` — direct SVG file access
@@ -402,7 +402,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Profile management UI
 
-- `ProfileSelector` — switch/create/rename/delete profiles
+- `ProfileSelector` — switch/create/rename/delete profiles; template layouts (`ProfileMeta.isTemplate`, authored in Workspace Setup) render their name in `--ds-accent-info` with a `LayoutTemplate` badge, and outside template authoring (`templateAuthoring` prop) they show no rename / delete — the badge title says a save lands on `<name> (copy)`
 - `TemplateManager` — column-template library (save/apply/manage). Compact (toolbar popover) variant is a scrolling row list; **panel (popped-out) variant is a shadcn `Select`** (pick = apply) + an action cluster (update / rename / delete) for the chosen template, so the Templates section stays a fixed-height control as templates accumulate instead of growing
 - `UnsavedSwitchDialog` — guard for dirty profile switch
 - `SettingsSheet` — shadcn right-rail `Drawer` host for all customizer modules;
@@ -583,6 +583,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
   chunks in `App.tsx`; parity doc:
   `docs/MARKETSGRID_VS_ADAPTABLE_GAP_ANALYSIS.md` §2.
 - **Column groups** — nested column-group headers with border/style overlays (`composeGroups`, `groupHeaderBorderOverlayCSS`)
+- **`BlotterHost`** (`@wellsfargo-starui/grid/widgets`, `widgets-react/src/blotter/`) — one component from a blotter's identity to its grid, driven by the pure state machine in `blotterHostMachine.ts` (`resolveBlotterHostStep(facts)` → `identity | storage | selection | config | grid`): the outer host resolves identity and storage (the hosted-view features: OpenFin customData / URL / default instance id, ConfigManager, theme, tab-name ↔ caption binding, workspace-save flush, context linking, document title) and mounts the data plane; the body reads grid-level data, the active provider's catalog row and config, and renders exactly one `MarketsGrid` — the data grid keyed `csrm|ssrm::provider::keyColumn`, or the empty grid when there is definitely nothing to attach — with one loading note before it and never a placeholder a later phase replaces (a chosen provider whose row is neither present nor failed is `config`, not `grid`; WORKLOG 20). Props are the `HostedMarketsGrid` contract plus an optional explicit `storage` factory. Stamps two load marks for the cold-reload probe (`starui:blotter-body` when the body mounts, `starui:blotter-grid` when the step first reaches `grid`). Orchestration hooks under `blotter/host/`: `useBlotterViewFeatures`, `useBlotterGridLevel`, `useBlotterToolbarDate`, `useBlotterActiveProvider`, `useBlotterDataFeed`, `useBlotterAdminActions` / `useBlotterHostApis`. Replaces the `HostedMarketsGrid → MarketsGridContainer` stack (plan D; both still exist until D2/D3)
 - **Toolbar date settings** (`toolbar-date-settings`) — Custom Settings panel for toolbar date, data-provider pickers, event-callback bindings, and row-exclusion expression (wired via `providerGridHost` / `gridEventBindingsHost` from `MarketsGridContainer`). `activateRowExclusion` declares the columns the expression reads (`collectColumnRefs` over the parsed expression) on `platform.externalFilters` and withdraws them when the expression is cleared or the module is disposed, so the rendered-row apply path treats only those columns as position keys while the exclusion is active (plan B2)
 - **Conditional styling aggregate thresholds** — rules like `[px] > AVG([px])` resolve their aggregates for real: `ruleUsesAggregates` gates the attach per rule, `attachAggregateContext` supplies the same triplet the calculated columns use (SSRM `resolveAggregate` via the `SSRM_EXPR_AGG_KEY` session = engine totals over the current filter; CSRM lazy `allRows` snapshot + column-array memo, own cache invalidated by the styling runtime on every row flush / cell edit via `invalidateStylingAggregates`); aggregate rules are forced off the AG-string fast path onto the function predicate; cell classes, per-rule value formatters, row rules and header badges all resolve; the runtime schedules its rAF-debounced `refreshCells({force})` per flush only when an enabled rule actually uses aggregates
 - **Calculated columns** — virtual cols from expressions; under SSRM the editor names the column's REAL tier from the engine expression contract classifier (`classifySsrmExpression`): `ENGINE` (compiles to the wire grammar — the WASM engine evaluates it per row, so sort/filter/group/aggregate work dataset-wide, plan §12 T3–T4) or `GRID` (outside the grammar — computed per loaded row, sort/filter/group locked), with engine-total aggregate scalars flagged; `buildVirtualColDef` stamps the DSL source on `context.staruiExprSource` so the SSRM surface can compile it
@@ -677,7 +678,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 - `HostedMarketsGrid` — hosted wrapper; accepts `platform` (hub bundle) or legacy `dataServices`; composes `MarketsGridContainer`. Flushes grid state on `workspace-saving`, `beforeunload` / `pagehide`, OpenFin view `destroyed`, and React unmount (covers workspace drag/move without a workspace save). Opt-in `contextLink` prop wires grid-to-grid linking (interop transport preferred; `rowIdField` auto-derived from the provider `keyColumn` via the container's `onRowIdFieldChange`; `notify` posts Notification Center messages). See `useGridContextLink` + [`docs/OPENFIN_GRID_LINKING.md`](./OPENFIN_GRID_LINKING.md)
 - `useHostedView` — window identity & lifecycle
-- `useHostedIdentity` — resolve current view identity. URL `?instanceId=` / `?id=` wins synchronously; bare OpenFin views start `instanceId: null` and `ready: false` until `fin.me.getOptions().customData` settles (3s hard timeout → `defaultInstanceId`). Browser paths seed `defaultInstanceId` on first paint. Host ConfigManager resolution is peek-first (`peekConfigManager()`) then a slow-warned (8s) `getConfigManager()` fallback. Gate grid mount on `ready` plus `identity.configManager` / `identity.storage`
+- `useHostedIdentity` — resolve current view identity. URL `?instanceId=` / `?id=` wins synchronously; bare OpenFin views start `instanceId: null` and `ready: false` until `fin.me.getOptions().customData` settles (3s hard timeout → `defaultInstanceId`). Browser paths seed `defaultInstanceId` on first paint. Host ConfigManager resolution is peek-first (`peekConfigManager()`) then a slow-warned (8s) `getConfigManager()` fallback. Gate grid mount on `ready` plus `identity.configManager` / `identity.storage`. `identity.templateAuthoring` mirrors `customData.templateAuthoring` (Workspace Setup's "Configure Component" launch) — the hosts pass it to the grid as `profileTemplateAuthoring`
 - `useFdc3Channel` — FDC3 channel subscription
 - `useOpenFinChannel` — OpenFin IAB subscription
 - `useIab` — generic Inter-App Bus pub/sub
@@ -797,18 +798,18 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 
 #### Workspace shell
 
-- `WorkspaceSetup` — 3-pane editor (Dock / Inspector / Components+Registry); embeds `ComponentsPane`, `DockPane`, `InspectorPane`, `IconPicker` internally (not separately importable)
+- `WorkspaceSetup` — 3-pane editor (Components / Dock layout / Inspector); embeds `ComponentsPane`, `DockPane`, `InspectorPane`, `IconPicker` internally (not separately importable). Fixed shell: a 48px header (title, scope chip, component / dock-button counts, unsaved-changes indicator) and a 48px footer (Discard / Save) pinned to the window, with the three columns (`minmax(260px,320px) / 1fr / minmax(340px,400px)`) scrolling independently. Panes and rows are memoised; the shell holds the registry / dock / selection in refs so its callbacks are stable across keystrokes
 - `ImportConfig` — standalone import-config utility window
 - `ComponentsPane` — browse registered components, drag to dock; per-row hover actions: configure (test-launch), **clone**, delete. Clone (`WorkspaceSetup.handleClone`) duplicates a registry entry into a fresh draft — deep-copies all definition fields, gives it a de-duplicated `(copy)` display name and a unique `componentSubType` (`<sub>-copy`) so its derived `${type}-${subtype}` id can't collide with the source on save, resets `id`/`configId` (re-derived at save), and selects it for immediate editing in the inspector. **`cloneRegistryTemplateConfig`** (`@wellsfargo-starui/openfin`) deep-clones the source template **AppConfigRow** (profiles, grid options, styling, theme via `structuredClone` on `payload`) onto the clone's derived template id immediately on clone (retried at save if the first attempt failed)
 - `DEFAULT_ICON` — fallback icon id for dock/registry entries
-- `DockPane` — dock toolbar editor (buttons, folders, menus, icons, actions)
-- `InspectorPane` — selected dock-item property editor
-- `IconPicker` — themed icon selector with search
+- `DockPane` — dock toolbar editor (buttons, folders, menus, icons, actions); rows render their icon inline through `DynamicIcon`, flag a deleted component ("Component deleted"), and expose Move up / Move down / Remove on hover; "New menu" creates a dropdown, the per-dropdown "Add" popover lists the catalog
+- `InspectorPane` — context panel: Overview (counts) / Component form (name, type, sub-type, host URL, icon, singleton, open-as-window, "Configure Component", "Add to your dock", where it sits in the dock) / Dock item form (per-placement label + icon overrides, type, link to the launched component)
+- `IconPicker` — searchable icon grid over one de-duplicated catalog (`ICON_OPTIONS` first, then the rest of `ICON_META`); every cell renders inline and every emitted URL is a self-contained data URL (market and lucide alike — no CDN, so the picker works offline); search is deferred (`useDeferredValue`) so typing never blocks on the grid
 
 #### Dock editor state & icons
 
 - `useDockEditor` — dock-config state manager
-- `iconIdToSvgUrl` — icon id → data URL
+- `iconIdToSvgUrl` — icon id → self-contained data URL for `mkt:` and bundled `lucide:` ids (Iconify CDN only for an id outside the bundled set); the default colour comes from the design-system palette, resolved once per document (re-exported from `@wellsfargo-starui/openfin/dock-editor`)
 - `parseIconUrl` — parse SVG/PNG/asset-library URLs
 - `iconIdToThemedUrls` — dark/light icon URLs
 - `ICON_OPTIONS`, `findIconByName`, `IconOption` — icon library + lookup
@@ -818,7 +819,7 @@ Most toolbar shells (`PrimaryToolbar`, `EditingToolbar`, `QuickSearch`, …) are
 - `useRegistryEditor` — component-registry state manager
 - Registry browser + property editor + config validation
 - `RegistryEntry` — registered component instance metadata
-- Inspector "Host as" picker — per-component default host surface: docked as a view in the OpenFin Workspace browser window (default) vs. a standalone OpenFin platform window (`RegistryEntry.asWindow`). Seeds the `asWindow` customData when the component is added to the dock (a one-time snapshot, like icon/name) and drives whether "Configure Component" test-launches via `createView` or `createWindow`
+- Inspector "Host as" picker — per-component default host surface: docked as a view in the OpenFin Workspace browser window (default) vs. a standalone OpenFin platform window (`RegistryEntry.asWindow`). Seeds the `asWindow` customData when the component is added to the dock (a one-time snapshot, like icon/name) and drives whether "Configure Component" test-launches via `createView` or `createWindow`. That launch stamps `templateAuthoring: true` on the customData (alongside `isTemplate: true`), which puts the grid's ProfileManager in template-authoring mode — profiles saved there are template profiles; a dock launch of the same row leaves the flag off, so its saves on a template land on `<name> (copy)`
 
 ---
 
@@ -855,7 +856,7 @@ modules).
 
 #### Persistence
 
-- `ProfileSnapshot` — `id, gridId, name, state, createdAt, updatedAt`
+- `ProfileSnapshot` — `id, gridId, name, state, createdAt, updatedAt, isTemplate?` (template profiles are authored in Workspace Setup; absent on rows written before the flag)
 - `AppDataLookup` — `(name, key) => unknown`
 - `AppDataSnapshot` — revision counter + lookup
 
@@ -915,11 +916,11 @@ modules).
 
 #### Profile manager
 
-- `ProfileManager` — framework-agnostic profile orchestration
+- `ProfileManager` — framework-agnostic profile orchestration. Template profiles: in `templateAuthoring` mode (Workspace Setup's "Configure Component" launch) every profile saved, created, cloned or imported is marked `isTemplate`, and Default is created as one; outside it a `save()` on a template profile lands on the non-template copy `<name> (copy)` (created on the first save, overwritten after) which becomes the active profile, new profiles are plain, and `rename`/`remove` of a template throw
 - `ProfileManagerState` — `activeId, profiles, isLoading, isDirty`
-- `ProfileManagerOptions` — `platform, adapter, autoSave, activeIdSource`
+- `ProfileManagerOptions` — `platform, adapter, autoSave, activeIdSource, templateAuthoring`
 - `ActiveIdSource` — pluggable active-profile pointer
-- `ProfileMeta` — metadata
+- `ProfileMeta` — metadata (`id, name, createdAt, updatedAt, isDefault, isTemplate`)
 - `ExportedProfilePayload` — JSON export format; `schemaVersion: 2` bundles
   the grid-level data blob (provider selection, caption, event bindings)
   alongside the profile so an export/import is a complete grid-view
@@ -1609,7 +1610,7 @@ of importing `@openfin/*` directly (architecture boundary).
 - `.` — main platform API (workspace init, config, dock, launch)
 - `./config` — config-only entry (no runtime deps, browser-safe)
 - `./plugin` — `openFinPlatformPlugin` factory (OpenFin workspace plugin entry; `StarGridPlugin` contract lives in `@wellsfargo-starui/core/host`)
-- `./test-bridge` — test utilities
+- `./test-bridge` — `installTestBridge()`: the `marketsui-test-bridge` IAB channel for out-of-runtime e2e code (installed by a DEV provider window, or any build whose provider URL carries `?e2eBridge=1`). Ops: WorkspacePlatform.Storage `saveWorkspace` / `getWorkspaces` / `getWorkspace` / `deleteWorkspace`, `ping`, `listRegistry()` (the live Component Registry entries — id, displayName, type/subtype, hostUrl, singleton), `launchComponent({ entryId, asWindow? })` (the platform's own `launchRegisteredComponent` — the view runs on the entry's template row, identity stamped; a View by default, since a same-app Window shares the provider's renderer and a loaded blotter there stalls every platform API call — replying `{ uuid, name, kind, instanceId, url }`). Every reply is `{ ok, data } | { ok: false, error }`. Drives `apps/e2e-openfin`.
 - `./dock-editor` — icon helpers only (`ICON_OPTIONS`, `iconIdToSvgUrl`, `iconIdToThemedUrls`, `parseIconUrl`); dock editor React UI lives in `@wellsfargo-starui/react/workspace-setup`
 
 #### Workspace initialization
@@ -1639,7 +1640,7 @@ of importing `@openfin/*` directly (architecture boundary).
 #### Launch
 
 - `launchApp()` — launch registered app by id (config overrides supported)
-- `launchRegisteredComponent()` — create registered-component instance in new view; stamps `?instanceId=` and `?id=` on the launch URL (`appendLaunchIdentityParams`) so reloads and workspace GC resolve the per-instance id from the query string; the template→instance config clone runs concurrently with `createWindow` / `createView` (window appears immediately; clone lands before the view's first config read)
+- `launchRegisteredComponent()` — open a registered component in a new view (or window with `asWindow`); every instance runs on the entry's **template** config row: `customData.instanceId` = `templateId` = the entry's configId (`componenttype-subcomponenttype`), with `isTemplate: true` and the entry's `singleton` on the customData so saves keep the row a template, and `?instanceId=` / `?id=` stamped on the launch URL (`appendLaunchIdentityParams`). No per-instance rows are written — all instances share the template's profiles and provider selection; per-view state (`activeProfileId`, `savedTitle`) rides on the view's customData through workspace save/restore. Singleton entries additionally focus the existing instance instead of opening another. One `[launch]` info line per launch with the view/window creation time
 - `LaunchRegisteredComponentOptions` — instance config (layout, properties, parent)
 
 #### Dock management
@@ -1688,7 +1689,7 @@ of importing `@openfin/*` directly (architecture boundary).
 
 - `RegistryEditorConfig` — registered-component list with instance configs
 - `RegistryEntry` — `id, componentId, name, properties`
-- `deriveTemplateConfigId`, `mintRegisteredInstanceId` — id generators
+- `deriveTemplateConfigId` — the template config id (`componenttype-subcomponenttype`, lowercase), which is also every instance's `instanceId`
 - `cloneRegistryTemplateConfig` — deep-clone a registered component's template AppConfigRow (profiles, customizer state, styling) onto a new `${type}-${subtype}` template id when Workspace Setup clones an entry
 - `validateEntry` — runtime config validation
 - `validateSingletonUniqueness` — duplicate detection

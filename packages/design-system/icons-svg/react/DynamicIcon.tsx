@@ -14,6 +14,7 @@
  */
 
 import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import type { LucideIcon } from 'lucide-react';
 import { MARKET_ICON_SVGS } from '../allIcons';
 
@@ -171,6 +172,34 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'lucide:loader-2': Loader2,
   'lucide:search-x': SearchX,
 };
+
+// ─── SVG string access (for hosts that need an image URL, e.g. the OpenFin dock) ─
+
+/** True when `iconId` (e.g. "lucide:home") renders inline from the bundled set — no network needed. */
+export function hasInlineLucideIcon(iconId: string): boolean {
+  return Object.prototype.hasOwnProperty.call(ICON_MAP, iconId);
+}
+
+/**
+ * The bundled lucide icon as an SVG string, or `null` when the id is not in
+ * the set. Rendered with `stroke="currentColor"` unless a colour is given,
+ * so `svgToDataUrl(svg, color)` can recolour it for an `<img>` / dock button
+ * — the same offline path the market icons take, instead of the Iconify CDN.
+ */
+export function lucideIconToSvg(
+  iconId: string,
+  opts: { size?: number; color?: string; strokeWidth?: number } = {},
+): string | null {
+  const Component = ICON_MAP[iconId];
+  if (!Component) return null;
+  return renderToStaticMarkup(
+    React.createElement(Component, {
+      size: opts.size ?? 24,
+      color: opts.color ?? 'currentColor',
+      strokeWidth: opts.strokeWidth ?? 2,
+    }),
+  );
+}
 
 // ─── Component ──────────────────────────────────────────────────────
 

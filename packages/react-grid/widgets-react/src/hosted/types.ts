@@ -68,6 +68,14 @@ export interface HostedContext {
    * otherwise — components managing their own storage can ignore it.
    */
   storage: StorageAdapterFactory | null;
+
+  /**
+   * True when this view is Workspace Setup's "Configure Component" launch
+   * (`customData.templateAuthoring`): profiles saved here become template
+   * profiles. Absent or false for dock and menu launches, where a save on a
+   * template profile lands on its `<name> (copy)`.
+   */
+  templateAuthoring?: boolean;
 }
 
 /**

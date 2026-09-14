@@ -1,5 +1,16 @@
 // @wellsfargo-starui/widgets-react — Star Widget Components
 
+// ─── Blotter host (identity → storage → selection → config → grid) ───
+export { BlotterHost } from './blotter/BlotterHost.js';
+export type { BlotterHostProps, BlotterHostGridProps } from './blotter/BlotterHost.js';
+export {
+  resolveBlotterHostStep,
+  blotterHostLoadingMessage,
+  blotterGridKey,
+  isGridStep,
+} from './blotter/blotterHostMachine.js';
+export type { BlotterHostFacts, BlotterHostStep } from './blotter/blotterHostMachine.js';
+
 // ─── Blotter primitives ──────────────────────────
 export { BlotterToolbar } from './blotter/BlotterToolbar.js';
 export type { BlotterToolbarProps } from './blotter/BlotterToolbar.js';

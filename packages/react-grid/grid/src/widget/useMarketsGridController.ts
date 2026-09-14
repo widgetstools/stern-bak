@@ -58,6 +58,8 @@ export interface UseMarketsGridControllerOpts {
   readonly onSavingChange: ((saving: boolean) => void) | undefined;
   /** Derived from general-settings — supplied by host to avoid duplicate store subscription. */
   readonly headerCaseAttr?: 'upper' | undefined;
+  /** Workspace Setup's template-authoring launch — see `MarketsGridProps.profileTemplateAuthoring`. */
+  readonly templateAuthoring?: boolean | undefined;
 }
 
 export interface MarketsGridControllerHandle {
@@ -109,6 +111,7 @@ export function useMarketsGridController(
     onGridLevelDataLoad,
     onSavingChange,
     headerCaseAttr: headerCaseAttrProp,
+    templateAuthoring,
   } = opts;
 
   // Construct a fallback adapter ONCE when the host doesn't provide one.
@@ -215,6 +218,7 @@ export function useMarketsGridController(
     autoSaveDebounceMs,
     disableAutoSave: true,
     activeIdSource: openfinSourceRef.current ?? undefined,
+    templateAuthoring: templateAuthoring === true,
   });
 
   const platform = useGridPlatform();

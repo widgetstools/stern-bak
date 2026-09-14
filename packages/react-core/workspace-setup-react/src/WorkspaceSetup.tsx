@@ -16,10 +16,21 @@
  * `(system, system)` default while boot-time migrations relocate rows
  * onto the real platform scope, leaving the editor empty on the next
  * open. See `workspace.ts`'s ACTION_OPEN_WORKSPACE_SETUP launcher.
+ *
+ * Shell: header and footer are fixed; only the three panes scroll, each
+ * on its own. The shell pins itself to the viewport (the host page has
+ * no sized root, and its body carries padding) so a long catalog can
+ * never push the Save bar out of view.
+ *
+ * Rendering: both editor hooks hand back a fresh object every render, so
+ * the callbacks below depend on the stable `dispatch` functions and read
+ * the current entries / buttons / selection through refs. That keeps the
+ * memoised panes untouched while a name is being typed in the inspector.
  */
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { injectEditorStyles } from "@wellsfargo-starui/core";
+import { Button } from "@wellsfargo-starui/react";
 import { useRegistryEditor } from "./registry/useRegistryEditor";
 import {
   ACTION_LAUNCH_COMPONENT,
@@ -39,6 +50,10 @@ import { InspectorPane } from "./components/workspace-setup/InspectorPane";
 import { DockPane } from "./components/workspace-setup/DockPane";
 import { newDraftEntry } from "./components/workspace-setup/types";
 import type { EditorSelection } from "./components/workspace-setup/types";
+
+// The window is this editor's alone: zero the host page's body padding and
+// stop it scrolling so the shell's fixed header / footer hold.
+const SHELL_PAGE_CSS = "html, body { margin: 0 !important; padding: 0 !important; overflow: hidden !important; height: 100%; }";
 
 // ─── Outer shell ─────────────────────────────────────────────────────
 // Reads the platform scope forwarded via OpenFin customData, primes
@@ -77,9 +92,8 @@ export function WorkspaceSetup() {
 
   if (scope === null) {
     return (
-      <div
-        className="flex items-center justify-center h-full w-full bg-background text-muted-foreground"
-      >
+      <div className="fixed inset-0 flex items-center justify-center bg-background text-muted-foreground">
+        <style>{SHELL_PAGE_CSS}</style>
         <span className="text-xs">Loading workspace setup…</span>
       </div>
     );
@@ -93,14 +107,24 @@ export function WorkspaceSetup() {
 function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   const registry = useRegistryEditor({ scope });
   const dock = useDockEditor({ scope });
+  const { dispatch: registryDispatch, testComponent } = registry;
+  const { dispatch: dockDispatch } = dock;
 
   const [selection, setSelection] = useState<EditorSelection>({ kind: "none" });
+
+  // Latest state for the stable callbacks below.
+  const entriesRef = useRef(registry.entries);
+  entriesRef.current = registry.entries;
+  const buttonsRef = useRef(dock.buttons);
+  buttonsRef.current = dock.buttons;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
 
   // Maps draft entry id → source template configId for clones whose
   // AppConfigRow copy is retried at save if the immediate clone failed.
   const pendingTemplateClonesRef = useRef(new Map<string, string>());
 
-  // For pane ①'s "in dock" badge + filter chips, and for the Inspector's
+  // For pane ①'s "in dock" status + filter chips, and for the Inspector's
   // "currently in your dock" footer.
   const inDockEntryIds = useMemo(() => {
     const ids = new Set<string>();
@@ -116,19 +140,21 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
     return ids;
   }, [dock.buttons]);
 
-  const summary = useMemo(() => ({
-    totalComponents: registry.entries.length,
-    inDock: inDockEntryIds.size,
-    singletons: registry.entries.filter((e) => e.singleton).length,
-    dockButtons: dock.buttons.length,
-  }), [registry.entries, inDockEntryIds, dock.buttons]);
+  const totalComponents = registry.entries.length;
+  const singletons = registry.entries.filter((e) => e.singleton).length;
+  const inDock = inDockEntryIds.size;
+  const dockButtons = dock.buttons.length;
+  const summary = useMemo(
+    () => ({ totalComponents, inDock, singletons, dockButtons }),
+    [totalComponents, inDock, singletons, dockButtons],
+  );
 
   // ─── Component CRUD bridges ─────────────────────────────────────
   const handleAddDraft = useCallback(() => {
     const entry = newDraftEntry(registry.hostEnv);
-    registry.dispatch({ type: "ADD_ENTRY", entry });
+    registryDispatch({ type: "ADD_ENTRY", entry });
     setSelection({ kind: "component", entryId: entry.id });
-  }, [registry]);
+  }, [registryDispatch, registry.hostEnv]);
 
   // Clone a registry entry into a fresh draft, opened in the inspector.
   //
@@ -148,12 +174,13 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   // that row onto the clone's derived template id immediately so test-
   // launch and dock use work before the user saves the registry.
   const handleClone = useCallback((entryId: string) => {
-    const src = registry.entries.find((e) => e.id === entryId);
+    const entries = entriesRef.current;
+    const src = entries.find((e) => e.id === entryId);
     if (!src) return;
 
-    const names = new Set(registry.entries.map((e) => e.displayName));
+    const names = new Set(entries.map((e) => e.displayName));
     const pairs = new Set(
-      registry.entries
+      entries
         .filter((e) => e.componentType && e.componentSubType)
         .map((e) => pairKey(e.componentType, e.componentSubType)),
     );
@@ -170,7 +197,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       createdAt: new Date().toISOString(),
     };
 
-    registry.dispatch({ type: "ADD_ENTRY", entry: cloned });
+    registryDispatch({ type: "ADD_ENTRY", entry: cloned });
     setSelection({ kind: "component", entryId: cloned.id });
 
     if (bothSet) {
@@ -186,7 +213,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
         singleton: cloned.singleton,
       });
     }
-  }, [registry]);
+  }, [registryDispatch]);
 
   // Delete a registry entry AND prune any dock items that reference it.
   // Without the cascade, removing a component leaves orphaned ActionButtons
@@ -194,24 +221,25 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   // the InspectorPane shows a "Component deleted" warning but the dock
   // itself still tries to launch the missing component on click.
   const handleDelete = useCallback((entryId: string) => {
-    pruneDockReferencesTo(entryId, dock.buttons, dock.dispatch);
-    registry.dispatch({ type: "REMOVE_ENTRY", id: entryId });
-    if (selection.kind === "component" && selection.entryId === entryId) {
+    pruneDockReferencesTo(entryId, buttonsRef.current, dockDispatch);
+    registryDispatch({ type: "REMOVE_ENTRY", id: entryId });
+    const sel = selectionRef.current;
+    if (sel.kind === "component" && sel.entryId === entryId) {
       setSelection({ kind: "none" });
     }
-  }, [registry, dock, selection]);
+  }, [registryDispatch, dockDispatch]);
 
   const handleEntryChange = useCallback((id: string, patch: Partial<RegistryEntry>) => {
-    const current = registry.entries.find((e) => e.id === id);
+    const current = entriesRef.current.find((e) => e.id === id);
     if (!current) return;
-    registry.dispatch({ type: "UPDATE_ENTRY", id, entry: { ...current, ...patch } });
-  }, [registry]);
+    registryDispatch({ type: "UPDATE_ENTRY", id, entry: { ...current, ...patch } });
+  }, [registryDispatch]);
 
   // ─── Dock CRUD bridges ──────────────────────────────────────────
   const handleAddToDock = useCallback((entry: RegistryEntry) => {
     if (inDockEntryIds.has(entry.id)) return;
     const newButtonId = newId();
-    dock.dispatch({
+    dockDispatch({
       type: "ADD_BUTTON",
       button: {
         type: "ActionButton",
@@ -228,34 +256,35 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       },
     });
     setSelection({ kind: "dock-item", itemId: newButtonId });
-  }, [dock, inDockEntryIds]);
+  }, [dockDispatch, inDockEntryIds]);
 
   const handleRemoveFromDock = useCallback((buttonId: string) => {
-    dock.dispatch({ type: "REMOVE_BUTTON", id: buttonId });
-    if (selection.kind === "dock-item" && selection.itemId === buttonId) {
+    dockDispatch({ type: "REMOVE_BUTTON", id: buttonId });
+    const sel = selectionRef.current;
+    if (sel.kind === "dock-item" && sel.itemId === buttonId) {
       setSelection({ kind: "none" });
     }
-  }, [dock, selection]);
+  }, [dockDispatch]);
 
   const handleReorderDock = useCallback((fromIndex: number, toIndex: number) => {
-    const max = dock.buttons.length - 1;
+    const max = buttonsRef.current.length - 1;
     if (toIndex < 0 || toIndex > max || fromIndex === toIndex) return;
-    dock.dispatch({ type: "REORDER_BUTTONS", fromIndex, toIndex });
-  }, [dock]);
+    dockDispatch({ type: "REORDER_BUTTONS", fromIndex, toIndex });
+  }, [dockDispatch]);
 
   // Per-item override editor: lets the inspector update label + icon on a
   // top-level dock button. Snapshot semantics — the dock item carries its
   // own iconId/tooltip independent of the underlying component, so editing
   // here does not mutate the registry entry.
   const handleEditButton = useCallback((buttonId: string, patch: Partial<DockButtonConfig>) => {
-    const current = dock.buttons.find((b) => b.id === buttonId);
+    const current = buttonsRef.current.find((b) => b.id === buttonId);
     if (!current) return;
-    dock.dispatch({
+    dockDispatch({
       type: "UPDATE_BUTTON",
       id: buttonId,
       button: { ...current, ...patch } as DockButtonConfig,
     });
-  }, [dock]);
+  }, [dockDispatch]);
 
   // Nested menu-item edit: the inspector resolves a selected menu item
   // to its top-level dropdown's id + the chain to its direct parent,
@@ -268,11 +297,11 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       patch: Partial<DockMenuItemConfig>,
     ) => {
       // Locate the existing item to merge the patch onto.
-      const top = dock.buttons.find((b) => b.id === topButtonId);
+      const top = buttonsRef.current.find((b) => b.id === topButtonId);
       if (!top || top.type !== "DropdownButton") return;
       const found = findMenuItem((top as DockDropdownButtonConfig).options ?? [], itemId);
       if (!found) return;
-      dock.dispatch({
+      dockDispatch({
         type: "UPDATE_MENU_ITEM",
         buttonId: topButtonId,
         itemId,
@@ -280,7 +309,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
         item: { ...found, ...patch },
       });
     },
-    [dock],
+    [dockDispatch],
   );
 
   // ─── Dropdown authoring ─────────────────────────────────────────
@@ -289,7 +318,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   // surfaces as a folder in the dock content menu.
   const handleCreateDropdown = useCallback(() => {
     const id = newId();
-    dock.dispatch({
+    dockDispatch({
       type: "ADD_BUTTON",
       button: {
         type: "DropdownButton",
@@ -302,7 +331,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       },
     });
     setSelection({ kind: "dock-item", itemId: id });
-  }, [dock]);
+  }, [dockDispatch]);
 
   // Add a registered component as a child of an existing dropdown
   // button. The child carries its own iconId/tooltip/asWindow (snapshot),
@@ -310,7 +339,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   // matches the top-level Add To Dock semantics.
   const handleAddComponentToDropdown = useCallback((parentButtonId: string, entry: RegistryEntry) => {
     const id = newId();
-    dock.dispatch({
+    dockDispatch({
       type: "ADD_MENU_ITEM",
       buttonId: parentButtonId,
       item: {
@@ -321,19 +350,20 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
         customData: { registryEntryId: entry.id, asWindow: entry.asWindow },
       },
     });
-  }, [dock]);
+  }, [dockDispatch]);
 
   // Remove a menu item (leaf or sub-folder). buttonId is the top-level
   // dropdown that owns the subtree; itemId is the menu item to remove;
   // parentItemId scopes nested removals.
   const handleRemoveMenuItem = useCallback(
     (buttonId: string, itemId: string, parentItemId?: string) => {
-      dock.dispatch({ type: "REMOVE_MENU_ITEM", buttonId, itemId, parentItemId });
-      if (selection.kind === "dock-item" && selection.itemId === itemId) {
+      dockDispatch({ type: "REMOVE_MENU_ITEM", buttonId, itemId, parentItemId });
+      const sel = selectionRef.current;
+      if (sel.kind === "dock-item" && sel.itemId === itemId) {
         setSelection({ kind: "none" });
       }
     },
-    [dock, selection],
+    [dockDispatch],
   );
 
   // Save — writes BOTH registry and dock if dirty.
@@ -355,11 +385,14 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
   //   4. dock.save()     (writes the rewritten references to disk).
   // Both reads happen against the SAME state snapshot, so the rename
   // is atomic from the user's perspective.
+  const { save: saveRegistry, reload: reloadRegistry, isDirty: registryDirty } = registry;
+  const { save: saveDock, reload: reloadDock, isDirty: dockDirty } = dock;
   const handleSaveAll = useCallback(async () => {
-    if (registry.isDirty || dock.isDirty) {
+    if (registryDirty || dockDirty) {
+      const entries = entriesRef.current;
       // 1. Build the id-rename map.
       const renameMap = new Map<string, string>();
-      for (const e of registry.entries) {
+      for (const e of entries) {
         if (!e.componentType || !e.componentSubType) continue;
         const canonical = deriveTemplateConfigId(e.componentType, e.componentSubType);
         if (canonical && canonical !== e.id) renameMap.set(e.id, canonical);
@@ -369,12 +402,12 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
       //    dock reducer's UPDATE_BUTTON / UPDATE_OPTION / UPDATE_MENU_ITEM
       //    actions handle deep replacements; we patch the customData.
       if (renameMap.size > 0) {
-        rewriteDockRegistryEntryIds(dock.buttons, dock.dispatch, renameMap);
+        rewriteDockRegistryEntryIds(buttonsRef.current, dockDispatch, renameMap);
       }
 
       // 2b. Deep-clone template AppConfigRows for any pending clones
       //     (retry if the immediate clone on handleClone failed).
-      for (const e of registry.entries) {
+      for (const e of entries) {
         const sourceTemplateId = pendingTemplateClonesRef.current.get(e.id);
         if (!sourceTemplateId || !e.componentType || !e.componentSubType) continue;
         await cloneRegistryTemplateConfig({
@@ -386,48 +419,54 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
         });
       }
     }
-    if (registry.isDirty) await registry.save();
-    if (dock.isDirty) await dock.save();
+    if (registryDirty) await saveRegistry();
+    if (dockDirty) await saveDock();
     pendingTemplateClonesRef.current.clear();
-  }, [registry, dock]);
+  }, [registryDirty, dockDirty, saveRegistry, saveDock, dockDispatch]);
 
   // Discard — non-destructive: re-load from storage. Replaces the previous
   // implementation which called `clearRegistryConfig`/`clearDockConfig`
   // and silently wiped IndexedDB. That destroyed the user's catalog
   // every time they pressed Discard expecting "revert my edits".
   const handleDiscard = useCallback(async () => {
-    await Promise.all([registry.reload(), dock.reload()]);
+    await Promise.all([reloadRegistry(), reloadDock()]);
     setSelection({ kind: "none" });
-  }, [registry, dock]);
+  }, [reloadRegistry, reloadDock]);
 
-  const isDirty = registry.isDirty || dock.isDirty;
+  const isDirty = registryDirty || dockDirty;
+  const scopeLine = [registry.hostEnv.appId || scope.appId, scope.userId].filter(Boolean).join(" · ");
 
   return (
     <div
       data-dock-editor=""
-      className="flex flex-col h-full w-full overflow-hidden bg-background text-foreground"
+      className="fixed inset-0 flex flex-col overflow-hidden bg-background text-foreground"
     >
-      {/* Fixed header — title + unsaved badge */}
-      <header
-        className="flex items-center justify-between px-4 py-2 border-b shrink-0 border-[var(--ds-border-primary)] bg-background"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">Workspace Setup</span>
+      <style>{SHELL_PAGE_CSS}</style>
+
+      {/* Fixed header — title, scope, catalog summary, unsaved state */}
+      <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-[var(--ds-border-primary)] bg-[var(--ds-surface-primary)] px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="text-[13px] font-semibold tracking-[0.01em]">Workspace Setup</span>
+          {scopeLine && (
+            <span className="truncate rounded-[var(--ds-radius-sm,2px)] border border-[var(--ds-border-primary)] bg-[var(--ds-surface-secondary)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--ds-text-secondary)]" title="Platform scope: app · user">
+              {scopeLine}
+            </span>
+          )}
           <span className="text-[10px] text-muted-foreground">
             {summary.totalComponents} component{summary.totalComponents === 1 ? "" : "s"} · {summary.dockButtons} dock button{summary.dockButtons === 1 ? "" : "s"}
           </span>
         </div>
-        {isDirty && (
-          <span className="text-[10px] flex items-center gap-1 text-[var(--ds-accent-warning)]">
-            <span>●</span> Unsaved changes
-          </span>
-        )}
+        <span
+          className="flex items-center gap-1.5 text-[10px]"
+          style={{ color: isDirty ? "var(--ds-accent-warning)" : "var(--ds-text-faint)" }}
+        >
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: isDirty ? "var(--ds-accent-warning)" : "var(--ds-border-secondary)" }} />
+          {isDirty ? "Unsaved changes" : "All changes saved"}
+        </span>
       </header>
 
-      {/* Scrollable body — only the panes' inner content scrolls; the
-          outer container has overflow-hidden so no scrollbar appears
-          on the shell itself. */}
-      <main className="flex-1 grid grid-cols-[320px_1fr_360px] min-h-0 min-w-0 overflow-hidden">
+      {/* The three panes — each scrolls on its own; the shell never does. */}
+      <main className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(260px,320px)_minmax(0,1fr)_minmax(340px,400px)] overflow-hidden">
         <ComponentsPane
           entries={registry.entries}
           inDockEntryIds={inDockEntryIds}
@@ -436,10 +475,10 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
           onAddDraft={handleAddDraft}
           onClone={handleClone}
           onDelete={handleDelete}
-          onTest={registry.testComponent}
+          onTest={testComponent}
         />
         <DockPane
-          dock={{ version: 1, buttons: dock.buttons, updatedAt: "" }}
+          dock={dockConfigView(dock.buttons)}
           entries={registry.entries}
           selection={selection}
           onSelect={setSelection}
@@ -456,7 +495,7 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
           onChange={handleEntryChange}
           onEditButton={handleEditButton}
           onEditMenuItem={handleEditMenuItem}
-          onTest={registry.testComponent}
+          onTest={testComponent}
           onAddToDock={handleAddToDock}
           onSelect={setSelection}
           inDockEntryIds={inDockEntryIds}
@@ -466,25 +505,31 @@ function WorkspaceSetupBody({ scope }: { scope: ConfigScope }) {
 
       {/* Fixed footer — Save / Discard. Anchored at the bottom so primary
           actions are reachable regardless of which pane is scrolled. */}
-      <footer
-        className="flex items-center justify-end gap-2 px-4 py-2 border-t shrink-0 border-[var(--ds-border-primary)] bg-background"
-      >
-        <button
-          type="button"
-          onClick={() => { void handleDiscard(); }}
-          disabled={!isDirty}
-          className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 bg-[var(--ds-surface-secondary)] text-[var(--ds-text-secondary)] border border-[var(--ds-border-primary)]"
-        >
-          Discard
-        </button>
-        <button
-          type="button"
-          onClick={() => { void handleSaveAll(); }}
-          disabled={!isDirty}
-          className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 bg-[var(--de-accent)] text-[var(--de-accent-foreground)]"
-        >
-          Save
-        </button>
+      <footer className="flex h-12 shrink-0 items-center justify-between gap-2 border-t border-[var(--ds-border-primary)] bg-[var(--ds-surface-primary)] px-4">
+        <span className="text-[10px] text-muted-foreground">
+          Components are shared by every user; the dock layout is yours. Changes reach the dock when you save.
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => { void handleDiscard(); }}
+            disabled={!isDirty}
+            className="h-8 px-3 text-xs"
+          >
+            Discard
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => { void handleSaveAll(); }}
+            disabled={!isDirty}
+            className="h-8 px-4 text-xs"
+          >
+            Save
+          </Button>
+        </div>
       </footer>
     </div>
   );
@@ -496,6 +541,18 @@ function newId(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `id-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+}
+
+// The DockPane reads a config-shaped object; keep one per buttons array so
+// the memoised pane only re-renders when the buttons actually change.
+const dockViewCache = new WeakMap<DockButtonConfig[], { version: 1; buttons: DockButtonConfig[]; updatedAt: string }>();
+function dockConfigView(buttons: DockButtonConfig[]) {
+  let view = dockViewCache.get(buttons);
+  if (!view) {
+    view = { version: 1, buttons, updatedAt: "" };
+    dockViewCache.set(buttons, view);
+  }
+  return view;
 }
 
 // ─── Clone helpers ───────────────────────────────────────────────────

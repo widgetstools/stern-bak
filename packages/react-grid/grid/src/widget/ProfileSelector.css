@@ -256,6 +256,25 @@
   opacity: 0.78;
 }
 
+/* Template layouts (authored in Workspace Setup) read in the info colour
+ * with a badge, in both themes — the same token pair drives light and dark. */
+.ds-ps-row[data-template='true'] .ds-ps-row-name {
+  color: var(--ds-accent-info);
+}
+.ds-ps-row[data-active='true'][data-template='true']:hover .ds-ps-row-name {
+  color: var(--ds-accent-info-hover);
+}
+.ds-ps-row-template {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--ds-accent-info);
+  opacity: 0.85;
+}
+
 /* Save-current-as composite field */
 .ds-ps-create-field {
   display: flex;

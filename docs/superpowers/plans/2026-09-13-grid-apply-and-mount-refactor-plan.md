@@ -195,6 +195,20 @@ Production build unless stated. Details and methods: WORKLOG 19, 20, 21;
 | toolbar-date exclusion `[currency] == "AUD"`, module declares `currency` | `setTimeout` 2 117 (1 916 `processResizeOperations` — the first-touch snapshot healing still draining, as in the filtered state); busy 25 %; `executeBatchUpdateRowData` 64 ms, `refreshCells` 22 ms | **B2 exit met**: 44 689 → 2 117 timers, 1 579 → 64 ms of transaction work; updates to other columns stay in place |
 | default view (control) | `setTimeout` 78; busy 22 %; `executeBatchUpdateRowData` 0, `refreshCells` 16 ms | unchanged |
 | sorted by `pnl` (control) | `setTimeout` 44 723 (44 539 `processResizeOperations`); busy 39 %; `executeBatchUpdateRowData` 1 854 ms | unchanged by design (23 387 in the first run: the count follows how many `pnl` ticks land in the window) |
+| **D0 (2026-09-14, 00:0x UTC): cold reload, navigation → first rows, production dock with 12 SSRM views open, isolation on, platform warm; `cdp-cold-reload.mjs` (bootstrap marks + React commits + DOM milestones + CPU by chunk per segment); CSRM = 20 000 rows × 372 columns, 4 reloads; SSRM = 2 reloads** | CSRM | SSRM |
+| HTML → DOMContentLoaded (fetch + parse/compile + module eval of the critical chunks) | 655–1 051 ms; busy 458–880 (`(program)` 300–550, `index.js` 70–160), idle 134–240 | 779–1 065 ms; busy 569–903 |
+| DOMContentLoaded → `starui:platform-ready` (the five bootstrap marks; the platform is warm) | 33–90 ms | 36–69 ms |
+| **platform-ready → grid created (licence banner) — the mount stack** | **617–717 ms, busy 614–714, idle 3–12; 326–557 React commits before the grid; top chunks `ag-grid-community` 183–296, `index.js` 128–136, native 103–183, `ag-grid-enterprise` ≈ 60** | **627–634 ms, busy 626–633, idle 0–1; 456–472 commits; `ag-grid-community` 166–236, native 126–144, `index.js` 104, enterprise 99** |
+| grid created → AG Grid root mounted (commit N, fiber depth 67) | 55–95 ms | 66 ms |
+| root mounted → first header cell (AG Grid column / header init) | 492–793 ms, all busy (372 columns) | 316–340 ms |
+| first header → first rows | 1 607–3 354 ms: busy 787–2 690 (`ag-grid-community` 190–950, native 850–920 = snapshot deserialisation + client-side model, `index.js` 270–340 ingest), idle 445–820 (waiting for the 20 000-row snapshot) | 1 011–1 070 ms: busy 543–889, idle 122–527 (first block from the engine) |
+| **first rows on screen** | **4.29–5.47 s** | **2.87–3.26 s** |
+| **D2 (2026-09-14, 01:2x–02:0x UTC): same dock and layout, star-demo on `BlotterHost`; two passes** | CSRM | SSRM |
+| First pass, entry unchanged (`React.lazy` route under the route Suspense) — platform-ready → grid created; commits before the grid | 618–647 ms; 640–697 commits, of which ~480 root-only retry-lane commits while the root showed "Loading…" (BlotterHost's own components rendered 7×) | not measured separately |
+| Second pass, entry waits for the route chunk before the first render — commits before the grid | **9** | **9** |
+| Second pass — platform-ready → BlotterHost body mounted (`starui:blotter-body`) | 322 ms, all busy: AG Grid chunk evaluating (`ag-grid-community` 120–159, enterprise 51, native 44–67 ms) | 320–325 ms, same shape (`ag-grid-community` 89–123, enterprise 75) |
+| Second pass — body mounted → grid created (banner) → grid step (`starui:blotter-grid`) | ≈ 100 ms → +50 ms; AG Grid root in the DOM +70 ms; first header +350–380 ms | 89–93 ms → +58–60 ms; first header +258–334 ms |
+| Second pass — first rows on screen | **3.84–3.98 s** (−0.4 to −0.7 s) | **2.40–2.81 s** (−0.5 s) |
 | Attribution of `processResizeOperations` | ag-grid-react's autosize bean (`queueResizeOperationsForTick` in `ag-grid-react-*.js`) listens to `rowNodeDataChanged` / `cellValueChanged` / `rowDataUpdated` / expansion events and schedules `setTimeout(() => colAutosize.processResizeOperations(), 0)` on every one — one macrotask per transaction-updated row, no coalescing. Its own work is nil (the operation queue is empty); the cost in the sorted / grouped states is `executeBatchUpdateRowData` (the re-sort / re-aggregate per flush window), 0.8–2.5 s per 10 s | B2 step 3: nothing further in B2 — that is the price of keeping sort order and aggregates live, paid only for rows whose key changed |
 
 Every phase appends its before/after row here.
@@ -559,9 +573,30 @@ exports, D2 switches call sites, D3 deletes — at every commit the old path
 still works and the container's tests still run. D is the riskiest phase in
 the plan; it runs on its own branch off the B2 branch so the review stays
 readable.
-**Verify.** The profile JSON in `apps/scripts/ssrm-perf/out/`.
+**Measured 2026-09-14 (§2, `cdp-cold-reload.mjs`, branch
+`feature/blotter-host`):** the mount stack — platform-ready to the grid
+being created — is 617–717 ms on the CSRM blotter and 627–634 ms on the
+SSRM one, and it is compute, not waiting: 3–12 ms idle, 326–557 React
+commits before the grid mounts (fiber depth 67), the busy time split
+between AG Grid code that runs before any grid exists (module registration
+on first use, the column-definition pipeline: 180–300 ms), the app's own
+hooks and renders (`index.js` 105–135 ms) and native work (100–180 ms).
+The original ≥ 300 ms rule would have said proceed as well. The rest of the
+reload is outside D: 0.7–1.1 s of script fetch + parse before
+DOMContentLoaded, 0.3–0.8 s of AG Grid column/header init, and the data
+itself — 1.0–1.1 s to the first SSRM block, 1.6–3.4 s to the 20 000-row CSRM
+snapshot on screen (about half of it idle, waiting for the worker). The
+bootstrap marks are trivial here (33–90 ms) because the platform is warm;
+the 1.1 s `platform-ready` figure quoted above was a cold platform.
+**D2's exit, re-based on this baseline:** platform-ready → grid created
+≤ 300 ms with ≤ 50 commits before the grid, and first rows 0.4 s earlier
+than these rows on the same layout; the absolute "≤ 2.0 s" written before
+the baseline was an SSRM number on a different day and is superseded.
+**Verify.** `node cdp-cold-reload.mjs --url <blotter> --runs 2`
+(`--target <id>` when several views share a URL); the JSON in
+`apps/scripts/ssrm-perf/out/`.
 
-### D1 — `BlotterHost` (one session)
+### D1 — `BlotterHost` (one session) — built 2026-09-14
 
 **What.** One component in `packages/react-grid/widgets-react/src/blotter/`
 with an explicit state machine in its own file (`blotterHostMachine.ts`):
@@ -572,17 +607,118 @@ one gate. `MarketsGrid` and the customizer are unchanged. The container's
 provider-selection, persistence and admin-action tests move over unchanged in
 intent; WORKLOG 20's "stub grid mounts exactly once" test moves here.
 
+**As built.** `blotterHostMachine.ts` is pure: `resolveBlotterHostStep(facts)`
+returns `identity | storage | selection | config | grid(data, key) |
+grid(empty, reason)`, and a chosen provider whose row is neither present nor
+failed is `config` whatever a stale `loading` flag says — WORKLOG 20's
+combination is unrepresentable. `BlotterHost.tsx` is the outer host (the
+hosted-view features, the data-plane provider, the full-bleed layout; it
+mounts the body only once identity and storage are settled) plus the body,
+which gathers the remaining facts and renders what the step says: one loading
+note, or one `MarketsGrid` keyed `csrm|ssrm::provider::keyColumn`, or the
+empty grid. The orchestration is split into hooks under `blotter/host/` so
+every function stays under the 80-line ceiling: view features (identity, tab
+title, linking, document title, legacy cleanup), grid-level persistence and
+caption, toolbar date, active provider, data feed and its actions, admin
+actions and the two Custom Settings host APIs. The wiring modules it reuses
+(`useGridLevelPersistence`, `useProviderDataWiring`, `useSsrmProviderWiring`,
+`buildColumnDefs`, the dialogs, the overlay) stay in the container folder
+until D3 moves or deletes them. Props are `HostedMarketsGridProps` plus an
+optional explicit `storage` factory (wins over the ConfigService-backed one),
+so D2 is a rename at the call sites and the container's tests could move with
+their intent intact. Tests moved: loading gate (WORKLOG 20), SSRM (no
+throwaway grid, auto-pick, stable ssrm config, refresh/reload routing), admin
+actions and host APIs, toolbar historical mode and save-and-switch, provider
+stale state, caption persistence (the OpenFin rename now arrives the way it
+does in production: `customData.savedTitle` + `options-changed`); plus the
+hosted gates (connecting note while storage is pending, explicit storage,
+document title, data-plane wrapper) and the machine's own table.
+`MarketsGridContainer` and `HostedMarketsGrid` are untouched and still
+exported — D2 switches the call sites, D3 deletes.
+
 **Entry.** D0's decision rule. **Out of scope.** Consumers (D2, D3).
-**Exit.** Unit tests green; both files under the ceiling. **Verify.**
+**Exit.** Unit tests green; both files under the ceiling. **Met:** 52 tests in
+`widgets-react/src/blotter`, `check:loc` green with every new function under
+80 lines, react-grid typecheck green. **Verify.**
 `npx turbo test --filter=@wellsfargo-starui/grid`; `npm run check:loc`.
 
-### D2 — Migrate star-demo (one session)
+### D2 — Migrate star-demo (one session) — in progress 2026-09-14
 
 **What.** star-demo's three container/hosted-grid call sites move to
 `BlotterHost`. E2E under `apps/e2e-openfin`: one AG Grid licence banner per
 blotter in the production build.
-**Entry.** D1. **Exit.** star-demo e2e green; cold reload → rows on the
-production dock ≤ 2.0 s (from 2.5 s) and the D0 table re-recorded.
+
+**As built so far.** Both route views (`BlottersMarketsGrid`,
+`BlottersSsrmMarketsGrid`) render `BlotterHost` from
+`@wellsfargo-starui/grid/widgets` with their props unchanged; the third call
+site was the test double in `staruiVitestMocks.ts`, now a `BlotterHost` stub
+(`data-testid="blotter-host"`) and the view / main tests read it. New spec
+`apps/e2e-openfin/specs/blotter-single-grid.openfin.spec.ts`: installs a
+console counter before a reload and asserts one `.ag-root-wrapper` and one
+"AG Grid Enterprise License" banner (two under the Vite dev build, where
+StrictMode mounts effects twice). star-demo typecheck and production build
+green. Two pre-existing star-demo test facts, unrelated to D2 and reproduced
+at HEAD: `platformBootstrap.test.ts › initConfigBootstrap resolves json
+config in browser` fails, and the Provider prefetch tests take 3.4 s of their
+5 s timeout alone (`import()` of every tool-window chunk), so they trip when
+the suite runs in parallel — the `@wellsfargo-starui/data` test mock also
+lacks `warmPlatform`, which surfaces as an unhandled error there.
+**Measured 2026-09-14, first pass (BlotterHost, star-demo entry unchanged):**
+the mount stack did not move — platform-ready → grid created 618–647 ms of
+pure compute, 640–697 React commits before the grid. The commit count was
+attributed with a per-commit fiber diff (which fibers are new objects
+against the previous committed tree; the deepest ones are the update's
+origin) after three sampled methods misled: 481 of 489 pre-grid commits
+happened while the root showed the route Suspense fallback ("Loading..."),
+touched only the host root, and carried two pending RETRY lanes on every
+commit — React retrying the `React.lazy` blotter route against its still
+pending chunk, ~0.5 ms apart in bursts. Every instrument that slowed the
+page (pausing breakpoints, even conditional logpoints) made the storm
+vanish, which is why it needed the non-perturbing diff. BlotterHost's own
+components rendered 7 times.
+
+**Fix (star-demo entry, `main.tsx`):** a blotter window waits for its route
+chunk (bounded at 5 s) before the first `root.render` and renders the route
+component directly; the lazy path stays for in-window navigation and for a
+slow chunk. **Second pass:** pre-grid commits **9**; platform-ready →
+BlotterHost body 322 ms, all of it the AG Grid chunk evaluating
+(`ag-grid-community` 120–159 ms, enterprise 51, native 44–67 — the chunk lands
+after platform-ready because its fetch is longer than the warm bootstrap);
+body → grid created ≈ 100 ms (the host's own share); first rows 3.84–3.98 s
+(from 4.29–5.47 s). Exit: commits and first rows met; "platform-ready → grid
+created ≤ 300 ms" not met as written (587–612 ms) because it bundles the
+chunk evaluation no host change can remove — the host's share is ~100 ms.
+Owner to accept the criterion as "body mounted → grid created ≤ 300 ms" or
+keep the original and take the star-demo follow-up: `modulepreload` the AG
+Grid chunks from `index.html` so they fetch alongside the entry, which is
+the only lever left on that 322 ms.
+
+**E2E (2026-09-14, dock closed, production preview on :5175):**
+`apps/e2e-openfin` **7 of 7 green** (3.1 min; the bridge installs in a
+production build when the provider URL carries `?e2eBridge=1`, so the run
+points `OPENFIN_MANIFEST_URL` at a manifest copy in `dist/`). The harness had
+never run against this star-demo: it opened blotters by path (star-demo
+routes by hash), waited on AG Grid 35 selectors (`.ag-center-cols-container`;
+36 puts body rows under `.ag-grid-scrolling-rows`), declared webServer
+scripts that don't exist, and created bare windows whose fresh instanceId
+has no config row — `BlotterHost` then renders the "no provider" grid (no
+columns), exactly as the old container did. It now launches through the
+test bridge's new `launchComponent`, the platform's own
+`launchRegisteredComponent` (minted instanceId, template row cloned, the
+entry found by its blotter `hostUrl` via `listRegistry` because the live
+registry's ids differ from the seed's), as views, sized after the grid
+mounts so the ticking columns render; cloned rows are deleted on close. The
+one-grid-per-load spec passes: one `.ag-root-wrapper`, one licence banner on
+a cold reload, 7–9 s. Two platform findings on the way, WORKLOG 22: a blotter
+launched `asWindow` shares the provider's renderer and stalls every platform
+API call the provider makes (`createWindow` 0.4 s → 27 s → 66 s with one,
+two, three such windows open), and a loaded 20 000-row CSRM view spends
+~70 % of its main thread in the conditional-styling module's timed
+activations.
+**Entry.** D1. **Exit.** star-demo e2e green; on the production dock the
+D0 table re-recorded with platform-ready → grid created ≤ 300 ms and
+≤ 50 commits before the grid, first rows 0.4 s earlier than D0's rows on
+the same layout (the earlier "≤ 2.0 s from 2.5 s" predates the baseline).
 **Verify.** `apps/e2e-openfin`; `cdp-fiber-remount.mjs`.
 
 ### D3 — Migrate the remaining consumers and delete the old components (one session)

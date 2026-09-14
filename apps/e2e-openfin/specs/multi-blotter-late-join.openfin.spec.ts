@@ -10,7 +10,7 @@
 import { test, expect } from '../fixtures/launchOpenFin';
 import type { Page } from '@playwright/test';
 
-const ROW_SELECTOR = '.ag-center-cols-container .ag-row';
+const ROW_SELECTOR = '.ag-grid-scrolling-rows .ag-row'; // AG Grid 36 body rows
 // Phase 5 — warm fast-attach budget. A second blotter joining an already-warm
 // hub + seeded ConfigManager reaches rows in ~10-11s across the Phase 2-4 runs.
 // 25s is a tight regression guard (~2.3x the observed warm time) that still
@@ -28,11 +28,11 @@ async function waitForRows(page: Page, timeout: number): Promise<void> {
 
 test.describe('star-demo — multi-blotter late join', () => {
   test('a blotter opened after the hub is warm attaches and shows rows', async ({ platform }) => {
-    const first = await platform.openBlotter('late-first');
+    const first = await platform.openBlotter();
     await waitForRows(first, ROW_WAIT_CEILING_MS);
 
     const started = Date.now();
-    const second = await platform.openBlotter('late-second');
+    const second = await platform.openBlotter();
     await waitForRows(second, ROW_WAIT_CEILING_MS);
     const elapsed = Date.now() - started;
 

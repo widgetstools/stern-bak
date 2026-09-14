@@ -205,6 +205,8 @@ export class LocalStorageBundleAdapter implements StorageAdapter {
       state,
       createdAt: Number.isFinite(Number(raw.createdAt)) ? Number(raw.createdAt) : Date.now(),
       updatedAt: Number.isFinite(Number(raw.updatedAt)) ? Number(raw.updatedAt) : Date.now(),
+      // Tri-state: true / false / absent — see `ProfileSnapshot.isTemplate`.
+      ...(typeof raw.isTemplate === 'boolean' ? { isTemplate: raw.isTemplate } : {}),
     };
   }
 
@@ -304,6 +306,7 @@ export class LocalStorageBundleAdapter implements StorageAdapter {
           state: (r.state as Record<string, SerializedState>) ?? {},
           createdAt: Number(r.createdAt),
           updatedAt: Number(r.updatedAt),
+          ...(typeof r.isTemplate === 'boolean' ? { isTemplate: r.isTemplate } : {}),
         }),
       );
     }

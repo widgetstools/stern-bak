@@ -1,31 +1,58 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@wellsfargo-starui/design-system/icons/all-icons', () => ({
   marketIconToDataUrl: (name: string, color: string) => `data:mkt:${name}:${color}`,
+  svgToDataUrl: (svg: string, color: string) => `data:svg:${color}:${svg.length}`,
 }));
 
+vi.mock('@wellsfargo-starui/design-system/icons/react', () => ({
+  // Only ids in the bundled set render; anything else is unknown.
+  lucideIconToSvg: (iconId: string) => (iconId === 'lucide:home' ? '<svg>home</svg>' : null),
+}));
+
+const palette = vi.fn(() => ({
+  dark: { textDefault: '#FFFFFF' },
+  light: { textDefault: '#1E1F23' },
+}));
 vi.mock('../openfinPalette.js', () => ({
-  buildOpenFinPalettesFromDesignSystem: () => ({
-    dark: { textDefault: '#FFFFFF' },
-    light: { textDefault: '#1E1F23' },
-  }),
+  buildOpenFinPalettesFromDesignSystem: () => palette(),
 }));
 
-const { iconIdToSvgUrl, iconIdToThemedUrls, parseIconUrl } = await import('./iconUtils.js');
+const { iconIdToSvgUrl, iconIdToThemedUrls, parseIconUrl, __resetThemedIconColorsForTests } =
+  await import('./iconUtils.js');
+
+beforeEach(() => {
+  __resetThemedIconColorsForTests();
+  palette.mockClear();
+});
 
 describe('iconIdToSvgUrl', () => {
   it('builds a market-icon data URL', () => {
     expect(iconIdToSvgUrl('mkt:bond', '#abc')).toBe('data:mkt:bond:#abc');
   });
 
-  it('builds an Iconify CDN URL for lucide icons', () => {
-    expect(iconIdToSvgUrl('lucide:home', '#ff0000')).toBe(
-      'https://api.iconify.design/lucide/home.svg?color=%23ff0000&height=24',
+  it('inlines a bundled lucide icon as a data URL — the dock renders offline', () => {
+    expect(iconIdToSvgUrl('lucide:home', '#ff0000')).toBe('data:svg:#ff0000:15');
+  });
+
+  it('falls back to the Iconify CDN only for an id outside the bundled set', () => {
+    expect(iconIdToSvgUrl('lucide:not-bundled', '#ff0000')).toBe(
+      'https://api.iconify.design/lucide/not-bundled.svg?color=%23ff0000&height=24',
     );
   });
 
   it('defaults color from the dark theme palette', () => {
-    expect(iconIdToSvgUrl('lucide:home')).toContain(encodeURIComponent('#FFFFFF'));
+    expect(iconIdToSvgUrl('lucide:home')).toBe('data:svg:#FFFFFF:15');
+  });
+
+  it('resolves the palette once per document, not once per icon', () => {
+    // Building the palette re-themes the whole page twice; the editor used
+    // to pay that per row per render.
+    iconIdToSvgUrl('lucide:home');
+    iconIdToSvgUrl('mkt:bond');
+    iconIdToThemedUrls('lucide:home');
+
+    expect(palette).toHaveBeenCalledTimes(1);
   });
 
   it('returns empty string for an invalid iconId', () => {
@@ -37,9 +64,8 @@ describe('iconIdToSvgUrl', () => {
 describe('iconIdToThemedUrls', () => {
   it('returns distinct dark and light URLs', () => {
     const urls = iconIdToThemedUrls('lucide:home');
-    expect(urls.dark).toContain(encodeURIComponent('#FFFFFF'));
-    expect(urls.light).toContain(encodeURIComponent('#1E1F23'));
-    expect(urls.dark).not.toBe(urls.light);
+    expect(urls.dark).toBe('data:svg:#FFFFFF:15');
+    expect(urls.light).toBe('data:svg:#1E1F23:15');
   });
 });
 

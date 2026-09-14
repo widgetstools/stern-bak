@@ -28,9 +28,20 @@ const ConfigBrowser       = React.lazy(() => import("./views/ConfigBrowser"));
 const RenameViewTab       = React.lazy(() => import("./views/RenameViewTab"));
 /** Start downloading+parsing the MarketsGrid route chunk in parallel with platform bootstrap. */
 const blottersMarketsGridChunk = import("./views/BlottersMarketsGrid");
-const BlottersMarketsGrid = React.lazy(() => blottersMarketsGridChunk);
+const BlottersMarketsGridLazy = React.lazy(() => blottersMarketsGridChunk);
 const blottersSsrmMarketsGridChunk = import("./views/BlottersSsrmMarketsGrid");
-const BlottersSsrmMarketsGrid = React.lazy(() => blottersSsrmMarketsGridChunk);
+const BlottersSsrmMarketsGridLazy = React.lazy(() => blottersSsrmMarketsGridChunk);
+// A blotter window renders its route DIRECTLY once the chunk has landed (plan
+// D2): rendering it through React.lazy under the route Suspense while the
+// chunk was still loading cost ~480 root-only React commits on every cold load
+// (retry lanes spinning against a pending lazy) and a "Loading..." flash. The
+// entry waits for the chunk (bounded below) before the first render; the lazy
+// path remains for in-window navigation and for a chunk slower than the bound.
+let BlottersMarketsGridReady: React.ComponentType | null = null;
+let BlottersSsrmMarketsGridReady: React.ComponentType | null = null;
+void blottersMarketsGridChunk.then((m) => { BlottersMarketsGridReady = m.default; }, () => undefined);
+void blottersSsrmMarketsGridChunk.then((m) => { BlottersSsrmMarketsGridReady = m.default; }, () => undefined);
+const ROUTE_CHUNK_WAIT_MS = 5_000;
 const DataProviders       = React.lazy(() => import("./views/DataProviders"));
 
 const WorkspaceSetup = React.lazy(() =>
@@ -161,17 +172,17 @@ function AppTree() {
           <Route
             path="/blotters/marketsgrid"
             element={
-              <React.Suspense fallback={LOADING}>
-                <BlottersMarketsGrid />
-              </React.Suspense>
+              BlottersMarketsGridReady
+                ? <BlottersMarketsGridReady />
+                : <React.Suspense fallback={LOADING}><BlottersMarketsGridLazy /></React.Suspense>
             }
           />
           <Route
             path="/blotters/ssrmmarketsgrid"
             element={
-              <React.Suspense fallback={LOADING}>
-                <BlottersSsrmMarketsGrid />
-              </React.Suspense>
+              BlottersSsrmMarketsGridReady
+                ? <BlottersSsrmMarketsGridReady />
+                : <React.Suspense fallback={LOADING}><BlottersSsrmMarketsGridLazy /></React.Suspense>
             }
           />
         </Route>
@@ -182,10 +193,27 @@ function AppTree() {
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 
-root.render(
-  <React.StrictMode>
-    <Suspense fallback={LOADING}>
-      <AppTree />
-    </Suspense>
-  </React.StrictMode>,
-);
+function renderApp(): void {
+  root.render(
+    <React.StrictMode>
+      <Suspense fallback={LOADING}>
+        <AppTree />
+      </Suspense>
+    </React.StrictMode>,
+  );
+}
+
+/** The route chunk a blotter window is about to render, or `null` for every other route. */
+function initialRouteChunk(): Promise<unknown> | null {
+  if (initialPath.startsWith("/blotters/marketsgrid")) return blottersMarketsGridChunk;
+  if (initialPath.startsWith("/blotters/ssrmmarketsgrid")) return blottersSsrmMarketsGridChunk;
+  return null;
+}
+
+const routeChunk = initialRouteChunk();
+if (routeChunk) {
+  const bound = new Promise<void>((resolve) => setTimeout(resolve, ROUTE_CHUNK_WAIT_MS));
+  void Promise.race([routeChunk.catch(() => undefined), bound]).then(renderApp);
+} else {
+  renderApp();
+}

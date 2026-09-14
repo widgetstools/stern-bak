@@ -49,8 +49,9 @@ whether the split caused that or it was already red.
 app was deleted) and diff. Nobody has.
 
 **Also here:** `e2e-openfin/` came across pointing at `e2e-openfin-workspace`,
-which was deleted. star-demo is itself an OpenFin app with a `launch.mjs` and
-manifest, so retargeting is plausible but unverified. And
+which was deleted. Retargeted at star-demo and green on 2026-09-14 (item 22:
+it had also drifted on routing, AG Grid 36 selectors and how a blotter gets
+its provider). And
 `apps/e2e/visual-reference-capture.spec.ts` is demo-react-bound too (boots via
 the `demo-blotter-v2` selector) and its default output path
 (`process.cwd()/docs/visual-reference/v1`) is wrong now that Playwright runs
@@ -1111,6 +1112,33 @@ production ~80 ms of main-thread work plus the second licence check; in
 `vite dev` several hundred ms), on top of StrictMode's dev-only double
 mount.
 
+**Mount stack measured (plan D0, 2026-09-14, `cdp-cold-reload.mjs` on the
+production dock):** from `starui:platform-ready` to the grid being created
+takes 617–717 ms on a CSRM blotter and 627–634 ms on an SSRM one, with
+3–12 ms idle — 326–557 React commits before the grid mounts at fiber depth
+67, AG Grid code running before any grid exists (module registration on
+first use, the column-definition pipeline, 180–300 ms), the container's
+hooks and renders (105–135 ms) and native work. First rows: SSRM
+2.9–3.3 s, CSRM 20 000 × 372 4.3–5.5 s, of which script fetch + parse is
+0.7–1.1 s and the data (first block / snapshot + client-side model) 1.0 s /
+1.6–3.4 s. Plan D (`BlotterHost`) proceeds; D2's exit is re-based on these
+rows. **D1 built (2026-09-14):** `BlotterHost` + `blotterHostMachine.ts` in
+`widgets-react/src/blotter/`, the container's tests moved over (52 in the
+folder), the old stack untouched until D2 switches the call sites.
+**D2 (2026-09-14):** star-demo's blotter routes render `BlotterHost`. The
+first measurement showed the mount stack unchanged and 640–697 commits
+before the grid; a per-commit fiber diff (new fiber objects vs the previous
+committed tree — the "PerformedWork" flag is not a per-commit signal, it
+persists until the fiber is cloned) showed ~480 of them were root-only
+commits carrying retry lanes while the root showed the route's Suspense
+fallback: React retrying the `React.lazy` blotter route against its still
+pending chunk. Any instrument that slowed the page made it vanish. star-demo's
+entry now waits for the blotter route chunk (bounded at 5 s) before the
+first render and renders the route directly: 9 commits before the grid,
+first rows 3.84–3.98 s (from 4.29–5.47 s). What remains between
+platform-ready and the host body (322 ms) is the AG Grid chunk evaluating;
+the host's own share to grid created is ~100 ms.
+
 **Dev-rig notes (how it was found):** `console` stacks name the creator
 of each banner (`Runtime.consoleAPICalled` carries call frames); a
 minimal `__REACT_DEVTOOLS_GLOBAL_HOOK__` installed by
@@ -1269,6 +1297,181 @@ bucketing by callback source finds timer storms that CPU profiles only
 show as native self time; concurrent per-isolate CPU profiles on a shared
 thread over-attribute wall time (sum across views exceeded the window
 12×) — use them for ranking within a view, never for absolute cost.
+
+## 22. The OpenFin e2e harness runs against star-demo again (2026-09-14) — fixed; two platform findings open
+
+**Symptom:** `apps/e2e-openfin` (plan D2's exit) had never run against this
+star-demo. Five of seven specs failed with no grid header ever appearing.
+
+**Harness drift, fixed:** (1) blotters were opened by path
+(`/blotters/marketsgrid?instanceId=`) — star-demo routes by hash, so the
+window landed on the home route; (2) row selectors were AG Grid 35's
+`.ag-center-cols-container` — 36 puts body rows under
+`.ag-grid-scrolling-rows` (the browser suite under `apps/e2e` still carries
+the old selector in five specs); (3) the config's webServer commands named
+scripts that don't exist; (4) a bare `Platform.createWindow` with a fresh
+`instanceId` has no config row, and both the old container and
+`BlotterHost` render the "no provider" grid (one `.ag-root-wrapper`, no
+columns, "Rows : 0") — the dock never does this because
+`launchRegisteredComponent` mints the id and clones the template row first.
+The test bridge (`@wellsfargo-starui/openfin/test-bridge`) now exposes
+`listRegistry`, `launchComponent` (that platform launch; a View by default)
+and `deleteConfig`; the fixture picks the registry entry by its blotter
+`hostUrl` (the live registry's ids differ from the seed's — here
+`grid-position-2`), launches views, sizes the view after its grid mounts
+(a launched view sits in an 800×500 window and does not follow window
+resize/maximize; `view.setBounds` after load does, and without it only seven
+static columns render so "rows tick" can never see a change), samples ticks
+with one `textContent` read + `expect.poll` (each evaluate on a loaded
+20k-row view queues 1–5 s behind long tasks), waits for destroyed views to
+leave the CDP target list (a `connectOverCDP` attaching to a lingering one
+stalled 15 s) and deletes the cloned rows. The bridge installs in a
+production build when the provider URL carries `?e2eBridge=1`, so the run
+works against the dock's `vite preview` with a manifest copy in `dist/`.
+Result: 7 of 7, 3.1 min.
+
+**Finding A — a blotter launched `asWindow` shares the provider's renderer
+(open).** Same-app OpenFin windows share a renderer unless given a
+`processAffinity`; the manifest's `viewProcessAffinityStrategy` covers views
+only. With one loaded 20 000-row blotter window open, the provider's next
+`platform.createWindow` took 27 s (0.4 s cold), with two 66 s, `getOptions`
+up to 11 s and the template clone 3.7–8.8 s — a CPU profile of the provider
+target was 100 % busy in the blotter's grid code (its isolate is the
+provider's), and the runtime core sat under 1 %. The dock's registry entries
+carry an `asWindow` option, so this is reachable from the UI. Fix candidate:
+a per-window `processAffinity` in `createComponentInstance` when
+`asWindow`; the isolation experiment's note 9 says popouts rely on sharing
+the opener's process, so re-test them first. `launch.ts` now logs one info
+line per launch (`window … ms, template clone … ms`).
+
+**Finding B — conditional-styling timed activations dominate a loaded CSRM
+view (open).** Source-mapped profile of a freshly loaded `Position-2` view
+(20 000 rows, 15 ticking columns, isolation on): 11.25 s busy of 11.25 s,
+7.8 s self time in `getValueByPath` (`types/rowPath.ts`) called from
+`conditional-styling/runtime/timedActivations.ts` `node` ← `change` ←
+`activate.ts` `change` ← the engine's `flush`; a further 1.2 s in
+`buildColumnsContextFromDiffs` and 0.85 s in `timedActivations` itself. The
+B1/B2 apply path is not in the picture (`renderedRowUpdates` 13 ms). Worth
+a look at what `timedActivations.change` walks per flush and whether it can
+be bounded to the changed rows' rule columns. Recipe: scratchpad
+`e2e-provider-profile.mjs` against a `vite build --sourcemap` dist.
+
+## 23. Every instance of a template component runs on the template's row (2026-09-14) — done
+
+**Ask (owner):** instances of a template blotter must share the template's
+config as set up in Workspace Setup; per-instance rows were orphans unless
+a saved workspace claimed them (workspace GC deletion is off, item 22
+found seven `dev1grid-position-2-…` clones on this box from one evening).
+
+**Change:** `launchRegisteredComponent` (dock buttons, menu items) no
+longer mints an id or clones the template row. Every launch stamps the
+entry's template config id (`componenttype-subcomponenttype`, the entry's
+`configId`) as `customData.instanceId` = `templateId`, with
+`isTemplate: true` and the entry's `singleton` — exactly what Workspace
+Setup's "Configure Component" test launch already did — so the view's
+storage reads and writes the template row and every save keeps it flagged
+as the template. Singleton entries differ only in focus-or-open.
+`mintRegisteredInstanceId` and the clone are deleted. Per-view state stays
+per view: the active profile on `customData.activeProfileId`
+(`openfinViewProfile`, `docs/PROFILE_PERSISTENCE.md` §4–5) and the tab
+title on `customData.savedTitle`, both carried by the workspace snapshot,
+so a restored view reopens on the profile it had. What is now shared by
+design: profiles, the grid-level provider selection, caption and event
+bindings. Concurrent saves from two instances go through the
+profile-bundle's OCC retry for grid-level data and version-checked profile
+writes; a clash surfaces as a save error in one view.
+
+**Not done:** the existing per-instance rows are not removed (delete them
+in the Config Browser, or arm `workspaceGc` once its rules are audited);
+the seed still ships `dev1grid-test-…` instance rows. The e2e harness
+tells instances apart by view name now that they share a URL, and no
+longer deletes rows on close.
+
+## 24. Template profiles — Workspace Setup authors them, instances save to a copy (2026-09-14) — done
+
+**Ask (owner):** profiles set up through Workspace Setup are templates; an
+instance saving to one (Default or any other) must write `<name> (copy)`
+instead, and the selector must show template profiles in a different text
+colour.
+
+**Change:** `ProfileSnapshot.isTemplate` and `ProfileMeta.isTemplate`;
+`ProfileManager` gains `templateAuthoring`. Workspace Setup's "Configure
+Component" launch stamps `customData.templateAuthoring: true` (the only
+launch that does), read by `useHostedIdentity` into
+`HostedContext.templateAuthoring`, passed by `BlotterHost` /
+`HostedMarketsGrid` as `MarketsGridProps.profileTemplateAuthoring` down to
+the manager. Authoring marks every saved / created / cloned / imported
+profile (and a freshly created Default) as a template and may rename or
+delete them. A launched instance saving on a template writes the
+non-template `<name> (copy)` — created on the first save, overwritten on
+later ones — and switches to it, so the view's `activeProfileId` pointer
+and later saves follow the copy; it creates plain profiles, and rename /
+delete of a template throw (the selector hides those affordances).
+`ProfileSelector` renders template rows in `--ds-accent-info` with a
+`LayoutTemplate` badge whose title explains the copy rule. Tests: engine
+(`ProfileManager.templates.test.ts`), selector, hosted identity, registry
+editor launch. Profiles written before the flag are plain; re-save them
+from Workspace Setup to make them templates.
+
+**Follow-up (same day, found on the owner's dock):** the mark was written
+but never read — `profileBundle.normalizeSnapshot` (config-service rows)
+and `LocalStorageBundleAdapter`'s normaliser + `parseBundle` rebuild each
+profile from a fixed field list and dropped `isTemplate`; both now carry
+the tri-state flag through (round-trip tests added). And the running
+dock's Workspace Setup launch came from the react-core package's built
+output, which had not been rebuilt, so it stamped no `templateAuthoring`
+at all — the dev rig's "rebuild every package the app bundles" rule
+applies to the workspace-setup chunk too.
+
+## 25. Workspace Setup: sluggish typing, hanging icon picker, icons that "never applied" (2026-09-14) — fixed
+
+**Ask (owner):** typing in the component editor lagged badly, the icon
+picker hung most of the time, and a picked icon did not show on the menu
+item or the component. Separately: fixed header and footer, three
+independently scrolling columns, and a design pass.
+
+**Cause — one function.** `iconIdToSvgUrl` / `iconIdToThemedUrls`
+resolve their default colour through
+`buildOpenFinPalettesFromDesignSystem()`, which flips the document's
+`data-theme` to dark and to light and reads ~40 computed colours — a full
+style recalculation of the whole page, twice. Every row in all three
+panes called it on every render (`<img src={iconIdToSvgUrl(iconId)}>`),
+nothing was memoised, and every keystroke in the inspector produced a new
+`entries` array, so one keystroke re-themed the page 2 × (rows) times.
+The icon picker paid the same per cell (~280 cells), and its `lucide:`
+cells pointed `<img>` tags at the Iconify CDN — unreachable on a
+locked-down desktop, so cells never painted and the popover looked hung.
+"Not applied" was the same defect seen from the other side: the id *was*
+written, but the preview `<img>` used a CDN URL (never loads) or a data
+URL with `currentColor` left in it (resolves to black inside an image
+document — invisible on the dark theme).
+
+**Change:**
+- `@wellsfargo-starui/openfin/dock-editor` `iconUtils`: the palette colours
+  are resolved once per document and cached; `lucide:` ids render offline
+  through the new `lucideIconToSvg` (design-system `icons/react`,
+  `react-dom/server`) into a data URL, CDN only for an id outside the
+  bundled set. The workspace-setup copy of `iconUtils` is deleted; the
+  package re-exports the openfin one.
+- Workspace Setup panes render icons inline through `DynamicIcon` (no URL
+  generation in render at all); `ComponentsPane`, `DockPane`,
+  `InspectorPane` and every row are `memo`ised; the shell keeps registry /
+  dock / selection in refs so its callbacks are referentially stable;
+  `DockPane` rows take a stable set of entry ids rather than the entries
+  array. `IconPicker` uses one de-duplicated catalog, memoised cells, a
+  deferred search value, and emits data URLs for both icon sources.
+- Shell layout: `fixed inset-0` column with a 48px header (title, scope,
+  counts, unsaved-changes indicator), a three-column grid whose panes
+  each own their scroll, and a 48px footer (Discard / Save). The star-demo
+  `body { padding: 10px }` no longer leaks into the window.
+- Copy: "In dock / Not in dock", "Component deleted", "Overview",
+  "Dock item", "Launches component", "Add to your dock"; row actions carry
+  accessible names.
+
+Tests: `iconUtils.test.ts` (offline data URLs, palette resolved once),
+`IconPicker.test.tsx` (data URLs for both sources, dedupe, search), pane
+and shell tests updated to the new markup. Design canvas of the reworked
+screen published alongside (see the conversation link).
 
 ## Pre-existing, tracked elsewhere
 

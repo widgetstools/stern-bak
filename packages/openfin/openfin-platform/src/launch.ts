@@ -3,13 +3,8 @@ declare const fin: any;
 import type OpenFin from "@openfin/core";
 import type { App } from "@openfin/workspace";
 import { AppManifestType, getCurrentSync } from "@openfin/workspace-platform";
-import { getConfigManager, loadRegistryConfig } from "./db";
-import {
-  generateTemplateConfigId,
-  mintRegisteredInstanceId,
-  type RegistryEntry,
-} from "./registryConfigTypes";
-import { DEFAULT_USER_ID } from "./registryHostEnv";
+import { loadRegistryConfig } from "./db";
+import { deriveTemplateConfigId, type RegistryEntry } from "./registryConfigTypes";
 import { appendLaunchIdentityParams, resolveHostUrl } from "./hostUrl";
 
 // ─── Singleton in-flight + opened registry ───────────────────────────
@@ -149,10 +144,17 @@ export interface LaunchRegisteredComponentOptions {
  * Dock-menu clicks should never hard-fail because a referenced
  * registry entry was deleted.
  *
- * Runtime customData is built the same way
- * `registry-editor/testComponent()` builds it, so views launched from
- * the dock behave identically to those launched from the registry
- * editor's test button.
+ * Every launch runs on the registry entry's TEMPLATE config row: the
+ * instanceId is the template's configId (`componenttype-subcomponenttype`),
+ * the same row Workspace Setup's "Configure Component" edits, so all
+ * instances of a component share its profiles and provider selection and
+ * no per-instance rows are created (they were orphans unless a saved
+ * workspace claimed them, and workspace GC deletion is off). Per-view
+ * state — the active profile, the tab title — rides on the view's
+ * `customData`, which the workspace snapshot round-trips. Runtime
+ * customData is built the same way `registry-editor/testComponent()`
+ * builds it, so views launched from the dock behave identically to those
+ * launched from the registry editor's test button.
  */
 export async function launchRegisteredComponent(
   entryId: string,
@@ -197,7 +199,7 @@ export async function launchRegisteredComponent(
         }
       }
     }
-    const launchPromise = createComponentInstance(entry, opts, /* singletonId */ entry.configId);
+    const launchPromise = createComponentInstance(entry, opts);
     singletons.set(entry.configId, launchPromise);
     try {
       const owner = await launchPromise;
@@ -213,102 +215,24 @@ export async function launchRegisteredComponent(
 }
 
 /**
- * Eagerly clone the template's config row onto a fresh per-instance
- * row at `instanceId`. The clone starts before window creation and runs
- * concurrently with it — the view's first config read happens only after
- * the window's renderer boots and the app bundle loads (hundreds of ms at
- * minimum), so the clone lands long before any consumer reads the row.
- * The view then reads its own row directly — no lazy seed-from-template
- * inside the storage adapter, no dual-adapter race.
- *
- * Why eager: a single hosted MarketsGrid builds two storage adapters
- * (one in MarketsGridContainer for gridLevelData, one in <MarketsGrid>
- * for profiles). With lazy seeding both adapters would race the seed
- * write and the loser threw VersionConflict. Cloning at launch makes
- * the row exist before any consumer reads it — read paths simplify to
- * "getConfig by id" and the race vanishes.
- *
- * Behavior:
- *   - Best-effort: if the template row doesn't exist or the write
- *     fails, the launch still proceeds. The view gets an empty row
- *     (same as a first-ever launch), the user authors state, the
- *     normal save path persists it.
- *   - Identity flip: the cloned row carries `isTemplate: false`,
- *     `singleton: false`. Workspace GC's existing rules then dispose
- *     the row when the view isn't referenced by any saved workspace,
- *     so dock-launches the user immediately closes don't accumulate.
- *   - Display text: marks the row as "<template-display>: <short-id>"
- *     so Config Browser shows clearly which template it descended from.
- */
-async function cloneTemplateRowForInstance(
-  templateConfigId: string,
-  instanceId: string,
-  entry: RegistryEntry,
-): Promise<void> {
-  try {
-    const cm = await getConfigManager();
-    const src = await cm.getConfig(templateConfigId);
-    if (!src) return; // no template row yet — nothing to clone
-    const now = new Date().toISOString();
-    const shortId = instanceId.slice(0, 8);
-    await cm.saveConfig({
-      ...src,
-      configId: instanceId,
-      displayText: `${src.displayText || entry.displayName || entry.componentType}: ${shortId}`,
-      isTemplate: false,
-      singleton: false,
-      creationTime: now,
-      updatedTime: now,
-    });
-  } catch (err) {
-    console.warn(
-      `[launch] template clone failed for ${templateConfigId} → ${instanceId} — view will start empty:`,
-      err,
-    );
-  }
-}
-
-/**
  * Create the actual View or Window for a registry entry. Extracted from
  * launchRegisteredComponent so the singleton path can both reuse it AND
  * register the resulting promise in the singletons Map.
  *
- * When `singletonId` is provided, customData.instanceId === customData.templateId
- * === singletonId. component-host's `resolveInstanceId()` then loads the
- * existing config row at that id (case 1: workspace-restore-style). For
- * non-singleton callers the instanceId is a fresh UUID, and the
- * template's config row is eagerly cloned onto that UUID before the
- * view opens — see `cloneTemplateRowForInstance`.
+ * `customData.instanceId === customData.templateId` — the template's
+ * configId — for every launch. The view's storage then reads and writes
+ * that row directly; `isTemplate: true` on the customData keeps the row
+ * flagged as the component's template on every save (workspace GC never
+ * reaps templates; Workspace Setup lists them). Singleton entries differ
+ * only in focus-or-open (see launchRegisteredComponent), not in the row.
  */
 async function createComponentInstance(
   entry: RegistryEntry,
   opts: LaunchRegisteredComponentOptions,
-  singletonId?: string,
 ): Promise<SingletonOwner> {
-  // Singletons reuse their templateId as instanceId (all callers share
-  // one row). Non-singletons get a fresh id in the canonical format
-  // `${userId}${componentType}-${componentSubType}-${Date.now()}`. See
-  // `mintRegisteredInstanceId` for the format rationale.
-  const instanceId = singletonId ?? mintRegisteredInstanceId(
-    DEFAULT_USER_ID,
-    entry.componentType,
-    entry.componentSubType,
-  );
-
   const templateId = entry.configId ||
-    generateTemplateConfigId(entry.componentType, entry.componentSubType);
-
-  // Non-singleton launch: clone the template's row onto the fresh
-  // instanceId so the view's storage reads hit a populated row directly.
-  // Started here and awaited alongside window creation below — the OS
-  // window appears immediately instead of waiting out the config
-  // read+write, while the clone still completes well before the view's
-  // renderer boots far enough to read the row (see
-  // cloneTemplateRowForInstance). Singletons skip this — instanceId
-  // === templateId, the view IS the template.
-  const clonePromise = singletonId
-    ? Promise.resolve()
-    : cloneTemplateRowForInstance(templateId, instanceId, entry);
+    deriveTemplateConfigId(entry.componentType, entry.componentSubType);
+  const instanceId = templateId;
 
   const customData = {
     instanceId,
@@ -317,41 +241,36 @@ async function createComponentInstance(
     componentSubType: entry.componentSubType,
     appId: entry.appId,
     configServiceUrl: entry.configServiceUrl,
-    // Mark singleton launches so component-host stamps `singleton: true`
-    // on the persisted row, keeping it self-describing for downstream
-    // consumers. `singletonId` is set in the singleton-aware
-    // launchRegisteredComponent branch (entry.singleton && entry.configId);
-    // non-singleton spawns leave this falsy.
-    singleton: singletonId !== undefined,
+    isTemplate: true,
+    singleton: entry.singleton === true,
   };
 
   // Resolve relative hostUrls (e.g. "/blotters/marketsgrid") against the
-  // platform-provider window's origin before passing to OpenFin.
+  // platform-provider window's origin before passing to OpenFin. Every
+  // instance of the component carries the same `?instanceId=`; the
+  // view's own name is what tells instances apart.
   const resolvedUrl = appendLaunchIdentityParams(resolveHostUrl(entry.hostUrl), instanceId);
+  const t0 = Date.now();
 
   if (opts.asWindow) {
     const platform = getCurrentSync();
-    const [win] = await Promise.all([
-      platform.createWindow({
-        url: resolvedUrl,
-        name: `registered-${entry.id}-${instanceId}`,
-        defaultWidth: 1200,
-        defaultHeight: 800,
-        autoShow: true,
-        customData,
-      }),
-      clonePromise,
-    ]);
+    const win = await platform.createWindow({
+      url: resolvedUrl,
+      name: `registered-${entry.id}-${instanceId}-${t0}`,
+      defaultWidth: 1200,
+      defaultHeight: 800,
+      autoShow: true,
+      customData,
+    });
+    console.info(`[launch] ${entry.id} → ${instanceId}: window ${Date.now() - t0}ms`);
     return win;
   }
 
   const platform = getCurrentSync();
-  const [view] = await Promise.all([
-    platform.createView({
-      url: resolvedUrl,
-      customData,
-    } as unknown as Parameters<ReturnType<typeof getCurrentSync>["createView"]>[0]),
-    clonePromise,
-  ]);
+  const view = await platform.createView({
+    url: resolvedUrl,
+    customData,
+  } as unknown as Parameters<ReturnType<typeof getCurrentSync>["createView"]>[0]);
+  console.info(`[launch] ${entry.id} → ${instanceId}: view ${Date.now() - t0}ms`);
   return view;
 }

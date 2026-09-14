@@ -361,6 +361,7 @@ export function HostedMarketsGrid<
         instanceId={identity.instanceId}
         appId={identity.appId}
         userId={identity.userId}
+        profileTemplateAuthoring={identity.templateAuthoring === true}
         componentName={componentName}
         storage={identity.storage ?? undefined}
         theme={agTheme}

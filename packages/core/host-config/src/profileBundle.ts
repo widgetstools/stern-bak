@@ -221,6 +221,10 @@ function normalizeSnapshot(raw: unknown): ProfileSnapshot | null {
     state: (p.state ?? {}) as ProfileSnapshot['state'],
     createdAt: Number(p.createdAt ?? Date.now()),
     updatedAt: Number(p.updatedAt ?? Date.now()),
+    // Tri-state on purpose: true (template, authored in Workspace Setup),
+    // false (an instance's own profile or copy), absent (written before
+    // the flag existed).
+    ...(typeof p.isTemplate === 'boolean' ? { isTemplate: p.isTemplate } : {}),
   };
 }
 

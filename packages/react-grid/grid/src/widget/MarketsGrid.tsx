@@ -289,6 +289,7 @@ function MarketsGridInner<TData = unknown>(
     storageAdapter,
     host,
     includeAllStreamSafeFilters,
+    profileTemplateAuthoring,
   } = props;
 
   const [internalToolbarDate, setInternalToolbarDate] = useState(todayIsoDate);
@@ -392,6 +393,7 @@ function MarketsGridInner<TData = unknown>(
         instanceId={shell.resolvedInstanceId}
         appId={shell.resolvedAppId}
         userId={shell.resolvedUserId}
+        profileTemplateAuthoring={profileTemplateAuthoring}
         caption={caption}
         tabsHidden={tabsHidden}
         onCaptionChange={onCaptionChange}

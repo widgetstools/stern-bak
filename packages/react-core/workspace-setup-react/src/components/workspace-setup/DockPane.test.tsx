@@ -84,8 +84,11 @@ function renderPane(overrides: Partial<React.ComponentProps<typeof DockPane>> = 
   return { props, ...render(<DockPane {...props} />) };
 }
 
-/** The row wrapper for a dock entry, located by its label. */
-const rowFor = (label: string) => screen.getByText(label).closest('div.group')!;
+/**
+ * The row wrapper for a dock entry, located by its label. Nested rows are
+ * wrapped too, so a sub-menu item resolves to its own row, not its parent's.
+ */
+const rowFor = (label: string) => screen.getByText(label).closest('[data-testid="dock-row"]')!;
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -130,14 +133,14 @@ describe('DockPane', () => {
     renderPane({ dock: dock([launchButton('btn-1', 'Ghost', 'deleted-entry')]) });
 
     // Without this the dock silently fails on click at runtime.
-    expect(screen.getByText('⚠ Component deleted')).toBeDefined();
+    expect(screen.getByText('Component deleted')).toBeDefined();
   });
 
   it('does not flag a button that launches no component at all', () => {
     const plain = { type: 'ActionButton', id: 'btn-x', tooltip: 'Toggle theme', iconUrl: '', iconId: '', iconColor: '' };
     renderPane({ dock: dock([plain as unknown as DockButtonConfig]) });
 
-    expect(screen.queryByText('⚠ Component deleted')).toBeNull();
+    expect(screen.queryByText('Component deleted')).toBeNull();
   });
 
   it('remove asks for confirmation first', async () => {
@@ -217,7 +220,7 @@ describe('DockPane — dropdowns', () => {
       ]),
     });
 
-    expect(screen.getByText('⚠ Component deleted')).toBeDefined();
+    expect(screen.getByText('Component deleted')).toBeDefined();
   });
 
   it('removing a nested item passes the owning dropdown and the parent chain', async () => {

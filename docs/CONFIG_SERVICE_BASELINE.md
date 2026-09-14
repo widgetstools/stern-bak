@@ -327,8 +327,8 @@ re-optimization must keep all of them working.
 6. Export ALL / import bundle → providers + profiles + workspaces + registry
    + dock restore.
 7. Workspace save / restore → layout + `activeProfileId` in `customData`.
-8. Registry launch → template cloned to instance `configId` before grid
-   reads its profile-set.
+8. Registry launch → the view runs on the template row (its `instanceId`
+   is the template `configId`); no per-instance row is written.
 9. AppData template → `{{positions.asOfDate}}` resolves after bootstrap /
    toolbar date set.
 10. Cross-tab → profile list refreshes via `subscribeToChanges` on the same

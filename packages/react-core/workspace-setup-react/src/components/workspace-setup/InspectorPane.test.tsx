@@ -83,7 +83,7 @@ describe('InspectorPane — nothing selected', () => {
   it('shows the workspace counts', () => {
     renderPane();
 
-    expect(screen.getByText('③ WORKSPACE SETUP')).toBeDefined();
+    expect(screen.getByText('Overview')).toBeDefined();
     expect(screen.getByText('3')).toBeDefined();
     expect(screen.getByText('4')).toBeDefined();
     expect(screen.getByText('Components')).toBeDefined();
@@ -257,7 +257,7 @@ describe('InspectorPane — component selected', () => {
     cleanup();
     renderPane({ selection, inDockEntryIds: new Set(['grid-credit']) });
     expect(screen.queryByRole('button', { name: /Add to your dock/ })).toBeNull();
-    expect(screen.getByText('✓ Currently in your dock')).toBeDefined();
+    expect(screen.getByText('In your dock')).toBeDefined();
   });
 
   it('lists each dock placement as a jump link, including nested paths', async () => {
@@ -286,7 +286,7 @@ describe('InspectorPane — component selected', () => {
   it('shows no placement footer when the component is not referenced', () => {
     renderPane({ selection, buttons: [launchButton('btn-1', 'Other', 'someone-else')] });
 
-    expect(screen.queryByText('📍 In your dock at:')).toBeNull();
+    expect(screen.queryByText('In your dock at')).toBeNull();
   });
 
   it('opens the icon picker and writes the chosen iconId back', async () => {
@@ -407,7 +407,7 @@ describe('InspectorPane — dock item selected', () => {
       entries: [entry({ iconId: 'mkt:ticker' })],
     });
 
-    expect(screen.getByText(/per-placement overrides win/)).toBeDefined();
+    expect(screen.getByText(/this placement's own label and icon win/)).toBeDefined();
     expect(screen.getByText('mkt:ticker')).toBeDefined();
   });
 

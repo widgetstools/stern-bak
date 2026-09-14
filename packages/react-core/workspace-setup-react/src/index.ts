@@ -19,6 +19,6 @@ export { useDockEditor } from "./hooks/useDockEditor";
 export { useRegistryEditor } from "./registry/useRegistryEditor";
 
 // Icon helpers used by dock-toolbar configuration.
-export { iconIdToSvgUrl, parseIconUrl, iconIdToThemedUrls } from "./components/dock-editor/iconUtils";
+export { iconIdToSvgUrl, parseIconUrl, iconIdToThemedUrls } from "@wellsfargo-starui/openfin/dock-editor";
 export { ICON_OPTIONS, DEFAULT_ICON, findIconByName } from "./components/dock-editor/icons";
 export type { IconOption } from "./components/dock-editor/icons";

@@ -95,6 +95,7 @@ export interface MarketsGridHostProps<TData> {
   instanceId: string | undefined;
   appId: string | undefined;
   userId: string | undefined;
+  profileTemplateAuthoring: boolean | undefined;
   caption: string | undefined;
   tabsHidden: boolean | undefined;
   onCaptionChange: ((next: string) => void) | undefined;
@@ -152,6 +153,7 @@ function MarketsGridHostInner<TData>({
   instanceId,
   appId,
   userId,
+  profileTemplateAuthoring,
   caption,
   tabsHidden,
   onCaptionChange,
@@ -209,6 +211,7 @@ function MarketsGridHostInner<TData>({
     onGridLevelDataLoad,
     onSavingChange,
     headerCaseAttr,
+    templateAuthoring: profileTemplateAuthoring,
   });
 
   const [settingsMounted, setSettingsMounted] = useState(false);
@@ -354,6 +357,7 @@ function MarketsGridHostInner<TData>({
           profileList={profiles.profiles}
           activeProfileId={profiles.activeProfileId ?? ''}
           profileActions={profileActions}
+          profileTemplateAuthoring={profileTemplateAuthoring === true}
           isDirty={isDirty}
           showSaveButton={showSaveButton}
           saveFlash={saveFlash}

@@ -53,8 +53,10 @@ function renderPane(overrides: Partial<React.ComponentProps<typeof ComponentsPan
   return { props, ...render(<ComponentsPane {...props} />) };
 }
 
-/** The clickable row button for a component, by its display name. */
-const row = (name: string) => screen.getByText(name).closest('button')!;
+/** The clickable row for a component, by its display name. (A row is a
+ *  `role="button"` div, not a `<button>`: its hover actions are real
+ *  buttons, and buttons may not nest.) */
+const row = (name: string) => screen.getByText(name).closest('[role="button"]') as HTMLElement;
 
 afterEach(() => {
   cleanup();
@@ -67,8 +69,8 @@ describe('ComponentsPane', () => {
 
     expect(screen.getByText('Credit blotter')).toBeDefined();
     expect(screen.getByText('Rates blotter')).toBeDefined();
-    expect(within(row('Credit blotter')).getByText('✓ in dock')).toBeDefined();
-    expect(within(row('Rates blotter')).getByText('⚠ not in dock')).toBeDefined();
+    expect(within(row('Credit blotter')).getByText('In dock')).toBeDefined();
+    expect(within(row('Rates blotter')).getByText('Not in dock')).toBeDefined();
     expect(within(row('Credit blotter')).getByText('GRID / CREDIT')).toBeDefined();
   });
 
@@ -182,16 +184,18 @@ describe('ComponentsPane', () => {
   it('marks singleton and external entries so the badge is visible at a glance', () => {
     renderPane();
 
-    expect(within(row('Rates blotter')).getByTitle('Singleton')).toBeDefined();
-    expect(within(row('FX chart')).getByTitle('External component')).toBeDefined();
+    expect(within(row('Rates blotter')).getByTitle(/^Singleton/)).toBeDefined();
+    expect(within(row('FX chart')).getByTitle(/^External/)).toBeDefined();
   });
 
   it('renders the entry icon when one is set, and a placeholder when not', () => {
+    // The icon renders inline (no <img>, no URL) and is named by its id;
+    // the placeholder glyph is decorative and carries no image role.
     const { unmount } = renderPane({ entries: [entry({ iconId: 'mkt:bond' })] });
-    expect(screen.getByRole('presentation')).toBeDefined();
+    expect(screen.getByRole('img', { name: 'mkt:bond' })).toBeDefined();
     unmount();
 
     renderPane({ entries: [entry({ iconId: '' })] });
-    expect(screen.queryByRole('presentation')).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
   });
 });

@@ -53,6 +53,8 @@ describe('main', () => {
     await import('./main');
   }
 
+  // The first import of the entry compiles every route module cold under
+  // jsdom (5–6 s on a loaded box), so this test carries its own timeout.
   it('applies theme, installs watchdog, and starts platform bootstrap', async () => {
     await bootMain('/', '#/');
 
@@ -60,7 +62,7 @@ describe('main', () => {
     expect(mockApplyTheme).toHaveBeenCalledWith({ theme: 'dark' });
     expect(mockInstallBootWatchdog).toHaveBeenCalled();
     expect(mockEnsurePlatformReady).toHaveBeenCalled();
-  });
+  }, 20_000);
 
   it('starts config-only bootstrap for workspace setup pathname', async () => {
     await bootMain('/workspace-setup', '#/workspace-setup');
@@ -113,7 +115,7 @@ describe('main', () => {
     await waitFor(() => {
       expect(mockOpenFinRuntimeCreate).toHaveBeenCalled();
     });
-    await waitFor(() => expect(getOneByTestId('hosted-markets-grid')).toBeInTheDocument());
+    await waitFor(() => expect(getOneByTestId('blotter-host')).toBeInTheDocument());
   });
 
   it('executes ag-grid warm-up branch for blotter pathname', async () => {

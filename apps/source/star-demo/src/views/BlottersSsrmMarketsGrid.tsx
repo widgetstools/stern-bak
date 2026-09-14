@@ -8,7 +8,7 @@
  */
 
 import { useCallback, type ReactNode } from 'react';
-import { HostedSsrmMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
+import { BlotterHost } from '@wellsfargo-starui/grid/widgets';
 import { useStarGridApp } from '../starGridApp/index.js';
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { openProviderEditorPopout } from '../dataProvidersPopout';
@@ -68,7 +68,7 @@ function BlottersSsrmMarketsGrid(): ReactNode {
   const instanceKey = launchInstanceId ?? '';
 
   return (
-    <HostedSsrmMarketsGrid
+    <BlotterHost
       componentName="SsrmMarketsGrid"
       defaultInstanceId={instanceKey}
       documentTitle="MarketsGrid · SSRM"

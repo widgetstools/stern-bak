@@ -47,6 +47,16 @@ export interface ProfileManagerOptions {
   disableAutoSave?: boolean;
   /** Optional higher-priority pointer source — see `ActiveIdSource`. */
   activeIdSource?: ActiveIdSource;
+  /**
+   * Template-authoring mode — Workspace Setup's "Configure Component"
+   * launch. Every profile saved, created, cloned or imported here is marked
+   * `isTemplate`, and template profiles may be renamed or deleted. Outside
+   * this mode (a launched instance sharing the same row) a save on a
+   * template profile lands on a non-template copy named `<name> (copy)` —
+   * created on the first save, overwritten after — which becomes the active
+   * profile; the template itself is read-only, and new profiles are plain.
+   */
+  templateAuthoring?: boolean;
 }
 
 export interface ProfileManagerState {
@@ -85,6 +95,7 @@ export class ProfileManager {
   private readonly autoSaveDebounceMs: number;
   private readonly disableAutoSave: boolean;
   private readonly activeIdSource: ActiveIdSource | null;
+  private readonly templateAuthoring: boolean;
   private disposed = false;
   private booted = false;
   /** Unsubscribe handle for the store listener that tracks dirty state.
@@ -111,6 +122,21 @@ export class ProfileManager {
     this.autoSaveDebounceMs = opts.autoSaveDebounceMs ?? 300;
     this.disableAutoSave = opts.disableAutoSave ?? false;
     this.activeIdSource = opts.activeIdSource ?? null;
+    this.templateAuthoring = opts.templateAuthoring ?? false;
+  }
+
+  /** `{ isTemplate: true }` while authoring templates, nothing otherwise — spread into new snapshots. */
+  private templateMark(): { isTemplate: true } | Record<string, never> {
+    return this.templateAuthoring ? { isTemplate: true } : {};
+  }
+
+  /** Template profiles are edited in Workspace Setup only; an instance may copy them, never change them. */
+  private assertTemplateEditable(snap: ProfileSnapshot, action: string): void {
+    if (snap.isTemplate && !this.templateAuthoring) {
+      throw new Error(
+        `[profiles] Cannot ${action} "${snap.name}" — it is a template layout; edit it in Workspace Setup`,
+      );
+    }
   }
 
   /** Resolve the override id from the configured `activeIdSource`, if any.
@@ -177,6 +203,7 @@ export class ProfileManager {
           state: {},
           createdAt: now,
           updatedAt: now,
+          ...this.templateMark(),
         };
         await this.adapter.saveProfile(def);
         if (this.disposed) return;
@@ -271,15 +298,63 @@ export class ProfileManager {
   }
 
   /** Flush any pending auto-save then explicitly persist the live state.
-   *  Clears the dirty flag on success. */
+   *  Clears the dirty flag on success. Outside template authoring a save on
+   *  a template profile goes to its "(copy)" — see `saveTemplateAsCopy`. */
   async save(): Promise<void> {
     if (this.autoSave) {
       await this.autoSave.flushNow();
     } else {
-      await this.persistActive(this.platform.serializeAll());
+      const state = this.platform.serializeAll();
+      const copied = await this.saveTemplateAsCopy(state);
+      if (!copied) await this.persistActive(state);
     }
     if (this.disposed) return;
     if (this.state.isDirty) this.updateState({ isDirty: false });
+  }
+
+  /**
+   * Outside template authoring, a save on a template profile lands on the
+   * profile's copy — `<name> (copy)`, created on the first save and
+   * overwritten after — and the copy becomes the active profile, so the
+   * view's pointer (customData / localStorage) follows it and later saves
+   * go straight to the copy. Returns false when the active profile is not a
+   * template, in which case the caller persists in place.
+   */
+  private async saveTemplateAsCopy(state: Record<string, SerializedState>): Promise<boolean> {
+    if (this.templateAuthoring) return false;
+    const { gridId } = this.platform;
+    const active = await this.adapter.loadProfile(gridId, this.state.activeId);
+    if (!active?.isTemplate) return false;
+
+    const copyName = `${active.name} (copy)`;
+    const list = await this.adapter.listProfiles(gridId);
+    const existing = list.find((p) => !p.isTemplate && p.name.toLowerCase() === copyName.toLowerCase());
+    const now = Date.now();
+    let id = existing?.id;
+    if (!id) {
+      const base = slugId(copyName) || `copy-${now.toString(36)}`;
+      const taken = new Set(list.map((p) => p.id));
+      id = base;
+      for (let n = 2; taken.has(id) || id === RESERVED_DEFAULT_PROFILE_ID; n++) id = `${base}-${n}`;
+    }
+    const copy: ProfileSnapshot = {
+      id,
+      gridId,
+      name: existing?.name ?? copyName,
+      state,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      isTemplate: false,
+    };
+    await this.adapter.saveProfile(copy);
+    if (this.disposed) return true;
+    // The live store already holds this state — only the pointer moves.
+    this.updateState({ activeId: id });
+    writeActiveId(gridId, id);
+    await this.writeSourceId(id);
+    this.platform.events.emit('profile:saved', { gridId, profileId: id });
+    await this.refresh();
+    return true;
   }
 
   /** Throw away in-memory changes and reload the active profile from
@@ -423,6 +498,7 @@ export class ProfileManager {
       state: blankState,
       createdAt: now,
       updatedAt: now,
+      ...this.templateMark(),
     };
     await this.adapter.saveProfile(snap);
 
@@ -467,6 +543,8 @@ export class ProfileManager {
   async remove(id: string): Promise<void> {
     if (id === RESERVED_DEFAULT_PROFILE_ID) return;
     const { gridId } = this.platform;
+    const doomed = await this.adapter.loadProfile(gridId, id);
+    if (doomed) this.assertTemplateEditable(doomed, 'delete');
     const wasActive = this.state.activeId === id;
 
     if (wasActive) {
@@ -512,6 +590,7 @@ export class ProfileManager {
     const { gridId } = this.platform;
     const existing = await this.adapter.loadProfile(gridId, id);
     if (!existing) return;
+    this.assertTemplateEditable(existing, 'rename');
     await this.adapter.saveProfile({
       ...existing,
       name: name.trim() || id,
@@ -583,7 +662,8 @@ export class ProfileManager {
         ? structuredClone(sourceState)
         : JSON.parse(JSON.stringify(sourceState));
 
-    // Step 3 — commit the new profile row.
+    // Step 3 — commit the new profile row. A clone made from an instance is
+    // a plain profile even when its source is a template.
     const now = Date.now();
     const snap: ProfileSnapshot = {
       id,
@@ -592,6 +672,7 @@ export class ProfileManager {
       state: clonedState,
       createdAt: now,
       updatedAt: now,
+      ...this.templateMark(),
     };
     await this.adapter.saveProfile(snap);
 
@@ -727,6 +808,7 @@ export class ProfileManager {
       state: parsed.profile.state,
       createdAt: now,
       updatedAt: now,
+      ...this.templateMark(),
     };
     await this.adapter.saveProfile(snap);
     this.platform.events.emit('profile:saved', { gridId, profileId: id });
@@ -830,9 +912,11 @@ export class ProfileManager {
       return;
     }
 
+    // While authoring templates every persisted profile is (or becomes) a
+    // template; an instance leaves the flag as it found it.
     const now = Date.now();
     const next: ProfileSnapshot = existing
-      ? { ...existing, state, updatedAt: now }
+      ? { ...existing, state, updatedAt: now, ...this.templateMark() }
       : {
           id,
           gridId,
@@ -840,6 +924,7 @@ export class ProfileManager {
           state,
           createdAt: now,
           updatedAt: now,
+          ...this.templateMark(),
         };
     await this.adapter.saveProfile(next);
     // In the auto-save codepath, clearing dirty here keeps the flag in
@@ -865,6 +950,7 @@ function toMeta(snap: ProfileSnapshot): ProfileMeta {
     createdAt: snap.createdAt,
     updatedAt: snap.updatedAt,
     isDefault: snap.id === RESERVED_DEFAULT_PROFILE_ID,
+    isTemplate: snap.isTemplate === true,
   };
 }
 

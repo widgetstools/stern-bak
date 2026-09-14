@@ -1,11 +1,12 @@
 /**
  * BlottersMarketsGrid — route view at `/blotters/marketsgrid`. Delegates
  * all hosting (identity, ConfigManager, data-services, theme,
- * full-bleed layout, legacy cleanup) to `<HostedMarketsGrid>`.
+ * full-bleed layout, legacy cleanup) to `<BlotterHost>`, one component
+ * from the view's identity to its grid.
  */
 
 import { useCallback, type ReactNode } from 'react';
-import { HostedMarketsGrid } from '@wellsfargo-starui/grid/widgets/hosted';
+import { BlotterHost } from '@wellsfargo-starui/grid/widgets';
 import { useStarGridApp } from '../starGridApp/index.js';
 import { usePlatformBootstrap } from '../platformBootstrap';
 import { openProviderEditorPopout } from '../dataProvidersPopout';
@@ -37,7 +38,7 @@ function BlottersMarketsGrid(): ReactNode {
   }, [runtime]);
 
   return (
-    <HostedMarketsGrid
+    <BlotterHost
       componentName="MarketsGrid"
       defaultInstanceId="star-demo-blotter"
       documentTitle="MarketsGrid · Blotter"

@@ -318,6 +318,14 @@ scoped by `(appId, userId, instanceId)`. This is what makes
 `instanceId`s (or two users with different `userId`s) cannot see each
 other's profiles.
 
+Every instance of a **registered template component** launched from the
+dock, a menu item or Workspace Setup's test launch shares one row: the
+platform stamps the template's config id (`componenttype-subcomponenttype`)
+as every instance's `instanceId`, so all of them read and write the same
+profiles and provider selection, and no per-instance rows are created.
+What differs per view — the active profile (§4) and the tab title — lives
+on the view's `customData`, which the workspace snapshot round-trips (§5).
+
 `HostedMarketsGrid` derives these from OpenFin view `customData` or
 from `defaultAppId`/`defaultUserId`/`defaultInstanceId` props in
 browser mode. See
@@ -327,6 +335,40 @@ If `appId` or `userId` is missing **and** the adapter is the
 ConfigService factory, `<MarketsGrid>` throws at mount with a clear
 error. This is intentional — silently writing rows under a default
 scope would mix users together.
+
+---
+
+## 9a. Template profiles
+
+Since every instance of a registered component shares the template's row
+(§9), the profiles an admin authors in Workspace Setup and the profiles a
+user saves from a launched blotter live in the same list. Two flags keep
+them apart:
+
+- **`customData.templateAuthoring`** — stamped only by Workspace Setup's
+  "Configure Component" launch (`useRegistryEditor.testComponent`). It
+  reaches the grid as `MarketsGridProps.profileTemplateAuthoring` (via
+  `HostedContext.templateAuthoring`) and puts `ProfileManager` in
+  template-authoring mode.
+- **`ProfileSnapshot.isTemplate`** — set on every profile the authoring
+  session saves, creates, clones or imports (Default included). The
+  selector renders these rows in the info colour with a badge.
+
+Behaviour in a launched instance (no `templateAuthoring`):
+
+| Action | Result |
+|---|---|
+| Save while a template profile is active | Written to `<name> (copy)` — created on the first save, overwritten after — which becomes the active profile (the view's `customData.activeProfileId` follows it). The template is untouched. |
+| Save while a plain profile is active | Written in place, as before. |
+| Create / clone / import | A plain profile. |
+| Rename / delete a template profile | Refused (`ProfileManager` throws; the selector hides the affordances). |
+
+Behaviour while authoring in Workspace Setup: every save marks the
+profile as a template, and template profiles can be renamed and deleted.
+
+Source: [`packages/core/engine/src/profiles/ProfileManager.ts`](../packages/core/engine/src/profiles/ProfileManager.ts)
+(`templateAuthoring`, `saveTemplateAsCopy`),
+[`packages/react-grid/grid/src/widget/ProfileSelector.tsx`](../packages/react-grid/grid/src/widget/ProfileSelector.tsx).
 
 ---
 
