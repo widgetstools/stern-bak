@@ -6,13 +6,24 @@ This is the MarketsUI platform library monorepo — `packages/`, `apps/`,
 **The consumer/demo apps and the Playwright e2e suite live under `apps/`** —
 merged back from the former sibling `@wellsfargo-starui/apps` repo (subtree,
 history preserved) once every package held the 70% per-file coverage bar.
-`apps/` is its **own npm install root**, deliberately outside the root
-workspaces, turbo, lint and Sonar (`sonar.sources=packages`), so demo apps
-never enter the package CI surface — see
-[`docs/APPS_REPO.md`](./docs/APPS_REPO.md). **The 70% per-file coverage bar is
-the one exception** (owner decision, 2026-09-15): `apps/source` holds the same
-bar, enforced by `apps/scripts/check-package-coverage.mjs` off the same policy
-module, in its own CI job.
+**`apps/` is not a tracked tree — it is an archive** (owner decision,
+2026-09-15). It is demo/reference material that changes rarely but made every
+CI job pay a second full `npm install`, so it is carried as `apps-demo.zip`
+and extracted on demand:
+
+```bash
+npm run apps:unpack   # get the demos back (then: cd apps && npm install)
+npm run apps:pack     # after changing them
+npm run apps:check    # did I forget to pack? — part of `lint:all`
+```
+
+`apps/` is its **own npm install root**, outside the root workspaces, turbo,
+lint, CI and Sonar (`sonar.sources=packages`) — see
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md). **The 70% per-file coverage bar
+still applies to `apps/source`**, but it is enforced at PACK time rather than
+in CI: `apps:pack` runs `apps/scripts/check-package-coverage.mjs` and refuses
+to write an archive whose demos are below the bar. That is the only moment the
+demos change, so it is the only moment the bar can be crossed.
 
 **Read before editing:**
 
@@ -209,7 +220,9 @@ uses `pack:npm` output for its tarball track. See
 - **Playwright lives under `apps/`** (`apps/e2e`, `apps/e2e-openfin`), along
   with the apps its specs drive. Nothing under `packages/` runs e2e, and the
   package test/coverage runs never enter `apps/` — `apps/` runs its own
-  (`cd apps && npm run test:coverage:source && npm run test:coverage:check`).
+  (`cd apps && npm run test:coverage:source && npm run test:coverage:check`),
+  which `npm run apps:pack` runs for you before it writes the archive. Unpack
+  first (`npm run apps:unpack`); a fresh clone has no `apps/` directory.
 - **One coverage policy, two roots.** `scripts/vitestCoverage.mjs` holds the
   thresholds, the include/exclude rules and the per-unit include globs
   (`UNIT_INCLUDE`); every package and app vitest config reads it, and so do

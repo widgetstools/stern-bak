@@ -1,10 +1,17 @@
+# The demo-app archive. Marked binary so Git never attempts a textual diff or
+# a line-ending rewrite on it — `apps-demo.manifest.txt` beside it is what a
+# reviewer reads to see which demo files changed. See docs/APPS_REPO.md.
+apps-demo.zip binary
+
 # Line-ending policy.
 #
 # The repo is otherwise checked out per each machine's core.autocrlf.
 # npm rewrites every app package.json with LF on each `npm install`
 # (propagate / install:apps), which under core.autocrlf=true shows up
-# as a phantom CRLF↔LF "modification" with no content change. Pin those
-# files to LF so Git and npm agree and the churn stops.
+# as a phantom CRLF↔LF "modification" with no content change. `apps/` is no
+# longer tracked (it is packed into apps-demo.zip), so the rule below is inert
+# today; it is kept so a future re-tracking of the tree does not reintroduce
+# the churn.
 apps/**/package.json text eol=lf
 # Vitest snapshots are content-stable; CRLF on Windows otherwise shows phantom diffs.
 **/*.snap text eol=lf

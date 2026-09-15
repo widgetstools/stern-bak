@@ -19,24 +19,20 @@ playwright-report/
 /cell-format-toolbar*.html
 /toolbar-teal*.html
 
-# Accidentally committed TS compiler output in app src/ trees.
-# Ambient .d.ts files under any `src/types/` directory are intentional and tracked.
-apps/*/src/**/*.js
-apps/*/src/**/*.js.map
-apps/*/src/**/*.d.ts.map
-apps/markets-ui-react-reference/src/App.d.ts
-apps/markets-ui-react-reference/src/main.d.ts
-apps/markets-ui-react-reference/src/platform/Provider.d.ts
-apps/markets-ui-react-reference/src/lib/utils.d.ts
-apps/markets-ui-react-reference/src/components/ui/*.d.ts
-apps/markets-ui-react-reference/src/views/*.d.ts
-
-# Angular compiler cache — local build artifact, not source
-apps/*/.angular/
-
-# Config-service-server runtime artifacts
-apps/config-service-server/logs/
-apps/config-service-server/data/*.db
+# The demo apps travel as an ARCHIVE, not as a tracked tree.
+#
+# `apps/` is demo/reference material — nine consumer apps plus the Playwright
+# suites — that changes rarely but made every CI job pay a second full
+# `npm install` for a tree nobody ships. It is carried as `apps-demo.zip`
+# (with `apps-demo.manifest.txt` beside it, so a PR still shows which demo
+# files changed) and extracted on demand:
+#
+#   npm run apps:unpack   # get the demos back
+#   npm run apps:pack     # after changing them — runs their coverage gate first
+#   npm run apps:check    # did I forget to pack? (part of `lint:all`)
+#
+# See docs/APPS_REPO.md. History before the detach is intact in git.
+/apps/
 
 # Local dotenv overrides — `.env.example` is the tracked template
 .env.local
@@ -54,7 +50,6 @@ Markets Design System*.zip
 # Active npm registry config (may hold corp Artifactory tokens) — local only.
 # `.npmrc.example` IS tracked as the template; the live `.npmrc` is not.
 .npmrc
-apps/.npmrc
 !.npmrc.example
 
 # Lockfiles are NOT committed. They pin a registry host (registry.npmjs.org)
@@ -63,7 +58,6 @@ apps/.npmrc
 # Reproducibility rests on the version pins in package.json. Tooling uses
 # `npm install` (never `npm ci`), so no committed lock is required.
 package-lock.json
-apps/package-lock.json
 
 # Superpowers scratch (brainstorm mockups, SDD ledger)
 .superpowers/

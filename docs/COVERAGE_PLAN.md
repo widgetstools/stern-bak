@@ -32,10 +32,12 @@ npm run test:coverage:check
 ```
 
 Both gates read the SAME policy — `scripts/vitestCoverage.mjs`, imported by
-every package and app vitest config. `apps/` keeps its own install root and
-stays outside package lint / turbo / Sonar (see
-[`APPS_REPO.md`](./APPS_REPO.md)), but the coverage bar is not one of those
-exemptions: CI runs it as its own `apps` job.
+every package and app vitest config. The apps side needs
+`npm run apps:unpack` first: `apps/` is carried as an archive, not a tracked
+tree (see [`APPS_REPO.md`](./APPS_REPO.md)). It is outside package lint /
+turbo / CI / Sonar, but the coverage bar is not one of those exemptions —
+`npm run apps:pack` runs the apps gate and refuses to write an archive below
+the bar, which is the only moment the demos change.
 
 Never quote this file's number without re-running those. The measurement used to
 be load-dependent: at turbo's default concurrency four consecutive runs on an

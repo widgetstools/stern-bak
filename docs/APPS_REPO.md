@@ -7,17 +7,55 @@ enterprise pipeline demands unit-test coverage for every module it finds, and
 demo apps should not carry token tests to satisfy a gate), and were merged
 back by subtree once every package held the 70% per-file bar.
 
-**`apps/` never enters the package CI surface.** It is its own npm install
-root — outside the root workspaces, turbo, lint and Sonar
-(`sonar.sources=packages`, plus an explicit `apps/**` exclusion). The root
-coverage gate (`scripts/check-package-coverage.mjs`) still scans `packages/`
-only.
+## `apps/` is an archive, not a tracked tree
 
-**The 70% per-file coverage bar is NOT one of those exemptions** (owner
-decision, 2026-09-15). `apps/scripts/check-package-coverage.mjs` applies the
-same bar to the source track, reading the same policy module the packages read
-(`scripts/vitestCoverage.mjs`, via
-`@wellsfargo-starui/platform/scripts/…`) so the two can never drift:
+**A fresh clone has no `apps/` directory.** The demos are ~5.4 MB of source
+that changes rarely, and keeping them tracked made every CI job pay a second
+full `npm install` for a tree nobody ships. They travel as `apps-demo.zip` at
+the repo root and are extracted on demand (owner decision, 2026-09-15):
+
+```bash
+npm run apps:unpack          # extract apps/ from the archive
+cd apps && npm install       # its own install root
+# …work on a demo…
+cd .. && npm run apps:pack   # re-archive; commit the zip AND the manifest
+```
+
+| | |
+|---|---|
+| `apps-demo.zip` | the archive — 751 files, 3.8 MB → 1.1 MB |
+| `apps-demo.manifest.txt` | `<sha256>  <bytes>  <path>` per file, sorted |
+| `npm run apps:check` | extracted tree vs. manifest; part of `lint:all` |
+
+Three things keep that from becoming a foot-gun:
+
+- **The manifest is committed beside the zip.** A binary blob throws away code
+  review; the manifest puts back the part that matters — a PR shows exactly
+  which demo files changed and by how much, even though the payload is opaque.
+- **`apps:check` catches a stale archive** and is wired into `lint:all`, so
+  "I edited a demo and forgot to re-pack" fails locally rather than silently
+  losing the edit. It is a no-op when `apps/` is not extracted.
+- **`apps:pack` refuses to write an archive that fails the coverage gate**
+  (below). `--skip-gate` exists for a tree that cannot install.
+
+`apps:pack` never archives generated output: its skip list mirrors
+`apps/.gitignore` (`node_modules`, `dist`, `coverage`, `.turbo`, `vendor`,
+`tarball`, Playwright artefacts, lockfiles) and it hard-fails if such a path
+escapes the list. The 751 files it packs are exactly the 751 that were tracked
+before the detach.
+
+**History before the detach is intact** — `git log --follow -- apps/...` still
+works for anything that existed then.
+
+## The coverage bar still applies — at pack time
+
+**`apps/` never enters the package CI surface.** It is its own npm install
+root — outside the root workspaces, turbo, lint, CI and Sonar
+(`sonar.sources=packages`, plus an explicit `apps/**` exclusion). The root
+coverage gate (`scripts/check-package-coverage.mjs`) scans `packages/` only.
+
+**The 70% per-file bar is not one of those exemptions**, but with the demos
+out of CI there is no job to enforce it, so `apps:pack` does:
 
 ```bash
 cd apps
@@ -25,14 +63,17 @@ npm run test:coverage:source   # every source app, per-file thresholds live
 npm run test:coverage:check    # the gate — per file, plus the inclusion check
 ```
 
-CI runs both in a dedicated `apps` job, separate from the package jobs. Two
-things are deliberately out of scope for it:
+`apps/scripts/check-package-coverage.mjs` reads the same policy module the
+packages read (`scripts/vitestCoverage.mjs`, via
+`@wellsfargo-starui/platform/scripts/…`) so the two can never drift. Packing is
+the only moment the demos change, so it is the only moment the bar can be
+crossed. Two things stay out of scope:
 
 - **the tarball track.** `tarball/<app>` is a verbatim, untracked copy of
   `source/<app>/src` that `makeTarballApp.mjs` regenerates; gating it would
   score the same files twice and put generated output on the critical path.
   It exists to prove the external install RESOLVES — `npm run test:tarball`.
-- **Sonar.** Demo apps still do not belong in the enterprise quality gate;
+- **Sonar.** Demo apps do not belong in the enterprise quality gate;
   `sonar.sources` stays `packages`.
 
 ## Layout
