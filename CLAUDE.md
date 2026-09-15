@@ -7,9 +7,12 @@ This is the MarketsUI platform library monorepo — `packages/`, `apps/`,
 merged back from the former sibling `@wellsfargo-starui/apps` repo (subtree,
 history preserved) once every package held the 70% per-file coverage bar.
 `apps/` is its **own npm install root**, deliberately outside the root
-workspaces, turbo, lint, the coverage gate and Sonar (`sonar.sources=packages`),
-so demo apps never enter the package CI surface — see
-[`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
+workspaces, turbo, lint and Sonar (`sonar.sources=packages`), so demo apps
+never enter the package CI surface — see
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md). **The 70% per-file coverage bar is
+the one exception** (owner decision, 2026-09-15): `apps/source` holds the same
+bar, enforced by `apps/scripts/check-package-coverage.mjs` off the same policy
+module, in its own CI job.
 
 **Read before editing:**
 
@@ -205,7 +208,14 @@ uses `pack:npm` output for its tarball track. See
   section is binding for new tests.
 - **Playwright lives under `apps/`** (`apps/e2e`, `apps/e2e-openfin`), along
   with the apps its specs drive. Nothing under `packages/` runs e2e, and the
-  package test/coverage runs never enter `apps/`.
+  package test/coverage runs never enter `apps/` — `apps/` runs its own
+  (`cd apps && npm run test:coverage:source && npm run test:coverage:check`).
+- **One coverage policy, two roots.** `scripts/vitestCoverage.mjs` holds the
+  thresholds, the include/exclude rules and the per-unit include globs
+  (`UNIT_INCLUDE`); every package and app vitest config reads it, and so do
+  both gates. Add a new coverage unit's globs THERE, never inline in a
+  vitest config — globs the gate cannot see let a file go unscored, which is
+  invisible to a per-file threshold (it fires on 0% rows, not on missing ones).
 
 ## UI stack rules (non-negotiable)
 

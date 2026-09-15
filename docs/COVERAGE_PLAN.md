@@ -2,7 +2,8 @@
 
 Branch: **`test/coverage-70`**
 
-**The gate is met. Every file in every package is at or above 70% on all four metrics.**
+**The gate is met. Every file in every package — and, since 2026-09-15, every
+file in every `apps/source` app — is at or above 70% on all four metrics.**
 
 This file is now the record of how it was done and the rules that keep it that
 way. `## Conventions` stays binding for every new test — the point of the work
@@ -13,19 +14,28 @@ findings below came from tests written against behaviour.
 
 ## Where things stand
 
-| | |
-|---|---|
-| Files at or above 70% (all metrics) | **807 / 807** (100.0%) |
-| Packages fully clear | **21 of 21** |
-| Remaining files | **0** |
-| Tests | 4,748 passing, 1 skipped |
+| | packages | apps/source |
+|---|---|---|
+| Files at or above 70% (all metrics) | **870 / 870** (100.0%) | **232 / 232** (100.0%) |
+| Units fully clear | **7 of 7 buckets** | **9 of 9 apps** |
+| Remaining files | **0** | **0** |
 
 Verify with:
 
 ```bash
 npm run test:coverage    # merges coverage/lcov.info for Sonar; pins --concurrency=1
 npm run check:coverage   # the gate — lists every file below 70% on any metric
+
+cd apps
+npm run test:coverage:source
+npm run test:coverage:check
 ```
+
+Both gates read the SAME policy — `scripts/vitestCoverage.mjs`, imported by
+every package and app vitest config. `apps/` keeps its own install root and
+stays outside package lint / turbo / Sonar (see
+[`APPS_REPO.md`](./APPS_REPO.md)), but the coverage bar is not one of those
+exemptions: CI runs it as its own `apps` job.
 
 Never quote this file's number without re-running those. The measurement used to
 be load-dependent: at turbo's default concurrency four consecutive runs on an
@@ -37,11 +47,24 @@ package failed to produce a summary, so a collection failure can no longer read
 as a coverage result.
 
 **Keeping it at 100%.** The gate runs per file, so a new source file with no test
-fails the build on the commit that adds it — there is no drift to police. Three
+fails the build on the commit that adds it — there is no drift to police. These
 categories are excluded by `scripts/vitestCoverage.mjs` and are the only legitimate
 way for a file to escape it: tests and fixtures, `*.bench.*` files (run by
-`npm run bench`, not shipped), and `*.d.ts`. Adding to that list is a decision,
-not a convenience.
+`npm run bench`, not shipped), `*.d.ts`, build output and tool config
+(`*.config.{ts,js,mjs,cjs}`), and test harness — `__mocks__`, `**/test/**`
+setup/provider modules, `*VitestMocks.*`, `testSetupMocks.*` and `*.vitest-stub.*`.
+Adding to that list is a decision, not a convenience.
+
+**A threshold cannot fire on a file that is absent.** That is the other half of
+the gate, and the half that went missing for a year: `coverage.thresholds.perFile`
+only scores files the report CONTAINS, so a file no `coverage.include` glob
+reaches is not a 0% row — it is no row. `spg-pricing-blotter` shipped six source
+files (`App.tsx`, `main.tsx`, the provider pair, the import dialog, the bootstrap)
+that no report had ever contained, because its vitest config had no `coverage`
+block at all. `scripts/coverageInclusion.mjs` now walks the tree and fails the
+gate on any source file the policy says to score but the summary does not carry,
+in both roots. Because both sides read one include map (`UNIT_INCLUDE` in
+`vitestCoverage.mjs`) an exclusion can never mean "scored here, dropped there".
 
 ---
 

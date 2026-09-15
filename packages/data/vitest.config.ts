@@ -18,9 +18,7 @@ export default defineConfig({
     },
   },
   test: {
-    coverage: coverage({
-      include: ['host-data/src/**/*.{ts,tsx,js,jsx}'],
-    }),
+    coverage: coverage({ unit: 'packages/data' }),
     environment: 'jsdom',
     globals: true,
     include: ['host-data/src/**/*.test.ts'],

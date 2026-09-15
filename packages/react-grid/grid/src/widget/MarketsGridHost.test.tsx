@@ -81,6 +81,22 @@ vi.mock('./FormattingToolbar', () => ({
   FormattingToolbar: React.forwardRef(() => <div data-testid="formatting-toolbar" />),
 }));
 
+const ssrmContexts: {
+  rowCounter: ((m: Record<string, unknown>) => Promise<number>) | null;
+  tickSubscribe: ((h: () => void) => () => void) | null;
+} = { rowCounter: null, tickSubscribe: null };
+
+vi.mock('./MarketsGridSsrmSurface', async () => {
+  const { useSsrmRowCounter, useSsrmTickSubscribe } = await import('./useSsrmFilterCounts');
+  return {
+    MarketsGridSsrmSurface: () => {
+      ssrmContexts.rowCounter = useSsrmRowCounter();
+      ssrmContexts.tickSubscribe = useSsrmTickSubscribe();
+      return <div data-testid="markets-grid-ssrm-surface" />;
+    },
+  };
+});
+
 vi.mock('./MarketsGridSurface', () => ({
   MarketsGridSurface: (props: { getContextMenuItems?: (p: unknown) => unknown[] }) => {
     (globalThis as { __ctxMenu?: typeof props.getContextMenuItems }).__ctxMenu = props.getContextMenuItems;
@@ -100,7 +116,11 @@ vi.mock('./LazySettingsSheet', () => ({
 
 vi.mock('./UnsavedSwitchDialog', () => ({
   UnsavedSwitchDialog: (props: any) =>
-    props.open ? <div data-testid="unsaved-switch-dialog" /> : null,
+    props.open ? (
+      <div data-testid="unsaved-switch-dialog">
+        <button type="button" data-testid="switch-cancel" onClick={props.onCancel}>Cancel</button>
+      </div>
+    ) : null,
 }));
 
 vi.mock('./column-selector', () => ({
@@ -333,5 +353,75 @@ describe('MarketsGridHost', () => {
       .find((i) => i.name === 'Settings');
     settingsItem?.action?.();
     expect(controller.openColumnSettings).toHaveBeenCalledWith('price');
+  });
+});
+
+/**
+ * Saved-filter pills badge a row count. Under SSRM a client-side row walk can
+ * only see the LOADED blocks, so the number changes as you scroll and pins to
+ * the block size the moment the pill goes active. The host therefore publishes
+ * an engine-backed counter instead — and a tick subscription, so an idle
+ * blotter's pills cost zero RPCs rather than polling the engine forever.
+ */
+describe('MarketsGridHost — SSRM pill counting', () => {
+  const ssrmProvider = () => ({
+    id: 'p-ssrm',
+    getRowCount: vi.fn(async () => ({ rowCount: 42 })),
+    onSsrmTick: vi.fn(() => vi.fn()),
+    onRefresh: vi.fn(() => vi.fn()),
+  });
+
+  beforeEach(() => {
+    ssrmContexts.rowCounter = null;
+    ssrmContexts.tickSubscribe = null;
+  });
+
+  it('publishes nothing to count with under CSRM', () => {
+    render(<MarketsGridHost {...(baseProps() as any)} />);
+    expect(screen.queryByTestId('markets-grid-ssrm-surface')).toBeNull();
+    expect(screen.getByTestId('markets-grid-surface')).toBeInTheDocument();
+  });
+
+  it('counts a pill against the engine, not the loaded blocks', async () => {
+    const provider = ssrmProvider();
+    render(<MarketsGridHost {...(baseProps({ ssrm: { provider, keyColumn: 'id' } }) as any)} />);
+    expect(screen.getByTestId('markets-grid-ssrm-surface')).toBeInTheDocument();
+
+    const filterModel = { ccy: { type: 'equals', filter: 'USD' } };
+    await expect(ssrmContexts.rowCounter!(filterModel)).resolves.toBe(42);
+    expect(provider.getRowCount).toHaveBeenCalledWith({ filterModel });
+  });
+
+  it('subscribes to both ticks and refreshes, and detaches both on unsubscribe', () => {
+    const provider = ssrmProvider();
+    const offTick = vi.fn();
+    const offRefresh = vi.fn();
+    provider.onSsrmTick.mockReturnValue(offTick);
+    provider.onRefresh.mockReturnValue(offRefresh);
+    render(<MarketsGridHost {...(baseProps({ ssrm: { provider, keyColumn: 'id' } }) as any)} />);
+
+    const handler = vi.fn();
+    const unsubscribe = ssrmContexts.tickSubscribe!(handler);
+
+    expect(provider.onSsrmTick).toHaveBeenCalledWith(handler);
+    // A refresh moves the engine just as a tick does; missing it leaves the
+    // pills showing pre-refresh counts until the next stream message.
+    expect(provider.onRefresh).toHaveBeenCalledWith(handler);
+
+    unsubscribe();
+    expect(offTick).toHaveBeenCalledTimes(1);
+    expect(offRefresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MarketsGridHost — unsaved-switch dialog', () => {
+  it('clears the pending switch when the user backs out', () => {
+    controller.pendingSwitch = { id: 'b' } as never;
+    render(<MarketsGridHost {...(baseProps() as any)} />);
+
+    fireEvent.click(screen.getByTestId('switch-cancel'));
+
+    expect(controller.setPendingSwitch).toHaveBeenCalledWith(null);
+    controller.pendingSwitch = null;
   });
 });

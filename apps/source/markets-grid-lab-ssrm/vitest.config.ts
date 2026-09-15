@@ -1,3 +1,4 @@
+import { coverage } from '@wellsfargo-starui/platform/scripts/vitestCoverage.mjs';
 import react from '@vitejs/plugin-react';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import viteConfig from './vite.config';
@@ -16,14 +17,7 @@ export default mergeConfig(
       css: false,
       setupFiles: ['../../test-utils/setup.ts', '../markets-grid-lab/src/testSetupMocks.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
-      coverage: {
-        provider: 'v8',
-        include: ['src/**/*.{ts,tsx}'],
-        exclude: ['src/**/*.test.{ts,tsx}', 'src/vite-env.d.ts', 'src/main.tsx'],
-        reporter: ['text', 'json-summary', 'lcov'],
-        reportOnFailure: true,
-        thresholds: { lines: 70, statements: 70, functions: 70, branches: 70 },
-      },
+      coverage: coverage(),
     },
   }),
 );

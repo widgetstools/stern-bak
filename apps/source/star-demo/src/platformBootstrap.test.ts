@@ -37,7 +37,11 @@ describe('platformBootstrap', () => {
     const result = await initConfigBootstrap();
 
     expect(mockResolvePlatformBootstrapFromJson).toHaveBeenCalledWith('/app-config.json');
-    expect(mockEnsureConfigReady).toHaveBeenCalledWith(config);
+    // The worker URL is passed explicitly — the library's zero-config
+    // fallback is stubbed out of every app build.
+    expect(mockEnsureConfigReady).toHaveBeenCalledWith(config, {
+      workerScriptUrl: expect.anything(),
+    });
     expect(mockSetConfigManager).toHaveBeenCalledWith(configManager);
     expect(result).toEqual({ config, configManager });
   });

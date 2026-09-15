@@ -1,3 +1,4 @@
+import { coverage } from '@wellsfargo-starui/platform/scripts/vitestCoverage.mjs';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -5,13 +6,6 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     include: ['src/**/*.test.ts'],
-    coverage: {
-      provider: 'v8',
-      include: ['src/**/*.{ts,js}'],
-      exclude: ['src/**/*.test.ts'],
-      reporter: ['text', 'json-summary', 'lcov'],
-        reportOnFailure: true,
-      thresholds: { lines: 70, statements: 70, functions: 70, branches: 70 },
-    },
+    coverage: coverage(),
   },
 });

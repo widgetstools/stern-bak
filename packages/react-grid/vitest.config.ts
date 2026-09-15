@@ -15,14 +15,7 @@ import { coverage } from '../../scripts/vitestCoverage.mjs';
 export default defineConfig({
   test: {
     coverage: {
-      ...coverage({
-        include: [
-          'grid/src/**/*.{ts,tsx}',
-          'config-browser/src/**/*.{ts,tsx}',
-          'widgets-react/src/**/*.{ts,tsx}',
-        ],
-        exclude: ['grid/src/**/test/**'],
-      }),
+      ...coverage({ unit: 'packages/react-grid' }),
       // Avoid mid-run wipe when another vitest touches the same reportsDirectory.
       clean: false,
     },
@@ -83,8 +76,13 @@ export default defineConfig({
           include: ['src/**/*.test.{ts,tsx}'],
           css: false,
           testTimeout: 15_000,
-          // Serialise file execution — 237 suites racing on coverage/.tmp loses shards.
-          fileParallelism: false,
+          // `fileParallelism: false` used to sit here, on the theory that 237
+          // suites racing on `coverage/.tmp` lost shards. Measured on the same
+          // tree: serialised 453s, parallel 89s, and both produced an lcov with
+          // exactly the same 450 files — no shard was ever lost. It was costing
+          // six minutes a run for nothing, so it is gone; `clean: false` above
+          // is what actually keeps a concurrent vitest from wiping the
+          // directory mid-run.
         },
       },
       {

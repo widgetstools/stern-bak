@@ -8,9 +8,32 @@ demo apps should not carry token tests to satisfy a gate), and were merged
 back by subtree once every package held the 70% per-file bar.
 
 **`apps/` never enters the package CI surface.** It is its own npm install
-root — outside the root workspaces, turbo, lint, the coverage gate
-(`scripts/check-package-coverage.mjs` scans `packages/` only) and Sonar
-(`sonar.sources=packages`, plus an explicit `apps/**` exclusion).
+root — outside the root workspaces, turbo, lint and Sonar
+(`sonar.sources=packages`, plus an explicit `apps/**` exclusion). The root
+coverage gate (`scripts/check-package-coverage.mjs`) still scans `packages/`
+only.
+
+**The 70% per-file coverage bar is NOT one of those exemptions** (owner
+decision, 2026-09-15). `apps/scripts/check-package-coverage.mjs` applies the
+same bar to the source track, reading the same policy module the packages read
+(`scripts/vitestCoverage.mjs`, via
+`@wellsfargo-starui/platform/scripts/…`) so the two can never drift:
+
+```bash
+cd apps
+npm run test:coverage:source   # every source app, per-file thresholds live
+npm run test:coverage:check    # the gate — per file, plus the inclusion check
+```
+
+CI runs both in a dedicated `apps` job, separate from the package jobs. Two
+things are deliberately out of scope for it:
+
+- **the tarball track.** `tarball/<app>` is a verbatim, untracked copy of
+  `source/<app>/src` that `makeTarballApp.mjs` regenerates; gating it would
+  score the same files twice and put generated output on the critical path.
+  It exists to prove the external install RESOLVES — `npm run test:tarball`.
+- **Sonar.** Demo apps still do not belong in the enterprise quality gate;
+  `sonar.sources` stays `packages`.
 
 ## Layout
 

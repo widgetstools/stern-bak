@@ -14,16 +14,7 @@ import { coverage } from '../../scripts/vitestCoverage.mjs';
  */
 export default defineConfig({
   test: {
-    coverage: coverage({
-      include: [
-        'engine/src/**/*.{ts,tsx}',
-        'host/src/**/*.ts',
-        'host-browser/src/**/*.ts',
-        'host-config/src/**/*.ts',
-        'widget/src/**/*.ts',
-        'widget-browser/src/**/*.ts',
-      ],
-    }),
+    coverage: coverage({ unit: 'packages/core' }),
     projects: [
       {
         extends: true,

@@ -92,5 +92,40 @@ describe('BlottersSsrmMarketsGrid', () => {
       );
     });
   });
+
+  it('opens the config browser popout at this app\'s own origin', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<BlottersSsrmMarketsGrid />);
+
+    await user.click(getOneByTestId('open-config-browser'));
+
+    await waitFor(() => {
+      expect(mockOpenSurface).toHaveBeenCalledWith({
+        kind: 'popout',
+        url: `${origin}/#/config-browser`,
+        windowName: 'config-browser',
+        width: 1100,
+        height: 720,
+      });
+    });
+  });
+
+  /**
+   * Inside OpenFin the identity arrives from view customData rather than the
+   * URL, so the missing-instance prompt must NOT fire there — it would hide a
+   * grid that is about to receive its id.
+   */
+  it('renders the grid under OpenFin even with no launch stamp in the URL', () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { origin, search: '' },
+    });
+    vi.stubGlobal('fin', { me: { identity: { uuid: 'u', name: 'n' } } });
+
+    renderWithProviders(<BlottersSsrmMarketsGrid />);
+
+    // Empty gridId: BlotterHost resolves the real one from customData.
+    expect(getOneByTestId('blotter-host')).toHaveAttribute('data-grid-id', '');
+    vi.unstubAllGlobals();
+  });
 });
-

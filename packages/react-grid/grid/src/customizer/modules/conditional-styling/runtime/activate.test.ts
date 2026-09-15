@@ -198,4 +198,115 @@ describe('activateConditionalStyling', () => {
     vi.runAllTimers();
     platform.destroy();
   });
+  /**
+   * An aggregate-threshold rule (`[price] > AVG([price])`) is the one shape
+   * where a cell's own value tells you nothing: the threshold moves with the
+   * whole book, so a flush that changes ANY row can flip rules on rows that
+   * did not change. The snapshot therefore has to be dropped and everything
+   * the rules touch repainted — and because that is the expensive path, the
+   * check is memoised on the rules array so a grid with no aggregate rules
+   * pays one reference comparison per flush.
+   */
+  describe('aggregate-threshold rules', () => {
+    function aggPlatform(gridId: string, expression: string) {
+      const platform = new GridPlatform({ gridId, modules: [conditionalStylingModule] });
+      const api = makeApi();
+      platform.onGridReady(api as never);
+      platform.store.setModuleState('conditional-styling', (state) => ({
+        ...state,
+        rules: [{ id: 'agg', enabled: true, expression, scope: { type: 'cell', columns: ['price'] } }],
+      }));
+      // Installing a rule schedules its own first pass; drain it so each test
+      // counts only the repaints its own signal caused.
+      vi.runAllTimers();
+      api.refreshCells.mockClear();
+      return { platform, api };
+    }
+
+    const flush = (api: ReturnType<typeof makeApi>) => {
+      for (const fn of api.listeners.get('asyncTransactionsFlushed') ?? []) {
+        fn({ results: [{ update: [{ id: 'r1', data: { price: 2 } }] }] });
+      }
+      vi.runAllTimers();
+    };
+
+    /**
+     * Only the aggregate path asks for a FULL forced repaint; the row-local
+     * path refreshes the changed nodes. Counting forced repaints is what
+     * separates the two.
+     */
+    const fullRepaints = (api: ReturnType<typeof makeApi>) =>
+      api.refreshCells.mock.calls.filter(
+        ([arg]) => (arg as { force?: boolean } | undefined)?.force === true,
+      ).length;
+
+    it('repaints on a row flush when a rule reads an aggregate', () => {
+      const { platform, api } = aggPlatform('cs-agg', '[price] > AVG([price])');
+
+      flush(api);
+
+      expect(fullRepaints(api)).toBeGreaterThan(0);
+      platform.destroy();
+    });
+
+    it('repaints on a user edit too, which does not always ride the rows bus', () => {
+      // A CSRM edit mutates the row in place, so the flush never happens —
+      // without this listener the thresholds stay on the pre-edit book.
+      const { platform, api } = aggPlatform('cs-agg-edit', '[price] > AVG([price])');
+
+      for (const fn of api.listeners.get('cellValueChanged') ?? []) fn({});
+      vi.runAllTimers();
+
+      expect(fullRepaints(api)).toBeGreaterThan(0);
+      platform.destroy();
+    });
+
+    it('does not force a full repaint for a rule that reads no aggregate', () => {
+      const { platform, api } = aggPlatform('cs-plain', '[price] > 100');
+
+      flush(api);
+      for (const fn of api.listeners.get('cellValueChanged') ?? []) fn({});
+      vi.runAllTimers();
+
+      // The changed rows still repaint; the whole viewport does not.
+      expect(fullRepaints(api)).toBe(0);
+      platform.destroy();
+    });
+
+    it('answers the same rules array from the memo instead of re-parsing', () => {
+      const { platform, api } = aggPlatform('cs-agg-memo', '[price] > AVG([price])');
+
+      flush(api);
+      flush(api);
+      flush(api);
+
+      // Three flushes, three repaints — the memo saves the expression walk,
+      // not the repaint, which must still happen on every flush.
+      expect(fullRepaints(api)).toBeGreaterThanOrEqual(3);
+      platform.destroy();
+    });
+  });
+
+  it('finishes disposing when a cleanup step throws, and says which one', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const el = document.createElement('div');
+    el.className = 'ag-header-cell ds-flash-hdr-rule1';
+    document.body.appendChild(el);
+    const platform = new GridPlatform({ gridId: 'cs-dispose-throws', modules: [conditionalStylingModule] });
+    platform.onGridReady(makeApi() as never);
+    const querySelectorAll = vi.spyOn(document, 'querySelectorAll').mockImplementation(() => {
+      throw new Error('detached document');
+    });
+
+    expect(() => platform.destroy()).not.toThrow();
+
+    expect(warn).toHaveBeenCalledWith(
+      '[conditional-styling] cleanup step failed:',
+      'remove header flash classes',
+      expect.any(Error),
+    );
+    querySelectorAll.mockRestore();
+    warn.mockRestore();
+    el.remove();
+  });
 });

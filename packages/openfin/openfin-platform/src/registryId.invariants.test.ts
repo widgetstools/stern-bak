@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { deriveTemplateConfigId } from './registryConfigTypes';
+import { deriveTemplateConfigId, generateTemplateConfigId } from './registryConfigTypes';
 import { migrateRegistryToV2 } from './registryMigrate';
 import type { RegistryEditorConfig } from './registryConfigTypes';
 
@@ -48,6 +48,19 @@ describe('deriveTemplateConfigId — canonical `${type}-${subtype}` lowercase', 
     // intentional. (Validation against duplicate registry entries
     // catches accidental collisions downstream.)
     expect(deriveTemplateConfigId('multi-word', 'sub')).toBe('multi-word-sub');
+  });
+
+  /**
+   * The deprecated alias is still imported by existing call sites. What makes
+   * it safe to leave in place is that it is now the SAME id — it used to emit
+   * `templateComponent<Type><SubType>`, and a caller still on the old name
+   * writing a differently-spelled id would split one registry row in two.
+   */
+  it('answers identically through the deprecated generateTemplateConfigId alias', () => {
+    for (const [type, sub] of [['blotter', 'positions'], ['GRID', 'Credit'], ['a', 'b']]) {
+      expect(generateTemplateConfigId(type, sub)).toBe(deriveTemplateConfigId(type, sub));
+    }
+    expect(generateTemplateConfigId('BLOTTER', 'Positions')).toBe('blotter-positions');
   });
 });
 

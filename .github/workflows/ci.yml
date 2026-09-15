@@ -73,12 +73,24 @@ jobs:
         run: npm run test:packages
 
   coverage:
-    name: Coverage (report-only)
+    name: Coverage + Sonar
     needs: install
     runs-on: ubuntu-latest
+    # Job-level so the scan step's `if` can read them — a step's own `env`
+    # block is NOT in scope for that step's own `if` condition.
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    # Report-only for now: the per-file bar is enforced locally by
+    # `npm run check:coverage`. Drop this (and the step-level one below) to
+    # make coverage gate the build.
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Sonar reads git history to attribute issues to authors and to work
+          # out what is "new code"; a depth-1 clone makes every line look new.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -86,12 +98,72 @@ jobs:
       - name: Unit tests with coverage
         run: npm run test:coverage
         continue-on-error: true
+      # `run-test-coverage.mjs` merges every package's coverage/lcov.info into
+      # the repo-root coverage/lcov.info that sonar-project.properties points
+      # at. Fail loudly here rather than letting Sonar silently report 0%.
+      - name: Verify the merged LCOV exists
+        run: |
+          test -s coverage/lcov.info || { echo "::error::coverage/lcov.info missing or empty — Sonar would report 0% coverage"; exit 1; }
+          echo "merged lcov: $(wc -l < coverage/lcov.info) lines, $(grep -c '^SF:' coverage/lcov.info) files"
+      # Sonar does NOT run tests — it reads the lcov produced above. It must
+      # therefore stay in THIS job: a separate job runs on a different runner
+      # with a different filesystem and would find no coverage at all.
+      # Skipped silently until SONAR_TOKEN is set as a repo secret, so this
+      # workflow stays green on forks and before Sonar is provisioned.
+      - name: SonarQube scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v4
       - name: Upload coverage reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
-          path: packages/**/coverage
+          # The merged root lcov is what Sonar consumes — upload it alongside
+          # the per-package output so a failed scan can be reproduced locally.
+          path: |
+            coverage/lcov.info
+            packages/**/coverage
           retention-days: 7
           if-no-files-found: warn
 
-
+  apps:
+    name: Apps (source track) — coverage gate
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # `apps/` is its own install root and resolves the platform out of this
+      # checkout (scripts/linkPlatform.mjs), so the packages have to be built
+      # before an app can typecheck or run against them.
+      - run: npm install
+      - name: Build packages
+        run: npm run build:packages
+      - name: npm install (apps)
+        working-directory: apps
+        run: npm install
+      - name: Typecheck (source track)
+        working-directory: apps
+        run: npm run typecheck:source
+      # Enforces the SAME per-file bar as the packages, from the same policy
+      # module — see scripts/vitestCoverage.mjs. Deliberately its own job:
+      # `apps/` stays out of the package lint/turbo/Sonar surface
+      # (docs/APPS_REPO.md), but the coverage bar is not one of the exemptions.
+      - name: Unit tests with coverage (source track)
+        working-directory: apps
+        run: npm run test:coverage:source
+      - name: Per-file coverage gate
+        working-directory: apps
+        run: npm run test:coverage:check
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apps-coverage-reports
+          path: |
+            apps/coverage/lcov.info
+            apps/source/*/coverage
+          retention-days: 7
+          if-no-files-found: warn

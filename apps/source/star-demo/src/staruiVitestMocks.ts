@@ -17,6 +17,7 @@ export const mockInstallTestBridge = vi.fn();
 export const mockOpenSurface = vi.fn(() => Promise.resolve());
 export const mockEnsureConfigReady = vi.fn();
 export const mockEnsurePlatformReady = vi.fn();
+export const mockWarmPlatform = vi.fn();
 export const mockResolvePlatformBootstrapFromJson = vi.fn();
 export const mockResolvePlatformBootstrapFromManifest = vi.fn();
 export const mockSetConfigManager = vi.fn();
@@ -49,6 +50,7 @@ export function resetStaruiMocks(): void {
   mockOpenSurface.mockClear().mockResolvedValue(undefined);
   mockEnsureConfigReady.mockClear();
   mockEnsurePlatformReady.mockClear();
+  mockWarmPlatform.mockClear().mockResolvedValue(undefined);
   mockResolvePlatformBootstrapFromJson.mockClear();
   mockResolvePlatformBootstrapFromManifest.mockClear();
   mockSetConfigManager.mockClear();
@@ -100,6 +102,9 @@ vi.mock('@wellsfargo-starui/core/host/config', () => ({
 vi.mock('@wellsfargo-starui/data', () => ({
   ensureConfigReady: mockEnsureConfigReady,
   ensurePlatformReady: mockEnsurePlatformReady,
+  // `warmPlatformFromProvider` calls this; without it the provider route's
+  // fire-and-forget warm-up rejects as an unhandled error mid-run.
+  warmPlatform: (...args: unknown[]) => mockWarmPlatform(...args),
   resolvePlatformBootstrapFromJson: (...args: unknown[]) =>
     mockResolvePlatformBootstrapFromJson(...args),
   resolvePlatformBootstrapFromManifest: (...args: unknown[]) =>

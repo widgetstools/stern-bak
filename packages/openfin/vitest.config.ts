@@ -12,12 +12,7 @@ import { coverage } from '../../scripts/vitestCoverage.mjs';
  */
 export default defineConfig({
   test: {
-    coverage: coverage({
-      include: [
-        'host-openfin/src/**/*.{ts,tsx}',
-        'openfin-platform/src/**/*.{ts,tsx}',
-      ],
-    }),
+    coverage: coverage({ unit: 'packages/openfin' }),
     environment: 'jsdom',
     globals: true,
     include: [

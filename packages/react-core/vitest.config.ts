@@ -13,15 +13,7 @@ import { coverage } from '../../scripts/vitestCoverage.mjs';
  */
 export default defineConfig({
   test: {
-    coverage: coverage({
-      include: [
-        'ui/src/**/*.{ts,tsx}',
-        'widget-sdk/src/**/*.{ts,tsx}',
-        'host-wrapper-react/src/**/*.{ts,tsx}',
-        'workspace-setup-react/src/**/*.{ts,tsx}',
-        'host-data-react/src/**/*.{ts,tsx}',
-      ],
-    }),
+    coverage: coverage({ unit: 'packages/react-core' }),
     projects: [
       {
         extends: true,

@@ -554,3 +554,89 @@ describe('MarketsGridSsrmSurface — block request concurrency', () => {
     unmount();
   });
 });
+
+/**
+ * The surface is memoised by hand because `AgGridReact` re-processes every
+ * prop whose reference changed, and the host rebuilds `ssrm` on each render.
+ * The comparator therefore has to be exhaustive in BOTH directions: a field it
+ * forgets to compare freezes the grid on stale props (a theme switch or a new
+ * column set that never lands), while comparing something the host rebuilds
+ * every render defeats the memo entirely.
+ */
+describe('MarketsGridSsrmSurface — re-render gate', () => {
+  const p = provider();
+  const gridRef = { current: { api: readyApi } };
+  const gridOptions = { suppressCellFocus: true };
+  const hostOverrideKeys = new Set<string>(['rowHeight']);
+  const columnDefs = [{ field: 'id' }];
+  const defaultColDef = { sortable: true };
+  const getContextMenuItems = vi.fn();
+  const onGridReady = vi.fn();
+  const onGridPreDestroyed = vi.fn();
+  const ssrm = { provider: p, keyColumn: 'id', cacheBlockSize: 150 };
+
+  const baseProps = {
+    gridRef: gridRef as never,
+    gridOptions,
+    hostOverrideKeys,
+    theme: undefined,
+    columnDefs,
+    rowHeight: 22,
+    headerHeight: 24,
+    animateRows: false,
+    sideBar: true,
+    statusBar: undefined,
+    defaultColDef,
+    getContextMenuItems,
+    onGridReady,
+    onGridPreDestroyed,
+    includeAllStreamSafeFilters: true,
+    ssrm,
+  };
+
+  /** Each entry changes exactly one compared field. */
+  const changes: Array<[string, Record<string, unknown>]> = [
+    ['gridRef', { gridRef: { current: { api: readyApi } } as never }],
+    ['gridOptions', { gridOptions: { suppressCellFocus: false } }],
+    ['hostOverrideKeys', { hostOverrideKeys: new Set<string>(['sideBar']) }],
+    ['theme', { theme: { id: 'quartz' } as never }],
+    ['columnDefs', { columnDefs: [{ field: 'px' }] }],
+    ['rowHeight', { rowHeight: 30 }],
+    ['headerHeight', { headerHeight: 40 }],
+    ['animateRows', { animateRows: true }],
+    ['sideBar', { sideBar: false }],
+    ['statusBar', { statusBar: { statusPanels: [] } as never }],
+    ['defaultColDef', { defaultColDef: { sortable: false } }],
+    ['getContextMenuItems', { getContextMenuItems: vi.fn() }],
+    ['onGridReady', { onGridReady: vi.fn() }],
+    ['onGridPreDestroyed', { onGridPreDestroyed: vi.fn() }],
+    ['includeAllStreamSafeFilters', { includeAllStreamSafeFilters: false }],
+    ['ssrm.provider', { ssrm: { ...ssrm, provider: provider() } }],
+    ['ssrm.keyColumn', { ssrm: { ...ssrm, keyColumn: 'cusip' } }],
+    ['ssrm.cacheBlockSize', { ssrm: { ...ssrm, cacheBlockSize: 200 } }],
+    ['ssrm.maxConcurrentDatasourceRequests', { ssrm: { ...ssrm, maxConcurrentDatasourceRequests: 4 } }],
+    ['ssrm.blockLoadDebounceMillis', { ssrm: { ...ssrm, blockLoadDebounceMillis: 60 } }],
+  ];
+
+  it.each(changes)('re-renders when %s changes', (_field, patch) => {
+    const { rerender, unmount } = render(<MarketsGridSsrmSurface {...(baseProps as never)} />);
+    const before = lastGridProps.current;
+
+    rerender(<MarketsGridSsrmSurface {...({ ...baseProps, ...patch } as never)} />);
+
+    expect(lastGridProps.current).not.toBe(before);
+    unmount();
+  });
+
+  it('skips the re-render when every compared field is identical', () => {
+    const { rerender, unmount } = render(<MarketsGridSsrmSurface {...(baseProps as never)} />);
+    const before = lastGridProps.current;
+
+    // A fresh props object holding the same references — what the host
+    // produces on any render that did not actually change the grid.
+    rerender(<MarketsGridSsrmSurface {...({ ...baseProps, ssrm: { ...ssrm } } as never)} />);
+
+    expect(lastGridProps.current).toBe(before);
+    unmount();
+  });
+});

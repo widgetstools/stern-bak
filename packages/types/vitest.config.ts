@@ -10,9 +10,7 @@ import { coverage } from '../../scripts/vitestCoverage.mjs';
  */
 export default defineConfig({
   test: {
-    coverage: coverage({
-      include: ['types/src/**/*.ts', 'shared-types/src/**/*.ts'],
-    }),
+    coverage: coverage({ unit: 'packages/types' }),
     projects: [
       {
         extends: true,

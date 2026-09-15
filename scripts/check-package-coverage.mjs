@@ -25,7 +25,13 @@
  *      `coverage.include` globs, so a member missing from those globs silently
  *      vanishes from the per-file gate — a collection failure, like a missing
  *      summary.
- *   4. A source file is below the threshold (default 70%) on lines, statements,
+ *   4. A source file that the unit's coverage policy says to score is absent
+ *      from the summary. This is failure mode 3 at file granularity, and it is
+ *      the one that hides best: an unscored file is not a 0% row, it is no row
+ *      — the per-file threshold has nothing to fire on. Both sides read the
+ *      same globs out of `vitestCoverage.mjs` so an exclusion can never mean
+ *      "scored here, dropped there".
+ *   5. A source file is below the threshold (default 70%) on lines, statements,
  *      functions or branches.
  *
  * Reads the `coverage/coverage-summary.json` each unit writes, so run
@@ -38,6 +44,8 @@
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { policyFor } from './vitestCoverage.mjs';
+import { unreportedFiles } from './coverageInclusion.mjs';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 const PACKAGES_ROOT = join(REPO_ROOT, 'packages');
@@ -169,6 +177,7 @@ const noHarness = [];
 const noSummary = [];
 const membersNoSuite = [];   // { unit, member }
 const membersNotCollected = []; // { unit, member }
+const filesNotCollected = [];   // { unit, files }
 const belowByPackage = new Map();
 let totalFiles = 0;
 let totalBelow = 0;
@@ -199,6 +208,9 @@ for (const unit of units) {
   for (const member of membersWithSuite) {
     if (!memberInSummary(summary, unit.dir, member)) membersNotCollected.push({ unit, member });
   }
+
+  const missing = unreportedFiles(unit.dir, summary, policyFor(relative(REPO_ROOT, unit.dir)));
+  if (missing.length > 0) filesNotCollected.push({ unit, files: missing });
 
   const below = [];
   for (const [file, metrics] of Object.entries(summary)) {
@@ -271,6 +283,20 @@ if (membersNotCollected.length > 0) {
   w('  failure like the missing summaries above, scoped to one member.\n');
 }
 
+if (filesNotCollected.length > 0) {
+  const n = filesNotCollected.reduce((a, u) => a + u.files.length, 0);
+  w(`\n✗ ${n} source file(s) on disk that no coverage report contains:\n`);
+  for (const { unit, files } of filesNotCollected) {
+    w(`\n  ${unit.name}  (${files.length})\n`);
+    for (const f of files.slice(0, 20)) w(`    ${relative(REPO_ROOT, join(unit.dir, f))}\n`);
+    if (files.length > 20) w(`    … and ${files.length - 20} more\n`);
+  }
+  w('  These are NOT 0% files — they are missing rows, so the per-file threshold\n');
+  w('  never sees them. Either the unit\'s include globs in `UNIT_INCLUDE`\n');
+  w('  (scripts/vitestCoverage.mjs) do not reach them, or they belong in EXCLUDE\n');
+  w('  with a why-comment. Silence is not coverage.\n');
+}
+
 if (belowByPackage.size > 0) {
   w(`\n✗ ${totalBelow} file(s) below ${THRESHOLD}% on any metric:\n`);
   for (const [name, files] of [...belowByPackage].sort((a, b) => b[1].length - a[1].length)) {
@@ -302,7 +328,8 @@ w(`Packages without a suite: ${noHarness.length}\n`);
 w(`Members without a suite: ${membersNoSuite.length}\n`);
 
 const failed = noHarness.length > 0 || totalBelow > 0 || noSummary.length > 0
-  || membersNoSuite.length > 0 || membersNotCollected.length > 0;
+  || membersNoSuite.length > 0 || membersNotCollected.length > 0
+  || filesNotCollected.length > 0;
 if (failed && !reportOnly) {
   w('\nFAILED — see docs/package-coverage-and-sonar-lcov.md\n');
   process.exit(1);
