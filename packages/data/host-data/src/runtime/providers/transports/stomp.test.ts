@@ -1001,6 +1001,29 @@ describe('startStomp — trace identifies its provider', () => {
     log.mockRestore();
   });
 
+  it('stamps the snapshot lines too, not just the trace ones', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const ctrl = makeFakeClient();
+
+    startStomp(cfg(), () => {}, { createClient: () => ctrl.client, providerId: 'dp-abc' });
+    await Promise.resolve();
+    ctrl.fireConnect();
+    ctrl.deliver('row-1');
+    ctrl.deliver('Success');
+    await Promise.resolve();
+
+    // `publish`, `end-token` and `flushSnapshot` are plain console.logs, and
+    // they are the lines a capture needs attributed: two providers on one
+    // broker both print "flushSnapshot: 20000 rows".
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    for (const marker of ['publish → broker', 'end-token matched', 'flushSnapshot:']) {
+      const line = lines.find((l) => l.includes(marker));
+      expect(line, `no line for ${marker}`).toBeDefined();
+      expect(line).toContain('provider=dp-abc');
+    }
+    log.mockRestore();
+  });
+
   it('omits the marker entirely when no id is supplied', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const ctrl = makeFakeClient();

@@ -420,6 +420,10 @@ export function startStomp(
   const since = (from: number | null, now = Date.now()) =>
     from === null ? 'n/a' : `${now - from}ms`;
   // eslint-disable-next-line no-console
+  // Stamped on EVERY `[v2/stomp]` line, not just `trace()` — the three that
+  // matter most for attribution (publish, end-token, flushSnapshot) are plain
+  // logs, and a capture of two providers on one broker was unreadable without
+  // them: two `flushSnapshot: 20000 rows` with nothing saying whose.
   const who = opts.providerId ? ` provider=${opts.providerId}` : '';
   const trace = (msg: string) => console.log(`[v2/stomp][trace]${who} ${msg} (sinceClick=${sinceClick()})`);
 
@@ -468,7 +472,7 @@ export function startStomp(
     state.receivingSnapshot = false;
     // eslint-disable-next-line no-console
     console.log(
-      `[v2/stomp] flushSnapshot: ${buffer.length} rows in ${
+      `[v2/stomp]${who} flushSnapshot: ${buffer.length} rows in ${
         Math.max(1, Math.ceil(buffer.length / chunkSize))
       } chunk(s) of ${chunkSize}`,
     );
@@ -503,7 +507,7 @@ export function startStomp(
     if (endTokenRe !== null && endTokenRe.test(trimmed)) {
       // eslint-disable-next-line no-console
       console.log(
-        `[v2/stomp] end-token matched: "${cfg.snapshotEndToken}" — closing snapshot phase ` +
+        `[v2/stomp]${who} end-token matched: "${cfg.snapshotEndToken}" — closing snapshot phase ` +
           `(snapshot stream ${since(timing.publishAt)} since publish, sinceClick=${sinceClick()})`,
       );
       if (!state.snapshotComplete) {
@@ -655,7 +659,7 @@ export function startStomp(
         // visible so an empty or padded body is unambiguous.
         timing.publishAt = Date.now();
         // eslint-disable-next-line no-console
-        console.log('[v2/stomp] publish → broker', {
+        console.log(`[v2/stomp]${who} publish → broker`, {
           destination: destinations.requestMessage,
           body,
           bodyJson: JSON.stringify(body),
