@@ -18,14 +18,19 @@ editing, alerting and configuration built in.
 ## Monorepo layout
 
 ```
-stern-bak/                # @wellsfargo-starui/platform
-├── packages/             # the seven library buckets — npm workspaces
-├── apps/                 # demo/reference apps + Playwright e2e
-│                         #   (own install root; outside the package CI surface)
-├── scripts/              # build, packing, coverage, consumer glue
-├── docs/                 # documentation — docs/latest/ is the current set
-└── tools/                # repo-internal checks
+stern-bak/                   # @wellsfargo-starui/platform
+├── packages/                # the seven library buckets — npm workspaces
+├── apps-demo.zip            # the demo apps, archived — `npm run apps:unpack`
+├── apps-demo.manifest.txt   #   sha256 per file, so a PR shows what changed
+├── apps/                    # NOT in git — extracted from the archive on demand
+│                            #   (own install root; outside package CI)
+├── scripts/                 # build, packing, coverage, consumer glue
+├── docs/                    # documentation — docs/latest/ is the current set
+└── tools/                   # repo-internal checks
 ```
+
+**A fresh clone has no `apps/` directory** — see
+[The demo apps are an archive](#the-demo-apps-are-an-archive).
 
 ## The seven packages
 
@@ -62,7 +67,8 @@ npm install
 npm run build            # turbo build + tsconfig.consumer.json
 npm test                 # Vitest across packages/
 
-# packages + demo apps, both consumption tracks (source AND tarball) — one command
+# packages + demo apps, both consumption tracks (source AND tarball)
+npm run apps:unpack      # extract apps/ from apps-demo.zip — needed once per clone
 npm run setup:apps
 npm run app -- basic     # minimal MarketsGrid tutorial → :5194
 ```
@@ -74,15 +80,74 @@ for both tracks: `source/` (live against this checkout) and the generated
 packed tarballs). No `cd apps` and no separate tarball step required — see
 [Running demo apps from the root](#running-demo-apps-from-the-root).
 
-The demo apps double as reference implementations — each has its own README:
-[`basic`](./apps/source/basic/) (start here),
+The demo apps double as reference implementations — each has its own README
+(paths exist after `npm run apps:unpack`). The nine on the source track:
+[`basic`](./apps/source/basic/) (start here, :5194),
 [`markets-grid-lab`](./apps/source/markets-grid-lab/) (:5300),
+[`markets-grid-lab-ssrm`](./apps/source/markets-grid-lab-ssrm/) (SSRM parity lab, :5301),
 [`design-system`](./apps/source/design-system/) (:5310),
-[`dataprovider-editor`](./apps/source/dataprovider-editor/) (:5193),
+[`spg-pricing-blotter`](./apps/source/spg-pricing-blotter/) (server-confirmed writes, :5401),
 [`star-demo`](./apps/source/star-demo/) (OpenFin, :5175),
 [`stomp-marketsgrid-minimal`](./apps/source/stomp-marketsgrid-minimal/) (:5213),
 [`stomp-ssrm-minimal`](./apps/source/stomp-ssrm-minimal/) (:5214),
 [`stomp-view-server`](./apps/source/stomp-view-server/) (fixture broker, :8081).
+
+## The demo apps are an archive
+
+`apps/` is **not tracked in git**. It is demo/reference material that changes
+rarely, and keeping it tracked made every CI job pay a second full
+`npm install` for a tree nobody ships. It travels as `apps-demo.zip` at the
+repo root — 751 files, 3.8 MB of source compressed to 1.1 MB — and is
+extracted on demand.
+
+**Run these from the repo root** (the scripts live in the root `package.json`;
+from `apps/` or a package directory npm resolves a different manifest and
+fails):
+
+```bash
+npm run apps:unpack    # extract apps/ from the archive — once per clone
+npm run apps:pack      # re-archive after changing a demo
+npm run apps:check     # is the extracted tree in sync with the archive?
+```
+
+The working loop:
+
+```bash
+npm run apps:unpack
+cd apps && npm install         # apps/ is its own install root
+# …edit a demo, run it…
+cd .. && npm run apps:pack
+git add apps-demo.zip apps-demo.manifest.txt
+```
+
+### What keeps this honest
+
+| | |
+|---|---|
+| `apps-demo.manifest.txt` | committed beside the zip — `<sha256>  <bytes>  <path>` per file. A binary blob would throw away code review; the manifest's diff shows exactly which demo files changed. |
+| `npm run apps:check` | fails if the extracted tree has drifted from the archive, so a forgotten `apps:pack` is caught rather than silently lost. Runs as part of `npm run lint:all` and in CI. |
+| `npm run apps:pack` | runs the demos' own **70%-per-file coverage gate** first and refuses to write an archive below the bar. CI no longer runs that gate, so packing is where it is enforced. `--skip-gate` overrides. |
+| `npm run apps:unpack` | refuses to overwrite an existing `apps/` — those edits are not in git to recover from. `--force` overrides. |
+
+Nothing generated is archived: `node_modules`, `dist`, `coverage`, `.turbo`,
+`vendor/`, the generated `tarball/` track, Playwright artefacts and lockfiles
+are all skipped, and `apps:pack` hard-fails if such a path escapes the list.
+
+### Two things to watch
+
+**A `git clean -xdf` now deletes `apps/`.** It is gitignored, so the usual
+"reset my tree" command removes it along with the build output. The archived
+files are safe in `apps-demo.zip` — `npm run apps:unpack` restores them, and
+`cd apps && npm install` puts the dependencies back — but any demo edit you
+had not packed is gone. Run `npm run apps:check` before cleaning.
+
+**`git status` cannot tell you the archive is stale.** An ignored tree never
+shows as modified, so a clean status is not evidence that your demo edits are
+saved. `npm run apps:check` is what answers that question.
+
+Full detail, including why the tarball track is excluded and how history
+before the detach is preserved, is in
+[`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 ## Running demo apps from the root
 
@@ -124,7 +189,10 @@ and [`docs/APPS_REPO.md`](./docs/APPS_REPO.md).
 
 | Script | What it does |
 |---|---|
-| `npm run setup:apps` | one-shot: build packages, pack tarballs, install `apps/` — both the `source/` and generated `tarball/` tracks |
+| `npm run apps:unpack` | extract `apps/` from `apps-demo.zip` — **needed once per clone**; `--force` to overwrite an existing tree |
+| `npm run apps:pack` | re-archive `apps/` after changing a demo; runs the demos' 70% coverage gate first |
+| `npm run apps:check` | is the extracted `apps/` in sync with the archive? (part of `lint:all`) |
+| `npm run setup:apps` | one-shot: build packages, pack tarballs, install `apps/` — both the `source/` and generated `tarball/` tracks (unpack first) |
 | `npm run app -- <name>` | run any demo app from the root — auto-starts the STOMP broker when the app needs it; `--tarball` for the generated twin, `--openfin` for the star-demo launcher |
 | `npm run build` | turbo build across the seven packages + regenerate `tsconfig.consumer.json` |
 | `npm run typecheck` | build, then turbo typecheck |
