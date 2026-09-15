@@ -1,6 +1,6 @@
 # apps-demo.zip contents — regenerate with `npm run apps:pack`.
 # One line per archived file: <sha256>  <bytes>  <path>.
-# 751 files, 3794095 bytes.
+# 751 files, 3795256 bytes.
 43e926aa0e12f7ea4be2c0b55f61a31869282d892ca707b4005c09837af511da       1040  apps/.gitignore
 f5499936633cd3b049e97f69309991356be8963ff041aa2b3c8e892e8843c6ad       7852  apps/e2e/config-seed-roundtrip.spec.ts
 5ee7dfdbb93e1727e0f8de66cedd22e72ee08d5d102bc67a024d50ceea7e7548       3194  apps/e2e/design-system-demo.spec.ts
@@ -590,8 +590,8 @@ d1ce372904b23126f2d73334636e8482a1c04c9debcfabfd4dc125a7b3b61dbf        589  app
 0671b8845453615844c4c85d7c10468bbe0f61fa30ad7c7b5d307498d8d37c6b        855  apps/source/star-demo/public/dock-provider.ico
 dbd7278783fafbe7fdca221035328d5528ad90e3f5a4cc047a2587d80ce8a96d       1508  apps/source/star-demo/public/dock-provider.png
 0671b8845453615844c4c85d7c10468bbe0f61fa30ad7c7b5d307498d8d37c6b        855  apps/source/star-demo/public/favicon.ico
-e605c5bac9722d94820b8aac03461544e1b1fe70b0c8c00e9555d894c50adafe       5244  apps/source/star-demo/public/platform/manifest.fin.json
-7039ca5542357f7638c417a8ba3f617659d50650f0db5d6c296cbb3b7ec178e0     209713  apps/source/star-demo/public/seed.json
+03774e1ea2a98bef0300b7ba6958805582a77f813eb184acc1dc3e6e2abc4f16       6337  apps/source/star-demo/public/platform/manifest.fin.json
+bd114cdeb35595f4b083a9b8e3d4cd98d50e4f1fe0fbcf4d124b2b40e39ccb9c     209781  apps/source/star-demo/public/seed.json
 edccb8bae7b1eb9482d148afef0e1be88cf5eb336e380a17e8fe0facc4736975       1641  apps/source/star-demo/public/theme-dark.png
 96bc3e20ba491195db9e97925d14248a1f2cb1ce309d4dcade2d4b32f79cffe5        594  apps/source/star-demo/public/theme-light.png
 3a213374ad795a2a24fa13fffede536b860bd77f58bae384b9cd919c86f058e0       1787  apps/source/star-demo/public/theme-toggle.ico

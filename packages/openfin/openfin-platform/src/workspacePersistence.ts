@@ -32,6 +32,10 @@ import type { ConfigManager, AppConfigRow } from '@wellsfargo-starui/core/host/c
 import { COMPONENT_TYPES } from '@wellsfargo-starui/types';
 import { injectRenameMenuItem } from './internal/viewTabRename';
 import {
+  enableInspectContextMenu,
+  enableInspectContextMenuInLayout,
+} from './enableInspectContextMenu';
+import {
   applyViewProcessAffinityPolicy,
   applyViewProcessAffinityPolicyToLayout,
   disableBackgroundThrottling,
@@ -383,6 +387,10 @@ export function createWorkspacePersistenceOverride(
           // measured live: views still reported true after a cold
           // relaunch on the corrected manifest.
           disableBackgroundThrottling(payload.opts);
+          // Same persistence trap as throttling: Workspace Platform writes
+          // `{ template: [], enabled: false }` onto anything without a
+          // template, and saved layouts keep restoring it.
+          enableInspectContextMenu(payload.opts);
         }
         return super.createView(payload, callerIdentity);
       }
@@ -390,14 +398,24 @@ export function createWorkspacePersistenceOverride(
       async createWindow(payload: any, identity?: any): Promise<any> {
         const policy = await this.affinityPolicy();
         const windowOptions = (
-          payload as { windowOptions?: { layout?: unknown; backgroundThrottling?: boolean } }
+          payload as {
+            windowOptions?: {
+              layout?: unknown;
+              backgroundThrottling?: boolean;
+              contextMenuOptions?: { enabled?: boolean; template?: string[] };
+            };
+          }
         )?.windowOptions;
         applyViewProcessAffinityPolicyToLayout(payload?.layout, policy);
         applyViewProcessAffinityPolicyToLayout(windowOptions?.layout, policy);
         disableBackgroundThrottlingInLayout(payload?.layout);
         disableBackgroundThrottlingInLayout(windowOptions?.layout);
+        enableInspectContextMenuInLayout(payload?.layout);
+        enableInspectContextMenuInLayout(windowOptions?.layout);
         if (payload && typeof payload === 'object') disableBackgroundThrottling(payload);
         if (windowOptions) disableBackgroundThrottling(windowOptions);
+        if (payload && typeof payload === 'object') enableInspectContextMenu(payload);
+        if (windowOptions) enableInspectContextMenu(windowOptions);
         return super.createWindow(payload, identity);
       }
 
