@@ -1,5 +1,18 @@
 name: CI
 
+# Wall-clock budget, measured rather than assumed (2026-09-15, this tree):
+#
+#   npm install, cold npm cache   28.7s   ← what every job used to pay
+#   npm install, warm npm cache    3.4s   ← 8.5x, hence the cache steps below
+#   eslint (packages)              4.5s
+#   turbo build + typecheck         32s
+#   turbo test                    1m55s   ← used to run TWICE (see `coverage`)
+#   turbo test --coverage         2m25s
+#
+# Numbers are from a developer laptop on a fast link; a corporate runner behind
+# an Artifactory proxy is slower on the install line specifically, which is why
+# the npm cache is the single highest-leverage thing here.
+
 on:
   push:
     branches: [main, feat/consolidation]
@@ -14,34 +27,35 @@ env:
   NODE_VERSION: '20'
   TURBO_TELEMETRY_DISABLED: 1
 
+# There is deliberately NO `install` job.
+#
+# One existed: it checked out, ran `npm install`, and ended — producing no
+# cache and no artifact, while every other job declared `needs: install`. So the
+# pipeline serialised behind a full install whose result was thrown away, and
+# then each job installed again from scratch. Deleting it removes a whole
+# install from the critical path and costs nothing.
+#
+# Lockfiles are not committed (see CLAUDE.md), so the npm cache is keyed on the
+# manifests instead of a lock hash — `actions/cache` directly rather than
+# `setup-node`'s `cache: npm`, which assumes a lock file exists. `restore-keys`
+# means a manifest change still reuses the bulk of the cache: npm then fetches
+# only what actually moved.
+
 jobs:
-  install:
-    name: Install + cache
-    runs-on: ubuntu-latest
-    outputs:
-      node-version: ${{ env.NODE_VERSION }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: npm install
-        run: npm install
-
   quality:
     name: Lint + hygiene checks
-    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json', 'packages/*/package.json') }}
+          restore-keys: npm-${{ runner.os }}-
       - run: npm install
       - name: ESLint (packages)
         run: npm run lint
@@ -49,6 +63,8 @@ jobs:
         run: npm run check:deps
       - name: Design-system dependency hygiene
         run: npm run check:design-system-deps
+      - name: Demo archive is in sync
+        run: npm run apps:check
       # Informational only — the design-system token migration still has a
       # known backlog of legitimate-hex exceptions. Surface it without gating.
       - name: Design-system token policy (report-only)
@@ -56,35 +72,43 @@ jobs:
         continue-on-error: true
 
   packages:
-    name: Packages (build + typecheck + test)
-    needs: install
+    name: Packages (build + typecheck)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json', 'packages/*/package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - name: Cache turbo build outputs
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
       - run: npm install
       - name: Build packages
         run: npm run build:packages
       - name: Typecheck packages
         run: npm run typecheck:packages
-      - name: Unit tests (packages)
-        run: npm run test:packages
+      # NO `npm run test:packages` here. It ran `npx turbo test`, and the
+      # coverage job below runs the SAME suite through `turbo test --coverage`
+      # — the whole suite, twice, ~2 minutes of it. The coverage job now gates
+      # test failures itself (see there), so this one is build + typecheck.
 
   coverage:
-    name: Coverage + Sonar
-    needs: install
+    name: Tests + coverage + Sonar
     runs-on: ubuntu-latest
     # Job-level so the scan step's `if` can read them — a step's own `env`
     # block is NOT in scope for that step's own `if` condition.
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-    # Report-only for now: the per-file bar is enforced locally by
-    # `npm run check:coverage`. Drop this (and the step-level one below) to
-    # make coverage gate the build.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,10 +118,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json', 'packages/*/package.json') }}
+          restore-keys: npm-${{ runner.os }}-
       - run: npm install
+      # `--no-thresholds` is what lets this job replace the old `test:packages`
+      # run. Vitest exits non-zero for a failing test AND for a missed
+      # threshold, so with the bar on, CI cannot tell them apart — which is why
+      # the suite used to run twice. With the bar off, a non-zero exit here
+      # means a real test failure, and it gates.
       - name: Unit tests with coverage
-        run: npm run test:coverage
-        continue-on-error: true
+        run: npm run test:coverage -- --no-thresholds
       # `run-test-coverage.mjs` merges every package's coverage/lcov.info into
       # the repo-root coverage/lcov.info that sonar-project.properties points
       # at. Fail loudly here rather than letting Sonar silently report 0%.
@@ -105,6 +139,13 @@ jobs:
         run: |
           test -s coverage/lcov.info || { echo "::error::coverage/lcov.info missing or empty — Sonar would report 0% coverage"; exit 1; }
           echo "merged lcov: $(wc -l < coverage/lcov.info) lines, $(grep -c '^SF:' coverage/lcov.info) files"
+      # The per-file bar, gated off the written summaries rather than off
+      # vitest's exit code — it names every file below 70% and on which metric.
+      # Report-only for now, as before: drop `continue-on-error` to make
+      # coverage fail the build.
+      - name: Per-file coverage gate (report-only)
+        run: npm run check:coverage
+        continue-on-error: true
       # Sonar does NOT run tests — it reads the lcov produced above. It must
       # therefore stay in THIS job: a separate job runs on a different runner
       # with a different filesystem and would find no coverage at all.

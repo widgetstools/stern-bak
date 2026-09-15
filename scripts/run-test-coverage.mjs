@@ -32,7 +32,21 @@ const PACKAGES_ROOT = join(REPO_ROOT, 'packages');
 const OUT_DIR = join(REPO_ROOT, 'coverage');
 const OUT_FILE = join(OUT_DIR, 'lcov.info');
 
-const passthrough = process.argv.slice(2);
+const argv = process.argv.slice(2);
+
+/**
+ * `--no-thresholds` runs the suite with the per-file bar switched OFF.
+ *
+ * Vitest exits non-zero for a FAILING TEST and for a MISSED THRESHOLD alike, so
+ * this script's exit code cannot tell CI which happened — which is why the
+ * pipeline used to run the whole suite twice, once plainly to gate failures and
+ * once with coverage. With the bar off, a non-zero exit means a real test
+ * failure and nothing else; `npm run check:coverage` then gates the bar from
+ * the written summaries, with far better output than a vitest threshold error.
+ * One suite run, both signals, each attributable.
+ */
+const noThresholds = argv.includes('--no-thresholds');
+const passthrough = argv.filter((a) => a !== '--no-thresholds');
 
 function log(msg) {
   process.stdout.write(`[test-coverage] ${msg}\n`);
@@ -46,6 +60,13 @@ const vitestArgs = [
   '--coverage.reporter=text',
   '--coverage.reporter=json-summary',
   '--coverage.reporter=lcov',
+  ...(noThresholds ? [
+    '--coverage.thresholds.perFile=false',
+    '--coverage.thresholds.lines=0',
+    '--coverage.thresholds.statements=0',
+    '--coverage.thresholds.functions=0',
+    '--coverage.thresholds.branches=0',
+  ] : []),
 ].join(' ');
 
 // --continue is essential: the per-file threshold makes a package exit
@@ -149,6 +170,10 @@ log(`merged ${lcovFiles.length} package LCOV file(s), ${records} source record(s
 log(`wrote ${relative(REPO_ROOT, OUT_FILE)} — Sonar input`);
 
 if (testsFailed) {
-  process.stderr.write('[test-coverage] tests failed; coverage was still written\n');
+  process.stderr.write(
+    noThresholds
+      ? '[test-coverage] a test FAILED; coverage was still written\n'
+      : '[test-coverage] tests failed or a per-file threshold was missed; coverage was still written\n',
+  );
   process.exit(1);
 }
