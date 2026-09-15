@@ -47,6 +47,8 @@ const factories: Partial<Record<ProviderConfig['providerType'], ProviderFactory>
  */
 export interface StartProviderOpts {
   appDataLookup?: AppDataLookup;
+  /** Stamped on transport trace lines so a capture names which provider spoke. */
+  providerId?: string;
 }
 
 export function startProvider(
@@ -68,6 +70,7 @@ export function startProvider(
     const stompCfg = { ...(bracketResolved as StompSsrmProviderConfig), providerType: 'stomp' } as StompProviderConfig;
     return startStomp(stompCfg, emit, {
       appDataLookup: opts?.appDataLookup,
+      providerId: opts?.providerId,
     });
   }
 

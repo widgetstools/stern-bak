@@ -981,3 +981,34 @@ describe('connectStomp', () => {
     expect(result).toEqual({ ok: false, error: 'Cancelled' });
   });
 });
+
+/**
+ * `stomp` and `stomp-ssrm` share this transport, and each `startStomp` keeps
+ * its own `connectGeneration` — so a capture showing two `start() gen=1`
+ * pairs cannot say whether one provider started twice or two providers are
+ * pointed at the same broker. Stamping the id makes that readable.
+ */
+describe('startStomp — trace identifies its provider', () => {
+  it('stamps the provider id on trace lines when given one', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const ctrl = makeFakeClient();
+
+    startStomp(cfg(), () => {}, { createClient: () => ctrl.client, providerId: 'dp-abc' });
+
+    const traced = log.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('[v2/stomp][trace]'));
+    expect(traced.length).toBeGreaterThan(0);
+    for (const line of traced) expect(line).toContain('provider=dp-abc');
+    log.mockRestore();
+  });
+
+  it('omits the marker entirely when no id is supplied', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const ctrl = makeFakeClient();
+
+    startStomp(cfg(), () => {}, { createClient: () => ctrl.client });
+
+    const traced = log.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('[v2/stomp][trace]'));
+    for (const line of traced) expect(line).not.toContain('provider=');
+    log.mockRestore();
+  });
+});

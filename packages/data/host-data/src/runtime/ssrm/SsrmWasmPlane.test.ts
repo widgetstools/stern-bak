@@ -888,8 +888,9 @@ describe('SsrmWasmPlane.engineStats — diagnostics', () => {
     return plane;
   };
 
-  it('names the ids the engine DOES have when the lookup misses', async () => {
+  it('stays quiet for a provider that simply has no rows yet', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const plane = await withStats(JSON.stringify({
       openViews: 0,
       datasources: [{ datasourceId: 'other-id', cacheRows: 5 }],
@@ -897,20 +898,21 @@ describe('SsrmWasmPlane.engineStats — diagnostics', () => {
 
     expect(plane.engineStats('p1')).toBeNull();
 
-    // An id mismatch is otherwise indistinguishable from an empty engine,
-    // because both render as "0 rows" once the CSRM fallback kicks in.
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('datasource absent'));
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Engine knows: other-id'));
+    // "absent" is the normal state before the first snapshot lands, on every
+    // provider start. Warning there trained people to ignore the channel.
+    expect(warn).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
     warn.mockRestore();
+    log.mockRestore();
   });
 
-  it('warns on the transition, not once per 1 Hz sample', async () => {
+  it('never warns repeatedly at the 1 Hz sample rate', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const plane = await withStats(JSON.stringify({ datasources: [] }));
 
     for (let i = 0; i < 10; i += 1) plane.engineStats('p1');
 
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 
@@ -936,11 +938,12 @@ describe('SsrmWasmPlane.engineStats — diagnostics', () => {
 
     present = true;
     expect(plane.engineStats('p1')?.cacheRows).toBe(20_000);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('now holds 20000 rows'));
     warn.mockClear();
 
     present = false;                               // the drop under investigation
     expect(plane.engineStats('p1')).toBeNull();
+    // Losing a POPULATED table always warns, DEBUG or not — that one is a
+    // fault, not a lifecycle step.
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('LOST a table holding 20000 rows'));
     warn.mockRestore();
   });

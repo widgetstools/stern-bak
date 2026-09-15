@@ -239,6 +239,14 @@ function bootJson(providerId: string, cfg: SsrmProviderConfig): string {
   });
 }
 
+/**
+ * Verbose engine-stats tracing. Off by default: only a populated table
+ * emptying warns unconditionally, because that is a fault. Flip to `true`
+ * when chasing where an SSRM row count comes from — it then logs every
+ * absent/present transition and the ids the engine holds.
+ */
+const DEBUG = false;
+
 /** Engine-side per-provider counts, read from the WASM hub's `mem_stats()`. */
 export interface SsrmEngineStats {
   /** Rows the engine holds for this datasource — the SSRM "rows loaded". */
@@ -927,11 +935,19 @@ export class SsrmWasmPlane {
     const prev = this.engineSeen.get(providerId);
     this.engineSeen.set(providerId, reason);
     if (prev === reason) return;
-    const lost = typeof prev === 'number' && prev > 0 ? ` — LOST a table holding ${prev} rows` : '';
+    // Losing a populated table is a real fault and always warns. Every other
+    // transition is routine — "absent" is the normal state before the first
+    // snapshot lands — so it stays behind DEBUG rather than warning on each
+    // provider start.
+    const lostRows = typeof prev === 'number' && prev > 0 ? prev : 0;
+    if (lostRows === 0 && !DEBUG) return;
+    const detail = (known.length > 0 ? ` Engine knows: ${known.join(', ')}` : '');
     // eslint-disable-next-line no-console
-    console.warn(
-      `[v2/ssrm] engine stats unavailable for ${providerId} — ${reason}${lost}.`
-      + (known.length > 0 ? ` Engine knows: ${known.join(', ')}` : ''),
+    const log = lostRows > 0 ? console.warn : console.log;
+    log(
+      `[v2/ssrm] engine stats unavailable for ${providerId} — ${reason}`
+      + (lostRows > 0 ? ` — LOST a table holding ${lostRows} rows.` : '.')
+      + detail,
     );
   }
 
@@ -946,13 +962,15 @@ export class SsrmWasmPlane {
     const prev = this.engineSeen.get(providerId);
     this.engineSeen.set(providerId, cacheRows);
     if (typeof prev === 'number' && prev > 0 && cacheRows === 0) {
+      // A populated table emptying is the fault this exists to catch.
       // eslint-disable-next-line no-console
       console.warn(`[v2/ssrm] engine table for ${providerId} went ${prev} rows → 0`);
-    } else if (typeof prev === 'string' && cacheRows > 0) {
-      // Recovery is as diagnostic as the loss: it dates the moment rows
-      // actually reached the engine, against the transport's own timeline.
+    } else if (DEBUG && typeof prev === 'string' && cacheRows > 0) {
+      // Recovery dates the moment rows reached the engine against the
+      // transport's own timeline — useful while chasing something, noise
+      // on every provider start otherwise.
       // eslint-disable-next-line no-console
-      console.warn(`[v2/ssrm] engine table for ${providerId} now holds ${cacheRows} rows (was: ${prev})`);
+      console.log(`[v2/ssrm] engine table for ${providerId} now holds ${cacheRows} rows (was: ${prev})`);
     }
   }
 

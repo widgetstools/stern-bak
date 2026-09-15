@@ -585,6 +585,7 @@ export class SharedWorkerDataServicesHub {
     try {
       slot.handle = startProvider(cfg, emit, {
         appDataLookup: this.lifecycle.lookup,
+        providerId,
       });
       this.ssrm.bootProvider(providerId, cfg);
     } catch (err) {

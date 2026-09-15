@@ -185,6 +185,13 @@ export interface StompOpts {
   /** Clock injection for the live-phase throttle. Defaults to setTimeout/clearTimeout. */
   setTimer?: (cb: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /**
+   * Stamped on every trace line. Without it a capture showing two `start()`
+   * / `flushSnapshot` pairs is ambiguous — one provider started twice, or two
+   * providers pointed at the same broker? Each `startStomp` keeps its own
+   * `connectGeneration`, so even `gen=` cannot separate them.
+   */
+  providerId?: string;
 }
 
 /** Keys commonly used for historical as-of dates in STOMP destination templates. */
@@ -413,7 +420,8 @@ export function startStomp(
   const since = (from: number | null, now = Date.now()) =>
     from === null ? 'n/a' : `${now - from}ms`;
   // eslint-disable-next-line no-console
-  const trace = (msg: string) => console.log(`[v2/stomp][trace] ${msg} (sinceClick=${sinceClick()})`);
+  const who = opts.providerId ? ` provider=${opts.providerId}` : '';
+  const trace = (msg: string) => console.log(`[v2/stomp][trace]${who} ${msg} (sinceClick=${sinceClick()})`);
 
   const beginSnapshotPhase = () => {
     // Drop any live deltas still pending in the throttle window — they
