@@ -105,7 +105,21 @@ export class HubStatsSampler {
       const slot = this.ctx.providers.get(providerId);
       const listeners = this.ctx.subscribers.statsListeners(providerId);
       if (!slot || !listeners) continue;
-      const stats = snapshotProviderStats(slot, this.ctx.subscribers.dataCount(providerId));
+      // Engine stats here too, not just in `flush()`. Missing them on this
+      // path is invisible in the aggregate and obvious in the UI: the
+      // one-off flush on attach showed the engine's real SSRM row count and
+      // the next 1 Hz tick overwrote it with `slot.cache.size`, which is
+      // always 0 under SSRM — "the row count shows for a split second".
+      // Engine stats here too, not just in `flush()`. Missing them on this
+      // path is invisible in the aggregate and obvious in the UI: the
+      // one-off flush on attach showed the engine's real SSRM row count and
+      // the next 1 Hz tick overwrote it with `slot.cache.size`, which is
+      // always 0 under SSRM — "the row count shows for a split second".
+      const stats = snapshotProviderStats(
+        slot,
+        this.ctx.subscribers.dataCount(providerId),
+        this.ctx.engineStats?.(providerId),
+      );
       this.post(providerId, listeners, stats);
     }
   }
