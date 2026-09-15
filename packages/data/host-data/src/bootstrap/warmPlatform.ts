@@ -24,6 +24,7 @@
 import type { PlatformBootstrapConfig } from './PlatformBootstrapConfig.js';
 import { ensurePlatformReady, type EnsurePlatformReadyOpts } from './ensurePlatformReady.js';
 import type { ResolvedDataServicesHubBundle } from '../hub/ensureDataServicesHub.js';
+import type { ProviderStats } from '../runtime/protocol.js';
 
 export interface WarmPlatformOpts extends EnsurePlatformReadyOpts {
   /**
@@ -53,34 +54,98 @@ export function warmPlatform(
 
 async function warm(config: PlatformBootstrapConfig, opts: WarmPlatformOpts): Promise<void> {
   const bundle = await ensurePlatformReady(config, opts);
-  if (!opts.providers) return;
+  if (!opts.providers) {
+    // Worth saying: it separates "the dock was never asked to warm anything"
+    // from "it asked, and no row was flagged" — which look identical otherwise.
+    trace(`${config.appId}: no provider warm-up requested (workers + hydrate only)`);
+    return;
+  }
   // Provider rows are served by the platform-services worker; wait for its
   // catalog so `'autoStart'` sees every row and a cfg-free attach resolves.
   await bundle.catalogReady;
-  const ids = await resolveWarmProviderIds(bundle, opts.providers);
-  for (const providerId of ids) warmProvider(config.appId, bundle, providerId);
+  const picked = await resolveWarmProviders(bundle, opts.providers, config.appId);
+  const warmed = warmedProviders.get(config.appId);
+  const fresh = picked.filter((row) => !warmed?.has(row.providerId));
+  const already = picked.length - fresh.length;
+  trace(
+    `${config.appId}: starting ${fresh.length} of ${picked.length} provider(s)`
+    + (already > 0 ? ` (${already} already warm)` : ''),
+  );
+  for (const row of picked) warmProvider(config.appId, bundle, row);
 }
 
-async function resolveWarmProviderIds(
+/** The catalog rows to warm, in the order they will be started. */
+interface WarmRow {
+  providerId: string;
+  providerType?: string;
+}
+
+async function resolveWarmProviders(
   bundle: ResolvedDataServicesHubBundle,
   providers: 'autoStart' | readonly string[],
-): Promise<string[]> {
-  if (providers !== 'autoStart') return [...providers];
+  appId: string,
+): Promise<WarmRow[]> {
+  if (providers !== 'autoStart') {
+    trace(`${appId}: warming an explicit id list: ${providers.join(', ') || '(empty)'}`);
+    return providers.map((providerId) => ({ providerId }));
+  }
   const rows = await bundle.platformClient.listProviderConfigs();
-  return rows
-    .filter((row) => Boolean(row.providerId) && row.config?.autoStart === true)
-    .map((row) => row.providerId as string);
+  const eligible = rows.filter((row) => Boolean(row.providerId) && row.config?.autoStart === true);
+  // The denominator matters: it separates "only one row is flagged" from
+  // "the catalog read came back short".
+  trace(`${appId}: ${eligible.length} of ${rows.length} catalog provider(s) marked autoStart`);
+  for (const row of eligible) {
+    trace(`${appId}: autoStart → ${row.providerId} (${row.config?.providerType ?? 'unknown type'})`);
+  }
+  return eligible.map((row) => ({
+    providerId: row.providerId as string,
+    providerType: row.config?.providerType as string | undefined,
+  }));
 }
 
-function warmProvider(appId: string, bundle: ResolvedDataServicesHubBundle, providerId: string): void {
+function warmProvider(appId: string, bundle: ResolvedDataServicesHubBundle, row: WarmRow): void {
   let warmed = warmedProviders.get(appId);
   if (!warmed) {
     warmed = new Set();
     warmedProviders.set(appId, warmed);
   }
-  if (warmed.has(providerId)) return;
-  warmed.add(providerId);
-  bundle.client.attachStats(providerId, { onStats: () => undefined });
+  if (warmed.has(row.providerId)) return;
+  warmed.add(row.providerId);
+  const label = row.providerType ? `${row.providerId} (${row.providerType})` : row.providerId;
+  const startedAt = Date.now();
+  trace(`${label}: attaching in stats mode`);
+  bundle.client.attachStats(row.providerId, { onStats: traceStartup(label, startedAt) });
+}
+
+/**
+ * The warm-up attach used to discard its stats. They are the only view of
+ * what an auto-started provider actually DOES — so report the milestones
+ * once each: the hub answering, the snapshot landing, the first error.
+ */
+function traceStartup(label: string, startedAt: number): (stats: ProviderStats) => void {
+  let sawStats = false;
+  let sawRows = false;
+  let lastError: string | undefined;
+  return (stats: ProviderStats) => {
+    if (!sawStats) {
+      sawStats = true;
+      trace(`${label}: hub is running it (+${Date.now() - startedAt}ms), awaiting snapshot`);
+    }
+    if (!sawRows && stats.rowCount > 0) {
+      sawRows = true;
+      const took = stats.snapshotFetchMs ?? Date.now() - startedAt;
+      trace(`${label}: snapshot loaded — ${stats.rowCount} rows in ${took}ms`);
+    }
+    if (stats.lastError && stats.lastError !== lastError) {
+      lastError = stats.lastError;
+      trace(`${label}: error (${stats.errorCount} total) — ${stats.lastError}`);
+    }
+  };
+}
+
+function trace(message: string): void {
+  // eslint-disable-next-line no-console
+  console.log(`[provider-startup] ${message}`);
 }
 
 /** Test-only — forget which providers were warmed. */
