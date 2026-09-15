@@ -904,13 +904,44 @@ describe('SsrmWasmPlane.engineStats — diagnostics', () => {
     warn.mockRestore();
   });
 
-  it('warns once per reason, not once per 1 Hz sample', async () => {
+  it('warns on the transition, not once per 1 Hz sample', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const plane = await withStats(JSON.stringify({ datasources: [] }));
 
     for (let i = 0; i < 10; i += 1) plane.engineStats('p1');
 
     expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  /**
+   * The case the first cut of this instrument missed. "datasource absent"
+   * fires harmlessly at startup — the engine lists a datasource only once
+   * rows land — so logging once per REASON spent the message before the
+   * interesting drop and then stayed silent through it.
+   */
+  it('still reports a table that disappears AFTER rows landed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let present = false;
+    const hub = fakeHub();
+    hub.mem_stats = () => JSON.stringify({
+      openViews: 0,
+      datasources: present ? [{ datasourceId: 'p1', cacheRows: 20_000, subscribers: 1 }] : [],
+    });
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg as never);
+
+    plane.engineStats('p1');                       // absent — benign startup
+    warn.mockClear();
+
+    present = true;
+    expect(plane.engineStats('p1')?.cacheRows).toBe(20_000);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('now holds 20000 rows'));
+    warn.mockClear();
+
+    present = false;                               // the drop under investigation
+    expect(plane.engineStats('p1')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('LOST a table holding 20000 rows'));
     warn.mockRestore();
   });
 

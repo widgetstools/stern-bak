@@ -256,9 +256,12 @@ export interface SsrmEngineStats {
 export class SsrmWasmPlane {
   private readonly host: RustHubHost;
   private readonly booted = new Set<string>();
-  /** Diagnostics only — see `noteEngineMiss` / `noteEngineRows`. */
-  private readonly engineMissSeen = new Set<string>();
-  private readonly engineRowsSeen = new Map<string, number>();
+  /**
+   * Diagnostics only: last observed engine state per provider — a row count,
+   * or the reason the lookup missed. Transitions between the two are what get
+   * logged. See `noteEngineMiss` / `noteEngineRows`.
+   */
+  private readonly engineSeen = new Map<string, number | string>();
   private readonly subscribed = new Set<string>();
   /**
    * Which datasource each session subscribed to. `tick()` drains EVERY
@@ -916,12 +919,18 @@ export class SsrmWasmPlane {
    * so an id mismatch is obvious rather than inferred.
    */
   private noteEngineMiss(providerId: string, reason: string, known: readonly string[]): void {
-    const seen = `${providerId}:${reason}`;
-    if (this.engineMissSeen.has(seen)) return;
-    this.engineMissSeen.add(seen);
+    // Log the TRANSITION, not the reason. An earlier cut logged once per
+    // reason for the life of the worker, and "datasource absent" fires
+    // harmlessly at startup — the engine lists a datasource only once rows
+    // land — so it spent its one message before anything interesting
+    // happened and stayed silent through the drop it was meant to catch.
+    const prev = this.engineSeen.get(providerId);
+    this.engineSeen.set(providerId, reason);
+    if (prev === reason) return;
+    const lost = typeof prev === 'number' && prev > 0 ? ` — LOST a table holding ${prev} rows` : '';
     // eslint-disable-next-line no-console
     console.warn(
-      `[v2/ssrm] engine stats unavailable for ${providerId} — ${reason}.`
+      `[v2/ssrm] engine stats unavailable for ${providerId} — ${reason}${lost}.`
       + (known.length > 0 ? ` Engine knows: ${known.join(', ')}` : ''),
     );
   }
@@ -934,11 +943,16 @@ export class SsrmWasmPlane {
    * on the way to the UI instead).
    */
   private noteEngineRows(providerId: string, cacheRows: number): void {
-    const prev = this.engineRowsSeen.get(providerId);
-    this.engineRowsSeen.set(providerId, cacheRows);
-    if (prev !== undefined && prev > 0 && cacheRows === 0) {
+    const prev = this.engineSeen.get(providerId);
+    this.engineSeen.set(providerId, cacheRows);
+    if (typeof prev === 'number' && prev > 0 && cacheRows === 0) {
       // eslint-disable-next-line no-console
       console.warn(`[v2/ssrm] engine table for ${providerId} went ${prev} rows → 0`);
+    } else if (typeof prev === 'string' && cacheRows > 0) {
+      // Recovery is as diagnostic as the loss: it dates the moment rows
+      // actually reached the engine, against the transport's own timeline.
+      // eslint-disable-next-line no-console
+      console.warn(`[v2/ssrm] engine table for ${providerId} now holds ${cacheRows} rows (was: ${prev})`);
     }
   }
 
