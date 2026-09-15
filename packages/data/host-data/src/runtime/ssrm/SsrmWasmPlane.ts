@@ -256,6 +256,9 @@ export interface SsrmEngineStats {
 export class SsrmWasmPlane {
   private readonly host: RustHubHost;
   private readonly booted = new Set<string>();
+  /** Diagnostics only — see `noteEngineMiss` / `noteEngineRows`. */
+  private readonly engineMissSeen = new Set<string>();
+  private readonly engineRowsSeen = new Map<string, number>();
   private readonly subscribed = new Set<string>();
   /**
    * Which datasource each session subscribed to. `tick()` drains EVERY
@@ -882,14 +885,61 @@ export class SsrmWasmPlane {
       openViews?: unknown;
       datasources?: Array<Record<string, unknown>>;
     } | null;
-    if (!stats || !Array.isArray(stats.datasources)) return null;
+    if (!stats || !Array.isArray(stats.datasources)) {
+      this.noteEngineMiss(providerId, stats ? 'mem_stats has no datasources[]' : 'WASM hub not loaded yet', []);
+      return null;
+    }
     const row = stats.datasources.find((d) => d.datasourceId === providerId);
-    if (!row) return null;
+    if (!row) {
+      this.noteEngineMiss(
+        providerId,
+        'datasource absent from the engine',
+        stats.datasources.map((d) => String(d.datasourceId)),
+      );
+      return null;
+    }
+    const cacheRows = typeof row.cacheRows === 'number' ? row.cacheRows : 0;
+    this.noteEngineRows(providerId, cacheRows);
     return {
-      cacheRows: typeof row.cacheRows === 'number' ? row.cacheRows : 0,
+      cacheRows,
       subscribers: typeof row.subscribers === 'number' ? row.subscribers : 0,
       openViews: typeof stats.openViews === 'number' ? stats.openViews : 0,
     };
+  }
+
+  /**
+   * Say WHY an SSRM provider has no engine stats — once per reason, so the
+   * 1 Hz diagnostics sampler cannot spam. "Rows loaded" falling back to the
+   * (always empty) CSRM cache is indistinguishable from a genuinely empty
+   * engine in the UI; this separates "the engine does not have this id" from
+   * "the engine has it and it holds nothing", and prints the ids it DOES have
+   * so an id mismatch is obvious rather than inferred.
+   */
+  private noteEngineMiss(providerId: string, reason: string, known: readonly string[]): void {
+    const seen = `${providerId}:${reason}`;
+    if (this.engineMissSeen.has(seen)) return;
+    this.engineMissSeen.add(seen);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[v2/ssrm] engine stats unavailable for ${providerId} — ${reason}.`
+      + (known.length > 0 ? ` Engine knows: ${known.join(', ')}` : ''),
+    );
+  }
+
+  /**
+   * Log the moment an engine table goes from holding rows to holding none.
+   * That transition is the whole question behind "the row count shows for a
+   * split second and then reads 0": either it happens (the table really is
+   * being cleared, and this names when) or it never does (the count is lost
+   * on the way to the UI instead).
+   */
+  private noteEngineRows(providerId: string, cacheRows: number): void {
+    const prev = this.engineRowsSeen.get(providerId);
+    this.engineRowsSeen.set(providerId, cacheRows);
+    if (prev !== undefined && prev > 0 && cacheRows === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(`[v2/ssrm] engine table for ${providerId} went ${prev} rows → 0`);
+    }
   }
 
   /** `openView` + `readWindow` for one spec — shared by rows, counts and value lists. */

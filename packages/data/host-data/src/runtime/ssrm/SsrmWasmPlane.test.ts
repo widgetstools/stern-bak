@@ -878,3 +878,72 @@ describe('SsrmWasmPlane.engineStats', () => {
     expect(plane.engineStats('p1')).toEqual({ cacheRows: 0, subscribers: 0, openViews: 0 });
   });
 });
+
+describe('SsrmWasmPlane.engineStats — diagnostics', () => {
+  const withStats = async (blob: string) => {
+    const hub = fakeHub();
+    hub.mem_stats = () => blob;
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg as never);
+    return plane;
+  };
+
+  it('names the ids the engine DOES have when the lookup misses', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const plane = await withStats(JSON.stringify({
+      openViews: 0,
+      datasources: [{ datasourceId: 'other-id', cacheRows: 5 }],
+    }));
+
+    expect(plane.engineStats('p1')).toBeNull();
+
+    // An id mismatch is otherwise indistinguishable from an empty engine,
+    // because both render as "0 rows" once the CSRM fallback kicks in.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('datasource absent'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Engine knows: other-id'));
+    warn.mockRestore();
+  });
+
+  it('warns once per reason, not once per 1 Hz sample', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const plane = await withStats(JSON.stringify({ datasources: [] }));
+
+    for (let i = 0; i < 10; i += 1) plane.engineStats('p1');
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('reports the moment a populated engine table drops to zero rows', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let rows = 20_000;
+    const hub = fakeHub();
+    hub.mem_stats = () => JSON.stringify({
+      openViews: 0,
+      datasources: [{ datasourceId: 'p1', cacheRows: rows, subscribers: 1 }],
+    });
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg as never);
+
+    expect(plane.engineStats('p1')?.cacheRows).toBe(20_000);
+    expect(warn).not.toHaveBeenCalled();
+
+    rows = 0;
+    expect(plane.engineStats('p1')?.cacheRows).toBe(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('went 20000 rows → 0'));
+    warn.mockRestore();
+  });
+
+  it('does not warn for a table that was empty all along', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const plane = await withStats(JSON.stringify({
+      datasources: [{ datasourceId: 'p1', cacheRows: 0 }],
+    }));
+
+    plane.engineStats('p1');
+    plane.engineStats('p1');
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
