@@ -29,7 +29,14 @@ import {
 // Empty interface kept for the public type; consumers spread it
 // when wrapping for design-system extensions.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface FormattingToolbarProps {}
+export interface FormattingToolbarProps {
+  /**
+   * Hides the in-grid toolbar. Wired to the same handler as the brush
+   * button that opens it, so the button that hides it is the button that
+   * brings it back — a close control with no route back is a trap.
+   */
+  onHide?: () => void;
+}
 
 /** Imperative handle over FormattingToolbar — thin alias over
  *  PoppableHandle. Lets MarketsGrid raise a buried popout
@@ -37,7 +44,7 @@ export interface FormattingToolbarProps {}
 export type FormattingToolbarHandle = PoppableHandle;
 
 export const FormattingToolbar = forwardRef<FormattingToolbarHandle, FormattingToolbarProps>(
-  function FormattingToolbar(_props, ref) {
+  function FormattingToolbar({ onHide }, ref) {
     const platform = useGridPlatform();
     const { state, actions } = useFormatter();
 
@@ -83,6 +90,7 @@ export const FormattingToolbar = forwardRef<FormattingToolbarHandle, FormattingT
               <FormatterToolbar
                 state={state}
                 actions={actions}
+                onHide={onHide}
                 popoutSlot={
                   <PopoutButton
                     className="fx-popout"

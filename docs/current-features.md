@@ -1786,6 +1786,11 @@ recover from git history if it is ever revived.
 - Sidebar rows are a three-track grid — icon, name, a reserved 52px action gutter — so a long name truncates to one stable width and Duplicate / Delete stay reachable; the name carries a `title`. Actions live in `RowActions`.
 - The save button reports its own outcome: spinner, then a check and "Saved" for `SAVING_PULSE_MS`, then back; `SAVING_FLOOR_MS` keeps a millisecond-fast IndexedDB write visible, and a failure relabels the button "Retry update". The footer's left-hand status is unchanged.
 
+### Formatting toolbar
+
+- Target (cells / headers) and scope (selected / all columns) are one `BinaryToggle` button each, replacing the two-option `SegmentedToggle`s that spent four buttons on two decisions. The button shows the state it is in, flips on click, and its tooltip names both the state and what the click will do. Only the non-default state (headers, or every column) is highlighted, because those change what a click does.
+- The pop-out trigger and a new hide button sit in a `View` group at the end of the ribbon. The pop-out was previously absolute-positioned and centred on the shell, which on a wrapped ribbon put it in the seam between lines; the shell's reserved 48px right gutter is gone with it. Hide is wired to the same handler as the brush button in the filters row, so the control that hides the toolbar is the one that brings it back.
+
 ### Consumer documentation
 
 - `docs/MARKETSGRID_USAGE_GUIDE.md` — scenario matrix for MarketsGrid (`MarketsGrid` / `MarketsGridContainer` / `HostedMarketsGrid`), hub bootstrap, OpenFin vs browser, persistence, customizer UI (§22), troubleshooting

@@ -25,7 +25,7 @@ import {
   ColumnLabel,
   Hair,
   Pill,
-  SegmentedToggle,
+  BinaryToggle,
   columnCaptionInputClasses,
   columnCaptionTriggerClasses,
 } from '../primitives';
@@ -134,19 +134,21 @@ export function ModuleContext({ state, actions }: Props) {
           Together they answer "what am I editing?" (cells vs headers)
           and "for which columns?" (selected vs every column). Each
           option carries a tooltip so the meaning is one hover away. */}
-      <SegmentedToggle
+      <BinaryToggle
         value={state.target}
         options={[
           {
             value: 'cell',
             icon: <Table2 size={14} strokeWidth={1.75} aria-hidden />,
-            tooltip: 'Edit cell styling',
+            label: 'Cells',
+            tooltip: 'Editing cells — click to switch to headers',
             testId: 'formatting-target-cell',
           },
           {
             value: 'header',
             icon: <PanelTop size={14} strokeWidth={1.75} aria-hidden />,
-            tooltip: 'Edit header styling',
+            label: 'Headers',
+            tooltip: 'Editing headers — click to switch to cells',
             testId: 'formatting-target-header',
           },
         ]}
@@ -155,19 +157,21 @@ export function ModuleContext({ state, actions }: Props) {
         variant="target"
         testId="formatting-target-toggle"
       />
-      <SegmentedToggle
+      <BinaryToggle
         value={state.scope}
         options={[
           {
             value: 'selected',
             icon: <MousePointer2 size={14} strokeWidth={1.75} aria-hidden />,
-            tooltip: 'Apply to selected column(s)',
+            label: 'Selected',
+            tooltip: 'Applying to selected column(s) — click to apply to every column',
             testId: 'formatting-scope-selected',
           },
           {
             value: 'all',
             icon: <Grid2x2 size={14} strokeWidth={1.75} aria-hidden />,
-            tooltip: 'Apply to every column (global baseline)',
+            label: 'All columns',
+            tooltip: 'Applying to every column — click to apply to the selection only',
             testId: 'formatting-scope-all',
           },
         ]}

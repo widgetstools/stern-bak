@@ -412,7 +412,7 @@ export function ColumnLabel({
 // ─── Scope toggle — CELL ⇄ HEADER (legacy single-label form) ──────
 //
 // Kept for the vertical popped panel and any consumer still using the
-// arrow-swap presentation. Horizontal toolbar uses `SegmentedToggle`
+// arrow-swap presentation. Horizontal toolbar uses `BinaryToggle`
 // below for a clearer dual-label look.
 
 export function ScopeToggle({
@@ -444,7 +444,7 @@ export function ScopeToggle({
   );
 }
 
-// ─── SegmentedToggle — two-icon switch with both options visible ──
+// ─── BinaryToggle — one button showing the state it is in ────────
 //
 // Icon-only segmented control. Both options show simultaneously; the
 // active option is filled, the inactive option is dim. Each option
@@ -452,18 +452,25 @@ export function ScopeToggle({
 // CELLS ⇄ HEADERS and SELECTED ⇄ ALL — same shape, different icons.
 // Stays compact (≈64px wide) so it doesn't dominate the toolbar.
 
-export interface SegmentedToggleOption<T extends string> {
+export interface BinaryToggleOption<T extends string> {
   value: T;
   /** Pre-rendered icon node — use a lucide icon at `size={14}`. */
   icon: React.ReactNode;
-  /** Hover tooltip — describes what the option means. */
+  /** Short visible label for the current state — "Cells", "Headers". */
+  label: string;
+  /**
+   * Tooltip shown while THIS option is the current one. Write it as the
+   * state followed by what a click does — "Editing cells — click to switch
+   * to headers" — because the button is the only thing on screen that says
+   * which way the setting is set.
+   */
   tooltip: string;
   /** Optional ARIA label override; defaults to the tooltip. */
   ariaLabel?: string;
   testId?: string;
 }
 
-export function SegmentedToggle<T extends string>({
+export function BinaryToggle<T extends string>({
   value,
   options,
   onChange,
@@ -472,63 +479,58 @@ export function SegmentedToggle<T extends string>({
   testId,
 }: {
   value: T;
-  options: [SegmentedToggleOption<T>, SegmentedToggleOption<T>];
+  /** `[default, alternate]` — the second is treated as the notable state. */
+  options: [BinaryToggleOption<T>, BinaryToggleOption<T>];
   onChange: (next: T) => void;
   ariaLabel: string;
-  /** Cosmetic — drives the data-attribute used by CSS for distinct
-   *  hue/weight (still uses the brand primary as the active fill). */
+  /** Cosmetic — drives the data-attribute CSS uses for a distinct hue. */
   variant?: 'target' | 'scope';
   testId?: string;
 }) {
-  // Implementation note — the toolbar tests assert that the active
-  // state flips on `fireEvent.mouseDown`, and consumers depend on the
-  // mousedown-driven UX to survive popover focus traps (a popover's
-  // focus trap can swallow click events but not mousedown). That
-  // contract is incompatible with radix ToggleGroup's click-driven
-  // `onValueChange`, so this primitive stays a hand-rolled radiogroup
-  // of `<button role="radio">` elements. Every visual property flows
-  // through `@wellsfargo-starui/design-system` tokens via Tailwind utilities.
+  // ONE button, not two. Target and scope are binary, and rendering each as
+  // a pair of radio segments spent four buttons on two decisions while
+  // leaving both halves permanently on screen competing for the same glance.
+  // The button shows the state it is IN and flips on click; the tooltip
+  // carries both halves so the meaning survives not knowing the icon.
+  const alternateIsActive = options[1].value === value;
+  const active = alternateIsActive ? options[1] : options[0];
+  const next = alternateIsActive ? options[0] : options[1];
+
+  // Highlighted only in the ALTERNATE state. "Editing headers" and
+  // "applying to every column" change what a click does and are worth
+  // noticing; their defaults are the resting case and should stay quiet.
+  const notable = alternateIsActive;
+
+  // mousedown, not click: a popover's focus trap can swallow click but not
+  // mousedown, and the toolbar tests assert on mousedown.
   return (
-    <div
-      role="radiogroup"
-      aria-label={ariaLabel}
-      data-variant={variant}
-      data-testid={testId}
-      className="inline-flex items-center gap-1.5 shrink-0"
-    >
-      {options.map((opt) => {
-        const isActive = opt.value === value;
-        const btn = (
-          <Button
-            key={opt.value}
-            type="button"
-            role="radio"
-            variant="ghost"
-            aria-checked={isActive}
-            aria-label={opt.ariaLabel ?? opt.tooltip}
-            data-active={isActive ? 'true' : undefined}
-            data-on={isActive ? 'true' : undefined}
-            data-testid={opt.testId}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!isActive) onChange(opt.value);
-            }}
-            className={pillClasses('icon')}
-          >
-            {opt.icon}
-          </Button>
-        );
-        return (
-          <TooltipRoot key={opt.value}>
-            <TooltipTrigger asChild>{btn}</TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs px-1.5 py-0.5 text-[10px]">
-              {opt.tooltip}
-            </TooltipContent>
-          </TooltipRoot>
-        );
-      })}
-    </div>
+    <TooltipRoot>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          role="switch"
+          aria-checked={alternateIsActive}
+          aria-label={active.ariaLabel ?? ariaLabel}
+          data-variant={variant}
+          data-value={active.value}
+          data-active={notable ? 'true' : undefined}
+          data-on={notable ? 'true' : undefined}
+          data-testid={testId}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange(next.value);
+          }}
+          className={pillClasses('icon')}
+        >
+          {active.icon}
+          <span className="fx-toggle-label">{active.label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs px-1.5 py-0.5 text-[10px]">
+        {active.tooltip}
+      </TooltipContent>
+    </TooltipRoot>
   );
 }
 

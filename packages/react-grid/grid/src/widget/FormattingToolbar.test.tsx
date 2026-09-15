@@ -290,9 +290,9 @@ describe('FormattingToolbar — target switcher', () => {
       expect((screen.getByRole('button', { name: 'Bold' }) as HTMLButtonElement).disabled).toBe(false),
     );
 
-    // The segmented toggle renders both options at all times. Pick
-    // the HEADER side via mousedown to mirror real-user input.
-    act(() => fireEvent.mouseDown(screen.getByTestId('formatting-target-header')));
+    // Target is one button that flips; it starts on CELLS, so a single
+    // mousedown puts it on HEADERS.
+    act(() => fireEvent.mouseDown(screen.getByTestId('formatting-target-toggle')));
 
     act(() => fireEvent.mouseDown(screen.getByRole('button', { name: 'Bold' })));
 
@@ -305,18 +305,21 @@ describe('FormattingToolbar — ALL + HEADER scope writes to globalHeaderStyle',
   let platform: GridPlatform;
   beforeEach(() => { platform = makePlatform(); });
 
-  // The toolbar now has two explicit segmented toggles instead of an
-  // implicit "header mode → broadcast" shortcut. The user picks
-  // HEADERS + ALL to apply a baseline across every column; writes
-  // land on `globalHeaderStyle` rather than each column's
-  // `headerStyleOverrides`. Per-column rules win over the global
-  // baseline at render time via more-specific CSS selectors.
+  // The toolbar has two explicit toggles instead of an implicit
+  // "header mode → broadcast" shortcut. The user picks HEADERS + ALL to
+  // apply a baseline across every column; writes land on
+  // `globalHeaderStyle` rather than each column's `headerStyleOverrides`.
+  // Per-column rules win over the global baseline at render time via
+  // more-specific CSS selectors.
+  //
+  // Each toggle is ONE button that flips, so one mousedown each moves both
+  // away from their defaults (cells / selected).
   async function switchToHeaderAndAll() {
-    act(() => fireEvent.mouseDown(screen.getByTestId('formatting-target-header')));
-    act(() => fireEvent.mouseDown(screen.getByTestId('formatting-scope-all')));
+    act(() => fireEvent.mouseDown(screen.getByTestId('formatting-target-toggle')));
+    act(() => fireEvent.mouseDown(screen.getByTestId('formatting-scope-toggle')));
     await waitFor(() => {
-      expect(screen.getByTestId('formatting-target-header').getAttribute('data-active')).toBe('true');
-      expect(screen.getByTestId('formatting-scope-all').getAttribute('data-active')).toBe('true');
+      expect(screen.getByTestId('formatting-target-toggle').getAttribute('data-value')).toBe('header');
+      expect(screen.getByTestId('formatting-scope-toggle').getAttribute('data-value')).toBe('all');
     });
   }
 

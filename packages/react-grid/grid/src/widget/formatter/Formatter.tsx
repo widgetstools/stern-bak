@@ -14,6 +14,7 @@
  * these components are pure render functions that take props.
  */
 
+import { X } from 'lucide-react';
 import { ModuleClear } from './modules/ModuleClear';
 import { ModuleContext } from './modules/ModuleContext';
 import { ModuleEditorFilter } from './modules/ModuleEditorFilter';
@@ -21,7 +22,7 @@ import { ModuleFormat } from './modules/ModuleFormat';
 import { ModuleLibrary } from './modules/ModuleLibrary';
 import { ModulePaint } from './modules/ModulePaint';
 import { ModuleType } from './modules/ModuleType';
-import { ModuleDivider, PanelGroup, TitleBar, ToolbarGroup } from './primitives';
+import { ModuleDivider, PanelGroup, TitleBar, ToolbarGroup, pillClasses } from './primitives';
 import './formatter.css';
 import type { FormatterActions, FormatterState } from './state';
 
@@ -31,12 +32,20 @@ export function FormatterToolbar({
   state,
   actions,
   popoutSlot,
+  onHide,
 }: {
   state: FormatterState;
   actions: FormatterActions;
-  /** Optional pop-out trigger button. Hosted here (top-right corner)
-   *  so the layout doesn't have to leave room for it inside the row. */
+  /**
+   * Optional pop-out trigger. Rendered as the LAST GROUP of the ribbon —
+   * it used to be a sibling of the rows, positioned absolutely and centred
+   * on the shell, which on a ribbon wrapped to two lines put it in the gap
+   * between them, beside nothing. As a group it shares the control band and
+   * the hairline with Clear and wraps with everything else.
+   */
   popoutSlot?: React.ReactNode;
+  /** Hides the toolbar. The brush button that opened it brings it back. */
+  onHide?: () => void;
 }) {
   return (
     <div
@@ -82,10 +91,26 @@ export function FormatterToolbar({
           <ToolbarGroup label="Clear" variant="destruct" testId="fmt-group-clear">
             <ModuleClear state={state} actions={actions} orientation="horizontal" />
           </ToolbarGroup>
+          {(popoutSlot || onHide) && (
+            <ToolbarGroup label="View" testId="fmt-group-view">
+              {popoutSlot}
+              {onHide && (
+                <button
+                  type="button"
+                  className={pillClasses('icon')}
+                  title="Hide the formatting toolbar — the brush button in the filters row brings it back"
+                  aria-label="Hide the formatting toolbar"
+                  data-testid="formatting-hide-btn"
+                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onClick={onHide}
+                >
+                  <X size={13} strokeWidth={2.25} aria-hidden />
+                </button>
+              )}
+            </ToolbarGroup>
+          )}
         </div>
       </div>
-
-      {popoutSlot}
     </div>
   );
 }

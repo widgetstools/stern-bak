@@ -392,7 +392,9 @@ function MarketsGridHostInner<TData>({
           data-testid="formatting-toolbar-pinned"
           style={{ flexShrink: 0 }}
         >
-          <FormattingToolbar ref={toolbarRef} />
+          {/* Closing from inside the toolbar is the same action as the brush
+              button in the filters row, which is also what brings it back. */}
+          <FormattingToolbar ref={toolbarRef} onHide={handleToggleStyleToolbar} />
         </div>
       )}
 

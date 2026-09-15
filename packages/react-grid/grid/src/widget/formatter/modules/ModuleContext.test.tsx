@@ -5,13 +5,19 @@ import { ModuleContext } from './ModuleContext';
 import { makeFormatterActions, makeFormatterState } from '../formatterTestHelpers';
 
 describe('ModuleContext', () => {
-  it('renders target and scope toggles', () => {
+  it('renders target and scope as one button each, showing the state they are in', () => {
     render(<ModuleContext state={makeFormatterState()} actions={makeFormatterActions()} />);
-    expect(screen.getByTestId('formatting-target-cell')).toBeInTheDocument();
-    expect(screen.getByTestId('formatting-scope-selected')).toBeInTheDocument();
+    const target = screen.getByTestId('formatting-target-toggle');
+    const scope = screen.getByTestId('formatting-scope-toggle');
+    expect(target).toHaveAttribute('data-value', 'cell');
+    expect(target).toHaveTextContent('Cells');
+    expect(scope).toHaveAttribute('data-value', 'selected');
+    expect(scope).toHaveTextContent('Selected');
+    // Only one button per decision — the other option is not also on screen.
+    expect(screen.queryByText('Headers')).toBeNull();
   });
 
-  it('calls setTarget when header target selected', () => {
+  it('flips target to the other value on click', () => {
     const setTarget = vi.fn();
     render(
       <ModuleContext
@@ -19,8 +25,23 @@ describe('ModuleContext', () => {
         actions={makeFormatterActions({ setTarget })}
       />,
     );
-    fireEvent.mouseDown(screen.getByTestId('formatting-target-header'));
+    fireEvent.mouseDown(screen.getByTestId('formatting-target-toggle'));
     expect(setTarget).toHaveBeenCalledWith('header');
+  });
+
+  it('flips back, and only highlights the non-default state', () => {
+    const setTarget = vi.fn();
+    render(
+      <ModuleContext
+        state={makeFormatterState({ target: 'header' })}
+        actions={makeFormatterActions({ setTarget })}
+      />,
+    );
+    const target = screen.getByTestId('formatting-target-toggle');
+    expect(target).toHaveAttribute('data-value', 'header');
+    expect(target).toHaveAttribute('data-on', 'true');
+    fireEvent.mouseDown(target);
+    expect(setTarget).toHaveBeenCalledWith('cell');
   });
 
   it('inline-renames column when single column selected', async () => {

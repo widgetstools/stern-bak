@@ -9,7 +9,8 @@
  *   Display caps (module eyebrow): JetBrains Mono 10px / 0.18em / 500
  *   Body labels:                   var(--ds-font-sans) 10–11px / 0.04em / 500
  *   Numerics + readouts:           var(--ds-font-mono) / tabular-nums
- *   Accent (active state):         phosphor-teal (--ds-accent-positive) — ring only
+ *   Accent (active state):         brand primary (--primary) — tint + ring,
+ *                                  via `pillClasses`' data-[on=true] branch
  *   Live preview tint:             warm amber (--ds-accent-warning)
  *
  * Naming: `.fx-*` — short, self-namespaced, doesn't collide with the
@@ -85,7 +86,8 @@
   flex-direction: column;
   align-items: stretch;
   gap: 0;
-  padding: 6px 48px 8px 12px;
+  /* No reserved right gutter any more — the pop-out is a ribbon group. */
+  padding: 6px 12px 8px 12px;
   min-height: 56px;
   background: var(--ds-surface-sunken);
   width: 100%;
@@ -694,11 +696,12 @@
 /* ─── Pop-out trigger ──────────────────────────────────────────── */
 
 .fx-popout {
-  position: absolute;
-  /* Vertically centred on the full toolbar (one or two rows). */
-  top: 50%;
-  transform: translateY(-50%);
-  right: 12px;
+  /* Laid out as part of the ribbon's View group, not positioned over it:
+     it used to be absolutely positioned and centred on the whole shell,
+     which on a wrapped ribbon put it in the seam between the two lines.
+     The shell's reserved 48px right gutter went with it. The group's own
+     hairline is the separator now, so the old ::before rule that drew one
+     at `left: -11px` is gone too — it would double up. */
   width: var(--fx-pill-h);
   height: var(--fx-pill-h);
   display: inline-flex;
@@ -710,24 +713,24 @@
   color: var(--fx-toolbar-meta);
   cursor: pointer;
   transition: color 120ms, border-color 120ms, background 120ms;
-  z-index: 3;
-}
-
-.fx-popout::before {
-  content: '';
-  position: absolute;
-  left: -11px;
-  top: 3px;
-  bottom: 3px;
-  width: 1px;
-  background: var(--ds-border-primary);
-  pointer-events: none;
 }
 
 .fx-popout:hover {
   color: var(--ds-primary);
   border-color: var(--ds-primary-ring);
   background: var(--ds-primary-soft);
+}
+
+/* Binary-toggle label — the word beside the icon that says which way the
+   target / scope setting is currently set. Hidden in the vertical panel,
+   where the PanelGroup caption already carries the context. */
+.fx-toggle-label {
+  font-size: var(--fx-label-fs);
+  line-height: 1;
+  white-space: nowrap;
+}
+.fx-shell--vertical .fx-toggle-label {
+  display: none;
 }
 
 /* ─── Vertical-mode body / scroll container ────────────────────── */
