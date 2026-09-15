@@ -42,6 +42,11 @@ const SsrmTickContext = createContext<SsrmTickSubscribe | null>(null);
 
 export const SsrmTickProvider = SsrmTickContext.Provider;
 
+/** The tick subscription when the grid is server-side, `null` under CSRM. */
+export function useSsrmTickSubscribe(): SsrmTickSubscribe | null {
+  return useContext(SsrmTickContext);
+}
+
 /**
  * How often to re-read the counts. Fast enough to feel live on a streaming
  * blotter, slow enough that N pills don't open N views per publish window.
@@ -64,7 +69,7 @@ export function useSsrmFilterCounts(
 ): Record<string, number> {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const countsRef = useRef<Record<string, number>>({});
-  const subscribeTicks = useContext(SsrmTickContext);
+  const subscribeTicks = useSsrmTickSubscribe();
 
   // Restart polling when the pills change, not when the caller happens to hand
   // over a fresh array. Keying on identity would re-arm the interval on every

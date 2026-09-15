@@ -15,7 +15,6 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import type { AppDataLookup } from '@wellsfargo-starui/core';
 import { MarketsGrid, createMarketsGridContainerEventBus, useMarketsGridEventBridge } from '@wellsfargo-starui/grid';
 import type { AdminAction, MarketsGridHandle, MarketsGridProps, StorageAdapterFactory } from '@wellsfargo-starui/grid';
 import { LOGGED_IN_USER_ID } from '@wellsfargo-starui/types';
@@ -38,6 +37,7 @@ import { useBlotterToolbarDate } from './host/useBlotterToolbarDate.js';
 import { useBlotterActiveProvider } from './host/useBlotterActiveProvider.js';
 import { useBlotterDataFeed } from './host/useBlotterDataFeed.js';
 import { useBlotterAdminActions, useBlotterHostApis, type BlotterAdminActions } from './host/useBlotterAdminApis.js';
+import { defaultOnError, useAppDataLookup } from './host/appDataLookup.js';
 
 export type { BlotterHostProps, BlotterHostGridProps } from './host/blotterHostTypes.js';
 
@@ -47,24 +47,9 @@ const INNER_FILL_STYLE = { flex: 1, minHeight: 0, position: 'relative' as const 
 const GRID_FILL_STYLE = { position: 'relative' as const, height: '100%', minHeight: 0 };
 const LOADING_STYLE = { display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, height: '100%', fontSize: 12, color: 'var(--ds-text-muted)' };
 
-function defaultOnError(err: Error): void {
-  console.error('[BlotterHost]', err);
-}
-
 /** The single pre-grid state. */
 function LoadingNote({ message }: { message: string }): ReactNode {
   return <div style={LOADING_STYLE}>{message}</div>;
-}
-
-/** AppDataStore → the platform's `resources.appData()` shape (cell-editor `{{name.key}}` bindings). */
-function useAppDataLookup(store: ReturnType<typeof useAppDataStore>['store']): AppDataLookup {
-  return useMemo<AppDataLookup>(() => ({
-    get: (name, key) => store.get(name, key),
-    listProviders: () => store.list().map((row) => row.name),
-    keysOf: (name) => { const row = store.list().find((r) => r.name === name); return row ? Object.keys(row.values) : []; },
-    subscribe: (fn) => store.subscribe(fn),
-    set: (name, key, value) => { void store.set(name, key, value); },
-  }), [store]);
 }
 
 // ─── Outer host: identity + storage, data plane, layout ─────────────────────

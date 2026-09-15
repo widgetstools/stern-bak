@@ -104,6 +104,15 @@ export interface ColumnDefinition {
   sortable?: boolean;
   resizable?: boolean;
   hide?: boolean;
+  /**
+   * Cell editing for this column. `buildColumnDefs` hands a provider's
+   * `columnDefinitions` to AG Grid as ColDefs verbatim, so this has always
+   * been honoured at runtime — `stomp-ssrm-minimal` has shipped editable
+   * `trader` / `marketValue` / `pnl` / `currentPrice` columns for the paste
+   * and edit-overlay checks. It was simply absent from the type, which made
+   * that app fail `tsc` while working correctly.
+   */
+  editable?: boolean;
   type?: string;
   valueFormatter?: string;
   cellRenderer?: string;

@@ -175,9 +175,23 @@ const ICON_MAP: Record<string, LucideIcon> = {
 
 // ─── SVG string access (for hosts that need an image URL, e.g. the OpenFin dock) ─
 
+/**
+ * The bundled component for an id, or undefined.
+ *
+ * Goes through `hasOwnProperty` rather than a bare `ICON_MAP[id]`: the map is
+ * an object literal, so ids that collide with Object.prototype — 'constructor',
+ * 'toString' — come back truthy from a plain lookup, and the caller then hands
+ * `React.createElement` something that is not a component. Icon ids arrive from
+ * saved dock/widget config, so "no icon by that name" has to answer the same
+ * way for every caller here.
+ */
+function lookupIcon(iconId: string): LucideIcon | undefined {
+  return Object.prototype.hasOwnProperty.call(ICON_MAP, iconId) ? ICON_MAP[iconId] : undefined;
+}
+
 /** True when `iconId` (e.g. "lucide:home") renders inline from the bundled set — no network needed. */
 export function hasInlineLucideIcon(iconId: string): boolean {
-  return Object.prototype.hasOwnProperty.call(ICON_MAP, iconId);
+  return lookupIcon(iconId) !== undefined;
 }
 
 /**
@@ -190,7 +204,7 @@ export function lucideIconToSvg(
   iconId: string,
   opts: { size?: number; color?: string; strokeWidth?: number } = {},
 ): string | null {
-  const Component = ICON_MAP[iconId];
+  const Component = lookupIcon(iconId);
   if (!Component) return null;
   return renderToStaticMarkup(
     React.createElement(Component, {
@@ -227,7 +241,7 @@ export function DynamicIcon({ icon, style, className }: DynamicIconProps) {
   const color = style?.color as string | undefined;
 
   // 1. Lucide icons — render as inline React SVG components
-  const LucideComponent = ICON_MAP[icon];
+  const LucideComponent = lookupIcon(icon);
   if (LucideComponent) {
     return (
       <LucideComponent
