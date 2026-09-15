@@ -170,7 +170,6 @@ npm run app -- stomp-marketsgrid-minimal --no-broker   # skip the auto-started b
 | App | Source port | Tarball port | Notes |
 |---|---|---|---|
 | `basic` | 5194 | 6194 | |
-| `dataprovider-editor` | 5193 | 6193 | |
 | `design-system` | 5310 | 6310 | |
 | `markets-grid-lab` | 5300 | 6300 | |
 | `star-demo` | 5175 | 6175 | starts the broker unless `--no-broker`; supports `--openfin` |

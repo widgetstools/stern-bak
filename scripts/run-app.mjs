@@ -31,7 +31,6 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** broker: 'required' | 'auto' (on unless --no-broker) | 'none' (on with --broker) */
 const APPS = {
   'basic':                     { port: 5194, broker: 'none' },
-  'dataprovider-editor':       { port: 5193, broker: 'none' },
   'design-system':             { port: 5310, broker: 'none' },
   'markets-grid-lab':          { port: 5300, broker: 'none' },
   'star-demo':                 { port: 5175, broker: 'auto', openfin: true },

@@ -8,7 +8,7 @@ This guide walks through building a **fresh React web app** that:
 
 For the full scenario matrix (component choice, hub bootstrap, OpenFin vs browser, mock vs live data), see **[`MARKETSGRID_USAGE_GUIDE.md`](./MARKETSGRID_USAGE_GUIDE.md)**.
 
-It mirrors the patterns used in `apps/markets-ui-react-reference`, `apps/demo-apps/dataprovider-editor-starui-app`, and `apps/demo-apps/mockdata-provider-starui-app`.
+It mirrors the patterns used in `apps/markets-ui-react-reference` and `apps/demo-apps/mockdata-provider-starui-app`.
 
 ---
 
@@ -298,8 +298,6 @@ Workflow:
 3. **Columns** tab — click **Infer fields** (runs `probeStomp` against your broker), then pick **keyColumn** (`positionId` for stomp-view-server positions).
 4. **Save** — persists to IndexedDB via `configStore.save()`.
 
-Reference app: `apps/demo-apps/dataprovider-editor-starui-app`.
-
 ### Option B — Save programmatically on startup
 
 ```typescript
@@ -486,7 +484,6 @@ Checklist:
 | `apps/demos/stomp` | STOMP tutorial with `platformBootstrap.ts` + `DataHubProvider` |
 | `apps/demos/markets-grid-lab` | Feature lab with platform bootstrap pilot |
 | `apps/markets-ui-react-reference` | Production-style OpenFin `HostedMarketsGrid` (legacy bootstrap being migrated) |
-| `apps/demo-apps/dataprovider-editor-starui-app` | `DataProviderEditor` + two `HostedMarketsGrid` panels |
 | `apps/demo-apps/mockdata-provider-starui-app` | Lower-level `useProviderStream` + raw `MarketsGrid` (Mock transport; same hub protocol) |
 | `apps/my-stomp-app` | End-to-end sample from this guide — seeded STOMP provider + `HostedMarketsGrid` + editor |
 | `apps/demos/stomp-view-server` | Local STOMP broker for development |

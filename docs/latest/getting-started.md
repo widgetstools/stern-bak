@@ -152,7 +152,6 @@ npm run app -- markets-grid-lab --tarball     # the generated twin (:6300)
 | `stomp-marketsgrid-minimal` | 5213 | smallest STOMP → grid path |
 | `stomp-ssrm-minimal` | 5214 | two SSRM blotters sharing one WASM cache |
 | `basic` | 5194 | tutorial — minimal grid host |
-| `dataprovider-editor` | 5193 | tutorial — data-provider editor |
 | `stomp-view-server` | 8081 | STOMP fixture server (not a UI) |
 
 Each UI app also has a generated **tarball twin** (same code, consuming

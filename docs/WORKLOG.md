@@ -398,17 +398,17 @@ the coverage-tooling gap remains accepted, not fixed here.
 **`stern-apps` follow-up (non-blocking):** after regenerating
 `tarball/*/package.json`'s generated `overrides` block via
 `npm run make:tarball-apps` (same regeneration this repo's own tooling
-already needed in sub-phase 2), 4 of 6 tarball apps still fail to
-build — all four confirmed via direct source inspection to be genuine,
+already needed in sub-phase 2), 3 of the tarball apps still fail to
+build — all three confirmed via direct source inspection to be genuine,
 hand-written application code, not generated-config staleness:
-`dataprovider-editor`, `markets-grid-lab`, and
-`stomp-marketsgrid-minimal` (`source/*/src/{platformBootstrap,bootstrap}.ts`)
+`markets-grid-lab` and `stomp-marketsgrid-minimal`
+(`source/*/src/{platformBootstrap,bootstrap}.ts`)
 import `@wellsfargo-starui/host-data` directly (one also imports the
 `/assets/data-services-worker.mjs?url` subpath) and need updating to
-`@wellsfargo-starui/data`; the 4th, `star-demo`, is the
+`@wellsfargo-starui/data`; the 3rd, `star-demo`, is the
 already-known sub-phase-2 `host-openfin` finding, not new. `basic` and
 `design-system` build clean, confirming `@wellsfargo-starui/data`
-itself is correctly externally-installable — all four failures are
+itself is correctly externally-installable — all three failures are
 genuine `stern-apps` app code, out of this repo's scope.
 
 **Documentation-staleness note:** `README.md` and
@@ -449,11 +449,11 @@ design spec at
 the coverage-tooling gap remains accepted, not fixed here.
 
 **`stern-apps` follow-up (non-blocking):** after regenerating
-`tarball/*/package.json` via `npm run make:tarball-apps`, 4 of 6 tarball
+`tarball/*/package.json` via `npm run make:tarball-apps`, 3 of the tarball
 apps still fail to build, all confirmed genuine application source:
-`dataprovider-editor` and `markets-grid-lab` (already-known sub-phase-3
-`host-data` finding), `star-demo` (already-known sub-phase-2 `host-openfin`
-finding), and a new one — `stomp-marketsgrid-minimal/src/App.tsx` imports
+`markets-grid-lab` (already-known sub-phase-3 `host-data` finding),
+`star-demo` (already-known sub-phase-2 `host-openfin` finding), and a new
+one — `stomp-marketsgrid-minimal/src/App.tsx` imports
 `@wellsfargo-starui/widgets-react/hosted` directly and needs updating to
 `@wellsfargo-starui/grid/widgets/hosted`. `basic` and `design-system` build
 clean, confirming `@wellsfargo-starui/grid` itself is correctly
@@ -658,8 +658,7 @@ branch); these judged-riskier items remain:
 
 1. **Destructive resets should confirm via `AlertDialog`.** `basic`
    `src/App.tsx` `handleReset` wipes storage with no confirmation (its own
-   HelpSheet advertises "with confirm"); `dataprovider-editor` `src/App.tsx`
-   uses native `window.confirm`. Both should use `AlertDialog` from
+   HelpSheet advertises "with confirm"). It should use `AlertDialog` from
    `@wellsfargo-starui/react`.
 2. **markets-grid-lab gridIds carry `-vN` suffixes** (`lab-alerts-v2`, …,
    11 of 17 catalogs) — conflicts with the no-versioned-names rule and
@@ -672,17 +671,14 @@ branch); these judged-riskier items remain:
    collapse the `{dark, light}` literal pairs; keep hex only where colors are
    written into `.xlsx`. The seeds dir is carved out in `check:ds-tokens`
    with this rationale.
-4. **`dataprovider-editor` `StatsPanel` polls at 1 Hz** while `basic`
-   deliberately teaches the event-driven alternative — two tutorials
-   demonstrating opposite patterns.
-5. **`check:ds-tokens` has 393 pre-existing violations in `packages/`**
+4. **`check:ds-tokens` has 393 pre-existing violations in `packages/`**
    (largest: `widgets-react` container hexes) — a separate effort from the
    apps; the gate is not currently green anywhere.
-6. **`star-demo` `RenameViewTab` imports `Button, Input` from
+5. **`star-demo` `RenameViewTab` imports `Button, Input` from
    `@wellsfargo-starui/grid/customizer` for non-grid UI** — a layering smell
    (should import from `@wellsfargo-starui/react`). The one surviving finding
    from the archived `REFACTOR-platform-tool-views` plan.
-7. **Grid perf risk (from the archived June perf audit, still open):**
+6. **Grid perf risk (from the archived June perf audit, still open):**
    timed/header conditional-styling rules and virtual calculated columns can
    trigger full-grid scans every tick; only partially covered by
    `blotter-performance-roadmap` Tier 4.

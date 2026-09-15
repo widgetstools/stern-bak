@@ -92,7 +92,7 @@ Identity (`appId`, `userId`) is **deployment-wide** — from `public/app-config.
 |---|----------|-----------------|-----|-------------|
 | A | **Minimal browser STOMP blotter** | `HostedMarketsGrid` | Yes | `apps/demos/stomp-marketsgrid-minimal` |
 | B | **Browser STOMP + OpenFin option** | `HostedMarketsGrid` | Yes | `apps/demos/demo-stomp-markets-grid` |
-| C | **Provider editor + dual grids** | `HostedMarketsGrid` ×2 | Yes | `apps/demos/dataprovider-editor` |
+| C | **Provider editor + dual grids** | `HostedMarketsGrid` ×2 | Yes | — (example app removed) |
 | D | **STOMP tutorial (workspace tarballs)** | `HostedMarketsGrid` | Yes | `apps/demos/stomp` |
 | E | **OpenFin workspace blotter** | `HostedMarketsGrid` | Yes | `apps/demos/e2e-openfin-workspace` |
 | F | **OpenFin production reference** | `HostedMarketsGrid` | Yes | `apps/demos/markets-ui-react-reference` |
@@ -168,8 +168,6 @@ Same bootstrap + `HostedMarketsGrid` pattern. May include tabs, help copy, and `
 
 **Goal:** author providers in UI; run two independent grids on one SharedWorker hub.
 
-**Reference:** `apps/demos/dataprovider-editor`
-
 ### Layout pattern
 
 ```
@@ -198,7 +196,7 @@ When `HostedMarketsGrid` sits inside a dock panel (not viewport root), wrap it i
 
 **Reference:** `apps/demos/stomp`, `apps/demos/stomp`
 
-Uses `ensurePlatformReady` + `DataHubProvider` + `PositionsBlotter.tsx` rendering `HostedMarketsGrid`. Good middle ground between minimal and dataprovider-editor complexity.
+Uses `ensurePlatformReady` + `DataHubProvider` + `PositionsBlotter.tsx` rendering `HostedMarketsGrid`. A middle ground between the minimal blotter and a full provider-editor app.
 
 ---
 
@@ -505,12 +503,10 @@ import {
 |-----------|------------|
 | Absolute minimum STOMP grid | `apps/demos/stomp-marketsgrid-minimal` |
 | STOMP + narrative / OpenFin launch | `apps/demos/demo-stomp-markets-grid` |
-| Learn provider editor + dual grids | `apps/demos/dataprovider-editor` |
 | OpenFin view integration test | `apps/demos/e2e-openfin-workspace` |
 | Full OpenFin platform reference | `apps/demos/markets-ui-react-reference` |
 | Grid UI features without hub | `apps/demos/markets-grid-lab` |
 | AppData bootstrap + grid event hooks (mock) | `apps/demos/platform-hooks-demo` |
-| MCP scaffold from scratch | `@wellsfargo-starui/mcp-scaffold` templates `stomp`, `openfin-platform`, `dataprovider-editor` |
 
 ---
 
