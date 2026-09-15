@@ -6,6 +6,7 @@ import {
   staruiOptimizeDeps,
   staruiServerFsAllow,
   reactResolveConfig,
+  SINGLETON_DEDUPE,
   appDirFromConfig,
   staruiHostDataWorkerAssetPlugin,
   staruiEnsureBuiltAssetsPlugin,
@@ -41,7 +42,7 @@ export function staruiConsumerViteConfig(appDir, opts = {}) {
       ],
     },
     resolve: {
-      dedupe: reactResolve.dedupe,
+      dedupe: [...reactResolve.dedupe, ...SINGLETON_DEDUPE],
       alias: [stompJsEsmAlias(appDir), ...reactResolve.alias, ...staruiViteAliases(appDir)],
       extensions: ['.mts', '.ts', '.tsx', '.mjs', '.js', '.jsx', '.json'],
     },

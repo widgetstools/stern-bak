@@ -24,6 +24,31 @@ export function monoRootFromApp(appDir) {
 }
 
 /**
+ * Packages that MUST resolve to exactly one copy in an app's module graph.
+ *
+ * This repo has two npm install roots — the platform's and `apps/` — and no
+ * committed lockfiles, so a caret range installed at two different times
+ * resolves to two different patches. An app then bundles both, because its own
+ * copy comes from `apps/node_modules` while the platform's comes in through
+ * the `@wellsfargo-starui/*` alias layer.
+ *
+ * `dexie` fails loudly when that happens: it keeps a module-level registry and
+ * throws "Two different versions of Dexie loaded in the same app" on the second
+ * import. Observed live as 4.4.4 (platform root, installed earlier) against
+ * 4.4.6 (`apps/`), both pulled in by `@openfin/workspace-platform`, which asks
+ * for the same `^4.0.11` from both — so this is install-time drift, not a
+ * dependency conflict, and pinning one side would only postpone it.
+ *
+ * Note this bit DEV only. `vite build` already collapsed the two into one copy
+ * per bundle; the dev optimizer pre-bundles per resolved path, so the two
+ * became two chunks in one realm.
+ *
+ * React is handled separately below — it needs aliasing as well as deduping,
+ * because its own transitives resolve it too.
+ */
+export const SINGLETON_DEDUPE = ['dexie'];
+
+/**
  * Force a single React + react-dom instance for apps that alias @wellsfargo-starui/*
  * tarball sources.
  */
