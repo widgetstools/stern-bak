@@ -11,6 +11,7 @@ import {
   migrateRegistryToV2,
   readHostEnv,
   resolveHostUrl,
+  appendLaunchIdentityParams,
   REGISTRY_CONFIG_VERSION,
   type ConfigScope,
   type RegistryEditorConfig,
@@ -195,18 +196,6 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
 
   const testComponent = useCallback(async (entry: RegistryEntry) => {
     try {
-      // Normalise host-relative paths (e.g. "/blotters/marketsgrid")
-      // against the editor's own origin before launching. OpenFin needs
-      // an absolute URL; `window.open` doesn't, but normalising in both
-      // branches keeps user behaviour consistent across the two paths.
-      const resolvedUrl = resolveHostUrl(entry.hostUrl);
-
-      const openFinApi = (window as any).fin;
-      if (typeof openFinApi === "undefined") {
-        window.open(resolvedUrl, "_blank");
-        return;
-      }
-
       // The spawned view operates DIRECTLY on the template row: the
       // template configId IS the `instanceId`, so a save lands on
       // `${componentType}-${componentSubType}` (the canonical template
@@ -226,6 +215,32 @@ export function useRegistryEditor(opts: UseRegistryEditorOptions = {}): UseRegis
         entry.componentSubType,
       );
       const instanceId = templateId;
+
+      // Normalise host-relative paths (e.g. "/blotters/marketsgrid")
+      // against the editor's own origin before launching. OpenFin needs
+      // an absolute URL; `window.open` doesn't, but normalising in both
+      // branches keeps user behaviour consistent across the two paths.
+      //
+      // The identity params are what `launchRegisteredComponent` stamps
+      // too, and leaving them off here is not a cosmetic difference.
+      // `customData` reaches a view ASYNCHRONOUSLY (`useHostedIdentity`
+      // awaits `fin.me.getOptions()` with a timeout), so a component that
+      // reads its id straight from the URL — the synchronous path
+      // `appendLaunchIdentityParams` exists for — saw nothing at all when
+      // launched from here, and fell back to an empty gridId. Its grid then
+      // mounted against no profile row, so the layout dropdown came up
+      // empty. In the browser branch below it is worse: `window.open`
+      // carries no customData at all, so the URL is the ONLY channel.
+      const resolvedUrl = appendLaunchIdentityParams(
+        resolveHostUrl(entry.hostUrl),
+        instanceId,
+      );
+
+      const openFinApi = (window as any).fin;
+      if (typeof openFinApi === "undefined") {
+        window.open(resolvedUrl, "_blank");
+        return;
+      }
 
       const customData = {
         instanceId,

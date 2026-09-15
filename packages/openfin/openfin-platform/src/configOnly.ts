@@ -125,7 +125,7 @@ export {
 } from './registryMigrate';
 
 // ── Host URL normaliser (pure DOM, no workspace-platform) ───────────
-export { resolveHostUrl } from './hostUrl';
+export { resolveHostUrl, appendLaunchIdentityParams } from './hostUrl';
 
 // ── Manifest-driven config service settings ─────────────────────────
 // Read by both the platform Provider (`initWorkspace`) and view-route

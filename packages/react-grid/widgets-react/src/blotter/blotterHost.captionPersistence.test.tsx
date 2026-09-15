@@ -124,3 +124,33 @@ describe('BlotterHost — caption persistence', () => {
     });
   });
 });
+
+/**
+ * `gridId` is the profile-storage key, and a host that reads its id out of the
+ * launch URL gets an empty one when the launcher did not stamp it — which is
+ * what a "Configure Component" launch from Workspace Setup used to do. Keying
+ * profiles to `''` let the grid mount while its layout dropdown came up blank,
+ * next to a sibling with a hardcoded gridId that looked fine. Under the
+ * registry model the view's instanceId IS the template id, so the resolved
+ * identity is what the caller meant.
+ */
+describe('BlotterHost — gridId fallback', () => {
+  it('keys storage on the resolved instanceId when the host passes no gridId', async () => {
+    const storage = vi.fn(() => makeAdapter(null)) as never;
+    render(<BlotterHost {...baseProps} gridId="" storage={storage} />);
+
+    await waitFor(() => { expect(storage).toHaveBeenCalled(); });
+    expect((storage as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      .toMatchObject({ gridId: 'inst-1', instanceId: 'inst-1' });
+  });
+
+  it('prefers an explicit gridId over the instanceId', async () => {
+    const storage = vi.fn(() => makeAdapter(null)) as never;
+    render(<BlotterHost {...baseProps} gridId="g1" storage={storage} />);
+
+    await waitFor(() => { expect(storage).toHaveBeenCalled(); });
+    // A host CAN legitimately scope several grids to one view identity.
+    expect((storage as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0])
+      .toMatchObject({ gridId: 'g1', instanceId: 'inst-1' });
+  });
+});

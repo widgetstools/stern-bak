@@ -115,7 +115,16 @@ interface BlotterBodyProps<TData extends Record<string, unknown>> extends Omit<B
 }
 
 function useBlotterBody<TData extends Record<string, unknown>>(p: BlotterBodyProps<TData>) {
-  const { instanceId, appId, userId, storage, view, onRowIdFieldChange, historicalDateAppDataRef, onEditProvider, onOpenConfigBrowser, defaultLiveProviderId, defaultHistoricalProviderId, gridEventHandlers, handlerMeta, gridId } = p;
+  const { instanceId, appId, userId, storage, view, onRowIdFieldChange, historicalDateAppDataRef, onEditProvider, onOpenConfigBrowser, defaultLiveProviderId, defaultHistoricalProviderId, gridEventHandlers, handlerMeta } = p;
+  // `gridId` is the profile-storage key. A host that cannot name one before it
+  // has an identity — it reads the id out of the launch URL, which arrives
+  // empty when the launcher did not stamp it — would otherwise key every
+  // profile to `''`: the grid mounts, ProfileManager creates its Default
+  // against the empty row, and the layout dropdown comes up blank while a
+  // sibling component with a hardcoded gridId looks fine. Under the registry
+  // model the two ARE the same value (the view's instanceId IS the template
+  // id), so the resolved identity is what the caller meant.
+  const gridId = p.gridId || instanceId;
   const onError = p.onError ?? defaultOnError;
   const containerEventBus = useMemo(() => createMarketsGridContainerEventBus(), []);
   const [gridHandle, setGridHandle] = useState<MarketsGridHandle | null>(null);

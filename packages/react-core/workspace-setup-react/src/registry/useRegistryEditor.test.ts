@@ -306,15 +306,67 @@ describe('useRegistryEditor — reload and reset', () => {
 });
 
 describe('useRegistryEditor — test launch', () => {
-  it('opens a browser tab at the resolved URL outside OpenFin', async () => {
+  it('opens a browser tab at the resolved URL, carrying the launch identity', async () => {
     const open = vi.fn();
     vi.stubGlobal('open', open);
     const { result } = await mount();
 
     await act(async () => { await result.current.testComponent(entry()); });
 
-    // Host-relative paths are normalised against the editor's own origin.
-    expect(open).toHaveBeenCalledWith(`${window.location.origin}/blotters/marketsgrid`, '_blank');
+    // Host-relative paths are normalised against the editor's own origin, and
+    // the identity params ride along: `window.open` carries no customData, so
+    // out here the URL is the ONLY channel the component has for its id.
+    const [url, target] = open.mock.calls[0];
+    expect(target).toBe('_blank');
+    const parsed = new URL(url as string);
+    expect(parsed.origin + parsed.pathname).toBe(`${window.location.origin}/blotters/marketsgrid`);
+    expect(parsed.searchParams.get('instanceId')).toBe('grid-credit');
+    expect(parsed.searchParams.get('id')).toBe('grid-credit');
+  });
+
+  /**
+   * The dock launch (`launchRegisteredComponent`) stamps these params; this
+   * path did not, and the difference was not cosmetic. `customData` reaches a
+   * view ASYNCHRONOUSLY, so a component reading its id straight from the URL
+   * — the synchronous path `appendLaunchIdentityParams` exists for — got
+   * nothing from a Configure Component launch and fell back to an empty
+   * gridId. Its grid then mounted against no profile row and the layout
+   * dropdown came up empty, while a component with a hardcoded gridId looked
+   * fine. The two launch paths have to agree.
+   */
+  it('stamps the same launch identity onto the view URL as a dock launch', async () => {
+    const createView = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('fin', {
+      Platform: { getCurrentSync: () => ({ createView }) },
+      InterApplicationBus: { publish: vi.fn() },
+    });
+    const { result } = await mount();
+
+    await act(async () => { await result.current.testComponent(entry()); });
+
+    const [{ url, customData }] = createView.mock.calls[0];
+    const parsed = new URL(url as string);
+    expect(parsed.searchParams.get('instanceId')).toBe('grid-credit');
+    expect(parsed.searchParams.get('id')).toBe('grid-credit');
+    // URL and customData must name the SAME row — they are two channels to
+    // one template, not two identities.
+    expect(customData.instanceId).toBe(parsed.searchParams.get('instanceId'));
+    expect(customData.templateId).toBe(parsed.searchParams.get('instanceId'));
+  });
+
+  it('derives the stamped id when the entry carries no configId', async () => {
+    const createView = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('fin', {
+      Platform: { getCurrentSync: () => ({ createView }) },
+      InterApplicationBus: { publish: vi.fn() },
+    });
+    const { result } = await mount();
+
+    await act(async () => { await result.current.testComponent(entry({ configId: '' })); });
+
+    const [{ url }] = createView.mock.calls[0];
+    // `${componentType}-${componentSubType}`, lowercased.
+    expect(new URL(url as string).searchParams.get('instanceId')).toBe('grid-credit');
   });
 
   it('creates a view targeting the template row inside OpenFin', async () => {
@@ -384,7 +436,11 @@ describe('useRegistryEditor — test launch', () => {
 
     expect(createView).not.toHaveBeenCalled();
     const [{ url, customData }] = createWindow.mock.calls[0];
-    expect(url).toBe(`${window.location.origin}/blotters/marketsgrid`);
+    // Same launch identity as the view branch — a window is a different
+    // surface, not a different component.
+    const parsed = new URL(url as string);
+    expect(parsed.origin + parsed.pathname).toBe(`${window.location.origin}/blotters/marketsgrid`);
+    expect(parsed.searchParams.get('instanceId')).toBe('grid-credit');
     expect(customData.templateId).toBe('grid-credit');
     expect(customData.isTemplate).toBe(true);
   });
