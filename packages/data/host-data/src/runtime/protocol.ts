@@ -35,7 +35,7 @@ export interface AppDataRow {
 // ─── Provider stats ─────────────────────────────────────────────────
 
 export interface ProviderStats {
-  /** Live row count = cache.size. */
+  /** Live row count — `cache.size` under CSRM, the engine's `cacheRows` under SSRM. */
   rowCount: number;
   /** Cumulative bytes received from upstream (raw frame bodies). */
   byteCount: number;
@@ -46,8 +46,19 @@ export interface ProviderStats {
    * rowCount. This is the number `projectFields` shrinks — `byteCount`
    * measures upstream wire bytes, which client-side projection cannot
    * reduce.
+   *
+   * UNDEFINED for SSRM: the rows live in the WASM engine, which reports row
+   * and view counts but no byte figure at all, so there is nothing honest to
+   * put here. Estimating it from a JSON sample would also misrepresent a
+   * columnar Rust store that keeps numbers as native f64.
    */
-  cacheBytes: number;
+  cacheBytes?: number;
+  /**
+   * SSRM only: Rust sessions subscribed to this datasource, and views open
+   * across the engine. Undefined for CSRM, where there is no engine.
+   */
+  engineSubscribers?: number;
+  engineOpenViews?: number;
   /** Cumulative messages parsed. */
   msgCount: number;
   /** Sliding-window upstream throughput (last 5s). */

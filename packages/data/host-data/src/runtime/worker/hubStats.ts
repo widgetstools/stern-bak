@@ -42,8 +42,32 @@ export function cacheFootprintBytes(slot: ProviderSlot): number {
   }
 }
 
-/** Point-in-time `ProviderStats` snapshot for one slot. */
-export function snapshotProviderStats(slot: ProviderSlot, subscriberCount: number): ProviderStats {
+/**
+ * Engine-side counts for an SSRM provider, supplied by the caller (the hub
+ * owns the WASM plane; this module must not reach for it).
+ */
+export interface EngineStats {
+  cacheRows: number;
+  subscribers: number;
+  openViews: number;
+}
+
+/**
+ * Point-in-time `ProviderStats` snapshot for one slot.
+ *
+ * `engine` is the WASM hub's view of this provider, present only for SSRM.
+ * Under SSRM the rows go into the engine, not `slot.cache`, so the cache
+ * figures below are legitimately zero and the Diagnostics tab reported
+ * "0 rows / 0 B". When engine stats are supplied, its row count is the real
+ * one and `cacheBytes` goes UNDEFINED rather than 0 — the engine reports
+ * counts, never bytes (verified against the vendored WASM `mem_stats()`), and
+ * a 0 there reads as "measured, and it is empty" instead of "not measurable".
+ */
+export function snapshotProviderStats(
+  slot: ProviderSlot,
+  subscriberCount: number,
+  engine?: EngineStats | null,
+): ProviderStats {
   const sumBuckets = slot.msgsByBucket.reduce((a, b) => a + b, 0);
   const msgPerSec = sumBuckets / slot.msgsByBucket.length;
   const pubSumBuckets = slot.pubsByBucket.reduce((a, b) => a + b, 0);
@@ -52,9 +76,11 @@ export function snapshotProviderStats(slot: ProviderSlot, subscriberCount: numbe
   const minWindow = Math.max(1, Math.min(slot.publishWindowSeconds, MIN_WINDOW));
   const publishPerMin = (rollingMinTotal / minWindow) * 60;
   return {
-    rowCount: slot.cache.size,
+    rowCount: engine ? engine.cacheRows : slot.cache.size,
     byteCount: slot.byteCount,
-    cacheBytes: cacheFootprintBytes(slot),
+    cacheBytes: engine ? undefined : cacheFootprintBytes(slot),
+    engineSubscribers: engine?.subscribers,
+    engineOpenViews: engine?.openViews,
     msgCount: slot.msgCount,
     msgPerSec,
     snapshotFetchMs: slot.snapshotFetchMs,

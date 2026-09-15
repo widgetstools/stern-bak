@@ -817,3 +817,64 @@ describe('publishWindowMsOf', () => {
     expect(publishWindowMsOf({ publishWindowMs: 250 } as StompSsrmProviderConfig)).toBe(250);
   });
 });
+
+/**
+ * `engineStats` is what fills the Diagnostics tab's "Rows loaded" for an SSRM
+ * provider — the rows live here, not in the hub's per-slot cache. The blob
+ * shape is pinned against the vendored WASM build, whose `mem_stats()` answers:
+ *
+ *   {"datasourceCount":1,"openViews":0,"writes":0,"bundleVersion":1,
+ *    "datasources":[{"datasourceId":"p1","schemaRef":"p1@v1",
+ *                    "subscribers":0,"cacheRows":10000}]}
+ */
+describe('SsrmWasmPlane.engineStats', () => {
+  const blob = JSON.stringify({
+    datasourceCount: 2,
+    openViews: 4,
+    writes: 0,
+    bundleVersion: 1,
+    datasources: [
+      { datasourceId: 'p1', schemaRef: 'p1@v1', subscribers: 2, cacheRows: 10_000 },
+      { datasourceId: 'p2', schemaRef: 'p2@v1', subscribers: 1, cacheRows: 7 },
+    ],
+  });
+
+  /** A booted plane whose engine answers `stats` from `mem_stats()`. */
+  async function bootedPlane(stats: string) {
+    const hub = fakeHub();
+    hub.mem_stats = () => stats;
+    const plane = new SsrmWasmPlane(() => hub);
+    await plane.boot('p1', cfg as never);
+    return plane;
+  }
+
+  it('picks the row and subscriber counts for the asked-for datasource', async () => {
+    const plane = await bootedPlane(blob);
+    expect(plane.engineStats('p1')).toEqual({ cacheRows: 10_000, subscribers: 2, openViews: 4 });
+    expect(plane.engineStats('p2')).toEqual({ cacheRows: 7, subscribers: 1, openViews: 4 });
+  });
+
+  it('answers null for a datasource the engine does not know', async () => {
+    const plane = await bootedPlane(blob);
+    expect(plane.engineStats('not-booted')).toBeNull();
+  });
+
+  it('answers null before the WASM hub has booted', () => {
+    // `host.current` is null until something forces the load, so the stats
+    // sampler asking early gets null rather than triggering a WASM boot.
+    const plane = new SsrmWasmPlane(() => { throw new Error('unused'); });
+    expect(plane.engineStats('p1')).toBeNull();
+  });
+
+  it('survives a malformed or empty blob rather than throwing into the sampler', async () => {
+    for (const bad of ['', 'not json', '{}', '{"datasources":null}']) {
+      const plane = await bootedPlane(bad);
+      expect(plane.engineStats('p1')).toBeNull();
+    }
+  });
+
+  it('defaults a datasource row that omits its counts', async () => {
+    const plane = await bootedPlane(JSON.stringify({ datasources: [{ datasourceId: 'p1' }] }));
+    expect(plane.engineStats('p1')).toEqual({ cacheRows: 0, subscribers: 0, openViews: 0 });
+  });
+});

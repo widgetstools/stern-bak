@@ -58,7 +58,8 @@ import { restartClickLatency, restartExtrasEqual } from './hubHelpers.js';
 import { newReplayCache } from './replayCache.js';
 import { ReplayScheduler } from './ReplayScheduler.js';
 import { yieldToMacrotask } from './yieldToMacrotask.js';
-import { snapshotProviderStats } from './hubStats.js';
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
+import { snapshotProviderStats, type EngineStats } from './hubStats.js';
 import { applyProviderEmit, type ProviderEmitContext } from './providerEmit.js';
 import { buildIntrospectSnapshot } from './hubIntrospect.js';
 import {
@@ -128,6 +129,7 @@ export class SharedWorkerDataServicesHub {
         setTimer: this.setTimer,
         clearTimer: this.clearTimer,
         pruneDeadStatsListeners: (providerId, dead) => this.pruneDeadStatsListeners(providerId, dead),
+        engineStats: (providerId) => this.engineStatsFor(providerId),
       },
       opts.statsIntervalMs ?? 1000,
     );
@@ -699,7 +701,11 @@ export class SharedWorkerDataServicesHub {
       port.postMessage({
         subId,
         kind: 'stats',
-        stats: snapshotProviderStats(slot, this.subscribers.dataCount(providerId)),
+        stats: snapshotProviderStats(
+          slot,
+          this.subscribers.dataCount(providerId),
+          this.engineStatsFor(providerId),
+        ),
       } satisfies Event);
     }
 
@@ -731,6 +737,20 @@ export class SharedWorkerDataServicesHub {
     if (deadSubIds.length === 0) return;
     this.subscribers.pruneDead(providerId, 'data', deadSubIds);
     this.maybeStopProviderIfIdle(providerId);
+  }
+
+  /**
+   * Engine counts for an SSRM provider, else null.
+   *
+   * Gated on the provider TYPE rather than on whether the engine happens to
+   * know the id: a CSRM slot must keep reporting its own cache figures, and
+   * `HubSsrmRpc.engineStats` answers null for anything the WASM hub has not
+   * booted anyway.
+   */
+  private engineStatsFor(providerId: string): EngineStats | null {
+    const slot = this.providers.get(providerId);
+    if (!slot || !isSsrmProviderType(slot.cfg.providerType)) return null;
+    return this.ssrm.engineStats(providerId);
   }
 
   private pruneDeadStatsListeners(providerId: string, deadSubIds: readonly string[]): void {

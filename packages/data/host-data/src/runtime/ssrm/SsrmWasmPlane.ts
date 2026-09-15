@@ -239,6 +239,16 @@ function bootJson(providerId: string, cfg: SsrmProviderConfig): string {
   });
 }
 
+/** Engine-side per-provider counts, read from the WASM hub's `mem_stats()`. */
+export interface SsrmEngineStats {
+  /** Rows the engine holds for this datasource — the SSRM "rows loaded". */
+  cacheRows: number;
+  /** Rust sessions subscribed to this datasource. */
+  subscribers: number;
+  /** Views open across the whole engine (not per-datasource). */
+  openViews: number;
+}
+
 /**
  * Per-provider façade over one shared {@link RustHubLike}.
  * One WASM cache per `providerId`; each subscriber is a rust session.
@@ -845,6 +855,41 @@ export class SsrmWasmPlane {
     const hub = this.host.current;
     if (!hub) return null;
     return parseJson(hub.mem_stats(), null);
+  }
+
+  /**
+   * Engine-side diagnostics for ONE provider, or null when the WASM hub has
+   * not booted or does not know this datasource.
+   *
+   * Under SSRM the rows live in the engine, not in the hub's per-slot Map, so
+   * `slot.cache.size` — which is what `snapshotProviderStats` reads — is
+   * legitimately 0 and the Diagnostics tab showed "0 rows". This is where the
+   * real number comes from.
+   *
+   * `mem_stats()` is the engine's own diagnostics blob. Verified against the
+   * vendored WASM build rather than assumed; it answers, per datasource:
+   *
+   *   {"datasourceCount":1,"openViews":0,"writes":0,"bundleVersion":1,
+   *    "datasources":[{"datasourceId":"p1","schemaRef":"p1@v1",
+   *                    "subscribers":0,"cacheRows":10000}]}
+   *
+   * Note what is NOT there: any byte figure. The engine reports row and view
+   * COUNTS only, so a serialized cache size cannot be derived from it — see
+   * `ProviderStats.cacheBytes`.
+   */
+  engineStats(providerId: string): SsrmEngineStats | null {
+    const stats = this.memStats() as {
+      openViews?: unknown;
+      datasources?: Array<Record<string, unknown>>;
+    } | null;
+    if (!stats || !Array.isArray(stats.datasources)) return null;
+    const row = stats.datasources.find((d) => d.datasourceId === providerId);
+    if (!row) return null;
+    return {
+      cacheRows: typeof row.cacheRows === 'number' ? row.cacheRows : 0,
+      subscribers: typeof row.subscribers === 'number' ? row.subscribers : 0,
+      openViews: typeof stats.openViews === 'number' ? stats.openViews : 0,
+    };
   }
 
   /** `openView` + `readWindow` for one spec — shared by rows, counts and value lists. */

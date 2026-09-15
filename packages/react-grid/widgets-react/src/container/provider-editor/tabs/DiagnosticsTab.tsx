@@ -10,6 +10,7 @@
  * connection in the new data plane — providers never auto-detach.
  */
 
+import { isSsrmProviderType } from '@wellsfargo-starui/types';
 import { useState } from 'react';
 import { Badge, Button, Separator } from '@wellsfargo-starui/react';
 import { Loader2, RefreshCw, Square } from 'lucide-react';
@@ -42,6 +43,9 @@ function Live({ providerId, cfg }: { providerId: string; cfg: ProviderConfig | n
   const [statusBanner, setStatusBanner] = useState<{ status: ProviderStatus; error?: string } | null>(null);
 
   useProviderStats(providerId, { onStats: setStats });
+  // SSRM keeps its rows in the WASM engine rather than the worker's per-slot
+  // cache, so the Snapshot card reports engine counts instead of cache bytes.
+  const isSsrm = isSsrmProviderType(cfg?.providerType);
 
   const onRestart = () => {
     // Send a no-op data attach with __refresh; the Hub forwards into
@@ -95,11 +99,25 @@ function Live({ providerId, cfg }: { providerId: string; cfg: ProviderConfig | n
             label="Fetch time"
             value={fmtSnapshotFetch(stats?.snapshotFetchMs, status)}
           />
+          {/* Under SSRM this is the ENGINE's row count (`mem_stats().
+              datasources[].cacheRows`), not the worker cache — the rows never
+              enter that cache, which is why this read 0 before. */}
           <Stat label="Rows loaded" value={fmtInt(stats?.rowCount)} />
-          {/* Serialized size of the worker cache — the number field
-              projection shrinks ("Bytes received" below is upstream
-              wire traffic, which client-side pruning can't reduce). */}
-          <Stat label="Cache size (serialized)" value={fmtBytes(stats?.cacheBytes)} />
+          {isSsrm ? (
+            <>
+              {/* The engine reports row and view COUNTS, never a byte figure,
+                  so there is no serialized cache size to show here. These two
+                  are what it does report — an estimate from a JSON sample
+                  would also misdescribe a columnar store holding native f64. */}
+              <Stat label="Engine subscribers" value={fmtInt(stats?.engineSubscribers)} />
+              <Stat label="Engine views open" value={fmtInt(stats?.engineOpenViews)} />
+            </>
+          ) : (
+            /* Serialized size of the worker cache — the number field
+               projection shrinks ("Bytes received" below is upstream
+               wire traffic, which client-side pruning can't reduce). */
+            <Stat label="Cache size (serialized)" value={fmtBytes(stats?.cacheBytes)} />
+          )}
         </Card>
 
         <Card title="Connection latency">

@@ -25,7 +25,7 @@ import type {
   SsrmWatchPredicateWireRequest,
 } from '../protocol.js';
 import type { RustHubFactory } from '../ssrm/RustHubHost.js';
-import { SsrmWasmPlane, publishWindowMsOf } from '../ssrm/SsrmWasmPlane.js';
+import { SsrmWasmPlane, publishWindowMsOf, type SsrmEngineStats } from '../ssrm/SsrmWasmPlane.js';
 import type { SsrmGetRowsResult } from '../ssrm/ssrmTypes.js';
 import { SsrmSessionWindows } from './SsrmSessionWindows.js';
 import type { HubSsrmIntrospect, SsrmRpcTiming } from '../protocol.js';
@@ -70,6 +70,15 @@ export class HubSsrmRpc {
     createRustHub?: RustHubFactory,
   ) {
     this.plane = new SsrmWasmPlane(createRustHub);
+  }
+
+  /**
+   * Engine-side counts for one provider, for the Diagnostics tab. Null when
+   * the WASM hub has not booted or does not know this datasource — the caller
+   * then reports the CSRM cache figures, which is correct for a CSRM slot.
+   */
+  engineStats(providerId: string): SsrmEngineStats | null {
+    return this.plane.engineStats(providerId);
   }
 
   /** Dispatch an `ssrm-*` request. Returns false for any other kind. */

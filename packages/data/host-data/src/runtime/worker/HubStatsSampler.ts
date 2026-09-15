@@ -10,7 +10,7 @@
 
 import type { Event, ProviderStats } from '../protocol.js';
 import type { PortLike, ProviderSlot, StatsListener } from './hubTypes.js';
-import { rotateStatsBuckets, snapshotProviderStats, zeroedStats } from './hubStats.js';
+import { rotateStatsBuckets, snapshotProviderStats, zeroedStats, type EngineStats } from './hubStats.js';
 import type { SubscriberRegistry } from './SubscriberRegistry.js';
 
 /** What the hub lends the sampler. */
@@ -21,6 +21,12 @@ export interface StatsSamplerContext {
   clearTimer(handle: unknown): void;
   /** Drop stats listeners whose port threw during fan-out. */
   pruneDeadStatsListeners(providerId: string, deadSubIds: readonly string[]): void;
+  /**
+   * Engine-side counts for an SSRM provider, or null for a CSRM one. The hub
+   * owns the WASM plane; the sampler only asks. Without this the SSRM rows —
+   * which live in the engine, not `slot.cache` — sampled as 0.
+   */
+  engineStats?(providerId: string): EngineStats | null;
 }
 
 export class HubStatsSampler {
@@ -54,7 +60,11 @@ export class HubStatsSampler {
     const listeners = this.ctx.subscribers.statsListeners(providerId);
     const slot = this.ctx.providers.get(providerId);
     if (!listeners || !slot) return;
-    const stats = snapshotProviderStats(slot, this.ctx.subscribers.dataCount(providerId));
+    const stats = snapshotProviderStats(
+      slot,
+      this.ctx.subscribers.dataCount(providerId),
+      this.ctx.engineStats?.(providerId),
+    );
     this.post(providerId, listeners, stats);
   }
 
